@@ -5,7 +5,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * True when any applied transcript entry carries a `clarify` `data-agh-event` part. Used as the wake
+ * True when any applied transcript entry carries a `clarify` `data-compozy-event` part. Used as the wake
  * signal to invalidate the live clarifications projection — the transcript event is evidence only;
  * pending truth is always reread from the exact-authority GET.
  */
@@ -20,7 +20,7 @@ export function entriesContainClarifyEvent(entries: readonly unknown[] | undefin
     for (const part of entry.message.parts) {
       if (
         isRecord(part) &&
-        part.type === "data-agh-event" &&
+        part.type === "data-compozy-event" &&
         isRecord(part.data) &&
         part.data.type === "clarify"
       ) {
@@ -77,7 +77,7 @@ export function terminalFailureMessage(
     role: "assistant",
     parts: [
       {
-        type: "data-agh-event",
+        type: "data-compozy-event",
         data: {
           type: "error",
           session_id: sessionID,

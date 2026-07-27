@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/session"
@@ -434,7 +434,7 @@ func newTestHandlers(
 	t *testing.T,
 	manager core.SessionManager,
 	observer core.Observer,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(
@@ -455,7 +455,7 @@ func newTestHandlersWithBridges(
 	observer core.Observer,
 	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 	return newTestHandlersWithAutomationBridgesTasksAndWorkspace(
@@ -478,7 +478,7 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 	tasks core.TaskService,
 	bridges core.BridgeService,
 	workspaces core.WorkspaceService,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
@@ -504,7 +504,7 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval:   5 * time.Millisecond,
-		agentLoader:    aghconfig.LoadAgentDef,
+		agentLoader:    compozyconfig.LoadAgentDef,
 		httpPort:       cfg.HTTP.Port,
 	})
 }
@@ -567,7 +567,7 @@ func newTestHandlersWithWorkspace(
 	manager core.SessionManager,
 	observer core.Observer,
 	workspaces core.WorkspaceService,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
@@ -579,7 +579,7 @@ func newTestHandlersWithResources(
 	manager core.SessionManager,
 	observer core.Observer,
 	resources core.ResourceService,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
@@ -602,7 +602,7 @@ func newTestHandlersWithResources(
 		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval:   5 * time.Millisecond,
-		agentLoader:    aghconfig.LoadAgentDef,
+		agentLoader:    compozyconfig.LoadAgentDef,
 		httpPort:       cfg.HTTP.Port,
 	})
 }
@@ -636,7 +636,7 @@ func newTestHandlersWithResourcesAndAuth(
 		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval:   5 * time.Millisecond,
-		agentLoader:    aghconfig.LoadAgentDef,
+		agentLoader:    compozyconfig.LoadAgentDef,
 		httpPort:       cfg.HTTP.Port,
 		resourceAuth:   append([]gin.HandlerFunc(nil), auth...),
 	})
@@ -648,7 +648,7 @@ func newTestHandlersWithSettingsAndExtensions(
 	settings core.SettingsService,
 	restart core.SettingsRestartController,
 	extensions ExtensionService,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
 
@@ -672,7 +672,7 @@ func newTestHandlersWithSettingsAndExtensions(
 		startedAt:       time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:             func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval:    5 * time.Millisecond,
-		agentLoader:     aghconfig.LoadAgentDef,
+		agentLoader:     compozyconfig.LoadAgentDef,
 		httpPort:        cfg.HTTP.Port,
 	})
 }
@@ -706,16 +706,16 @@ func mustStaticFS(t *testing.T) fs.FS {
 	return staticFS.fs
 }
 
-func newTestHomePaths(t *testing.T) aghconfig.HomePaths {
+func newTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 	return testutil.NewTestHomePaths(t)
 }
 
-func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+func testConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
 	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
 
-func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
+func writeAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string) {
 	t.Helper()
 	testutil.WriteAgentDef(t, homePaths, name)
 }
@@ -828,7 +828,7 @@ func settingsTestCollectionEnvelope(
 	case settingspkg.CollectionSandboxes:
 		envelope.Sandboxes = []settingspkg.SandboxItem{{
 			Name:    "demo",
-			Profile: aghconfig.SandboxProfile{Backend: "local"},
+			Profile: compozyconfig.SandboxProfile{Backend: "local"},
 		}}
 	case settingspkg.CollectionHooks:
 		envelope.Hooks = []settingspkg.HookItem{}

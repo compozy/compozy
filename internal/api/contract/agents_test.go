@@ -59,7 +59,7 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 				Provider:  "openai",
 				Model:     "gpt-5.4",
 			},
-			Workspace: AgentWorkspacePayload{ID: "ws-1", Name: "agh", RootDir: "/workspace/agh"},
+			Workspace: AgentWorkspacePayload{ID: "ws-1", Name: "compozy", RootDir: "/workspace/compozy"},
 			Session: AgentSessionPayload{
 				ID:                           "sess-child",
 				Name:                         "worker",

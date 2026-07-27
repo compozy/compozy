@@ -14,7 +14,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/memory"
 	ssepkg "github.com/compozy/compozy/internal/sse"
@@ -29,10 +29,10 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 	)
 }
 
-func memoryHealthConfigPayload(cfg *aghconfig.Config) contract.MemoryHealthPayload {
+func memoryHealthConfigPayload(cfg *compozyconfig.Config) contract.MemoryHealthPayload {
 	dreamAgent := strings.TrimSpace(cfg.Roles.Dream.Agent)
 	if dreamAgent == "" {
-		dreamAgent = aghconfig.BuiltinDreamingCuratorAgentName
+		dreamAgent = compozyconfig.BuiltinDreamingCuratorAgentName
 	}
 	return contract.MemoryHealthPayload{
 		Status:             memoryHealthStatusOK,

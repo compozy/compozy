@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-validate-compozy-hard-cut
 expected: A fresh daemon creates compozy.db in the resolved home, keeps each session database named events.db, reports the global path consistently, and never creates or opens the legacy agh.db.
 entry_points: compozy daemon start; compozy status -o json; global and session database files on disk
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/api-status.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log
+last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
 overlaps: RT-refuse-legacy-database;RT-compozy-home-layout
 ---
 

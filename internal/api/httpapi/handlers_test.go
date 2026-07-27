@@ -21,7 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
@@ -669,7 +669,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 			http.MethodPost,
 			"/api/tasks/task-1/blocks",
 			[]byte(`{"kind":"needs_input","reason":"creator decision","run_id":"run-1"}`),
-			map[string]string{"X-AGH-Claim-Token": rawClaimToken},
+			map[string]string{"X-Compozy-Claim-Token": rawClaimToken},
 		)
 		if recorder.Code != http.StatusCreated {
 			t.Fatalf("block status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -1445,7 +1445,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 					},
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				},
 			}),
 			assert: func(t *testing.T) {
@@ -1927,7 +1927,7 @@ func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
 		if err != nil {
 			t.Fatalf("os.UserHomeDir() error = %v", err)
 		}
-		resolvedUserHomeDir, err := aghconfig.ResolvePath(userHomeDir)
+		resolvedUserHomeDir, err := compozyconfig.ResolvePath(userHomeDir)
 		if err != nil {
 			t.Fatalf("ResolvePath(user home) error = %v", err)
 		}
@@ -1958,12 +1958,12 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		},
 		WorkspaceID: "ws_alpha",
-		Config: aghconfig.Config{
-			Providers: map[string]aghconfig.ProviderConfig{
+		Config: compozyconfig.Config{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"alpha": {Command: "alpha --acp"},
 			},
 		},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "fake",
 			Prompt:   "hello",

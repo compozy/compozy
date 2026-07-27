@@ -19,7 +19,7 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.Path != "/api/model-catalog/models/refresh" {
 					return nil, fmt.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
@@ -40,7 +40,7 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/model-catalog/sources/status" {
 					return nil, fmt.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
@@ -77,7 +77,7 @@ func TestProviderModelClientRequiresProviderIDForCuration(t *testing.T) {
 		hidden := false
 		featured := true
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost ||
 					req.URL.Path != "/api/model-catalog/providers/codex/models/curate" {

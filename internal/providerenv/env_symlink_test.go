@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestApplyHomePolicyRejectsSymlinkedProviderDirsContract(t *testing.T) {
@@ -30,7 +30,7 @@ func TestApplyHomePolicyRejectsSymlinkedProviderDirsContract(t *testing.T) {
 			t.Parallel()
 
 			home := t.TempDir()
-			homePaths := aghconfig.HomePaths{HomeDir: home}
+			homePaths := compozyconfig.HomePaths{HomeDir: home}
 			providerHome := filepath.Join(home, "providers", "codex")
 			if err := os.MkdirAll(filepath.Dir(filepath.Join(providerHome, tt.linkRel)), 0o700); err != nil {
 				t.Fatalf("os.MkdirAll(provider parent) error = %v", err)
@@ -42,7 +42,7 @@ func TestApplyHomePolicyRejectsSymlinkedProviderDirsContract(t *testing.T) {
 			before := statMode(t, target)
 			createSymlinkOrSkip(t, target, filepath.Join(providerHome, tt.linkRel))
 
-			env, err := ApplyHomePolicy(homePaths, "codex", aghconfig.ProviderHomePolicyIsolated, nil)
+			env, err := ApplyHomePolicy(homePaths, "codex", compozyconfig.ProviderHomePolicyIsolated, nil)
 			if err == nil {
 				t.Fatal("ApplyHomePolicy() error = nil, want symlink rejection")
 			}
@@ -66,7 +66,7 @@ func TestApplyPiAgentDirPolicyRejectsSymlinkedAgentDirContract(t *testing.T) {
 		t.Parallel()
 
 		home := t.TempDir()
-		homePaths := aghconfig.HomePaths{HomeDir: home}
+		homePaths := compozyconfig.HomePaths{HomeDir: home}
 		providerHome := filepath.Join(home, "providers", "codex")
 		if err := os.MkdirAll(filepath.Join(providerHome, ".pi"), 0o700); err != nil {
 			t.Fatalf("os.MkdirAll(.pi) error = %v", err)
@@ -78,7 +78,7 @@ func TestApplyPiAgentDirPolicyRejectsSymlinkedAgentDirContract(t *testing.T) {
 		before := statMode(t, target)
 		createSymlinkOrSkip(t, target, filepath.Join(providerHome, ".pi", "agent"))
 
-		env, err := ApplyPiAgentDirPolicy(homePaths, "codex", aghconfig.ProviderHomePolicyIsolated, nil)
+		env, err := ApplyPiAgentDirPolicy(homePaths, "codex", compozyconfig.ProviderHomePolicyIsolated, nil)
 		if err == nil {
 			t.Fatal("ApplyPiAgentDirPolicy() error = nil, want symlink rejection")
 		}

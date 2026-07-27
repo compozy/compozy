@@ -71,7 +71,7 @@ func (p *RuntimeMemoryProbe) Run(
 		contract.CodeDaemonStatusOK,
 		contract.CategoryDaemon,
 		"Runtime memory snapshot is available",
-		"AGH is reporting process memory and Go runtime utilization.",
+		"Compozy is reporting process memory and Go runtime utilization.",
 		contract.SeverityOK,
 		contract.FreshnessLive,
 		diagnostics.WithEvidence(runtimeMemoryEvidence(snapshot)),

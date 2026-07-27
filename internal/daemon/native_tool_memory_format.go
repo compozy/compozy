@@ -94,7 +94,7 @@ func nativeMemoryTaggedContent(content string, tags []string) string {
 	if len(normalized) == 0 {
 		return body
 	}
-	return "<!-- agh-tags: " + strings.Join(normalized, ", ") + " -->\n\n" + body
+	return "<!-- compozy-tags: " + strings.Join(normalized, ", ") + " -->\n\n" + body
 }
 
 func nativeNormalizeUniqueStrings(values []string) []string {

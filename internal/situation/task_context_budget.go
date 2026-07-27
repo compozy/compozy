@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -74,8 +74,8 @@ func taskContextOverBudget(bundle taskpkg.ContextBundle, maxBytes int) (bool, er
 	return len(content) > maxBytes, nil
 }
 
-func taskContextConfig(workspaceSnapshot *workspacepkg.ResolvedWorkspace) aghconfig.TaskOrchestrationConfig {
-	defaults := aghconfig.DefaultTaskConfig().Orchestration
+func taskContextConfig(workspaceSnapshot *workspacepkg.ResolvedWorkspace) compozyconfig.TaskOrchestrationConfig {
+	defaults := compozyconfig.DefaultTaskConfig().Orchestration
 	if workspaceSnapshot == nil {
 		return defaults
 	}
@@ -86,7 +86,7 @@ func taskContextConfig(workspaceSnapshot *workspacepkg.ResolvedWorkspace) aghcon
 	return cfg
 }
 
-func taskContextRuntimeLimits(cfg aghconfig.TaskOrchestrationConfig) taskpkg.RuntimeLimits {
+func taskContextRuntimeLimits(cfg compozyconfig.TaskOrchestrationConfig) taskpkg.RuntimeLimits {
 	return taskpkg.RuntimeLimits{
 		MaxRuntimeSeconds: int64(cfg.DefaultMaxRuntime.Seconds()),
 		SummaryMaxBytes:   cfg.SummaryMaxBytes,
@@ -98,7 +98,7 @@ const maxReviewReasonFallback = 2048
 
 func runReviewSummary(
 	review taskpkg.RunReview,
-	cfg aghconfig.TaskOrchestrationConfig,
+	cfg compozyconfig.TaskOrchestrationConfig,
 ) taskpkg.RunReviewSummary {
 	return taskpkg.RunReviewSummary{
 		ReviewID:      strings.TrimSpace(review.ReviewID),

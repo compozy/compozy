@@ -24,7 +24,7 @@ export interface HarnessLoadOptions {
   capabilities?: string[];
   daemonRequests?: string[];
   extensionServices?: string[];
-  aghVersion?: string;
+  compozyVersion?: string;
   runtime?: Partial<InitializeRuntime>;
 }
 
@@ -190,7 +190,7 @@ export class TestHarness {
     return {
       protocol_version: "1",
       supported_protocol_versions: ["1" satisfies ProtocolVersion],
-      agh_version: options.aghVersion ?? "0.5.0",
+      compozy_version: options.compozyVersion ?? "0.5.0",
       session_nonce: options.sessionNonce ?? "session-nonce-test",
       extension: {
         name: definition.name,

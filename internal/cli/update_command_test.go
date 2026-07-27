@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 func TestUpdateCommandFlows(t *testing.T) {
@@ -23,34 +23,34 @@ func TestUpdateCommandFlows(t *testing.T) {
 			applyCalls    int
 			finalizeCalls int
 		)
-		deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 			return stubUpdateManager{
-				checkFn: func(_ context.Context, opts aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+				checkFn: func(_ context.Context, opts compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
 					if !opts.ForceRefresh {
 						t.Fatal("CheckOptions.ForceRefresh = false, want true")
 					}
-					return aghupdate.State{
+					return compozyupdate.State{
 						Supported:      true,
-						InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
 						CurrentVersion: "v1.0.0",
 						LatestVersion:  "v1.1.0",
 						Available:      true,
-						Status:         aghupdate.StatusAvailable,
+						Status:         compozyupdate.StatusAvailable,
 						Message:        "A newer stable Compozy release is available.",
-					}, &aghupdate.Release{Version: "v1.1.0"}, nil
+					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
-				applyFn: func(_ context.Context, release *aghupdate.Release) (aghupdate.AppliedBinary, error) {
+				applyFn: func(_ context.Context, release *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
 					applyCalls++
 					if release == nil || release.Version != "v1.1.0" {
 						t.Fatalf("apply release = %#v, want v1.1.0", release)
 					}
-					return aghupdate.AppliedBinary{
-						TargetPath: filepath.Join(t.TempDir(), "agh"),
-						BackupPath: filepath.Join(t.TempDir(), ".agh.backup"),
+					return compozyupdate.AppliedBinary{
+						TargetPath: filepath.Join(t.TempDir(), "compozy"),
+						BackupPath: filepath.Join(t.TempDir(), ".compozy.backup"),
 						Version:    "v1.1.0",
 					}, nil
 				},
-				finalizeFn: func(applied aghupdate.AppliedBinary) error {
+				finalizeFn: func(applied compozyupdate.AppliedBinary) error {
 					finalizeCalls++
 					if applied.Version != "v1.1.0" {
 						t.Fatalf("finalize applied = %#v, want version v1.1.0", applied)
@@ -72,7 +72,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(update) error = %v", err)
 		}
-		if record.Status != string(aghupdate.StatusUpdated) || record.DaemonRestarted {
+		if record.Status != string(compozyupdate.StatusUpdated) || record.DaemonRestarted {
 			t.Fatalf("record = %#v, want updated without daemon restart", record)
 		}
 	})
@@ -117,7 +117,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 			aliveChecks++
 			return aliveChecks == 1
 		}
-		deps.spawnDetached = func(_ context.Context, gotHome aghconfig.HomePaths) (daemonProcess, error) {
+		deps.spawnDetached = func(_ context.Context, gotHome compozyconfig.HomePaths) (daemonProcess, error) {
 			spawnCalls++
 			if gotHome.HomeDir != homePaths.HomeDir {
 				t.Fatalf("spawnDetached() home = %q, want %q", gotHome.HomeDir, homePaths.HomeDir)
@@ -127,34 +127,34 @@ func TestUpdateCommandFlows(t *testing.T) {
 		deps.pollInterval = defaultPollInterval / 10
 		deps.startTimeout = defaultStartTimeout / 10
 
-		deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 			return stubUpdateManager{
-				checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-					return aghupdate.State{
+				checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+					return compozyupdate.State{
 						Supported:      true,
-						InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
 						CurrentVersion: "v1.0.0",
 						LatestVersion:  "v1.1.0",
 						Available:      true,
-						Status:         aghupdate.StatusAvailable,
+						Status:         compozyupdate.StatusAvailable,
 						Message:        "A newer stable Compozy release is available.",
-					}, &aghupdate.Release{Version: "v1.1.0"}, nil
+					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
-				applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {
-					return aghupdate.AppliedBinary{
-						TargetPath: filepath.Join(t.TempDir(), "agh"),
-						BackupPath: filepath.Join(t.TempDir(), ".agh.backup"),
+				applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
+					return compozyupdate.AppliedBinary{
+						TargetPath: filepath.Join(t.TempDir(), "compozy"),
+						BackupPath: filepath.Join(t.TempDir(), ".compozy.backup"),
 						Version:    "v1.1.0",
 					}, nil
 				},
-				restoreFn: func(applied aghupdate.AppliedBinary) error {
+				restoreFn: func(applied compozyupdate.AppliedBinary) error {
 					restoreCalls++
 					if applied.Version != "v1.1.0" {
 						t.Fatalf("restore applied = %#v, want version v1.1.0", applied)
 					}
 					return nil
 				},
-				finalizeFn: func(aghupdate.AppliedBinary) error {
+				finalizeFn: func(compozyupdate.AppliedBinary) error {
 					finalizeCalls++
 					return nil
 				},
@@ -179,8 +179,8 @@ func TestUpdateCommandFlows(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(update failure) error = %v", err)
 		}
-		if record.Status != string(aghupdate.StatusFailed) {
-			t.Fatalf("record.Status = %q, want %q", record.Status, aghupdate.StatusFailed)
+		if record.Status != string(compozyupdate.StatusFailed) {
+			t.Fatalf("record.Status = %q, want %q", record.Status, compozyupdate.StatusFailed)
 		}
 		if !strings.Contains(record.Message, "replacement daemon failed readiness checks") {
 			t.Fatalf("record.Message = %q, want restart failure detail", record.Message)
@@ -191,21 +191,21 @@ func TestUpdateCommandFlows(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{})
-		deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 			return stubUpdateManager{
-				checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-					return aghupdate.State{
+				checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+					return compozyupdate.State{
 						Supported:      true,
-						InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
 						CurrentVersion: "v1.1.0",
 						LatestVersion:  "v1.1.0",
 						Available:      false,
-						Status:         aghupdate.StatusCurrent,
+						Status:         compozyupdate.StatusCurrent,
 						Message:        "Compozy is already on the latest stable release.",
-					}, &aghupdate.Release{Version: "v1.1.0"}, nil
+					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
-				applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {
-					return aghupdate.AppliedBinary{}, errors.New("apply should not run")
+				applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
+					return compozyupdate.AppliedBinary{}, errors.New("apply should not run")
 				},
 			}, nil
 		}
@@ -219,7 +219,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(update current) error = %v", err)
 		}
-		if record.Status != string(aghupdate.StatusCurrent) || record.CurrentVersion != "v1.1.0" {
+		if record.Status != string(compozyupdate.StatusCurrent) || record.CurrentVersion != "v1.1.0" {
 			t.Fatalf("record = %#v, want current latest snapshot", record)
 		}
 	})

@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
@@ -2322,7 +2322,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 
 	queuedRun := taskRunForTest("run-queued", taskRecord.ID)
 	queuedRun.WorkspaceID = workspaceID
-	queuedRun.Metadata = json.RawMessage(`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-owner"}`)
+	queuedRun.Metadata = json.RawMessage(`{"schema":"compozy.harness.detached.v1","owner_session_id":"sess-owner"}`)
 	queuedRun.NetworkSpec = participation.Spec{
 		Version:         participation.SpecVersion,
 		Mode:            participation.ModeLive,
@@ -2611,7 +2611,7 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 
 	origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"}
 	queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
-	metadata := json.RawMessage(`{"schema":"agh.harness.detached.v1","wake_target":{"session_id":"sess-wake"}}`)
+	metadata := json.RawMessage(`{"schema":"compozy.harness.detached.v1","wake_target":{"session_id":"sess-wake"}}`)
 	type reserveResult struct {
 		task     taskpkg.Task
 		run      taskpkg.Run
@@ -3273,7 +3273,7 @@ func TestGlobalDBTaskAndRunReferenceErrors(t *testing.T) {
 	workspaceTask.Scope = taskpkg.ScopeWorkspace
 	workspaceTask.WorkspaceID = "ws-missing"
 	err = globalDB.CreateTask(testutil.Context(t), workspaceTask)
-	if !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+	if !errors.Is(err, compozyworkspace.ErrWorkspaceNotFound) {
 		t.Fatalf("CreateTask(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
 	}
 

@@ -22,7 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/memory"
@@ -51,7 +51,7 @@ type daemonMigrationExpectation struct {
 
 func daemonMigrationExpectations() []daemonMigrationExpectation {
 	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 26},
+		{stream: globaldb.MigrationStream(), version: 27},
 		{stream: memory.MigrationStream(), version: 1},
 	}
 }
@@ -1237,7 +1237,7 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Automation.Enabled = true
-	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+	cfg.Automation.Jobs = []compozyconfig.AutomationJob{
 		{
 			Scope:     automationpkg.AutomationScopeGlobal,
 			Name:      "restart-job",
@@ -1253,7 +1253,7 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 			Source:    automationpkg.JobSourceConfig,
 		},
 	}
-	cfg.Automation.Triggers = []aghconfig.AutomationTrigger{
+	cfg.Automation.Triggers = []compozyconfig.AutomationTrigger{
 		{
 			Scope:     automationpkg.AutomationScopeGlobal,
 			Name:      "restart-trigger",
@@ -1567,7 +1567,7 @@ func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	cfg.Automation.Enabled = true
 	cfg.Automation.MaxConcurrentJobs = 1
-	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+	cfg.Automation.Jobs = []compozyconfig.AutomationJob{
 		{
 			Scope:     automationpkg.AutomationScopeGlobal,
 			Name:      "shutdown-job",
@@ -1648,7 +1648,7 @@ func TestDrainAllowsActiveAutomationPromptToFinishBeforeJoinedShutdown(t *testin
 	cfg := testConfig(t, homePaths)
 	cfg.Automation.Enabled = true
 	cfg.Automation.MaxConcurrentJobs = 1
-	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+	cfg.Automation.Jobs = []compozyconfig.AutomationJob{
 		{
 			Scope:     automationpkg.AutomationScopeGlobal,
 			Name:      "drain-job",
@@ -1975,7 +1975,10 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatalf("network.Status() error = %v", err)
 	}
 	if status.Status != network.StatusActive || status.LocalPeers != 2 || status.MessagesDelivered != 1 {
-		t.Fatalf("network.Status() before shutdown = %#v, want active with 2 Live participants and one committed delivery", status)
+		t.Fatalf(
+			"network.Status() before shutdown = %#v, want active with 2 Live participants and one committed delivery",
+			status,
+		)
 	}
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
@@ -2025,7 +2028,7 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 		hookArgs: []string{
 			"-c",
 			`cat > "$1"; printf '{}'`,
-			"agh-extension-hook",
+			"compozy-extension-hook",
 			hookMarker,
 		},
 		hookEvent: hookspkg.HookSessionPostCreate,
@@ -2110,7 +2113,7 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 		hookArgs: []string{
 			"-c",
 			`cat > "$1"; printf '{}'`,
-			"agh-extension-hook",
+			"compozy-extension-hook",
 			hookMarker,
 		},
 		hookEvent: hookspkg.HookSessionPostCreate,
@@ -2448,7 +2451,7 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	}
 
 	workspace := workspacepkg.ResolvedWorkspace{
-		Agents: []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
+		Agents: []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
 	}
 	prompt, err := capturedDeps.PromptAssembler.Assemble(
 		context.Background(),
@@ -2556,8 +2559,8 @@ func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 	cfg.Skills.Enabled = true
 
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, aghconfig.DirName), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(workspaceRoot, aghconfig.DirName), err)
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, compozyconfig.DirName), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(workspaceRoot, compozyconfig.DirName), err)
 	}
 
 	scriptPath := writeDaemonHookScript(t, t.TempDir(), "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
@@ -2565,7 +2568,7 @@ func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
 	agentOutput := filepath.Join(t.TempDir(), "agent-stop.json")
 	skillOutput := filepath.Join(t.TempDir(), "skill-create.json")
 
-	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "config.toml"), `
+	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
 [[hooks.declarations]]
 name = "config-create"
 event = "session.post_create"
@@ -2573,7 +2576,7 @@ mode = "sync"
 command = "`+scriptPath+`"
 args = ["`+configOutput+`"]
 `)
-	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "agents", "coder", "AGENT.md"), `---
+	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "agents", "coder", "AGENT.md"), `---
 name: coder
 provider: claude
 hooks:
@@ -2586,7 +2589,7 @@ hooks:
 
 Prompt.
 `)
-	writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "skills", "local-hook", "SKILL.md"), `---
+	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "skills", "local-hook", "SKILL.md"), `---
 name: local-hook
 description: workspace lifecycle hook
 metadata:
@@ -2688,25 +2691,25 @@ func TestBootRunsWorkspaceTaskRunHookWithRelativeScriptPath(t *testing.T) {
 		cfg.Skills.Enabled = false
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-		if err := os.MkdirAll(filepath.Join(workspaceRoot, aghconfig.DirName, "hooks"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, compozyconfig.DirName, "hooks"), 0o755); err != nil {
 			t.Fatalf(
 				"os.MkdirAll(%q) error = %v",
-				filepath.Join(workspaceRoot, aghconfig.DirName, "hooks"),
+				filepath.Join(workspaceRoot, compozyconfig.DirName, "hooks"),
 				err,
 			)
 		}
 		writeDaemonFile(
 			t,
-			filepath.Join(workspaceRoot, aghconfig.DirName, "hooks", "capture-task-run.sh"),
+			filepath.Join(workspaceRoot, compozyconfig.DirName, "hooks", "capture-task-run.sh"),
 			"#!/bin/sh\ncat > \"$1\"\n",
 		)
 		if err := os.Chmod(
-			filepath.Join(workspaceRoot, aghconfig.DirName, "hooks", "capture-task-run.sh"),
+			filepath.Join(workspaceRoot, compozyconfig.DirName, "hooks", "capture-task-run.sh"),
 			0o755,
 		); err != nil {
 			t.Fatalf("os.Chmod(capture-task-run.sh) error = %v", err)
 		}
-		writeDaemonFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, "config.toml"), `
+		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
 [[hooks.declarations]]
 name = "workspace-task-run"
 event = "task.run.enqueued"
@@ -2774,7 +2777,7 @@ args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 			t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
 		}
 
-		outputPath := filepath.Join(workspaceRoot, aghconfig.DirName, "task-run-enqueued.json")
+		outputPath := filepath.Join(workspaceRoot, compozyconfig.DirName, "task-run-enqueued.json")
 		body, err := os.ReadFile(outputPath)
 		if err != nil {
 			t.Fatalf("os.ReadFile(%q) error = %v", outputPath, err)
@@ -2925,7 +2928,7 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 			}
 		})
 
-		skillRoot := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName)
+		skillRoot := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		writeDaemonSkill(t, skillRoot, "watched-workspace-skill", "Workspace watched skill")
 
 		waitForCondition(t, "workspace skill refresh after watcher sync", func() bool {
@@ -3809,14 +3812,14 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 	}
 }
 
-func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
+func integrationHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
 	homeDir := t.TempDir()
 	t.Setenv("COMPOZY_HOME", homeDir)
 	t.Setenv("HOME", homeDir)
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(homeDir)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(homeDir)
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -3826,8 +3829,8 @@ func integrationHomePaths(t *testing.T) aghconfig.HomePaths {
 
 func bootDetachedHarnessIntegrationDaemon(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
-	cfg *aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	cfg *compozyconfig.Config,
 	sessions *fakeSessionManager,
 ) *Daemon {
 	t.Helper()
@@ -3864,7 +3867,7 @@ func bootDetachedHarnessIntegrationDaemon(
 
 func seedDetachedHarnessSessionIndex(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	infos []*session.Info,
 ) {
 	t.Helper()
@@ -3926,7 +3929,7 @@ func seedDetachedHarnessSessionIndex(
 
 func seedNetworkDeliveryIntegrationSessions(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	manager *fakeNetworkBindableSessionManager,
 ) {
 	t.Helper()
@@ -3959,7 +3962,7 @@ func seedNetworkDeliveryIntegrationSessions(
 func ensureDetachedHarnessWorkspaceIndex(
 	t *testing.T,
 	db *globaldb.GlobalDB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceID string,
 	workspaceRoot string,
 ) error {
@@ -4012,10 +4015,10 @@ func TestDaemonSessionStopACPHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root string) workspacepkg.ResolvedWorkspace {
+func seedDaemonWorkspace(t *testing.T, homePaths compozyconfig.HomePaths, root string) workspacepkg.ResolvedWorkspace {
 	t.Helper()
 
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -4036,8 +4039,8 @@ func seedDaemonWorkspace(t *testing.T, homePaths aghconfig.HomePaths, root strin
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -4147,7 +4150,7 @@ func daemonSessionStopHelperCommand(t *testing.T) string {
 	)
 }
 
-func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string, command string) {
+func writeDaemonIntegrationAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string, command string) {
 	t.Helper()
 
 	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")
@@ -4171,7 +4174,7 @@ func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths,
 
 func writeDaemonIntegrationProviderConfig(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
 	command string,
 ) {

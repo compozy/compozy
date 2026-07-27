@@ -265,7 +265,7 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 		ldflags,
 		"github.com/compozy/compozy/internal/version.Version",
 	)
-	assertNotContainsText(t, "GoReleaser ldflags", ldflags, "github.com/pedronauck/agh")
+	assertNotContainsText(t, "GoReleaser ldflags", ldflags, "github.com/pedronauck/compozy")
 
 	archive := firstMapAt(t, goreleaser, "archives")
 	if !stringSliceContains(sliceAt(t, archive, "ids"), buildID) {
@@ -336,7 +336,7 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 			assertContainsText(t, "GoReleaser release header", header, snippet)
 		}
 		assertNotContainsText(t, "GoReleaser release header", header, "brew install")
-		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/agh")
+		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/compozy")
 	})
 
 	t.Run("Should keep release footer honest about verification posture", func(t *testing.T) {
@@ -392,8 +392,8 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"git cliff --bumped-version",
 		"GITHUB_HEAD_REF",
 		"RELEASE_PR_TITLE",
-		"@compozy/agh",
-		"compozy/agh",
+		"@compozy/compozy",
+		"compozy/compozy",
 		"schedule:",
 		"aurs:",
 		"aursources:",

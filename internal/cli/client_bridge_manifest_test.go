@@ -16,7 +16,7 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges/providers/slack/manifest" {
 					t.Fatalf("request = %s %s, want GET manifest route", req.Method, req.URL.Path)

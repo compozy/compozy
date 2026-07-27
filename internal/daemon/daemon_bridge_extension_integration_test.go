@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -53,7 +53,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			HomePaths: homePaths,
 			ConfigSeed: e2etest.ConfigSeedOptions{
 				DefaultAgent:   bridgeIngressFixtureAgentName,
-				PermissionMode: aghconfig.PermissionModeApproveAll,
+				PermissionMode: compozyconfig.PermissionModeApproveAll,
 				Mutate:         allowUnverifiedBridgeExtensionInstalls,
 			},
 			MockAgents: []e2etest.MockAgentSpec{{
@@ -72,7 +72,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
 		}
-		if _, err := first.InstallExtension(ctx, aghcontract.InstallExtensionRequest{
+		if _, err := first.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
 			Path:            extensionDir,
 			Checksum:        checksum,
 			AllowUnverified: true,
@@ -83,7 +83,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			ext, err := first.GetExtension(ctx, "telegram-reference")
 			return err == nil && ext.Enabled
 		})
-		created, err := first.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
+		created, err := first.CreateBridge(ctx, compozycontract.CreateBridgeRequest{
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   first.WorkspaceID,
 			Platform:      "telegram",
@@ -101,7 +101,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			ctx,
 			bridgeID,
 			"bot_token",
-			aghcontract.PutBridgeSecretBindingRequest{
+			compozycontract.PutBridgeSecretBindingRequest{
 				SecretRef:   "vault:bridges/" + bridgeID + "/bot_token",
 				Kind:        "token",
 				SecretValue: &secretValue,
@@ -257,7 +257,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   bridgeIngressFixtureAgentName,
-			PermissionMode: aghconfig.PermissionModeApproveAll,
+			PermissionMode: compozyconfig.PermissionModeApproveAll,
 			Mutate:         allowUnverifiedBridgeExtensionInstalls,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
@@ -287,7 +287,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
 	}
 
-	installed, err := harness.InstallExtension(ctx, aghcontract.InstallExtensionRequest{
+	installed, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
 		Path:            extensionDir,
 		Checksum:        checksum,
 		AllowUnverified: true,
@@ -304,7 +304,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		return err == nil && ext.Enabled
 	})
 
-	createdBridge, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
+	createdBridge, err := harness.CreateBridge(ctx, compozycontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   harness.WorkspaceID,
 		Platform:      "teams",
@@ -315,7 +315,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 			IncludePeer:   true,
 			IncludeThread: true,
 		},
-		DeliveryDefaults: aghcontract.BridgeDeliveryDefaultsPayload(
+		DeliveryDefaults: compozycontract.BridgeDeliveryDefaultsPayload(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		),
 	})
@@ -336,7 +336,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		ctx,
 		bridgeID,
 		"bot_token",
-		aghcontract.PutBridgeSecretBindingRequest{
+		compozycontract.PutBridgeSecretBindingRequest{
 			SecretRef:   secretRef,
 			Kind:        "token",
 			SecretValue: &secretValue,
@@ -880,7 +880,7 @@ func daemonBridgeRuntimeRepoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
-func allowUnverifiedBridgeExtensionInstalls(cfg *aghconfig.Config) {
+func allowUnverifiedBridgeExtensionInstalls(cfg *compozyconfig.Config) {
 	cfg.Extensions.Marketplace.AllowUnverified = true
 }
 
@@ -934,7 +934,13 @@ func rewriteDaemonBridgeContractPlatform(
 	}
 	source := `platform = "` + strings.TrimSpace(from) + `"`
 	if got, want := strings.Count(string(contents), source), 1; got != want {
-		t.Fatalf("bridge contract manifest %q platform assignments = %d, want %d for %q", manifestPath, got, want, source)
+		t.Fatalf(
+			"bridge contract manifest %q platform assignments = %d, want %d for %q",
+			manifestPath,
+			got,
+			want,
+			source,
+		)
 	}
 	target := `platform = "` + strings.TrimSpace(to) + `"`
 	updated := strings.Replace(string(contents), source, target, 1)

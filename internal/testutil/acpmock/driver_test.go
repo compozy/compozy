@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -41,7 +41,7 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 		AgentName:   "golden",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveReads,
+		Permissions: compozyconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -85,9 +85,9 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 
 func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	root := t.TempDir()
-	fakeAGH := filepath.Join(root, "agh")
-	if err := os.WriteFile(fakeAGH, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", fakeAGH, err)
+	fakeCompozy := filepath.Join(root, "compozy")
+	if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", fakeCompozy, err)
 	}
 	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -112,7 +112,7 @@ func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 		AgentName:   "runner",
 		Command:     command,
 		Cwd:         root,
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -178,7 +178,7 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 		AgentName:   "browser-lifecycle-agent",
 		Command:     command,
 		Cwd:         cwd,
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: compozyconfig.PermissionModeDenyAll,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -194,7 +194,7 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 		AgentName:       "browser-lifecycle-agent",
 		Command:         command,
 		Cwd:             cwd,
-		Permissions:     aghconfig.PermissionModeDenyAll,
+		Permissions:     compozyconfig.PermissionModeDenyAll,
 		ResumeSessionID: originalSessionID,
 	})
 	if err != nil {
@@ -233,9 +233,9 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 			Command:   command,
 			Cwd:       t.TempDir(),
 			Env:       append(testutil.HermeticProcessEnv(nil), "COMPOZY_SESSION_ID=sess-driver-owner"),
-			MCPServers: []aghconfig.MCPServer{{
+			MCPServers: []compozyconfig.MCPServer{{
 				Name:      "compozy-hosted-tools",
-				Transport: aghconfig.MCPServerTransportStdio,
+				Transport: compozyconfig.MCPServerTransportStdio,
 				Command:   "/bin/compozy",
 				Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
 			}},
@@ -252,8 +252,8 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 		if got, want := len(records), 1; got != want {
 			t.Fatalf("diagnostics records = %#v, want one session lifecycle record", records)
 		}
-		if got, want := records[0].AGHSessionID, "sess-driver-owner"; got != want {
-			t.Fatalf("AGHSessionID = %q, want %q", got, want)
+		if got, want := records[0].CompozySessionID, "sess-driver-owner"; got != want {
+			t.Fatalf("CompozySessionID = %q, want %q", got, want)
 		}
 		if records[0].LifecycleEvent != "session_new" {
 			t.Fatalf("LifecycleEvent = %q, want session_new", records[0].LifecycleEvent)
@@ -263,7 +263,7 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 		}
 		stdio := records[0].MCPServers[0].Stdio
 		if stdio == nil || stdio.Name != "compozy-hosted-tools" || stdio.Command != "/bin/compozy" {
-			t.Fatalf("diagnostic MCP server = %#v, want AGH hosted stdio entry", records[0].MCPServers[0])
+			t.Fatalf("diagnostic MCP server = %#v, want Compozy hosted stdio entry", records[0].MCPServers[0])
 		}
 	})
 }
@@ -290,7 +290,7 @@ func TestDriverDiagnosticsIncludePromptMetadataAndMatch(t *testing.T) {
 			AgentName:   "alpha",
 			Command:     command,
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -361,7 +361,7 @@ func TestDriverRoutesConcurrentProcessesByStructuredJudgeMetadata(t *testing.T) 
 			AgentName:   "judge",
 			Command:     BuildCommand(driverPath, fixturePath, "judge", diagnosticsPath),
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		if startErr != nil {
 			t.Fatalf("driver.Start(%d) error = %v", index, startErr)
@@ -444,7 +444,7 @@ func TestDriverReturnsScriptedPromptUsage(t *testing.T) {
 			AgentName:   "usage-agent",
 			Command:     BuildCommand(driverPath, fixturePath, "usage-agent", diagnosticsPath),
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -496,7 +496,7 @@ func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveReads,
+		Permissions: compozyconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -549,7 +549,7 @@ func TestDriverControlBlockUntilCancelReturnsCanceledStopReason(t *testing.T) {
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveReads,
+		Permissions: compozyconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -601,7 +601,7 @@ func TestDriverSurfacesPromptTokenUsage(t *testing.T) {
 			AgentName:   "cost-provenance-agent",
 			Command:     command,
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveReads,
+			Permissions: compozyconfig.PermissionModeApproveReads,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -695,7 +695,7 @@ func TestDriverCancelNotification(t *testing.T) {
 			AgentName:   "faulty",
 			Command:     command,
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveReads,
+			Permissions: compozyconfig.PermissionModeApproveReads,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -772,7 +772,7 @@ func TestDriverControlAsyncDisconnectDuringPermissionRequestSurfacesPromptFailur
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveReads,
+		Permissions: compozyconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -873,7 +873,7 @@ func TestAsyncDriverControlIsCanceledWhenPromptCompletes(t *testing.T) {
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: compozyconfig.PermissionModeDenyAll,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)

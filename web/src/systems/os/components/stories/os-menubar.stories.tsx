@@ -33,9 +33,9 @@ type Story = StoryObj<typeof meta>;
 
 const WORKSPACES: WorkspacePayload[] = [
   {
-    id: "workspace-agh",
-    name: "agh",
-    root_dir: "/workspace/agh",
+    id: "workspace-compozy",
+    name: "compozy",
+    root_dir: "/workspace/compozy",
     add_dirs: [],
     created_at: "2026-07-20T12:00:00Z",
     updated_at: "2026-07-20T12:00:00Z",
@@ -97,25 +97,25 @@ function MenubarFixture({
 
 /** The wired bar at rest, over a live desktop. */
 export const Populated: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture />,
 };
 
 /** The system menu on the mark: identity plus the settings surfaces. */
-export const AghMenuOpen: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
-  render: () => <MenubarFixture overlay="agh-menu" />,
+export const CompozyMenuOpen: Story = {
+  args: { workspace: { name: "compozy", monogram: "CO" } },
+  render: () => <MenubarFixture overlay="compozy-menu" />,
 };
 
 /** Navigation grouped exactly like the dock strip. */
 export const GoMenuOpen: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="go-menu" />,
 };
 
 /** Window commands with a focused tiled window and a visible peer: all enabled. */
 export const WindowMenuOpen: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="window-menu" />,
 };
 
@@ -124,25 +124,25 @@ export const WindowMenuOpen: Story = {
  * rather than hidden — the shape of the menu never changes under you.
  */
 export const WindowMenuUnavailable: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="window-menu" live={false} />,
 };
 
 /** Real help: the shortcut reference, the docs, and a support path. */
 export const HelpMenuOpen: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="help-menu" />,
 };
 
 /** Workspace switcher with the bound set and the overview/creation paths. */
 export const WorkspaceMenuOpen: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" } },
+  args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="workspace-menu" />,
 };
 
 /** Presentation-only — no menu owners, so the bar renders as inert chrome. */
 export const PresentationOnly: Story = {
-  args: { workspace: { name: "agh", monogram: "AG" }, notifications: 0 },
+  args: { workspace: { name: "compozy", monogram: "CO" }, notifications: 0 },
   render: args => (
     <DesktopShell menubar={false} wallpaper="carbon" deskHint>
       <OsMenuBar {...args} />
@@ -156,7 +156,7 @@ export const PresentationOnly: Story = {
  */
 export const DegradedSync: Story = {
   args: {
-    workspace: { name: "agh", monogram: "AG" },
+    workspace: { name: "compozy", monogram: "CO" },
     status: <OsHydrationStatus hydration="degraded" />,
     notifications: 2,
     onCommandClick: fn(),

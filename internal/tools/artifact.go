@@ -13,7 +13,7 @@ const (
 	// ToolArtifactURIPrefix identifies retained oversized tool results.
 	ToolArtifactURIPrefix = "compozy://tool-artifacts/"
 	// ToolArtifactMIMEType identifies the canonical retained ToolResult JSON envelope.
-	ToolArtifactMIMEType = "application/vnd.agh.tool-result+json"
+	ToolArtifactMIMEType = "application/vnd.compozy.tool-result+json"
 	// ToolArtifactName is the stable display name for retained result envelopes.
 	ToolArtifactName = "tool-result.json"
 	// DefaultToolArtifactPageBytes is the default artifact read size.

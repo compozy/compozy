@@ -18,18 +18,18 @@ import (
 )
 
 const (
-	providerAghBridgeDeliveryKey = "agh_bridge_delivery"
-	providerBridgeInstanceIDKey  = "bridge_instance_id"
-	providerChannelIDKey         = "channel_id"
-	providerChannelNameKey       = "channel_name"
-	providerDeliveryIDKey        = "delivery_id"
-	providerMessageKey           = "message"
-	providerReactionAddedKey     = "reaction_added"
-	providerResponseURLKey       = "response_url"
-	providerSlackKey             = "slack"
-	providerTeamIDKey            = "team_id"
-	providerTriggerIDKey         = "trigger_id"
-	providerTypeKey              = "type"
+	providerCompozyBridgeDeliveryKey = "compozy_bridge_delivery"
+	providerBridgeInstanceIDKey      = "bridge_instance_id"
+	providerChannelIDKey             = "channel_id"
+	providerChannelNameKey           = "channel_name"
+	providerDeliveryIDKey            = "delivery_id"
+	providerMessageKey               = "message"
+	providerReactionAddedKey         = "reaction_added"
+	providerResponseURLKey           = "response_url"
+	providerSlackKey                 = "slack"
+	providerTeamIDKey                = "team_id"
+	providerTriggerIDKey             = "trigger_id"
+	providerTypeKey                  = "type"
 )
 
 const (

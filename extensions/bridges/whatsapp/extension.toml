@@ -27,7 +27,7 @@ description = "Meta webhook verify token for challenge-response handshakes"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.whatsapp"
+schema = "compozy.bridge.whatsapp"
 version = "1"
 
 [actions]

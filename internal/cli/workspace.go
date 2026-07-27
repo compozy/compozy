@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -174,7 +174,7 @@ func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag stri
 	}
 	if trimmed := strings.TrimSpace(workspaceFlag); trimmed != "" {
 		if isPathLikeWorkspaceRef(trimmed) {
-			resolved, err := aghconfig.ResolvePath(trimmed)
+			resolved, err := compozyconfig.ResolvePath(trimmed)
 			if err != nil {
 				return workspaceInfoRef{}, err
 			}

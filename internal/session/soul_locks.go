@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -30,7 +30,7 @@ func (s *Session) updateSoulSnapshot(snapshot *soul.Snapshot, parentSoulDigest s
 	}
 }
 
-func soulAgentPath(agentDef aghconfig.AgentDef, workspaceSnapshot *workspacepkg.ResolvedWorkspace) string {
+func soulAgentPath(agentDef compozyconfig.AgentDef, workspaceSnapshot *workspacepkg.ResolvedWorkspace) string {
 	if sourcePath := strings.TrimSpace(agentDef.SourcePath); sourcePath != "" {
 		return sourcePath
 	}
@@ -42,7 +42,7 @@ func soulAgentPath(agentDef aghconfig.AgentDef, workspaceSnapshot *workspacepkg.
 			}
 		}
 		if root := strings.TrimSpace(workspaceSnapshot.RootDir); root != "" && strings.TrimSpace(agentDef.Name) != "" {
-			return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, agentDef.Name, "AGENT.md")
+			return filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, agentDef.Name, "AGENT.md")
 		}
 	}
 	return ""

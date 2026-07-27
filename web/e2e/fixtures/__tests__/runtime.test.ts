@@ -33,14 +33,14 @@ describe("runtime helpers", () => {
         },
         {
           COMPOZY_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
-          COMPOZY_TEST_DAEMON_BIN: "/lane/agh",
+          COMPOZY_TEST_DAEMON_BIN: "/lane/compozy",
           COMPOZY_WEB_DIST_DIR: "/lane/web-dist",
           OPERATOR_SECRET: "must-not-propagate",
         }
       )
     ).toEqual({
       COMPOZY_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
-      COMPOZY_TEST_DAEMON_BIN: "/lane/agh",
+      COMPOZY_TEST_DAEMON_BIN: "/lane/compozy",
       COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
       COMPOZY_WEB_DIST_DIR: "/lane/web-dist",
       PATH: "/runtime/bin",
@@ -54,18 +54,18 @@ describe("runtime helpers", () => {
     await stopBrowserDaemonProcess(
       child,
       {
-        cliShim: "/tmp/agh-home/bin/agh",
-        homeDir: "/tmp/agh-home",
+        cliShim: "/tmp/compozy-home/bin/compozy",
+        homeDir: "/tmp/compozy-home",
         repoRoot: "/tmp/repo",
       },
       {
         executeFile: async (file, args, options) => {
           calls.push("registered");
-          expect(file).toBe("/tmp/agh-home/bin/agh");
+          expect(file).toBe("/tmp/compozy-home/bin/compozy");
           expect(args).toEqual(["daemon", "stop", "-o", "json"]);
           expect(options).toMatchObject({
             cwd: "/tmp/repo",
-            env: { COMPOZY_HOME: "/tmp/agh-home", HOME: "/tmp/agh-home" },
+            env: { COMPOZY_HOME: "/tmp/compozy-home", HOME: "/tmp/compozy-home" },
           });
           return { stderr: "", stdout: "{}" };
         },
@@ -83,8 +83,8 @@ describe("runtime helpers", () => {
     await expect(
       stopRegisteredDaemon(
         {
-          cliShim: "/tmp/agh-home/bin/agh",
-          homeDir: "/tmp/agh-home",
+          cliShim: "/tmp/compozy-home/bin/compozy",
+          homeDir: "/tmp/compozy-home",
           repoRoot: "/tmp/repo",
         },
         async () => {
@@ -116,12 +116,12 @@ describe("runtime helpers", () => {
       renderRuntimeConfig({
         host: "127.0.0.1",
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toBe(
       [
         "[daemon]",
-        'socket = "/tmp/agh.sock"',
+        'socket = "/tmp/compozy.sock"',
         "",
         "[http]",
         'host = "127.0.0.1"',
@@ -137,7 +137,7 @@ describe("runtime helpers", () => {
         host: "127.0.0.1",
         networkEnabled: true,
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain("[network]\nenabled = true\n");
   });
@@ -148,7 +148,7 @@ describe("runtime helpers", () => {
         host: "127.0.0.1",
         modelsDevEnabled: false,
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
   });
@@ -159,7 +159,7 @@ describe("runtime helpers", () => {
         host: "127.0.0.1",
         networkEnabled: false,
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain("[network]\nenabled = false\n");
   });
@@ -170,7 +170,7 @@ describe("runtime helpers", () => {
         extensionsAllowUnverified: true,
         host: "127.0.0.1",
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain("[extensions.marketplace]\nallow_unverified = true\n");
   });
@@ -181,7 +181,7 @@ describe("runtime helpers", () => {
         host: "127.0.0.1",
         port: 4321,
         skillsMarketplaceBaseURL: "http://127.0.0.1:9876",
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain(
       [
@@ -199,7 +199,7 @@ describe("runtime helpers", () => {
         host: "127.0.0.1",
         marketplaceCatalogBaseURL: "http://127.0.0.1:8765",
         port: 4321,
-        socketPath: "/tmp/agh.sock",
+        socketPath: "/tmp/compozy.sock",
       })
     ).toContain(
       [
@@ -228,7 +228,7 @@ describe("runtime helpers", () => {
         {
           description: "Review browser changes",
           entry_id: "browser-review-skill",
-          install_slug: "@agh/browser-review-skill",
+          install_slug: "@compozy/browser-review-skill",
           name: "Browser review skill",
         },
       ],
@@ -264,11 +264,11 @@ describe("runtime helpers", () => {
     const marketplace = await startSkillMarketplaceServer({
       listings: [
         {
-          author: "agh",
+          author: "compozy",
           description: "Marketplace metadata visible through the daemon catalog.",
           downloads: 12,
           name: "browser-marketplace-skill",
-          slug: "@agh/browser-marketplace-skill",
+          slug: "@compozy/browser-marketplace-skill",
           version: "2.0.0",
         },
       ],
@@ -294,11 +294,11 @@ describe("runtime helpers", () => {
       await expect(response.json()).resolves.toEqual({
         results: [
           {
-            author: "agh",
+            author: "compozy",
             description: "Marketplace metadata visible through the daemon catalog.",
             downloads: 12,
             name: "browser-marketplace-skill",
-            slug: "@agh/browser-marketplace-skill",
+            slug: "@compozy/browser-marketplace-skill",
             source: "clawhub",
             type: "skill",
             version: "2.0.0",
@@ -307,17 +307,17 @@ describe("runtime helpers", () => {
       });
 
       const detailResponse = await fetch(
-        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@agh/browser-marketplace-skill")}`
+        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@compozy/browser-marketplace-skill")}`
       );
       expect(detailResponse.status).toBe(200);
       await expect(detailResponse.json()).resolves.toMatchObject({
-        author: "agh",
+        author: "compozy",
         name: "browser-marketplace-skill",
-        slug: "@agh/browser-marketplace-skill",
+        slug: "@compozy/browser-marketplace-skill",
         version: "2.0.0",
       });
       const downloadResponse = await fetch(
-        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@agh/browser-marketplace-skill")}/download`
+        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@compozy/browser-marketplace-skill")}/download`
       );
       expect(downloadResponse.status).toBe(404);
     } finally {
@@ -330,7 +330,7 @@ describe("runtime helpers", () => {
       host: "127.0.0.1",
       includeMockAgentProvider: true,
       port: 4321,
-      socketPath: "/tmp/agh.sock",
+      socketPath: "/tmp/compozy.sock",
     });
 
     expect(config).toContain(
@@ -380,8 +380,8 @@ describe("runtime helpers", () => {
   });
 
   it("encodes workspace resolution requests with the public path contract", () => {
-    expect(buildResolveWorkspaceRequest("/tmp/agh-home")).toEqual({
-      path: "/tmp/agh-home",
+    expect(buildResolveWorkspaceRequest("/tmp/compozy-home")).toEqual({
+      path: "/tmp/compozy-home",
     });
   });
 
@@ -405,12 +405,12 @@ describe("runtime helpers", () => {
 
   it("serves the freshly built checkout bundle in launch mode", () => {
     expect(
-      buildLaunchRuntimeEnv("/work/agh", {
+      buildLaunchRuntimeEnv("/work/compozy", {
         COMPOZY_WEB_DIST_DIR: "/tmp/stale-dist",
         PATH: "/usr/bin",
       })
     ).toMatchObject({
-      COMPOZY_WEB_DIST_DIR: "/work/agh/web/dist",
+      COMPOZY_WEB_DIST_DIR: "/work/compozy/web/dist",
       PATH: "/usr/bin",
     });
   });

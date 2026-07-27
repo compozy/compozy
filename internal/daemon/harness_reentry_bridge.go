@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -181,7 +181,7 @@ type harnessReentryOption func(*harnessReentryBridge) error
 func withHarnessHeartbeatWake(
 	store any,
 	sessions harnessReentrySessionManager,
-	config aghconfig.HeartbeatConfig,
+	config compozyconfig.HeartbeatConfig,
 ) harnessReentryOption {
 	return func(bridge *harnessReentryBridge) error {
 		if bridge == nil || !config.Enabled {

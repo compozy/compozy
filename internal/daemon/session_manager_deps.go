@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/admission"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -17,7 +17,7 @@ import (
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths             aghconfig.HomePaths
+	HomePaths             compozyconfig.HomePaths
 	Logger                *slog.Logger
 	Notifier              session.Notifier
 	Hooks                 session.HookSet
@@ -34,11 +34,11 @@ type SessionManagerDeps struct {
 	WorkspaceResolver     workspacepkg.RuntimeResolver
 	ParticipationResolver participation.Resolver
 	SandboxRegistry       *sandbox.Registry
-	SessionSupervision    aghconfig.SessionSupervisionConfig
-	SessionBusyInput      aghconfig.SessionBusyInputConfig
-	SessionCompaction     aghconfig.SessionCompactionConfig
+	SessionSupervision    compozyconfig.SessionSupervisionConfig
+	SessionBusyInput      compozyconfig.SessionBusyInputConfig
+	SessionCompaction     compozyconfig.SessionCompactionConfig
 	SessionInputQueue     store.SessionInputQueueStore
-	SessionHealthConfig   aghconfig.HeartbeatConfig
+	SessionHealthConfig   compozyconfig.HeartbeatConfig
 	SessionCatalog        store.SessionCatalog
 	ProcessRegistry       *toolruntime.Registry
 	HostedMCP             session.HostedMCPLauncher

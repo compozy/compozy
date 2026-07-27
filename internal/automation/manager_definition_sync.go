@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -179,7 +179,7 @@ func (m *Manager) syncTriggersForSource(
 	return synced, removed, nil
 }
 
-func (m *Manager) resolveConfigJob(ctx context.Context, raw aghconfig.AutomationJob) (Job, error) {
+func (m *Manager) resolveConfigJob(ctx context.Context, raw compozyconfig.AutomationJob) (Job, error) {
 	workspaceID, err := m.resolveConfigWorkspace(ctx, raw.Scope, raw.Workspace)
 	if err != nil {
 		return Job{}, err
@@ -221,7 +221,7 @@ func (m *Manager) resolveConfigJob(ctx context.Context, raw aghconfig.Automation
 	return job, nil
 }
 
-func (m *Manager) resolveConfigTrigger(ctx context.Context, raw aghconfig.AutomationTrigger) (Trigger, error) {
+func (m *Manager) resolveConfigTrigger(ctx context.Context, raw compozyconfig.AutomationTrigger) (Trigger, error) {
 	workspaceID, err := m.resolveConfigWorkspace(ctx, raw.Scope, raw.Workspace)
 	if err != nil {
 		return Trigger{}, err
@@ -286,7 +286,7 @@ func (m *Manager) resolveConfigWorkspace(
 		err      error
 	)
 	if isPathLikeWorkspaceRef(trimmedRef) {
-		normalizedPath, normalizeErr := aghconfig.ResolvePath(trimmedRef)
+		normalizedPath, normalizeErr := compozyconfig.ResolvePath(trimmedRef)
 		if normalizeErr != nil {
 			return "", fmt.Errorf("automation: resolve config workspace %q: %w", trimmedRef, normalizeErr)
 		}

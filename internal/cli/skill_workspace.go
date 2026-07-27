@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	skillbundled "github.com/compozy/compozy/skills"
 	"github.com/spf13/cobra"
@@ -207,7 +207,7 @@ func commandSkillAgentFlag(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("for-agent flag cannot be empty")
 	}
 	if trimmed != "" {
-		if err := aghconfig.ValidateAgentName(trimmed); err != nil {
+		if err := compozyconfig.ValidateAgentName(trimmed); err != nil {
 			return "", err
 		}
 	}

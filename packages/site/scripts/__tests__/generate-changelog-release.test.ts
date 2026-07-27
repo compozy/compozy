@@ -117,14 +117,14 @@ describe("generate changelog release", () => {
       changed: [],
       fixed: ["Release body selection"],
       breaking: [],
-      compareUrl: "https://github.com/compozy/agh/releases/tag/v1.0.0",
+      compareUrl: "https://github.com/compozy/compozy/releases/tag/v1.0.0",
       body: "Generated from release artifacts for v1.0.0.",
     });
 
     expect(mdx).toContain('version: "v1.0.0"');
     expect(mdx).toContain('added:\n  - "Agent lifecycle support"');
     expect(mdx).toContain("changed: []");
-    expect(mdx).toContain('compareUrl: "https://github.com/compozy/agh/releases/tag/v1.0.0"');
+    expect(mdx).toContain('compareUrl: "https://github.com/compozy/compozy/releases/tag/v1.0.0"');
   });
 
   it("Should append objective verification posture to generated release bodies", () => {

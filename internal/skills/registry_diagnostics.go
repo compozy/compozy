@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -58,7 +58,7 @@ func (r *Registry) agentSkillDiagnostics(
 	resolved *workspacepkg.ResolvedWorkspace,
 	agentName string,
 ) ([]SkillDiagnostic, error) {
-	target := aghconfig.NormalizeAgentName(agentName)
+	target := compozyconfig.NormalizeAgentName(agentName)
 	skills, err := r.ForAgent(ctx, resolved, target)
 	if err != nil {
 		return nil, err

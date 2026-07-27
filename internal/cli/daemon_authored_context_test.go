@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -81,8 +81,8 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 				return DaemonStatus{}, statusErr
 			},
 		})
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{PID: 42, StartedAt: fixedTestNow}, nil
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}, nil
 		}
 		deps.processAlive = func(pid int) bool { return pid == 42 }
 

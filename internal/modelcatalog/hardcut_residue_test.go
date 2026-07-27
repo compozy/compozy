@@ -200,8 +200,8 @@ func allowedProviderModelResidue(
 	}
 	switch rel {
 	case "internal/api/contract/contract.go",
-		"web/src/generated/agh-openapi.d.ts",
-		"openapi/agh.json",
+		"web/src/generated/compozy-openapi.d.ts",
+		"openapi/compozy.json",
 		"web/src/systems/session/mocks/fixtures.ts",
 		"web/src/systems/network/mocks/fixtures.ts":
 		return true

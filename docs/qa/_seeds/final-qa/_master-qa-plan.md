@@ -215,7 +215,7 @@ For describing CURRENT Compozy artifacts (capabilities), the words `recipe`, `wo
 ### 7.3 Test-only fixture string (must match the seeded fixture, not absent)
 
 - `compozy_claim_FAKE_QA_*` — the deliberately-seeded redaction test needle. ACP-18, AUT-16, OBS-04 each plant this needle and assert its absence in every output channel.
-- `AGHQA-FAKE-SECRET-9c4e1a` — the deliberately-seeded vault redaction test needle (CFG-10).
+- `COMPOZYQA-FAKE-SECRET-9c4e1a` — the deliberately-seeded vault redaction test needle (CFG-10).
 
 The needle's *absence* is the proof; its *presence in any output* is a ship-blocker.
 

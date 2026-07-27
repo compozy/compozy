@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -30,7 +30,7 @@ import (
 )
 
 // AgentLoader loads one parsed AGENT.md definition.
-type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error)
+type AgentLoader func(name string, homePaths compozyconfig.HomePaths) (compozyconfig.AgentDef, error)
 
 // AgentCatalog exposes projected resource-backed agent definitions.
 type AgentCatalog interface {
@@ -40,7 +40,7 @@ type AgentCatalog interface {
 
 // AgentCatalogEntry carries one definition with its durable ownership scope.
 type AgentCatalogEntry struct {
-	Def         aghconfig.AgentDef
+	Def         compozyconfig.AgentDef
 	Origin      contract.AgentOrigin
 	WorkspaceID string
 }
@@ -236,7 +236,7 @@ type HeartbeatWakeEventReader interface {
 
 // CoordinatorRoleResolver resolves safe coordinator policy for agent-facing reads.
 type CoordinatorRoleResolver interface {
-	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error)
 }
 
 // RolesStatusProvider projects effective role configuration without simulating an invocation.

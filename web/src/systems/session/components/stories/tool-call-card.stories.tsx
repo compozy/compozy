@@ -71,8 +71,8 @@ const webSearchToolMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:08:00Z"),
 };
 
-const aghMemoryToolMessageFixture: UIMessage = {
-  id: "tool_agh_memory",
+const compozyMemoryToolMessageFixture: UIMessage = {
+  id: "tool_compozy_memory",
   role: "tool_result",
   content: "",
   toolName: "compozy__memory_note",
@@ -107,7 +107,7 @@ const emptyToolMessageFixture: UIMessage = {
 };
 
 const artifactID = `art_${"d".repeat(64)}`;
-const artifactURI = `agh://tool-artifacts/${artifactID}`;
+const artifactURI = `compozy://tool-artifacts/${artifactID}`;
 const retainedResult = JSON.stringify(
   {
     content: [
@@ -147,7 +147,7 @@ const artifactHandler = compozyApiMock.get(
       artifact: {
         uri: artifactURI,
         name: "tool-result.json",
-        mime_type: "application/vnd.agh.tool-result+json",
+        mime_type: "application/vnd.compozy.tool-result+json",
         bytes: retainedResultBytes.byteLength,
         sha256: "d".repeat(64),
       },
@@ -183,7 +183,7 @@ const truncatedToolMessageFixture: UIMessage = {
       {
         uri: artifactURI,
         name: "tool-result.json",
-        mime_type: "application/vnd.agh.tool-result+json",
+        mime_type: "application/vnd.compozy.tool-result+json",
         bytes: retainedResultBytes.byteLength,
         sha256: "d".repeat(64),
       },
@@ -312,7 +312,7 @@ export const MixedToolBatch: Story = {
         <SessionToolCallRow message={searchToolMessageFixture} />
         <SessionToolCallRow message={globToolMessageFixture} />
         <SessionToolCallRow message={webSearchToolMessageFixture} />
-        <SessionToolCallRow message={aghMemoryToolMessageFixture} />
+        <SessionToolCallRow message={compozyMemoryToolMessageFixture} />
         <SessionToolCallRow message={mcpToolMessageFixture} />
         <SessionToolCallRow message={errorToolMessageFixture} />
       </div>

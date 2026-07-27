@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
@@ -137,10 +137,10 @@ func (s *service) LogoutMCPAuth(
 func (s *service) resolveMCPAuthTarget(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
-) (mcpauth.Target, aghconfig.MCPServer, error) {
+) (mcpauth.Target, compozyconfig.MCPServer, error) {
 	target, err := normalizeMCPAuthTarget(req)
 	if err != nil {
-		return mcpauth.Target{}, aghconfig.MCPServer{}, err
+		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
 	}
 	_, sources, err := s.resolveMCPTargetContext(
 		ctx,
@@ -148,17 +148,17 @@ func (s *service) resolveMCPAuthTarget(
 		target.WorkspaceID,
 	)
 	if err != nil {
-		return mcpauth.Target{}, aghconfig.MCPServer{}, err
+		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
 	}
 	targetKind, ok := preferredMCPDeleteTarget(ScopeKind(target.Scope), target.ServerName, sources)
 	if !ok {
-		return mcpauth.Target{}, aghconfig.MCPServer{}, notFoundError(
+		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
 	}
 	entry, ok := mcpSourceForTarget(target.ServerName, targetKind, sources)
 	if !ok {
-		return mcpauth.Target{}, aghconfig.MCPServer{}, notFoundError(
+		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
 	}

@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 var errSettingsRolesConfigRequired = errors.New("roles.config is required")
 
-func settingsRolesConfigPayload(value *aghconfig.RolesConfig) contract.SettingsRolesConfigPayload {
+func settingsRolesConfigPayload(value *compozyconfig.RolesConfig) contract.SettingsRolesConfigPayload {
 	return contract.SettingsRolesConfigPayload{
 		Coordinator: contract.SettingsCoordinatorRoleConfigPayload{
 			SettingsRoleConfigPayload:     settingsRoleConfigPayload(value.Coordinator.RoleConfig),
@@ -36,7 +36,7 @@ func settingsRolesConfigPayload(value *aghconfig.RolesConfig) contract.SettingsR
 	}
 }
 
-func settingsRoleConfigPayload(value aghconfig.RoleConfig) contract.SettingsRoleConfigPayload {
+func settingsRoleConfigPayload(value compozyconfig.RoleConfig) contract.SettingsRoleConfigPayload {
 	return contract.SettingsRoleConfigPayload{
 		Enabled:         value.Enabled,
 		Agent:           strings.TrimSpace(value.Agent),
@@ -47,7 +47,7 @@ func settingsRoleConfigPayload(value aghconfig.RoleConfig) contract.SettingsRole
 	}
 }
 
-func settingsRoleFallbackPayloads(values []aghconfig.RoleFallback) []contract.SettingsRoleFallbackPayload {
+func settingsRoleFallbackPayloads(values []compozyconfig.RoleFallback) []contract.SettingsRoleFallbackPayload {
 	payloads := make([]contract.SettingsRoleFallbackPayload, 0, len(values))
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsRoleFallbackPayload{
@@ -59,22 +59,22 @@ func settingsRoleFallbackPayloads(values []aghconfig.RoleFallback) []contract.Se
 	return payloads
 }
 
-func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (aghconfig.RolesConfig, error) {
+func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (compozyconfig.RolesConfig, error) {
 	if payload == nil {
-		return aghconfig.RolesConfig{}, NewSettingsValidationError(
+		return compozyconfig.RolesConfig{}, NewSettingsValidationError(
 			errSettingsRolesConfigRequired,
 		)
 	}
 	ttl, err := parseSettingsDuration("roles.config.coordinator.ttl", payload.Coordinator.TTL)
 	if err != nil {
-		return aghconfig.RolesConfig{}, err
+		return compozyconfig.RolesConfig{}, err
 	}
 	timeout, err := parseSettingsDuration("roles.config.memory_controller.timeout", payload.MemoryController.Timeout)
 	if err != nil {
-		return aghconfig.RolesConfig{}, err
+		return compozyconfig.RolesConfig{}, err
 	}
-	return aghconfig.RolesConfig{
-		Coordinator: aghconfig.CoordinatorRoleConfig{
+	return compozyconfig.RolesConfig{
+		Coordinator: compozyconfig.CoordinatorRoleConfig{
 			RoleConfig:                    roleConfigFromSettingsPayload(payload.Coordinator.SettingsRoleConfigPayload),
 			TTL:                           ttl,
 			MaxChildren:                   payload.Coordinator.MaxChildren,
@@ -84,7 +84,7 @@ func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (aghco
 		CheckpointSummary: roleConfigFromSettingsPayload(payload.CheckpointSummary),
 		MemoryExtractor:   roleConfigFromSettingsPayload(payload.MemoryExtractor),
 		AutoTitle:         roleConfigFromSettingsPayload(payload.AutoTitle),
-		MemoryController: aghconfig.MemoryControllerRoleConfig{
+		MemoryController: compozyconfig.MemoryControllerRoleConfig{
 			Enabled:         payload.MemoryController.Enabled,
 			Provider:        strings.TrimSpace(payload.MemoryController.Provider),
 			Model:           strings.TrimSpace(payload.MemoryController.Model),
@@ -98,8 +98,8 @@ func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (aghco
 	}, nil
 }
 
-func roleConfigFromSettingsPayload(payload contract.SettingsRoleConfigPayload) aghconfig.RoleConfig {
-	return aghconfig.RoleConfig{
+func roleConfigFromSettingsPayload(payload contract.SettingsRoleConfigPayload) compozyconfig.RoleConfig {
+	return compozyconfig.RoleConfig{
 		Enabled:         payload.Enabled,
 		Agent:           strings.TrimSpace(payload.Agent),
 		Provider:        strings.TrimSpace(payload.Provider),
@@ -109,10 +109,10 @@ func roleConfigFromSettingsPayload(payload contract.SettingsRoleConfigPayload) a
 	}
 }
 
-func roleFallbacksFromSettingsPayload(values []contract.SettingsRoleFallbackPayload) []aghconfig.RoleFallback {
-	fallbacks := make([]aghconfig.RoleFallback, 0, len(values))
+func roleFallbacksFromSettingsPayload(values []contract.SettingsRoleFallbackPayload) []compozyconfig.RoleFallback {
+	fallbacks := make([]compozyconfig.RoleFallback, 0, len(values))
 	for _, value := range values {
-		fallbacks = append(fallbacks, aghconfig.RoleFallback{
+		fallbacks = append(fallbacks, compozyconfig.RoleFallback{
 			Provider:        strings.TrimSpace(value.Provider),
 			Model:           strings.TrimSpace(value.Model),
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),

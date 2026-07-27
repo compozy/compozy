@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/network/participation"
 	sessionpkg "github.com/compozy/compozy/internal/session"
@@ -121,7 +121,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("len(extensions) = %d, want %d", got, want)
 	}
 
-	installedExtension, err := harness.InstallExtension(testContext(t), aghcontract.InstallExtensionRequest{
+	installedExtension, err := harness.InstallExtension(testContext(t), compozycontract.InstallExtensionRequest{
 		Path:     "/extensions/telegram-reference",
 		Checksum: "sha256-demo",
 	})
@@ -156,7 +156,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("disabledExtension.Enabled = %v, want false", disabledExtension.Enabled)
 	}
 
-	session, err := harness.CreateSession(testContext(t), aghcontract.CreateSessionRequest{
+	session, err := harness.CreateSession(testContext(t), compozycontract.CreateSessionRequest{
 		AgentName:     "coder",
 		WorkspacePath: "/workspace",
 	})
@@ -252,7 +252,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	resolvedDirect, err := harness.NetworkDirectResolve(
 		testContext(t),
 		"builders",
-		aghcontract.NetworkDirectResolveRequest{
+		compozycontract.NetworkDirectResolveRequest{
 			SessionID: "sess-1",
 			PeerID:    "reviewer.sess-2",
 		},
@@ -287,7 +287,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if _, err := harness.NetworkInbox(testContext(t), "sess-1"); err != nil {
 		t.Fatalf("NetworkInbox() error = %v", err)
 	}
-	if _, err := harness.NetworkSend(testContext(t), aghcontract.NetworkSendRequest{
+	if _, err := harness.NetworkSend(testContext(t), compozycontract.NetworkSendRequest{
 		SessionID:   "sess-1",
 		Channel:     "builders",
 		Surface:     "thread",
@@ -301,7 +301,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("NetworkSend() error = %v", err)
 	}
-	if _, err := harness.CreateNetworkChannel(testContext(t), aghcontract.CreateNetworkChannelRequest{
+	if _, err := harness.CreateNetworkChannel(testContext(t), compozycontract.CreateNetworkChannelRequest{
 		Channel:     "builders",
 		WorkspaceID: "ws-1",
 		AgentNames:  []string{"coder"},
@@ -315,7 +315,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("CaptureNetworkArtifacts() error = %v", err)
 	}
 
-	createdBridge, err := harness.CreateBridge(testContext(t), aghcontract.CreateBridgeRequest{
+	createdBridge, err := harness.CreateBridge(testContext(t), compozycontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   "ws-1",
 		Platform:      "telegram",
@@ -366,7 +366,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		testContext(t),
 		"brg-1",
 		"bot_token",
-		aghcontract.PutBridgeSecretBindingRequest{
+		compozycontract.PutBridgeSecretBindingRequest{
 			SecretRef:   "vault:bridges/brg-1/bot_token",
 			SecretValue: new("telegram-bot-token"),
 			Kind:        "token",
@@ -757,7 +757,7 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 
 		_, err := harness.GetExtension(ctx, "telegram-reference")
 		assertErrorContains(t, err, "/api/extensions/telegram-reference status 500: boom")
-		if _, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
+		if _, err := harness.CreateBridge(ctx, compozycontract.CreateBridgeRequest{
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   "ws-1",
 			Platform:      "telegram",
@@ -773,7 +773,7 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 			ctx,
 			"brg-1",
 			"bot_token",
-			aghcontract.PutBridgeSecretBindingRequest{
+			compozycontract.PutBridgeSecretBindingRequest{
 				SecretRef:   "vault:bridges/brg-1/bot_token",
 				SecretValue: new("telegram-bot-token"),
 				Kind:        "token",
@@ -838,7 +838,7 @@ func TestRuntimeHarnessBridgeHelpersRejectBlankBridgeID(t *testing.T) {
 					ctx,
 					"",
 					"bot_token",
-					aghcontract.PutBridgeSecretBindingRequest{},
+					compozycontract.PutBridgeSecretBindingRequest{},
 				)
 				return err
 			},
@@ -893,8 +893,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/workspaces/resolve", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.WorkspaceResponse{
-			Workspace: aghcontract.WorkspacePayload{
+		writeJSON(w, compozycontract.WorkspaceResponse{
+			Workspace: compozycontract.WorkspacePayload{
 				ID:        "ws-1",
 				RootDir:   "/workspace",
 				Name:      "workspace",
@@ -904,8 +904,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/workspaces/ws-1", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.WorkspaceResponse{
-			Workspace: aghcontract.WorkspacePayload{
+		writeJSON(w, compozycontract.WorkspaceResponse{
+			Workspace: compozycontract.WorkspacePayload{
 				ID:        "ws-1",
 				RootDir:   "/workspace",
 				Name:      "workspace",
@@ -920,8 +920,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		writeJSON(w, aghcontract.SessionResponse{
-			Session: aghcontract.SessionPayload{
+		writeJSON(w, compozycontract.SessionResponse{
+			Session: compozycontract.SessionPayload{
 				ID:            "sess-1",
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
@@ -936,15 +936,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		writeJSON(w, aghcontract.SessionResponse{
-			Session: aghcontract.SessionPayload{
+		writeJSON(w, compozycontract.SessionResponse{
+			Session: compozycontract.SessionPayload{
 				ID:            "sess-1",
 				AgentName:     "coder",
 				WorkspaceID:   "ws-1",
 				WorkspacePath: "/workspace",
 				State:         "stopped",
 				StopReason:    store.StopCompleted,
-				Sandbox: &aghcontract.SessionSandboxPayload{
+				Sandbox: &compozycontract.SessionSandboxPayload{
 					SandboxID: "env-1",
 					Backend:   "local",
 					Profile:   "local",
@@ -967,8 +967,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		writeJSON(w, aghcontract.SessionAttachResponse{
-			Session: aghcontract.SessionPayload{
+		writeJSON(w, compozycontract.SessionAttachResponse{
+			Session: compozycontract.SessionPayload{
 				ID:                           "sess-1",
 				AgentName:                    "coder",
 				WorkspaceID:                  "ws-1",
@@ -976,7 +976,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
 				State:                        "active",
 				Badge:                        "idle",
-				Sandbox: &aghcontract.SessionSandboxPayload{
+				Sandbox: &compozycontract.SessionSandboxPayload{
 					SandboxID: "env-1",
 					Backend:   "local",
 					Profile:   "local",
@@ -985,7 +985,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				CreatedAt: now,
 				UpdatedAt: routeTime,
 			},
-			Attach: aghcontract.SessionAttachPayload{
+			Attach: compozycontract.SessionAttachPayload{
 				SessionID:       "sess-1",
 				AttachedTo:      "e2e:test",
 				AttachExpiresAt: routeTime.Add(time.Minute),
@@ -1024,8 +1024,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc(
 		"/api/workspaces/ws-1/network/channels/builders/threads",
 		func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, aghcontract.NetworkThreadsResponse{
-				Threads: []aghcontract.NetworkThreadSummaryPayload{{
+			writeJSON(w, compozycontract.NetworkThreadsResponse{
+				Threads: []compozycontract.NetworkThreadSummaryPayload{{
 					Channel:            "builders",
 					ThreadID:           harnessNetworkThreadID,
 					RootMessageID:      "msg-1",
@@ -1046,8 +1046,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
-		writeJSON(w, aghcontract.NetworkThreadResponse{
-			Thread: aghcontract.NetworkThreadSummaryPayload{
+		writeJSON(w, compozycontract.NetworkThreadResponse{
+			Thread: compozycontract.NetworkThreadSummaryPayload{
 				Channel:            "builders",
 				ThreadID:           harnessNetworkThreadID,
 				RootMessageID:      "msg-1",
@@ -1067,8 +1067,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
-		writeJSON(w, aghcontract.NetworkThreadMessagesResponse{
-			Messages: []aghcontract.NetworkConversationMessagePayload{{
+		writeJSON(w, compozycontract.NetworkThreadMessagesResponse{
+			Messages: []compozycontract.NetworkConversationMessagePayload{{
 				MessageID:   "msg-1",
 				Channel:     "builders",
 				Surface:     "thread",
@@ -1088,8 +1088,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc(
 		"/api/workspaces/ws-1/network/channels/builders/directs",
 		func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, aghcontract.NetworkDirectRoomsResponse{
-				Directs: []aghcontract.NetworkDirectRoomPayload{{
+			writeJSON(w, compozycontract.NetworkDirectRoomsResponse{
+				Directs: []compozycontract.NetworkDirectRoomPayload{{
 					Channel:            "builders",
 					DirectID:           harnessNetworkDirectID,
 					SessionA:           "sess-1",
@@ -1111,7 +1111,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		var request aghcontract.NetworkDirectResolveRequest
+		var request compozycontract.NetworkDirectResolveRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode direct resolve: %v", err)
 			return
@@ -1138,8 +1138,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.NetworkDirectRoomResponse{
-			Direct: aghcontract.NetworkDirectRoomPayload{
+		writeJSON(w, compozycontract.NetworkDirectRoomResponse{
+			Direct: compozycontract.NetworkDirectRoomPayload{
 				Channel:        "builders",
 				DirectID:       harnessNetworkDirectID,
 				SessionA:       "sess-1",
@@ -1153,8 +1153,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
-		writeJSON(w, aghcontract.NetworkDirectRoomResponse{
-			Direct: aghcontract.NetworkDirectRoomPayload{
+		writeJSON(w, compozycontract.NetworkDirectRoomResponse{
+			Direct: compozycontract.NetworkDirectRoomPayload{
 				Channel:            "builders",
 				DirectID:           harnessNetworkDirectID,
 				SessionA:           "sess-1",
@@ -1171,8 +1171,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
-		writeJSON(w, aghcontract.NetworkDirectRoomMessagesResponse{
-			Messages: []aghcontract.NetworkConversationMessagePayload{{
+		writeJSON(w, compozycontract.NetworkDirectRoomMessagesResponse{
+			Messages: []compozycontract.NetworkConversationMessagePayload{{
 				MessageID:   "msg-direct-1",
 				Channel:     "builders",
 				Surface:     "direct",
@@ -1195,8 +1195,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc(
 		"/api/workspaces/ws-1/network/work/"+harnessNetworkWorkID,
 		func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, aghcontract.NetworkWorkResponse{
-				Work: aghcontract.NetworkWorkPayload{
+			writeJSON(w, compozycontract.NetworkWorkResponse{
+				Work: compozycontract.NetworkWorkPayload{
 					WorkID:          harnessNetworkWorkID,
 					Channel:         "builders",
 					Surface:         "thread",
@@ -1211,8 +1211,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		},
 	)
 	mux.HandleFunc("/api/network/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkStatusResponse{
-			Network: aghcontract.NetworkStatusPayload{
+		writeJSON(w, compozycontract.NetworkStatusResponse{
+			Network: compozycontract.NetworkStatusPayload{
 				Enabled:           true,
 				Status:            "running",
 				LocalPeers:        1,
@@ -1234,17 +1234,17 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.NetworkPeersResponse{
-			Peers: []aghcontract.NetworkPeerPayload{{
+		writeJSON(w, compozycontract.NetworkPeersResponse{
+			Peers: []compozycontract.NetworkPeerPayload{{
 				SessionID:   new("sess-1"),
 				PeerID:      "coder.sess-1",
 				DisplayName: "coder",
 				Channel:     "builders",
 				Local:       true,
-				PeerCard: aghcontract.NetworkPeerCardPayload{
+				PeerCard: compozycontract.NetworkPeerCardPayload{
 					PeerID:            "coder.sess-1",
 					ProfilesSupported: []string{"compozy-network/v0"},
-					Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+					Capabilities: []compozycontract.NetworkCapabilityBriefPayload{{
 						ID:      "chat.review",
 						Summary: "Reviews chat requests.",
 					}},
@@ -1256,11 +1256,11 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc("/api/workspaces/ws-1/network/channels", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusCreated)
-			writeJSON(w, aghcontract.CreateNetworkChannelResponse{
-				Channel: aghcontract.NetworkChannelDetailPayload{
+			writeJSON(w, compozycontract.CreateNetworkChannelResponse{
+				Channel: compozycontract.NetworkChannelDetailPayload{
 					Channel:   "builders",
 					PeerCount: 1,
-					Sessions: []aghcontract.SessionPayload{{
+					Sessions: []compozycontract.SessionPayload{{
 						ID:                           "sess-1",
 						AgentName:                    "coder",
 						ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
@@ -1270,8 +1270,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			})
 			return
 		}
-		writeJSON(w, aghcontract.NetworkChannelsResponse{
-			Channels: []aghcontract.NetworkChannelPayload{{
+		writeJSON(w, compozycontract.NetworkChannelsResponse{
+			Channels: []compozycontract.NetworkChannelPayload{{
 				Channel:        "builders",
 				PeerCount:      1,
 				LocalPeerCount: 1,
@@ -1282,26 +1282,26 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkChannelResponse{
-			Channel: aghcontract.NetworkChannelDetailPayload{
+		writeJSON(w, compozycontract.NetworkChannelResponse{
+			Channel: compozycontract.NetworkChannelDetailPayload{
 				Channel:   "builders",
 				PeerCount: 1,
-				Sessions: []aghcontract.SessionPayload{{
+				Sessions: []compozycontract.SessionPayload{{
 					ID:                           "sess-1",
 					AgentName:                    "coder",
 					ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
 					State:                        "active",
 				}},
-				Peers: []aghcontract.NetworkPeerPayload{{
+				Peers: []compozycontract.NetworkPeerPayload{{
 					SessionID:   new("sess-1"),
 					PeerID:      "coder.sess-1",
 					DisplayName: "coder",
 					Channel:     "builders",
 					Local:       true,
-					PeerCard: aghcontract.NetworkPeerCardPayload{
+					PeerCard: compozycontract.NetworkPeerCardPayload{
 						PeerID:            "coder.sess-1",
 						ProfilesSupported: []string{"compozy-network/v0"},
-						Capabilities: []aghcontract.NetworkCapabilityBriefPayload{{
+						Capabilities: []compozycontract.NetworkCapabilityBriefPayload{{
 							ID:      "chat.review",
 							Summary: "Reviews chat requests.",
 						}},
@@ -1323,8 +1323,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.NetworkInboxResponse{
-			Messages: []aghcontract.NetworkEnvelopePayload{{
+		writeJSON(w, compozycontract.NetworkInboxResponse{
+			Messages: []compozycontract.NetworkEnvelopePayload{{
 				Protocol: "compozy-network/v0",
 				ID:       "msg-inbox-1",
 				Kind:     "say",
@@ -1346,7 +1346,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		var request aghcontract.NetworkSendRequest
+		var request compozycontract.NetworkSendRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode network send: %v", err)
 			return
@@ -1379,8 +1379,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				return
 			}
 		}
-		writeJSON(w, aghcontract.NetworkSendResponse{
-			Message: aghcontract.NetworkSendPayload{
+		writeJSON(w, compozycontract.NetworkSendResponse{
+			Message: compozycontract.NetworkSendPayload{
 				ID:          "msg-send-1",
 				SessionID:   "sess-1",
 				Channel:     "builders",
@@ -1406,8 +1406,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.RunsResponse{
-			Runs: []aghcontract.RunPayload{{
+		writeJSON(w, compozycontract.RunsResponse{
+			Runs: []compozycontract.RunPayload{{
 				ID:        "run-1",
 				SessionID: "sess-1",
 				Status:    "completed",
@@ -1427,8 +1427,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.TasksResponse{
-			Tasks: []aghcontract.TaskCatalogItemPayload{{
+		writeJSON(w, compozycontract.TasksResponse{
+			Tasks: []compozycontract.TaskCatalogItemPayload{{
 				ID:        "task-1",
 				Scope:     "workspace",
 				Title:     "demo",
@@ -1452,8 +1452,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.TaskRunsResponse{
-			Runs: []aghcontract.TaskRunPayload{{
+		writeJSON(w, compozycontract.TaskRunsResponse{
+			Runs: []compozycontract.TaskRunPayload{{
 				ID:             "task-run-1",
 				TaskID:         "task-1",
 				Status:         taskpkg.TaskRunStatusCompleted,
@@ -1468,8 +1468,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 	mux.HandleFunc("/api/extensions", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, aghcontract.ExtensionsResponse{
-				Extensions: []aghcontract.ExtensionPayload{{
+			writeJSON(w, compozycontract.ExtensionsResponse{
+				Extensions: []compozycontract.ExtensionPayload{{
 					Name:          "telegram-reference",
 					Version:       "0.1.0",
 					Type:          "local",
@@ -1483,7 +1483,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				}},
 			})
 		case http.MethodPost:
-			var request aghcontract.InstallExtensionRequest
+			var request compozycontract.InstallExtensionRequest
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 				reportHarnessHandlerError(
 					w,
@@ -1517,8 +1517,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				return
 			}
 			w.WriteHeader(http.StatusCreated)
-			writeJSON(w, aghcontract.ExtensionResponse{
-				Extension: aghcontract.ExtensionPayload{
+			writeJSON(w, compozycontract.ExtensionResponse{
+				Extension: compozycontract.ExtensionPayload{
 					Name:          "telegram-reference",
 					Version:       "0.1.0",
 					Type:          "local",
@@ -1536,8 +1536,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 	})
 	mux.HandleFunc("/api/extensions/telegram-reference", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.ExtensionResponse{
-			Extension: aghcontract.ExtensionPayload{
+		writeJSON(w, compozycontract.ExtensionResponse{
+			Extension: compozycontract.ExtensionPayload{
 				Name:          "telegram-reference",
 				Version:       "0.1.0",
 				Type:          "local",
@@ -1552,8 +1552,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/extensions/telegram-reference/enable", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.ExtensionResponse{
-			Extension: aghcontract.ExtensionPayload{
+		writeJSON(w, compozycontract.ExtensionResponse{
+			Extension: compozycontract.ExtensionPayload{
 				Name:          "telegram-reference",
 				Version:       "0.1.0",
 				Type:          "local",
@@ -1568,8 +1568,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/extensions/telegram-reference/disable", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.ExtensionResponse{
-			Extension: aghcontract.ExtensionPayload{
+		writeJSON(w, compozycontract.ExtensionResponse{
+			Extension: compozycontract.ExtensionPayload{
 				Name:          "telegram-reference",
 				Version:       "0.1.0",
 				Type:          "local",
@@ -1588,7 +1588,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		var request aghcontract.CreateBridgeRequest
+		var request compozycontract.CreateBridgeRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			reportHarnessHandlerError(
 				w,
@@ -1611,8 +1611,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		writeJSON(w, aghcontract.BridgeResponse{
-			Bridge: aghcontract.BridgePayload{
+		writeJSON(w, compozycontract.BridgeResponse{
+			Bridge: compozycontract.BridgePayload{
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeWorkspace,
 				WorkspaceID:   "ws-1",
@@ -1624,15 +1624,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			},
-			Health: aghcontract.BridgeHealthPayload{
+			Health: compozycontract.BridgeHealthPayload{
 				BridgeInstanceID: "brg-1",
 				Status:           bridgepkg.BridgeStatusDisabled,
 			},
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.BridgeResponse{
-			Bridge: aghcontract.BridgePayload{
+		writeJSON(w, compozycontract.BridgeResponse{
+			Bridge: compozycontract.BridgePayload{
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeWorkspace,
 				WorkspaceID:   "ws-1",
@@ -1644,7 +1644,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				CreatedAt:     now,
 				UpdatedAt:     routeTime,
 			},
-			Health: aghcontract.BridgeHealthPayload{
+			Health: compozycontract.BridgeHealthPayload{
 				BridgeInstanceID: "brg-1",
 				Status:           bridgepkg.BridgeStatusReady,
 				RouteCount:       1,
@@ -1653,8 +1653,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1/enable", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.BridgeResponse{
-			Bridge: aghcontract.BridgePayload{
+		writeJSON(w, compozycontract.BridgeResponse{
+			Bridge: compozycontract.BridgePayload{
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeWorkspace,
 				WorkspaceID:   "ws-1",
@@ -1666,15 +1666,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				CreatedAt:     now,
 				UpdatedAt:     routeTime,
 			},
-			Health: aghcontract.BridgeHealthPayload{
+			Health: compozycontract.BridgeHealthPayload{
 				BridgeInstanceID: "brg-1",
 				Status:           bridgepkg.BridgeStatusStarting,
 			},
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1/restart", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.BridgeResponse{
-			Bridge: aghcontract.BridgePayload{
+		writeJSON(w, compozycontract.BridgeResponse{
+			Bridge: compozycontract.BridgePayload{
 				ID:            "brg-1",
 				Scope:         bridgepkg.ScopeWorkspace,
 				WorkspaceID:   "ws-1",
@@ -1686,7 +1686,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				CreatedAt:     now,
 				UpdatedAt:     routeTime,
 			},
-			Health: aghcontract.BridgeHealthPayload{
+			Health: compozycontract.BridgeHealthPayload{
 				BridgeInstanceID: "brg-1",
 				Status:           bridgepkg.BridgeStatusReady,
 				RouteCount:       1,
@@ -1695,7 +1695,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1/routes", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.BridgeRoutesResponse{
+		writeJSON(w, compozycontract.BridgeRoutesResponse{
 			Routes: []bridgepkg.BridgeRoute{{
 				Scope:            bridgepkg.ScopeWorkspace,
 				WorkspaceID:      "ws-1",
@@ -1711,7 +1711,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1/secret-bindings", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.BridgeSecretBindingsResponse{
+		writeJSON(w, compozycontract.BridgeSecretBindingsResponse{
 			Bindings: []bridgepkg.BridgeSecretBinding{{
 				BridgeInstanceID: "brg-1",
 				BindingName:      "bot_token",
@@ -1723,7 +1723,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		})
 	})
 	mux.HandleFunc("/api/bridges/brg-1/secret-bindings/bot_token", func(w http.ResponseWriter, r *http.Request) {
-		var request aghcontract.PutBridgeSecretBindingRequest
+		var request compozycontract.PutBridgeSecretBindingRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			reportHarnessHandlerError(
 				w,
@@ -1766,7 +1766,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		writeJSON(w, aghcontract.BridgeSecretBindingResponse{
+		writeJSON(w, compozycontract.BridgeSecretBindingResponse{
 			Binding: bridgepkg.BridgeSecretBinding{
 				BridgeInstanceID: "brg-1",
 				BindingName:      "bot_token",
@@ -1789,9 +1789,9 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		payload, err := json.Marshal(aghcontract.BridgeHealthStreamPayload{
+		payload, err := json.Marshal(compozycontract.BridgeHealthStreamPayload{
 			GeneratedAt: now,
-			BridgeHealth: map[string]aghcontract.BridgeHealthPayload{
+			BridgeHealth: map[string]compozycontract.BridgeHealthPayload{
 				"brg-1": {
 					BridgeInstanceID: "brg-1",
 					Status:           "ready",

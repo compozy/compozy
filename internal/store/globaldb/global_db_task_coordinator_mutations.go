@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func applyCoordinatorRunStopsWithExecutor(
@@ -172,7 +172,7 @@ func (g *TaskRepo) ensureWorkspaceExistsWithExecutor(
 	}
 	if _, err := sqlcgen.New(exec).GetWorkspaceID(ctx, trimmedID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return aghworkspace.ErrWorkspaceNotFound
+			return compozyworkspace.ErrWorkspaceNotFound
 		}
 		return fmt.Errorf("store: check workspace %q exists: %w", trimmedID, err)
 	}

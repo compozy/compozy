@@ -9,7 +9,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
@@ -18,21 +18,21 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 )
 
-// WithHomePaths overrides the resolved AGH home layout.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+// WithHomePaths overrides the resolved Compozy home layout.
+func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(d *Daemon) {
 		d.homePaths = homePaths
 	}
 }
 
 // WithConfig overrides daemon-level configuration loading.
-func WithConfig(cfg *aghconfig.Config) Option {
+func WithConfig(cfg *compozyconfig.Config) Option {
 	return func(d *Daemon) {
 		if cfg == nil {
 			return
 		}
 		cfgCopy := *cfg
-		d.loadConfig = func() (aghconfig.Config, error) {
+		d.loadConfig = func() (compozyconfig.Config, error) {
 			return cfgCopy, nil
 		}
 	}
@@ -100,7 +100,7 @@ func WithBoundaryVerification(enabled bool) Option {
 
 // New constructs the daemon composition root.
 func New(opts ...Option) (*Daemon, error) {
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve home paths: %w", err)
 	}

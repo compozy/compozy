@@ -22,7 +22,7 @@ const (
 	bootstrapProviderKey    = "provider"
 )
 
-// LoadGlobalConfig loads only the user-global AGH config from the resolved home.
+// LoadGlobalConfig loads only the user-global Compozy config from the resolved home.
 func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
 	return loadWithHome(homePaths, "", false, processEnvLookup)
 }
@@ -135,9 +135,9 @@ func bootstrapAgentContents() string {
 		"name: " + DefaultAgentName,
 		"---",
 		"",
-		"You are AGH's default general-purpose agent.",
+		"You are Compozy's default general-purpose agent.",
 		"",
 		"Operate autonomously, complete tasks end-to-end, and follow the active workspace instructions.",
-		"Provider and model are resolved from the user's AGH configuration unless this agent is overridden.",
+		"Provider and model are resolved from the user's Compozy configuration unless this agent is overridden.",
 	}, "\n")
 }

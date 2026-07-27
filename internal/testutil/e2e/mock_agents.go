@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
@@ -32,7 +32,7 @@ type MockAgentSpec struct {
 	DiagnosticsPath string
 }
 
-// RegisterMockAgent writes one temporary fixture-backed AGENT.md into the isolated AGH home.
+// RegisterMockAgent writes one temporary fixture-backed AGENT.md into the isolated Compozy home.
 func (h *RuntimeHarness) RegisterMockAgent(t testing.TB, spec MockAgentSpec) acpmock.Registration {
 	t.Helper()
 
@@ -179,7 +179,7 @@ func (h *RuntimeHarness) StreamSessionRawHTTPUntil(
 	return h.streamSessionHTTPUntil(
 		ctx,
 		sessionID,
-		fmt.Sprintf("frames=%s", aghcontract.SessionStreamFrameRaw),
+		fmt.Sprintf("frames=%s", compozycontract.SessionStreamFrameRaw),
 		predicate,
 	)
 }
@@ -227,7 +227,7 @@ func (h *RuntimeHarness) streamSessionHTTPUntil(
 func (h *RuntimeHarness) ApproveSessionPermission(
 	ctx context.Context,
 	sessionID string,
-	request aghcontract.ApproveSessionRequest,
+	request compozycontract.ApproveSessionRequest,
 ) error {
 	path, err := h.sessionScopedAPIPath(sessionID, "/approve")
 	if err != nil {
@@ -257,7 +257,7 @@ func (h *RuntimeHarness) ApproveSessionPermission(
 
 func registerMockAgents(
 	t testing.TB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	artifacts *ArtifactCollector,
 	specs []MockAgentSpec,
 ) map[string]acpmock.Registration {
@@ -279,7 +279,7 @@ func registerMockAgents(
 }
 
 func registerMockAgent(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	artifacts *ArtifactCollector,
 	spec MockAgentSpec,
 ) (acpmock.Registration, error) {
@@ -301,14 +301,14 @@ func registerMockAgent(
 	})
 }
 
-func ensureMockAgentProviderConfig(t testing.TB, cfg *aghconfig.Config) {
+func ensureMockAgentProviderConfig(t testing.TB, cfg *compozyconfig.Config) {
 	t.Helper()
 
 	if cfg == nil {
 		return
 	}
 	if cfg.Providers == nil {
-		cfg.Providers = map[string]aghconfig.ProviderConfig{}
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{}
 	}
 	if _, ok := cfg.Providers[acpmock.ProviderName]; ok {
 		return

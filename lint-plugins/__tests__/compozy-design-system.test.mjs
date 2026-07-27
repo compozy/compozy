@@ -137,7 +137,7 @@ function runImportRule(ruleName, filename, sourceValue, specifiers) {
 }
 
 async function runOxlint({ filename, source, rule }) {
-  const root = await mkdtemp(join(tmpdir(), "agh-lint-plugin-"));
+  const root = await mkdtemp(join(tmpdir(), "compozy-lint-plugin-"));
   tempRoots.push(root);
 
   const sourcePath = join(root, filename);
@@ -287,7 +287,7 @@ describe("compozy-design-system lint plugin", () => {
           0
         );
       }
-      // In scope: @agh/ui primitives are covered alongside web.
+      // In scope: @compozy/ui primitives are covered alongside web.
       expect(
         runClassNameRule(
           "no-low-contrast-focus-ring",
@@ -545,7 +545,7 @@ describe("compozy-design-system lint plugin", () => {
             }
           `,
         },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui (Inter UC 11/600/-0.005em, single style"
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Inter UC 11/600/-0.005em, single style"
       );
 
       const message = result.messages.join("\n");
@@ -565,7 +565,7 @@ describe("compozy-design-system lint plugin", () => {
             }
           `,
         },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui"
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
       );
     });
 
@@ -592,7 +592,7 @@ describe("compozy-design-system lint plugin", () => {
             }
           `,
         },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui"
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
       );
     });
 
@@ -607,7 +607,7 @@ describe("compozy-design-system lint plugin", () => {
             }
           `,
         },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui"
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui"
       );
     });
 

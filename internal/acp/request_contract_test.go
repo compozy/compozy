@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -101,7 +101,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		proc := startHelperProcess(t, driver, "fs_write_terminal", target, StartOpts{
 			Cwd:            root,
 			AdditionalDirs: []string{additional},
-			Permissions:    aghconfig.PermissionModeApproveAll,
+			Permissions:    compozyconfig.PermissionModeApproveAll,
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -157,13 +157,13 @@ func TestACPBehaviorContracts(t *testing.T) {
 
 		root := t.TempDir()
 		binDir := t.TempDir()
-		writeExecutableScript(t, binDir, "agh-path-tool", "#!/bin/sh\nprintf path-env-ok")
+		writeExecutableScript(t, binDir, "compozy-path-tool", "#!/bin/sh\nprintf path-env-ok")
 		host := newContractLocalToolHost(t, root)
 		ctx := testutil.Context(t)
 
 		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-path",
-			Command:   "agh-path-tool",
+			Command:   "compozy-path-tool",
 			Cwd:       new(root),
 			Env: []acpsdk.EnvVariable{
 				{Name: "PATH", Value: binDir},
@@ -190,7 +190,7 @@ func newContractLocalToolHost(t *testing.T, root string, additionalRoots ...stri
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveAll, root, additionalRoots...)
+	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root, additionalRoots...)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}

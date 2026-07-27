@@ -1,4 +1,4 @@
-package aghsdk_test
+package compozysdk_test
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 func TestStdioTransportBidirectionalCalls(t *testing.T) {
@@ -19,17 +19,17 @@ func TestStdioTransportBidirectionalCalls(t *testing.T) {
 
 	clientInput, serverOutput := io.Pipe()
 	serverInput, clientOutput := io.Pipe()
-	client := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+	client := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 		Input:  clientInput,
 		Output: clientOutput,
 	})
-	server := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+	server := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 		Input:  serverInput,
 		Output: serverOutput,
 	})
 	server.Handle(
 		"echo",
-		func(_ context.Context, params json.RawMessage, _ aghsdk.JSONRPCRequestEnvelope) (any, error) {
+		func(_ context.Context, params json.RawMessage, _ compozysdk.JSONRPCRequestEnvelope) (any, error) {
 			var payload map[string]string
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
@@ -37,8 +37,8 @@ func TestStdioTransportBidirectionalCalls(t *testing.T) {
 			return map[string]string{"echo": payload["value"]}, nil
 		},
 	)
-	server.Handle("fail", func(context.Context, json.RawMessage, aghsdk.JSONRPCRequestEnvelope) (any, error) {
-		return nil, aghsdk.NewInvalidParamsError("forced failure", nil)
+	server.Handle("fail", func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
+		return nil, compozysdk.NewInvalidParamsError("forced failure", nil)
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,7 +65,7 @@ func TestStdioTransportBidirectionalCalls(t *testing.T) {
 	if err == nil {
 		t.Fatal("client.Call(fail) error = nil, want RPC error")
 	}
-	var rpcErr *aghsdk.RPCError
+	var rpcErr *compozysdk.RPCError
 	if !errors.As(err, &rpcErr) || rpcErr.Code != -32602 {
 		t.Fatalf("client.Call(fail) error = %v, want invalid params RPC error", err)
 	}
@@ -75,28 +75,28 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	t.Parallel()
 
 	runtime := newRuntimeHarness(t)
-	extension := aghsdk.NewExtension(
-		aghsdk.ExtensionDefinition{
+	extension := compozysdk.NewExtension(
+		compozysdk.ExtensionDefinition{
 			Name:    "Memory Extension",
 			Version: "0.1.0",
-			Capabilities: aghsdk.CapabilitiesConfig{
+			Capabilities: compozysdk.CapabilitiesConfig{
 				Provides: []string{"memory.backend"},
 			},
-			Actions: aghsdk.ActionsConfig{
-				Requires: []aghsdk.HostAPIMethod{aghsdk.HostAPIMethodSessionsList},
+			Actions: compozysdk.ActionsConfig{
+				Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 			},
-			Security: aghsdk.SecurityConfig{
+			Security: compozysdk.SecurityConfig{
 				Capabilities: []string{"memory.read"},
 			},
 			SupportedHookEvents: []string{"session.started"},
 		},
-		aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-		aghsdk.WithSDKVersion("test-version"),
-		aghsdk.WithStderr(io.Discard),
+		compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+		compozysdk.WithSDKVersion("test-version"),
+		compozysdk.WithStderr(io.Discard),
 	)
 	if err := extension.Handle("memory/store", func(
 		context.Context,
-		aghsdk.ExtensionContext,
+		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
 		return map[string]bool{"stored": true}, nil
@@ -105,7 +105,7 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	}
 	if err := extension.Handle("memory/recall", func(
 		context.Context,
-		aghsdk.ExtensionContext,
+		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
 		return map[string]any{"entries": []any{}}, nil
@@ -114,7 +114,7 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	}
 	if err := extension.Handle("memory/forget", func(
 		context.Context,
-		aghsdk.ExtensionContext,
+		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
 		return map[string]bool{"forgotten": true}, nil
@@ -123,19 +123,19 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	}
 	if err := extension.Handle("health_check", func(
 		context.Context,
-		aghsdk.ExtensionContext,
+		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
-		return aghsdk.HealthCheckResult{Healthy: true, Message: "ok"}, nil
+		return compozysdk.HealthCheckResult{Healthy: true, Message: "ok"}, nil
 	}); err != nil {
 		t.Fatalf("Handle(health_check) error = %v", err)
 	}
 	if err := extension.Handle("shutdown", func(
 		context.Context,
-		aghsdk.ExtensionContext,
+		compozysdk.ExtensionContext,
 		json.RawMessage,
 	) (any, error) {
-		return aghsdk.ShutdownResponse{Acknowledged: true}, nil
+		return compozysdk.ShutdownResponse{Acknowledged: true}, nil
 	}); err != nil {
 		t.Fatalf("Handle(shutdown) error = %v", err)
 	}
@@ -167,7 +167,7 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	if initialize.Error != nil {
 		t.Fatalf("initialize error = %#v", initialize.Error)
 	}
-	var initResult aghsdk.InitializeResponse
+	var initResult compozysdk.InitializeResponse
 	decodeResult(t, initialize.Result, &initResult)
 	if initResult.ExtensionInfo.SDKVersion != "test-version" {
 		t.Fatalf("sdk version = %q, want test-version", initResult.ExtensionInfo.SDKVersion)
@@ -190,7 +190,7 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	if health.Error != nil {
 		t.Fatalf("health_check error = %#v", health.Error)
 	}
-	var healthResult aghsdk.HealthCheckResult
+	var healthResult compozysdk.HealthCheckResult
 	decodeResult(t, health.Result, &healthResult)
 	if !healthResult.Healthy || healthResult.Message != "ok" {
 		t.Fatalf("health result = %#v, want healthy ok", healthResult)
@@ -200,7 +200,7 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	if shutdown.Error != nil {
 		t.Fatalf("shutdown error = %#v", shutdown.Error)
 	}
-	var shutdownResult aghsdk.ShutdownResponse
+	var shutdownResult compozysdk.ShutdownResponse
 	decodeResult(t, shutdown.Result, &shutdownResult)
 	if !shutdownResult.Acknowledged {
 		t.Fatalf("shutdown result = %#v, want acknowledged", shutdownResult)
@@ -216,10 +216,10 @@ func TestHostAPIRawRequestAndResultHelpers(t *testing.T) {
 	t.Parallel()
 
 	transport := &recordingTransport{rawResult: json.RawMessage(`{"ok":true}`)}
-	host := aghsdk.NewHostAPI(transport, func() bool { return true })
+	host := compozysdk.NewHostAPI(transport, func() bool { return true })
 	raw, err := host.RawRequest(
 		context.Background(),
-		aghsdk.HostAPIMethodObserveHealth,
+		compozysdk.HostAPIMethodObserveHealth,
 		map[string]string{"scope": "unit"},
 	)
 	if err != nil {
@@ -232,18 +232,18 @@ func TestHostAPIRawRequestAndResultHelpers(t *testing.T) {
 		t.Fatalf("transport calls = %d, want 1", transport.calls)
 	}
 
-	empty := aghsdk.EmptyResult()
+	empty := compozysdk.EmptyResult()
 	if empty.Truncated || empty.Bytes != 0 {
 		t.Fatalf("EmptyResult() = %#v, want zero non-truncated result", empty)
 	}
-	structured, err := aghsdk.StructuredResult(map[string]bool{"ok": true})
+	structured, err := compozysdk.StructuredResult(map[string]bool{"ok": true})
 	if err != nil {
 		t.Fatalf("StructuredResult() error = %v", err)
 	}
 	if string(structured.Structured) != `{"ok":true}` {
 		t.Fatalf("StructuredResult() = %s, want JSON payload", string(structured.Structured))
 	}
-	if _, err := aghsdk.StructuredResult(map[string]any{"bad": make(chan struct{})}); err == nil {
+	if _, err := compozysdk.StructuredResult(map[string]any{"bad": make(chan struct{})}); err == nil {
 		t.Fatal("StructuredResult() error = nil, want marshal error")
 	}
 }
@@ -251,7 +251,7 @@ func TestHostAPIRawRequestAndResultHelpers(t *testing.T) {
 func TestValidationAndDigestErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	invalidIDs := []aghsdk.ToolID{"", "A", "a_", "a___b", "a__"}
+	invalidIDs := []compozysdk.ToolID{"", "A", "a_", "a___b", "a__"}
 	for _, id := range invalidIDs {
 		t.Run("Should Reject ToolID "+string(id), func(t *testing.T) {
 			t.Parallel()
@@ -262,32 +262,32 @@ func TestValidationAndDigestErrorBranches(t *testing.T) {
 		})
 	}
 
-	if _, err := aghsdk.CanonicalJSON(json.RawMessage(`{"a":1} {"b":2}`)); err == nil {
+	if _, err := compozysdk.CanonicalJSON(json.RawMessage(`{"a":1} {"b":2}`)); err == nil {
 		t.Fatal("CanonicalJSON() error = nil, want multiple value error")
 	}
-	if _, err := aghsdk.CanonicalJSON(json.RawMessage(`{"a":NaN}`)); err == nil {
+	if _, err := compozysdk.CanonicalJSON(json.RawMessage(`{"a":NaN}`)); err == nil {
 		t.Fatal("CanonicalJSON() error = nil, want invalid JSON error")
 	}
-	if _, err := aghsdk.SchemaDigest(json.RawMessage(`[]`)); err == nil {
+	if _, err := compozysdk.SchemaDigest(json.RawMessage(`[]`)); err == nil {
 		t.Fatal("SchemaDigest([]) error = nil, want object error")
 	}
-	if canonical, err := aghsdk.CanonicalJSON(json.RawMessage(`{"n":1.20e+3}`)); err != nil {
+	if canonical, err := compozysdk.CanonicalJSON(json.RawMessage(`{"n":1.20e+3}`)); err != nil {
 		t.Fatalf("CanonicalJSON(number) error = %v", err)
 	} else if string(canonical) != `{"n":1200}` {
 		t.Fatalf("CanonicalJSON(number) = %s, want canonical exponent", string(canonical))
 	}
 
-	if err := (&aghsdk.RPCError{Message: "direct"}).Error(); err != "direct" {
+	if err := (&compozysdk.RPCError{Message: "direct"}).Error(); err != "direct" {
 		t.Fatalf("RPCError.Error() = %q, want direct", err)
 	}
-	var nilRPC *aghsdk.RPCError
+	var nilRPC *compozysdk.RPCError
 	if nilRPC.Error() != "" {
 		t.Fatalf("nil RPCError.Error() = %q, want empty", nilRPC.Error())
 	}
-	_ = aghsdk.NewInvalidRequestError("bad")
-	_ = aghsdk.NewMethodNotFoundError("missing")
-	_ = aghsdk.NewInternalError("internal")
-	_ = aghsdk.NewCapabilityDeniedError(map[string]any{"field": "provides"})
+	_ = compozysdk.NewInvalidRequestError("bad")
+	_ = compozysdk.NewMethodNotFoundError("missing")
+	_ = compozysdk.NewInternalError("internal")
+	_ = compozysdk.NewCapabilityDeniedError(map[string]any{"field": "provides"})
 }
 
 func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
@@ -315,7 +315,10 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 	t.Run("Should Validate Run Definition Before Transport", func(t *testing.T) {
 		t.Parallel()
 
-		extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{}, aghsdk.WithTransport(&recordingTransport{}))
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{},
+			compozysdk.WithTransport(&recordingTransport{}),
+		)
 		if err := extension.Run(context.Background()); err == nil {
 			t.Fatal("Run() error = nil, want definition validation error")
 		}
@@ -324,11 +327,11 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 	t.Run("Should Reject Nil Generic Tool Inputs", func(t *testing.T) {
 		t.Parallel()
 
-		if err := aghsdk.Tool[map[string]any](nil, "search", validToolOptions(), nil); err == nil {
+		if err := compozysdk.Tool[map[string]any](nil, "search", validToolOptions(), nil); err == nil {
 			t.Fatal("Tool(nil extension) error = nil, want error")
 		}
 		extension := newTestExtension()
-		if err := aghsdk.Tool[map[string]any](extension, "search", validToolOptions(), nil); err == nil {
+		if err := compozysdk.Tool[map[string]any](extension, "search", validToolOptions(), nil); err == nil {
 			t.Fatal("Tool(nil function) error = nil, want error")
 		}
 	})
@@ -337,16 +340,16 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{
 				Name:    "Grant Extension",
 				Version: "0.1.0",
-				Actions: aghsdk.ActionsConfig{
-					Requires: []aghsdk.HostAPIMethod{aghsdk.HostAPIMethodSessionsList},
+				Actions: compozysdk.ActionsConfig{
+					Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 				},
 			},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -378,19 +381,19 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{
 				Name:    "Ready Extension",
 				Version: "0.1.0",
-				Actions: aghsdk.ActionsConfig{
-					Requires: []aghsdk.HostAPIMethod{aghsdk.HostAPIMethodSessionsList},
+				Actions: compozysdk.ActionsConfig{
+					Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 				},
 			},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
-		extension.OnReady(func(ctx context.Context, host *aghsdk.HostAPI, _ aghsdk.ExtensionSession) error {
-			_, err := host.RawRequest(ctx, aghsdk.HostAPIMethodSessionsList, map[string]any{"limit": 1})
+		extension.OnReady(func(ctx context.Context, host *compozysdk.HostAPI, _ compozysdk.ExtensionSession) error {
+			_, err := host.RawRequest(ctx, compozysdk.HostAPIMethodSessionsList, map[string]any{"limit": 1})
 			return err
 		})
 		ctx, cancel := context.WithCancel(context.Background())
@@ -439,7 +442,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 	t.Run("Should Close Transport And Reject Calls", func(t *testing.T) {
 		t.Parallel()
 
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  strings.NewReader(""),
 			Output: &bytes.Buffer{},
 		})
@@ -454,7 +457,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 	t.Run("Should Fail On Invalid JSON", func(t *testing.T) {
 		t.Parallel()
 
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  strings.NewReader("{bad}\n"),
 			Output: &bytes.Buffer{},
 		})
@@ -469,20 +472,20 @@ func TestRuntimeErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	runtime := newRuntimeHarness(t)
-	extension := aghsdk.NewExtension(
-		aghsdk.ExtensionDefinition{Name: "Error Extension", Version: "0.1.0"},
-		aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-		aghsdk.WithStderr(io.Discard),
+	extension := compozysdk.NewExtension(
+		compozysdk.ExtensionDefinition{Name: "Error Extension", Version: "0.1.0"},
+		compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+		compozysdk.WithStderr(io.Discard),
 	)
 	type searchInput struct {
 		Query string `json:"query"`
 	}
-	if err := aghsdk.Tool[searchInput](
+	if err := compozysdk.Tool[searchInput](
 		extension,
 		"search",
 		validToolOptions(),
-		func(context.Context, aghsdk.ToolRequest[searchInput]) (aghsdk.ToolResult, error) {
-			return aghsdk.TextResult("ok"), nil
+		func(context.Context, compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+			return compozysdk.TextResult("ok"), nil
 		},
 	); err != nil {
 		t.Fatalf("Tool() error = %v", err)
@@ -551,7 +554,7 @@ func TestTransportValidationBranches(t *testing.T) {
 	t.Run("Should Reject Invalid Call Inputs", func(t *testing.T) {
 		t.Parallel()
 
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  strings.NewReader(""),
 			Output: &bytes.Buffer{},
 		})
@@ -568,7 +571,7 @@ func TestTransportValidationBranches(t *testing.T) {
 		t.Parallel()
 
 		inputReader, inputWriter := io.Pipe()
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  inputReader,
 			Output: failingWriter{},
 		})
@@ -588,7 +591,7 @@ func TestTransportValidationBranches(t *testing.T) {
 	t.Run("Should Fail On Invalid Envelope", func(t *testing.T) {
 		t.Parallel()
 
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  strings.NewReader("[]\n"),
 			Output: &bytes.Buffer{},
 		})
@@ -603,19 +606,19 @@ func TestTransportValidationBranches(t *testing.T) {
 
 		inputReader, inputWriter := io.Pipe()
 		outputReader, outputWriter := io.Pipe()
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  inputReader,
 			Output: outputWriter,
 		})
 		transport.Handle(
 			"bad/result",
-			func(context.Context, json.RawMessage, aghsdk.JSONRPCRequestEnvelope) (any, error) {
+			func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
 				return map[string]any{"bad": make(chan struct{})}, nil
 			},
 		)
 		transport.Handle(
 			"nil/result",
-			func(context.Context, json.RawMessage, aghsdk.JSONRPCRequestEnvelope) (any, error) {
+			func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
 				return nil, nil
 			},
 		)
@@ -690,10 +693,10 @@ func TestInitializeValidationBranches(t *testing.T) {
 			t.Parallel()
 
 			runtime := newRuntimeHarness(t)
-			extension := aghsdk.NewExtension(
-				aghsdk.ExtensionDefinition{Name: "Init Extension", Version: "0.1.0"},
-				aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-				aghsdk.WithStderr(io.Discard),
+			extension := compozysdk.NewExtension(
+				compozysdk.ExtensionDefinition{Name: "Init Extension", Version: "0.1.0"},
+				compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+				compozysdk.WithStderr(io.Discard),
 			)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

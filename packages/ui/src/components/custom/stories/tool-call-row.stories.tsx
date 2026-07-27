@@ -43,7 +43,7 @@ const STATUSES: ToolCallStatus[] = ["pending", "running", "failed", "success", "
 export const Running: Story = {
   args: {
     toolName: "Bash",
-    preview: "agh agent validate ./agent.toml",
+    preview: "compozy agent validate ./agent.toml",
     status: "running",
   },
 };
@@ -155,7 +155,7 @@ export const CodeBlockChild: Story = {
 };
 
 const LONG_PREVIEW =
-  'agh tool invoke compozy__tool_info --input \'{"tool_id":"compozy__skill_view","workspace_id":"ws-demo"}\' -o json';
+  'compozy tool invoke compozy__tool_info --input \'{"tool_id":"compozy__skill_view","workspace_id":"ws-demo"}\' -o json';
 
 export const LongPreviewTruncates: Story = {
   args: {
@@ -194,14 +194,14 @@ export const AllStatuses: Story = {
 export const LiveStack: Story = {
   render: () => (
     <div className="flex flex-col gap-0.5" data-testid="live-stack">
-      <ToolCallRow toolName="Bash" preview="agh agent validate ./agent.toml" status="success">
+      <ToolCallRow toolName="Bash" preview="compozy agent validate ./agent.toml" status="success">
         <ToolCallRow.Output
           source="✓ schema valid\n✓ tools resolved (4)"
           format="code"
           language="plaintext"
         />
       </ToolCallRow>
-      <ToolCallRow toolName="Read" preview="agh.config.toml" status="success">
+      <ToolCallRow toolName="Read" preview="compozy.config.toml" status="success">
         <ToolCallRow.Output source={"[runtime]\nmode = local"} format="code" language="toml" />
       </ToolCallRow>
       <ToolCallRow toolName="Grep" preview='pattern: "INPUT|OUTPUT"' status="success">

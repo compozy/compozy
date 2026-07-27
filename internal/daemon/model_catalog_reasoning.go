@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"sort"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func effectiveCatalogReasoningApply(cfg *aghconfig.Config) (map[string]bool, error) {
+func effectiveCatalogReasoningApply(cfg *compozyconfig.Config) (map[string]bool, error) {
 	providerIDs := make(map[string]struct{})
-	for providerID := range aghconfig.BuiltinProviders() {
+	for providerID := range compozyconfig.BuiltinProviders() {
 		providerIDs[providerID] = struct{}{}
 	}
 	if cfg != nil {
@@ -29,7 +29,7 @@ func effectiveCatalogReasoningApply(cfg *aghconfig.Config) (map[string]bool, err
 		if err != nil {
 			return nil, fmt.Errorf("daemon: resolve model catalog provider %q: %w", providerID, err)
 		}
-		result[providerID] = provider.Models.EffectiveReasoningApply() == aghconfig.ReasoningApplyACPOption
+		result[providerID] = provider.Models.EffectiveReasoningApply() == compozyconfig.ReasoningApplyACPOption
 	}
 	return result, nil
 }

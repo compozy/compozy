@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type mcpEntry struct {
@@ -126,7 +126,7 @@ func (e mcpEntry) validateOAuth() error {
 		if endpoint.value == "" {
 			continue
 		}
-		if err := aghconfig.ValidateMCPOAuthURL("oauth."+endpoint.name, endpoint.value); err != nil {
+		if err := compozyconfig.ValidateMCPOAuthURL("oauth."+endpoint.name, endpoint.value); err != nil {
 			return fmt.Errorf("marketplace catalog MCP entry %q: %w", e.EntryID, err)
 		}
 	}
@@ -137,7 +137,7 @@ func (e mcpEntry) validateEnvironment() error {
 	seenEnv := make(map[string]struct{}, len(e.Env))
 	for index, field := range e.Env {
 		name := strings.TrimSpace(field.Name)
-		if err := aghconfig.ValidateMCPStdioEnvName("env", name, field.Secret); err != nil {
+		if err := compozyconfig.ValidateMCPStdioEnvName("env", name, field.Secret); err != nil {
 			return fmt.Errorf("marketplace catalog MCP entry %q env[%d]: %w", e.EntryID, index, err)
 		}
 		if _, exists := seenEnv[name]; exists {

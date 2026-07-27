@@ -9,7 +9,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -32,24 +32,24 @@ func (s *ResourceStore) syncOwnedAgentResources(
 		desired[ownerID][agent.ID] = agent
 	}
 	return syncOwnedResources(
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		plan.activeActivationIDs,
 		changed,
-		func(owner resources.ResourceOwner) ([]resources.Record[aghconfig.AgentDef], error) {
+		func(owner resources.ResourceOwner) ([]resources.Record[compozyconfig.AgentDef], error) {
 			return s.agents.List(ctx, s.actor, resources.ResourceFilter{
-				Kind:  aghconfig.AgentResourceKind,
+				Kind:  compozyconfig.AgentResourceKind,
 				Owner: &owner,
 			})
 		},
-		func(ownerID string, current map[string]resources.Record[aghconfig.AgentDef]) error {
+		func(ownerID string, current map[string]resources.Record[compozyconfig.AgentDef]) error {
 			return s.upsertOwnedAgents(ctx, ownerID, current, desired[ownerID], changed)
 		},
 		func(ownerID string) resources.MutationActor { return activationResourceActor(s.actor, ownerID) },
-		func(actor resources.MutationActor, stale resources.Record[aghconfig.AgentDef]) error {
+		func(actor resources.MutationActor, stale resources.Record[compozyconfig.AgentDef]) error {
 			return s.agents.Delete(ctx, actor, stale.ID, stale.Version)
 		},
-		func() ([]resources.Record[aghconfig.AgentDef], error) {
-			return s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: aghconfig.AgentResourceKind})
+		func() ([]resources.Record[compozyconfig.AgentDef], error) {
+			return s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: compozyconfig.AgentResourceKind})
 		},
 	)
 }

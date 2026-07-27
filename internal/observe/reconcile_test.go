@@ -194,7 +194,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				Failure: &store.SessionFailure{
 					Kind:            store.FailureProcess,
 					Summary:         "agent exited with status 1",
-					CrashBundlePath: "/tmp/agh-crash-bundle",
+					CrashBundlePath: "/tmp/compozy-crash-bundle",
 				},
 				Lineage: &store.SessionLineage{
 					ParentSessionID:  parentID,
@@ -271,7 +271,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if got, want := indexed.Failure.Summary, "agent exited with status 1"; got != want {
 			t.Fatalf("indexed.Failure.Summary = %q, want %q", got, want)
 		}
-		if got, want := indexed.Failure.CrashBundlePath, "/tmp/agh-crash-bundle"; got != want {
+		if got, want := indexed.Failure.CrashBundlePath, "/tmp/compozy-crash-bundle"; got != want {
 			t.Fatalf("indexed.Failure.CrashBundlePath = %q, want %q", got, want)
 		}
 		if got, want := indexed.SoulSnapshotID, "soul-snapshot-1"; got != want {

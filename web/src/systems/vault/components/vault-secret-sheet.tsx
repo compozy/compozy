@@ -113,7 +113,7 @@ export function VaultSecretSheet({
               data-testid="vault-secret-sheet-foot"
             >
               <span className="min-w-0 truncate font-mono text-mono-id text-faint">
-                agh vault put {secret.ref} --value-stdin
+                compozy vault put {secret.ref} --value-stdin
               </span>
             </footer>
           </>

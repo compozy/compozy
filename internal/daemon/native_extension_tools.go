@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
@@ -34,7 +34,7 @@ var (
 
 type extensionMarketplaceSourceLoader func(
 	context.Context,
-	aghconfig.ExtensionsMarketplaceConfig,
+	compozyconfig.ExtensionsMarketplaceConfig,
 ) ([]registrypkg.Source, error)
 
 type extensionNameInput struct {
@@ -376,7 +376,7 @@ func (n *daemonNativeTools) extensionDependency() core.ExtensionService {
 
 func defaultDaemonExtensionMarketplaceSourceLoader(
 	_ context.Context,
-	cfg aghconfig.ExtensionsMarketplaceConfig,
+	cfg compozyconfig.ExtensionsMarketplaceConfig,
 ) ([]registrypkg.Source, error) {
 	registryName := strings.ToLower(strings.TrimSpace(cfg.Registry))
 	if registryName == "" && strings.TrimSpace(cfg.BaseURL) == "" {

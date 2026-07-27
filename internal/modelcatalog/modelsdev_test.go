@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -234,7 +234,7 @@ func TestModelsDevSource(t *testing.T) {
 		enabled := true
 		_, err := NewModelsDevSource(
 			nil,
-			aghconfig.ModelsDevSourceConfig{
+			compozyconfig.ModelsDevSourceConfig{
 				Enabled:  &enabled,
 				Endpoint: "https://models.example.test/api.json",
 				TTL:      "1h",
@@ -356,7 +356,7 @@ func newModelsDevTestSource(
 ) *ModelsDevSource {
 	t.Helper()
 
-	source, err := NewModelsDevSource(nil, aghconfig.ModelsDevSourceConfig{
+	source, err := NewModelsDevSource(nil, compozyconfig.ModelsDevSourceConfig{
 		Enabled:  &enabled,
 		Endpoint: endpoint,
 		TTL:      ttl,

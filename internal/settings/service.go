@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/marketplace"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -83,31 +83,31 @@ type TransportParityProvider interface {
 
 // MCPAuthRuntimeProvider owns daemon-mediated MCP OAuth sessions and status.
 type MCPAuthRuntimeProvider interface {
-	MCPAuthStatus(ctx context.Context, target mcpauth.Target, server aghconfig.MCPServer) (mcpauth.Status, error)
+	MCPAuthStatus(ctx context.Context, target mcpauth.Target, server compozyconfig.MCPServer) (mcpauth.Status, error)
 	MCPAuthBegin(
 		ctx context.Context,
 		target mcpauth.Target,
-		server aghconfig.MCPServer,
+		server compozyconfig.MCPServer,
 		callbackURL string,
 	) (mcpauth.BeginResult, error)
 	MCPAuthExchange(
 		ctx context.Context,
 		target mcpauth.Target,
-		server aghconfig.MCPServer,
+		server compozyconfig.MCPServer,
 		input mcpauth.ExchangeInput,
 	) (mcpauth.Status, error)
 	MCPAuthCallbackTarget(callbackURL string) (mcpauth.Target, error)
 	MCPAuthCompleteCallback(
 		ctx context.Context,
 		target mcpauth.Target,
-		server aghconfig.MCPServer,
+		server compozyconfig.MCPServer,
 		callbackURL string,
 	) (mcpauth.Status, error)
 	MCPAuthInvalidate(target mcpauth.Target) error
 	MCPAuthLogout(
 		ctx context.Context,
 		target mcpauth.Target,
-		server aghconfig.MCPServer,
+		server compozyconfig.MCPServer,
 	) (mcpauth.Status, error)
 }
 
@@ -116,14 +116,14 @@ type MCPRuntimeProvider interface {
 	MCPServerRuntimeStatus(
 		ctx context.Context,
 		target mcpauth.Target,
-		server aghconfig.MCPServer,
+		server compozyconfig.MCPServer,
 	) (MCPServerRuntimeStatus, error)
 }
 
 // ConfigRuntimeApplier reconciles a validated config snapshot with daemon-owned runtime state.
 type ConfigRuntimeApplier interface {
 	// ApplyActiveConfig installs a fully projected next-active snapshot, not the persisted desired config.
-	ApplyActiveConfig(ctx context.Context, snap *aghconfig.Config) []ApplyFailure
+	ApplyActiveConfig(ctx context.Context, snap *compozyconfig.Config) []ApplyFailure
 }
 
 // ProviderSecretStore stores provider-bound secrets and returns redacted metadata.
@@ -146,11 +146,11 @@ type MarketplaceInstallNotifier interface {
 
 // MCPDefinitionWriter persists one MCP definition to its selected config target.
 type MCPDefinitionWriter func(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceRoot string,
 	name string,
-	target aghconfig.WriteTarget,
-	server aghconfig.MCPServer,
+	target compozyconfig.WriteTarget,
+	server compozyconfig.MCPServer,
 ) error
 
 // Dependencies captures the runtime dependencies required by the settings service.
@@ -182,7 +182,7 @@ type Dependencies struct {
 }
 
 type service struct {
-	homePaths                  aghconfig.HomePaths
+	homePaths                  compozyconfig.HomePaths
 	workspaceResolver          WorkspaceResolver
 	generalRuntime             GeneralRuntimeProvider
 	memoryRuntime              MemoryRuntimeProvider
@@ -214,7 +214,7 @@ type service struct {
 var _ Service = (*service)(nil)
 
 // NewService constructs the daemon-facing settings orchestration service.
-func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, error) {
+func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, error) {
 	if strings.TrimSpace(homePaths.HomeDir) == "" {
 		return nil, errors.New("settings: home paths are required")
 	}
@@ -278,11 +278,11 @@ func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (Scope
 }
 
 func normalizeAgentName(agentName string) (string, error) {
-	normalized := aghconfig.NormalizeAgentName(agentName)
+	normalized := compozyconfig.NormalizeAgentName(agentName)
 	if normalized == "" {
 		return "", nil
 	}
-	if err := aghconfig.ValidateAgentName(normalized); err != nil {
+	if err := compozyconfig.ValidateAgentName(normalized); err != nil {
 		return "", validationError(err)
 	}
 	return normalized, nil
@@ -315,26 +315,26 @@ func (s *service) loadConfig(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
-) (aghconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
+) (compozyconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
 	if err != nil {
-		return aghconfig.Config{}, nil, err
+		return compozyconfig.Config{}, nil, err
 	}
 
 	resolved, err := s.resolveWorkspace(ctx, normalizedScope, normalizedWorkspaceID)
 	if err != nil {
-		return aghconfig.Config{}, nil, err
+		return compozyconfig.Config{}, nil, err
 	}
 
 	if resolved != nil {
-		cfg, loadErr := aghconfig.LoadForHome(s.homePaths, aghconfig.WithWorkspaceRoot(resolved.RootDir))
+		cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, compozyconfig.WithWorkspaceRoot(resolved.RootDir))
 		return cfg, resolved, loadErr
 	}
 
-	cfg, loadErr := aghconfig.LoadForHome(s.homePaths)
+	cfg, loadErr := compozyconfig.LoadForHome(s.homePaths)
 	return cfg, nil, loadErr
 }
 
 func workspaceConfigPath(root string) string {
-	return filepath.Join(strings.TrimSpace(root), aghconfig.DirName, aghconfig.ConfigName)
+	return filepath.Join(strings.TrimSpace(root), compozyconfig.DirName, compozyconfig.ConfigName)
 }

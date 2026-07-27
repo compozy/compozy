@@ -12,7 +12,7 @@ import (
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func encodeJobRecord(job automation.Job) (string, any, string, string, automationLoopTargetEncoded, error) {
@@ -134,7 +134,7 @@ func mapAutomationJobConstraintError(err error) error {
 	case isSQLiteUniqueConstraint(err):
 		return automation.ErrJobNameTaken
 	case isSQLiteForeignKeyConstraint(err):
-		return aghworkspace.ErrWorkspaceNotFound
+		return compozyworkspace.ErrWorkspaceNotFound
 	default:
 		return err
 	}
@@ -150,7 +150,7 @@ func mapAutomationTriggerConstraintError(
 		return nil
 	}
 	if isSQLiteForeignKeyConstraint(err) {
-		return aghworkspace.ErrWorkspaceNotFound
+		return compozyworkspace.ErrWorkspaceNotFound
 	}
 	if !isSQLiteUniqueConstraint(err) {
 		return err

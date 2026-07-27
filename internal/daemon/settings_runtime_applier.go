@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
@@ -22,7 +22,7 @@ type daemonSettingsRuntimeApplier struct {
 
 func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	ctx context.Context,
-	snap *aghconfig.Config,
+	snap *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
 	if a.daemon == nil || a.state == nil || snap == nil {
 		return nil
@@ -97,7 +97,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 
 func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 	ctx context.Context,
-	previous *aghconfig.Config,
+	previous *compozyconfig.Config,
 	failures []settingspkg.ApplyFailure,
 ) []settingspkg.ApplyFailure {
 	if a.state.windowManager != nil {
@@ -146,7 +146,7 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 
 func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	ctx context.Context,
-	next *aghconfig.Config,
+	next *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
 	var failures []settingspkg.ApplyFailure
 	if a.state.windowManager != nil {
@@ -193,7 +193,7 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	return failures
 }
 
-func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *aghconfig.Config) {
+func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *compozyconfig.Config) {
 	if a.state == nil || cfg == nil {
 		return
 	}

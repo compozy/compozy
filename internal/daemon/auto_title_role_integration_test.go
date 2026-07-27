@@ -11,8 +11,8 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -28,10 +28,13 @@ func TestAutoTitleRoleIntegration(t *testing.T) {
 		runAutoTitleRoleLiveToggleIntegration(t)
 	})
 
-	t.Run("Should fall back after a pre-acceptance provider failure and expose the durable attempt", func(t *testing.T) {
-		t.Parallel()
-		runAutoTitleRoleFallbackIntegration(t)
-	})
+	t.Run(
+		"Should fall back after a pre-acceptance provider failure without a durable attempt",
+		func(t *testing.T) {
+			t.Parallel()
+			runAutoTitleRoleFallbackIntegration(t)
+		},
+	)
 
 	t.Run("Should clean up every exhausted pre-acceptance attempt", func(t *testing.T) {
 		t.Parallel()
@@ -46,12 +49,12 @@ func TestAutoTitleRoleIntegration(t *testing.T) {
 
 func startAutoTitleRoleHarness(
 	t *testing.T,
-	mutate func(*aghconfig.Config),
+	mutate func(*compozyconfig.Config),
 ) *e2etest.RuntimeHarness {
 	t.Helper()
 	acpmock.RequireDriver(t)
 	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.MemoryExtractor.Enabled = false
 			if mutate != nil {
 				mutate(cfg)
@@ -68,18 +71,18 @@ func startAutoTitleRoleHarness(
 func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 	t.Helper()
 
-	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
 		for _, provider := range []string{"unreachable-primary", "unreachable-fallback"} {
-			cfg.Providers[provider] = aghconfig.ProviderConfig{
+			cfg.Providers[provider] = compozyconfig.ProviderConfig{
 				Command:      "/missing/" + provider,
-				Harness:      aghconfig.ProviderHarnessACP,
-				AuthMode:     aghconfig.ProviderAuthModeNone,
-				NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+				Harness:      compozyconfig.ProviderHarnessACP,
+				AuthMode:     compozyconfig.ProviderAuthModeNone,
+				NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
 			}
 		}
 		cfg.Roles.AutoTitle.Provider = "unreachable-primary"
 		cfg.Roles.AutoTitle.Model = "primary-model"
-		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: "unreachable-fallback",
 			Model:    "fallback-model",
 		}}
@@ -100,7 +103,7 @@ func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 		"&type=role.fallback.used&limit=10"
 	sessionReader := openWorkspaceRoleSessionReader(t, ctx, harness)
 	waitForRuntimeCondition(t, "exhausted role cleanup", 10*time.Second, func() bool {
-		var logs aghcontract.LogsListResponse
+		var logs compozycontract.LogsListResponse
 		if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil || len(logs.Events) != 1 {
 			return false
 		}
@@ -127,10 +130,10 @@ func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
 func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 	t.Helper()
 
-	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
 		cfg.Roles.AutoTitle.Provider = acpmock.ProviderName
 		cfg.Roles.AutoTitle.Model = "primary-title-model"
-		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: acpmock.ProviderName,
 			Model:    "fallback-title-model",
 		}}
@@ -165,7 +168,7 @@ func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 		return foundChild && active == 1
 	})
 
-	var logs aghcontract.LogsListResponse
+	var logs compozycontract.LogsListResponse
 	logsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 		"&type=role.fallback.used&limit=10"
 	if err := harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs); err != nil {
@@ -180,7 +183,7 @@ func runAutoTitleRolePostAcceptanceFailureIntegration(t *testing.T) {
 		t.Fatalf("ReadDiagnostics(post-acceptance failure) error = %v", err)
 	}
 	childPrompts := 0
-	for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, child.ID)) {
+	for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForCompozySession(records, child.ID)) {
 		if record.ProtocolMethod == acpsdk.AgentMethodSessionPrompt {
 			childPrompts++
 		}
@@ -237,16 +240,16 @@ func openWorkspaceRoleSessionReader(
 func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 	t.Helper()
 
-	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
-		cfg.Providers["unreachable-role-provider"] = aghconfig.ProviderConfig{
-			Command:      "/missing/agh-role-provider",
-			Harness:      aghconfig.ProviderHarnessACP,
-			AuthMode:     aghconfig.ProviderAuthModeNone,
-			NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
+		cfg.Providers["unreachable-role-provider"] = compozyconfig.ProviderConfig{
+			Command:      "/missing/compozy-role-provider",
+			Harness:      compozyconfig.ProviderHarnessACP,
+			AuthMode:     compozyconfig.ProviderAuthModeNone,
+			NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
 		}
 		cfg.Roles.AutoTitle.Provider = "unreachable-role-provider"
 		cfg.Roles.AutoTitle.Model = "unreachable-model"
-		cfg.Roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+		cfg.Roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: acpmock.ProviderName,
 			Model:    "fallback-title-model",
 		}}
@@ -263,7 +266,7 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 		return err == nil && current.Name == "Checkout Retry Fencing"
 	})
 
-	var roleResponse aghcontract.RoleStatusResponse
+	var roleResponse compozycontract.RoleStatusResponse
 	rolePath := "/api/roles/auto_title?workspace=" + url.QueryEscape(harness.WorkspaceRoot)
 	if err := harness.UDSJSON(ctx, http.MethodGet, rolePath, nil, &roleResponse); err != nil {
 		t.Fatalf("UDS auto_title role status error = %v", err)
@@ -272,11 +275,11 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 		t.Fatalf("auto_title diagnostics = %#v, want success path unaffected", roleResponse.Role.Diagnostics)
 	}
 
-	var logs aghcontract.LogsListResponse
+	var logs compozycontract.LogsListResponse
 	logsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 		"&type=role.fallback.used&limit=10"
 	waitForRuntimeCondition(t, "durable role fallback event", 10*time.Second, func() bool {
-		logs = aghcontract.LogsListResponse{}
+		logs = compozycontract.LogsListResponse{}
 		return harness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &logs) == nil && len(logs.Events) == 1
 	})
 	event := logs.Events[0]
@@ -287,7 +290,7 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 	if err := json.Unmarshal(event.Content, &content); err != nil {
 		t.Fatalf("json.Unmarshal(fallback event content) error = %v", err)
 	}
-	if content.Role != string(aghconfig.RoleAutoTitle) || content.Attempt != 1 ||
+	if content.Role != string(compozyconfig.RoleAutoTitle) || content.Attempt != 1 ||
 		content.Provider != acpmock.ProviderName || content.Model != "fallback-title-model" {
 		t.Fatalf("fallback event content = %#v, want ordered acpmock attempt", content)
 	}
@@ -296,7 +299,7 @@ func runAutoTitleRoleFallbackIntegration(t *testing.T) {
 func runAutoTitleRoleLiveToggleIntegration(t *testing.T) {
 	t.Helper()
 
-	harness := startAutoTitleRoleHarness(t, func(cfg *aghconfig.Config) {
+	harness := startAutoTitleRoleHarness(t, func(cfg *compozyconfig.Config) {
 		cfg.Roles.AutoTitle.Enabled = false
 	})
 	registration, ok := harness.MockAgentRegistration("auto-title-agent")

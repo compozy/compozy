@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -26,7 +26,7 @@ func (n *daemonNativeTools) configSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	value, err := aghconfig.NormalizeToolConfigValue(policy.Kind, input.Value)
+	value, err := compozyconfig.NormalizeToolConfigValue(policy.Kind, input.Value)
 	if err != nil {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
@@ -40,7 +40,7 @@ func (n *daemonNativeTools) configSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := aghconfig.ValidateConfigWriteScope(target.Scope(), policy.Segments); err != nil {
+	if err := compozyconfig.ValidateConfigWriteScope(target.Scope(), policy.Segments); err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
 	path := strings.Join(policy.Segments, ".")
@@ -48,12 +48,12 @@ func (n *daemonNativeTools) configSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
-			if policy.Kind == aghconfig.ConfigValueTable {
+		func(editor *compozyconfig.OverlayEditor) error {
+			if policy.Kind == compozyconfig.ConfigValueTable {
 				table, ok := value.(map[string]any)
 				if !ok {
 					return fmt.Errorf("daemon: config path %q requires an object", path)
@@ -67,7 +67,7 @@ func (n *daemonNativeTools) configSet(
 	}
 	outputValue := value
 	if policy.Redacted {
-		outputValue = aghconfig.RedactedValue()
+		outputValue = compozyconfig.RedactedValue()
 	}
 	payload := map[string]any{
 		nativeConfigHookToolsPathKey:     path,
@@ -99,7 +99,7 @@ func (n *daemonNativeTools) configUnset(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := aghconfig.ValidateConfigWriteScope(target.Scope(), policy.Segments); err != nil {
+	if err := compozyconfig.ValidateConfigWriteScope(target.Scope(), policy.Segments); err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
 	path := strings.Join(policy.Segments, ".")
@@ -108,11 +108,11 @@ func (n *daemonNativeTools) configUnset(
 		return toolspkg.ToolResult{}, err
 	}
 	deleted := false
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			deleted = editor.HasPath(policy.Segments)
 			return editor.Delete(policy.Segments)
 		},
@@ -133,14 +133,14 @@ func (n *daemonNativeTools) configUnset(
 
 func (n *daemonNativeTools) nativeConfigApplyService(
 	id toolspkg.ToolID,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	path string,
 ) (core.SettingsService, error) {
 	rule, err := lifecycle.ClassifyPath(path)
 	if err != nil {
 		return nil, nativeConfigValidationError(id, err)
 	}
-	if target.Scope() != aghconfig.WriteScopeGlobal || rule.Lifecycle == lifecycle.RestartRequired {
+	if target.Scope() != compozyconfig.WriteScopeGlobal || rule.Lifecycle == lifecycle.RestartRequired {
 		return nil, nil
 	}
 	service := n.settingsService()

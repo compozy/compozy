@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -22,7 +22,7 @@ func digestSoul(front Frontmatter, body string) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func compactProjection(cfg aghconfig.SoulConfig, profile Profile) CompactProjection {
+func compactProjection(cfg compozyconfig.SoulConfig, profile Profile) CompactProjection {
 	projection := CompactProjection{
 		Enabled:      cfg.Enabled,
 		Present:      true,
@@ -85,7 +85,7 @@ func resultWithDiagnostics(result *ResolvedSoul, list []Diagnostic) (ResolvedSou
 	return *result, &DiagnosticError{Diagnostics: cloneDiagnostics(result.Diagnostics), cause: ErrInvalid}
 }
 
-func emptyResult(cfg aghconfig.SoulConfig, sourcePath string) ResolvedSoul {
+func emptyResult(cfg compozyconfig.SoulConfig, sourcePath string) ResolvedSoul {
 	compact := CompactProjection{
 		Enabled:      cfg.Enabled,
 		Present:      false,

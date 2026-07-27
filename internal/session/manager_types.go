@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -27,7 +27,7 @@ type CreateOpts struct {
 	CWD                  string
 	SandboxRef           string
 	DisableSandbox       bool
-	Permissions          aghconfig.PermissionMode
+	Permissions          compozyconfig.PermissionMode
 	Name                 string
 	Workspace            string
 	WorkspacePath        string
@@ -50,6 +50,9 @@ type CreateOpts struct {
 	AllowedToolsOverride []string
 	CreationProfile      *store.SessionCreationProfile
 	CreationIdentity     *store.SessionCreationIdentity
+	// DiscardStartFailure prevents internal retry attempts from leaving durable
+	// session artifacts when provider startup fails before Create returns.
+	DiscardStartFailure bool
 }
 
 // CreateAcceptedOpts combines session creation options with an optional first
@@ -72,7 +75,7 @@ type IDGenerator func() string
 
 // HostedMCPLauncher mints and releases session-bound hosted MCP launch records.
 type HostedMCPLauncher interface {
-	Launch(ctx context.Context, req HostedMCPLaunchRequest) (aghconfig.MCPServer, error)
+	Launch(ctx context.Context, req HostedMCPLaunchRequest) (compozyconfig.MCPServer, error)
 	CancelLaunch(sessionID string)
 	ReleaseSession(sessionID string)
 }
@@ -167,7 +170,7 @@ type Manager struct {
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
-	homePaths                    aghconfig.HomePaths
+	homePaths                    compozyconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
 	readSessionMeta              sessionMetaReader
 	openStore                    StoreOpener
@@ -175,9 +178,9 @@ type Manager struct {
 	queryStoreExplicit           bool
 	queryStoreRuntime            *queryStoreRuntime
 	assembler                    PromptAssembler
-	supervision                  aghconfig.SessionSupervisionConfig
-	busyInput                    aghconfig.SessionBusyInputConfig
-	compaction                   aghconfig.SessionCompactionConfig
+	supervision                  compozyconfig.SessionSupervisionConfig
+	busyInput                    compozyconfig.SessionBusyInputConfig
+	compaction                   compozyconfig.SessionCompactionConfig
 	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context

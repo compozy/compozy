@@ -10,7 +10,7 @@ import (
 	"time"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -600,10 +600,10 @@ func TestModelSourceShouldFailClosedWithoutBlockingCatalogList(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewExtensionModelSource() error = %v", err)
 		}
-		configSource := modelcatalog.NewConfigSource(map[string]aghconfig.ProviderConfig{
+		configSource := modelcatalog.NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
-					Curated: []aghconfig.ProviderModelConfig{{ID: "configured-model"}},
+				Models: compozyconfig.ProviderModelsConfig{
+					Curated: []compozyconfig.ProviderModelConfig{{ID: "configured-model"}},
 				},
 			},
 		})

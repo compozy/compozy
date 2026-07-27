@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -40,11 +40,11 @@ func TestInvokeTransientModel(t *testing.T) {
 				h.driver.stopCalls,
 			)
 		}
-		if h.driver.startCalls[0].Permissions != aghconfig.PermissionModeDenyAll {
+		if h.driver.startCalls[0].Permissions != compozyconfig.PermissionModeDenyAll {
 			t.Fatalf(
 				"Start().Permissions = %q, want %q",
 				h.driver.startCalls[0].Permissions,
-				aghconfig.PermissionModeDenyAll,
+				compozyconfig.PermissionModeDenyAll,
 			)
 		}
 	})

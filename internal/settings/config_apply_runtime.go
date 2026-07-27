@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -14,7 +14,7 @@ func (s *service) persistRuntimeApply(
 	state *activeSnapshot,
 	desiredHash string,
 	nextActiveHash string,
-	nextActiveConfig *aghconfig.Config,
+	nextActiveConfig *compozyconfig.Config,
 	configLifecycle lifecycle.Lifecycle,
 	noChanges bool,
 ) (ApplyRecord, runtimeApplyPlan, error) {
@@ -102,7 +102,7 @@ func diagnosticsFromApplyFailures(
 
 func (s *service) reconcileRuntimeConfig(
 	ctx context.Context,
-	desired *aghconfig.Config,
+	desired *compozyconfig.Config,
 	configLifecycle lifecycle.Lifecycle,
 ) []ApplyFailure {
 	if desired == nil || s.runtimeApplier == nil || !requiresRuntimeReconcile(configLifecycle) {

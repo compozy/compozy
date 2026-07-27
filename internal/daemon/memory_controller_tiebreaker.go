@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 	"github.com/compozy/compozy/internal/memory/prompts"
@@ -26,7 +26,7 @@ type transientModelInvoker interface {
 type daemonMemoryControllerTiebreaker struct {
 	invoker           transientModelInvoker
 	roles             *roleResolver
-	configSnapshot    func() aghconfig.Config
+	configSnapshot    func() compozyconfig.Config
 	workspaceResolver workspacepkg.RuntimeResolver
 	globalCWD         string
 }

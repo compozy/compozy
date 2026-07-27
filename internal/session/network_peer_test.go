@@ -4,17 +4,17 @@ import (
 	"reflect"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestNetworkPeerCapabilitiesProjectsUnifiedFieldsAndDeepCopiesCatalogData(t *testing.T) {
 	t.Parallel()
 
-	agent := aghconfig.AgentDef{
+	agent := compozyconfig.AgentDef{
 		Name:   "coder",
 		Prompt: "You write reliable code.",
-		Capabilities: &aghconfig.CapabilityCatalog{
-			Capabilities: []aghconfig.CapabilityDef{{
+		Capabilities: &compozyconfig.CapabilityCatalog{
+			Capabilities: []compozyconfig.CapabilityDef{{
 				ID:                " review-pr ",
 				Summary:           " Review pull requests. ",
 				Outcome:           " Actionable review feedback. ",

@@ -34,7 +34,7 @@ func buildGo() error {
 	return sh.RunV("go", "build", "-ldflags", ldflags, "-o", out, "./cmd/"+cliBinary)
 }
 
-// BuildGo compiles all Go packages and the AGH CLI without rerunning code generation checks.
+// BuildGo compiles all Go packages and the Compozy CLI without rerunning code generation checks.
 func BuildGo() error {
 	return buildGo()
 }

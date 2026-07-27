@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
@@ -33,7 +33,7 @@ func parseSettingsSectionRequest(
 				errors.New("agent_name is only supported for skills"),
 			)
 		}
-		if err := aghconfig.ValidateAgentName(agentName); err != nil {
+		if err := compozyconfig.ValidateAgentName(agentName); err != nil {
 			return settingspkg.SectionRequest{}, NewSettingsValidationError(err)
 		}
 	}

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -144,7 +144,7 @@ func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
 	t.Run("Should publish managed tools through the bundled manifest install", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -265,7 +265,7 @@ func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
 func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -353,7 +353,7 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 func TestDevCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -842,7 +842,7 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 func TestEmbeddedAgentsShouldParseWithRuntimeSchema(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -863,7 +863,7 @@ func TestEmbeddedAgentsShouldParseWithRuntimeSchema(t *testing.T) {
 		t.Run("Should parse "+filepath.Base(filepath.Dir(path)), func(t *testing.T) {
 			t.Parallel()
 
-			agent, err := aghconfig.LoadAgentDefFile(path)
+			agent, err := compozyconfig.LoadAgentDefFile(path)
 			if err != nil {
 				t.Fatalf("LoadAgentDefFile(%q) error = %v", path, err)
 			}
@@ -907,7 +907,7 @@ func embeddedAgentFiles(t *testing.T, root string) []string {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || entry.Name() != aghconfig.AgentDefinitionFileName {
+		if entry.IsDir() || entry.Name() != compozyconfig.AgentDefinitionFileName {
 			return nil
 		}
 		files = append(files, path)

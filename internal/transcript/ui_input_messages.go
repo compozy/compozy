@@ -42,7 +42,7 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	return json.RawMessage(encoded)
 }
 
-// Markers use the assistant data-agh-event wire contract.
+// Markers use the assistant data-compozy-event wire contract.
 func runtimeMarkerUIMessage(decoded *decodedStoredEvent) UIMessage {
 	return UIMessage{
 		ID: fallbackMessageID(

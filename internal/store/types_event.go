@@ -8,7 +8,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
-// SessionEvent is a persisted event row for a single AGH session.
+// SessionEvent is a persisted event row for a single Compozy session.
 type SessionEvent struct {
 	ID        string
 	SessionID string

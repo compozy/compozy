@@ -102,7 +102,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 	}{
 		{name: "uds", transport: "uds-api", wantKind: taskpkg.OriginKindUDS},
 		{name: "web", transport: "web-ui", wantKind: taskpkg.OriginKindWeb},
-		{name: "cli", transport: "agh-cli", wantKind: taskpkg.OriginKindCLI},
+		{name: "cli", transport: "compozy-cli", wantKind: taskpkg.OriginKindCLI},
 		{name: "default", transport: "api-core-test", wantKind: taskpkg.OriginKindHTTP},
 	}
 

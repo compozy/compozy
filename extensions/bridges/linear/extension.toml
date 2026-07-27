@@ -32,7 +32,7 @@ description = "Linear OAuth client secret used when provider_config.auth_mode = 
 required = false
 
 [bridge.config_schema]
-schema = "agh.bridge.linear"
+schema = "compozy.bridge.linear"
 version = "1"
 
 [actions]

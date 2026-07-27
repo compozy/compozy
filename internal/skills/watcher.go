@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
@@ -233,7 +233,7 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 }
 
 func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
-	if filepath.Base(strings.TrimSpace(root)) != aghconfig.AgentsDirName {
+	if filepath.Base(strings.TrimSpace(root)) != compozyconfig.AgentsDirName {
 		paths, snapshots, err := scanDirectoryWithSnapshots(root)
 		if err != nil {
 			return nil, err
@@ -273,7 +273,7 @@ func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
 }
 
 func watcherScanRoot(root string) ([]string, error) {
-	if filepath.Base(strings.TrimSpace(root)) != aghconfig.AgentsDirName {
+	if filepath.Base(strings.TrimSpace(root)) != compozyconfig.AgentsDirName {
 		return scanDirectory(root)
 	}
 

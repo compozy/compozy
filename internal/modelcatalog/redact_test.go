@@ -43,7 +43,7 @@ func TestCanonicalRedactionConsumersStaySafe(t *testing.T) {
 			},
 		},
 		{
-			name: "Should redact AGH MCP OAuth PKCE and binding secrets identically",
+			name: "Should redact Compozy MCP OAuth PKCE and binding secrets identically",
 			input: strings.Join([]string{
 				"compozy_claim_raw-claim-value",
 				"mcp_auth_token=mcp-token-value",

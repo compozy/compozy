@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -58,7 +58,7 @@ var (
 // RuntimeHarnessOptions configures one isolated daemon runtime.
 type RuntimeHarnessOptions struct {
 	BinaryPath       string
-	HomePaths        aghconfig.HomePaths
+	HomePaths        compozyconfig.HomePaths
 	ConfigSeed       ConfigSeedOptions
 	MockAgents       []MockAgentSpec
 	Workspace        WorkspaceSeedOptions
@@ -70,8 +70,8 @@ type RuntimeHarnessOptions struct {
 }
 
 type runtimeLayout struct {
-	HomePaths     aghconfig.HomePaths
-	Config        aghconfig.Config
+	HomePaths     compozyconfig.HomePaths
+	Config        compozyconfig.Config
 	WorkspaceRoot string
 	Artifacts     *ArtifactCollector
 	MockAgents    map[string]acpmock.Registration
@@ -80,8 +80,8 @@ type runtimeLayout struct {
 
 // RuntimeHarness exposes the started daemon and its public product surfaces.
 type RuntimeHarness struct {
-	HomePaths     aghconfig.HomePaths
-	Config        aghconfig.Config
+	HomePaths     compozyconfig.HomePaths
+	Config        compozyconfig.Config
 	BinaryPath    string
 	Artifacts     *ArtifactCollector
 	WorkspaceRoot string
@@ -325,7 +325,7 @@ func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayo
 	}
 	configSeed := opts.ConfigSeed
 	originalMutate := configSeed.Mutate
-	configSeed.Mutate = func(cfg *aghconfig.Config) {
+	configSeed.Mutate = func(cfg *compozyconfig.Config) {
 		if originalMutate != nil {
 			originalMutate(cfg)
 		}

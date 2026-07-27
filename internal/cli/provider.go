@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 
@@ -241,7 +241,7 @@ func runProviderAuthLoginCommand(
 
 type providerAuthLoginTargetRecord struct {
 	ProviderName    string
-	Provider        aghconfig.ProviderConfig
+	Provider        compozyconfig.ProviderConfig
 	LoginCommand    string
 	LoginEnv        []string
 	NativeCLI       *providerNativeCLIStatusRecord
@@ -261,7 +261,7 @@ func providerAuthLoginTarget(
 	if loginCommand == "" {
 		return providerAuthLoginTargetRecord{}, providerMissingAuthLoginCommandError(providerName, provider)
 	}
-	if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+	if provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return providerAuthLoginTargetRecord{}, fmt.Errorf(
 			"cli: provider %q uses auth_mode %q; provider auth login only exposes native_cli login commands",
 			providerName,
@@ -304,7 +304,7 @@ func providerAuthLoginTarget(
 
 func applyProviderAuthLoginResult(
 	record *providerAuthStatusRecord,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	loginResult providerAuthCommandResult,
 ) {
 	if record == nil || loginResult.ExitCode == 0 {

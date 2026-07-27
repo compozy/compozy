@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -100,7 +100,7 @@ type managerOptions struct {
 	tasks               TaskService
 	loopStarter         LoopStarter
 	workspaceResolver   workspacepkg.RuntimeResolver
-	config              aghconfig.AutomationConfig
+	config              compozyconfig.AutomationConfig
 	logger              *slog.Logger
 	globalWorkspacePath string
 	webhookSecrets      WebhookSecretStore
@@ -120,11 +120,11 @@ func defaultManagerOptions() managerOptions {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		config: aghconfig.AutomationConfig{
+		config: compozyconfig.AutomationConfig{
 			Timezone:          DefaultTimezone,
 			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  DefaultFireLimitConfig(),
-			Suggestions: aghconfig.AutomationSuggestionsConfig{
+			Suggestions: compozyconfig.AutomationSuggestionsConfig{
 				PendingCap: DefaultSuggestionPendingCap,
 			},
 		},
@@ -212,7 +212,7 @@ type Manager struct {
 	tasks               TaskService
 	loopStarter         LoopStarter
 	workspaceResolver   workspacepkg.RuntimeResolver
-	config              aghconfig.AutomationConfig
+	config              compozyconfig.AutomationConfig
 	logger              *slog.Logger
 	globalWorkspacePath string
 	webhookSecrets      WebhookSecretStore
@@ -273,7 +273,7 @@ func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 }
 
 // WithConfig injects the loaded automation config.
-func WithConfig(cfg aghconfig.AutomationConfig) Option {
+func WithConfig(cfg compozyconfig.AutomationConfig) Option {
 	return func(opts *managerOptions) {
 		opts.config = cfg
 	}

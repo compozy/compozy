@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 var benchmarkCommandEnv []string
@@ -90,7 +90,7 @@ func BenchmarkPermissionPolicyResolvePathExistingRelative(b *testing.B) {
 		b.Fatalf("WriteFile() error = %v", err)
 	}
 
-	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveReads, root)
+	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveReads, root)
 	if err != nil {
 		b.Fatalf("newPermissionPolicy() error = %v", err)
 	}
@@ -112,7 +112,7 @@ func BenchmarkMergeCommandEnvWithOverrides(b *testing.B) {
 		"LANG=en_US.UTF-8",
 		"TERM=xterm-256color",
 		"NO_COLOR=1",
-		"COMPOZY_BIN=/tmp/agh",
+		"COMPOZY_BIN=/tmp/compozy",
 	}
 	overrides := []acpsdk.EnvVariable{
 		{Name: "PATH", Value: "/custom/bin:/usr/bin:/bin"},

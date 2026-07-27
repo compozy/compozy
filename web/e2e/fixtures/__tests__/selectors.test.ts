@@ -256,8 +256,14 @@ describe("bridge operator selectors", () => {
     expect(selectors.createProviderConfigError).toBe(
       `locator:${bridgeOperatorTestIds.createBridgeProviderConfigError}`
     );
-    expect(selectors.createScopeSelect).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeScopeSelect}`
+    expect(selectors.createModeAdvanced).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeModeAdvanced}`
+    );
+    expect(selectors.createScopeGlobal).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeScopeGlobal}`
+    );
+    expect(selectors.createScopeWorkspace).toBe(
+      `locator:${bridgeOperatorTestIds.createBridgeScopeWorkspace}`
     );
     expect(selectors.createDeliveryModeSelect).toBe(
       `locator:${bridgeOperatorTestIds.createBridgeDeliveryModeSelect}`
@@ -370,8 +376,11 @@ describe("sandbox operator selectors", () => {
     expect(selectors.createButton).toBe(`locator:${sandboxOperatorTestIds.createButton}`);
     expect(selectors.editor).toBe(`locator:${sandboxOperatorTestIds.editor}`);
     expect(selectors.editorNameInput).toBe(`locator:${sandboxOperatorTestIds.editorNameInput}`);
-    expect(selectors.editorBackendInput).toBe(
-      `locator:${sandboxOperatorTestIds.editorBackendInput}`
+    expect(selectors.editorAdvancedMode).toBe(
+      `locator:${sandboxOperatorTestIds.editorAdvancedMode}`
+    );
+    expect(selectors.editorBackendLocal).toBe(
+      `locator:${sandboxOperatorTestIds.editorBackendLocal}`
     );
     expect(selectors.editorSave).toBe(`locator:${sandboxOperatorTestIds.editorSave}`);
     expect(selectors.deleteDialog).toBe(`locator:${sandboxOperatorTestIds.deleteDialog}`);

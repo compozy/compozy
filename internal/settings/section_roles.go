@@ -3,33 +3,33 @@ package settings
 import (
 	"slices"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func diffRolesSettings(current *aghconfig.RolesConfig, desired *aghconfig.RolesConfig) []string {
+func diffRolesSettings(current *compozyconfig.RolesConfig, desired *compozyconfig.RolesConfig) []string {
 	var changed []string
 	changed = append(changed, diffCoordinatorRoleSettings(current.Coordinator, desired.Coordinator)...)
-	changed = append(changed, diffRoleSettings(aghconfig.RoleDream, current.Dream, desired.Dream)...)
+	changed = append(changed, diffRoleSettings(compozyconfig.RoleDream, current.Dream, desired.Dream)...)
 	changed = append(changed, diffRoleSettings(
-		aghconfig.RoleCheckpointSummary,
+		compozyconfig.RoleCheckpointSummary,
 		current.CheckpointSummary,
 		desired.CheckpointSummary,
 	)...)
 	changed = append(changed, diffRoleSettings(
-		aghconfig.RoleMemoryExtractor,
+		compozyconfig.RoleMemoryExtractor,
 		current.MemoryExtractor,
 		desired.MemoryExtractor,
 	)...)
-	changed = append(changed, diffRoleSettings(aghconfig.RoleAutoTitle, current.AutoTitle, desired.AutoTitle)...)
+	changed = append(changed, diffRoleSettings(compozyconfig.RoleAutoTitle, current.AutoTitle, desired.AutoTitle)...)
 	return append(changed, diffMemoryControllerRoleSettings(current.MemoryController, desired.MemoryController)...)
 }
 
 func diffCoordinatorRoleSettings(
-	current aghconfig.CoordinatorRoleConfig,
-	desired aghconfig.CoordinatorRoleConfig,
+	current compozyconfig.CoordinatorRoleConfig,
+	desired compozyconfig.CoordinatorRoleConfig,
 ) []string {
-	changed := diffRoleSettings(aghconfig.RoleCoordinator, current.RoleConfig, desired.RoleConfig)
-	prefix := "roles." + string(aghconfig.RoleCoordinator) + "."
+	changed := diffRoleSettings(compozyconfig.RoleCoordinator, current.RoleConfig, desired.RoleConfig)
+	prefix := "roles." + string(compozyconfig.RoleCoordinator) + "."
 	if current.TTL != desired.TTL {
 		changed = append(changed, prefix+"ttl")
 	}
@@ -43,9 +43,9 @@ func diffCoordinatorRoleSettings(
 }
 
 func diffRoleSettings(
-	role aghconfig.RoleName,
-	current aghconfig.RoleConfig,
-	desired aghconfig.RoleConfig,
+	role compozyconfig.RoleName,
+	current compozyconfig.RoleConfig,
+	desired compozyconfig.RoleConfig,
 ) []string {
 	prefix := "roles." + string(role) + "."
 	changed := make([]string, 0, 6)
@@ -71,10 +71,10 @@ func diffRoleSettings(
 }
 
 func diffMemoryControllerRoleSettings(
-	current aghconfig.MemoryControllerRoleConfig,
-	desired aghconfig.MemoryControllerRoleConfig,
+	current compozyconfig.MemoryControllerRoleConfig,
+	desired compozyconfig.MemoryControllerRoleConfig,
 ) []string {
-	prefix := "roles." + string(aghconfig.RoleMemoryController) + "."
+	prefix := "roles." + string(compozyconfig.RoleMemoryController) + "."
 	changed := diffSharedRoleRouteFields(
 		prefix,
 		current.Enabled,
@@ -113,8 +113,8 @@ func diffSharedRoleRouteFields(
 	desiredModel string,
 	currentEffort string,
 	desiredEffort string,
-	currentFallbacks []aghconfig.RoleFallback,
-	desiredFallbacks []aghconfig.RoleFallback,
+	currentFallbacks []compozyconfig.RoleFallback,
+	desiredFallbacks []compozyconfig.RoleFallback,
 ) []string {
 	changed := make([]string, 0, 5)
 	if currentEnabled != desiredEnabled {
@@ -135,17 +135,17 @@ func diffSharedRoleRouteFields(
 	return changed
 }
 
-func applyRolesSettings(editor *aghconfig.OverlayEditor, roles *aghconfig.RolesConfig) error {
+func applyRolesSettings(editor *compozyconfig.OverlayEditor, roles *compozyconfig.RolesConfig) error {
 	tables := []struct {
-		role   aghconfig.RoleName
+		role   compozyconfig.RoleName
 		values map[string]any
 	}{
-		{role: aghconfig.RoleCoordinator, values: coordinatorRoleTable(roles.Coordinator)},
-		{role: aghconfig.RoleDream, values: roleTable(roles.Dream)},
-		{role: aghconfig.RoleCheckpointSummary, values: roleTable(roles.CheckpointSummary)},
-		{role: aghconfig.RoleMemoryExtractor, values: roleTable(roles.MemoryExtractor)},
-		{role: aghconfig.RoleAutoTitle, values: roleTable(roles.AutoTitle)},
-		{role: aghconfig.RoleMemoryController, values: memoryControllerRoleTable(roles.MemoryController)},
+		{role: compozyconfig.RoleCoordinator, values: coordinatorRoleTable(roles.Coordinator)},
+		{role: compozyconfig.RoleDream, values: roleTable(roles.Dream)},
+		{role: compozyconfig.RoleCheckpointSummary, values: roleTable(roles.CheckpointSummary)},
+		{role: compozyconfig.RoleMemoryExtractor, values: roleTable(roles.MemoryExtractor)},
+		{role: compozyconfig.RoleAutoTitle, values: roleTable(roles.AutoTitle)},
+		{role: compozyconfig.RoleMemoryController, values: memoryControllerRoleTable(roles.MemoryController)},
 	}
 	for _, table := range tables {
 		if err := editor.SetTable([]string{"roles", string(table.role)}, table.values); err != nil {
@@ -155,7 +155,7 @@ func applyRolesSettings(editor *aghconfig.OverlayEditor, roles *aghconfig.RolesC
 	return nil
 }
 
-func roleTable(role aghconfig.RoleConfig) map[string]any {
+func roleTable(role compozyconfig.RoleConfig) map[string]any {
 	return map[string]any{
 		sectionsEnabledKey:         role.Enabled,
 		"agent":                    role.Agent,
@@ -166,7 +166,7 @@ func roleTable(role aghconfig.RoleConfig) map[string]any {
 	}
 }
 
-func coordinatorRoleTable(role aghconfig.CoordinatorRoleConfig) map[string]any {
+func coordinatorRoleTable(role compozyconfig.CoordinatorRoleConfig) map[string]any {
 	table := roleTable(role.RoleConfig)
 	table["ttl"] = role.TTL.String()
 	table["max_children"] = role.MaxChildren
@@ -174,7 +174,7 @@ func coordinatorRoleTable(role aghconfig.CoordinatorRoleConfig) map[string]any {
 	return table
 }
 
-func memoryControllerRoleTable(role aghconfig.MemoryControllerRoleConfig) map[string]any {
+func memoryControllerRoleTable(role compozyconfig.MemoryControllerRoleConfig) map[string]any {
 	return map[string]any{
 		sectionsEnabledKey:         role.Enabled,
 		sectionsProviderKey:        role.Provider,
@@ -188,7 +188,7 @@ func memoryControllerRoleTable(role aghconfig.MemoryControllerRoleConfig) map[st
 	}
 }
 
-func roleFallbackTables(fallbacks []aghconfig.RoleFallback) []map[string]any {
+func roleFallbackTables(fallbacks []compozyconfig.RoleFallback) []map[string]any {
 	tables := make([]map[string]any, 0, len(fallbacks))
 	for _, fallback := range fallbacks {
 		tables = append(tables, map[string]any{

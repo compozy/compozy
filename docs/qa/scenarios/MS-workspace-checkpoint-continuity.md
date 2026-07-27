@@ -18,7 +18,7 @@ overlaps: RT-session-context-rebuild; MS-022
 
 Use two workspaces and complete two sessions with distinct durable facts in the first workspace.
 Confirm that one checkpoint file is updated in place, its provenance contains both source sessions,
-and a new session receives the latest facts inside `<agh_checkpoint_summary>`. Force the summary
+and a new session receives the latest facts inside `<compozy_checkpoint_summary>`. Force the summary
 provider to fail and confirm the file stays byte-identical. Revert the latest checkpoint decision
 and confirm the prior content returns. Start a session in the second workspace and confirm that no
 checkpoint fact from the first workspace is present.

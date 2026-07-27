@@ -7,7 +7,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -16,7 +16,7 @@ import (
 
 type bundleActivationOwnedSnapshot struct {
 	layouts    map[string]resources.Record[windowmanager.LayoutResource]
-	agents     map[string]resources.Record[aghconfig.AgentDef]
+	agents     map[string]resources.Record[compozyconfig.AgentDef]
 	souls      map[string]resources.Record[soul.ResourceSpec]
 	heartbeats map[string]resources.Record[heartbeat.ResourceSpec]
 	jobs       map[string]resources.Record[automationpkg.Job]
@@ -40,7 +40,7 @@ func (s *ResourceStore) snapshotOwnedBundleActivationResources(
 		ctx,
 		s.agents,
 		s.actor,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 	)
 	if err != nil {
 		return bundleActivationOwnedSnapshot{}, err
@@ -140,7 +140,7 @@ func (s *ResourceStore) restoreOwnedBundleActivationResources(
 		ctx,
 		s.agents,
 		s.actor,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		snapshot.agents,
 		s.sameAgent,
 	); err != nil {

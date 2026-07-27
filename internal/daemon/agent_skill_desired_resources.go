@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 
@@ -17,7 +17,7 @@ import (
 type desiredAgentResource struct {
 	id      string
 	scope   resources.ResourceScope
-	spec    aghconfig.AgentDef
+	spec    compozyconfig.AgentDef
 	encoded []byte
 }
 
@@ -97,11 +97,11 @@ func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (struct {
 }
 
 func (s *agentSkillSourceSyncer) stageAgentTransientSpecs(desired map[string]desiredAgentResource) {
-	projector, ok := s.agentProjector.(*resourceCatalogProjector[aghconfig.AgentDef])
+	projector, ok := s.agentProjector.(*resourceCatalogProjector[compozyconfig.AgentDef])
 	if !ok || projector.catalog == nil {
 		return
 	}
-	specs := make(map[string]aghconfig.AgentDef, len(desired))
+	specs := make(map[string]compozyconfig.AgentDef, len(desired))
 	for id, agent := range desired {
 		specs[id] = agent.spec
 	}
@@ -114,7 +114,7 @@ func (s *agentSkillSourceSyncer) syncAgents(
 ) (bool, error) {
 	source := s.actor.Source
 	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
-		Kind:   aghconfig.AgentResourceKind,
+		Kind:   compozyconfig.AgentResourceKind,
 		Source: &source,
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func (s *agentSkillSourceSyncer) syncAgents(
 		if ok {
 			expectedVersion = existing.Version
 		}
-		if _, err := s.agentStore.Put(ctx, s.actor, resources.Draft[aghconfig.AgentDef]{
+		if _, err := s.agentStore.Put(ctx, s.actor, resources.Draft[compozyconfig.AgentDef]{
 			ID:              desiredAgent.id,
 			Scope:           desiredAgent.scope,
 			ExpectedVersion: expectedVersion,
@@ -210,7 +210,7 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 ) (bool, error) {
 	source := s.actor.Source
 	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
-		Kind:   aghconfig.MCPServerResourceKind,
+		Kind:   compozyconfig.MCPServerResourceKind,
 		Source: &source,
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 		if ok {
 			expectedVersion = existing.Version
 		}
-		if _, err := s.mcpStore.Put(ctx, s.actor, resources.Draft[aghconfig.MCPServer]{
+		if _, err := s.mcpStore.Put(ctx, s.actor, resources.Draft[compozyconfig.MCPServer]{
 			ID:              desiredServer.id,
 			Scope:           desiredServer.scope,
 			ExpectedVersion: expectedVersion,

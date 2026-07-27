@@ -8,7 +8,7 @@ import {
   type SettingsRestartStore,
 } from "./settings-restart-store";
 
-const settingsRestartStorageKey = "agh:settings:restart";
+const settingsRestartStorageKey = "compozy:settings:restart";
 
 type PersistedSettingsRestartState = Pick<
   SettingsRestartState,

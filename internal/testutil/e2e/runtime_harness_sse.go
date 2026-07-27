@@ -138,9 +138,9 @@ func inferSSEEventName(data []byte) string {
 	}
 
 	switch strings.TrimSpace(envelope.Type) {
-	case "data-agh-permission":
+	case "data-compozy-permission":
 		return runtimeHarnessPermissionKey
-	case "data-agh-event":
+	case "data-compozy-event":
 		var payload struct {
 			Type string `json:"type"`
 		}

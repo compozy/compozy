@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -47,7 +47,7 @@ type observabilityRetentionStore interface {
 }
 
 // RetentionConfigFromObservability maps daemon configuration into observer retention settings.
-func RetentionConfigFromObservability(cfg aghconfig.ObservabilityConfig) RetentionConfig {
+func RetentionConfigFromObservability(cfg compozyconfig.ObservabilityConfig) RetentionConfig {
 	return RetentionConfig{
 		Enabled:       cfg.Enabled && cfg.RetentionDays > 0,
 		RetentionDays: cfg.RetentionDays,

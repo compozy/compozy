@@ -1,4 +1,4 @@
-package aghsdk_test
+package compozysdk_test
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 func TestSDKRuntimeContracts(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 
 		inputReader, inputWriter := io.Pipe()
 		outputReader, outputWriter := io.Pipe()
-		transport := aghsdk.NewStdioTransport(aghsdk.StdioTransportOptions{
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
 			Input:  inputReader,
 			Output: outputWriter,
 		})
@@ -50,7 +50,7 @@ func TestSDKRuntimeContracts(t *testing.T) {
 
 		select {
 		case err := <-callErr:
-			var rpcErr *aghsdk.RPCError
+			var rpcErr *compozysdk.RPCError
 			if !errors.As(err, &rpcErr) || rpcErr.Code != -32600 {
 				t.Fatalf("Call() error = %v, want invalid request RPC error", err)
 			}
@@ -63,10 +63,10 @@ func TestSDKRuntimeContracts(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{Name: "Frozen Extension", Version: "0.1.0"},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Frozen Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -92,13 +92,13 @@ func TestSDKRuntimeContracts(t *testing.T) {
 		if initialize.Error != nil {
 			t.Fatalf("initialize error = %#v", initialize.Error)
 		}
-		var initialized aghsdk.InitializeResponse
+		var initialized compozysdk.InitializeResponse
 		decodeResult(t, initialize.Result, &initialized)
 		snapshot := slices.Clone(initialized.ImplementedMethods)
 
 		if err := extension.Handle("late/method", func(
 			context.Context,
-			aghsdk.ExtensionContext,
+			compozysdk.ExtensionContext,
 			json.RawMessage,
 		) (any, error) {
 			return map[string]bool{"ok": true}, nil

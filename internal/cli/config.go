@@ -1,7 +1,7 @@
 package cli
 
 import (
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -122,13 +122,13 @@ type configPathRecord struct {
 }
 
 type configValidateRecord struct {
-	Status        string                        `json:"status"`
-	Scope         string                        `json:"scope"`
-	WorkspaceRoot string                        `json:"workspace_root,omitempty"`
-	ConfigFile    string                        `json:"config_file"`
-	Redacted      bool                          `json:"redacted"`
-	Errors        []configValidationError       `json:"errors,omitempty"`
-	DotEnv        *aghconfig.DotEnvRepairReport `json:"dot_env,omitempty"`
+	Status        string                            `json:"status"`
+	Scope         string                            `json:"scope"`
+	WorkspaceRoot string                            `json:"workspace_root,omitempty"`
+	ConfigFile    string                            `json:"config_file"`
+	Redacted      bool                              `json:"redacted"`
+	Errors        []configValidationError           `json:"errors,omitempty"`
+	DotEnv        *compozyconfig.DotEnvRepairReport `json:"dot_env,omitempty"`
 }
 
 type configValidationError struct {

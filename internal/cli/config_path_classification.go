@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error) {
@@ -13,7 +13,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if kind, ok := configScalarMutationKinds[joined]; ok {
 		return kind, false, nil
 	}
-	if len(path) == 4 && path[0] == aghconfig.LoopsConfigKey && path[1] == aghconfig.LoopInputsConfigKey {
+	if len(path) == 4 && path[0] == compozyconfig.LoopsConfigKey && path[1] == compozyconfig.LoopInputsConfigKey {
 		return configSetScalar, false, nil
 	}
 	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {

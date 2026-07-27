@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 )
@@ -16,7 +16,7 @@ func TestHookAwareParticipationResolverUsesSelectedIntent(t *testing.T) {
 	t.Run("Should match a task profile before resolution", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultNetworkConfig()
+		cfg := compozyconfig.DefaultNetworkConfig()
 		resolver, err := participation.NewResolver(participation.ResolverOptions{
 			Defaults: cfg.Live.Defaults.ParticipationBounds(),
 			Limits:   cfg.Live.Limits.ParticipationLimits(),

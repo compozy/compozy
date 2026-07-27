@@ -2039,7 +2039,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs",
 		[]byte(
-			`{"idempotency_key":"key-3","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
+			`{"idempotency_key":"key-3","metadata":{"schema":"compozy.harness.detached.v1","kind":"harness_detached_run"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2373,7 +2373,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	if got, want := string(
 		enqueuedRun.Metadata,
-	), `{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}`; got != want {
+	), `{"schema":"compozy.harness.detached.v1","kind":"harness_detached_run"}`; got != want {
 		t.Fatalf("enqueued run metadata = %q, want %q", got, want)
 	}
 	if len(enqueuedRuns) < 3 {

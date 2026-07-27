@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
@@ -32,7 +32,7 @@ var (
 // PreStart classifies provider-auth readiness before a provider subprocess is spawned.
 func PreStart(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) PreStartReport {
 	normalized := env.Normalize()
@@ -64,10 +64,10 @@ func InvalidatePreStartCache() {
 
 func runPreStart(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) PreStartReport {
-	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNone {
+	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNone {
 		return PreStartReport{}
 	}
 	launchCLI, err := LaunchCommandStatus(provider, env)
@@ -120,7 +120,7 @@ func runPreStart(
 	return PreStartReport{Item: &item}
 }
 
-func preStartCacheKey(provider aghconfig.ProviderConfig, env ProbeEnv) string {
+func preStartCacheKey(provider compozyconfig.ProviderConfig, env ProbeEnv) string {
 	hash := fnv.New64a()
 	parts := []string{
 		strings.TrimSpace(env.ProviderName),

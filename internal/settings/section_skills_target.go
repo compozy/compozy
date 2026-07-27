@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -25,18 +25,18 @@ func buildSkillsOperationalLinks() []OperationalLink {
 func (s *service) resolveEffectiveAgent(
 	resolved *workspacepkg.ResolvedWorkspace,
 	agentName string,
-) (aghconfig.AgentDef, WriteTargetKind, error) {
-	target := aghconfig.NormalizeAgentName(agentName)
+) (compozyconfig.AgentDef, WriteTargetKind, error) {
+	target := compozyconfig.NormalizeAgentName(agentName)
 	if target == "" {
-		return aghconfig.AgentDef{}, "", validationError(errors.New("settings: agent_name is required"))
+		return compozyconfig.AgentDef{}, "", validationError(errors.New("settings: agent_name is required"))
 	}
 
 	if resolved != nil {
 		for _, diagnostic := range resolved.AgentDiagnostics {
-			if aghconfig.NormalizeAgentName(diagnostic.Name) != target {
+			if compozyconfig.NormalizeAgentName(diagnostic.Name) != target {
 				continue
 			}
-			return aghconfig.AgentDef{}, "", unprocessableError(
+			return compozyconfig.AgentDef{}, "", unprocessableError(
 				fmt.Errorf(
 					"settings: agent %q at %q: %s",
 					target,
@@ -46,33 +46,33 @@ func (s *service) resolveEffectiveAgent(
 			)
 		}
 		for _, agent := range resolved.Agents {
-			if aghconfig.NormalizeAgentName(agent.Name) != target {
+			if compozyconfig.NormalizeAgentName(agent.Name) != target {
 				continue
 			}
-			return aghconfig.CloneAgentDef(agent), agentWriteTargetKind(s.homePaths, agent.SourcePath), nil
+			return compozyconfig.CloneAgentDef(agent), agentWriteTargetKind(s.homePaths, agent.SourcePath), nil
 		}
-		return aghconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
+		return compozyconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
 	}
 
 	path := filepath.Join(s.homePaths.AgentsDir, target, "AGENT.md")
-	agent, err := aghconfig.LoadAgentDefFile(path)
+	agent, err := compozyconfig.LoadAgentDefFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return aghconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
+			return compozyconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
 		}
-		return aghconfig.AgentDef{}, "", unprocessableError(
+		return compozyconfig.AgentDef{}, "", unprocessableError(
 			fmt.Errorf("settings: load agent %q: %w", target, err),
 		)
 	}
-	if aghconfig.NormalizeAgentName(agent.Name) != target {
-		return aghconfig.AgentDef{}, "", unprocessableError(
+	if compozyconfig.NormalizeAgentName(agent.Name) != target {
+		return compozyconfig.AgentDef{}, "", unprocessableError(
 			fmt.Errorf("settings: agent file %q defines %q, expected %q", path, agent.Name, target),
 		)
 	}
 	return agent, WriteTargetGlobalAgentFile, nil
 }
 
-func agentWriteTargetKind(homePaths aghconfig.HomePaths, sourcePath string) WriteTargetKind {
+func agentWriteTargetKind(homePaths compozyconfig.HomePaths, sourcePath string) WriteTargetKind {
 	if withinRoot(sourcePath, homePaths.AgentsDir) {
 		return WriteTargetGlobalAgentFile
 	}
@@ -132,6 +132,6 @@ func resourceKindsToStrings(values []resources.ResourceKind) []string {
 	return converted
 }
 
-func globalMCPSidecarPath(homePaths aghconfig.HomePaths) string {
-	return filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+func globalMCPSidecarPath(homePaths compozyconfig.HomePaths) string {
+	return filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 }

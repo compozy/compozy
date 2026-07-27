@@ -18,7 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
@@ -491,7 +491,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	if payload.Daemon.HTTPPort != 4321 {
 		t.Fatalf("daemon http port = %d, want 4321", payload.Daemon.HTTPPort)
 	}
-	resolvedUserHomeDir, err := aghconfig.ResolvePath(os.Getenv("HOME"))
+	resolvedUserHomeDir, err := compozyconfig.ResolvePath(os.Getenv("HOME"))
 	if err != nil {
 		t.Fatalf("ResolvePath(HOME) error = %v", err)
 	}
@@ -940,7 +940,7 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 				WorkspaceID: req.WorkspaceID,
 				MCPServers: []settingspkg.MCPServerItem{{
 					Name:        "dead-docs",
-					Transport:   aghconfig.MCPServerTransportStdio,
+					Transport:   compozyconfig.MCPServerTransportStdio,
 					Scope:       settingspkg.ScopeWorkspace,
 					WorkspaceID: req.WorkspaceID,
 					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
@@ -1542,8 +1542,8 @@ func TestBaseHandlersGetAgentNotFound(t *testing.T) {
 		nil,
 		nil,
 	)
-	fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-		return aghconfig.AgentDef{}, os.ErrNotExist
+	fixture.Handlers.AgentLoader = func(string, compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
+		return compozyconfig.AgentDef{}, os.ErrNotExist
 	}
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)

@@ -18,7 +18,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
@@ -156,7 +156,7 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 		}
-		resolved.Config.Sandboxes["task-ref"] = aghconfig.SandboxProfile{
+		resolved.Config.Sandboxes["task-ref"] = compozyconfig.SandboxProfile{
 			Backend:     string(sandbox.BackendLocal),
 			SyncMode:    string(sandbox.SyncModeNone),
 			Persistence: string(sandbox.PersistenceReuse),

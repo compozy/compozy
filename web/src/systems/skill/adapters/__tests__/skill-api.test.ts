@@ -146,14 +146,14 @@ describe("getSkillShadows", () => {
       name: "test-skill",
       winner: {
         detected_at: "2026-04-17T17:00:00Z",
-        path: "/workspace/.agh/skills/test-skill/SKILL.md",
+        path: "/workspace/.compozy/skills/test-skill/SKILL.md",
         resolved_to_winner: true,
         tier: "workspace",
       },
       shadows: [
         {
           detected_at: "2026-04-17T17:00:00Z",
-          path: "/workspace/.agh/skills/test-skill/SKILL.md",
+          path: "/workspace/.compozy/skills/test-skill/SKILL.md",
           resolved_to_winner: true,
           tier: "workspace",
         },
@@ -239,7 +239,7 @@ describe("installSkillMarketplace", () => {
         slug: "@compozy/demo",
         status: "installed",
         hash: "sha256:demo",
-        path: "/opt/agh/skills/demo",
+        path: "/opt/compozy/skills/demo",
         registry: "clawhub",
         version: "0.1.0",
       },
@@ -268,7 +268,7 @@ describe("updateSkillMarketplace", () => {
           name: "demo",
           slug: "@compozy/demo",
           status: "updated",
-          path: "/opt/agh/skills/demo",
+          path: "/opt/compozy/skills/demo",
           current_version: "0.1.0",
           latest_version: "0.2.0",
         },
@@ -297,7 +297,7 @@ describe("removeSkillMarketplace", () => {
         name: "demo",
         slug: "@compozy/demo",
         status: "removed",
-        path: "/opt/agh/skills/demo",
+        path: "/opt/compozy/skills/demo",
       },
     });
 
@@ -322,7 +322,7 @@ describe("removeSkillMarketplace", () => {
         name: "my skill",
         slug: "@compozy/my-skill",
         status: "removed",
-        path: "/opt/agh/skills/my-skill",
+        path: "/opt/compozy/skills/my-skill",
       },
     });
     await removeSkillMarketplace("my skill");

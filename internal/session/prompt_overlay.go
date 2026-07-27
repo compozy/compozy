@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -33,7 +33,7 @@ type StartupPromptAssembler interface {
 	AssembleStartup(
 		ctx context.Context,
 		startup StartupPromptContext,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		workspace *workspacepkg.ResolvedWorkspace,
 	) (string, error)
 }

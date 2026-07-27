@@ -23,15 +23,16 @@ function isStreamingState(state: string | undefined): boolean {
   return state === "streaming" || state === "running";
 }
 
-function isAghEventPart(part: Record<string, unknown>): boolean {
+function isCompozyEventPart(part: Record<string, unknown>): boolean {
   const type = stringField(part, "type");
   return (
-    type === "data-agh-event" || (type === "data" && stringField(part, "name") === "agh-event")
+    type === "data-compozy-event" ||
+    (type === "data" && stringField(part, "name") === "compozy-event")
   );
 }
 
 function isPersistedFailurePart(part: Record<string, unknown>): boolean {
-  if (!isAghEventPart(part) || !isRecord(part.data)) {
+  if (!isCompozyEventPart(part) || !isRecord(part.data)) {
     return false;
   }
   return (
@@ -42,7 +43,7 @@ function isPersistedFailurePart(part: Record<string, unknown>): boolean {
 }
 
 function isRuntimeSystemBannerPart(part: Record<string, unknown>): boolean {
-  if (!isAghEventPart(part) || !isRecord(part.data)) {
+  if (!isCompozyEventPart(part) || !isRecord(part.data)) {
     return false;
   }
   return (

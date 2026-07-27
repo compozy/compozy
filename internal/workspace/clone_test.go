@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestCloneAgentDefs(t *testing.T) {
@@ -13,7 +13,7 @@ func TestCloneAgentDefs(t *testing.T) {
 	t.Run("Should preserve category path", func(t *testing.T) {
 		t.Parallel()
 
-		cloned := cloneAgentDefs([]aghconfig.AgentDef{{
+		cloned := cloneAgentDefs([]compozyconfig.AgentDef{{
 			Name:         "coder",
 			Provider:     "claude",
 			CategoryPath: []string{"Marketing", "Sales"},
@@ -30,10 +30,10 @@ func TestCloneAgentDefs(t *testing.T) {
 	t.Run("Should preserve skills", func(t *testing.T) {
 		t.Parallel()
 
-		cloned := cloneAgentDefs([]aghconfig.AgentDef{{
+		cloned := cloneAgentDefs([]compozyconfig.AgentDef{{
 			Name:   "coder",
 			Prompt: "Prompt.",
-			Skills: aghconfig.AgentSkillsConfig{
+			Skills: compozyconfig.AgentSkillsConfig{
 				Disabled: []string{"build-site"},
 			},
 		}})

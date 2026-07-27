@@ -17,8 +17,8 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -41,7 +41,7 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Roles.AutoTitle.Enabled = false
 				cfg.Roles.MemoryExtractor.Provider = acpmock.ProviderName
 				cfg.Roles.MemoryExtractor.Model = "extractor-model-v1"
@@ -60,34 +60,35 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		var roles aghcontract.SettingsRolesResponse
+		var roles compozycontract.SettingsRolesResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/roles", nil, &roles); err != nil {
 			t.Fatalf("HTTP GET settings roles error = %v", err)
 		}
 		roles.Config.MemoryExtractor.Model = "extractor-model-v2"
-		var apply aghcontract.SettingsApplyResponse
+		var apply compozycontract.SettingsApplyResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPatch,
 			"/api/settings/roles",
-			aghcontract.UpdateSettingsRolesRequest{Config: roles.Config},
+			compozycontract.UpdateSettingsRolesRequest{Config: roles.Config},
 			&apply,
 		); err != nil {
 			t.Fatalf("HTTP PATCH settings roles error = %v", err)
 		}
-		if !apply.Applied || apply.Lifecycle != aghcontract.SettingsApplyLifecycleLive || apply.ApplyRecordID == "" {
+		if !apply.Applied || apply.Lifecycle != compozycontract.SettingsApplyLifecycleLive ||
+			apply.ApplyRecordID == "" {
 			t.Fatalf("roles live apply = %#v, want applied live record", apply)
 		}
 
-		var history aghcontract.ConfigApplyRecordsResponse
+		var history compozycontract.ConfigApplyRecordsResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/settings/apply", nil, &history); err != nil {
 			t.Fatalf("HTTP GET settings apply history error = %v", err)
 		}
 		foundApply := false
 		for _, entry := range history.Entries {
 			if entry.ID == apply.ApplyRecordID && entry.Actor == "httpapi" &&
-				entry.Lifecycle == aghcontract.SettingsApplyLifecycleLive &&
-				entry.Status == aghcontract.ConfigApplyStatusApplied {
+				entry.Lifecycle == compozycontract.SettingsApplyLifecycleLive &&
+				entry.Status == compozycontract.ConfigApplyStatusApplied {
 				foundApply = true
 				break
 			}
@@ -115,7 +116,7 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, childID)) {
+			for _, record := range acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForCompozySession(records, childID)) {
 				if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
 					record.ConfigOptionID == "model" && record.ConfigOptionValue == "extractor-model-v2" {
 					return true
@@ -183,7 +184,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	)
 
 	t.Run("Should return matching CLI and HTTP search results while ignoring legacy paths", func(t *testing.T) {
-		var cliSearch aghcontract.MemorySearchResponse
+		var cliSearch compozycontract.MemorySearchResponse
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -205,7 +206,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("CLI search results = %#v, want legacy path ignored", cliSearch)
 		}
 
-		var httpSearch aghcontract.MemorySearchResponse
+		var httpSearch compozycontract.MemorySearchResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPost,
@@ -228,7 +229,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("HTTP top search scope = %q, want %q", got, want)
 		}
 
-		var cliLegacy aghcontract.MemorySearchResponse
+		var cliLegacy compozycontract.MemorySearchResponse
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -247,7 +248,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("CLI legacy search results = %#v, want empty result set", cliLegacy)
 		}
 
-		var httpLegacy aghcontract.MemorySearchResponse
+		var httpLegacy compozycontract.MemorySearchResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPost,
@@ -284,7 +285,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			ctx,
 			http.MethodPost,
 			"/api/memory/reindex",
-			aghcontract.MemoryReindexV2Request{WorkspaceID: harness.WorkspaceRoot},
+			compozycontract.MemoryReindexV2Request{WorkspaceID: harness.WorkspaceRoot},
 			&httpReindex,
 		); err != nil {
 			t.Fatalf("HTTP memory reindex error = %v", err)
@@ -295,7 +296,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	})
 
 	t.Run("Should surface memory health and logs", func(t *testing.T) {
-		var health aghcontract.StatusPayload
+		var health compozycontract.StatusPayload
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -321,7 +322,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("health.Memory.LastReindex = nil, want non-nil")
 		}
 
-		var reindexEvents aghcontract.LogsListResponse
+		var reindexEvents compozycontract.LogsListResponse
 		reindexEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 			"&type=memory.write.reindex&limit=10"
 		if err := harness.UDSJSON(
@@ -337,7 +338,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("reindex logs = %#v, want indexed=3 summary", reindexEvents.Events)
 		}
 
-		var searchEvents aghcontract.LogsListResponse
+		var searchEvents compozycontract.LogsListResponse
 		searchEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 			"&type=memory.recall.executed&limit=10"
 		if err := harness.UDSJSON(
@@ -527,7 +528,7 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 	}
 
 	t.Run("Should persist the original user message without injected recall", func(t *testing.T) {
-		if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+		if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 			Type: "agent_message",
 			Text: "qa-memory acknowledged",
 		}) {
@@ -607,7 +608,7 @@ func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
 				Model:    roleDreamModel,
 				Prompt:   "Generate one completed session for dream eligibility.",
 			}},
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				configureRoleDreamE2E(cfg, command)
 				cfg.Roles.Dream.Provider = roleDreamProviderName
 				cfg.Roles.Dream.Model = roleDreamModel
@@ -622,11 +623,11 @@ func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
 	triggerDreamEventually(t, ctx, harness, diagnosticsPath)
 
 	dreamRecord := requireDreamPromptDiagnostic(t, diagnosticsPath)
-	dreamSession, err := harness.GetSession(ctx, dreamRecord.AGHSessionID)
+	dreamSession, err := harness.GetSession(ctx, dreamRecord.CompozySessionID)
 	if err != nil {
 		t.Fatalf("GetSession(dream) error = %v", err)
 	}
-	if dreamSession.AgentName != aghconfig.BuiltinDreamingCuratorAgentName ||
+	if dreamSession.AgentName != compozyconfig.BuiltinDreamingCuratorAgentName ||
 		dreamSession.Model != roleDreamModel || dreamSession.Type != "dream" {
 		t.Fatalf("dream session = %#v, want builtin dreaming-curator routed to %s", dreamSession, roleDreamModel)
 	}
@@ -660,7 +661,7 @@ permissions: approve-all
 Curate durable workspace knowledge.
 `, roleDreamProviderName, quotedYAMLString(command), roleDreamModel)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			configureRoleDreamE2E(cfg, command)
 			cfg.Roles.MemoryExtractor.Enabled = false
 		}},
@@ -687,7 +688,7 @@ enabled = false
 		t.Fatalf("ReadDiagnostics(workspace dream) error = %v", err)
 	}
 	dreamRecord := requireDreamPromptRecord(t, records)
-	dreamSession, err := harness.GetSession(ctx, dreamRecord.AGHSessionID)
+	dreamSession, err := harness.GetSession(ctx, dreamRecord.CompozySessionID)
 	if err != nil {
 		t.Fatalf("GetSession(workspace dream) error = %v", err)
 	}
@@ -700,7 +701,7 @@ enabled = false
 	assertDreamHiddenFromFleet(t, ctx, harness, dreamSession.ID)
 }
 
-func configureRoleDreamE2E(cfg *aghconfig.Config, command string) {
+func configureRoleDreamE2E(cfg *compozyconfig.Config, command string) {
 	cfg.Providers[roleDreamProviderName] = acpmock.ProviderConfig(command)
 	cfg.Memory.Dream.MinHours = 0.000001
 	cfg.Memory.Dream.MinSessions = 1
@@ -751,7 +752,7 @@ func seedDreamEligibility(
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(dream eligibility) error = %v", err)
 	}
-	ownedPrompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForAGHSession(records, session.ID))
+	ownedPrompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForCompozySession(records, session.ID))
 	if len(ownedPrompts) != 1 || !strings.Contains(ownedPrompts[0].Prompt, "Relevant durable memory for this turn:") {
 		t.Fatalf("dream eligibility prompts = %#v, want recalled durable memory", ownedPrompts)
 	}
@@ -784,12 +785,12 @@ func triggerDreamEventually(
 		if recorded {
 			return
 		}
-		var response aghcontract.MemoryDreamTriggerResponse
+		var response compozycontract.MemoryDreamTriggerResponse
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodPost,
 			"/api/memory/dreams/trigger",
-			aghcontract.MemoryDreamTriggerRequest{WorkspaceID: harness.WorkspaceID},
+			compozycontract.MemoryDreamTriggerRequest{WorkspaceID: harness.WorkspaceID},
 			&response,
 		); err != nil {
 			t.Fatalf("trigger memory dream error = %v", err)
@@ -927,7 +928,7 @@ func assertDreamHiddenFromFleet(
 	dreamSessionID string,
 ) {
 	t.Helper()
-	var response aghcontract.SessionCatalogResponse
+	var response compozycontract.SessionCatalogResponse
 	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("list fleet sessions error = %v", err)
@@ -952,7 +953,7 @@ func writeMemoryViaCLI(
 ) {
 	t.Helper()
 
-	var result aghcontract.MemoryMutationDecisionResponse
+	var result compozycontract.MemoryMutationDecisionResponse
 	args := []string{
 		"memory",
 		"write",
@@ -990,12 +991,12 @@ func writeMemoryViaUDS(
 ) {
 	t.Helper()
 
-	var response aghcontract.MemoryMutationDecisionResponse
+	var response compozycontract.MemoryMutationDecisionResponse
 	if err := harness.UDSJSON(
 		ctx,
 		http.MethodPost,
 		"/api/memory",
-		aghcontract.MemoryCreateRequest{
+		compozycontract.MemoryCreateRequest{
 			Scope:       memcontract.ScopeWorkspace,
 			WorkspaceID: workspace,
 			Type:        memcontract.TypeProject,
@@ -1015,15 +1016,19 @@ func memorySearchRequest(
 	query string,
 	scope memcontract.Scope,
 	workspace string,
-) aghcontract.MemorySearchRequest {
-	return aghcontract.MemorySearchRequest{
+) compozycontract.MemorySearchRequest {
+	return compozycontract.MemorySearchRequest{
 		QueryText:   query,
 		Scope:       scope,
 		WorkspaceID: workspace,
 	}
 }
 
-func containsSearchResult(response aghcontract.MemorySearchResponse, filename string, scope memcontract.Scope) bool {
+func containsSearchResult(
+	response compozycontract.MemorySearchResponse,
+	filename string,
+	scope memcontract.Scope,
+) bool {
 	for _, result := range response.Results {
 		if result.Memory.Filename == filename && result.Memory.Scope == scope {
 			return true
@@ -1033,7 +1038,7 @@ func containsSearchResult(response aghcontract.MemorySearchResponse, filename st
 }
 
 func containsLogEventSummary(
-	events []aghcontract.LogEventPayload,
+	events []compozycontract.LogEventPayload,
 	eventType string,
 	summaryFragment string,
 ) bool {
@@ -1049,13 +1054,13 @@ func containsLogEventSummary(
 }
 
 func firstAgentEventByType(
-	events []aghcontract.AgentEventPayload,
+	events []compozycontract.AgentEventPayload,
 	eventType string,
-) (aghcontract.AgentEventPayload, bool) {
+) (compozycontract.AgentEventPayload, bool) {
 	for _, event := range events {
 		if event.Type == eventType {
 			return event, true
 		}
 	}
-	return aghcontract.AgentEventPayload{}, false
+	return compozycontract.AgentEventPayload{}, false
 }

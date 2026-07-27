@@ -157,7 +157,7 @@ export async function fetchSessions(workspace?: string, signal?: AbortSignal) {
 
 _Figure 5 — The `useSessions` hook resolves to a typed `GET /api/sessions` call against the same daemon route the CLI hits over UDS._
 
-The `apiClient` is not a hand-written wrapper. `web/src/lib/api-client.ts:13` constructs it from `createClient<aghPaths>()`, where `aghPaths` is the path table imported from the generated TypeScript declaration of the daemon's OpenAPI schema. The browser cannot ask for an endpoint the daemon does not document; the daemon cannot ship a public endpoint that the browser cannot see. The web UI's job is to render and to mutate, not to keep its own version of the truth.
+The `apiClient` is not a hand-written wrapper. `web/src/lib/api-client.ts:13` constructs it from `createClient<compozyPaths>()`, where `compozyPaths` is the path table imported from the generated TypeScript declaration of the daemon's OpenAPI schema. The browser cannot ask for an endpoint the daemon does not document; the daemon cannot ship a public endpoint that the browser cannot see. The web UI's job is to render and to mutate, not to keep its own version of the truth.
 
 ## Codegen enforces parity, not docs
 

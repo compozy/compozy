@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -97,7 +97,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+			cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 			if err != nil {
 				return err
 			}
@@ -107,16 +107,16 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			cfg, err = aghconfig.SaveBootstrapConfig(homePaths, selection.Provider, selection.Model)
+			cfg, err = compozyconfig.SaveBootstrapConfig(homePaths, selection.Provider, selection.Model)
 			if err != nil {
 				return err
 			}
-			agentPath, createdAgent, err := aghconfig.EnsureBootstrapAgent(homePaths)
+			agentPath, createdAgent, err := compozyconfig.EnsureBootstrapAgent(homePaths)
 			if err != nil {
 				return err
 			}
 			record := installRecord{
-				AgentName:    aghconfig.DefaultAgentName,
+				AgentName:    compozyconfig.DefaultAgentName,
 				Provider:     cfg.Defaults.Provider,
 				Model:        cfg.Providers[cfg.Defaults.Provider].Models.Default,
 				Permissions:  string(cfg.Permissions.Mode),
@@ -136,7 +136,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 
 func resolveInstallSelection(
 	cmd *cobra.Command,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	provider string,
 	model string,
 	runWizard installWizardRunner,
@@ -166,9 +166,9 @@ func resolveNonInteractiveInstallSelection(
 	provider string,
 	model string,
 ) (installWizardSelection, error) {
-	selectedProvider := aghconfig.CanonicalProviderName(provider)
+	selectedProvider := compozyconfig.CanonicalProviderName(provider)
 	if selectedProvider == "" {
-		selectedProvider = aghconfig.CanonicalProviderName(input.SelectedProvider)
+		selectedProvider = compozyconfig.CanonicalProviderName(input.SelectedProvider)
 	}
 	if selectedProvider == "" {
 		return installWizardSelection{}, errors.New("cli: install provider is required")
@@ -188,10 +188,10 @@ func resolveNonInteractiveInstallSelection(
 	return installWizardSelection{Provider: selectedProvider, Model: selectedModel}, nil
 }
 
-func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
+func buildInstallWizardInput(cfg *compozyconfig.Config) installWizardInput {
 	seen := make(map[string]struct{})
 	providers := make([]string, 0, len(cfg.Providers)+8)
-	for name := range aghconfig.BuiltinProviders() {
+	for name := range compozyconfig.BuiltinProviders() {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
@@ -229,7 +229,7 @@ func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
 		modelRequired[provider] = installProviderRequiresModel(configured)
 	}
 
-	selectedProvider := aghconfig.CanonicalProviderName(cfg.Defaults.Provider)
+	selectedProvider := compozyconfig.CanonicalProviderName(cfg.Defaults.Provider)
 	if selectedProvider == "" {
 		if _, ok := seen[defaultInstallProvider]; ok {
 			selectedProvider = defaultInstallProvider
@@ -247,7 +247,7 @@ func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
 	}
 }
 
-func installProviderRequiresModel(provider aghconfig.ProviderConfig) bool {
+func installProviderRequiresModel(provider compozyconfig.ProviderConfig) bool {
 	return provider.RequiresRuntimeModel()
 }
 
@@ -402,10 +402,10 @@ func (m *installWizardModel) View() string {
 		builder.WriteString("\nPress Enter to continue, Esc to go back, Ctrl+C to cancel.\n")
 	case installWizardStepConfirm:
 		builder.WriteString("Review the bootstrap configuration.\n\n")
-		builder.WriteString("Agent:       " + aghconfig.DefaultAgentName + "\n")
+		builder.WriteString("Agent:       " + compozyconfig.DefaultAgentName + "\n")
 		builder.WriteString("Provider:    " + m.provider + "\n")
 		builder.WriteString("Model:       " + stringOrDash(strings.TrimSpace(m.modelInput.Value())) + "\n")
-		builder.WriteString("Permissions: " + string(aghconfig.PermissionModeApproveAll) + "\n")
+		builder.WriteString("Permissions: " + string(compozyconfig.PermissionModeApproveAll) + "\n")
 		builder.WriteString(
 			"\nPress Enter to write ~/.compozy/config.toml and ensure " +
 				"~/.compozy/agents/general/AGENT.md.\n",

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -29,14 +29,14 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 					ID:      "ws-coordinator",
 					RootDir: t.TempDir(),
 				},
-				Agents: []aghconfig.AgentDef{{
+				Agents: []compozyconfig.AgentDef{{
 					Name:     "coder",
 					Provider: "claude",
 					Prompt:   "Coder prompt.",
 				}},
 			}
 
-			skills, err := registry.ForAgent(context.Background(), resolved, aghconfig.BuiltinCoordinatorAgentName)
+			skills, err := registry.ForAgent(context.Background(), resolved, compozyconfig.BuiltinCoordinatorAgentName)
 			if err != nil {
 				t.Fatalf("ForAgent(coordinator) error = %v", err)
 			}
@@ -76,7 +76,7 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 
 			section, err := provider.PromptAgentSection(
 				context.Background(),
-				mustBuiltinAgentDef(t, aghconfig.BuiltinCoordinatorAgentName),
+				mustBuiltinAgentDef(t, compozyconfig.BuiltinCoordinatorAgentName),
 				resolved,
 			)
 			if err != nil {
@@ -89,9 +89,9 @@ func TestBundledCoordinatorFallback(t *testing.T) {
 	)
 }
 
-func mustBuiltinAgentDef(t *testing.T, name string) aghconfig.AgentDef {
+func mustBuiltinAgentDef(t *testing.T, name string) compozyconfig.AgentDef {
 	t.Helper()
-	def, ok := aghconfig.BuiltinAgentDef(name)
+	def, ok := compozyconfig.BuiltinAgentDef(name)
 	if !ok {
 		t.Fatalf("BuiltinAgentDef(%q) ok = false, want true", name)
 	}

@@ -7,13 +7,13 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func piCredentialEnv(
-	slots []aghconfig.ProviderCredentialSlot,
+	slots []compozyconfig.ProviderCredentialSlot,
 	injectedTargetEnvs map[string]struct{},
 ) string {
 	for _, slot := range slots {

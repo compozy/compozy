@@ -20,7 +20,7 @@ func TestUnixSocketClientRegisterBridgeWebhook(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost ||
 					req.URL.EscapedPath() != "/api/bridges/brg%2Ftelegram/webhook/register" {

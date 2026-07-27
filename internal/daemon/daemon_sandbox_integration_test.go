@@ -12,8 +12,8 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -46,7 +46,7 @@ func TestDaemonSandboxACPHelperProcess(t *testing.T) {
 }
 
 func TestDaemonE2ELocalSandboxAllowsToolExecutionAndPersistsMetadata(t *testing.T) {
-	harness := startSandboxRuntimeHarness(t, daemonSandboxScenarioAllowed, aghconfig.PermissionModeApproveAll)
+	harness := startSandboxRuntimeHarness(t, daemonSandboxScenarioAllowed, compozyconfig.PermissionModeApproveAll)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -143,7 +143,7 @@ func TestDaemonE2ELocalSandboxAllowsToolExecutionAndPersistsMetadata(t *testing.
 }
 
 func TestDaemonE2ELocalSandboxBlockedOperationLeavesFailureDiagnostics(t *testing.T) {
-	harness := startSandboxRuntimeHarness(t, daemonSandboxScenarioBlocked, aghconfig.PermissionModeApproveReads)
+	harness := startSandboxRuntimeHarness(t, daemonSandboxScenarioBlocked, compozyconfig.PermissionModeApproveReads)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -390,7 +390,7 @@ func (a *daemonSandboxACPAgent) sendMessageAndEndTurn(
 func startSandboxRuntimeHarness(
 	t testing.TB,
 	scenario string,
-	permissions aghconfig.PermissionMode,
+	permissions compozyconfig.PermissionMode,
 ) *e2etest.RuntimeHarness {
 	t.Helper()
 	helperCommand := daemonSandboxHelperCommand(t)
@@ -403,10 +403,10 @@ func startSandboxRuntimeHarness(
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   daemonSandboxFixtureAgentName,
 			DefaultSandbox: daemonSandboxProfileName,
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
 			},
-			Sandboxes: map[string]aghconfig.SandboxProfile{
+			Sandboxes: map[string]compozyconfig.SandboxProfile{
 				daemonSandboxProfileName: {
 					Backend:     string(sandbox.BackendLocal),
 					Persistence: string(sandbox.PersistenceReuse),
@@ -435,10 +435,10 @@ func mustRunSandboxScenarioSession(
 	harness *e2etest.RuntimeHarness,
 	name string,
 	message string,
-) (aghcontract.SessionPayload, []e2etest.SSEEvent) {
+) (compozycontract.SessionPayload, []e2etest.SSEEvent) {
 	t.Helper()
 
-	created, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     daemonSandboxFixtureAgentName,
 		Name:          name,
 		WorkspacePath: harness.WorkspaceRoot,
@@ -507,7 +507,7 @@ func mustSessionEvents(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-) aghcontract.SessionEventsResponse {
+) compozycontract.SessionEventsResponse {
 	t.Helper()
 
 	events, err := harness.SessionEvents(ctx, sessionID)
@@ -517,7 +517,7 @@ func mustSessionEvents(
 	return events
 }
 
-func findAgentMessageContaining(events []aghcontract.AgentEventPayload, fragment string) string {
+func findAgentMessageContaining(events []compozycontract.AgentEventPayload, fragment string) string {
 	want := strings.TrimSpace(fragment)
 	for _, event := range events {
 		if event.Type != "agent_message" {

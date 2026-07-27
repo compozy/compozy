@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -154,7 +154,7 @@ func (e *forkedMemoryExtractor) Extract(
 		RootSessionID:   strings.TrimSpace(turn.RootSessionID),
 	}
 	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
-	role, err := e.roles.Resolve(roleCtx, turn.WorkspaceID, aghconfig.RoleMemoryExtractor)
+	role, err := e.roles.Resolve(roleCtx, turn.WorkspaceID, compozyconfig.RoleMemoryExtractor)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve memory extractor role: %w", err)
 	}
@@ -215,16 +215,17 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
 		spawned, err := e.sessions.Spawn(attemptCtx, session.SpawnOpts{
-			ParentSessionID:    turn.SessionID,
-			AgentName:          route.AgentName,
-			Provider:           route.Provider,
-			Model:              route.Model,
-			ReasoningEffort:    route.ReasoningEffort,
-			Name:               "Memory extractor",
-			PromptOverlay:      memoryExtractorOverlay(),
-			SpawnRole:          session.SpawnRoleMemoryExtractor,
-			TTL:                e.extractorTTL(),
-			AllowStoppedParent: true,
+			ParentSessionID:     turn.SessionID,
+			AgentName:           route.AgentName,
+			Provider:            route.Provider,
+			Model:               route.Model,
+			ReasoningEffort:     route.ReasoningEffort,
+			Name:                "Memory extractor",
+			PromptOverlay:       memoryExtractorOverlay(),
+			SpawnRole:           session.SpawnRoleMemoryExtractor,
+			TTL:                 e.extractorTTL(),
+			AllowStoppedParent:  true,
+			DiscardStartFailure: true,
 		})
 		return spawned, spawned != nil, err
 	})

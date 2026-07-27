@@ -13,7 +13,7 @@ func TestApplyHermeticEnv(t *testing.T) {
 		setTestEnv(t, "OPENAI_API_KEY", "sk-ambient")
 		setTestEnv(t, "COMPOZY_LOG_LEVEL", "debug")
 		setTestEnv(t, "PROVIDER_HOME", filepath.Join(t.TempDir(), "operator-provider-home"))
-		setTestEnv(t, "COMPOZY_TEST_ACPMOCK_DRIVER_BIN", "/tmp/agh-test-driver")
+		setTestEnv(t, "COMPOZY_TEST_ACPMOCK_DRIVER_BIN", "/tmp/compozy-test-driver")
 		originalHome, hadHome := os.LookupEnv("HOME")
 
 		state := ApplyHermeticEnv(t)
@@ -35,7 +35,7 @@ func TestApplyHermeticEnv(t *testing.T) {
 		if got, want := os.Getenv("LANG"), hermeticLocale; got != want {
 			t.Fatalf("LANG = %q, want %q", got, want)
 		}
-		if got, want := os.Getenv("COMPOZY_TEST_ACPMOCK_DRIVER_BIN"), "/tmp/agh-test-driver"; got != want {
+		if got, want := os.Getenv("COMPOZY_TEST_ACPMOCK_DRIVER_BIN"), "/tmp/compozy-test-driver"; got != want {
 			t.Fatalf("COMPOZY_TEST_ACPMOCK_DRIVER_BIN = %q, want %q", got, want)
 		}
 		if hadHome {
@@ -57,7 +57,7 @@ func TestHermeticProcessEnv(t *testing.T) {
 			"HOME=/Users/operator",
 			"OPENAI_API_KEY=sk-ambient",
 			"COMPOZY_HOME=/Users/operator/.compozy",
-			"COMPOZY_TEST_DAEMON_BIN=/tmp/agh",
+			"COMPOZY_TEST_DAEMON_BIN=/tmp/compozy",
 			"PROVIDER_CODEX_HOME=/Users/operator/.codex",
 			"TZ=America/Sao_Paulo",
 			"LANG=pt_BR.UTF-8",
@@ -72,7 +72,7 @@ func TestHermeticProcessEnv(t *testing.T) {
 		for _, entry := range []string{
 			"PATH=/usr/bin",
 			"HOME=/Users/operator",
-			"COMPOZY_TEST_DAEMON_BIN=/tmp/agh",
+			"COMPOZY_TEST_DAEMON_BIN=/tmp/compozy",
 			"TZ=UTC",
 			"LANG=C.UTF-8",
 			"LC_ALL=C.UTF-8",

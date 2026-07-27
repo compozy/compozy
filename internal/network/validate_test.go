@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestProtocolIdentityConstants(t *testing.T) {
@@ -471,7 +471,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			name: "Should reject raw secrets in extensions",
 			mutate: func(env Envelope) Envelope {
 				env.Ext = ExtensionMap{
-					"agh.handoff": mustRawJSON(t, map[string]any{
+					"compozy.handoff": mustRawJSON(t, map[string]any{
 						"note": "Bearer provider-token",
 					}),
 				}
@@ -484,7 +484,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			name: "Should reject raw claim tokens in extensions",
 			mutate: func(env Envelope) Envelope {
 				env.Ext = ExtensionMap{
-					"agh.metadata": mustRawJSON(t, map[string]any{
+					"compozy.metadata": mustRawJSON(t, map[string]any{
 						"claim_token": "compozy_claim_NET05TOKEN123",
 					}),
 				}
@@ -497,7 +497,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			name: "Should reject raw secrets in proofs",
 			mutate: func(env Envelope) Envelope {
 				proof := Proof{
-					"agh.proof": mustRawJSON(t, map[string]any{
+					"compozy.proof": mustRawJSON(t, map[string]any{
 						"access_token": "provider-token",
 					}),
 				}
@@ -1125,8 +1125,8 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	  "proof": {"profile": "compozy-network.trust.ed25519-jcs/v1"},
 	  "ext": {
 	    "unknown.vendor": {"nested": [1, true, "x"]},
-	    "agh.workflow": {"ticket": "NET-42"},
-	    "agh.handoff": {"turn": 3},
+	    "compozy.workflow": {"ticket": "NET-42"},
+	    "compozy.handoff": {"turn": 3},
 	    "compozy.capability_catalog": {
 	      "capabilities": [
 	        {"id": "review-pr", "summary": "Review pull requests", "outcome": "Actionable review findings"}
@@ -1187,7 +1187,7 @@ func canonicalCapabilityPayload(t *testing.T, capability CapabilityEnvelopePaylo
 		return capability
 	}
 
-	digest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+	digest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
 		ID:                capability.ID,
 		Summary:           capability.Summary,
 		Outcome:           capability.Outcome,

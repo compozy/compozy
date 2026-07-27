@@ -143,10 +143,10 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 			"text-end:turn-mixed-text-1",
 			"tool-input-start:tool-2",
 			"tool-input-available:tool-2",
-			"data-agh-event",
+			"data-compozy-event",
 			"tool-input-start:tool-3",
 			"tool-input-available:tool-3",
-			"data-agh-event",
+			"data-compozy-event",
 			"text-start:turn-mixed-text-2",
 			"text-delta:turn-mixed-text-2:text 4",
 			"text-delta:turn-mixed-text-2:text 5",
@@ -421,7 +421,7 @@ func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermission
 		if err := json.Unmarshal([]byte(data), &frame); err != nil {
 			t.Fatalf("json.Unmarshal(%q) error = %v", data, err)
 		}
-		if frame.Type == "data-agh-permission" {
+		if frame.Type == "data-compozy-permission" {
 			frames = append(frames, frame)
 		}
 	}

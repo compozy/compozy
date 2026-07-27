@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -48,17 +48,17 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 	}
 
 	value := settingspkg.GeneralSettings{
-		Defaults: aghconfig.DefaultsConfig{
+		Defaults: compozyconfig.DefaultsConfig{
 			Agent:    strings.TrimSpace(payload.Defaults.Agent),
 			Provider: strings.TrimSpace(payload.Defaults.Provider),
 			Sandbox:  strings.TrimSpace(payload.Defaults.Sandbox),
 		},
-		Limits:         aghconfig.LimitsConfig{MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents},
-		Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionMode(payload.Permissions.Mode)},
+		Limits:         compozyconfig.LimitsConfig{MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents},
+		Permissions:    compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionMode(payload.Permissions.Mode)},
 		SessionTimeout: sessionTimeout,
-		HTTP:           aghconfig.HTTPConfig{Host: strings.TrimSpace(payload.HTTP.Host), Port: payload.HTTP.Port},
+		HTTP:           compozyconfig.HTTPConfig{Host: strings.TrimSpace(payload.HTTP.Host), Port: payload.HTTP.Port},
 		Daemon:         daemonConfig,
-		Redact:         aghconfig.RedactConfig{Enabled: payload.Redact.Enabled},
+		Redact:         compozyconfig.RedactConfig{Enabled: payload.Redact.Enabled},
 	}
 
 	if err := value.Defaults.Validate(); err != nil {
@@ -70,7 +70,7 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 	if err := value.Permissions.Validate(); err != nil {
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}
-	if err := (aghconfig.SessionLimitsConfig{Timeout: value.SessionTimeout}).Validate(); err != nil {
+	if err := (compozyconfig.SessionLimitsConfig{Timeout: value.SessionTimeout}).Validate(); err != nil {
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}
 	if err := value.HTTP.Validate(); err != nil {

@@ -37,7 +37,7 @@ const skillsEnvelope: SettingsSkillsSection = {
     disabled_skills: ["alpha"],
     poll_interval: "5m",
     marketplace: {
-      registry: "agh",
+      registry: "compozy",
       base_url: storyCompany.registryBaseUrl,
     },
     allowed_marketplace_mcp: [],

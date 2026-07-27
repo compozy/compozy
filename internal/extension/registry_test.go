@@ -591,7 +591,7 @@ func TestRegistryInstallReplaceExistingPreservesEnabledState(t *testing.T) {
 func TestRegistryInstallReplaceExistingWrapsPersistErrors(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
-	dbPath := filepath.Join(t.TempDir(), "agh-registry-legacy.db")
+	dbPath := filepath.Join(t.TempDir(), "compozy-registry-legacy.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
 		_, execErr := db.ExecContext(ctx, legacyRegistryTestExtensionsTableSchema)
 		return execErr

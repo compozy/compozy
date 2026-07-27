@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -149,7 +149,7 @@ func workspaceSnapshotsForExplicitPaths(
 
 		for _, sidecarPath := range []string{
 			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
-			filepath.Join(filepath.Dir(path.filePath), aghconfig.MCPJSONName),
+			filepath.Join(filepath.Dir(path.filePath), compozyconfig.MCPJSONName),
 		} {
 			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
 			if err != nil {
@@ -205,7 +205,7 @@ func (r *Registry) workspaceLoadFromResolved(
 		load.snapshots[path.filePath] = snapshot
 		for _, sidecarPath := range []string{
 			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
-			filepath.Join(filepath.Dir(path.filePath), aghconfig.MCPJSONName),
+			filepath.Join(filepath.Dir(path.filePath), compozyconfig.MCPJSONName),
 		} {
 			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
 			if err != nil {
@@ -276,14 +276,14 @@ func workspaceSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []workspaceSk
 	roots := make([]workspaceSkillRoot, 0, len(resolved.AdditionalDirs)+1)
 	if root := strings.TrimSpace(resolved.RootDir); root != "" {
 		roots = append(roots, workspaceSkillRoot{
-			dir:    filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName),
+			dir:    filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName),
 			source: SourceWorkspace,
 		})
 	}
 	for _, additionalDir := range resolved.AdditionalDirs {
 		if root := strings.TrimSpace(additionalDir); root != "" {
 			roots = append(roots, workspaceSkillRoot{
-				dir:    filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName),
+				dir:    filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName),
 				source: SourceAdditional,
 			})
 		}

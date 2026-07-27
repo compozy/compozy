@@ -140,7 +140,7 @@ func linearDefaultOAuthTokenURL() string {
 }
 
 func linearOAuthTokenURLEnvName() string {
-	return strings.Join([]string{"AGH", "BRIDGE", "LINEAR", "TOKEN", "URL"}, "_")
+	return strings.Join([]string{"COMPOZY", "BRIDGE", "LINEAR", "TOKEN", "URL"}, "_")
 }
 
 func validLinearCredentialedURL(value string) bool {

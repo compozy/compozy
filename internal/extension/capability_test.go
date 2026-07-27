@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 )
 
@@ -453,7 +453,7 @@ func TestCapabilityCheckerResolveShouldApplyOperatorResourcePolicy(t *testing.T)
 	t.Parallel()
 
 	checker := &CapabilityChecker{}
-	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+	checker.SetResourcePolicy(compozyconfig.ExtensionsResourcesConfig{
 		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 		MaxScope:     resources.ResourceScopeKindWorkspace,
 	})

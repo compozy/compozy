@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
@@ -119,7 +119,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 	t.Run("Should install update and remove managed marketplace extensions", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -235,7 +235,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 	t.Run("Should close the registry source before moving an installation into place", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -268,7 +268,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 	t.Run("Should keep removal committed when backup cleanup partially fails", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -333,7 +333,7 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 	t.Run("Should roll back failed update reloads", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -391,7 +391,7 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 	t.Run("Should return committed updates in a typed partial failure", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -493,7 +493,7 @@ func assertMarketplacePostCommitCleanupFailure(
 	configure func(*MarketplaceUpdateRequest, error),
 ) {
 	t.Helper()
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -569,7 +569,7 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 	t.Run("Should validate marketplace sources and lifecycle inputs", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -747,7 +747,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -825,7 +825,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 	t.Run("Should install a matching curated archive without unverified consent", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -867,7 +867,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 	t.Run("Should reject a curated digest mismatch even with unverified consent", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -934,7 +934,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 				if err != nil {
 					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 				}
@@ -1013,7 +1013,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 				if err != nil {
 					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 				}

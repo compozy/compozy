@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // ErrTokenNotFound reports missing persisted MCP auth state for one server.
@@ -51,7 +51,7 @@ func (t Target) Validate() error {
 	case t.Scope != ScopeGlobal && t.Scope != ScopeWorkspace:
 		return fmt.Errorf("mcp auth: unsupported target scope %q", t.Scope)
 	default:
-		if err := aghconfig.ValidateMCPServerName(t.ServerName); err != nil {
+		if err := compozyconfig.ValidateMCPServerName(t.ServerName); err != nil {
 			return fmt.Errorf("mcp auth: %w", err)
 		}
 		return nil
@@ -158,7 +158,7 @@ type SecretRefResolver func(ctx context.Context, ref string) (string, error)
 func ServerConfigFromMCP(
 	ctx context.Context,
 	target Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	resolveSecret SecretRefResolver,
 ) (ServerConfig, error) {
 	target = target.Normalize()
@@ -210,7 +210,7 @@ func ServerConfigFromMCP(
 // server in the supplied list.
 func ServerConfigsFromMCP(
 	ctx context.Context,
-	servers map[Target]aghconfig.MCPServer,
+	servers map[Target]compozyconfig.MCPServer,
 	resolveSecret SecretRefResolver,
 ) ([]ServerConfig, error) {
 	configs := make([]ServerConfig, 0, len(servers))
@@ -235,7 +235,7 @@ func (c ServerConfig) Validate() error {
 	switch {
 	case strings.TrimSpace(c.Type) == "":
 		return errors.New("mcp auth: auth type is required")
-	case strings.TrimSpace(c.Type) != string(aghconfig.MCPAuthTypeOAuth2PKCE):
+	case strings.TrimSpace(c.Type) != string(compozyconfig.MCPAuthTypeOAuth2PKCE):
 		return errors.New("mcp auth: auth type must be oauth2_pkce")
 	case strings.TrimSpace(c.ClientID) == "":
 		return errors.New("mcp auth: client id is required")

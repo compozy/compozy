@@ -12,8 +12,8 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
@@ -47,8 +47,8 @@ type daemonRunner interface {
 }
 
 type runtimeContext struct {
-	HomePaths aghconfig.HomePaths
-	Config    aghconfig.Config
+	HomePaths compozyconfig.HomePaths
+	Config    compozyconfig.Config
 }
 
 type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
@@ -56,18 +56,18 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type mcpServeRunner func(context.Context, mcpServeOptions) error
 
 type commandDeps struct {
-	loadConfig                  func() (aghconfig.Config, error)
+	loadConfig                  func() (compozyconfig.Config, error)
 	loadSkillRegistrySources    skillRegistrySourceLoader
-	resolveHome                 func() (aghconfig.HomePaths, error)
-	resolveHomeForWorkspace     func(workspaceRoot string) (aghconfig.HomePaths, error)
-	ensureHome                  func(aghconfig.HomePaths) error
+	resolveHome                 func() (compozyconfig.HomePaths, error)
+	resolveHomeForWorkspace     func(workspaceRoot string) (compozyconfig.HomePaths, error)
+	ensureHome                  func(compozyconfig.HomePaths) error
 	runInstallWizard            installWizardRunner
 	runBridgeSetupWizard        bridgeSetupWizardRunner
 	generateBridgeSetupSecret   bridgeSetupSecretGenerator
 	newClient                   func(socketPath string) (DaemonClient, error)
 	newDaemon                   func() (daemonRunner, error)
-	runRelaunchHelper           func(context.Context, aghdaemon.RelaunchHelperConfig) error
-	readDaemonInfo              func(path string) (aghdaemon.Info, error)
+	runRelaunchHelper           func(context.Context, compozydaemon.RelaunchHelperConfig) error
+	readDaemonInfo              func(path string) (compozydaemon.Info, error)
 	signalProcess               func(pid int, sig syscall.Signal) error
 	processAlive                func(pid int) bool
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
@@ -79,8 +79,8 @@ type commandDeps struct {
 	pollInterval                time.Duration
 	startTimeout                time.Duration
 	stopTimeout                 time.Duration
-	spawnDetached               func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
-	newUpdateManager            func(aghconfig.HomePaths) (updateManager, error)
+	spawnDetached               func(context.Context, compozyconfig.HomePaths) (daemonProcess, error)
+	newUpdateManager            func(compozyconfig.HomePaths) (updateManager, error)
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
 	inputIsTerminal             func(io.Reader) bool

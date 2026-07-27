@@ -22,7 +22,7 @@ description = "Slack request signing secret"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.slack"
+schema = "compozy.bridge.slack"
 version = "1"
 
 [actions]

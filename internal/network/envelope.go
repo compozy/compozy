@@ -1,4 +1,4 @@
-// Package network defines the AGH Network v0 protocol surface shared by the
+// Package network defines the Compozy Network v0 protocol surface shared by the
 // transport, router, and delivery layers.
 package network
 
@@ -11,7 +11,7 @@ import (
 // ProtocolV0 is the workspace-qualified wire protocol identifier.
 const ProtocolV0 = "compozy-network/v0"
 
-// Kind identifies one normative AGH Network message kind.
+// Kind identifies one normative Compozy Network message kind.
 type Kind string
 
 const (
@@ -193,7 +193,7 @@ type Proof map[string]json.RawMessage
 // ExtensionMap preserves opaque extension payloads without interpreting them.
 type ExtensionMap map[string]json.RawMessage
 
-// Envelope is the shared AGH Network v0 wire envelope.
+// Envelope is the shared Compozy Network v0 wire envelope.
 type Envelope struct {
 	Protocol    string          `json:"protocol"`
 	ID          string          `json:"id"`

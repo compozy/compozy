@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/marketplace"
@@ -42,7 +42,7 @@ var (
 func newMarketplaceRuntime(
 	store marketplace.Store,
 	notifier marketplace.Notifier,
-	cfg aghconfig.MarketplaceCatalogConfig,
+	cfg compozyconfig.MarketplaceCatalogConfig,
 	now func() time.Time,
 ) (*marketplaceRuntime, error) {
 	if store == nil {
@@ -63,7 +63,7 @@ func newMarketplaceRuntime(
 func buildMarketplaceService(
 	marketplaceStore marketplace.Store,
 	notifier marketplace.Notifier,
-	cfg aghconfig.MarketplaceCatalogConfig,
+	cfg compozyconfig.MarketplaceCatalogConfig,
 	now func() time.Time,
 ) (marketplaceRuntimeService, error) {
 	if err := cfg.Validate("marketplace.catalog"); err != nil {
@@ -165,7 +165,7 @@ func (r *marketplaceRuntime) Status(ctx context.Context) ([]marketplace.KindStat
 	return service.Status(ctx)
 }
 
-func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *aghconfig.Config) error {
+func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *compozyconfig.Config) error {
 	if ctx == nil {
 		return errors.New("daemon: marketplace config reconciliation context is required")
 	}

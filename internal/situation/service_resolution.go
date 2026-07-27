@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 
@@ -52,9 +52,9 @@ func (s *Service) resolveWorkspace(
 func (s *Service) resolveAgent(
 	name string,
 	providerOverride string,
-	provided aghconfig.AgentDef,
+	provided compozyconfig.AgentDef,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
-) (aghconfig.ResolvedAgent, aghconfig.AgentDef, error) {
+) (compozyconfig.ResolvedAgent, compozyconfig.AgentDef, error) {
 	agent := provided
 	agentName := firstTrimmed(name, agent.Name)
 	if resolver := s.agentResolverValue(); resolver != nil && agentName != "" {
@@ -63,9 +63,9 @@ func (s *Service) resolveAgent(
 		case err == nil:
 			agent = resolved
 		case isContextError(err):
-			return aghconfig.ResolvedAgent{}, aghconfig.AgentDef{}, err
+			return compozyconfig.ResolvedAgent{}, compozyconfig.AgentDef{}, err
 		case !errors.Is(err, workspacepkg.ErrAgentNotAvailable) && agent.Name == "":
-			return aghconfig.ResolvedAgent{}, aghconfig.AgentDef{}, err
+			return compozyconfig.ResolvedAgent{}, compozyconfig.AgentDef{}, err
 		}
 	}
 	if strings.TrimSpace(agent.Name) == "" {
@@ -75,7 +75,7 @@ func (s *Service) resolveAgent(
 		strings.TrimSpace(providerOverride) == "" &&
 		strings.TrimSpace(agent.Provider) == "" &&
 		strings.TrimSpace(agent.Model) == "" {
-		return aghconfig.ResolvedAgent{}, agent, nil
+		return compozyconfig.ResolvedAgent{}, agent, nil
 	}
 
 	if workspaceSnapshot != nil {
@@ -86,14 +86,14 @@ func (s *Service) resolveAgent(
 				model = strings.TrimSpace(providerConfig.Models.Default)
 			}
 		}
-		return aghconfig.ResolvedAgent{
+		return compozyconfig.ResolvedAgent{
 			Name:     strings.TrimSpace(agent.Name),
 			Provider: provider,
 			Model:    model,
 		}, agent, nil
 	}
 
-	return aghconfig.ResolvedAgent{
+	return compozyconfig.ResolvedAgent{
 		Name:     strings.TrimSpace(agent.Name),
 		Provider: firstTrimmed(providerOverride, agent.Provider),
 		Model:    strings.TrimSpace(agent.Model),
@@ -103,7 +103,7 @@ func (s *Service) resolveAgent(
 func (s *Service) capabilitiesSection(
 	ctx context.Context,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 ) (contract.AgentCapabilitySectionPayload, error) {
 	capabilities := make([]contract.AgentCapabilityPayload, 0)
 	if catalog := agent.Capabilities; catalog != nil {
@@ -166,7 +166,7 @@ func (s *Service) capabilitiesSection(
 
 func (s *Service) limits(ctx context.Context, workspaceID string) (contract.AgentLimitsPayload, error) {
 	limits := contract.AgentLimitsPayload{
-		MaxChildren:         aghconfig.DefaultCoordinatorMaxChildren,
+		MaxChildren:         compozyconfig.DefaultCoordinatorMaxChildren,
 		MaxSpawnDepth:       defaultMaxSpawnDepth,
 		MaxActiveTaskLeases: defaultMaxActiveTaskLeases,
 		ContextSectionLimit: s.limit(),

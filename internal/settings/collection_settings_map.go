@@ -3,7 +3,7 @@ package settings
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func providerSettingsMap(settings ProviderSettings) map[string]any {
@@ -50,7 +50,7 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	return values
 }
 
-func providerCredentialSlotMaps(slots []aghconfig.ProviderCredentialSlot) []map[string]any {
+func providerCredentialSlotMaps(slots []compozyconfig.ProviderCredentialSlot) []map[string]any {
 	values := make([]map[string]any, 0, len(slots))
 	for _, slot := range slots {
 		value := make(map[string]any)
@@ -74,7 +74,7 @@ func providerCredentialSlotMaps(slots []aghconfig.ProviderCredentialSlot) []map[
 	return values
 }
 
-func sandboxProfileMap(profile aghconfig.SandboxProfile) map[string]any {
+func sandboxProfileMap(profile compozyconfig.SandboxProfile) map[string]any {
 	values := map[string]any{
 		"backend": profile.Backend,
 	}
@@ -102,7 +102,7 @@ func sandboxProfileMap(profile aghconfig.SandboxProfile) map[string]any {
 	return values
 }
 
-func networkProfileMap(profile aghconfig.NetworkProfile) map[string]any {
+func networkProfileMap(profile compozyconfig.NetworkProfile) map[string]any {
 	if !profile.AllowPublicIngress &&
 		!profile.AllowOutbound &&
 		!profile.Required &&
@@ -125,7 +125,7 @@ func networkProfileMap(profile aghconfig.NetworkProfile) map[string]any {
 	return network
 }
 
-func daytonaProfileMap(profile aghconfig.DaytonaProfile) map[string]any {
+func daytonaProfileMap(profile compozyconfig.DaytonaProfile) map[string]any {
 	values := map[string]any{}
 	if strings.TrimSpace(profile.APIURL) != "" {
 		values["api_url"] = profile.APIURL

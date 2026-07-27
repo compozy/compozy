@@ -10,7 +10,7 @@ func TestRuntimeHarnessEnvContract(t *testing.T) {
 
 		layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
 			Env: map[string]string{
-				"COMPOZY_HOME": "/tmp/outside-agh-home",
+				"COMPOZY_HOME": "/tmp/outside-compozy-home",
 				"HOME":         "/tmp/outside-home",
 			},
 		})

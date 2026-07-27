@@ -305,8 +305,8 @@ beforeEach(() => {
       hash: "sha256:installed-skill",
       name: "installed-skill",
       path: "/skills/installed-skill",
-      registry: "agh",
-      slug: "agh/installed-skill",
+      registry: "compozy",
+      slug: "compozy/installed-skill",
       status: "installed",
       version: "1.0.0",
     },
@@ -528,7 +528,7 @@ describe("useMarketplaceActionController", () => {
     await user.click(screen.getByRole("button", { name: "Run action" }));
     await waitFor(() =>
       expect(mocks.installSkill).toHaveBeenCalledWith({
-        slug: "agh/docs-sync",
+        slug: "compozy/docs-sync",
         version: "0.9.1",
       })
     );
@@ -634,7 +634,7 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: false,
-        slug: "agh/otel-bridge",
+        slug: "compozy/otel-bridge",
         version: "0.6.0",
       })
     );
@@ -715,8 +715,8 @@ describe("useMarketplaceActionController", () => {
           hash: "sha256:skill",
           name: "installed-skill",
           path: "/skills/installed-skill",
-          registry: "agh",
-          slug: "agh/installed-skill",
+          registry: "compozy",
+          slug: "compozy/installed-skill",
           status: "installed",
           version: "1.0.0",
         },

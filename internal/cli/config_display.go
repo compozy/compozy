@@ -5,32 +5,32 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (aghconfig.Config, string, error) {
+func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (compozyconfig.Config, string, error) {
 	workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
 	if err != nil {
-		return aghconfig.Config{}, "", err
+		return compozyconfig.Config{}, "", err
 	}
 	homeWorkspace := workspace
 	if homeWorkspace == "" {
 		homeWorkspace, err = currentWorkingDirectory(deps)
 		if err != nil {
-			return aghconfig.Config{}, "", err
+			return compozyconfig.Config{}, "", err
 		}
 	}
 	homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
 	if err != nil {
-		return aghconfig.Config{}, "", err
+		return compozyconfig.Config{}, "", err
 	}
-	loadOptions := []aghconfig.LoadOption{}
+	loadOptions := []compozyconfig.LoadOption{}
 	if workspace != "" {
-		loadOptions = append(loadOptions, aghconfig.WithWorkspaceRoot(workspace))
+		loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
 	}
-	cfg, err := aghconfig.LoadForHome(homePaths, loadOptions...)
+	cfg, err := compozyconfig.LoadForHome(homePaths, loadOptions...)
 	if err != nil {
-		return aghconfig.Config{}, "", err
+		return compozyconfig.Config{}, "", err
 	}
 	return cfg, workspace, nil
 }
@@ -39,42 +39,42 @@ func configWriteTarget(
 	deps commandDeps,
 	scopeRaw string,
 	workspaceRoot string,
-) (aghconfig.HomePaths, aghconfig.WriteTarget, string, error) {
+) (compozyconfig.HomePaths, compozyconfig.WriteTarget, string, error) {
 	scope, err := parseWriteScope(scopeRaw)
 	if err != nil {
-		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 	}
 	workspace := ""
-	if scope == aghconfig.WriteScopeWorkspace {
+	if scope == compozyconfig.WriteScopeWorkspace {
 		workspace, err = resolveConfigWorkspaceRoot(deps, workspaceRoot)
 		if err != nil {
-			return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+			return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 		}
 	} else {
 		workspace, err = currentWorkingDirectory(deps)
 		if err != nil {
-			return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+			return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 		}
 	}
 	homePaths, err := deps.resolveHomeForWorkspace(workspace)
 	if err != nil {
-		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 	}
 	writeWorkspace := ""
-	if scope == aghconfig.WriteScopeWorkspace {
+	if scope == compozyconfig.WriteScopeWorkspace {
 		writeWorkspace = workspace
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(homePaths, writeWorkspace, scope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, writeWorkspace, scope)
 	if err != nil {
-		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 	}
 	return homePaths, target, writeWorkspace, nil
 }
 
-func parseWriteScope(raw string) (aghconfig.WriteScope, error) {
-	scope := aghconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw)))
+func parseWriteScope(raw string) (compozyconfig.WriteScope, error) {
+	scope := compozyconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw)))
 	if scope == "" {
-		scope = aghconfig.WriteScopeGlobal
+		scope = compozyconfig.WriteScopeGlobal
 	}
 	if err := scope.Validate(); err != nil {
 		return "", err
@@ -84,7 +84,7 @@ func parseWriteScope(raw string) (aghconfig.WriteScope, error) {
 
 func resolveConfigWorkspaceRoot(deps commandDeps, raw string) (string, error) {
 	if strings.TrimSpace(raw) != "" {
-		return aghconfig.ResolvePath(raw)
+		return compozyconfig.ResolvePath(raw)
 	}
 	return currentWorkingDirectory(deps)
 }
@@ -93,18 +93,18 @@ func resolveOptionalConfigWorkspaceRoot(raw string) (string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return "", nil
 	}
-	return aghconfig.ResolvePath(raw)
+	return compozyconfig.ResolvePath(raw)
 }
 
 func scopeForWorkspace(workspaceRoot string) string {
 	if strings.TrimSpace(workspaceRoot) == "" {
-		return string(aghconfig.WriteScopeGlobal)
+		return string(compozyconfig.WriteScopeGlobal)
 	}
-	return string(aghconfig.WriteScopeWorkspace)
+	return string(compozyconfig.WriteScopeWorkspace)
 }
 
-func redactedConfigMap(cfg *aghconfig.Config) map[string]any {
-	return aghconfig.RedactedConfigMap(cfg)
+func redactedConfigMap(cfg *compozyconfig.Config) map[string]any {
+	return compozyconfig.RedactedConfigMap(cfg)
 }
 
 func flattenConfigEntries(configMap map[string]any) []configEntry {

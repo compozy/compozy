@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -45,7 +45,7 @@ func TestManagerInboxScopesAndReconstructsStoredMessages(t *testing.T) {
 		t.Fatalf("Inbox() conversation references = %#v, want thread and target", message)
 	}
 	if !slices.Equal(message.Mentions, []string{"reviewer.sess-inbox"}) ||
-		string(message.Ext["agh.test"]) != `"value"` || string(message.Body) != `{"text":"stored"}` {
+		string(message.Ext["compozy.test"]) != `"value"` || string(message.Body) != `{"text":"stored"}` {
 		t.Fatalf("Inbox() message payload = %#v, want stored body/ext/mentions", message)
 	}
 	queries := inbox.queriesSnapshot()
@@ -201,7 +201,7 @@ func newManagerInboxTestManager(t *testing.T, inbox *managerInboxStoreStub) *Man
 	t.Helper()
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		inbox,
 		WithManagerLogger(discardManagerLogger()),
@@ -228,7 +228,7 @@ func managerInboxMessageEntry(timestamp time.Time) store.NetworkMessageEntry {
 		Surface: store.NetworkSurfaceThread, ThreadID: "thread-inbox",
 		Direction: AuditDirectionSent, PeerFrom: "sender.sess-a", PeerTo: "sender.sess-target",
 		Kind: string(KindSay), Mentions: []string{"reviewer.sess-inbox"},
-		ExtJSON: json.RawMessage(`{"agh.test":"value"}`), Body: json.RawMessage(`{"text":"stored"}`),
+		ExtJSON: json.RawMessage(`{"compozy.test":"value"}`), Body: json.RawMessage(`{"text":"stored"}`),
 		Timestamp: timestamp,
 	}
 }

@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const defaultCacheTTL = 10 * time.Minute
 
 // ConfigLoader loads the effective configuration for a workspace root.
-type ConfigLoader func(rootDir string) (aghconfig.Config, error)
+type ConfigLoader func(rootDir string) (compozyconfig.Config, error)
 
 // ChangeHook runs after persisted workspace mutations that affect resolved runtime state.
 type ChangeHook func(context.Context) error
@@ -21,7 +21,7 @@ type ChangeHook func(context.Context) error
 type Option func(*resolverOptions)
 
 type resolverOptions struct {
-	homePaths   aghconfig.HomePaths
+	homePaths   compozyconfig.HomePaths
 	loadConfig  ConfigLoader
 	logger      *slog.Logger
 	now         func() time.Time
@@ -30,8 +30,8 @@ type resolverOptions struct {
 	changeHook  ChangeHook
 }
 
-// WithHomePaths overrides the global AGH home layout used for agent and skill discovery.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+// WithHomePaths overrides the global Compozy home layout used for agent and skill discovery.
+func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(opts *resolverOptions) {
 		opts.homePaths = homePaths
 	}
@@ -79,15 +79,15 @@ func WithChangeHook(hook ChangeHook) Option {
 }
 
 func resolveOptions(opts []Option) (resolverOptions, error) {
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return resolverOptions{}, err
 	}
 
 	resolved := resolverOptions{
 		homePaths: homePaths,
-		loadConfig: func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.Load(aghconfig.WithWorkspaceRoot(rootDir))
+		loadConfig: func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.Load(compozyconfig.WithWorkspaceRoot(rootDir))
 		},
 		logger:      slog.Default(),
 		now:         time.Now,

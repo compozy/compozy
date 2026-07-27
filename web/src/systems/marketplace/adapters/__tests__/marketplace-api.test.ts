@@ -206,7 +206,7 @@ describe("marketplace acquisition transport", () => {
   });
 
   it("Should install and update skills through their marketplace endpoints", async () => {
-    const installBody = { slug: "@agh/reviewer", version: "1.2.0" };
+    const installBody = { slug: "@compozy/reviewer", version: "1.2.0" };
     mockJsonResponse({ skill: { name: "reviewer" } });
     await installMarketplaceSkill(installBody);
     await expectFetchRequest({
@@ -263,7 +263,7 @@ describe("marketplace acquisition transport", () => {
       "MCP install",
       () => installMarketplaceMCP({ entry_id: "github", scope: "global", values: null }),
     ],
-    ["skill install", () => installMarketplaceSkill({ slug: "@agh/reviewer" })],
+    ["skill install", () => installMarketplaceSkill({ slug: "@compozy/reviewer" })],
     ["skill update", () => updateMarketplaceSkill({ name: "reviewer" })],
     ["extension install", () => installMarketplaceExtension({ slug: "review-pack" })],
     [

@@ -5,7 +5,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
@@ -163,7 +163,7 @@ func appendAuthoredCoreProjectorRegistrations(
 		registrations, err = appendTypedProjectorRegistration(
 			registrations,
 			deps.CodecRegistry,
-			aghconfig.AgentResourceKind,
+			compozyconfig.AgentResourceKind,
 			newAgentProjector(deps.AgentCatalog),
 		)
 	}
@@ -215,7 +215,7 @@ func appendCapabilityCoreProjectorRegistrations(
 		registrations, err = appendTypedProjectorRegistration(
 			registrations,
 			deps.CodecRegistry,
-			aghconfig.MCPServerResourceKind,
+			compozyconfig.MCPServerResourceKind,
 			newMCPServerProjector(deps.MCPServerCatalog),
 		)
 	}

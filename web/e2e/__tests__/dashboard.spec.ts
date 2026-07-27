@@ -266,7 +266,7 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   }
 
   const alpha = await prepareHomeRuntime(runtime);
-  const betaRoot = await mkdtemp(path.join(os.tmpdir(), "agh-home-workspace-beta-"));
+  const betaRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-home-workspace-beta-"));
   const beta = await runtime.resolveWorkspace(betaRoot);
 
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));

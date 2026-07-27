@@ -798,17 +798,17 @@ func assertMCPAuthExchangeExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
 func assertOperationTransports(t *testing.T, operation *openapi3.Operation, want ...Transport) {
 	t.Helper()
 
-	raw, ok := operation.Extensions["x-agh-transports"]
+	raw, ok := operation.Extensions["x-compozy-transports"]
 	if !ok {
-		t.Fatal("missing x-agh-transports extension")
+		t.Fatal("missing x-compozy-transports extension")
 	}
 
 	got, ok := raw.([]Transport)
 	if !ok {
-		t.Fatalf("x-agh-transports = %#v, want []Transport", raw)
+		t.Fatalf("x-compozy-transports = %#v, want []Transport", raw)
 	}
 	if !slices.Equal(got, want) {
-		t.Fatalf("x-agh-transports = %v, want %v", got, want)
+		t.Fatalf("x-compozy-transports = %v, want %v", got, want)
 	}
 }
 

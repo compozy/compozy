@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -40,8 +40,8 @@ func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
 				Workspace: workspacepkg.Workspace{
 					ID: "ws-disabled-" + strings.ReplaceAll(tt.name, " ", "-"),
 				},
-				Config: aghconfig.Config{
-					Skills: aghconfig.SkillsConfig{
+				Config: compozyconfig.Config{
+					Skills: compozyconfig.SkillsConfig{
 						DisabledSkills: []string{"global"},
 					},
 				},

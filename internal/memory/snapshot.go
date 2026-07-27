@@ -350,7 +350,7 @@ func snapshotHeader(blocks []SnapshotBlock) memcontract.CacheStableHeader {
 	}
 	hash := hashText(strings.Join(parts, "\n"))
 	return memcontract.CacheStableHeader{
-		Text:        fmt.Sprintf("AGH memory snapshot v1 blocks=%d hash=%s", len(blocks), hash),
+		Text:        fmt.Sprintf("Compozy memory snapshot v1 blocks=%d hash=%s", len(blocks), hash),
 		ContentHash: hash,
 	}
 }

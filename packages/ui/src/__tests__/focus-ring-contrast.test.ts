@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * Cross-surface computed focus-indicator audit (BUG-20260714).
  *
  * The shared `:focus-visible` tokens must clear the non-text accessibility floor
- * on every AGH surface: a ring at least 2 CSS pixels thick with at least 3:1
+ * on every Compozy surface: a ring at least 2 CSS pixels thick with at least 3:1
  * WCAG contrast against both the focused element's own fill and the page
  * background. This audit reads the real token bytes from `tokens.css`, composites
  * the (translucent) ring color over each surface in the ramp, and checks the

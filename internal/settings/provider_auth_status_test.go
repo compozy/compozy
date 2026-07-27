@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 )
 
@@ -111,7 +111,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 			"PI_CODING_AGENT_DIR",
 			filepath.Join(providerHome, ".pi", "agent"),
 		)
-		if got, want := pi.AuthStatus.HomePolicy, aghconfig.ProviderHomePolicyIsolated; got != want {
+		if got, want := pi.AuthStatus.HomePolicy, compozyconfig.ProviderHomePolicyIsolated; got != want {
 			t.Fatalf("AuthStatus.HomePolicy = %q, want %q", got, want)
 		}
 	})

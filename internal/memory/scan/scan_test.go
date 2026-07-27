@@ -89,7 +89,7 @@ func TestScanContent(t *testing.T) {
 			ruleID:  "policy_secret_material",
 		},
 		{
-			name:    "Should reject a raw AGH claim token",
+			name:    "Should reject a raw Compozy claim token",
 			content: "Persist compozy_claim_abc123 as durable context.",
 			action:  ActionReject,
 			ruleID:  "policy_raw_claim_token",

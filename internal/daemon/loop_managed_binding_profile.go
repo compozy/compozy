@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -94,7 +94,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 
 func validatePinnedRuntime(runtime looppkg.RuntimeSpec, profile store.SessionCreationProfile) error {
 	if provider := strings.TrimSpace(runtime.Provider); provider != "" &&
-		aghconfig.CanonicalProviderName(provider) != aghconfig.CanonicalProviderName(profile.Provider) {
+		compozyconfig.CanonicalProviderName(provider) != compozyconfig.CanonicalProviderName(profile.Provider) {
 		return bindingMismatch("requested runtime provider differs from pinned creation profile")
 	}
 	if model := strings.TrimSpace(runtime.Model); model != "" && model != strings.TrimSpace(profile.Model) {
@@ -127,7 +127,7 @@ func createOptionsFromProfile(
 		CWD:                          profile.CWD,
 		SandboxRef:                   profile.SandboxRef,
 		DisableSandbox:               profile.SandboxMode == store.SessionCreationSandboxNone,
-		Permissions:                  aghconfig.PermissionMode(profile.Permissions),
+		Permissions:                  compozyconfig.PermissionMode(profile.Permissions),
 		Name:                         loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
 		Workspace:                    profile.WorkspaceID,
 		ResolvedNetworkParticipation: req.NetworkParticipation,

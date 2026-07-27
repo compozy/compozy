@@ -2203,7 +2203,7 @@ export interface InitializeRuntime {
 export interface InitializeRequest {
   protocol_version: string;
   supported_protocol_versions: string[];
-  agh_version: string;
+  compozy_version: string;
   session_nonce: string;
   extension: InitializeExtension;
   capabilities: InitializeCapabilities;

@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
-func agentMCPAuthPayload(value aghconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigViewPayload {
+func agentMCPAuthPayload(value compozyconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigViewPayload {
 	if value.IsZero() {
 		return nil
 	}
@@ -70,7 +70,7 @@ func settingsMCPServerRuntimeStatusPayload(
 }
 
 func settingsMCPAuthConfigPayload(
-	value aghconfig.MCPAuthConfig,
+	value compozyconfig.MCPAuthConfig,
 	clientSecretConfigured bool,
 ) *contract.SettingsMCPAuthConfigViewPayload {
 	if value.IsZero() {

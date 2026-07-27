@@ -8,7 +8,7 @@ import (
 
 	"sync"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -45,7 +45,7 @@ type agentSkillDeclarationProvider func(context.Context) (agentSkillDesiredResou
 type agentPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
-	spec      aghconfig.AgentDef
+	spec      compozyconfig.AgentDef
 }
 
 type skillPublicationInput struct {
@@ -63,14 +63,14 @@ type agentSkillDesiredResources struct {
 type agentSkillSourceSyncer struct {
 	syncMu         sync.Mutex
 	raw            resources.RawStore
-	agentStore     resources.Store[aghconfig.AgentDef]
-	agentCodec     resources.KindCodec[aghconfig.AgentDef]
-	agentProjector resources.TypedProjector[aghconfig.AgentDef]
+	agentStore     resources.Store[compozyconfig.AgentDef]
+	agentCodec     resources.KindCodec[compozyconfig.AgentDef]
+	agentProjector resources.TypedProjector[compozyconfig.AgentDef]
 	skillStore     resources.Store[skillspkg.SkillResourceSpec]
 	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
 	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]
-	mcpStore       resources.Store[aghconfig.MCPServer]
-	mcpCodec       resources.KindCodec[aghconfig.MCPServer]
+	mcpStore       resources.Store[compozyconfig.MCPServer]
+	mcpCodec       resources.KindCodec[compozyconfig.MCPServer]
 	actor          resources.MutationActor
 	logger         *slog.Logger
 	trigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
@@ -107,12 +107,14 @@ type skillResourceProjector struct {
 	registry *skillspkg.Registry
 }
 
-func newAgentProjector(catalog *resourceCatalog[aghconfig.AgentDef]) resources.TypedProjector[aghconfig.AgentDef] {
+func newAgentProjector(
+	catalog *resourceCatalog[compozyconfig.AgentDef],
+) resources.TypedProjector[compozyconfig.AgentDef] {
 	if catalog == nil {
 		return nil
 	}
-	return &resourceCatalogProjector[aghconfig.AgentDef]{
-		kind:      aghconfig.AgentResourceKind,
+	return &resourceCatalogProjector[compozyconfig.AgentDef]{
+		kind:      compozyconfig.AgentResourceKind,
 		catalog:   catalog,
 		cloneSpec: cloneAgentDef,
 	}

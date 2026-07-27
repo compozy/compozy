@@ -152,7 +152,7 @@ func runMetadata(raw json.RawMessage) map[string]string {
 func coordinationMetadataFromEnvelope(
 	envelope network.Envelope,
 ) (contract.CoordinationMessageMetadataPayload, bool) {
-	for _, key := range []string{"coordination", "coordination_metadata", "agh_coordination", "metadata"} {
+	for _, key := range []string{"coordination", "coordination_metadata", "compozy_coordination", "metadata"} {
 		if raw, ok := envelope.Ext[key]; ok {
 			if metadata, decodeOK := decodeCoordinationMetadata(raw); decodeOK {
 				return metadata, true

@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -49,23 +49,23 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 
 		createLoopViaHTTP(t, ctx, harness, loopEventsDefinition())
 		run := runLoopViaHTTP(t, ctx, harness, "loop-events-probe")
-		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusDone)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
 
 		eventsPath := loopRunEventsPath(harness.WorkspaceID, run.ID, 0)
 		events := readLoopRunSSEUntil(t, ctx, harness, eventsPath, func(events []loopRunSSEEvent) bool {
 			return loopSSEKinds(events).Contains(
-				string(aghcontract.LoopRunEventStatusChanged),
-				string(aghcontract.LoopRunEventNodeRunning),
-				string(aghcontract.LoopRunEventNodeSucceeded),
-				string(aghcontract.LoopRunEventChannelMsg),
-				string(aghcontract.LoopRunEventTokenTick),
+				string(compozycontract.LoopRunEventStatusChanged),
+				string(compozycontract.LoopRunEventNodeRunning),
+				string(compozycontract.LoopRunEventNodeSucceeded),
+				string(compozycontract.LoopRunEventChannelMsg),
+				string(compozycontract.LoopRunEventTokenTick),
 			)
 		})
 		assertLoopSSEWorkspace(t, events, harness.WorkspaceID, run.ID)
-		assertLoopSSEPayloadContains(t, events, aghcontract.LoopRunEventChannelMsg, "loop channel result")
-		assertLoopSSEPayloadContains(t, events, aghcontract.LoopRunEventTokenTick, `"terminal":true`)
+		assertLoopSSEPayloadContains(t, events, compozycontract.LoopRunEventChannelMsg, "loop channel result")
+		assertLoopSSEPayloadContains(t, events, compozycontract.LoopRunEventTokenTick, `"terminal":true`)
 
-		afterSeq := firstLoopEventSeq(t, events, aghcontract.LoopRunEventNodeRunning)
+		afterSeq := firstLoopEventSeq(t, events, compozycontract.LoopRunEventNodeRunning)
 		resumed := readLoopRunSSEUntil(
 			t,
 			ctx,
@@ -73,8 +73,8 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			loopRunEventsPath(harness.WorkspaceID, run.ID, afterSeq),
 			func(events []loopRunSSEEvent) bool {
 				return loopSSEKinds(events).Contains(
-					string(aghcontract.LoopRunEventNodeSucceeded),
-					string(aghcontract.LoopRunEventTokenTick),
+					string(compozycontract.LoopRunEventNodeSucceeded),
+					string(compozycontract.LoopRunEventTokenTick),
 				)
 			},
 		)
@@ -122,13 +122,13 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2ELoopName,
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
-		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusWatching)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
 
 		lease := claimTaskRunViaAgentUDS(t, ctx, harness, child.ID)
 		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, blockedChild.ID)
 		completeClaimedTaskRunViaAgentUDS(t, ctx, harness, lease)
 
-		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusDone)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
 		assertWatchEventsMockPrompt(t, harness, "watch-events-agent", []string{
 			"task.status_changed",
 			"task.run.completed",
@@ -163,7 +163,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2ELoopName,
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
-		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusWatching)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
 
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
@@ -182,7 +182,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			MockAgents: watchEventsMockAgents(fixturePath),
 		})
 
-		waitForLoopRunStatus(t, ctx, restarted, run.ID, aghcontract.LoopRunStatusDone)
+		waitForLoopRunStatus(t, ctx, restarted, run.ID, compozycontract.LoopRunStatusDone)
 		assertWatchEventsMockPrompt(t, restarted, "watch-events-agent", []string{
 			"task.status_changed",
 			child.ID,
@@ -190,40 +190,40 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 	})
 }
 
-func loopEventsDefinition() aghcontract.LoopDefinitionDocument {
-	return aghcontract.LoopDefinitionDocument{
+func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
+	return compozycontract.LoopDefinitionDocument{
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: aghcontract.LoopDefinitionMeta{
+		Meta: compozycontract.LoopDefinitionMeta{
 			Name:        "loop-events-probe",
 			Description: "Runtime E2E probe for rich Loop run SSE events.",
-			Catalog: aghcontract.LoopCatalogMeta{
+			Catalog: compozycontract.LoopCatalogMeta{
 				UseWhen:  "Testing Loop run event streaming.",
 				Keywords: []string{"test", "events"},
 				Category: "Testing",
 			},
 		},
-		Contract: aghcontract.LoopContract{
+		Contract: compozycontract.LoopContract{
 			Goal:             "Emit rich Loop run events.",
 			DefinitionOfDone: "The probe action completes.",
 			StopWhen:         "nodes.probe.status == 'succeeded'",
 			IterationCap:     1,
-			NoProgress: aghcontract.LoopNoProgress{
+			NoProgress: compozycontract.LoopNoProgress{
 				Window:     2,
 				HashFields: []string{"delivery_artifact"},
 			},
-			Budget: aghcontract.LoopBudget{
+			Budget: compozycontract.LoopBudget{
 				Tokens:       0,
 				WallClockSec: 0,
-				OnExceeded:   aghcontract.LoopBudgetExceededHalt,
+				OnExceeded:   compozycontract.LoopBudgetExceededHalt,
 			},
 			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
 		},
-		Graph: aghcontract.LoopGraph{
-			Nodes: []aghcontract.LoopGraphNode{{
+		Graph: compozycontract.LoopGraph{
+			Nodes: []compozycontract.LoopGraphNode{{
 				ID:    "probe",
-				Class: aghcontract.LoopNodeClassAction,
+				Class: compozycontract.LoopNodeClassAction,
 				Kind:  "run-agent",
 				Params: map[string]any{
 					"agent":  "loop-events-agent",
@@ -239,7 +239,7 @@ func loopEventsDefinition() aghcontract.LoopDefinitionDocument {
 				},
 			}},
 		},
-		Start: []aghcontract.LoopStartBinding{
+		Start: []compozycontract.LoopStartBinding{
 			{Kind: "manual"},
 			{Kind: "http"},
 			{Kind: "uds"},
@@ -262,7 +262,7 @@ func startWatchEventsRuntimeHarness(
 
 func seedWatchEventsLoopDefinition(t testing.TB, workspaceRoot string) {
 	t.Helper()
-	root := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.LoopsDirName)
+	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	if _, _, err := looppkg.WriteDefinition(root, []byte(watchEventsE2ELoopYAML()), looppkg.WriteDefinitionOptions{
 		Source: looppkg.SourceWorkspace,
 	}); err != nil {
@@ -388,16 +388,16 @@ func createLoopViaHTTP(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	def aghcontract.LoopDefinitionDocument,
+	def compozycontract.LoopDefinitionDocument,
 ) {
 	t.Helper()
-	var response aghcontract.LoopResponse
+	var response compozycontract.LoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops"
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodPost,
 		path,
-		aghcontract.CreateLoopRequest{Definition: &def},
+		compozycontract.CreateLoopRequest{Definition: &def},
 		&response,
 	); err != nil {
 		t.Fatalf("HTTP create loop error = %v", err)
@@ -415,7 +415,7 @@ func waitForLoopCatalogEntry(
 ) {
 	t.Helper()
 	waitForRuntimeCondition(t, "loop catalog entry "+name, 20*time.Second, func() bool {
-		var response aghcontract.LoopsResponse
+		var response compozycontract.LoopsResponse
 		path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops"
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 			return false
@@ -434,11 +434,11 @@ func runLoopViaHTTP(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	name string,
-) aghcontract.LoopRunPayload {
+) compozycontract.LoopRunPayload {
 	t.Helper()
-	var response aghcontract.RunLoopResponse
+	var response compozycontract.RunLoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops/" + url.PathEscape(name) + "/run"
-	if err := harness.HTTPJSON(ctx, http.MethodPost, path, aghcontract.RunLoopRequest{}, &response); err != nil {
+	if err := harness.HTTPJSON(ctx, http.MethodPost, path, compozycontract.RunLoopRequest{}, &response); err != nil {
 		t.Fatalf("HTTP run loop error = %v", err)
 	}
 	if response.Run == nil {
@@ -453,11 +453,11 @@ func runLoopViaHTTPWithInputs(
 	harness *e2etest.RuntimeHarness,
 	name string,
 	inputs map[string]any,
-) aghcontract.LoopRunPayload {
+) compozycontract.LoopRunPayload {
 	t.Helper()
-	var response aghcontract.RunLoopResponse
+	var response compozycontract.RunLoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops/" + url.PathEscape(name) + "/run"
-	request := aghcontract.RunLoopRequest{Inputs: inputs}
+	request := compozycontract.RunLoopRequest{Inputs: inputs}
 	if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		t.Fatalf("HTTP run loop with inputs error = %v", err)
 	}
@@ -472,10 +472,10 @@ func createTaskViaUDS(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	title string,
-) aghcontract.TaskPayload {
+) compozycontract.TaskPayload {
 	t.Helper()
-	var response aghcontract.TaskResponse
-	request := aghcontract.CreateTaskRequest{
+	var response compozycontract.TaskResponse
+	request := compozycontract.CreateTaskRequest{
 		Scope:     taskpkg.ScopeWorkspace,
 		Workspace: harness.WorkspaceID,
 		Title:     title,
@@ -495,10 +495,10 @@ func createChildTaskViaUDS(
 	harness *e2etest.RuntimeHarness,
 	parentTaskID string,
 	title string,
-) aghcontract.TaskPayload {
+) compozycontract.TaskPayload {
 	t.Helper()
-	var response aghcontract.TaskResponse
-	request := aghcontract.CreateTaskChildRequest{
+	var response compozycontract.TaskResponse
+	request := compozycontract.CreateTaskChildRequest{
 		Scope:     taskpkg.ScopeWorkspace,
 		Workspace: harness.WorkspaceID,
 		Title:     title,
@@ -520,10 +520,10 @@ func createOwnedChildTaskViaUDS(
 	parentTaskID string,
 	title string,
 	ownerRef string,
-) aghcontract.TaskPayload {
+) compozycontract.TaskPayload {
 	t.Helper()
-	var response aghcontract.TaskResponse
-	request := aghcontract.CreateTaskChildRequest{
+	var response compozycontract.TaskResponse
+	request := compozycontract.CreateTaskChildRequest{
 		Scope:     taskpkg.ScopeWorkspace,
 		Workspace: harness.WorkspaceID,
 		Title:     title,
@@ -548,8 +548,8 @@ func createOwnedChildTaskViaUDS(
 }
 
 type watchEventsAgentLease struct {
-	session aghcontract.SessionPayload
-	claim   aghcontract.AgentTaskClaimPayload
+	session compozycontract.SessionPayload
+	claim   compozycontract.AgentTaskClaimPayload
 }
 
 func claimTaskRunViaAgentUDS(
@@ -569,7 +569,7 @@ func claimTaskRunViaAgentUDS(
 	}
 	run := enqueueTaskRunViaUDS(t, ctx, harness, taskID, "")
 
-	var response aghcontract.AgentTaskClaimResponse
+	var response compozycontract.AgentTaskClaimResponse
 	agentUDSJSON(
 		t,
 		ctx,
@@ -577,7 +577,7 @@ func claimTaskRunViaAgentUDS(
 		session,
 		http.MethodPost,
 		"/api/agent/tasks/claim-next",
-		aghcontract.AgentTaskClaimNextRequest{
+		compozycontract.AgentTaskClaimNextRequest{
 			WorkspaceID:    harness.WorkspaceID,
 			LeaseSeconds:   30,
 			IdempotencyKey: "agent-claim-" + run.ID,
@@ -595,9 +595,9 @@ func completeClaimedTaskRunViaAgentUDS(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	lease watchEventsAgentLease,
-) aghcontract.TaskRunLeaseSummaryPayload {
+) compozycontract.TaskRunLeaseSummaryPayload {
 	t.Helper()
-	var response aghcontract.AgentTaskLeaseResponse
+	var response compozycontract.AgentTaskLeaseResponse
 	agentUDSJSON(
 		t,
 		ctx,
@@ -605,7 +605,7 @@ func completeClaimedTaskRunViaAgentUDS(
 		lease.session,
 		http.MethodPost,
 		"/api/agent/tasks/"+url.PathEscape(lease.claim.Run.ID)+"/complete",
-		aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+		compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 		&response,
 	)
 	if response.Lease.RunID != lease.claim.Run.ID ||
@@ -619,7 +619,7 @@ func agentUDSJSON(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	session aghcontract.SessionPayload,
+	session compozycontract.SessionPayload,
 	method string,
 	path string,
 	body any,
@@ -675,11 +675,11 @@ func enqueueTaskRunViaUDS(
 	harness *e2etest.RuntimeHarness,
 	taskID string,
 	networkChannel string,
-) aghcontract.TaskRunPayload {
+) compozycontract.TaskRunPayload {
 	t.Helper()
-	var response aghcontract.TaskRunResponse
+	var response compozycontract.TaskRunResponse
 	path := "/api/tasks/" + url.PathEscape(taskID) + "/runs"
-	request := aghcontract.EnqueueTaskRunRequest{
+	request := compozycontract.EnqueueTaskRunRequest{
 		IdempotencyKey:       "watch-events-" + taskID,
 		NetworkParticipation: daemonTestNamedParticipationRequest(networkChannel),
 	}
@@ -695,7 +695,7 @@ func enqueueTaskRunViaUDS(
 func blockTaskThroughStoreForWatchEventsE2E(
 	t testing.TB,
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	taskID string,
 ) {
 	t.Helper()
@@ -767,10 +767,10 @@ func waitForLoopRunStatus(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-	want aghcontract.LoopRunStatus,
+	want compozycontract.LoopRunStatus,
 ) {
 	t.Helper()
-	var lastRun aghcontract.LoopRunPayload
+	var lastRun compozycontract.LoopRunPayload
 	var lastErr error
 	waitBudget := 20 * time.Second
 	if deadline, ok := ctx.Deadline(); ok {
@@ -784,7 +784,7 @@ func waitForLoopRunStatus(
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		var response aghcontract.LoopRunResponse
+		var response compozycontract.LoopRunResponse
 		path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loop-runs/" + url.PathEscape(runID)
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 			lastErr = err
@@ -819,14 +819,14 @@ func waitForLoopRunStatus(
 	}
 }
 
-func loopRunStatusTerminal(status aghcontract.LoopRunStatus) bool {
+func loopRunStatusTerminal(status compozycontract.LoopRunStatus) bool {
 	switch status {
-	case aghcontract.LoopRunStatusDone,
-		aghcontract.LoopRunStatusNoOp,
-		aghcontract.LoopRunStatusBlocked,
-		aghcontract.LoopRunStatusFailed,
-		aghcontract.LoopRunStatusExhausted,
-		aghcontract.LoopRunStatusStalled:
+	case compozycontract.LoopRunStatusDone,
+		compozycontract.LoopRunStatusNoOp,
+		compozycontract.LoopRunStatusBlocked,
+		compozycontract.LoopRunStatusFailed,
+		compozycontract.LoopRunStatusExhausted,
+		compozycontract.LoopRunStatusStalled:
 		return true
 	default:
 		return false
@@ -837,7 +837,7 @@ func logLoopRunTimeoutDebug(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-	lastRun aghcontract.LoopRunPayload,
+	lastRun compozycontract.LoopRunPayload,
 ) {
 	t.Helper()
 	events := readLoopRunSSEForDuration(
@@ -871,9 +871,9 @@ func loopRunEventTaskIDs(events []loopRunSSEEvent) []string {
 	var out []string
 	for _, event := range events {
 		switch event.Kind {
-		case aghcontract.LoopRunEventNodeRunning,
-			aghcontract.LoopRunEventNodeSucceeded,
-			aghcontract.LoopRunEventNodeFailed:
+		case compozycontract.LoopRunEventNodeRunning,
+			compozycontract.LoopRunEventNodeSucceeded,
+			compozycontract.LoopRunEventNodeFailed:
 		default:
 			continue
 		}
@@ -935,7 +935,7 @@ type loopRunSSEEvent struct {
 	LoopRunID   string
 	WorkspaceID string
 	Seq         int64
-	Kind        aghcontract.LoopRunEventKind
+	Kind        compozycontract.LoopRunEventKind
 	Payload     json.RawMessage
 }
 
@@ -1074,7 +1074,7 @@ func readLoopRunSSERecords(
 }
 
 func decodeLoopRunSSEEvent(id string, name string, raw string) (loopRunSSEEvent, error) {
-	var payload aghcontract.LoopRunEventPayload
+	var payload compozycontract.LoopRunEventPayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		return loopRunSSEEvent{}, err
 	}
@@ -1127,7 +1127,7 @@ func assertLoopSSEWorkspace(t testing.TB, events []loopRunSSEEvent, workspaceID 
 func assertLoopSSEPayloadContains(
 	t testing.TB,
 	events []loopRunSSEEvent,
-	kind aghcontract.LoopRunEventKind,
+	kind compozycontract.LoopRunEventKind,
 	fragment string,
 ) {
 	t.Helper()
@@ -1150,7 +1150,7 @@ func assertLoopSSEPayloadContains(
 func firstLoopEventSeq(
 	t testing.TB,
 	events []loopRunSSEEvent,
-	kind aghcontract.LoopRunEventKind,
+	kind compozycontract.LoopRunEventKind,
 ) int64 {
 	t.Helper()
 	for _, event := range events {

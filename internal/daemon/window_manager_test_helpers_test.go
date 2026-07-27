@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/clientstate"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -23,7 +23,7 @@ type daemonWindowManagerFixture struct {
 	repository    *windowManagerRepository
 	manager       *windowmanager.Manager
 	workspace     workspacepkg.Workspace
-	homePaths     aghconfig.HomePaths
+	homePaths     compozyconfig.HomePaths
 	storePath     string
 }
 
@@ -35,8 +35,8 @@ func newDaemonWindowManagerFixture(t *testing.T) daemonWindowManagerFixture {
 		database,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {

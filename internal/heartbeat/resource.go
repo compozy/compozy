@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 )
 
@@ -60,7 +60,7 @@ func validateResourceSpec(
 	if _, err := Parse(ctx, ParseRequest{
 		SourcePath: next.SourcePath,
 		Content:    []byte(next.Body),
-		Config:     aghconfig.DefaultHeartbeatConfig(),
+		Config:     compozyconfig.DefaultHeartbeatConfig(),
 	}); err != nil {
 		return ResourceSpec{}, errors.Join(resources.ErrValidation, err)
 	}

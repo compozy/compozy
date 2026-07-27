@@ -151,7 +151,7 @@ describe("useSkillShadows", () => {
       name: "test-skill",
       winner: {
         detected_at: "2026-04-17T17:00:00Z",
-        path: "/workspace/.agh/skills/test-skill/SKILL.md",
+        path: "/workspace/.compozy/skills/test-skill/SKILL.md",
         resolved_to_winner: true,
         tier: "workspace",
       },

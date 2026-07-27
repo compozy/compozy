@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -18,7 +18,7 @@ func (r *roleResolver) RoleStatuses(ctx context.Context, workspaceID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	roles := aghconfig.RoleNames()
+	roles := compozyconfig.RoleNames()
 	slices.Sort(roles)
 	statuses := make([]contract.RoleStatus, 0, len(roles))
 	for _, role := range roles {
@@ -37,7 +37,7 @@ func (r *roleResolver) RoleStatus(
 	workspaceID string,
 	role string,
 ) (contract.RoleStatus, error) {
-	roleName := aghconfig.RoleName(strings.TrimSpace(role))
+	roleName := compozyconfig.RoleName(strings.TrimSpace(role))
 	if !knownRole(roleName) {
 		return contract.RoleStatus{}, &RoleResolutionError{Code: roleErrorUnknown, Role: roleName}
 	}
@@ -49,8 +49,8 @@ func (r *roleResolver) RoleStatus(
 }
 
 func (r *roleResolver) projectRoleStatus(
-	role aghconfig.RoleName,
-	effective *aghconfig.Config,
+	role compozyconfig.RoleName,
+	effective *compozyconfig.Config,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 ) (contract.RoleStatus, error) {
 	common, err := roleConfig(&effective.Roles, role)
@@ -72,7 +72,7 @@ func (r *roleResolver) projectRoleStatus(
 		FallbackChain:   roleStatusFallbacks(common.FallbackChain),
 		Diagnostics:     diagnostics,
 	}
-	if role == aghconfig.RoleMemoryController {
+	if role == compozyconfig.RoleMemoryController {
 		timeout := effective.Roles.MemoryController.Timeout.String()
 		status.Timeout = &timeout
 	}
@@ -84,7 +84,7 @@ func (r *roleResolver) projectRoleStatus(
 }
 
 func (r *roleResolver) projectRoleIdentity(
-	role aghconfig.RoleName,
+	role compozyconfig.RoleName,
 	configuredAgent string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 ) (contract.RoleResolutionMode, *string, []contract.RoleDiagnostic, error) {
@@ -97,7 +97,7 @@ func (r *roleResolver) projectRoleIdentity(
 		}
 	}
 	mode := contract.RoleResolutionModeCatalog
-	if _, builtin := aghconfig.BuiltinAgentDef(agentName); builtin {
+	if _, builtin := compozyconfig.BuiltinAgentDef(agentName); builtin {
 		mode = contract.RoleResolutionModeBuiltin
 	}
 	_, _, err := r.resolveRoleAgent(role, agentName, resolvedWorkspace)
@@ -115,8 +115,8 @@ func (r *roleResolver) projectRoleIdentity(
 	return "", nil, nil, err
 }
 
-func knownRole(role aghconfig.RoleName) bool {
-	return slices.Contains(aghconfig.RoleNames(), role)
+func knownRole(role compozyconfig.RoleName) bool {
+	return slices.Contains(compozyconfig.RoleNames(), role)
 }
 
 func roleStatusString(value string) *string {
@@ -127,7 +127,7 @@ func roleStatusString(value string) *string {
 	return &trimmed
 }
 
-func roleStatusFallbacks(fallbacks []aghconfig.RoleFallback) []contract.RoleFallbackStatus {
+func roleStatusFallbacks(fallbacks []compozyconfig.RoleFallback) []contract.RoleFallbackStatus {
 	result := make([]contract.RoleFallbackStatus, 0, len(fallbacks))
 	for _, fallback := range fallbacks {
 		result = append(result, contract.RoleFallbackStatus{
@@ -140,18 +140,18 @@ func roleStatusFallbacks(fallbacks []aghconfig.RoleFallback) []contract.RoleFall
 }
 
 func roleStatusProvenance(all map[string]string, status contract.RoleStatus) map[string]string {
-	fields := []string{aghconfig.RoleFieldEnabled, aghconfig.RoleFieldFallbacks}
+	fields := []string{compozyconfig.RoleFieldEnabled, compozyconfig.RoleFieldFallbacks}
 	if status.Agent != nil {
 		fields = append(fields, daemonAgentField)
 	}
 	if status.Provider != nil {
-		fields = append(fields, aghconfig.RoleFieldProvider)
+		fields = append(fields, compozyconfig.RoleFieldProvider)
 	}
 	if status.Model != nil {
-		fields = append(fields, aghconfig.RoleFieldModel)
+		fields = append(fields, compozyconfig.RoleFieldModel)
 	}
 	if status.ReasoningEffort != nil {
-		fields = append(fields, aghconfig.RoleFieldReasoning)
+		fields = append(fields, compozyconfig.RoleFieldReasoning)
 	}
 	if status.Timeout != nil {
 		fields = append(fields, roleFieldTimeout)

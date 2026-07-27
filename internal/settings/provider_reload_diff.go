@@ -4,12 +4,12 @@ import (
 	"reflect"
 	"sort"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func diffProviderSettings(
-	current map[string]aghconfig.ProviderConfig,
-	desired map[string]aghconfig.ProviderConfig,
+	current map[string]compozyconfig.ProviderConfig,
+	desired map[string]compozyconfig.ProviderConfig,
 ) []string {
 	if reflect.DeepEqual(current, desired) {
 		return nil
@@ -41,8 +41,8 @@ func diffProviderSettings(
 
 		currentModels := currentProvider.Models
 		desiredModels := desiredProvider.Models
-		currentProvider.Models = aghconfig.ProviderModelsConfig{}
-		desiredProvider.Models = aghconfig.ProviderModelsConfig{}
+		currentProvider.Models = compozyconfig.ProviderModelsConfig{}
+		desiredProvider.Models = compozyconfig.ProviderModelsConfig{}
 		if !reflect.DeepEqual(currentProvider, desiredProvider) {
 			changed = append(changed, "providers."+providerID)
 		}

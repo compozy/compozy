@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -3521,22 +3521,22 @@ func (s *stubClient) AgentTaskRelease(
 func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
 	return commandDeps{
-		loadConfig: func() (aghconfig.Config, error) {
-			return aghconfig.DefaultWithHome(homePaths), nil
+		loadConfig: func() (compozyconfig.Config, error) {
+			return compozyconfig.DefaultWithHome(homePaths), nil
 		},
-		resolveHome: func() (aghconfig.HomePaths, error) {
+		resolveHome: func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		},
-		resolveHomeForWorkspace: func(string) (aghconfig.HomePaths, error) {
+		resolveHomeForWorkspace: func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		},
-		ensureHome: func(aghconfig.HomePaths) error { return nil },
+		ensureHome: func(compozyconfig.HomePaths) error { return nil },
 		newClient: func(string) (DaemonClient, error) {
 			return client, nil
 		},

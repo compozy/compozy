@@ -33,8 +33,8 @@ const tasksSessionAgentName = "browser-lifecycle-agent";
 // Agent-caller identity headers (mirrors internal/agentidentity.Header*). Sending
 // them on a create request stamps `created_by.kind = agent_session`, which the
 // wake indicator gates on (truthful UI).
-const aghSessionHeader = "X-AGH-Session-ID";
-const aghAgentHeader = "X-AGH-Agent";
+const compozySessionHeader = "X-Compozy-Session-ID";
+const compozyAgentHeader = "X-Compozy-Agent";
 const sensitivePattern =
   /compozy_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
@@ -183,7 +183,7 @@ test("operator retries failed work and sees an auditable run review gate", async
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-tasks-retry-workspace-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-retry-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
@@ -440,8 +440,8 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
     method: "POST",
     headers: {
       "content-type": "application/json",
-      [aghSessionHeader]: blockedSession.id,
-      [aghAgentHeader]: blockedSession.agent_name || "browser-lifecycle-agent",
+      [compozySessionHeader]: blockedSession.id,
+      [compozyAgentHeader]: blockedSession.agent_name || "browser-lifecycle-agent",
     },
     body: JSON.stringify({
       run_id: blockedRunPayload.run.id,
@@ -1077,8 +1077,8 @@ async function createAgentTask(
     await runtime.requestJSON<{ task: TaskRecord }>("/api/tasks", {
       method: "POST",
       headers: {
-        [aghSessionHeader]: sessionID,
-        [aghAgentHeader]: agentName,
+        [compozySessionHeader]: sessionID,
+        [compozyAgentHeader]: agentName,
       },
       body: JSON.stringify(body),
     })

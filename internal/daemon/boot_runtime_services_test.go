@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 )
 
@@ -15,15 +15,15 @@ func TestDreamGateConfigFromConfig(t *testing.T) {
 	t.Run("Should preserve configured dream gate and scoring values", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DreamConfig{
-			Gates: aghconfig.MemoryDreamGatesConfig{
+		cfg := compozyconfig.DreamConfig{
+			Gates: compozyconfig.MemoryDreamGatesConfig{
 				MinUnpromoted:  3,
 				MinRecallCount: 4,
 				MinScore:       0.65,
 			},
-			Scoring: aghconfig.MemoryDreamScoringConfig{
+			Scoring: compozyconfig.MemoryDreamScoringConfig{
 				RecencyHalfLifeDays: 21,
-				Weights: aghconfig.MemoryDreamScoringWeightsConfig{
+				Weights: compozyconfig.MemoryDreamScoringWeightsConfig{
 					Frequency: 0.1,
 					Relevance: 0.2,
 					Recency:   0.3,

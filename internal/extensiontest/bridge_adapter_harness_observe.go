@@ -6,7 +6,7 @@ import (
 
 	observepkg "github.com/compozy/compozy/internal/observe"
 
-	aghtestutil "github.com/compozy/compozy/internal/testutil"
+	compozytestutil "github.com/compozy/compozy/internal/testutil"
 )
 
 // AppendInboundUpdate appends one fake platform update line for the adapter to ingest.
@@ -50,7 +50,7 @@ func (h *Harness) WaitForIngests(
 // ObserveHealth returns the current observer health surface.
 func (h *Harness) ObserveHealth(t testing.TB) observepkg.Health {
 	t.Helper()
-	health, err := h.Observer.Health(aghtestutil.Context(t))
+	health, err := h.Observer.Health(compozytestutil.Context(t))
 	if err != nil {
 		t.Fatalf("observer.Health() error = %v", err)
 	}
@@ -60,7 +60,7 @@ func (h *Harness) ObserveHealth(t testing.TB) observepkg.Health {
 // QueryBridgeHealth returns the current per-instance bridge health rows.
 func (h *Harness) QueryBridgeHealth(t testing.TB) []observepkg.BridgeInstanceHealth {
 	t.Helper()
-	rows, err := h.Observer.QueryBridgeHealth(aghtestutil.Context(t))
+	rows, err := h.Observer.QueryBridgeHealth(compozytestutil.Context(t))
 	if err != nil {
 		t.Fatalf("observer.QueryBridgeHealth() error = %v", err)
 	}

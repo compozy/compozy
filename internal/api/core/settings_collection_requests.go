@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
@@ -49,9 +49,9 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
-	server := aghconfig.MCPServer{
+	server := compozyconfig.MCPServer{
 		Name:      name,
-		Transport: aghconfig.MCPServerTransport(strings.TrimSpace(body.Server.Transport)),
+		Transport: compozyconfig.MCPServerTransport(strings.TrimSpace(body.Server.Transport)),
 		Command:   strings.TrimSpace(body.Server.Command),
 		Args:      cloneStrings(body.Server.Args),
 		Env:       cloneStringMap(body.Server.Env),
@@ -59,8 +59,8 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		URL:       strings.TrimSpace(body.Server.URL),
 	}
 	if body.Server.Auth != nil {
-		server.Auth = aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthType(strings.TrimSpace(body.Server.Auth.Type)),
+		server.Auth = compozyconfig.MCPAuthConfig{
+			Type:             compozyconfig.MCPAuthType(strings.TrimSpace(body.Server.Auth.Type)),
 			IssuerURL:        strings.TrimSpace(body.Server.Auth.IssuerURL),
 			MetadataURL:      strings.TrimSpace(body.Server.Auth.MetadataURL),
 			AuthorizationURL: strings.TrimSpace(body.Server.Auth.AuthorizationURL),

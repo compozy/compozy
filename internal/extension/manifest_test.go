@@ -76,7 +76,7 @@ provides = ["memory.backend", "   "]
 requires = ["sessions/list", ""]
 
 [subprocess]
-command = "agh-ext-filtered"
+command = "compozy-ext-filtered"
 args = ["--config", " ", "\t", "config.toml"]
 
 [security]
@@ -367,7 +367,7 @@ families = ["tools", "mcp_servers"]
 max_scope = "workspace"
 
 [subprocess]
-command = "agh-ext-resource-grants"
+command = "compozy-ext-resource-grants"
 `)
 
 	manifest, err := LoadManifest(dir)
@@ -504,7 +504,7 @@ func TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints(t *testing.T) {
 			{Name: " bot_token ", Description: " Bot token ", Required: true},
 		},
 		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  " agh.bridge.slack ",
+			Schema:  " compozy.bridge.slack ",
 			Version: " v1 ",
 		},
 	})
@@ -521,7 +521,7 @@ func TestNormalizeBridgeConfigTrimsSecretSlotsAndSchemaHints(t *testing.T) {
 	if cfg.ConfigSchema == nil {
 		t.Fatal("cfg.ConfigSchema = nil, want value")
 	}
-	if got, want := cfg.ConfigSchema.Schema, "agh.bridge.slack"; got != want {
+	if got, want := cfg.ConfigSchema.Schema, "compozy.bridge.slack"; got != want {
 		t.Fatalf("cfg.ConfigSchema.Schema = %q, want %q", got, want)
 	}
 }
@@ -1035,7 +1035,7 @@ func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *test
 			{Name: "signing_secret", Description: "Request signing secret", Required: true},
 		}
 		manifest.Bridge.ConfigSchema = &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  "agh.bridge.slack",
+			Schema:  "compozy.bridge.slack",
 			Version: "v1",
 		}
 
@@ -1238,7 +1238,7 @@ func expectedManifest() Manifest {
 	return Manifest{
 		Name:              "pgvector-memory",
 		Version:           "0.2.1",
-		Description:       "PostgreSQL pgvector memory backend for AGH",
+		Description:       "PostgreSQL pgvector memory backend for Compozy",
 		MinCompozyVersion: "0.5.0",
 		Resources: ResourcesConfig{
 			Skills: []string{"skills/"},
@@ -1291,7 +1291,7 @@ func expectedManifest() Manifest {
 			Requires: []string{"sessions/list", "sessions/events"},
 		},
 		Subprocess: SubprocessConfig{
-			Command:             "agh-ext-pgvector",
+			Command:             "compozy-ext-pgvector",
 			Args:                []string{"--config", "{{config_dir}}/pgvector.toml"},
 			HealthCheckInterval: duration(30 * time.Second),
 			ShutdownTimeout:     duration(10 * time.Second),
@@ -1308,7 +1308,7 @@ func expectedManifest() Manifest {
 const validManifestTOML = `[extension]
 name = "pgvector-memory"
 version = "0.2.1"
-description = "PostgreSQL pgvector memory backend for AGH"
+description = "PostgreSQL pgvector memory backend for Compozy"
 min_compozy_version = "0.5.0"
 
 [resources]
@@ -1350,7 +1350,7 @@ provides = ["memory.backend"]
 requires = ["sessions/list", "sessions/events"]
 
 [subprocess]
-command = "agh-ext-pgvector"
+command = "compozy-ext-pgvector"
 args = ["--config", "{{config_dir}}/pgvector.toml"]
 health_check_interval = "30s"
 shutdown_timeout = "10s"
@@ -1369,7 +1369,7 @@ const validManifestJSON = `{
   "extension": {
     "name": "pgvector-memory",
     "version": "0.2.1",
-    "description": "PostgreSQL pgvector memory backend for AGH",
+    "description": "PostgreSQL pgvector memory backend for Compozy",
     "min_compozy_version": "0.5.0"
   },
   "resources": {
@@ -1423,7 +1423,7 @@ const validManifestJSON = `{
     "requires": ["sessions/list", "sessions/events"]
   },
   "subprocess": {
-    "command": "agh-ext-pgvector",
+    "command": "compozy-ext-pgvector",
     "args": ["--config", "{{config_dir}}/pgvector.toml"],
     "health_check_interval": "30s",
     "shutdown_timeout": "10s",

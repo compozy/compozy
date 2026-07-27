@@ -82,11 +82,11 @@ You are \`${storyAgentNames.fraud}\`, the operator agent for payout holds and re
 
 ## Outputs
 
-Produce concrete next steps: files to touch, the hold id, and the exact \`agh\` commands to run.`,
+Produce concrete next steps: files to touch, the hold id, and the exact \`compozy\` commands to run.`,
   permissions: "approve-reads",
   tools: ["Bash", "Read", "Edit", "Write", "Glob", "Grep"],
   deny_tools: ["WebFetch", "Bash(rm:*)"],
-  toolsets: ["agh-core"],
+  toolsets: ["compozy-core"],
   mcp_servers: [
     {
       name: "github",

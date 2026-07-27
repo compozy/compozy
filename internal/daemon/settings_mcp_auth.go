@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
@@ -37,7 +37,7 @@ func newSettingsMCPAuthManager(
 func (s *settingsRuntimeSurface) MCPAuthStatus(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
 	cfg, err := s.mcpAuthServerConfig(ctx, target, server)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 func (s *settingsRuntimeSurface) MCPAuthBegin(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.BeginResult, error) {
 	if s.mcpAuthManager == nil {
@@ -72,7 +72,7 @@ func (s *settingsRuntimeSurface) MCPAuthBegin(
 func (s *settingsRuntimeSurface) MCPAuthExchange(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	input mcpauth.ExchangeInput,
 ) (mcpauth.Status, error) {
 	if s.mcpAuthManager == nil {
@@ -95,7 +95,7 @@ func (s *settingsRuntimeSurface) MCPAuthCallbackTarget(callbackURL string) (mcpa
 func (s *settingsRuntimeSurface) MCPAuthCompleteCallback(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.Status, error) {
 	if s.mcpAuthManager == nil {
@@ -118,7 +118,7 @@ func (s *settingsRuntimeSurface) MCPAuthInvalidate(target mcpauth.Target) error 
 func (s *settingsRuntimeSurface) MCPAuthLogout(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
 	if s.mcpAuthManager == nil {
 		return mcpauth.Status{}, errors.New("daemon: MCP auth manager is unavailable")
@@ -133,7 +133,7 @@ func (s *settingsRuntimeSurface) MCPAuthLogout(
 func (s *settingsRuntimeSurface) mcpAuthServerConfig(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (mcpauth.ServerConfig, error) {
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, s.secretResolver)
 	if err != nil {

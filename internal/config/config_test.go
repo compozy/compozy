@@ -124,7 +124,7 @@ compress_backups = true
 
 [skills]
 enabled = false
-disabled_skills = ["code-review", "agh"]
+disabled_skills = ["code-review", "compozy"]
 poll_interval = "5s"
 allowed_marketplace_mcp = ["@registry/skill-a", "@registry/skill-b"]
 allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
@@ -139,7 +139,7 @@ base_url = "https://api.github.example.test"
 
 [memory]
 enabled = true
-global_dir = "~/agh-memory-test"
+global_dir = "~/compozy-memory-test"
 
 [memory.dream]
 min_hours = 48
@@ -275,7 +275,7 @@ max_wakes = 80
 	if got, want := cfg.Skills.PollInterval, 5*time.Second; got != want {
 		t.Fatalf("Load() Skills.PollInterval = %s, want %s", got, want)
 	}
-	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "agh"}; !slices.Equal(got, want) {
+	if got, want := cfg.Skills.DisabledSkills, []string{"code-review", "compozy"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
 	}
 	if got, want := cfg.Skills.AllowedMarketplaceMCP, []string{
@@ -315,7 +315,7 @@ max_wakes = 80
 	if !cfg.Memory.Enabled {
 		t.Fatal("Load() Memory.Enabled = false, want true")
 	}
-	if got, want := cfg.Memory.GlobalDir, filepath.Join(userHome, "agh-memory-test"); got != want {
+	if got, want := cfg.Memory.GlobalDir, filepath.Join(userHome, "compozy-memory-test"); got != want {
 		t.Fatalf("Load() Memory.GlobalDir = %q, want %q", got, want)
 	}
 	if got, want := cfg.Roles.Dream.Agent, "claude"; got != want {
@@ -458,7 +458,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		cfg := DaemonConfig{
-			Socket:         "/tmp/agh.sock",
+			Socket:         "/tmp/compozy.sock",
 			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
 		}
 		if err := cfg.Validate(); err != nil {
@@ -470,7 +470,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		cfg := DaemonConfig{
-			Socket:         "/tmp/agh.sock",
+			Socket:         "/tmp/compozy.sock",
 			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
 		}
 		if err := cfg.Validate(); err != nil {
@@ -482,7 +482,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		cfg := DaemonConfig{
-			Socket:               "/tmp/agh.sock",
+			Socket:               "/tmp/compozy.sock",
 			MemoryReportInterval: -time.Second,
 			ReloadTimeouts:       DefaultDaemonReloadTimeoutsConfig(),
 		}
@@ -499,7 +499,7 @@ func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		cfg := DaemonConfig{
-			Socket:                              "/tmp/agh.sock",
+			Socket:                              "/tmp/compozy.sock",
 			SubprocessHealthEscalationThreshold: -1,
 			ReloadTimeouts:                      DefaultDaemonReloadTimeoutsConfig(),
 		}

@@ -287,9 +287,9 @@ func renderCheckpointSummarySection(body string) string {
 	}
 	return strings.Join([]string{
 		checkpointSummaryIntro,
-		"<agh_checkpoint_summary>",
+		"<compozy_checkpoint_summary>",
 		trimmed,
-		"</agh_checkpoint_summary>",
+		"</compozy_checkpoint_summary>",
 	}, "\n\n")
 }
 

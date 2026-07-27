@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -24,7 +24,7 @@ func TestBootAutoTitleRuntime(t *testing.T) {
 	t.Run("Should keep the runtime configured when automatic titles are disabled", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		cfg.Roles.AutoTitle.Enabled = false
 		state := &bootState{cfg: cfg}
 		cleanup := &bootCleanup{}

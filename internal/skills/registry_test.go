@@ -17,7 +17,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -109,7 +109,7 @@ func TestRegistryForAgentDefUsesConcretePackageAgent(t *testing.T) {
 	skillList, err := registry.ForAgentDefSession(
 		context.Background(),
 		resolved,
-		aghconfig.AgentDef{Name: "code_implementer", Prompt: "Implement code."},
+		compozyconfig.AgentDef{Name: "code_implementer", Prompt: "Implement code."},
 		"sess-extension",
 	)
 	if err != nil {
@@ -243,7 +243,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 
 		_, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:       "writer",
 				SourcePath: writeFilePath,
 			}},

@@ -23,7 +23,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	protocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -308,8 +308,8 @@ func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T
 			sessions: sessions,
 			workspaces: newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: t.TempDir()},
-				Config: aghconfig.Config{
-					Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
+				Config: compozyconfig.Config{
+					Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
 				},
 			}),
 		}
@@ -978,7 +978,7 @@ func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 	if !strings.Contains(string(content), "deploy.sh") {
 		t.Fatalf("stored content = %q, want deploy script reference", string(content))
 	}
-	if !strings.Contains(string(content), "agh-tags: project-knowledge, reference") {
+	if !strings.Contains(string(content), "compozy-tags: project-knowledge, reference") {
 		t.Fatalf("stored content = %q, want persisted tag comment", string(content))
 	}
 }
@@ -2071,7 +2071,7 @@ func TestPromptProjectionEventFromStoredEventUsesStoredFallbacks(t *testing.T) {
 		Type:      acp.EventTypeSyntheticReentry,
 		TurnID:    "turn-synth",
 		Timestamp: now,
-		Content:   `{"schema":"agh.session.event.v1","text":"daemon wake-up"}`,
+		Content:   `{"schema":"compozy.session.event.v1","text":"daemon wake-up"}`,
 	})
 	if err != nil {
 		t.Fatalf("promptProjectionEventFromStoredEvent() error = %v", err)
@@ -2169,7 +2169,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 					TurnID:    "turn-agent",
 					Type:      acp.EventTypeAgentMessage,
 					AgentName: "coder",
-					Content:   `{"schema":"agh.session.event.v1","type":"agent_message","text":"reply"}`,
+					Content:   `{"schema":"compozy.session.event.v1","type":"agent_message","text":"reply"}`,
 					Timestamp: time.Date(2026, 4, 18, 14, 6, 0, 0, time.UTC),
 				}}, nil
 			},
@@ -2208,7 +2208,7 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 						Sequence:  1,
 						TurnID:    "turn-user",
 						Type:      acp.EventTypeUserMessage,
-						Content:   `{"schema":"agh.session.event.v1","type":"user_message","text":"hello"}`,
+						Content:   `{"schema":"compozy.session.event.v1","type":"user_message","text":"hello"}`,
 						Timestamp: time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC),
 					}}, nil
 				},
@@ -5076,7 +5076,7 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 type hostAPITestEnv struct {
 	nowMu       sync.RWMutex
 	now         time.Time
-	homePaths   aghconfig.HomePaths
+	homePaths   compozyconfig.HomePaths
 	workspaceID string
 	workspace   workspacepkg.ResolvedWorkspace
 	registry    *globaldb.GlobalDB
@@ -5384,16 +5384,16 @@ func newHostAPITestEnv(t *testing.T, opts ...hostAPITestEnvOption) *hostAPITestE
 		}
 	}
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	skillDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName, "workspace-review")
+	skillDir := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName, "workspace-review")
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(skillDir) error = %v", err)
 	}
@@ -5416,18 +5416,18 @@ Review the workspace changes carefully.
 			Name:    "host-api-workspace",
 		},
 		WorkspaceID: "ws-host-api",
-		Config: aghconfig.Config{
-			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
-			Providers: map[string]aghconfig.ProviderConfig{
+		Config: compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"fake":     {Command: "fake-agent"},
 				"fake-alt": {Command: "fake-agent"},
 			},
-			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
+			Permissions: compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveAll},
 		},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:        "coder",
 			Provider:    "fake",
-			Permissions: string(aghconfig.PermissionModeApproveAll),
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
 			Prompt:      "You are a reliable coder.",
 		}},
 		Skills: []workspacepkg.SkillPath{{
@@ -5471,9 +5471,9 @@ Review the workspace changes carefully.
 	if err := resources.RegisterCodec(resourceCodecs, toolCodec); err != nil {
 		t.Fatalf("resources.RegisterCodec(tool) error = %v", err)
 	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 	}
 	if err := resources.RegisterCodec(resourceCodecs, mcpCodec); err != nil {
 		t.Fatalf("resources.RegisterCodec(mcp) error = %v", err)
@@ -5549,7 +5549,7 @@ Review the workspace changes carefully.
 		automationpkg.WithStore(registry),
 		automationpkg.WithSessions(sessions),
 		automationpkg.WithWorkspaceResolver(workspaces),
-		automationpkg.WithConfig(aghconfig.AutomationConfig{
+		automationpkg.WithConfig(compozyconfig.AutomationConfig{
 			Timezone:          automationpkg.DefaultTimezone,
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
@@ -6246,7 +6246,7 @@ func cloneResolvedWorkspaceForHostAPITests(src *workspacepkg.ResolvedWorkspace) 
 
 	dst := *src
 	dst.AdditionalDirs = append([]string(nil), src.AdditionalDirs...)
-	dst.Agents = append([]aghconfig.AgentDef(nil), src.Agents...)
+	dst.Agents = append([]compozyconfig.AgentDef(nil), src.Agents...)
 	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
 	return dst
 }

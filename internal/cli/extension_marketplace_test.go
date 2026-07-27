@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -392,8 +392,8 @@ func TestExtensionUpdateAllSkipsLocalExtensions(t *testing.T) {
 }
 
 func markExtensionDaemonRunning(deps *commandDeps) {
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
 }

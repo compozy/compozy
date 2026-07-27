@@ -60,7 +60,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		for kind, wantEntryID := range map[Kind]string{
 			KindMCP:       "filesystem",
 			KindExtension: "bridge-github",
-			KindSkill:     "agh",
+			KindSkill:     "compozy",
 		} {
 			result, err := service.Browse(ctx, kind, "", 0, 10)
 			if err != nil {
@@ -72,61 +72,77 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should prune pulled entries and preserve the last good projection across source failures", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should prune pulled entries and preserve the last good projection across source failures",
+		func(t *testing.T) {
+			t.Parallel()
 
-		feed := &mutableCatalogFeed{body: validSkillFeed("stable", "Stable skill", "pulled", "Pulled skill")}
-		server := httptest.NewServer(feed)
-		t.Cleanup(server.Close)
+			feed := &mutableCatalogFeed{body: validSkillFeed("stable", "Stable skill", "pulled", "Pulled skill")}
+			server := httptest.NewServer(feed)
+			t.Cleanup(server.Close)
 
-		store := openMarketplaceTestStore(t)
-		source, err := NewHTTPSource(KindSkill, server.URL, &http.Client{Timeout: time.Second})
-		if err != nil {
-			t.Fatalf("NewHTTPSource() error = %v", err)
-		}
-		service, err := NewService(store, []Source{source}, time.Hour, time.Minute)
-		if err != nil {
-			t.Fatalf("NewService() error = %v", err)
-		}
-		ctx := testutil.Context(t)
+			store := openMarketplaceTestStore(t)
+			source, err := NewHTTPSource(KindSkill, server.URL, &http.Client{Timeout: time.Second})
+			if err != nil {
+				t.Fatalf("NewHTTPSource() error = %v", err)
+			}
+			service, err := NewService(store, []Source{source}, time.Hour, time.Minute)
+			if err != nil {
+				t.Fatalf("NewService() error = %v", err)
+			}
+			ctx := testutil.Context(t)
 
-		if _, err := service.Refresh(ctx, KindSkill); err != nil {
-			t.Fatalf("Refresh(valid) error = %v", err)
-		}
-		assertProjectedSkillIDs(t, ctx, store, "pulled", "stable")
+			if _, err := service.Refresh(ctx, KindSkill); err != nil {
+				t.Fatalf("Refresh(valid) error = %v", err)
+			}
+			assertProjectedSkillIDs(t, ctx, store, "pulled", "stable")
 
-		feed.setBody(validSkillFeed("stable", "Stable skill"))
-		if _, err := service.Refresh(ctx, KindSkill); err != nil {
-			t.Fatalf("Refresh(kill switch) error = %v", err)
-		}
-		assertProjectedSkillIDs(t, ctx, store, "stable")
+			feed.setBody(validSkillFeed("stable", "Stable skill"))
+			if _, err := service.Refresh(ctx, KindSkill); err != nil {
+				t.Fatalf("Refresh(kill switch) error = %v", err)
+			}
+			assertProjectedSkillIDs(t, ctx, store, "stable")
 
-		feed.setBody(`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`)
-		if _, err := service.Refresh(ctx, KindSkill); err == nil || !strings.Contains(err.Error(), "name is required") {
-			t.Fatalf("Refresh(malformed) error = %v, want required-name validation failure", err)
-		}
-		assertProjectedSkillIDs(t, ctx, store, "stable")
+			feed.setBody(
+				`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`,
+			)
+			if _, err := service.Refresh(
+				ctx,
+				KindSkill,
+			); err == nil ||
+				!strings.Contains(err.Error(), "name is required") {
+				t.Fatalf("Refresh(malformed) error = %v, want required-name validation failure", err)
+			}
+			assertProjectedSkillIDs(t, ctx, store, "stable")
 
-		server.Close()
-		if _, err := service.Refresh(ctx, KindSkill); err == nil || !strings.Contains(err.Error(), "connection refused") {
-			t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
-		}
-		result, err := service.Browse(ctx, KindSkill, "", 0, 10)
-		if err != nil {
-			t.Fatalf("Browse(stale fallback) error = %v", err)
-		}
-		if !result.State.Stale || result.State.ErrorClass != errorClassNetwork {
-			t.Fatalf("Browse(stale fallback) state = %#v, want stale network state", result.State)
-		}
-		assertProjectedSkillIDs(t, ctx, store, "stable")
-		states, err := service.Status(ctx)
-		if err != nil {
-			t.Fatalf("Status() error = %v", err)
-		}
-		if got, want := len(states), 1; got != want || !states[0].Stale || states[0].ErrorClass != errorClassNetwork {
-			t.Fatalf("Status() = %#v, want one stale network state", states)
-		}
-	})
+			server.Close()
+			if _, err := service.Refresh(
+				ctx,
+				KindSkill,
+			); err == nil ||
+				!strings.Contains(err.Error(), "connection refused") {
+				t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
+			}
+			result, err := service.Browse(ctx, KindSkill, "", 0, 10)
+			if err != nil {
+				t.Fatalf("Browse(stale fallback) error = %v", err)
+			}
+			if !result.State.Stale || result.State.ErrorClass != errorClassNetwork {
+				t.Fatalf("Browse(stale fallback) state = %#v, want stale network state", result.State)
+			}
+			assertProjectedSkillIDs(t, ctx, store, "stable")
+			states, err := service.Status(ctx)
+			if err != nil {
+				t.Fatalf("Status() error = %v", err)
+			}
+			if got, want := len(
+				states,
+			), 1; got != want || !states[0].Stale ||
+				states[0].ErrorClass != errorClassNetwork {
+				t.Fatalf("Status() = %#v, want one stale network state", states)
+			}
+		},
+	)
 }
 
 type mutableCatalogFeed struct {

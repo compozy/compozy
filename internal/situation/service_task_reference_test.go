@@ -58,7 +58,7 @@ func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {
 			AgentName:   "coder",
 			Provider:    "codex",
 			WorkspaceID: taskRecord.WorkspaceID,
-			Workspace:   "/work/agh",
+			Workspace:   "/work/compozy",
 			Type:        session.SessionTypeUser,
 			State:       session.StateActive,
 			CreatedAt:   fixedTime(),

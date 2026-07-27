@@ -11,15 +11,15 @@ import (
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-// DB is an open per-workspace AGH database handle.
+// DB is an open per-workspace Compozy database handle.
 type DB struct {
 	db            *sql.DB
 	path          string
 	workspaceRoot string
-	identity      aghworkspace.Identity
+	identity      compozyworkspace.Identity
 	closed        atomic.Int32
 }
 
@@ -38,7 +38,7 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 		return nil, errors.New("store: workspace root is required")
 	}
 
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace identity for %q: %w", workspaceRoot, err)
 	}

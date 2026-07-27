@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 				WorkspaceID: strings.TrimSpace(flags.workspaceID),
 			}
 			if request.Name != "" {
-				if err := aghconfig.ValidateMCPServerName(request.Name); err != nil {
+				if err := compozyconfig.ValidateMCPServerName(request.Name); err != nil {
 					return fmt.Errorf("cli: invalid MCP server name: %w", err)
 				}
 			}

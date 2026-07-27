@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -71,7 +71,7 @@ func WithLocalAdditionalRoots(roots ...string) LocalRuntimeOption {
 func NewLocalToolHost(
 	ctx context.Context,
 	root string,
-	mode aghconfig.PermissionMode,
+	mode compozyconfig.PermissionMode,
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
 ) (sandbox.ToolHost, error) {
@@ -81,7 +81,7 @@ func NewLocalToolHost(
 func newLocalToolHost(
 	ctx context.Context,
 	root string,
-	mode aghconfig.PermissionMode,
+	mode compozyconfig.PermissionMode,
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
 ) (*localToolHost, error) {

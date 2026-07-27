@@ -105,7 +105,7 @@ describe("useSettingsPage", () => {
       operation_id: "op_page",
       status: "stopping",
       old_pid: 123,
-      old_socket_path: "/tmp/agh.sock",
+      old_socket_path: "/tmp/compozy.sock",
       old_started_at: "2026-04-17T10:00:00Z",
       active_session_count: 1,
       started_at: "2026-04-17T10:05:00Z",

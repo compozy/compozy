@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
 	"github.com/compozy/compozy/internal/store"
@@ -53,7 +53,7 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 		resolved, err := roles.Resolve(
 			withRoleInvocationCorrelation(ctx, correlation),
 			workspaceID,
-			aghconfig.RoleDream,
+			compozyconfig.RoleDream,
 		)
 		if err != nil {
 			return consolidation.SessionRoute{}, fmt.Errorf("resolve dream role: %w", err)
@@ -64,8 +64,8 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 			Provider:        resolved.Provider,
 			Model:           resolved.Model,
 			ReasoningEffort: resolved.ReasoningEffort,
-			Fallbacks:       append([]aghconfig.RoleFallback(nil), resolved.Fallbacks...),
-			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback aghconfig.RoleFallback) error {
+			Fallbacks:       append([]compozyconfig.RoleFallback(nil), resolved.Fallbacks...),
+			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
 				return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
 					AgentName:       resolved.AgentName,
 					Provider:        fallback.Provider,

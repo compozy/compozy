@@ -47,7 +47,7 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 			leaks: []string{"Bearer z"},
 		},
 		{
-			name: "Should redact AGH MCP OAuth PKCE and binding secrets",
+			name: "Should redact Compozy MCP OAuth PKCE and binding secrets",
 			input: strings.Join([]string{
 				"compozy_claim_raw-claim-value",
 				"mcp_auth_token=mcp-token-value",

@@ -6,7 +6,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -40,7 +40,7 @@ func materializeActivationAgentResources(
 		result.agents = append(result.agents, ownedAgentResource{ID: agentID, Scope: scope, Spec: agent})
 		result.inventory = append(result.inventory, InventoryItem{
 			ActivationID: activation.ID,
-			ResourceKind: string(aghconfig.AgentResourceKind),
+			ResourceKind: string(compozyconfig.AgentResourceKind),
 			ResourceID:   agentID,
 			ResourceName: agent.Name,
 		})
@@ -52,7 +52,7 @@ func materializeActivationAgentResources(
 func appendActivationAgentSidecars(
 	result materializedAgentResources,
 	activation Activation,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	agentID string,
 	agentDef extensionpkg.BundleAgent,
 	scope resources.ResourceScope,

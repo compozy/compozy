@@ -30,7 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/doctor"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -596,12 +596,12 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 		if err := os.MkdirAll(operatorHome, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", operatorHome, err)
 		}
-		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(operatorHome, aghconfig.DirName))
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(operatorHome, compozyconfig.DirName))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 		homePaths.DaemonSocket = shortSocketPath(t)
-		if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
 		cfg := testConfig(t, homePaths)
@@ -648,7 +648,7 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 			t.Fatalf("default workspace root = %q, want operator home %q", got, wantRoot)
 		}
 		if got := workspaces[0].RootDir; got == homePaths.HomeDir {
-			t.Fatalf("default workspace root = AGH home %q, want operator home %q", got, wantRoot)
+			t.Fatalf("default workspace root = Compozy home %q, want operator home %q", got, wantRoot)
 		}
 
 		resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), operatorHome)
@@ -894,7 +894,7 @@ func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
 
 	loadStarted := make(chan struct{})
 	releaseLoad := make(chan struct{})
-	d.loadConfig = func() (aghconfig.Config, error) {
+	d.loadConfig = func() (compozyconfig.Config, error) {
 		close(loadStarted)
 		<-releaseLoad
 		return cfg, nil
@@ -1562,7 +1562,7 @@ func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		aghconfig.HomePaths{},
+		compozyconfig.HomePaths{},
 		nil,
 		nil,
 	); svc != nil {
@@ -1579,7 +1579,7 @@ func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		aghconfig.HomePaths{},
+		compozyconfig.HomePaths{},
 		nil,
 		nil,
 	); svc == nil {
@@ -1896,8 +1896,8 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -2086,7 +2086,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		discardLogger(),
 		func() time.Time { return fixedNow },
 		withDaemonExtensionMarketplace(
-			aghconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+			compozyconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
 			nil,
 		),
 		withDaemonExtensionEventWriter(db),
@@ -2338,7 +2338,7 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			discardLogger(),
 			time.Now,
 			withDaemonExtensionMarketplace(
-				aghconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+				compozyconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
 				nil,
 			),
 		)
@@ -3032,7 +3032,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 
 	d, err := New(
 		WithHomePaths(homePaths),
-		WithConfigLoader(func() (aghconfig.Config, error) { return cfg, nil }),
+		WithConfigLoader(func() (compozyconfig.Config, error) { return cfg, nil }),
 		WithLogger(discardLogger()),
 		WithNow(func() time.Time { return now }),
 		WithHTTPServerFactory(httpFactory),
@@ -3076,8 +3076,8 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 			t.Fatalf("bootConfig() error = %v", err)
 		}
 
-		for _, name := range []string{aghconfig.DefaultAgentName} {
-			agent, err := aghconfig.LoadAgentDef(name, homePaths)
+		for _, name := range []string{compozyconfig.DefaultAgentName} {
+			agent, err := compozyconfig.LoadAgentDef(name, homePaths)
 			if err != nil {
 				t.Fatalf("LoadAgentDef(%s) error = %v", name, err)
 			}
@@ -3477,7 +3477,7 @@ func TestLoadConfigFromHomeAppliesOverlayAndNormalizesSocket(t *testing.T) {
 	homePaths := testHomePaths(t)
 	if err := os.WriteFile(
 		homePaths.ConfigFile,
-		[]byte("[daemon]\nsocket = \"~/agh-test.sock\"\n[http]\nport = 4242\n"),
+		[]byte("[daemon]\nsocket = \"~/compozy-test.sock\"\n[http]\nport = 4242\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(config) error = %v", err)
@@ -3490,7 +3490,7 @@ func TestLoadConfigFromHomeAppliesOverlayAndNormalizesSocket(t *testing.T) {
 	if got, want := cfg.HTTP.Port, 4242; got != want {
 		t.Fatalf("cfg.HTTP.Port = %d, want %d", got, want)
 	}
-	if !strings.Contains(cfg.Daemon.Socket, "agh-test.sock") || !filepath.IsAbs(cfg.Daemon.Socket) {
+	if !strings.Contains(cfg.Daemon.Socket, "compozy-test.sock") || !filepath.IsAbs(cfg.Daemon.Socket) {
 		t.Fatalf("cfg.Daemon.Socket = %q, want expanded absolute path", cfg.Daemon.Socket)
 	}
 }
@@ -3631,7 +3631,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 				t.Fatal("boot() did not inject a startup-aware prompt assembler")
 			}
 			if capturedDeps.StartupPromptOverlay == nil {
-				t.Fatal("boot() did not inject the AGH runtime startup prompt overlay")
+				t.Fatal("boot() did not inject the Compozy runtime startup prompt overlay")
 			}
 			if capturedDeps.PromptInputAugmenter == nil {
 				t.Fatal("boot() did not inject the prompt input augmenter")
@@ -3654,7 +3654,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 			workspaceRef := workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{RootDir: workspace},
-				Agents:    []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
+				Agents:    []compozyconfig.AgentDef{testPromptAgent("Base prompt.")},
 			}
 			prompt, err := capturedDeps.PromptAssembler.Assemble(
 				context.Background(),
@@ -3977,18 +3977,18 @@ func runDreamRuntimeLifecycleCases(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		patch       func(*aghconfig.Config)
+		patch       func(*compozyconfig.Config)
 		wantRuntime bool
 	}{
 		{
 			name: "Should keep the dream runtime absent when memory is disabled",
-			patch: func(cfg *aghconfig.Config) {
+			patch: func(cfg *compozyconfig.Config) {
 				cfg.Memory.Enabled = false
 			},
 		},
 		{
 			name: "Should retain the dream runtime for live role enablement",
-			patch: func(cfg *aghconfig.Config) {
+			patch: func(cfg *compozyconfig.Config) {
 				cfg.Roles.Dream.Enabled = false
 			},
 			wantRuntime: true,
@@ -4317,7 +4317,7 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 		})
 	}
 
-	disabledInfo, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{}, nil)
+	disabledInfo, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{}, nil)
 	if err != nil {
 		t.Fatalf("daemonNetworkInfo(disabled) error = %v", err)
 	}
@@ -4325,14 +4325,14 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 		t.Fatalf("daemonNetworkInfo(disabled) = %#v, want disabled snapshot", disabledInfo)
 	}
 
-	if _, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, nil); err == nil {
+	if _, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, nil); err == nil {
 		t.Fatal("daemonNetworkInfo(enabled nil service) error = nil, want non-nil")
 	}
-	if _, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{}); err == nil {
+	if _, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{}); err == nil {
 		t.Fatal("daemonNetworkInfo(nil status) error = nil, want non-nil")
 	}
 
-	info, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
+	info, err := daemonNetworkInfo(ctx, compozyconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
 		status: &network.Status{
 			Enabled: true,
 			Status:  " active ",
@@ -4428,24 +4428,24 @@ func waitForConditionWithin(t *testing.T, label string, timeout time.Duration, f
 	t.Fatalf("timed out waiting for %s", label)
 }
 
-func testHomePaths(t *testing.T) aghconfig.HomePaths {
+func testHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	homePaths.DaemonSocket = shortSocketPath(t)
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
 }
 
-func testConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
+func testConfig(t *testing.T, homePaths compozyconfig.HomePaths) compozyconfig.Config {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
@@ -4453,7 +4453,7 @@ func testConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
 	return cfg
 }
 
-func testConfigPtr(t *testing.T, homePaths aghconfig.HomePaths) *aghconfig.Config {
+func testConfigPtr(t *testing.T, homePaths compozyconfig.HomePaths) *compozyconfig.Config {
 	t.Helper()
 
 	cfg := testConfig(t, homePaths)
@@ -4471,12 +4471,12 @@ func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
 	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
 	writeDaemonFile(
 		t,
-		filepath.Join(workspace, aghconfig.DirName, "memory", "workspace.md"),
+		filepath.Join(workspace, compozyconfig.DirName, "memory", "workspace.md"),
 		memoryDocument("Workspace", "workspace note", memcontract.TypeProject, "workspace note"),
 	)
 	writeDaemonFile(
 		t,
-		filepath.Join(workspace, aghconfig.DirName, "memory", "MEMORY.md"),
+		filepath.Join(workspace, compozyconfig.DirName, "memory", "MEMORY.md"),
 		"- [Workspace](workspace.md) - workspace note",
 	)
 }
@@ -4554,7 +4554,7 @@ func canonicalDaemonRoot(t *testing.T, root string) string {
 
 func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	fragments := make([]string, 0, 6)
-	fragments = append(fragments, aghRuntimeEnvelopeStart, "# AGH Runtime")
+	fragments = append(fragments, compozyRuntimeEnvelopeStart, "# Compozy Runtime")
 	if wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}
@@ -4607,7 +4607,7 @@ func assertPromptExcludes(t *testing.T, prompt string, fragments ...string) {
 	}
 }
 
-func newTestDaemon(t *testing.T, homePaths aghconfig.HomePaths, cfg *aghconfig.Config) *Daemon {
+func newTestDaemon(t *testing.T, homePaths compozyconfig.HomePaths, cfg *compozyconfig.Config) *Daemon {
 	t.Helper()
 
 	if _, err := os.Stat(homePaths.DatabaseFile); errors.Is(err, os.ErrNotExist) {
@@ -4645,7 +4645,7 @@ func strconvString(v int) string {
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
 
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("agh-%d.sock", time.Now().UTC().UnixNano()))
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-%d.sock", time.Now().UTC().UnixNano()))
 	t.Cleanup(func() {
 		_ = os.Remove(path)
 	})

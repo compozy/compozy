@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/heartbeat"
-	aghstore "github.com/compozy/compozy/internal/store"
+	compozystore "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
@@ -125,7 +125,7 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			{
 				name: "outside agents root", service: fixture.authoring, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder",
-				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+				sourcePath: filepath.Join(t.TempDir(), "coder", compozyconfig.AgentDefinitionFileName),
 				wantError:  "outside an agents root",
 			},
 		}
@@ -472,7 +472,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 		}); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, aghstore.SessionInfo{
+		if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
 			ID:          "sess-delete",
 			AgentName:   "coder",
 			Provider:    "claude",
@@ -489,7 +489,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			fixture.db,
 			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-delete")},
 			prompter,
-			aghconfig.DefaultHeartbeatConfig(),
+			compozyconfig.DefaultHeartbeatConfig(),
 			heartbeat.WithWakeClock(deterministicHeartbeatClock(fixture.now)),
 		)
 		if err != nil {
@@ -659,8 +659,8 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 	t.Run("Should persist revision history and snapshots across database reopen", func(t *testing.T) {
 		t.Parallel()
 
-		dbPath := filepath.Join(t.TempDir(), aghstore.GlobalDatabaseName)
-		firstFixture := newHeartbeatFixtureWithDBPath(t, dbPath, aghconfig.DefaultHeartbeatConfig())
+		dbPath := filepath.Join(t.TempDir(), compozystore.GlobalDatabaseName)
+		firstFixture := newHeartbeatFixtureWithDBPath(t, dbPath, compozyconfig.DefaultHeartbeatConfig())
 		first, err := firstFixture.authoring.Put(firstFixture.ctx, heartbeat.PutRequest{
 			Target: firstFixture.target,
 			Body:   validHeartbeatBody("Persist first", "Persist the first policy snapshot."),
@@ -769,7 +769,7 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHeartbeatFixture(t)
-		session := aghstore.SessionInfo{
+		session := compozystore.SessionInfo{
 			ID:          "sess-authoring",
 			AgentName:   "coder",
 			Provider:    "claude",
@@ -1067,9 +1067,9 @@ Wake gently.
 	t.Run("Should report disabled config while keeping authored policy valid", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.Enabled = false
-		fixture := newHeartbeatFixtureWithDBPath(t, filepath.Join(t.TempDir(), aghstore.GlobalDatabaseName), cfg)
+		fixture := newHeartbeatFixtureWithDBPath(t, filepath.Join(t.TempDir(), compozystore.GlobalDatabaseName), cfg)
 		written, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
 			Target: fixture.target,
 			Body:   validHeartbeatBody("Disabled config", "The policy remains authored but inactive while disabled."),
@@ -1229,15 +1229,15 @@ func newHeartbeatFixture(t *testing.T) heartbeatFixture {
 
 	return newHeartbeatFixtureWithDBPath(
 		t,
-		filepath.Join(t.TempDir(), aghstore.GlobalDatabaseName),
-		aghconfig.DefaultHeartbeatConfig(),
+		filepath.Join(t.TempDir(), compozystore.GlobalDatabaseName),
+		compozyconfig.DefaultHeartbeatConfig(),
 	)
 }
 
 func newHeartbeatFixtureWithDBPath(
 	t *testing.T,
 	dbPath string,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 ) heartbeatFixture {
 	t.Helper()
 
@@ -1254,7 +1254,7 @@ func newHeartbeatFixtureWithDBPath(
 		}
 	})
 	workspaceID := "ws-heartbeat-authoring"
-	if err := globalDB.InsertWorkspace(ctx, aghworkspace.Workspace{
+	if err := globalDB.InsertWorkspace(ctx, compozyworkspace.Workspace{
 		ID:      workspaceID,
 		RootDir: root,
 		Name:    "heartbeat-authoring",
@@ -1301,7 +1301,7 @@ func newHeartbeatFixtureWithDBPath(
 func writeHeartbeatAgentDefinition(t *testing.T, root string, agentName string) string {
 	t.Helper()
 
-	agentDir := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, agentName)
+	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, agentName)
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(agent dir) error = %v", err)
 	}
@@ -1495,7 +1495,7 @@ func deterministicHeartbeatIDGenerator() func(prefix string) string {
 func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, sessionID string) {
 	t.Helper()
 
-	if err := fixture.db.RegisterSession(fixture.ctx, aghstore.SessionInfo{
+	if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
 		ID:          sessionID,
 		AgentName:   "coder",
 		Provider:    "claude",

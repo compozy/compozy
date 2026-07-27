@@ -178,7 +178,7 @@ func stableHeader(blocks []memcontract.Block, ranked []rankedCandidate) memcontr
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
 	hash := hex.EncodeToString(sum[:])
 	return memcontract.CacheStableHeader{
-		Text:        fmt.Sprintf("AGH memory recall v1 entries=%d hash=%s", packagedBlockEntryCount(blocks), hash),
+		Text:        fmt.Sprintf("Compozy memory recall v1 entries=%d hash=%s", packagedBlockEntryCount(blocks), hash),
 		ContentHash: hash,
 	}
 }
@@ -186,6 +186,6 @@ func stableHeader(blocks []memcontract.Block, ranked []rankedCandidate) memcontr
 func emptyPackage() memcontract.Packaged {
 	return memcontract.Packaged{
 		Blocks: []memcontract.Block{},
-		Header: memcontract.CacheStableHeader{Text: "AGH memory recall v1 entries=0 hash=", ContentHash: ""},
+		Header: memcontract.CacheStableHeader{Text: "Compozy memory recall v1 entries=0 hash=", ContentHash: ""},
 	}
 }

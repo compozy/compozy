@@ -9,7 +9,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
@@ -56,10 +56,10 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 	if err := registerDaemonResourceCodec(registry, "tool", toolspkg.NewResourceCodec); err != nil {
 		return err
 	}
-	if err := registerDaemonResourceCodec(registry, "mcp server", aghconfig.NewMCPServerResourceCodec); err != nil {
+	if err := registerDaemonResourceCodec(registry, "mcp server", compozyconfig.NewMCPServerResourceCodec); err != nil {
 		return err
 	}
-	if err := registerDaemonResourceCodec(registry, "agent", aghconfig.NewAgentResourceCodec); err != nil {
+	if err := registerDaemonResourceCodec(registry, "agent", compozyconfig.NewAgentResourceCodec); err != nil {
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "agent soul", soul.NewResourceCodec); err != nil {

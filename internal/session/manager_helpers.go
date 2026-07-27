@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -21,7 +21,7 @@ func (m *Manager) startupPrompt(
 	ctx context.Context,
 	sessionCtx hookspkg.SessionContext,
 	startupCtx StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	prompt := strings.TrimSpace(agent.Prompt)
@@ -44,7 +44,7 @@ func assembleStartupPrompt(
 	ctx context.Context,
 	assembler PromptAssembler,
 	startupCtx StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if startupAssembler, ok := assembler.(StartupPromptAssembler); ok {
@@ -53,14 +53,14 @@ func assembleStartupPrompt(
 	return assembler.Assemble(ctx, agent, workspace)
 }
 
-func (m *Manager) startPermissions(sessionType Type, configured string) aghconfig.PermissionMode {
+func (m *Manager) startPermissions(sessionType Type, configured string) compozyconfig.PermissionMode {
 	if normalizeSessionType(sessionType) == SessionTypeDream {
-		return aghconfig.PermissionModeApproveAll
+		return compozyconfig.PermissionModeApproveAll
 	}
 
-	mode := aghconfig.PermissionMode(strings.TrimSpace(configured))
+	mode := compozyconfig.PermissionMode(strings.TrimSpace(configured))
 	if mode == "" {
-		return aghconfig.PermissionModeApproveReads
+		return compozyconfig.PermissionModeApproveReads
 	}
 	return mode
 }
@@ -80,7 +80,7 @@ func (m *Manager) activateAndWatch(
 	session *Session,
 	proc *AgentProcess,
 	adoptCurrentModel bool,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	networkCapabilities []NetworkPeerCapability,
 	postEvent hookspkg.HookEvent,
 	preserveStopReason bool,

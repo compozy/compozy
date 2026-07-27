@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -21,7 +21,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		older := wakeSnapshot(t, cfg, "hb-older", "ws-1", "coder", base.Add(-time.Hour), "Older policy")
 		invalid := older
@@ -65,7 +65,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -104,7 +104,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -157,7 +157,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -192,7 +192,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		store.states["ws-1/coder/sess-scheduler"] = WakeState{
@@ -257,7 +257,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{
 			wakeSnapshotWithWindows(t, cfg, "hb-policy", "ws-1", "coder", base, "09:00", "10:00"),
@@ -285,7 +285,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -315,7 +315,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -352,7 +352,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Cleanup(cleanup)
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -411,7 +411,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 				t.Parallel()
 
 				base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-				cfg := aghconfig.DefaultHeartbeatConfig()
+				cfg := compozyconfig.DefaultHeartbeatConfig()
 				store := newFakeWakeStore(t)
 				store.appendErr = tc.appendErr
 				store.upsertErr = tc.upsertErr
@@ -441,7 +441,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.MaxWakesPerCycle = 1
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
@@ -478,7 +478,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -514,7 +514,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		t.Cleanup(cleanup)
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.appendErr = fmt.Errorf("append failed with token %s", secret)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
@@ -549,7 +549,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 	t.Run("Should validate constructor and wake request dependencies", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		health := newFakeWakeHealth()
 		prompter := &fakeWakePrompter{}
@@ -577,7 +577,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.Enabled = false
 		store := newFakeWakeStore(t)
 		health := newFakeWakeHealth()
@@ -602,7 +602,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		service, err := NewManagedWakeService(
 			store,
@@ -636,7 +636,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		snapshotConfig := aghconfig.DefaultHeartbeatConfig()
+		snapshotConfig := compozyconfig.DefaultHeartbeatConfig()
 		serviceConfig := snapshotConfig
 		serviceConfig.WakeCooldown = 2 * time.Minute
 		store := newFakeWakeStore(t)
@@ -685,7 +685,7 @@ func TestManagedWakeServiceClosedSkipsAndValidation(t *testing.T) {
 		t.Parallel()
 
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
 		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
 		health := newFakeWakeHealth()
@@ -743,7 +743,7 @@ func newTestWakeService(
 	store *fakeWakeStore,
 	health *fakeWakeHealth,
 	prompter *fakeWakePrompter,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	now time.Time,
 ) *ManagedWakeService {
 	t.Helper()
@@ -764,7 +764,7 @@ func newTestWakeService(
 
 func wakeSnapshot(
 	t *testing.T,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	id string,
 	workspaceID string,
 	agentName string,
@@ -786,7 +786,7 @@ Inspect context before waking.
 
 func wakeSnapshotWithWindows(
 	t *testing.T,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	id string,
 	workspaceID string,
 	agentName string,
@@ -813,7 +813,7 @@ Wake only inside configured active hours.
 
 func wakeDisabledSnapshot(
 	t *testing.T,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	id string,
 	workspaceID string,
 	agentName string,
@@ -834,7 +834,7 @@ Disabled policies should not wake sessions.
 
 func wakeSnapshotFromContent(
 	t *testing.T,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	id string,
 	workspaceID string,
 	agentName string,

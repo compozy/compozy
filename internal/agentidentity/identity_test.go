@@ -230,7 +230,7 @@ func TestErrorOutputConventionsRenderStableJSONAndJSONL(t *testing.T) {
 	err := &Error{
 		Code:    "identity_required",
 		Message: EnvSessionID + " is required for agent commands",
-		Action:  "run this command from an AGH-managed agent session",
+		Action:  "run this command from an Compozy-managed agent session",
 		Err:     ErrIdentityRequired,
 	}
 

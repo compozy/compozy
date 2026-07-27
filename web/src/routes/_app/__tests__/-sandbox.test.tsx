@@ -283,7 +283,7 @@ describe("SandboxPage", () => {
     expect(screen.getByTestId("sandbox-profile-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("sandbox-profile-sheet-title")).toHaveTextContent("local");
     expect(screen.getByTestId("sandbox-profile-sheet-foot")).toHaveTextContent(
-      "agh config get sandboxes.local.backend"
+      "compozy config get sandboxes.local.backend"
     );
 
     fireEvent.click(screen.getByTestId("sandbox-profile-sheet-edit"));

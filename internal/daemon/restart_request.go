@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/google/uuid"
 )
@@ -184,7 +184,7 @@ func (r restartRequestRuntime) newOperation() RestartOperation {
 
 func (r restartRequestRuntime) launchRelaunchHelper(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	operationID string,
 ) error {
 	binary, err := r.executable()

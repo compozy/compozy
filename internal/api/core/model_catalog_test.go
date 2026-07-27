@@ -107,7 +107,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		assertRedactedModelCatalogPayload(t, nativePayload.Sources[0].LastError, "oauth-secret-token")
 
 		openAIPayload := OpenAIModelPayloadFromModel(model)
-		assertRedactedModelCatalogPayload(t, openAIPayload.AGH.LastError, "sk-native-secret-token")
+		assertRedactedModelCatalogPayload(t, openAIPayload.Compozy.LastError, "sk-native-secret-token")
 
 		statusPayloads := SourceStatusPayloadsFromStatuses([]modelcatalog.SourceStatus{
 			{
@@ -140,7 +140,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		model.CostReasoningPerMillion = &reasoning
 
 		nativeCost := ProviderModelPayloadFromModel(model).Cost
-		openAICost := OpenAIModelPayloadFromModel(model).AGH.Cost
+		openAICost := OpenAIModelPayloadFromModel(model).Compozy.Cost
 		for name, cost := range map[string]*contract.ModelCatalogCostPayload{
 			"native": nativeCost,
 			"openai": openAICost,
@@ -431,7 +431,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 func TestOpenAIModelCatalogHandler(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use AGH metadata and provider filter", func(t *testing.T) {
+	t.Run("Should use Compozy metadata and provider filter", func(t *testing.T) {
 		t.Parallel()
 
 		service := &modelCatalogServiceSpy{
@@ -454,11 +454,11 @@ func TestOpenAIModelCatalogHandler(t *testing.T) {
 			t.Fatalf("payload = %#v, want one OpenAI model list item", payload)
 		}
 		model := payload.Data[0]
-		if model.Object != "model" || model.OwnedBy != "codex" || model.AGH.ProviderID != "codex" {
+		if model.Object != "model" || model.OwnedBy != "codex" || model.Compozy.ProviderID != "codex" {
 			t.Fatalf("model = %#v, want OpenAI shape with compozy metadata", model)
 		}
-		if len(model.AGH.Sources) != 1 || model.AGH.Sources[0] != modelcatalog.SourceIDConfig {
-			t.Fatalf("AGH.Sources = %#v, want config source", model.AGH.Sources)
+		if len(model.Compozy.Sources) != 1 || model.Compozy.Sources[0] != modelcatalog.SourceIDConfig {
+			t.Fatalf("Compozy.Sources = %#v, want config source", model.Compozy.Sources)
 		}
 	})
 

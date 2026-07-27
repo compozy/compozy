@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func normalizeBridgeInstanceRecord(
@@ -254,7 +254,7 @@ func mapBridgeInstanceConstraintError(err error) error {
 
 	switch {
 	case isSQLiteForeignKeyConstraint(err):
-		return aghworkspace.ErrWorkspaceNotFound
+		return compozyworkspace.ErrWorkspaceNotFound
 	default:
 		return err
 	}

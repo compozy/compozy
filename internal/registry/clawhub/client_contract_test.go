@@ -21,10 +21,10 @@ func TestClientBehaviorContracts(t *testing.T) {
 		t.Parallel()
 
 		server := newContractServer(t, func(writer http.ResponseWriter, request *http.Request) {
-			if request.URL.Path != "/api/v1/skills/@agh/missing" {
+			if request.URL.Path != "/api/v1/skills/@compozy/missing" {
 				t.Fatalf("request.URL.Path = %q, want missing skill path", request.URL.Path)
 			}
-			if request.URL.RawPath != "/api/v1/skills/@agh%2Fmissing" {
+			if request.URL.RawPath != "/api/v1/skills/@compozy%2Fmissing" {
 				t.Fatalf("request.URL.RawPath = %q, want one escaped missing skill segment", request.URL.RawPath)
 			}
 			writer.Header().Set("Content-Type", "application/json")
@@ -32,7 +32,7 @@ func TestClientBehaviorContracts(t *testing.T) {
 			writeContractResponse(t, writer, "{\"error\":\"missing skill\"}")
 		})
 
-		_, err := NewClient(server.URL).Info(context.Background(), "@agh/missing")
+		_, err := NewClient(server.URL).Info(context.Background(), "@compozy/missing")
 		if !errors.Is(err, registry.ErrPackageNotFound) {
 			t.Fatalf("Info(missing) error = %v, want registry.ErrPackageNotFound", err)
 		}
@@ -58,13 +58,13 @@ func TestClientBehaviorContracts(t *testing.T) {
 		server := newContractServer(t, func(writer http.ResponseWriter, _ *http.Request) {
 			writer.Header().Set("Content-Type", "application/json")
 			body := fmt.Sprintf(
-				"{\"slug\":\"@agh/review\",\"name\":%q}",
+				"{\"slug\":\"@compozy/review\",\"name\":%q}",
 				strings.Repeat("a", int(maxJSONResponseBytes)),
 			)
 			writeContractResponse(t, writer, body)
 		})
 
-		_, err := NewClient(server.URL).Info(context.Background(), "@agh/review")
+		_, err := NewClient(server.URL).Info(context.Background(), "@compozy/review")
 		if !errors.Is(err, errResponseTooLarge) {
 			t.Fatalf("Info(oversized) error = %v, want errResponseTooLarge", err)
 		}
@@ -83,7 +83,7 @@ func TestClientBehaviorContracts(t *testing.T) {
 
 		result, err := NewClient(server.URL).Download(
 			context.Background(),
-			"@agh/review",
+			"@compozy/review",
 			registry.DownloadOpts{MaxArchiveSize: limit},
 		)
 		if result != nil && result.Reader != nil {
@@ -106,7 +106,7 @@ func TestClientBehaviorContracts(t *testing.T) {
 			reader: strings.NewReader(strings.Repeat("a", int(limit)+1024)),
 		}
 
-		result, _, err := spoolDownloadResponse(reader, "@agh/review", limit)
+		result, _, err := spoolDownloadResponse(reader, "@compozy/review", limit)
 		if result != nil {
 			t.Cleanup(func() {
 				if closeErr := result.Close(); closeErr != nil {

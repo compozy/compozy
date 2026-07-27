@@ -8,7 +8,7 @@ import (
 	"math"
 
 	"github.com/compozy/compozy/internal/clientstate"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -125,7 +125,7 @@ func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {
 	return errors.Join(p.windowManager.Rollback(ctx), p.session.Rollback(ctx))
 }
 
-func windowManagerDefaults(cfg aghconfig.WindowManagerConfig) windowmanager.Config {
+func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.Config {
 	return windowmanager.Config{
 		NewWindowPolicy:     windowmanager.NewWindowPolicy(cfg.NewWindowPolicy),
 		SmallViewportPolicy: windowmanager.SmallViewportPolicy(cfg.SmallViewportPolicy),
@@ -153,40 +153,40 @@ func windowManagerDefaults(cfg aghconfig.WindowManagerConfig) windowmanager.Conf
 	}
 }
 
-func windowManagerConfig(defaults windowmanager.Config) (aghconfig.WindowManagerConfig, error) {
+func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowManagerConfig, error) {
 	inner, err := windowManagerInteger("gaps.inner", defaults.Gaps.Inner, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	top, err := windowManagerInteger("gaps.top", defaults.Gaps.Top, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	right, err := windowManagerInteger("gaps.right", defaults.Gaps.Right, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	bottom, err := windowManagerInteger("gaps.bottom", defaults.Gaps.Bottom, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	left, err := windowManagerInteger("gaps.left", defaults.Gaps.Left, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	edgeBand, err := windowManagerInteger("snap.edge_band", defaults.Snap.EdgeBand, 4, 128)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	cornerReach, err := windowManagerInteger("snap.corner_reach", defaults.Snap.CornerReach, 16, 512)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
 	exitSlack, err := windowManagerInteger("snap.exit_slack", defaults.Snap.ExitSlack, 0, 64)
 	if err != nil {
-		return aghconfig.WindowManagerConfig{}, err
+		return compozyconfig.WindowManagerConfig{}, err
 	}
-	return aghconfig.WindowManagerConfig{
+	return compozyconfig.WindowManagerConfig{
 		NewWindowPolicy:     string(defaults.NewWindowPolicy),
 		SmallViewportPolicy: string(defaults.SmallViewportPolicy),
 		FocusPolicy:         string(defaults.FocusPolicy),
@@ -198,14 +198,14 @@ func windowManagerConfig(defaults windowmanager.Config) (aghconfig.WindowManager
 		SwapModifier:        defaults.SwapModifier,
 		HistoryLimit:        defaults.HistoryLimit,
 		DesktopTransition:   string(defaults.DesktopTransition),
-		Gaps: aghconfig.WindowManagerGapsConfig{
+		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner: inner, Top: top, Right: right, Bottom: bottom, Left: left,
 		},
-		Snap: aghconfig.WindowManagerSnapConfig{
+		Snap: compozyconfig.WindowManagerSnapConfig{
 			EdgeBand: edgeBand, CornerReach: cornerReach, ExitSlack: exitSlack,
 			RepeatRatios: append([]float64(nil), defaults.Snap.RepeatRatios...),
 		},
-		Bindings: aghconfig.WindowManagerBindingConfig{
+		Bindings: compozyconfig.WindowManagerBindingConfig{
 			TopCenter: defaults.Bindings.TopCenter, BottomCenter: defaults.Bindings.BottomCenter,
 		},
 		Shortcuts: cloneWindowManagerShortcuts(defaults.Shortcuts),

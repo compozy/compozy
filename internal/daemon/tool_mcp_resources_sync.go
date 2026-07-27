@@ -5,7 +5,7 @@ import (
 
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -69,7 +69,7 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 ) (bool, error) {
 	source := s.actor.Source
 	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
-		Kind:   aghconfig.MCPServerResourceKind,
+		Kind:   compozyconfig.MCPServerResourceKind,
 		Source: &source,
 	})
 	if err != nil {
@@ -93,7 +93,7 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 		if ok {
 			expectedVersion = existing.Version
 		}
-		if _, err := s.mcpStore.Put(ctx, s.actor, resources.Draft[aghconfig.MCPServer]{
+		if _, err := s.mcpStore.Put(ctx, s.actor, resources.Draft[compozyconfig.MCPServer]{
 			ID:              desiredServer.id,
 			Scope:           desiredServer.scope,
 			ExpectedVersion: expectedVersion,
@@ -136,7 +136,10 @@ func (d *Daemon) newToolMCPPublisher(
 		return nil, fmt.Errorf("daemon: create tool store: %w", err)
 	}
 
-	mcpCodec, err := resources.ResolveCodec[aghconfig.MCPServer](state.resourceCodecs, aghconfig.MCPServerResourceKind)
+	mcpCodec, err := resources.ResolveCodec[compozyconfig.MCPServer](
+		state.resourceCodecs,
+		compozyconfig.MCPServerResourceKind,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve mcp server codec: %w", err)
 	}

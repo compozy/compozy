@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// NetworkConversationSurface identifies an AGH conversation container.
+// NetworkConversationSurface identifies an Compozy conversation container.
 type NetworkConversationSurface string
 
 const (
@@ -23,7 +23,7 @@ func (s NetworkConversationSurface) Normalize() NetworkConversationSurface {
 	return NetworkConversationSurface(strings.ToLower(strings.TrimSpace(string(s))))
 }
 
-// NetworkConversationRef carries an explicit bridge-to-AGH conversation mapping.
+// NetworkConversationRef carries an explicit bridge-to-Compozy conversation mapping.
 type NetworkConversationRef struct {
 	Channel     string                     `json:"channel"`
 	Surface     NetworkConversationSurface `json:"surface"`
@@ -40,7 +40,7 @@ func NormalizeNetworkConversationRef(reference NetworkConversationRef) NetworkCo
 	return reference.normalize()
 }
 
-// Validate reports whether the mapping selects one AGH conversation.
+// Validate reports whether the mapping selects one Compozy conversation.
 func (r NetworkConversationRef) Validate() error {
 	normalized := r.normalize()
 	if err := requireField(normalized.Channel, "network conversation channel"); err != nil {
@@ -147,7 +147,7 @@ func (e InboundMessageEnvelope) Validate() error {
 	return normalized.validatePayload()
 }
 
-// NetworkConversationRef returns only the explicit AGH conversation mapping.
+// NetworkConversationRef returns only the explicit Compozy conversation mapping.
 func (e InboundMessageEnvelope) NetworkConversationRef() (NetworkConversationRef, bool, error) {
 	normalized := e.normalize()
 	if normalized.Conversation == nil {

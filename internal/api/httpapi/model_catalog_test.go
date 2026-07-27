@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
@@ -72,7 +72,7 @@ func TestHTTPModelCatalogRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose OpenAI model route with AGH metadata", func(t *testing.T) {
+	t.Run("Should expose OpenAI model route with Compozy metadata", func(t *testing.T) {
 		t.Parallel()
 
 		service := &httpModelCatalogServiceSpy{
@@ -91,7 +91,7 @@ func TestHTTPModelCatalogRoutes(t *testing.T) {
 		}
 		var payload contract.OpenAIModelListResponse
 		decodeJSONResponse(t, recorder, &payload)
-		if payload.Object != "list" || len(payload.Data) != 1 || payload.Data[0].AGH.ProviderID != "codex" {
+		if payload.Object != "list" || len(payload.Data) != 1 || payload.Data[0].Compozy.ProviderID != "codex" {
 			t.Fatalf("payload = %#v, want OpenAI list with compozy metadata", payload)
 		}
 	})
@@ -191,7 +191,7 @@ func newHTTPModelCatalogRouter(
 		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
+		agentLoader:  compozyconfig.LoadAgentDef,
 		httpPort:     cfg.HTTP.Port,
 		workspaces:   stubWorkspaceService{},
 		tasks:        &stubTaskManager{},

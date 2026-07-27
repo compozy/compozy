@@ -3,21 +3,21 @@ package settings
 import (
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // GeneralSettings groups the editable general section config.
 type GeneralSettings struct {
-	Defaults       aghconfig.DefaultsConfig
-	Limits         aghconfig.LimitsConfig
-	Permissions    aghconfig.PermissionsConfig
+	Defaults       compozyconfig.DefaultsConfig
+	Limits         compozyconfig.LimitsConfig
+	Permissions    compozyconfig.PermissionsConfig
 	SessionTimeout time.Duration
-	HTTP           aghconfig.HTTPConfig
-	Daemon         aghconfig.DaemonConfig
-	Redact         aghconfig.RedactConfig
+	HTTP           compozyconfig.HTTPConfig
+	Daemon         compozyconfig.DaemonConfig
+	Redact         compozyconfig.RedactConfig
 }
 
-func generalSettingsFromConfig(cfg *aghconfig.Config) GeneralSettings {
+func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
 	return GeneralSettings{
 		Defaults:       cfg.Defaults,
 		Limits:         cfg.Limits,

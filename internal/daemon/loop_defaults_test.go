@@ -3,7 +3,7 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 )
 
@@ -13,7 +13,7 @@ func TestLoopDefaultsFromConfigShouldMapDeliveryAndWatchDefaults(t *testing.T) {
 	t.Run("Should map delivery and watch defaults", func(t *testing.T) {
 		t.Parallel()
 
-		defaults := loopDefaultsFromConfig(aghconfig.DefaultLoopsConfig())
+		defaults := loopDefaultsFromConfig(compozyconfig.DefaultLoopsConfig())
 
 		assertIntPointer(t, "delivery iteration cap", defaults.Delivery.IterationCap, 50)
 		assertIntPointer(t, "delivery no-progress window", defaults.Delivery.NoProgressWindow, 3)
@@ -42,7 +42,7 @@ func TestLoopDefaultsFromConfigShouldMapDeliveryAndWatchDefaults(t *testing.T) {
 		}
 		assertIntPointer(t, "watch fan out width", defaults.Watch.FanOutWidth, 2)
 
-		cfg := aghconfig.DefaultLoopsConfig()
+		cfg := compozyconfig.DefaultLoopsConfig()
 		cfg.Defaults.Delivery.RuntimeDefaults.Worker.Model = "delivery-worker"
 		cfg.Defaults.Delivery.RuntimeDefaults.Judge.Model = "delivery-judge"
 		cfg.Defaults.Watch.RuntimeDefaults.Judge.Model = "watch-judge"

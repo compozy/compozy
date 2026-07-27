@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 	"github.com/compozy/compozy/internal/session"
@@ -36,11 +36,11 @@ func TestMemoryControllerRoleCallOptions(t *testing.T) {
 
 		global := roleResolverConfig()
 		workspace := global
-		workspace.Providers = map[string]aghconfig.ProviderConfig{
+		workspace.Providers = map[string]compozyconfig.ProviderConfig{
 			"gateway": {Command: "gateway acp"},
 			"backup":  {Command: "backup acp"},
 		}
-		workspace.Roles.MemoryController = aghconfig.MemoryControllerRoleConfig{
+		workspace.Roles.MemoryController = compozyconfig.MemoryControllerRoleConfig{
 			Enabled:         true,
 			Provider:        "gateway",
 			Model:           "workspace-controller",
@@ -49,12 +49,12 @@ func TestMemoryControllerRoleCallOptions(t *testing.T) {
 			TopK:            8,
 			PromptVersion:   "v2",
 			MaxTokensOut:    512,
-			FallbackChain: []aghconfig.RoleFallback{{
+			FallbackChain: []compozyconfig.RoleFallback{{
 				Provider: "backup",
 				Model:    "backup-controller",
 			}},
 		}
-		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
+		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
 			"ws-a": workspace,
 		}}, nil)
 		options, err := resolver.resolveMemoryControllerCallOptions(t.Context(), "ws-a")
@@ -77,8 +77,8 @@ func TestMemoryControllerRoleCallOptions(t *testing.T) {
 		cfg.Roles.MemoryController.Enabled = false
 		cfg.Roles.MemoryController.Provider = "model-required"
 		cfg.Roles.MemoryController.Model = ""
-		cfg.Providers["model-required"] = aghconfig.ProviderConfig{
-			Command: "pi-acp", Harness: aghconfig.ProviderHarnessPiACP,
+		cfg.Providers["model-required"] = compozyconfig.ProviderConfig{
+			Command: "pi-acp", Harness: compozyconfig.ProviderHarnessPiACP,
 		}
 
 		options, err := newRoleResolver(&cfg, nil, nil).resolveMemoryControllerCallOptions(t.Context(), "")
@@ -97,10 +97,10 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 		t.Parallel()
 
 		cfg := roleResolverConfig()
-		cfg.Providers = map[string]aghconfig.ProviderConfig{
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{
 			"mock": {Command: "mock acp"},
 		}
-		cfg.Roles.MemoryController = aghconfig.MemoryControllerRoleConfig{
+		cfg.Roles.MemoryController = compozyconfig.MemoryControllerRoleConfig{
 			Enabled:       true,
 			Provider:      "mock",
 			Model:         "controller-model",

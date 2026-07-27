@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -18,7 +18,7 @@ func TestAgentPayloadCategoryPath(t *testing.T) {
 	t.Run("Should copy category path from agent definition", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
+		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{
 			Name:         "coder",
 			Provider:     "fake",
 			CategoryPath: []string{"Marketing", "Sales"},
@@ -32,7 +32,7 @@ func TestAgentPayloadCategoryPath(t *testing.T) {
 	t.Run("Should defensively copy category path", func(t *testing.T) {
 		t.Parallel()
 
-		agent := aghconfig.AgentDef{
+		agent := compozyconfig.AgentDef{
 			Name:         "coder",
 			Provider:     "fake",
 			CategoryPath: []string{"Marketing", "Sales"},

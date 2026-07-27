@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/testutil"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestACPIntegrationRoundTrip(t *testing.T) {
@@ -53,7 +53,7 @@ func TestACPIntegrationReadTextFileRequest(t *testing.T) {
 
 		proc := startHelperProcess(t, driver, "fs_read", target, StartOpts{
 			Cwd:         root,
-			Permissions: aghconfig.PermissionModeApproveReads,
+			Permissions: compozyconfig.PermissionModeApproveReads,
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -82,7 +82,7 @@ func TestACPIntegrationToolHostFileWriteReadAndTerminal(t *testing.T) {
 		target := filepath.Join(root, "created.txt")
 		proc := startHelperProcess(t, driver, "fs_write_terminal", target, StartOpts{
 			Cwd:         root,
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -121,7 +121,7 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 		target := filepath.Join(root, "danger.txt")
 		proc := startHelperProcess(t, driver, "permission", target, StartOpts{
 			Cwd:         root,
-			Permissions: aghconfig.PermissionModeApproveReads,
+			Permissions: compozyconfig.PermissionModeApproveReads,
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -198,7 +198,7 @@ func TestACPIntegrationRequestPermissionTimeout(t *testing.T) {
 		target := filepath.Join(root, "danger.txt")
 		proc := startHelperProcess(t, driver, "permission", target, StartOpts{
 			Cwd:         root,
-			Permissions: aghconfig.PermissionModeApproveReads,
+			Permissions: compozyconfig.PermissionModeApproveReads,
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -240,16 +240,16 @@ func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
 
 		root := t.TempDir()
 		target := filepath.Join(root, "network.txt")
-		fakeAGH := filepath.Join(root, "agh")
-		if err := os.WriteFile(fakeAGH, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", fakeAGH, err)
+		fakeCompozy := filepath.Join(root, "compozy")
+		if err := os.WriteFile(fakeCompozy, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", fakeCompozy, err)
 		}
 		// not parallel: t.Setenv mutates process-wide PATH for the helper executable lookup.
 		t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 		proc := startHelperProcess(t, driver, "network_guardrails", target, StartOpts{
 			Cwd:         root,
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		proc.SetTurnSourceProvider(func() string { return "network" })
 		defer stopProcess(t, driver, proc)

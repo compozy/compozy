@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -44,7 +44,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 			ApplyRecords:  NewConfigApplyRecordRepository(db.DB(), nil),
 		})
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -108,7 +108,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{
 			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
 		})
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -127,7 +127,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 			t.Fatalf("ApplySection(roles) = %#v, want applied live record", result)
 		}
 
-		persisted, err := aghconfig.LoadForHome(homePaths)
+		persisted, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(persisted) error = %v", err)
 		}
@@ -147,18 +147,18 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		active.Roles.MemoryExtractor.FallbackChain = append(
 			active.Roles.MemoryExtractor.FallbackChain,
-			aghconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
+			compozyconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
 		)
-		active.RoleSources[aghconfig.RoleMemoryExtractor]["model"] = "mutated"
+		active.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] = "mutated"
 		isolated, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(after caller mutation) error = %v", err)
 		}
 		if slices.ContainsFunc(isolated.Roles.MemoryExtractor.FallbackChain, func(
-			fallback aghconfig.RoleFallback,
+			fallback compozyconfig.RoleFallback,
 		) bool {
 			return fallback.Provider == "mutated"
-		}) || isolated.RoleSources[aghconfig.RoleMemoryExtractor]["model"] == "mutated" {
+		}) || isolated.RoleSources[compozyconfig.RoleMemoryExtractor]["model"] == "mutated" {
 			t.Fatalf("ActiveConfig() retained caller-owned role state: %#v", isolated)
 		}
 		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
@@ -196,12 +196,12 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 				},
 			}},
 		})
-		cfg, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		cfg, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
 		if err != nil {
 			t.Fatalf("LoadForHome(workspace) error = %v", err)
 		}
 		roles := cfg.Roles
-		roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+		roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium",
 		}}
 
@@ -219,7 +219,7 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 			t.Fatalf("ApplySection(workspace roles) = %#v, want applied workspace config", result)
 		}
 
-		persisted, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		persisted, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
 		if err != nil {
 			t.Fatalf("LoadForHome(persisted workspace) error = %v", err)
 		}
@@ -246,10 +246,10 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Run("Should treat nil and empty role fallback chains as unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		current := aghconfig.DefaultRolesConfig()
-		desired := aghconfig.CloneRolesConfig(&current)
-		desired.Dream.FallbackChain = make([]aghconfig.RoleFallback, 0)
-		desired.MemoryController.FallbackChain = make([]aghconfig.RoleFallback, 0)
+		current := compozyconfig.DefaultRolesConfig()
+		desired := compozyconfig.CloneRolesConfig(&current)
+		desired.Dream.FallbackChain = make([]compozyconfig.RoleFallback, 0)
+		desired.MemoryController.FallbackChain = make([]compozyconfig.RoleFallback, 0)
 		if changed := diffRolesSettings(&current, &desired); len(changed) != 0 {
 			t.Fatalf("diffRolesSettings() = %#v, want no changes", changed)
 		}
@@ -443,7 +443,7 @@ cost_reasoning_per_million = 30
 				t.Fatalf("pending Network apply = %#v, want blocked restart-required result", pending)
 			}
 
-			desired, err := aghconfig.LoadForHome(homePaths)
+			desired, err := compozyconfig.LoadForHome(homePaths)
 			if err != nil {
 				t.Fatalf("LoadForHome(pending) error = %v", err)
 			}
@@ -490,7 +490,7 @@ cost_reasoning_per_million = 30
 			if active.Network != runtimeNetwork {
 				t.Fatalf("active Network = %#v, want runtime projection %#v", active.Network, runtimeNetwork)
 			}
-			desired, err = aghconfig.LoadForHome(homePaths)
+			desired, err = compozyconfig.LoadForHome(homePaths)
 			if err != nil {
 				t.Fatalf("LoadForHome(after live toggle) error = %v", err)
 			}
@@ -593,7 +593,7 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
 		})
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -711,7 +711,7 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
 		provider := mustFindProviderItem(t, envelope.Providers, "codex")
-		var model *aghconfig.ProviderModelConfig
+		var model *compozyconfig.ProviderModelConfig
 		for index := range provider.Settings.Models.Curated {
 			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
 				model = &provider.Settings.Models.Curated[index]
@@ -823,12 +823,12 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 				Name:              "codex",
 				Provider: &ProviderSettings{
 					ModelsSet: true,
-					Models: aghconfig.ProviderModelsConfig{
+					Models: compozyconfig.ProviderModelsConfig{
 						Default: "gpt-5.6-terra",
-						Reasoning: aghconfig.ProviderReasoningConfig{
-							Apply: aghconfig.ReasoningApplyACPOption,
+						Reasoning: compozyconfig.ProviderReasoningConfig{
+							Apply: compozyconfig.ReasoningApplyACPOption,
 						},
-						Curated: []aghconfig.ProviderModelConfig{{
+						Curated: []compozyconfig.ProviderModelConfig{{
 							ID: "gpt-5.6-terra",
 							ReasoningEfforts: []string{
 								"none",
@@ -896,7 +896,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
 			RuntimeApplier: applier,
 		})
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -927,28 +927,28 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 func TestReloadChangedPaths(t *testing.T) {
 	t.Parallel()
 
-	baseProvider := aghconfig.ProviderConfig{
+	baseProvider := compozyconfig.ProviderConfig{
 		Command: "codex",
-		Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-sol"},
+		Models:  compozyconfig.ProviderModelsConfig{Default: "gpt-5.6-sol"},
 	}
 	tests := []struct {
 		name            string
-		desiredProvider aghconfig.ProviderConfig
+		desiredProvider compozyconfig.ProviderConfig
 		want            []string
 	}{
 		{
 			name: "Should emit only the live model path for model-only changes",
-			desiredProvider: aghconfig.ProviderConfig{
+			desiredProvider: compozyconfig.ProviderConfig{
 				Command: "codex",
-				Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
+				Models:  compozyconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
 			},
 			want: []string{"providers.codex.models"},
 		},
 		{
 			name: "Should emit restart and live paths for mixed provider changes",
-			desiredProvider: aghconfig.ProviderConfig{
+			desiredProvider: compozyconfig.ProviderConfig{
 				Command: "codex-browser",
-				Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
+				Models:  compozyconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
 			},
 			want: []string{"providers.codex", "providers.codex.models"},
 		},
@@ -957,9 +957,9 @@ func TestReloadChangedPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			current := &aghconfig.Config{Providers: map[string]aghconfig.ProviderConfig{"codex": baseProvider}}
-			desired := &aghconfig.Config{
-				Providers: map[string]aghconfig.ProviderConfig{"codex": tt.desiredProvider},
+			current := &compozyconfig.Config{Providers: map[string]compozyconfig.ProviderConfig{"codex": baseProvider}}
+			desired := &compozyconfig.Config{
+				Providers: map[string]compozyconfig.ProviderConfig{"codex": tt.desiredProvider},
 			}
 			if got := reloadChangedPaths(current, desired); !slices.Equal(got, tt.want) {
 				t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, tt.want)
@@ -970,7 +970,7 @@ func TestReloadChangedPaths(t *testing.T) {
 	t.Run("Should emit every live Marketplace catalog path", func(t *testing.T) {
 		t.Parallel()
 
-		current := &aghconfig.Config{Marketplace: aghconfig.DefaultMarketplaceRuntimeConfig()}
+		current := &compozyconfig.Config{Marketplace: compozyconfig.DefaultMarketplaceRuntimeConfig()}
 		desired := *current
 		desired.Marketplace.Catalog.BaseURL = "https://catalog.example.test"
 		desired.Marketplace.Catalog.TTL = "30m"
@@ -989,7 +989,7 @@ func TestReloadChangedPaths(t *testing.T) {
 	t.Run("Should classify role mutations as live", func(t *testing.T) {
 		t.Parallel()
 
-		current := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		current := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		desired := current
 		desired.Roles.AutoTitle.Enabled = false
 
@@ -1005,7 +1005,7 @@ func TestReloadChangedPaths(t *testing.T) {
 	t.Run("Should emit the restart-required automation suggestion cap path", func(t *testing.T) {
 		t.Parallel()
 
-		current := &aghconfig.Config{}
+		current := &compozyconfig.Config{}
 		current.Automation.Suggestions.PendingCap = automationmodel.DefaultSuggestionPendingCap
 		desired := *current
 		desired.Automation.Suggestions.PendingCap = automationmodel.DefaultSuggestionPendingCap + 1
@@ -1022,7 +1022,7 @@ func TestReloadChangedPaths(t *testing.T) {
 	t.Run("Should emit a live window manager path", func(t *testing.T) {
 		t.Parallel()
 
-		current := &aghconfig.Config{WindowManager: aghconfig.DefaultWindowManagerConfig()}
+		current := &compozyconfig.Config{WindowManager: compozyconfig.DefaultWindowManagerConfig()}
 		desired := *current
 		desired.WindowManager.HistoryLimit++
 
@@ -1250,7 +1250,7 @@ featured = true
 		}
 		assertProviderModelHidden(t, activeProvider.Models, "gpt-5.6-sol")
 
-		desired, err := aghconfig.LoadForHome(homePaths)
+		desired, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(desired) error = %v", err)
 		}
@@ -1422,7 +1422,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 			ApplyRecords:  NewConfigApplyRecordRepository(db.DB(), nil),
 		})
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(initial) error = %v", err)
 		}
@@ -1438,7 +1438,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 			t.Fatal("ApplySection(skills).Applied = false, want true")
 		}
 
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(before automation) error = %v", err)
 		}
@@ -1466,13 +1466,18 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		if active.Automation.Enabled {
 			t.Fatal("ActiveConfig(after restart).Automation.Enabled = true, want false")
 		}
-		target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
-		if _, err := aghconfig.EditConfigOverlay(homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-			return editor.SetValue([]string{"automation", "enabled"}, true)
-		}); err != nil {
+		if _, err := compozyconfig.EditConfigOverlay(
+			homePaths,
+			"",
+			target,
+			func(editor *compozyconfig.OverlayEditor) error {
+				return editor.SetValue([]string{"automation", "enabled"}, true)
+			},
+		); err != nil {
 			t.Fatalf("EditConfigOverlay(automation.enabled=true) error = %v", err)
 		}
 
@@ -1534,7 +1539,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 			RuntimeApplier: applier,
 		})
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -1615,19 +1620,19 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 type fakeConfigRuntimeApplier struct {
 	failures  []ApplyFailure
 	calls     int
-	snapshots []aghconfig.Config
+	snapshots []compozyconfig.Config
 }
 
 type providerModelCurationRuntimeApplier struct {
 	catalog   *settingsModelCatalogStub
 	calls     int
 	err       error
-	snapshots []aghconfig.Config
+	snapshots []compozyconfig.Config
 }
 
 func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 	_ context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) []ApplyFailure {
 	a.calls++
 	if cfg == nil {
@@ -1638,7 +1643,7 @@ func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 	if err != nil {
 		return a.fail(err)
 	}
-	var curated *aghconfig.ProviderModelConfig
+	var curated *compozyconfig.ProviderModelConfig
 	for index := range provider.Models.Curated {
 		if provider.Models.Curated[index].ID == "gpt-5.6-sol" {
 			curated = &provider.Models.Curated[index]
@@ -1693,7 +1698,7 @@ func (a *providerModelCurationRuntimeApplier) fail(err error) []ApplyFailure {
 
 func assertProviderModelHidden(
 	t *testing.T,
-	models aghconfig.ProviderModelsConfig,
+	models compozyconfig.ProviderModelsConfig,
 	modelID string,
 ) {
 	t.Helper()
@@ -1710,7 +1715,7 @@ func assertProviderModelHidden(
 
 func providerModelCurationTestService(
 	t *testing.T,
-) (Service, aghconfig.HomePaths, *settingsModelCatalogStub, *providerModelCurationRuntimeApplier) {
+) (Service, compozyconfig.HomePaths, *settingsModelCatalogStub, *providerModelCurationRuntimeApplier) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -1775,7 +1780,7 @@ func providerModelCurationTestService(
 
 func (f *fakeConfigRuntimeApplier) ApplyActiveConfig(
 	_ context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) []ApplyFailure {
 	f.calls++
 	if cfg != nil {

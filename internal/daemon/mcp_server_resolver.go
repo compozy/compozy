@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/resources"
@@ -72,7 +72,7 @@ func resolveDaemonMCPServer(state *bootState, source toolspkg.SourceRef) (mcppkg
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP server %q is unavailable", name)
 }
 
-func globalResolvedMCPServer(server aghconfig.MCPServer) mcppkg.ResolvedServer {
+func globalResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {
 	name := strings.TrimSpace(server.Name)
 	return mcppkg.ResolvedServer{
 		Server: cloneDaemonMCPServer(server),
@@ -104,7 +104,7 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 	}
 	sources := make([]toolspkg.SourceRef, 0, len(state.cfg.MCPServers))
 	seen := map[string]struct{}{}
-	add := func(server aghconfig.MCPServer, source toolspkg.SourceRef) {
+	add := func(server compozyconfig.MCPServer, source toolspkg.SourceRef) {
 		name := strings.TrimSpace(server.Name)
 		if name == "" {
 			return

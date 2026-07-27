@@ -25,9 +25,9 @@ import { MARKDOWN_PROSE_COMPONENTS } from "./markdown-components";
  * cards, chat messages, tool-call panels) consumes the same contract.
  */
 /**
- * Canonical markdown primitive for the AGH runtime UI. Wraps `streamdown` with
+ * Canonical markdown primitive for the Compozy runtime UI. Wraps `streamdown` with
  * the `STREAMDOWN_SAFE_CONFIG` security contract and an explicit prose component
- * map driven by AGH design tokens, so every markdown surface — description cards,
+ * map driven by Compozy design tokens, so every markdown surface — description cards,
  * chat messages, tool call inputs/outputs — renders against the same grammar.
  *
  * Use `compact` for dense surfaces (tool call panels, inline previews); use

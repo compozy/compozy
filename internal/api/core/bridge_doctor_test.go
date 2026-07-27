@@ -16,7 +16,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +25,7 @@ func TestDoctorBridgeFilterRunsProviderVerification(t *testing.T) {
 	t.Run("Should return only bridge diagnostics with secret-slot remediation", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -55,7 +55,7 @@ func TestDoctorBridgeFilterRunsProviderVerification(t *testing.T) {
 			},
 		}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			Config:   aghconfig.DefaultWithHome(homePaths),
+			Config:   compozyconfig.DefaultWithHome(homePaths),
 			Observer: apitestutil.StubObserver{},
 			Sessions: apitestutil.StubSessionManager{},
 			Bridges:  bridges,

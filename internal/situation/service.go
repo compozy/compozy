@@ -5,7 +5,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -32,7 +32,7 @@ type WorkspaceResolver interface {
 
 // AgentResolver resolves one agent definition for a workspace.
 type AgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
 // SkillRegistry resolves the active skill set for a workspace.
@@ -66,7 +66,7 @@ type NetworkReader interface {
 
 // CoordinatorRoleResolver reads the safe coordinator limits for a workspace.
 type CoordinatorRoleResolver interface {
-	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error)
+	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error)
 }
 
 // SoulSnapshotStore loads immutable Soul snapshots for compact context projection.

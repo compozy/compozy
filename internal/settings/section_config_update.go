@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -51,7 +51,7 @@ func (s *service) updateRolesSection(
 	if req.Roles == nil {
 		return MutationResult{}, validationError(errors.New("settings: roles section payload is required"))
 	}
-	desired := aghconfig.CloneRolesConfig(req.Roles)
+	desired := compozyconfig.CloneRolesConfig(req.Roles)
 	if err := desired.Validate("roles", &loaded.config); err != nil {
 		return MutationResult{}, validationError(err)
 	}
@@ -63,7 +63,7 @@ func (s *service) updateRolesSection(
 		loaded.scope,
 		loaded.workspaceID,
 		loaded.workspaceRoot,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			return applyRolesSettings(editor, &desired)
 		},
 	)
@@ -83,7 +83,7 @@ func (s *service) updateGeneralSection(
 	desired := *req.General
 	desired.Daemon.ReloadTimeouts = normalizeDaemonReloadTimeouts(desired.Daemon.ReloadTimeouts)
 	changed := diffGeneralSettings(&cfg, desired)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyGeneralSettings(editor, desired)
 	})
 }
@@ -100,7 +100,7 @@ func (s *service) updateMemorySection(
 		return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
 	}
 	changed := diffMemorySettings(&cfg.Memory, req.Memory)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyMemorySettings(editor, req.Memory)
 	})
 }
@@ -117,7 +117,7 @@ func (s *service) updateAutomationSection(
 		return MutationResult{}, validationError(errors.New("settings: automation section payload is required"))
 	}
 	changed := diffAutomationSettings(&cfg, *req.Automation)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyAutomationSettings(editor, *req.Automation)
 	})
 }
@@ -134,7 +134,7 @@ func (s *service) updateNetworkSection(
 		return MutationResult{}, validationError(errors.New("settings: network section payload is required"))
 	}
 	changed := diffNetworkSettings(cfg.Network, *req.Network)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyNetworkSettings(editor, *req.Network)
 	})
 }
@@ -157,7 +157,7 @@ func (s *service) updateWindowManagerSection(
 	}
 	desired := cloneWindowManagerConfig(*req.WindowManager)
 	changed := diffWindowManagerSettings(cfg.WindowManager, desired)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyWindowManagerSettings(editor, desired)
 	})
 }
@@ -176,7 +176,7 @@ func (s *service) updateObservabilitySection(
 		)
 	}
 	changed := diffObservabilitySettings(cfg.Observability, *req.Observability)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyObservabilitySettings(editor, *req.Observability)
 	})
 }
@@ -195,7 +195,7 @@ func (s *service) updateHooksExtensionsSection(
 		)
 	}
 	changed := diffExtensionsSettings(cfg.Extensions, *req.HooksExtensions)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyExtensionsSettings(editor, *req.HooksExtensions)
 	})
 }
@@ -205,17 +205,17 @@ func (s *service) loadGlobalSectionUpdate(
 	section SectionName,
 	scope ScopeKind,
 	workspaceID string,
-) (aghconfig.Config, aghconfig.WriteTarget, error) {
+) (compozyconfig.Config, compozyconfig.WriteTarget, error) {
 	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeGlobal)
 	if err != nil {
-		return aghconfig.Config{}, aghconfig.WriteTarget{}, err
+		return compozyconfig.Config{}, compozyconfig.WriteTarget{}, err
 	}
 	return loaded.config, loaded.target, nil
 }
 
 type scopedSectionUpdate struct {
-	config        aghconfig.Config
-	target        aghconfig.WriteTarget
+	config        compozyconfig.Config
+	target        compozyconfig.WriteTarget
 	scope         ScopeKind
 	workspaceID   string
 	workspaceRoot string
@@ -253,16 +253,16 @@ func (s *service) loadScopedSectionUpdate(
 		)
 	}
 
-	writeScope := aghconfig.WriteScopeGlobal
+	writeScope := compozyconfig.WriteScopeGlobal
 	workspaceRoot := ""
 	if normalizedScope == ScopeWorkspace {
 		if resolved == nil {
 			return scopedSectionUpdate{}, errors.New("settings: resolved workspace is required for section update")
 		}
-		writeScope = aghconfig.WriteScopeWorkspace
+		writeScope = compozyconfig.WriteScopeWorkspace
 		workspaceRoot = resolved.RootDir
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: resolve section %q write target: %w",
@@ -291,8 +291,8 @@ func (s *service) loadRolesSectionUpdate(
 func (s *service) updateConfigSection(
 	section SectionName,
 	changed []string,
-	target aghconfig.WriteTarget,
-	mutate func(*aghconfig.OverlayEditor) error,
+	target compozyconfig.WriteTarget,
+	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
 	return s.updateScopedConfigSection(section, changed, target, ScopeGlobal, "", "", mutate)
 }
@@ -300,11 +300,11 @@ func (s *service) updateConfigSection(
 func (s *service) updateScopedConfigSection(
 	section SectionName,
 	changed []string,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	scope ScopeKind,
 	workspaceID string,
 	workspaceRoot string,
-	mutate func(*aghconfig.OverlayEditor) error,
+	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
 	if len(changed) == 0 {
 		return MutationResult{
@@ -324,7 +324,7 @@ func (s *service) updateScopedConfigSection(
 		return MutationResult{}, err
 	}
 
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, workspaceRoot, target, mutate); err != nil {
+	if _, err := compozyconfig.EditConfigOverlay(s.homePaths, workspaceRoot, target, mutate); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: write section %q: %w", section, err)
 	}
 

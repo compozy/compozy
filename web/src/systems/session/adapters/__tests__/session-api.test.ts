@@ -776,7 +776,7 @@ describe("fetchSessionTranscript", () => {
     });
   });
 
-  it("returns AGH errored tool parts with raw output payloads", async () => {
+  it("returns Compozy errored tool parts with raw output payloads", async () => {
     const blockedTranscript = {
       epoch: 1,
       generation: 1,

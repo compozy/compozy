@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -195,7 +195,7 @@ func (e *ErrCapabilityDenied) Code() int {
 type CapabilityChecker struct {
 	mu             sync.RWMutex
 	grants         map[string]capabilityGrant
-	resourcePolicy aghconfig.ExtensionsResourcesConfig
+	resourcePolicy compozyconfig.ExtensionsResourcesConfig
 }
 
 type capabilityGrant struct {
@@ -275,7 +275,7 @@ func (c *CapabilityChecker) Grant(extName string) EffectiveGrant {
 }
 
 // SetResourcePolicy installs the operator-configured extension resource policy.
-func (c *CapabilityChecker) SetResourcePolicy(policy aghconfig.ExtensionsResourcesConfig) {
+func (c *CapabilityChecker) SetResourcePolicy(policy compozyconfig.ExtensionsResourcesConfig) {
 	if c == nil {
 		return
 	}

@@ -13,7 +13,7 @@ var (
 		"---",
 		"name: shared",
 		"description: parser benchmark",
-		"owner: agh",
+		"owner: compozy",
 		"scope: internal",
 		"tags:",
 		"  - parser",

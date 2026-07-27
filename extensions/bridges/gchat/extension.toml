@@ -22,7 +22,7 @@ description = "Google Cloud project number used for direct webhook JWT verificat
 required = false
 
 [bridge.config_schema]
-schema = "agh.bridge.gchat"
+schema = "compozy.bridge.gchat"
 version = "1"
 
 [actions]

@@ -135,7 +135,7 @@ func (p SessionCreationProfile) PolicySpecDigest() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "policy:sha256:" + sha256Hex(append([]byte("agh-session-policy-v1\x00"), payload...)), nil
+	return "policy:sha256:" + sha256Hex(append([]byte("compozy-session-policy-v1\x00"), payload...)), nil
 }
 
 // CreationDigest binds a stable policy to one preallocated session identity.

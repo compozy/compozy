@@ -78,7 +78,7 @@ export function greet(name: string): string {
 \`\`\`
 
 \`\`\`bash
-agh session list --workspace risk
+compozy session list --workspace risk
 \`\`\`
 
 \`\`\`json

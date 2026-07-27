@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -266,7 +266,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 		SessionTimeout: "bad",
 		HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-		Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+		Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 	}); err == nil {
 		t.Fatal("generalSettingsFromPayload(invalid timeout) error = nil, want non-nil")
 	}
@@ -281,7 +281,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 			SessionTimeout: "30m",
 			HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 			Daemon: contract.SettingsDaemonPayload{
-				Socket:               "/tmp/agh.sock",
+				Socket:               "/tmp/compozy.sock",
 				MemoryReportInterval: "invalid",
 			},
 		}
@@ -290,11 +290,11 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		}
 	})
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	memoryConfig := aghconfig.DefaultWithHome(homePaths).Memory
+	memoryConfig := compozyconfig.DefaultWithHome(homePaths).Memory
 	memoryPayload := settingsMemoryConfigPayload(&memoryConfig)
 	memoryPayload.Dream.CheckInterval = "bad"
 	if _, err := memoryConfigFromPayload(&memoryPayload); err == nil {
@@ -458,7 +458,7 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 				Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 				SessionTimeout: "30m",
 				HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-				Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+				Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				Redact:         contract.SettingsRedactPayload{Enabled: enabled},
 			}
 			settings, err := generalSettingsFromPayload(payload)
@@ -478,11 +478,11 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 func TestMemorySettingsPayloadRoundTripIncludesV2Config(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	want := aghconfig.DefaultWithHome(homePaths).Memory
+	want := compozyconfig.DefaultWithHome(homePaths).Memory
 	want.GlobalDir = "/tmp/roundtrip-memory"
 	want.Controller.Mode = "rules"
 	want.Controller.Policy.AllowOrigins = []string{"cli", "tool"}

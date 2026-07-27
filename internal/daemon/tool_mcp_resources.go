@@ -7,7 +7,7 @@ import (
 
 	"log/slog"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -20,7 +20,7 @@ const (
 
 type toolMCPPublisher interface {
 	Sync(context.Context) error
-	SyncConfig(context.Context, *aghconfig.Config) error
+	SyncConfig(context.Context, *compozyconfig.Config) error
 }
 
 type toolMCPPublisherFunc func(context.Context) error
@@ -32,7 +32,7 @@ func (f toolMCPPublisherFunc) Sync(ctx context.Context) error {
 	return f(ctx)
 }
 
-func (f toolMCPPublisherFunc) SyncConfig(ctx context.Context, _ *aghconfig.Config) error {
+func (f toolMCPPublisherFunc) SyncConfig(ctx context.Context, _ *compozyconfig.Config) error {
 	return f.Sync(ctx)
 }
 
@@ -45,7 +45,7 @@ type toolPublicationInput struct {
 type mcpServerPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
-	spec      aghconfig.MCPServer
+	spec      compozyconfig.MCPServer
 }
 
 type toolMCPDesiredResources struct {
@@ -55,14 +55,14 @@ type toolMCPDesiredResources struct {
 
 type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, error)
 
-type toolMCPConfigDeclarationProvider func(context.Context, *aghconfig.Config) (toolMCPDesiredResources, error)
+type toolMCPConfigDeclarationProvider func(context.Context, *compozyconfig.Config) (toolMCPDesiredResources, error)
 
 type toolMCPSourceSyncer struct {
 	raw       resources.RawStore
 	toolStore resources.Store[toolspkg.Tool]
 	toolCodec resources.KindCodec[toolspkg.Tool]
-	mcpStore  resources.Store[aghconfig.MCPServer]
-	mcpCodec  resources.KindCodec[aghconfig.MCPServer]
+	mcpStore  resources.Store[compozyconfig.MCPServer]
+	mcpCodec  resources.KindCodec[compozyconfig.MCPServer]
 	actor     resources.MutationActor
 	logger    *slog.Logger
 	trigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
@@ -74,8 +74,8 @@ func newToolMCPSourceSyncer(
 	raw resources.RawStore,
 	toolStore resources.Store[toolspkg.Tool],
 	toolCodec resources.KindCodec[toolspkg.Tool],
-	mcpStore resources.Store[aghconfig.MCPServer],
-	mcpCodec resources.KindCodec[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
+	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
 	actor resources.MutationActor,
 	logger *slog.Logger,
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
@@ -99,8 +99,8 @@ func newToolMCPSourceSyncerWithConfigProvider(
 	raw resources.RawStore,
 	toolStore resources.Store[toolspkg.Tool],
 	toolCodec resources.KindCodec[toolspkg.Tool],
-	mcpStore resources.Store[aghconfig.MCPServer],
-	mcpCodec resources.KindCodec[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
+	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
 	actor resources.MutationActor,
 	logger *slog.Logger,
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
@@ -143,11 +143,11 @@ func (s *toolMCPSourceSyncer) Sync(ctx context.Context) error {
 	return s.syncConfig(ctx, nil)
 }
 
-func (s *toolMCPSourceSyncer) SyncConfig(ctx context.Context, cfg *aghconfig.Config) error {
+func (s *toolMCPSourceSyncer) SyncConfig(ctx context.Context, cfg *compozyconfig.Config) error {
 	return s.syncConfig(ctx, cfg)
 }
 
-func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *aghconfig.Config) error {
+func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *compozyconfig.Config) error {
 	if s == nil {
 		return nil
 	}
@@ -175,7 +175,7 @@ func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *aghconfig.Con
 		}
 	}
 	if mcpChanged && s.trigger != nil {
-		if err := s.trigger(ctx, aghconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
+		if err := s.trigger(ctx, compozyconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
 			return err
 		}
 	}
@@ -193,11 +193,11 @@ type desiredToolResource struct {
 type desiredMCPServerResource struct {
 	id      string
 	scope   resources.ResourceScope
-	spec    aghconfig.MCPServer
+	spec    compozyconfig.MCPServer
 	encoded []byte
 }
 
-func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *aghconfig.Config) (struct {
+func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozyconfig.Config) (struct {
 	tools      map[string]*desiredToolResource
 	mcpServers map[string]desiredMCPServerResource
 }, error) {

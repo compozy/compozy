@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -105,7 +105,7 @@ type RuntimeArtifactManifest struct {
 	CapturedArtifacts    ArtifactManifest         `json:"captured_artifacts"`
 }
 
-// RuntimeHomeArtifact captures the isolated AGH home layout used by a harness.
+// RuntimeHomeArtifact captures the isolated Compozy home layout used by a harness.
 type RuntimeHomeArtifact struct {
 	HomeDir          string `json:"home_dir,omitempty"`
 	ConfigFile       string `json:"config_file,omitempty"`
@@ -156,12 +156,12 @@ type TransportOutputArtifact struct {
 // SessionSandboxArtifact captures both the public session sandbox
 // projection and the fuller persisted metadata stored on disk for one session.
 type SessionSandboxArtifact struct {
-	SessionID    string                             `json:"session_id"`
-	SessionState string                             `json:"session_state,omitempty"`
-	StopReason   store.StopReason                   `json:"stop_reason,omitempty"`
-	StopDetail   string                             `json:"stop_detail,omitempty"`
-	API          *aghcontract.SessionSandboxPayload `json:"api,omitempty"`
-	Persisted    *store.SessionSandboxMeta          `json:"persisted,omitempty"`
+	SessionID    string                                 `json:"session_id"`
+	SessionState string                                 `json:"session_state,omitempty"`
+	StopReason   store.StopReason                       `json:"stop_reason,omitempty"`
+	StopDetail   string                                 `json:"stop_detail,omitempty"`
+	API          *compozycontract.SessionSandboxPayload `json:"api,omitempty"`
+	Persisted    *store.SessionSandboxMeta              `json:"persisted,omitempty"`
 }
 
 // ToolHostOperationOutcome classifies one tool-host operation result.

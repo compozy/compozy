@@ -276,7 +276,7 @@ compozy memory decisions list --filename project_checkpoint_summary.md -o json
 compozy memory decisions revert <decision-id>
 ```
 
-New sessions receive the complete checkpoint in an `<agh_checkpoint_summary>` block after their
+New sessions receive the complete checkpoint in a `<compozy_checkpoint_summary>` block after their
 frozen memory indexes. When ACP session loading is unavailable or its saved provider session is
 missing, degraded resume places that checkpoint before the pruned transcript replay. The block is
 reference-only historical context: it cannot replace the current user request. Workspace identity

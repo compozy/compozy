@@ -14,7 +14,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -55,7 +55,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 	t.Run("Should kill wrapped terminal process trees", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		pidFile := filepath.Join(t.TempDir(), "terminal-child.pid")
 
 		createResult, reqErr := proc.handleInbound(

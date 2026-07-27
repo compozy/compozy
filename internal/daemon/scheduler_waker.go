@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -234,7 +234,7 @@ func schedulerHeartbeatWakeRequest(
 func (w *schedulerSessionWaker) configureHeartbeatWake(
 	store any,
 	sessions SessionManager,
-	config aghconfig.HeartbeatConfig,
+	config compozyconfig.HeartbeatConfig,
 ) error {
 	if w == nil || !config.Enabled {
 		return nil

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providerauth"
@@ -103,17 +103,17 @@ type Classification struct {
 // ClassifyDeclared classifies provider readiness without executing a probe.
 func ClassifyDeclared(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) (Classification, error) {
 	authMode := provider.EffectiveAuthMode()
-	if authMode == aghconfig.ProviderAuthModeNone {
+	if authMode == compozyconfig.ProviderAuthModeNone {
 		return Classification{
 			State:   ProviderAuthStateNone,
 			Message: ProviderAuthNoAuthRequiredMessage,
 		}, nil
 	}
-	if authMode == aghconfig.ProviderAuthModeBoundSecret {
+	if authMode == compozyconfig.ProviderAuthModeBoundSecret {
 		statuses, err := CredentialStatuses(ctx, provider, env)
 		if err != nil {
 			return Classification{}, err
@@ -123,7 +123,7 @@ func ClassifyDeclared(
 		}
 		return Classification{
 			State:   ProviderAuthStateAuthenticated,
-			Message: "Required AGH-managed provider credentials are present.",
+			Message: "Required Compozy-managed provider credentials are present.",
 		}, nil
 	}
 	nativeCLI, err := NativeCLIStatus(provider, env)
@@ -144,7 +144,7 @@ func ClassifyDeclared(
 
 // ClassifyProbe classifies a live provider auth status command outcome.
 func ClassifyProbe(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	outcome ProbeOutcome,
 	env *ProbeEnv,
 ) (state string, code string, message string) {
@@ -154,12 +154,12 @@ func ClassifyProbe(
 
 // ClassifyProbeResult returns the full canonical classifier result.
 func ClassifyProbeResult(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	outcome ProbeOutcome,
 	env *ProbeEnv,
 ) Classification {
 	authMode := provider.EffectiveAuthMode()
-	if authMode == aghconfig.ProviderAuthModeNone {
+	if authMode == compozyconfig.ProviderAuthModeNone {
 		return Classification{
 			State:   ProviderAuthStateNone,
 			Message: ProviderAuthNoAuthRequiredMessage,
@@ -186,19 +186,19 @@ func ClassifyProbeResult(
 	return Classification{
 		State:   ProviderAuthStateUnknown,
 		Code:    diagcontract.CodeProviderClassificationUnknown,
-		Message: "Provider auth probe completed but AGH could not classify the result.",
+		Message: "Provider auth probe completed but Compozy could not classify the result.",
 		Kind:    ProviderFailureUnknown,
 		Action:  ProviderFailureActionInspect,
 	}
 }
 
 func classifyNativeCLIProbePrecondition(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
-	authMode aghconfig.ProviderAuthMode,
+	authMode compozyconfig.ProviderAuthMode,
 	combined string,
 ) (*providerauth.NativeCLIStatus, Classification, bool) {
-	if authMode != aghconfig.ProviderAuthModeNativeCLI {
+	if authMode != compozyconfig.ProviderAuthModeNativeCLI {
 		return nil, Classification{}, false
 	}
 	nativeCLI, err := NativeCLIStatus(provider, env)
@@ -211,7 +211,7 @@ func classifyNativeCLIProbePrecondition(
 	return nativeCLI, Classification{}, false
 }
 
-func classifyProbeOutput(provider aghconfig.ProviderConfig, combined string) (Classification, bool) {
+func classifyProbeOutput(provider compozyconfig.ProviderConfig, combined string) (Classification, bool) {
 	switch {
 	case hasAny(
 		combined,
@@ -325,9 +325,9 @@ func missingCredentialClassification(missing CredentialStatus) Classification {
 	if target == "" {
 		target = strings.TrimSpace(missing.Name)
 	}
-	message := "Required AGH-managed provider credential is unresolved."
+	message := "Required Compozy-managed provider credential is unresolved."
 	if target != "" {
-		message = fmt.Sprintf("Required AGH-managed provider credential %q is unresolved.", target)
+		message = fmt.Sprintf("Required Compozy-managed provider credential %q is unresolved.", target)
 	}
 	return Classification{
 		State:   ProviderAuthStateMissingCredential,
@@ -340,7 +340,7 @@ func missingCredentialClassification(missing CredentialStatus) Classification {
 
 func missingCLIClassification(
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	nativeCLI *providerauth.NativeCLIStatus,
 ) Classification {
 	message := providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
@@ -353,7 +353,7 @@ func missingCLIClassification(
 	}
 }
 
-func loginGuidance(provider aghconfig.ProviderConfig) string {
+func loginGuidance(provider compozyconfig.ProviderConfig) string {
 	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
 		return fmt.Sprintf("Provider is not authenticated; run %q in a local terminal.", loginCommand)
 	}

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
@@ -49,28 +49,28 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot global config %q: %w", r.homePaths.ConfigFile, err)
 	}
 	if err := addSnapshotIfExists(
-		filepath.Join(r.homePaths.HomeDir, aghconfig.MCPJSONName),
+		filepath.Join(r.homePaths.HomeDir, compozyconfig.MCPJSONName),
 		scan.snapshots,
 	); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot global MCP JSON %q: %w", r.homePaths.HomeDir, err)
 	}
 	if err := addSnapshotIfExists(
-		filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.ConfigName),
+		filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
 		scan.snapshots,
 	); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
 	}
-	if err := addDependencySnapshot(aghconfig.WorkspaceDotEnvFile(ws.RootDir), scan.snapshots); err != nil {
+	if err := addDependencySnapshot(compozyconfig.WorkspaceDotEnvFile(ws.RootDir), scan.snapshots); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace dotenv %q: %w", ws.RootDir, err)
 	}
 	if err := addSnapshotIfExists(
-		filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.MCPJSONName),
+		filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName),
 		scan.snapshots,
 	); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
 	}
 
-	for _, root := range aghconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
+	for _, root := range compozyconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
 		if err := checkContext(ctx); err != nil {
 			return workspaceScan{}, err
 		}
@@ -87,7 +87,7 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 }
 
 func scanAgentSource(
-	root aghconfig.WorkspaceDiscoveryRoot,
+	root compozyconfig.WorkspaceDiscoveryRoot,
 	snapshots map[string]filesnap.Snapshot,
 	dst *[]agentCandidate,
 ) error {
@@ -111,7 +111,7 @@ func scanAgentSource(
 
 		agentDir := filepath.Join(agentsDir, entry.Name())
 		agentPath := filepath.Join(agentsDir, entry.Name(), agentDefinitionFile)
-		if err := addSnapshotIfExists(filepath.Join(agentDir, aghconfig.MCPJSONName), snapshots); err != nil {
+		if err := addSnapshotIfExists(filepath.Join(agentDir, compozyconfig.MCPJSONName), snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot agent MCP sidecar %q: %w", agentDir, err)
 		}
 		if err := addSnapshotIfExists(agentPath, snapshots); err != nil {
@@ -120,7 +120,7 @@ func scanAgentSource(
 		if _, ok := snapshots[agentPath]; !ok {
 			continue
 		}
-		if aghconfig.IsReservedAgentName(entry.Name()) {
+		if compozyconfig.IsReservedAgentName(entry.Name()) {
 			*dst = append(*dst, agentCandidate{path: agentPath})
 			continue
 		}
@@ -137,7 +137,7 @@ func scanAgentSource(
 }
 
 func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.Snapshot) error {
-	paths, err := aghconfig.AgentCapabilityCatalogDependencyPaths(agentDir)
+	paths, err := compozyconfig.AgentCapabilityCatalogDependencyPaths(agentDir)
 	if err != nil {
 		return fmt.Errorf("workspace: enumerate agent capability catalog %q: %w", agentDir, err)
 	}
@@ -150,7 +150,7 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 }
 
 func scanSkillSource(
-	root aghconfig.WorkspaceDiscoveryRoot,
+	root compozyconfig.WorkspaceDiscoveryRoot,
 	snapshots map[string]filesnap.Snapshot,
 	dst *[]skillCandidate,
 ) error {
@@ -177,7 +177,7 @@ func scanSkillSource(
 		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
 		}
-		if err := addSnapshotIfExists(filepath.Join(skillDir, aghconfig.MCPJSONName), snapshots); err != nil {
+		if err := addSnapshotIfExists(filepath.Join(skillDir, compozyconfig.MCPJSONName), snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill MCP sidecar %q: %w", skillDir, err)
 		}
 		if err := addSnapshotIfExists(skillFile, snapshots); err != nil {
@@ -197,12 +197,12 @@ func scanSkillSource(
 	return nil
 }
 
-func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.AgentDef, []AgentDiagnostic, error) {
+func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconfig.AgentDef, []AgentDiagnostic, error) {
 	if len(candidates) == 0 {
 		return nil, nil, nil
 	}
 
-	agents := make([]aghconfig.AgentDef, 0, len(candidates))
+	agents := make([]compozyconfig.AgentDef, 0, len(candidates))
 	diagnostics := make([]AgentDiagnostic, 0)
 	seen := make(map[string]struct{}, len(candidates))
 
@@ -212,17 +212,17 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.A
 		}
 
 		candidateName := filepath.Base(filepath.Dir(candidate.path))
-		if aghconfig.IsReservedAgentName(candidateName) {
+		if compozyconfig.IsReservedAgentName(candidateName) {
 			diagnostics = append(diagnostics, reservedAgentDiagnostic(candidate.path, candidateName))
 			continue
 		}
 
-		agent, err := aghconfig.LoadAgentDefFile(candidate.path)
+		agent, err := compozyconfig.LoadAgentDefFile(candidate.path)
 		if err != nil {
 			diagnostics = append(diagnostics, agentDiagnosticFromError(candidate.path, err))
 			continue
 		}
-		if aghconfig.IsReservedAgentName(agent.Name) {
+		if compozyconfig.IsReservedAgentName(agent.Name) {
 			diagnostics = append(diagnostics, reservedAgentDiagnostic(candidate.path, agent.Name))
 			continue
 		}
@@ -260,13 +260,13 @@ func agentDiagnosticFromError(path string, err error) AgentDiagnostic {
 
 func agentDiagnosticKind(err error) string {
 	switch {
-	case errors.Is(err, aghconfig.ErrMissingAgentFrontmatter):
+	case errors.Is(err, compozyconfig.ErrMissingAgentFrontmatter):
 		return "frontmatter.missing"
-	case errors.Is(err, aghconfig.ErrUnterminatedAgentFrontmatter):
+	case errors.Is(err, compozyconfig.ErrUnterminatedAgentFrontmatter):
 		return "frontmatter.unterminated"
-	case errors.Is(err, aghconfig.ErrBOMAgentFrontmatter):
+	case errors.Is(err, compozyconfig.ErrBOMAgentFrontmatter):
 		return "frontmatter.bom"
-	case errors.Is(err, aghconfig.ErrInvalidAgentFrontmatterKey):
+	case errors.Is(err, compozyconfig.ErrInvalidAgentFrontmatterKey):
 		return "frontmatter.invalid_key"
 	default:
 		return "frontmatter.invalid"

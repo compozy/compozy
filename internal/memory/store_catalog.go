@@ -11,7 +11,7 @@ import (
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type scanCandidate struct {
@@ -53,7 +53,7 @@ func (s *Store) normalizeScopeAndWorkspace(
 	}
 	workspaceID := ""
 	if workspaceRoot != "" {
-		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+		identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 		if err != nil {
 			return "", "", "", fmt.Errorf("memory: resolve workspace identity for %q: %w", workspaceRoot, err)
 		}
@@ -71,7 +71,7 @@ func (s *Store) workspaceIDForRoot(ctx context.Context, workspaceRoot string) (s
 			errors.New("workspace directory is required"),
 		)
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, root)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, root)
 	if err != nil {
 		return "", fmt.Errorf("memory: resolve workspace identity for %q: %w", root, err)
 	}

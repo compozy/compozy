@@ -10,7 +10,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -86,8 +86,8 @@ func (s *ResourceStore) sameJob(record resources.Record[automationpkg.Job], desi
 }
 
 func (s *ResourceStore) sameAgent(
-	record resources.Record[aghconfig.AgentDef],
-	desired aghconfig.AgentDef,
+	record resources.Record[compozyconfig.AgentDef],
+	desired compozyconfig.AgentDef,
 ) bool {
 	return sameEncodedSpec(s.agentCodec, record.Scope, record.Spec, desired)
 }

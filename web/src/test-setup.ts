@@ -29,7 +29,7 @@ function createMemoryStorage(): Storage {
 function storageIsUsable(storage: Storage | undefined): storage is Storage {
   if (!storage) return false;
   try {
-    const probeKey = "__agh_test_storage_probe__";
+    const probeKey = "__compozy_test_storage_probe__";
     storage.setItem(probeKey, "1");
     storage.removeItem(probeKey);
     return true;

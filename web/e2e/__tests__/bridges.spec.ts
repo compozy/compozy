@@ -114,16 +114,17 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await bridgeUI.createBridgeButton.click();
   await expect(bridgeUI.createDialog).toBeVisible();
   await bridgeUI.providerCard(createdBridgeProviderKey).click();
-  await expect(bridgeUI.createWizardNext).toBeEnabled();
-  await bridgeUI.createWizardNext.click();
   await bridgeUI.createDisplayNameInput.fill(createdBridgeName);
+  await bridgeUI.createModeAdvanced.click();
   await bridgeUI.createProviderConfigInput.fill("{invalid");
-  await expect(bridgeUI.createWizardNext).toBeDisabled();
+  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
   await bridgeUI.createProviderConfigInput.fill(
     JSON.stringify(browserBridgeOperatorFlowScenario.bridge.initialProviderConfig, null, 2)
   );
-  await expect(bridgeUI.createWizardNext).toBeEnabled();
-  await bridgeUI.createWizardNext.click();
+  await bridgeUI.createDialog
+    .getByTestId("bridge-create-secret-bot_token")
+    .locator("input")
+    .fill(bridgeRawSecret);
   await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
 
   const createResponsePromise = appPage.waitForResponse(response => {
@@ -165,6 +166,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(bridgeUI.editDialog).toBeVisible();
 
   await bridgeUI.editDisplayNameInput.fill(browserBridgeOperatorFlowScenario.bridge.editedName);
+  await bridgeUI.editModeAdvanced.click();
   await bridgeUI.editProviderConfigInput.fill(
     JSON.stringify(browserBridgeOperatorFlowScenario.bridge.editedProviderConfig, null, 2)
   );
@@ -288,12 +290,11 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.createDialog).toBeVisible();
   await expect(bridgeUI.providerCard(providerKey)).toBeVisible();
   await bridgeUI.providerCard(providerKey).click();
-  await expect(bridgeUI.createWizardNext).toBeEnabled();
-  await bridgeUI.createWizardNext.click();
+  await bridgeUI.createModeAdvanced.click();
 
   await bridgeUI.createProviderConfigInput.fill("{invalid-json");
   await expect(bridgeUI.createProviderConfigError).toBeVisible();
-  await expect(bridgeUI.createWizardNext).toBeDisabled();
+  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
   await browserArtifacts.captureScreenshot("bridge-create-invalid-provider-config", appPage);
 
   await bridgeUI.createProviderConfigInput.fill(
@@ -307,12 +308,15 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     )
   );
   await bridgeUI.createDisplayNameInput.fill(createdName);
-  await bridgeUI.createScopeSelect.selectOption("workspace");
-  await expect(bridgeUI.createWizardNext).toBeEnabled();
-  await bridgeUI.createWizardNext.click();
+  await bridgeUI.createScopeWorkspace.click();
+  await expect(bridgeUI.createScopeWorkspace).toHaveAttribute("aria-pressed", "true");
   await bridgeUI.createDeliveryModeSelect.selectOption("direct-send");
   await bridgeUI.createDeliveryPeerInput.fill("telegram-peer-lifecycle");
   await bridgeUI.createDeliveryThreadInput.fill("777");
+  await bridgeUI.createDialog
+    .getByTestId(`bridge-create-secret-${browserBridgeOperatorFlowScenario.secretBinding.name}`)
+    .locator("input")
+    .fill(browserBridgeOperatorFlowScenario.secretBinding.value);
   await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
   await bridgeUI.submitBridgeCreate.click();
 
@@ -320,8 +324,10 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   const createdBridge = await waitForBridgeByName(runtime, createdName);
   await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(createdBridge.id)}$`));
   await expect(windowTitle(bridgesWin)).toContainText(createdName);
-  await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
-  await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
+  await expect(
+    bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
+  ).toContainText("BOUND");
+  await browserArtifacts.captureScreenshot("bridge-created-bound", appPage);
 
   const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "disabled");
   expect(initialSnapshots.http.bridge.id).toBe(createdBridge.id);

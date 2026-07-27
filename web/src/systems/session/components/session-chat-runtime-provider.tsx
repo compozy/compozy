@@ -4,7 +4,7 @@ import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assista
 import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
 import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
 import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
-import { AghEventDataUI, AghPermissionDataUI } from "../lib/session-data-ui";
+import { CompozyEventDataUI, CompozyPermissionDataUI } from "../lib/session-data-ui";
 import { sessionToolkit } from "../lib/session-toolkit";
 import { SessionRuntimeRenderProvider } from "../lib/session-runtime-render-context";
 import { SessionTranscriptThreadProvider } from "../lib/session-transcript-thread-context";
@@ -37,8 +37,8 @@ function SessionRuntimeExtensions({
         loadOlder={transcript.loadOlder}
         retry={transcript.retry}
       >
-        <AghPermissionDataUI />
-        <AghEventDataUI />
+        <CompozyPermissionDataUI />
+        <CompozyEventDataUI />
         {children}
       </SessionTranscriptThreadProvider>
     </SessionRuntimeRenderProvider>

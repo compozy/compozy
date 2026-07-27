@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -16,7 +16,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 
 		spawner := starvationSpawner{
 			workspaces: &fakeSpawnWorkspaceResolver{
-				resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+				resolved: workspacepkg.ResolvedWorkspace{Agents: []compozyconfig.AgentDef{
 					spawnAgentDef("zeta-agent", "go", "sqlite"),
 					spawnAgentDef("alpha-agent", "go", "sqlite"),
 				}},
@@ -44,7 +44,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 
 		spawner := starvationSpawner{
 			workspaces: &fakeSpawnWorkspaceResolver{
-				resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+				resolved: workspacepkg.ResolvedWorkspace{Agents: []compozyconfig.AgentDef{
 					spawnAgentDef("docs-agent", "docs"),
 				}},
 			},
@@ -65,7 +65,7 @@ func TestStarvationSpawnerResolveAgent(t *testing.T) {
 
 		spawner := starvationSpawner{
 			workspaces: &fakeSpawnWorkspaceResolver{
-				resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+				resolved: workspacepkg.ResolvedWorkspace{Agents: []compozyconfig.AgentDef{
 					spawnAgentDef("zeta-agent"),
 					spawnAgentDef("alpha-agent"),
 				}},
@@ -104,13 +104,13 @@ func (f *fakeSpawnWorkspaceResolver) Resolve(
 	return f.resolved, nil
 }
 
-func spawnAgentDef(name string, capabilities ...string) aghconfig.AgentDef {
-	defs := make([]aghconfig.CapabilityDef, 0, len(capabilities))
+func spawnAgentDef(name string, capabilities ...string) compozyconfig.AgentDef {
+	defs := make([]compozyconfig.CapabilityDef, 0, len(capabilities))
 	for _, capability := range capabilities {
-		defs = append(defs, aghconfig.CapabilityDef{ID: capability})
+		defs = append(defs, compozyconfig.CapabilityDef{ID: capability})
 	}
-	return aghconfig.AgentDef{
+	return compozyconfig.AgentDef{
 		Name:         name,
-		Capabilities: &aghconfig.CapabilityCatalog{Capabilities: defs},
+		Capabilities: &compozyconfig.CapabilityCatalog{Capabilities: defs},
 	}
 }

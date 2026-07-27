@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -48,9 +48,9 @@ func WorkspaceSkillPayloads(skills []workspacepkg.SkillPath) []contract.Workspac
 
 // SessionProviderOptionPayloadsFromConfig converts the merged workspace config
 // into a stable, UI-ready list of visible provider options.
-func SessionProviderOptionPayloadsFromConfig(cfg *aghconfig.Config) []contract.SessionProviderOptionPayload {
-	payloadsByName := make(map[string]contract.SessionProviderOptionPayload, len(aghconfig.BuiltinProviders()))
-	for name := range aghconfig.BuiltinProviders() {
+func SessionProviderOptionPayloadsFromConfig(cfg *compozyconfig.Config) []contract.SessionProviderOptionPayload {
+	payloadsByName := make(map[string]contract.SessionProviderOptionPayload, len(compozyconfig.BuiltinProviders()))
+	for name := range compozyconfig.BuiltinProviders() {
 		payload, ok := sessionProviderOptionPayloadFromConfig(cfg, name)
 		if !ok {
 			continue
@@ -69,23 +69,23 @@ func SessionProviderOptionPayloadsFromConfig(cfg *aghconfig.Config) []contract.S
 
 	defaultProvider := ""
 	if cfg != nil {
-		defaultProvider = aghconfig.CanonicalProviderName(cfg.Defaults.Provider)
+		defaultProvider = compozyconfig.CanonicalProviderName(cfg.Defaults.Provider)
 	}
 	return sortSessionProviderOptionPayloads(payloadsByName, defaultProvider)
 }
 
 func sessionProviderOptionPayloadFromConfig(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	name string,
 ) (contract.SessionProviderOptionPayload, bool) {
-	providerName := aghconfig.CanonicalProviderName(name)
+	providerName := compozyconfig.CanonicalProviderName(name)
 	if providerName == "" {
 		return contract.SessionProviderOptionPayload{}, false
 	}
-	var resolved aghconfig.ProviderConfig
+	var resolved compozyconfig.ProviderConfig
 	var err error
 	if cfg == nil {
-		var empty aghconfig.Config
+		var empty compozyconfig.Config
 		resolved, err = empty.ResolveProvider(providerName)
 	} else {
 		resolved, err = cfg.ResolveProvider(providerName)
@@ -125,7 +125,7 @@ func sortSessionProviderOptionPayloads(
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	defaultProvider = aghconfig.CanonicalProviderName(defaultProvider)
+	defaultProvider = compozyconfig.CanonicalProviderName(defaultProvider)
 	if defaultProvider != "" {
 		for i, name := range names {
 			if name != defaultProvider {

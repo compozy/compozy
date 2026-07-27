@@ -15,7 +15,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	modelpkg "github.com/compozy/compozy/internal/bundles/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -78,7 +78,7 @@ type Store interface {
 	ListBundleActivations(ctx context.Context) ([]Activation, error)
 	ListBundleActivationInventory(ctx context.Context, activationID string) ([]InventoryItem, error)
 	ListBundleResources(ctx context.Context) ([]resources.Record[BundleResourceSpec], error)
-	ListAgentResources(ctx context.Context) ([]resources.Record[aghconfig.AgentDef], error)
+	ListAgentResources(ctx context.Context) ([]resources.Record[compozyconfig.AgentDef], error)
 	ApplyBundleActivationResources(ctx context.Context, plan BundleActivationResourcePlan) error
 }
 
@@ -325,7 +325,7 @@ type materializedActivationResources struct {
 type ownedAgentResource struct {
 	ID    string
 	Scope resources.ResourceScope
-	Spec  aghconfig.AgentDef
+	Spec  compozyconfig.AgentDef
 }
 
 type ownedSoulResource struct {

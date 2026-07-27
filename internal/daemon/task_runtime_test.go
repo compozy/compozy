@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -57,7 +57,7 @@ func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
 		nil,
 		discardLogger(),
 		func() time.Time { return now },
-		aghconfig.DefaultTaskActionRunTimeout,
+		compozyconfig.DefaultTaskActionRunTimeout,
 	)
 	if err != nil {
 		t.Fatalf("newLoopActionRuntime() error = %v", err)
@@ -825,7 +825,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("StartTaskSession() error = %v", err)
 		}
 		createCall := sessions.createCall(0)
-		if got, want := createCall.Permissions, aghconfig.PermissionModeApproveAll; got != want {
+		if got, want := createCall.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
 			t.Fatalf("createCall.Permissions = %q, want %q", got, want)
 		}
 		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
@@ -869,10 +869,10 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("StartTaskSession() error = %v", err)
 		}
 		createCall := sessions.createCall(0)
-		if got := createCall.Permissions; got == aghconfig.PermissionModeApproveAll {
+		if got := createCall.Permissions; got == compozyconfig.PermissionModeApproveAll {
 			t.Fatalf("createCall.Permissions = %q, want configured permission fallback", got)
 		}
-		if !strings.Contains(createCall.PromptOverlay, "AGH keeps the configured permission mode") {
+		if !strings.Contains(createCall.PromptOverlay, "Compozy keeps the configured permission mode") {
 			t.Fatalf("PromptOverlay missing permission boundary guidance:\n%s", createCall.PromptOverlay)
 		}
 	})
@@ -1501,7 +1501,7 @@ func TestBootTasksSkipsMissingPrerequisites(t *testing.T) {
 	t.Parallel()
 
 	daemon := &Daemon{
-		homePaths: aghconfig.HomePaths{HomeDir: t.TempDir()},
+		homePaths: compozyconfig.HomePaths{HomeDir: t.TempDir()},
 	}
 
 	testCases := []struct {
@@ -1548,8 +1548,8 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -1560,9 +1560,9 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
-		cfg: aghconfig.Config{
-			Network: aghconfig.DefaultNetworkConfig(),
-			Task:    aghconfig.DefaultTaskConfig(),
+		cfg: compozyconfig.Config{
+			Network: compozyconfig.DefaultNetworkConfig(),
+			Task:    compozyconfig.DefaultTaskConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -1713,8 +1713,8 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			db,
 			workspacepkg.WithHomePaths(homePaths),
 			workspacepkg.WithLogger(discardLogger()),
-			workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-				return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+			workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 			}),
 		)
 		if err != nil {
@@ -1728,7 +1728,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			t.Fatalf("workspace.Register() error = %v", err)
 		}
 
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.Autonomy.Scheduler.MinQueuedAge = time.Hour
 		daemon := &Daemon{homePaths: homePaths}
 		state := &bootState{
@@ -1995,9 +1995,9 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
-		cfg: aghconfig.Config{
-			Network: aghconfig.DefaultNetworkConfig(),
-			Task:    aghconfig.DefaultTaskConfig(),
+		cfg: compozyconfig.Config{
+			Network: compozyconfig.DefaultNetworkConfig(),
+			Task:    compozyconfig.DefaultTaskConfig(),
 		},
 		logger:   discardLogger(),
 		registry: db,
@@ -2108,7 +2108,7 @@ func TestBootTasksRequiresHarnessResolver(t *testing.T) {
 	t.Parallel()
 
 	daemon := &Daemon{
-		homePaths: aghconfig.HomePaths{HomeDir: t.TempDir()},
+		homePaths: compozyconfig.HomePaths{HomeDir: t.TempDir()},
 	}
 	state := &bootState{
 		logger:   discardLogger(),
@@ -2779,7 +2779,7 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 		t.Fatalf("decodeDetachedHarnessTaskMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
 	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(
-		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_task","owner_channel":"legacy"}`,
+		`{"schema":"compozy.harness.detached.v1","kind":"harness_detached_task","owner_channel":"legacy"}`,
 	)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf(
 			"decodeDetachedHarnessTaskMetadata(removed owner_channel) error = %v, want %v",
@@ -2799,7 +2799,7 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 		t.Fatalf("decodeDetachedHarnessRunMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
 	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(
-		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_run","wake_target":{"channel":"legacy"}}`,
+		`{"schema":"compozy.harness.detached.v1","kind":"harness_detached_run","wake_target":{"channel":"legacy"}}`,
 	)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf(
 			"decodeDetachedHarnessRunMetadata(removed wake_target.channel) error = %v, want %v",
@@ -4047,7 +4047,7 @@ func (r *watchPollerExtensionRuntime) Poll(
 func newDetachedHarnessTaskRuntimeForTest(
 	t *testing.T,
 	sessions *fakeSessionManager,
-) (*taskRuntime, workspacepkg.RuntimeResolver, aghconfig.HomePaths) {
+) (*taskRuntime, workspacepkg.RuntimeResolver, compozyconfig.HomePaths) {
 	t.Helper()
 
 	if sessions == nil {
@@ -4060,8 +4060,8 @@ func newDetachedHarnessTaskRuntimeForTest(
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {

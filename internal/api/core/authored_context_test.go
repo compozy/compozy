@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
@@ -115,14 +115,14 @@ type packageOwnedAgentCatalog struct {
 
 func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
 	return []core.AgentCatalogEntry{{
-		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}}, nil
 }
 
 func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
 	return core.AgentCatalogEntry{
-		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}, nil
 }
@@ -225,7 +225,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
-	agentDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	agentDir := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder")
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(agent dir) error = %v", err)
 	}
@@ -245,10 +245,10 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 			return workspacepkg.ResolvedWorkspace{
 				Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA"},
 				WorkspaceID: "ws-stable",
-				Config: aghconfig.Config{
-					Agents: aghconfig.AgentsConfig{
-						Soul:      aghconfig.DefaultSoulConfig(),
-						Heartbeat: aghconfig.DefaultHeartbeatConfig(),
+				Config: compozyconfig.Config{
+					Agents: compozyconfig.AgentsConfig{
+						Soul:      compozyconfig.DefaultSoulConfig(),
+						Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
 					},
 				},
 			}, nil
@@ -351,8 +351,8 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 						Name:    "Ad8 QA",
 					},
 					WorkspaceID: "ws-stable",
-					Config: aghconfig.Config{
-						Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+					Config: compozyconfig.Config{
+						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
 					},
 				}, nil
 			},
@@ -522,8 +522,8 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 							Name:    "Deleted agent session",
 						},
 						WorkspaceID: "ws-stable",
-						Config: aghconfig.Config{
-							Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+						Config: compozyconfig.Config{
+							Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
 						},
 					}, nil
 				},
@@ -586,8 +586,8 @@ func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *t
 			return workspacepkg.ResolvedWorkspace{
 				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID},
 				WorkspaceID: workspaceID,
-				Config: aghconfig.Config{
-					Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+				Config: compozyconfig.Config{
+					Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
 				},
 			}, nil
 		},
@@ -738,10 +738,10 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 						}
 						return workspacepkg.ResolvedWorkspace{
 							Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
-							Config: aghconfig.Config{
-								Agents: aghconfig.AgentsConfig{
-									Soul:      aghconfig.DefaultSoulConfig(),
-									Heartbeat: aghconfig.DefaultHeartbeatConfig(),
+							Config: compozyconfig.Config{
+								Agents: compozyconfig.AgentsConfig{
+									Soul:      compozyconfig.DefaultSoulConfig(),
+									Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
 								},
 							},
 						}, nil
@@ -754,12 +754,12 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			fixture.Handlers.HeartbeatAuthoring = heartbeatAuthoring
 			fixture.Handlers.AgentCatalog = packageOwnedAgentCatalog{
 				artifacts: session.AgentArtifacts{
-					Agent:               aghconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
+					Agent:               compozyconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
 					PackageOwned:        true,
 					SoulSourcePath:      ".compozy/bundles/act/agents/marketer/SOUL.md",
 					SoulBody:            "Lead with campaign context.",
 					HeartbeatSourcePath: ".compozy/bundles/act/agents/marketer/HEARTBEAT.md",
-					HeartbeatBody:       "Inspect campaigns and use AGH task APIs.",
+					HeartbeatBody:       "Inspect campaigns and use Compozy task APIs.",
 				},
 			}
 			tc.registerRoute(fixture)

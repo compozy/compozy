@@ -160,7 +160,7 @@ Workspace overlay layout: `<workspace>/.compozy/config.toml`, `<workspace>/.comp
 
 ### 2.1 `internal/config/` tests
 
-- `config_test.go` (1700+ LoC): covers cold parse with all sections (`TestLoadValidTOMLConfigWithAllSections:18`), default-with-home (`TestDefaultWithHomeIncludesSoulDefaults:488`), section validation (Soul, Heartbeat, Sandbox, SessionLimits, SessionSupervision, Observability), workspace overrides (`TestLoadWorkspaceOverridesGlobalValues:813`, `…AgentsSoulConfig:923`, `…AgentsHeartbeatConfig:962`), MCP sidecar merge (`TestLoadMergesTopLevelMCPServersAcrossConfigAndJSONSidecars:1043`), unknown-key rejection (`TestLoadRejectsUnknownConfigKeys:1495`, `TestLoadRejectsUnknownSkillsConfigKeys:1519`), `.env` integration (`TestLoadUsesDotEnvForAGHHome:1996`, `…WithoutMutatingProcessEnv:2024`, `TestLoadWithoutDotEnvOptionIgnoresDotEnv:2105`), workspace-precedence (`TestLoadWorkspaceAddsValuesWithoutClobberingGlobal:1313`, `TestLoadWithoutWorkspaceRootIgnoresCurrentDirectoryWorkspaceFiles:1380`).
+- `config_test.go` (1700+ LoC): covers cold parse with all sections (`TestLoadValidTOMLConfigWithAllSections:18`), default-with-home (`TestDefaultWithHomeIncludesSoulDefaults:488`), section validation (Soul, Heartbeat, Sandbox, SessionLimits, SessionSupervision, Observability), workspace overrides (`TestLoadWorkspaceOverridesGlobalValues:813`, `…AgentsSoulConfig:923`, `…AgentsHeartbeatConfig:962`), MCP sidecar merge (`TestLoadMergesTopLevelMCPServersAcrossConfigAndJSONSidecars:1043`), unknown-key rejection (`TestLoadRejectsUnknownConfigKeys:1495`, `TestLoadRejectsUnknownSkillsConfigKeys:1519`), `.env` integration (`TestLoadUsesDotEnvForCompozyHome:1996`, `…WithoutMutatingProcessEnv:2024`, `TestLoadWithoutDotEnvOptionIgnoresDotEnv:2105`), workspace-precedence (`TestLoadWorkspaceAddsValuesWithoutClobberingGlobal:1313`, `TestLoadWithoutWorkspaceRootIgnoresCurrentDirectoryWorkspaceFiles:1380`).
 - `agent_test.go`: AGENT.md parsing (`TestLoadAgentDefFromHomePath:207`), missing/mismatched names (`TestLoadAgentDefRejectsBlankAndMismatchedNames:390`), MCP sidecar merge (`TestLoadAgentDefFileMergesMCPSidecar:339`), workspace precedence with agents (`TestLoadWorkspaceAgentDefsAppliesDocumentedPrecedence:468`), discovery root order (`TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder:418`).
 - `agent_capabilities_test.go`: capability TOML/JSON normalization, directory mode discovery, precedence with capabilities.
 - `automation_test.go`, `automation_integration_test.go`: workspace overlay merging without clobber, fail-fast on invalid trigger templates.
@@ -580,10 +580,10 @@ live: true
 provider: claude
 preconditions:
   - Daemon running.
-  - Known fake secret string: 'AGHQA-FAKE-SECRET-9c4e1a'.
+  - Known fake secret string: 'COMPOZYQA-FAKE-SECRET-9c4e1a'.
   - Provider 'claude' configured with credential_slot using secret_ref=vault:providers/claude/api_key, target_env=ANTHROPIC_API_KEY.
 steps:
-  - "printf 'AGHQA-FAKE-SECRET-9c4e1a' | compozy vault put vault:providers/claude/api_key --kind api_key --value-stdin -o json"
+  - "printf 'COMPOZYQA-FAKE-SECRET-9c4e1a' | compozy vault put vault:providers/claude/api_key --kind api_key --value-stdin -o json"
   - "compozy vault list --namespace providers -o json"
   - "compozy vault get vault:providers/claude/api_key -o json"
   - "compozy config show -o json"
@@ -592,7 +592,7 @@ steps:
   - "curl -s --unix-socket <socket> http:/compozy/api/vault/secrets/metadata?ref=vault:providers/claude/api_key | jq ."
   - "Subscribe to SSE: curl -s -N --unix-socket <socket> http:/compozy/api/settings/observability/log-tail (10s window)"
   - "compozy sessions start --agent claude-code --workspace cfg10 --message 'Read your environment and report any unusual long base64-looking strings.' (real Claude run)"
-  - "grep -R 'AGHQA-FAKE-SECRET-9c4e1a' <COMPOZY_HOME>"
+  - "grep -R 'COMPOZYQA-FAKE-SECRET-9c4e1a' <COMPOZY_HOME>"
 expected:
   - "vault put response includes only Metadata fields (no plaintext)"
   - "vault list / get returns Present=true plus dates; never the value"
@@ -606,7 +606,7 @@ evidence:
   - "All captured JSON archived"
   - "grep output"
 failure_signatures:
-  - "Any surface returns the literal AGHQA-FAKE-SECRET-9c4e1a"
+  - "Any surface returns the literal COMPOZYQA-FAKE-SECRET-9c4e1a"
   - "compozy.log contains the value"
 cleanup:
   - "compozy vault delete vault:providers/claude/api_key; compozy daemon stop"
@@ -883,7 +883,7 @@ Per `eng-qa-bootstrap` and the worktree-isolation directive:
 - **Two COMPOZY_HOMEs** — `bootstrap-manifest.json` lab A (`COMPOZY_HOME_A=/tmp/compozyqa-cfg-A`) and lab B (`COMPOZY_HOME_B=/tmp/compozyqa-cfg-B`). Used by CFG-08.
 - **Distinct daemon ports** — port allocation via `worktree.allocatePort()` (e.g. 21230 / 21231). NEVER `2123`.
 - **Distinct UDS sockets** — `<COMPOZY_HOME>/daemon.sock` is implicit per home; verify no shared lock.
-- **Vault seeded with a known fake secret** — `AGHQA-FAKE-SECRET-9c4e1a` (CFG-10) and a real throwaway provider key (CFG-11) under `vault:providers/claude/api_key` of lab A only.
+- **Vault seeded with a known fake secret** — `COMPOZYQA-FAKE-SECRET-9c4e1a` (CFG-10) and a real throwaway provider key (CFG-11) under `vault:providers/claude/api_key` of lab A only.
 - **Baseline `config.toml` fixture** — `_fixtures/config-default-snapshot.golden.json` that CFG-01 validates against. Regenerate via `go test ./internal/config -run TestExampleConfigMatchesDefaults -update`.
 - **Fixture skills**:
   - `qa-marker-skill` (CFG-04) — single-file SKILL.md with prompt `"I am qa-marker-skill, marker=QA-MARKER-1."`.

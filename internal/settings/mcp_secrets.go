@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -45,7 +45,7 @@ func (s *service) prepareMCPSecretWrites(
 	scope ScopeKind,
 	workspaceID string,
 	serverName string,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	secrets MCPSecretValues,
 ) ([]preparedSecretWrite, error) {
 	if secrets.Empty() {
@@ -75,7 +75,7 @@ func (s *service) prepareMCPSecretWrites(
 
 func prepareMCPSecretEnvValues(
 	prefix string,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	values map[string]string,
 ) ([]preparedSecretWrite, error) {
 	if len(values) == 0 {
@@ -84,7 +84,7 @@ func prepareMCPSecretEnvValues(
 	if server == nil {
 		return nil, validationError(errors.New("settings: MCP server is required for secret_env values"))
 	}
-	if server.EffectiveTransport() != aghconfig.MCPServerTransportStdio {
+	if server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
 		return nil, validationError(errors.New("settings: MCP secret_env values require stdio transport"))
 	}
 	keys := make([]string, 0, len(values))
@@ -117,7 +117,7 @@ func prepareMCPSecretEnvValues(
 
 func prepareMCPAuthClientSecretValue(
 	prefix string,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	value *string,
 ) (preparedSecretWrite, bool, error) {
 	if value == nil {
@@ -143,7 +143,7 @@ func prepareMCPAuthClientSecretValue(
 	}, true, nil
 }
 
-func setMCPSecretEnvRef(server *aghconfig.MCPServer, envName string, ref string) {
+func setMCPSecretEnvRef(server *compozyconfig.MCPServer, envName string, ref string) {
 	if server.SecretEnv == nil {
 		server.SecretEnv = make(map[string]string)
 	}
@@ -237,7 +237,7 @@ func mcpSecretRollbackContext(ctx context.Context) (context.Context, context.Can
 	return context.WithTimeout(context.WithoutCancel(ctx), mcpSecretRollbackTimeout)
 }
 
-func ownedMCPSecretRefs(prefix string, server aghconfig.MCPServer) map[string]string {
+func ownedMCPSecretRefs(prefix string, server compozyconfig.MCPServer) map[string]string {
 	refs := make(map[string]string)
 	for key, rawRef := range server.SecretEnv {
 		envName := strings.TrimSpace(key)
@@ -253,7 +253,7 @@ func ownedMCPSecretRefs(prefix string, server aghconfig.MCPServer) map[string]st
 	return refs
 }
 
-func referencedMCPSecretRefs(server aghconfig.MCPServer) map[string]struct{} {
+func referencedMCPSecretRefs(server compozyconfig.MCPServer) map[string]struct{} {
 	refs := make(map[string]struct{}, len(server.SecretEnv)+1)
 	for _, rawRef := range server.SecretEnv {
 		if ref := vault.NormalizeRef(rawRef); ref != "" {
@@ -270,8 +270,8 @@ func (s *service) prepareSupersededOwnedMCPSecretDeletes(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
-	previous aghconfig.MCPServer,
-	replacement aghconfig.MCPServer,
+	previous compozyconfig.MCPServer,
+	replacement compozyconfig.MCPServer,
 ) ([]ownedMCPSecretSnapshot, error) {
 	snapshots, err := s.prepareOwnedMCPSecretDeletes(ctx, scope, workspaceID, previous)
 	if err != nil {
@@ -295,7 +295,7 @@ func (s *service) prepareMCPSecretCleanupPlan(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	replacement aghconfig.MCPServer,
+	replacement compozyconfig.MCPServer,
 ) (mcpSecretCleanupPlan, error) {
 	previousSource, replacing := mcpSourceForTarget(name, target, sources)
 	if !replacing {
@@ -325,7 +325,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 	workspaceID string,
 	root string,
 	name string,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	plan mcpSecretCleanupPlan,
 	secretMutations []mcpSecretMutation,
 ) ([]string, error) {
@@ -401,7 +401,7 @@ func (s *service) prepareOwnedMCPSecretDeletes(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) ([]ownedMCPSecretSnapshot, error) {
 	if s.providerSecrets == nil {
 		return nil, nil

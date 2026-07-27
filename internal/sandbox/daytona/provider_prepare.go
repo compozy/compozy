@@ -146,7 +146,7 @@ func (p *daytonaProvider) prepareSandbox(
 		return p.getAndStart(ctx, client, sandboxID)
 	}
 
-	labels := aghLabels(req)
+	labels := compozyLabels(req)
 	if found, err := p.findByLabels(ctx, client, labels); err == nil {
 		return p.startSandbox(ctx, found)
 	} else if !errors.Is(err, errSandboxNotFound) {

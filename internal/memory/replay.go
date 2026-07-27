@@ -11,7 +11,7 @@ import (
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	storepkg "github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 // ReplayResult reports boot-time recovery work applied from memory_decisions.
@@ -189,7 +189,7 @@ func (s *Store) validateReplayWorkspace(ctx context.Context, workspaceID string)
 	if strings.TrimSpace(workspaceID) == "" {
 		return errors.New("memory: replay workspace decision missing workspace_id")
 	}
-	if !aghworkspace.IsWorkspaceID(workspaceID) {
+	if !compozyworkspace.IsWorkspaceID(workspaceID) {
 		return fmt.Errorf("memory: replay workspace decision has invalid workspace_id %q", workspaceID)
 	}
 	actual, err := s.workspaceIDForRoot(ctx, s.workspaceRoot)

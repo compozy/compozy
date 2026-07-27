@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
@@ -55,7 +55,7 @@ func (s *daemonLoopAPIService) workspaceLoopRoot(
 	if root == "" {
 		return "", fmt.Errorf("%w: workspace root is required", looppkg.ErrValidation)
 	}
-	return filepath.Join(root, aghconfig.DirName, aghconfig.LoopsDirName), nil
+	return filepath.Join(root, compozyconfig.DirName, compozyconfig.LoopsDirName), nil
 }
 
 func ensureWritableLoopSource(spec looppkg.ResourceSpec) error {

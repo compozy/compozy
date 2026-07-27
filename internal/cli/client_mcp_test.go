@@ -19,7 +19,7 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 
 		requestIndex := 0
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				requestIndex++
 				if got, want := req.URL.Query().Get("scope"), "workspace"; got != want {

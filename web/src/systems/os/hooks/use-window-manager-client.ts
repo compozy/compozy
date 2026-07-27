@@ -3,7 +3,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { registerWindowManagerClient } from "../adapters/window-manager-api";
 import type { WindowManagerClientView } from "../lib/window-manager-types";
 
-const CLIENT_ID_STORAGE_KEY = "agh.window-manager.client-id";
+const CLIENT_ID_STORAGE_KEY = "compozy.window-manager.client-id";
 
 function randomClientId(): string {
   const cryptoApi = globalThis.crypto;

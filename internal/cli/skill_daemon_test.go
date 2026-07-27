@@ -34,7 +34,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 					Message: "gate requires_tools unmet: compozy__extension_call",
 				}},
 			},
-			Dir:      "/agh-home/extensions/review/skills/extension-review",
+			Dir:      "/compozy-home/extensions/review/skills/extension-review",
 			Metadata: map[string]any{"area": "qa"},
 		}
 		deps := newTestDeps(t, &stubClient{
@@ -203,7 +203,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 					EntryID:     "skill_review",
 					Name:        "review",
 					Description: "Review helper",
-					Author:      "agh",
+					Author:      "compozy",
 					Version:     "1.2.0",
 					Downloads:   &downloads,
 					InstallSlug: "review",
@@ -301,7 +301,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 					Slug:     "review",
 					Version:  "1.2.0",
 					Registry: "clawhub",
-					Path:     "/agh-home/skills/review",
+					Path:     "/compozy-home/skills/review",
 					Hash:     "sha256:review",
 					Status:   "installed",
 				}, nil
@@ -346,7 +346,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				return SkillMarketplaceRemoveRecord{
 					Name:   name,
 					Slug:   "review",
-					Path:   "/agh-home/skills/review",
+					Path:   "/compozy-home/skills/review",
 					Status: "removed",
 				}, nil
 			},
@@ -384,7 +384,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 					Slug:           "review",
 					CurrentVersion: "1.0.0",
 					LatestVersion:  "1.2.0",
-					Path:           "/agh-home/skills/review",
+					Path:           "/compozy-home/skills/review",
 					Status:         "update available",
 				}}, nil
 			},
@@ -427,7 +427,7 @@ func TestSkillCommandsAutoScopeToAgentSession(t *testing.T) {
 			Version:     "1.0.0",
 			Source:      "agent-local",
 			Enabled:     true,
-			Dir:         "/agh-home/agents/general/skills/layered-skill",
+			Dir:         "/compozy-home/agents/general/skills/layered-skill",
 		}
 		deps := newTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {

@@ -46,8 +46,8 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			if actor.Origin.Kind != taskpkg.OriginKindHTTP {
 				t.Fatalf("RunLoop() actor origin = %q, want %q", actor.Origin.Kind, taskpkg.OriginKindHTTP)
 			}
-			if got := req.Inputs["ticket"]; got != "AGH-14" {
-				t.Fatalf("RunLoop() input ticket = %#v, want AGH-14", got)
+			if got := req.Inputs["ticket"]; got != "Compozy-14" {
+				t.Fatalf("RunLoop() input ticket = %#v, want Compozy-14", got)
 			}
 			if req.NetworkParticipation == nil ||
 				req.NetworkParticipation.Mode == nil ||
@@ -57,7 +57,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			if dry {
 				return contract.RunLoopResponse{DryRun: &contract.LoopPlanPayload{
 					LoopName:       "alpha",
-					ResolvedInputs: map[string]any{"ticket": "AGH-14"},
+					ResolvedInputs: map[string]any{"ticket": "Compozy-14"},
 					Generation:     1,
 				}}, nil
 			}
@@ -158,7 +158,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run",
-			[]byte(`{"inputs":{"ticket":"AGH-14"},"network_participation":{"mode":"local"}}`),
+			[]byte(`{"inputs":{"ticket":"Compozy-14"},"network_participation":{"mode":"local"}}`),
 		)
 		assertLoopStatus(t, runResp.Code, http.StatusCreated, runResp.Body.String())
 		var runPayload contract.RunLoopResponse
@@ -172,7 +172,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run?dry=true",
-			[]byte(`{"inputs":{"ticket":"AGH-14"},"network_participation":{"mode":"local"}}`),
+			[]byte(`{"inputs":{"ticket":"Compozy-14"},"network_participation":{"mode":"local"}}`),
 		)
 		assertLoopStatus(t, dryResp.Code, http.StatusOK, dryResp.Body.String())
 		var dryPayload contract.RunLoopResponse
@@ -1738,7 +1738,7 @@ func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 		CreatedAt:                    fixedLoopTime(),
 		LastProgressAt:               fixedLoopTime(),
 		IterationCap:                 3,
-		Inputs:                       map[string]any{"ticket": "AGH-14"},
+		Inputs:                       map[string]any{"ticket": "Compozy-14"},
 		ResolvedNetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 	}
 }

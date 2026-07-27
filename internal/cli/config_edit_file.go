@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func ensureEditableConfigFile(target aghconfig.WriteTarget) (err error) {
+func ensureEditableConfigFile(target compozyconfig.WriteTarget) (err error) {
 	switch target.Kind() {
-	case aghconfig.WriteTargetGlobalConfig, aghconfig.WriteTargetWorkspaceConfig:
+	case compozyconfig.WriteTargetGlobalConfig, compozyconfig.WriteTargetWorkspaceConfig:
 	default:
 		return fmt.Errorf("cli: write target %q is not a config overlay", target.Kind())
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/kballard/go-shellquote"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -128,25 +128,25 @@ func TestPermissionPolicyModes(t *testing.T) {
 
 	root := t.TempDir()
 	policies := map[string]struct {
-		mode       aghconfig.PermissionMode
+		mode       compozyconfig.PermissionMode
 		readOK     bool
 		writeOK    bool
 		terminalOK bool
 	}{
 		"deny-all": {
-			mode:       aghconfig.PermissionModeDenyAll,
+			mode:       compozyconfig.PermissionModeDenyAll,
 			readOK:     false,
 			writeOK:    false,
 			terminalOK: false,
 		},
 		"approve-reads": {
-			mode:       aghconfig.PermissionModeApproveReads,
+			mode:       compozyconfig.PermissionModeApproveReads,
 			readOK:     true,
 			writeOK:    false,
 			terminalOK: false,
 		},
 		"approve-all": {
-			mode:       aghconfig.PermissionModeApproveAll,
+			mode:       compozyconfig.PermissionModeApproveAll,
 			readOK:     true,
 			writeOK:    true,
 			terminalOK: true,
@@ -173,7 +173,7 @@ func TestPermissionPolicyResolvePathSandbox(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveAll, root)
+	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
@@ -368,7 +368,7 @@ func TestPromptAttachesSystemPromptDeliveryMetadata(t *testing.T) {
 
 		driver := New()
 		proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{
-			SystemPrompt: "AGH runtime envelope.",
+			SystemPrompt: "Compozy runtime envelope.",
 		})
 		defer stopProcess(t, driver, proc)
 
@@ -402,7 +402,7 @@ func TestPromptAttachesSystemPromptDeliveryMetadata(t *testing.T) {
 
 		driver := New()
 		proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{
-			SystemPrompt:         "AGH runtime envelope.",
+			SystemPrompt:         "Compozy runtime envelope.",
 			SystemPromptDelivery: SystemPromptDeliveryNative,
 		})
 		defer stopProcess(t, driver, proc)
@@ -455,7 +455,7 @@ func TestPromptCacheControlForStartOpts(t *testing.T) {
 			name: "Should enable long-lived cache control for Anthropic endpoint",
 			opts: StartOpts{
 				ProviderName: "pi",
-				ProviderConfig: &aghconfig.ProviderConfig{
+				ProviderConfig: &compozyconfig.ProviderConfig{
 					RuntimeProvider: "anthropic",
 					BaseURL:         "https://api.anthropic.com/v1",
 				},
@@ -467,7 +467,7 @@ func TestPromptCacheControlForStartOpts(t *testing.T) {
 			name: "Should enable long-lived cache control for Vertex Anthropic endpoint",
 			opts: StartOpts{
 				ProviderName: "pi",
-				ProviderConfig: &aghconfig.ProviderConfig{
+				ProviderConfig: &compozyconfig.ProviderConfig{
 					RuntimeProvider: "anthropic",
 					BaseURL:         "https://us-east5-aiplatform.googleapis.com/v1",
 				},
@@ -479,7 +479,7 @@ func TestPromptCacheControlForStartOpts(t *testing.T) {
 			name: "Should skip OpenRouter even when a base URL is present",
 			opts: StartOpts{
 				ProviderName: "openrouter",
-				ProviderConfig: &aghconfig.ProviderConfig{
+				ProviderConfig: &compozyconfig.ProviderConfig{
 					RuntimeProvider: "openrouter",
 					BaseURL:         "https://openrouter.ai/api/v1",
 				},
@@ -579,7 +579,7 @@ func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {
 
 		driver := New()
 		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
-			SystemPrompt:         "AGH runtime envelope.",
+			SystemPrompt:         "Compozy runtime envelope.",
 			SystemPromptDelivery: SystemPromptDeliveryNative,
 		})
 		defer stopProcess(t, driver, proc)
@@ -599,7 +599,7 @@ func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {
 		if got, want := events[0].Text, "first request"; got != want {
 			t.Fatalf("first prompt text = %q, want %q", got, want)
 		}
-		if strings.Contains(events[0].Text, "AGH runtime envelope.") ||
+		if strings.Contains(events[0].Text, "Compozy runtime envelope.") ||
 			strings.Contains(events[0].Text, "Session instructions") {
 			t.Fatalf("first prompt text = %q, want no fallback prefix", events[0].Text)
 		}
@@ -744,9 +744,9 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 		"COMPOZY_BIN=/should-also-be-replaced",
 	})
 
-	gotAGHBin, ok := envValue(env, "COMPOZY_BIN")
-	if !ok || gotAGHBin != executable {
-		t.Fatalf("daemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotAGHBin, ok, executable)
+	gotCompozyBin, ok := envValue(env, "COMPOZY_BIN")
+	if !ok || gotCompozyBin != executable {
+		t.Fatalf("daemonMatchedEnv() COMPOZY_BIN = %q, %v, want %q", gotCompozyBin, ok, executable)
 	}
 
 	gotPath, ok := envValue(env, "PATH")
@@ -861,7 +861,7 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	driver := New()
 	captureFile := filepath.Join(t.TempDir(), "session-set-mode-new.jsonl")
 	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
 	})
 	defer stopProcess(t, driver, proc)
@@ -885,7 +885,7 @@ func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
 		driver := New()
 		captureFile := filepath.Join(t.TempDir(), "session-set-mode-gateway.jsonl")
 		proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 			Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
 			ToolGateway: toolExecutionGatewayFunc(
 				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -911,7 +911,7 @@ func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
 		driver := New()
 		captureFile := filepath.Join(t.TempDir(), "session-set-mode-cursor.jsonl")
 		proc := startHelperProcess(t, driver, "cursor_mode_mapping", "", StartOpts{
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 			Env:         helperEnvWithCapture("cursor_mode_mapping", "", captureFile),
 			ToolGateway: toolExecutionGatewayFunc(
 				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -937,7 +937,7 @@ func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
 		driver := New()
 		captureFile := filepath.Join(t.TempDir(), "session-current-agent-cursor.jsonl")
 		proc := startHelperProcess(t, driver, "cursor_mode_current_agent", "", StartOpts{
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 			Env:         helperEnvWithCapture("cursor_mode_current_agent", "", captureFile),
 			ToolGateway: toolExecutionGatewayFunc(
 				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -961,7 +961,7 @@ func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *test
 	captureFile := filepath.Join(t.TempDir(), "session-set-mode-load.jsonl")
 	proc := startHelperProcess(t, driver, "load_mode_mapping", "", StartOpts{
 		ResumeSessionID: "sess-existing",
-		Permissions:     aghconfig.PermissionModeApproveReads,
+		Permissions:     compozyconfig.PermissionModeApproveReads,
 		Env:             helperEnvWithCapture("load_mode_mapping", "", captureFile),
 	})
 	defer stopProcess(t, driver, proc)
@@ -983,7 +983,7 @@ func TestStartResumeWithToolGatewayPrefersApprovalMediatedMode(t *testing.T) {
 	captureFile := filepath.Join(t.TempDir(), "session-set-mode-load-gateway.jsonl")
 	proc := startHelperProcess(t, driver, "load_mode_mapping", "", StartOpts{
 		ResumeSessionID: "sess-existing",
-		Permissions:     aghconfig.PermissionModeApproveReads,
+		Permissions:     compozyconfig.PermissionModeApproveReads,
 		Env:             helperEnvWithCapture("load_mode_mapping", "", captureFile),
 		ToolGateway: toolExecutionGatewayFunc(
 			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -1009,7 +1009,7 @@ func TestStartDenyAllWithToolGatewayPrefersApprovalMediatedSessionMode(t *testin
 	driver := New()
 	captureFile := filepath.Join(t.TempDir(), "session-set-mode-deny-gateway.jsonl")
 	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: compozyconfig.PermissionModeDenyAll,
 		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
 		ToolGateway: toolExecutionGatewayFunc(
 			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -1180,10 +1180,10 @@ func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 			AgentName:       "helper",
 			Command:         "helper",
 			Cwd:             t.TempDir(),
-			Permissions:     aghconfig.PermissionModeApproveAll,
+			Permissions:     compozyconfig.PermissionModeApproveAll,
 			ReasoningEffort: "high",
-			ProviderConfig: &aghconfig.ProviderConfig{Models: aghconfig.ProviderModelsConfig{
-				Reasoning: aghconfig.ProviderReasoningConfig{Apply: aghconfig.ReasoningApplyNone},
+			ProviderConfig: &compozyconfig.ProviderConfig{Models: compozyconfig.ProviderModelsConfig{
+				Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyNone},
 			}},
 		})
 		if proc != nil {
@@ -1284,7 +1284,7 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 		driver := New()
 		captureFile := filepath.Join(t.TempDir(), "session-model-specific-reasoning.jsonl")
 		proc := startHelperProcess(t, driver, "model_specific_config_options", "", StartOpts{
-			Permissions:     aghconfig.PermissionModeApproveAll,
+			Permissions:     compozyconfig.PermissionModeApproveAll,
 			PreferredModel:  "other-model",
 			ReasoningEffort: "max",
 			ProviderConfig:  reasoningACPProviderConfig(),
@@ -1324,7 +1324,7 @@ func TestStartRejectsReasoningEffortWhenConfigOptionIsAbsent(t *testing.T) {
 			AgentName:       "helper",
 			Command:         helperCommand(t),
 			Cwd:             t.TempDir(),
-			Permissions:     aghconfig.PermissionModeApproveAll,
+			Permissions:     compozyconfig.PermissionModeApproveAll,
 			ReasoningEffort: "xhigh",
 			ProviderConfig:  reasoningACPProviderConfig(),
 			Env:             helperEnvWithCapture("config_options_no_reasoning", "", captureFile),
@@ -1359,7 +1359,7 @@ func TestStartRejectsPreferredModelWhenModelConfigOptionIsAbsent(t *testing.T) {
 			Command:        helperCommand(t),
 			Cwd:            t.TempDir(),
 			Env:            helperEnvWithCapture("config_options_no_model", "", captureFile),
-			Permissions:    aghconfig.PermissionModeApproveAll,
+			Permissions:    compozyconfig.PermissionModeApproveAll,
 			PreferredModel: "new-model",
 		})
 		if proc != nil {
@@ -1415,7 +1415,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 				Command:     helperCommand(t),
 				Cwd:         t.TempDir(),
 				Env:         helperEnvWithCapture("config_options", "", captureFile),
-				Permissions: aghconfig.PermissionModeApproveAll,
+				Permissions: compozyconfig.PermissionModeApproveAll,
 			}
 			opts.PreferredModel = tc.opts.PreferredModel
 			opts.ReasoningEffort = tc.opts.ReasoningEffort
@@ -1577,22 +1577,22 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
 			Cwd: t.TempDir(),
 			Env: helperEnvWithCapture("stream_updates", "", captureFile),
-			MCPServers: []aghconfig.MCPServer{
+			MCPServers: []compozyconfig.MCPServer{
 				{
 					Name:      "compozy-hosted-tools",
-					Transport: aghconfig.MCPServerTransportStdio,
+					Transport: compozyconfig.MCPServerTransportStdio,
 					Command:   "/bin/compozy",
 					Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
-					Env:       map[string]string{"COMPOZY_HOME": "/tmp/agh-home"},
+					Env:       map[string]string{"COMPOZY_HOME": "/tmp/compozy-home"},
 				},
 				{
 					Name:      "remote-http",
-					Transport: aghconfig.MCPServerTransportHTTP,
+					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://example.test/mcp",
 				},
 				{
 					Name:      "remote-sse",
-					Transport: aghconfig.MCPServerTransportSSE,
+					Transport: compozyconfig.MCPServerTransportSSE,
 					URL:       "https://example.test/sse",
 				},
 			},
@@ -1647,7 +1647,7 @@ func TestStartResumeReturnsSentinelErrors(t *testing.T) {
 				Command:         helperCommand(t),
 				Cwd:             t.TempDir(),
 				Env:             helperEnv(tc.envScenario, ""),
-				Permissions:     aghconfig.PermissionModeApproveAll,
+				Permissions:     compozyconfig.PermissionModeApproveAll,
 				ResumeSessionID: "sess-existing",
 			})
 			if err == nil {
@@ -1668,7 +1668,7 @@ func TestStartIncludesAgentContextInLaunchErrors(t *testing.T) {
 		AgentName:   "missing-helper",
 		Command:     "/definitely/missing-binary",
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 	})
 	if err == nil {
 		t.Fatal("Start() error = nil, want non-nil")
@@ -1942,7 +1942,7 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 		t.Fatalf("permissionWait = %v, want %v", driver.permissionWait, 123*time.Millisecond)
 	}
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	requestID, pending := proc.registerPendingPermission("turn-1", acpsdk.RequestPermissionRequest{
 		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
 	})
@@ -1994,7 +1994,7 @@ func startHelperProcess(
 		Command:     command,
 		Cwd:         t.TempDir(),
 		Env:         helperEnv(scenario, filePath),
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 	}
 	if overrides.AgentName != "" {
 		opts.AgentName = overrides.AgentName
@@ -2835,7 +2835,7 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}
 		createResp, err := a.conn.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
 			SessionId: params.SessionId,
-			Command:   "agh",
+			Command:   "compozy",
 			Args:      []string{"network", "status"},
 			Cwd:       new(cwd),
 		})
@@ -2950,10 +2950,10 @@ func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.
 	return options
 }
 
-func reasoningACPProviderConfig() *aghconfig.ProviderConfig {
-	return &aghconfig.ProviderConfig{
-		Models: aghconfig.ProviderModelsConfig{
-			Reasoning: aghconfig.ProviderReasoningConfig{Apply: aghconfig.ReasoningApplyACPOption},
+func reasoningACPProviderConfig() *compozyconfig.ProviderConfig {
+	return &compozyconfig.ProviderConfig{
+		Models: compozyconfig.ProviderModelsConfig{
+			Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyACPOption},
 		},
 	}
 }

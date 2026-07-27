@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -34,7 +34,7 @@ var (
 )
 
 type permissionPolicy struct {
-	mode  aghconfig.PermissionMode
+	mode  compozyconfig.PermissionMode
 	root  string
 	roots []string
 }
@@ -87,13 +87,13 @@ type permissionToolCallRaw struct {
 }
 
 func newPermissionPolicy(
-	mode aghconfig.PermissionMode,
+	mode compozyconfig.PermissionMode,
 	root string,
 	additionalRoots ...string,
 ) (permissionPolicy, error) {
 	effectiveMode := mode
 	if effectiveMode == "" {
-		effectiveMode = aghconfig.PermissionModeApproveReads
+		effectiveMode = compozyconfig.PermissionModeApproveReads
 	}
 	if err := effectiveMode.Validate("permissions.mode"); err != nil {
 		return permissionPolicy{}, err
@@ -151,11 +151,11 @@ func (p permissionPolicy) authorize(op permissionOperation) error {
 
 func (p permissionPolicy) isAllowed(op permissionOperation) bool {
 	switch p.mode {
-	case aghconfig.PermissionModeApproveAll:
+	case compozyconfig.PermissionModeApproveAll:
 		return true
-	case aghconfig.PermissionModeApproveReads:
+	case compozyconfig.PermissionModeApproveReads:
 		return op == permissionReadTextFile
-	case aghconfig.PermissionModeDenyAll:
+	case compozyconfig.PermissionModeDenyAll:
 		return false
 	default:
 		return false
@@ -168,14 +168,14 @@ func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionReq
 	}
 
 	switch p.mode {
-	case aghconfig.PermissionModeApproveAll:
+	case compozyconfig.PermissionModeApproveAll:
 		return decisionAllowOnce, false
-	case aghconfig.PermissionModeApproveReads:
+	case compozyconfig.PermissionModeApproveReads:
 		if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
 			return decisionAllowOnce, false
 		}
 		return decisionPending, true
-	case aghconfig.PermissionModeDenyAll:
+	case compozyconfig.PermissionModeDenyAll:
 		return decisionRejectOnce, false
 	default:
 		return decisionRejectOnce, false

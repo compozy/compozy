@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -48,7 +48,7 @@ var (
 type ResolveRequest struct {
 	AgentPath     string
 	WorkspaceRoot string
-	Config        aghconfig.HeartbeatConfig
+	Config        compozyconfig.HeartbeatConfig
 }
 
 // ParseRequest describes in-memory HEARTBEAT.md content to validate and project.
@@ -56,7 +56,7 @@ type ParseRequest struct {
 	SourcePath    string
 	WorkspaceRoot string
 	Content       []byte
-	Config        aghconfig.HeartbeatConfig
+	Config        compozyconfig.HeartbeatConfig
 }
 
 // ResolvedPolicy is the normalized wake policy later runtime surfaces consume.
@@ -323,7 +323,7 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedPolicy, error) {
 }
 
 // Empty returns a valid absent HEARTBEAT.md resolution for non-filesystem agent sources.
-func Empty(config aghconfig.HeartbeatConfig, sourcePath string) (ResolvedPolicy, error) {
+func Empty(config compozyconfig.HeartbeatConfig, sourcePath string) (ResolvedPolicy, error) {
 	if err := config.Validate(); err != nil {
 		return ResolvedPolicy{}, err
 	}
@@ -340,7 +340,7 @@ func Empty(config aghconfig.HeartbeatConfig, sourcePath string) (ResolvedPolicy,
 }
 
 // ConfigProvenanceFor returns the canonical config subset and digest used by Heartbeat.
-func ConfigProvenanceFor(cfg aghconfig.HeartbeatConfig) (ConfigProvenance, error) {
+func ConfigProvenanceFor(cfg compozyconfig.HeartbeatConfig) (ConfigProvenance, error) {
 	if err := cfg.Validate(); err != nil {
 		return ConfigProvenance{}, err
 	}

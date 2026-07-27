@@ -10,8 +10,8 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/version"
 )
@@ -20,7 +20,7 @@ func waitForDaemonStop(
 	ctx context.Context,
 	deps commandDeps,
 	runtime *runtimeContext,
-	info aghdaemon.Info,
+	info compozydaemon.Info,
 ) (DaemonStatus, error) {
 	waitCtx := ctx
 	if waitCtx == nil {
@@ -82,14 +82,14 @@ func daemonStatusCanFallback(err error) bool {
 	return isDaemonUnavailableTransportError(err)
 }
 
-func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info, bool, error) {
+func daemonInfo(homePaths compozyconfig.HomePaths, deps commandDeps) (compozydaemon.Info, bool, error) {
 	info, err := deps.readDaemonInfo(homePaths.DaemonInfo)
 	switch {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
-		return aghdaemon.Info{}, false, nil
+		return compozydaemon.Info{}, false, nil
 	default:
-		return aghdaemon.Info{}, false, err
+		return compozydaemon.Info{}, false, err
 	}
 
 	if !deps.processAlive(info.PID) {
@@ -101,7 +101,7 @@ func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info
 	return info, true, nil
 }
 
-func daemonStatusWithState(runtime *runtimeContext, info aghdaemon.Info, status string) DaemonStatus {
+func daemonStatusWithState(runtime *runtimeContext, info compozydaemon.Info, status string) DaemonStatus {
 	networkStatus := daemonNetworkStatusFromInfo(&runtime.Config, info.Network)
 	if strings.EqualFold(strings.TrimSpace(status), "stopped") {
 		networkStatus = nil

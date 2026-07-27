@@ -314,7 +314,7 @@ var taskTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDTaskPromoteFromThread,
 		"task_promote_from_thread",
 		"Task Promote From Thread",
-		"Promote one AGH network thread message into a durable workspace task.",
+		"Promote one Compozy network thread message into a durable workspace task.",
 		taskPromoteFromThreadInputSchema,
 		toolspkg.RiskMutating,
 		false,

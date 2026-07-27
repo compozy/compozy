@@ -189,7 +189,7 @@ func TestToolsConfigValidation(t *testing.T) {
 		{
 			name: "ShouldRejectUnknownTrustedSourceKind",
 			mutate: func(cfg *Config) {
-				cfg.Tools.Policy.TrustedSources = []string{"builtin:agh"}
+				cfg.Tools.Policy.TrustedSources = []string{"builtin:compozy"}
 			},
 			wantErr: "tools.policy.trusted_sources[0]",
 		},

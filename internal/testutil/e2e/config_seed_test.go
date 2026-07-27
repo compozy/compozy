@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 )
 
@@ -17,13 +17,13 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 	homePaths := NewHomePaths(t)
 	SeedConfig(t, homePaths, ConfigSeedOptions{
 		DefaultAgent: "coder",
-		Providers: map[string]aghconfig.ProviderConfig{
+		Providers: map[string]compozyconfig.ProviderConfig{
 			"fake": {
 				Command: "fake-agent --stdio",
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "fake-model",
 				},
-				CredentialSlots: []aghconfig.ProviderCredentialSlot{
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 					{
 						Name:      "api_key",
 						TargetEnv: "FAKE_API_KEY",
@@ -36,17 +36,17 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 		AgentDefs: []AgentSeed{{
 			Name:        "coder",
 			Provider:    "fake",
-			Permissions: string(aghconfig.PermissionModeApproveReads),
+			Permissions: string(compozyconfig.PermissionModeApproveReads),
 			Prompt:      "You are a deterministic test agent.",
 		}},
 	})
 
-	loaded, err := aghconfig.LoadForHome(homePaths)
+	loaded, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
 
-	agent, err := aghconfig.LoadAgentDef("coder", homePaths)
+	agent, err := compozyconfig.LoadAgentDef("coder", homePaths)
 	if err != nil {
 		t.Fatalf("LoadAgentDef(coder) error = %v", err)
 	}
@@ -64,7 +64,7 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 	if got, want := resolved.Model, "fake-model"; got != want {
 		t.Fatalf("resolved.Model = %q, want %q", got, want)
 	}
-	if got, want := resolved.Permissions, string(aghconfig.PermissionModeApproveReads); got != want {
+	if got, want := resolved.Permissions, string(compozyconfig.PermissionModeApproveReads); got != want {
 		t.Fatalf("resolved.Permissions = %q, want %q", got, want)
 	}
 }
@@ -74,13 +74,13 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 
 	homePaths := NewHomePaths(t)
 	SeedConfig(t, homePaths, ConfigSeedOptions{
-		Mutate: func(cfg *aghconfig.Config) {
+		Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Network.Enabled = false
 			cfg.Network.Live.Defaults.MaxWakes = 12
 		},
 	})
 
-	loaded, err := aghconfig.LoadForHome(homePaths)
+	loaded, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
@@ -100,13 +100,13 @@ func TestSeedConfigPersistsRolesOverlay(t *testing.T) {
 
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Roles.Dream.Model = "routed-dream-model"
 				cfg.Roles.AutoTitle.Enabled = false
 			},
 		})
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -124,14 +124,14 @@ func TestSeedConfigPersistsMemoryOverlay(t *testing.T) {
 
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Memory.Dream.MinSessions = 1
 				cfg.Memory.Dream.Gates.MinUnpromoted = 1
 				cfg.Memory.Dream.Gates.MinRecallCount = 1
 			},
 		})
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -153,8 +153,8 @@ func TestSeedConfigPersistsMarketplaceCatalogOverlay(t *testing.T) {
 
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
-				cfg.Marketplace.Catalog = aghconfig.MarketplaceCatalogConfig{
+			Mutate: func(cfg *compozyconfig.Config) {
+				cfg.Marketplace.Catalog = compozyconfig.MarketplaceCatalogConfig{
 					BaseURL: "https://catalog.example.test/v1",
 					TTL:     "45m",
 					Timeout: "3s",
@@ -162,7 +162,7 @@ func TestSeedConfigPersistsMarketplaceCatalogOverlay(t *testing.T) {
 			},
 		})
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -186,12 +186,12 @@ func TestSeedConfigPersistsExtensionsMarketplaceOverlay(t *testing.T) {
 
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Extensions.Marketplace.AllowUnverified = true
 			},
 		})
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -207,7 +207,7 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
 				cfg.Session.Supervision.ProgressNotifyInterval = 30 * time.Millisecond
 				cfg.Session.Supervision.InactivityWarningAfter = 40 * time.Millisecond
@@ -216,7 +216,7 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 			},
 		})
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -244,7 +244,7 @@ func TestSeedConfigPersistsSandboxProfilesAndDefault(t *testing.T) {
 	homePaths := NewHomePaths(t)
 	SeedConfig(t, homePaths, ConfigSeedOptions{
 		DefaultSandbox: "local-sandbox",
-		Sandboxes: map[string]aghconfig.SandboxProfile{
+		Sandboxes: map[string]compozyconfig.SandboxProfile{
 			"local-sandbox": {
 				Backend:     "local",
 				Persistence: "reuse",
@@ -256,7 +256,7 @@ func TestSeedConfigPersistsSandboxProfilesAndDefault(t *testing.T) {
 		},
 	})
 
-	loaded, err := aghconfig.LoadForHome(homePaths)
+	loaded, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
@@ -289,11 +289,11 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testi
 	t.Parallel()
 
 	homePaths := NewHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 24242
-	cfg.Permissions.Mode = aghconfig.PermissionModeApproveAll
-	cfg.Tools.Policy.ExternalDefault = aghconfig.ToolsExternalDefaultEnabled
+	cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultEnabled
 
 	if err := writeSeedConfigFile(homePaths, &cfg); err != nil {
 		t.Fatalf("writeSeedConfigFile() error = %v", err)
@@ -315,17 +315,17 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testi
 		t.Fatalf("writeSeedConfigFile(rewrite) error = %v", err)
 	}
 
-	reloaded, err := aghconfig.LoadForHome(homePaths)
+	reloaded, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
 	if got, want := reloaded.HTTP.Port, 25252; got != want {
 		t.Fatalf("reloaded.HTTP.Port = %d, want %d", got, want)
 	}
-	if got, want := reloaded.Permissions.Mode, aghconfig.PermissionModeApproveAll; got != want {
+	if got, want := reloaded.Permissions.Mode, compozyconfig.PermissionModeApproveAll; got != want {
 		t.Fatalf("reloaded.Permissions.Mode = %q, want %q", got, want)
 	}
-	if got, want := reloaded.Tools.Policy.ExternalDefault, aghconfig.ToolsExternalDefaultEnabled; got != want {
+	if got, want := reloaded.Tools.Policy.ExternalDefault, compozyconfig.ToolsExternalDefaultEnabled; got != want {
 		t.Fatalf("reloaded.Tools.Policy.ExternalDefault = %q, want %q", got, want)
 	}
 }
@@ -336,7 +336,7 @@ func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
 	first := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
 		ConfigSeed: ConfigSeedOptions{
 			DefaultSandbox: "local-sandbox",
-			Sandboxes: map[string]aghconfig.SandboxProfile{
+			Sandboxes: map[string]compozyconfig.SandboxProfile{
 				"local-sandbox": {
 					Backend:     "local",
 					Persistence: "reuse",
@@ -347,11 +347,11 @@ func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
 
 	second := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 
-	firstLoaded, err := aghconfig.LoadForHome(first.HomePaths)
+	firstLoaded, err := compozyconfig.LoadForHome(first.HomePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome(first) error = %v", err)
 	}
-	secondLoaded, err := aghconfig.LoadForHome(second.HomePaths)
+	secondLoaded, err := compozyconfig.LoadForHome(second.HomePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome(second) error = %v", err)
 	}
@@ -380,11 +380,11 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 		Provider:    "fake",
 		Command:     "fake-agent --stdio",
 		Model:       "model-1",
-		Permissions: string(aghconfig.PermissionModeApproveAll),
+		Permissions: string(compozyconfig.PermissionModeApproveAll),
 		Tools:       []string{"compozy__skill_view", "mcp__filesystem__read_file"},
 		Toolsets:    []string{"compozy__catalog"},
 		DenyTools:   []string{"compozy__task_*"},
-		MCPServers: []aghconfig.MCPServer{{
+		MCPServers: []compozyconfig.MCPServer{{
 			Name:    "filesystem",
 			Command: "mcp-fs",
 			Args:    []string{"--root", "/workspace"},
@@ -395,7 +395,7 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 		Prompt: "You are a builder.",
 	})
 
-	agent, err := aghconfig.LoadAgentDef("builder", homePaths)
+	agent, err := compozyconfig.LoadAgentDef("builder", homePaths)
 	if err != nil {
 		t.Fatalf("LoadAgentDef(builder) error = %v", err)
 	}
@@ -440,11 +440,11 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 		Provider:    "fake:provider",
 		Command:     "fake-agent --prompt \"review:all #now\"",
 		Model:       "model:1",
-		Permissions: string(aghconfig.PermissionModeApproveAll),
+		Permissions: string(compozyconfig.PermissionModeApproveAll),
 		Tools:       []string{"compozy__skill_view", "mcp__filesystem__read_file"},
 		Toolsets:    []string{"compozy__catalog"},
 		DenyTools:   []string{"compozy__task_*"},
-		MCPServers: []aghconfig.MCPServer{{
+		MCPServers: []compozyconfig.MCPServer{{
 			Name:    "filesystem",
 			Command: "mcp-fs --mode=read:write",
 			Args:    []string{"--root", "/workspace/#demo", "--label=ops:review"},
@@ -459,7 +459,7 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 		Prompt: "You are a builder.\nRespect review:all #notes.",
 	})
 
-	agent, err := aghconfig.LoadAgentDef("builder", homePaths)
+	agent, err := compozyconfig.LoadAgentDef("builder", homePaths)
 	if err != nil {
 		t.Fatalf("LoadAgentDef(builder) error = %v", err)
 	}

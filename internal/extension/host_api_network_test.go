@@ -937,7 +937,7 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 func TestBridgeHostAPINetworkMetaShouldUseExplicitConversationMapping(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldKeepProviderThreadIDOutOfAGHNetworkMeta", func(t *testing.T) {
+	t.Run("ShouldKeepProviderThreadIDOutOfCompozyNetworkMeta", func(t *testing.T) {
 		t.Parallel()
 
 		meta := bridgePromptNetworkMeta(bridgepkg.InboundMessageEnvelope{
@@ -951,7 +951,7 @@ func TestBridgeHostAPINetworkMetaShouldUseExplicitConversationMapping(t *testing
 		}
 	})
 
-	t.Run("ShouldMapExplicitConversationRefToAGHNetworkMeta", func(t *testing.T) {
+	t.Run("ShouldMapExplicitConversationRefToCompozyNetworkMeta", func(t *testing.T) {
 		t.Parallel()
 
 		meta := bridgePromptNetworkMeta(bridgepkg.InboundMessageEnvelope{
@@ -968,7 +968,7 @@ func TestBridgeHostAPINetworkMetaShouldUseExplicitConversationMapping(t *testing
 		})
 		if meta.ThreadID != "thread_alpha01" || meta.Channel != "builders" ||
 			meta.Surface != string(bridgepkg.NetworkConversationSurfaceThread) || meta.WorkID != "work-alpha" {
-			t.Fatalf("bridgePromptNetworkMeta() = %#v, want explicit AGH conversation mapping", meta)
+			t.Fatalf("bridgePromptNetworkMeta() = %#v, want explicit Compozy conversation mapping", meta)
 		}
 	})
 

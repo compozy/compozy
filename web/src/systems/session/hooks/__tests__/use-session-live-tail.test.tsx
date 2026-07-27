@@ -170,7 +170,7 @@ function clarifyMessage(id: string): SessionMessage {
     role: "assistant",
     parts: [
       {
-        type: "data-agh-event",
+        type: "data-compozy-event",
         data: {
           type: "clarify",
           session_id: SESSION_ID,

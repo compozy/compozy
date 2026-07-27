@@ -353,8 +353,8 @@ func deliverGlobalWebhookOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP},
 		Parameters: []ParameterSpec{
 			pathParam("endpoint", "Webhook endpoint slug and id"),
-			headerParam("X-AGH-Webhook-Timestamp", "Signed webhook timestamp"),
-			headerParam("X-AGH-Webhook-Signature", "Signed webhook HMAC signature"),
+			headerParam("X-Compozy-Webhook-Timestamp", "Signed webhook timestamp"),
+			headerParam("X-Compozy-Webhook-Signature", "Signed webhook HMAC signature"),
 		},
 		RequestBody: map[string]any{},
 		Responses: []ResponseSpec{
@@ -378,8 +378,8 @@ func deliverWorkspaceWebhookOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("endpoint", "Webhook endpoint slug and id"),
-			headerParam("X-AGH-Webhook-Timestamp", "Signed webhook timestamp"),
-			headerParam("X-AGH-Webhook-Signature", "Signed webhook HMAC signature"),
+			headerParam("X-Compozy-Webhook-Timestamp", "Signed webhook timestamp"),
+			headerParam("X-Compozy-Webhook-Signature", "Signed webhook HMAC signature"),
 		},
 		RequestBody: map[string]any{},
 		Responses: []ResponseSpec{

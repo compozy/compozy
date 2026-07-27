@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -85,16 +85,16 @@ func (n *daemonNativeTools) rejectImmutableHookIfPresent(
 func (n *daemonNativeTools) deleteHookDeclaration(
 	ctx context.Context,
 	id toolspkg.ToolID,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	workspaceRoot string,
 	name string,
 ) (bool, error) {
 	deleted := false
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			var err error
 			deleted, err = editor.DeleteArrayTableItem(
 				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
@@ -128,7 +128,7 @@ func (n *daemonNativeTools) setHookEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	decls, err := aghconfig.OverlayHookDeclarations(target)
+	decls, err := compozyconfig.OverlayHookDeclarations(target)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
@@ -146,16 +146,16 @@ func (n *daemonNativeTools) setHookEnabled(
 	if _, err := hookspkg.CanonicalizeHookDecl(decl); err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
 				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
 				nativeConfigHookToolsNameKey,
 				decl.Name,
-				aghconfig.HookDeclarationOverlayValues(decl),
+				compozyconfig.HookDeclarationOverlayValues(decl),
 			)
 		},
 	); err != nil {
@@ -226,7 +226,7 @@ func nativeHookNotFoundError(id toolspkg.ToolID, name string) error {
 func nativeHookMutationResult(
 	decl hookspkg.HookDecl,
 	action string,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 ) (toolspkg.ToolResult, error) {
 	payload := map[string]any{
 		nativeConfigHookToolsNameKey:   decl.Name,

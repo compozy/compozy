@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -15,7 +15,7 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+		h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
 		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      h.workspaceID,
@@ -23,9 +23,9 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 				Name:    h.workspaceName,
 			},
 			Config: h.cfg,
-			Agents: []aghconfig.AgentDef{
+			Agents: []compozyconfig.AgentDef{
 				{
-					Name:     aghconfig.DefaultAgentName,
+					Name:     compozyconfig.DefaultAgentName,
 					Provider: "claude",
 					Prompt:   "You are a coding assistant.",
 				},
@@ -41,16 +41,16 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:   "coder",
 			Workspace:   h.workspaceID,
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeApproveAll {
-			t.Fatalf("create start permissions = %q, want %q", got, aghconfig.PermissionModeApproveAll)
+		if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
+			t.Fatalf("create start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
 		}
 		createdMeta := readMeta(t, created.MetaPath())
-		if got, want := createdMeta.EffectivePermissions, string(aghconfig.PermissionModeApproveAll); got != want {
+		if got, want := createdMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("created metadata effective permissions = %q, want %q", got, want)
 		}
 
@@ -67,11 +67,11 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 			}
 		})
 
-		if got := h.driver.startCalls[1].Permissions; got != aghconfig.PermissionModeApproveAll {
-			t.Fatalf("resume start permissions = %q, want persisted %q", got, aghconfig.PermissionModeApproveAll)
+		if got := h.driver.startCalls[1].Permissions; got != compozyconfig.PermissionModeApproveAll {
+			t.Fatalf("resume start permissions = %q, want persisted %q", got, compozyconfig.PermissionModeApproveAll)
 		}
 		resumedMeta := readMeta(t, resumed.MetaPath())
-		if got, want := resumedMeta.EffectivePermissions, string(aghconfig.PermissionModeApproveAll); got != want {
+		if got, want := resumedMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("resumed metadata effective permissions = %q, want %q", got, want)
 		}
 	})

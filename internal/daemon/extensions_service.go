@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/udsapi"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
@@ -21,10 +21,10 @@ type daemonExtensionService struct {
 	toolMCP            toolMCPPublisher
 	bundles            bundleResourcePublisher
 	loops              loopResourcePublisher
-	homePaths          aghconfig.HomePaths
+	homePaths          compozyconfig.HomePaths
 	logger             *slog.Logger
 	now                func() time.Time
-	marketplace        aghconfig.ExtensionsMarketplaceConfig
+	marketplace        compozyconfig.ExtensionsMarketplaceConfig
 	marketplaceLoader  extensionMarketplaceSourceLoader
 	marketplaceCatalog marketplacepkg.Service
 	eventWriter        store.EventSummaryStore
@@ -35,7 +35,7 @@ var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
 type daemonExtensionServiceOption func(*daemonExtensionService)
 
 func withDaemonExtensionMarketplace(
-	cfg aghconfig.ExtensionsMarketplaceConfig,
+	cfg compozyconfig.ExtensionsMarketplaceConfig,
 	loader extensionMarketplaceSourceLoader,
 ) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
@@ -64,7 +64,7 @@ func newDaemonExtensionService(
 	toolMCP toolMCPPublisher,
 	bundles bundleResourcePublisher,
 	loops loopResourcePublisher,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
 	opts ...daemonExtensionServiceOption,
@@ -100,13 +100,13 @@ func newDaemonExtensionService(
 	return service
 }
 
-func (s *daemonExtensionService) marketplaceConfig() aghconfig.ExtensionsMarketplaceConfig {
+func (s *daemonExtensionService) marketplaceConfig() compozyconfig.ExtensionsMarketplaceConfig {
 	s.marketplaceMu.RLock()
 	defer s.marketplaceMu.RUnlock()
 	return s.marketplace
 }
 
-func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg aghconfig.ExtensionsMarketplaceConfig) {
+func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg compozyconfig.ExtensionsMarketplaceConfig) {
 	s.marketplaceMu.Lock()
 	s.marketplace = cfg
 	s.marketplaceMu.Unlock()

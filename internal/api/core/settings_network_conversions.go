@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
-func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
+func settingsNetworkConfigPayload(value compozyconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
 	return contract.SettingsNetworkConfigPayload{
 		Enabled:      value.Enabled,
 		MaxReplayAge: value.MaxReplayAge,
@@ -49,12 +49,12 @@ func settingsNetworkRuntimePayload(value settingspkg.NetworkRuntimeStatus) contr
 	}
 }
 
-func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (aghconfig.NetworkConfig, error) {
-	value := aghconfig.DefaultNetworkConfig()
+func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (compozyconfig.NetworkConfig, error) {
+	value := compozyconfig.DefaultNetworkConfig()
 	value.Enabled = payload.Enabled
 	value.MaxReplayAge = payload.MaxReplayAge
-	value.Live = aghconfig.NetworkLiveConfig{
-		Defaults: aghconfig.NetworkLiveDefaultsConfig{
+	value.Live = compozyconfig.NetworkLiveConfig{
+		Defaults: compozyconfig.NetworkLiveDefaultsConfig{
 			MaxWakes:         payload.Live.Defaults.MaxWakes,
 			MaxWakeWallTime:  strings.TrimSpace(payload.Live.Defaults.MaxWakeWallTime),
 			MaxTotalWallTime: strings.TrimSpace(payload.Live.Defaults.MaxTotalWallTime),
@@ -63,7 +63,7 @@ func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (ag
 			MaxWakeDepth:     payload.Live.Defaults.MaxWakeDepth,
 			CoalesceWindow:   strings.TrimSpace(payload.Live.Defaults.CoalesceWindow),
 		},
-		Limits: aghconfig.NetworkLiveLimitsConfig{
+		Limits: compozyconfig.NetworkLiveLimitsConfig{
 			MaxWakes:          payload.Live.Limits.MaxWakes,
 			MaxWakeWallTime:   strings.TrimSpace(payload.Live.Limits.MaxWakeWallTime),
 			MaxTotalWallTime:  strings.TrimSpace(payload.Live.Limits.MaxTotalWallTime),
@@ -75,7 +75,7 @@ func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (ag
 		},
 	}
 	if err := value.Validate(); err != nil {
-		return aghconfig.NetworkConfig{}, NewSettingsValidationError(err)
+		return compozyconfig.NetworkConfig{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }

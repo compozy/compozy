@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -27,7 +27,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
-			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Network.Live.Defaults.MaxWakes = 2
 				cfg.Network.Live.Defaults.MaxWakeDepth = 2
 				cfg.Network.Live.Defaults.CoalesceWindow = "5s"
@@ -77,7 +77,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 		)
 
 		directRootID := "bounds_direct_root"
-		mustSendBoundsMessage(t, ctx, harness, aghcontract.NetworkSendRequest{
+		mustSendBoundsMessage(t, ctx, harness, compozycontract.NetworkSendRequest{
 			WorkspaceID: harness.WorkspaceID,
 			SessionID:   alpha.ID,
 			Channel:     channel,
@@ -91,7 +91,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 		waitForSettledNetworkWakeCount(t, ctx, harness, channel, 1)
 
 		mentionID := "bounds_mention_root"
-		mustSendBoundsMessage(t, ctx, harness, aghcontract.NetworkSendRequest{
+		mustSendBoundsMessage(t, ctx, harness, compozycontract.NetworkSendRequest{
 			WorkspaceID: harness.WorkspaceID,
 			SessionID:   beta.ID,
 			Channel:     channel,
@@ -121,7 +121,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 		waitForSettledNetworkWakeCount(t, ctx, harness, channel, 3)
 
 		depthReplyID := "bounds_depth_reply"
-		mustSendBoundsMessage(t, ctx, harness, aghcontract.NetworkSendRequest{
+		mustSendBoundsMessage(t, ctx, harness, compozycontract.NetworkSendRequest{
 			WorkspaceID: harness.WorkspaceID,
 			SessionID:   beta.ID,
 			Channel:     channel,
@@ -136,7 +136,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 		})
 
 		exhaustedID := "bounds_budget_exhausted"
-		mustSendBoundsMessage(t, ctx, harness, aghcontract.NetworkSendRequest{
+		mustSendBoundsMessage(t, ctx, harness, compozycontract.NetworkSendRequest{
 			WorkspaceID: harness.WorkspaceID,
 			SessionID:   alpha.ID,
 			Channel:     channel,
@@ -182,7 +182,7 @@ func mustSendBoundsMessage(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	request aghcontract.NetworkSendRequest,
+	request compozycontract.NetworkSendRequest,
 ) {
 	t.Helper()
 	message, err := harness.NetworkSend(ctx, request)
@@ -221,7 +221,7 @@ func sendBoundsBurst(
 		go func() {
 			defer workers.Done()
 			<-start
-			message, err := harness.NetworkSend(ctx, aghcontract.NetworkSendRequest{
+			message, err := harness.NetworkSend(ctx, compozycontract.NetworkSendRequest{
 				WorkspaceID: harness.WorkspaceID,
 				SessionID:   senderSessionID,
 				Channel:     channel,
@@ -388,7 +388,7 @@ func assertBoundsTranscriptComplete(
 func assertNetworkTimelineMessageIDs(
 	t testing.TB,
 	timeline string,
-	messages []aghcontract.NetworkConversationMessagePayload,
+	messages []compozycontract.NetworkConversationMessagePayload,
 	wantIDs []string,
 ) {
 	t.Helper()

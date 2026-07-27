@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -37,7 +37,7 @@ func TestActiveSkillsForHookDeclarations(t *testing.T) {
 		registry := skills.NewRegistry(skills.RegistryConfig{})
 		resolved := &workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-hooks", RootDir: root},
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:       "broken-agent",
 				SourcePath: agentPath,
 			}},

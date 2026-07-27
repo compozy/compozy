@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -63,7 +63,7 @@ func cloneBundleAgents(values []extensionpkg.BundleAgent) []extensionpkg.BundleA
 	for _, value := range values {
 		next := extensionpkg.BundleAgent{
 			Path:  strings.TrimSpace(value.Path),
-			Agent: aghconfig.CloneAgentDef(value.Agent),
+			Agent: compozyconfig.CloneAgentDef(value.Agent),
 		}
 		if value.Soul != nil {
 			next.Soul = &extensionpkg.BundleAgentSidecar{

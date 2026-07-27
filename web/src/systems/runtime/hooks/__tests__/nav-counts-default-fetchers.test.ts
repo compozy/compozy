@@ -63,11 +63,11 @@ function buildOkFetcher() {
 function capturedUrl(fetcher: ReturnType<typeof buildOkFetcher>, pathname: string): URL {
   const match = fetcher.mock.calls
     .map(([input]) => urlOf(input))
-    .find(url => new URL(url, "http://agh.test").pathname === pathname);
+    .find(url => new URL(url, "http://compozy.test").pathname === pathname);
   if (!match) {
     throw new Error("No request captured for " + pathname);
   }
-  return new URL(match, "http://agh.test");
+  return new URL(match, "http://compozy.test");
 }
 
 function expectQueryParams(

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -1513,13 +1513,13 @@ func (h *managerResourceHarness) putOwnedWebhookTriggerResource(
 	return record
 }
 
-func defaultAutomationTestConfig() aghconfig.AutomationConfig {
-	return aghconfig.AutomationConfig{
+func defaultAutomationTestConfig() compozyconfig.AutomationConfig {
+	return compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Suggestions: aghconfig.AutomationSuggestionsConfig{
+		Suggestions: compozyconfig.AutomationSuggestionsConfig{
 			PendingCap: DefaultSuggestionPendingCap,
 		},
 	}

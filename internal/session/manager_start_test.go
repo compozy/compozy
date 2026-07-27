@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -211,7 +211,7 @@ func TestCreateAcceptedInitialPromptLifecycle(t *testing.T) {
 			t,
 			WithSessionCatalog(catalog),
 			WithSessionInputQueueStore(catalog),
-			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     10,
 				MaxTextBytes: 512,
@@ -274,7 +274,7 @@ func TestCreateAcceptedInitialPromptLifecycle(t *testing.T) {
 			t,
 			WithSessionCatalog(deleteFailingSessionCatalog{SessionCatalog: catalog, err: deleteErr}),
 			WithSessionInputQueueStore(catalog),
-			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     10,
 				MaxTextBytes: 512,
@@ -504,7 +504,7 @@ func testStopJoinsAcceptedStartup(t *testing.T) {
 	entered := make(chan struct{})
 	h := newHarness(t, WithPromptAssembler(promptAssemblerFunc(func(
 		ctx context.Context,
-		_ aghconfig.AgentDef,
+		_ compozyconfig.AgentDef,
 		_ *workspacepkg.ResolvedWorkspace,
 	) (string, error) {
 		close(entered)
@@ -549,7 +549,7 @@ func testDeleteJoinsAcceptedStartup(t *testing.T) {
 	entered := make(chan struct{})
 	h := newHarness(t, WithPromptAssembler(promptAssemblerFunc(func(
 		ctx context.Context,
-		_ aghconfig.AgentDef,
+		_ compozyconfig.AgentDef,
 		_ *workspacepkg.ResolvedWorkspace,
 	) (string, error) {
 		close(entered)
@@ -583,7 +583,7 @@ func testDeleteJoinsAcceptedStartup(t *testing.T) {
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should remove credential shaped daemon variables and keep AGH session context", func(t *testing.T) {
+	t.Run("Should remove credential shaped daemon variables and keep Compozy session context", func(t *testing.T) {
 		t.Parallel()
 
 		env := sessionStartEnv(
@@ -637,7 +637,7 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 				AgentName:            "coder",
 				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
 			},
-			aghconfig.ProviderEnvPolicyIsolated,
+			compozyconfig.ProviderEnvPolicyIsolated,
 		)
 
 		if got := envValue(env, "OPENAI_API_KEY"); got != "" {

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 var errProviderDirSymlink = errors.New("isolated provider directory contains symlink")
@@ -15,12 +15,12 @@ var errProviderDirSymlink = errors.New("isolated provider directory contains sym
 // ApplyHomePolicy updates provider launch environment according to the provider
 // home policy. Operator home intentionally leaves the incoming env untouched.
 func ApplyHomePolicy(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	homePolicy aghconfig.ProviderHomePolicy,
+	homePolicy compozyconfig.ProviderHomePolicy,
 	env []string,
 ) ([]string, error) {
-	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+	if homePolicy != compozyconfig.ProviderHomePolicyIsolated {
 		return env, nil
 	}
 	trimmedProvider, providerHome, err := isolatedProviderHome(homePaths, providerName)
@@ -48,12 +48,12 @@ func ApplyHomePolicy(
 // ResolveHomeEnv returns the provider home environment for display or
 // diagnostics without creating provider-owned directories.
 func ResolveHomeEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	homePolicy aghconfig.ProviderHomePolicy,
+	homePolicy compozyconfig.ProviderHomePolicy,
 	env []string,
 ) ([]string, error) {
-	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+	if homePolicy != compozyconfig.ProviderHomePolicyIsolated {
 		return env, nil
 	}
 	trimmedProvider, providerHome, err := isolatedProviderHome(homePaths, providerName)
@@ -66,12 +66,12 @@ func ResolveHomeEnv(
 // ApplyPiAgentDirPolicy points native Pi auth at the same isolated home used by
 // both session launch and provider auth commands.
 func ApplyPiAgentDirPolicy(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	homePolicy aghconfig.ProviderHomePolicy,
+	homePolicy compozyconfig.ProviderHomePolicy,
 	env []string,
 ) ([]string, error) {
-	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+	if homePolicy != compozyconfig.ProviderHomePolicyIsolated {
 		return env, nil
 	}
 	_, providerHome, err := isolatedProviderHome(homePaths, providerName)
@@ -88,12 +88,12 @@ func ApplyPiAgentDirPolicy(
 // ResolvePiAgentDirEnv returns the Pi native-auth environment for display or
 // diagnostics without creating provider-owned directories.
 func ResolvePiAgentDirEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	homePolicy aghconfig.ProviderHomePolicy,
+	homePolicy compozyconfig.ProviderHomePolicy,
 	env []string,
 ) ([]string, error) {
-	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+	if homePolicy != compozyconfig.ProviderHomePolicyIsolated {
 		return env, nil
 	}
 	_, providerHome, err := isolatedProviderHome(homePaths, providerName)
@@ -103,13 +103,13 @@ func ResolvePiAgentDirEnv(
 	return SetEnvValue(env, "PI_CODING_AGENT_DIR", filepath.Join(providerHome, ".pi", "agent")), nil
 }
 
-// EnsurePrivateDir creates or tightens an AGH-owned provider state directory.
+// EnsurePrivateDir creates or tightens an Compozy-owned provider state directory.
 func EnsurePrivateDir(path string) error {
 	cleanPath := filepath.Clean(path)
 	return ensurePrivateDirUnder(filepath.Dir(cleanPath), cleanPath)
 }
 
-// EnsurePrivateDirUnder creates or tightens an AGH-owned provider state
+// EnsurePrivateDirUnder creates or tightens an Compozy-owned provider state
 // directory while proving the resolved path remains below root.
 func EnsurePrivateDirUnder(root string, path string) error {
 	return ensurePrivateDirUnder(root, path)
@@ -244,13 +244,13 @@ func SafeProviderHomeSegment(value string) bool {
 	return true
 }
 
-func isolatedProviderHome(homePaths aghconfig.HomePaths, providerName string) (string, string, error) {
+func isolatedProviderHome(homePaths compozyconfig.HomePaths, providerName string) (string, string, error) {
 	trimmedProvider := strings.TrimSpace(providerName)
 	if !SafeProviderHomeSegment(trimmedProvider) {
 		return "", "", fmt.Errorf("provider %q cannot use isolated home policy", trimmedProvider)
 	}
 	if strings.TrimSpace(homePaths.HomeDir) == "" {
-		return "", "", errors.New("AGH home is required for isolated provider home policy")
+		return "", "", errors.New("isolated provider home policy requires the Compozy home path")
 	}
 	return trimmedProvider, filepath.Join(homePaths.HomeDir, "providers", trimmedProvider), nil
 }

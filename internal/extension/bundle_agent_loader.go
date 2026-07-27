@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/soul"
 )
@@ -34,13 +34,13 @@ func loadBundleAgent(ctx context.Context, rootDir string, path string) (BundleAg
 	}
 
 	agentPath := filepath.Join(agentDir, "AGENT.md")
-	agent, err := aghconfig.LoadAgentDefFile(agentPath)
+	agent, err := compozyconfig.LoadAgentDefFile(agentPath)
 	if err != nil {
 		return BundleAgent{}, fmt.Errorf("%w: load profile agent %q: %w", ErrBundleInvalid, trimmed, err)
 	}
 	loaded := BundleAgent{
 		Path:  filepath.ToSlash(filepath.Clean(trimmed)),
-		Agent: aghconfig.CloneAgentDef(agent),
+		Agent: compozyconfig.CloneAgentDef(agent),
 	}
 	if loaded.Soul, err = loadBundleAgentSoulSidecar(ctx, agentDir, loaded.Path); err != nil {
 		return BundleAgent{}, err
@@ -67,7 +67,7 @@ func loadBundleAgentSoulSidecar(
 	if _, err := soul.Parse(ctx, soul.ParseRequest{
 		SourcePath: sourcePath,
 		Content:    body,
-		Config:     aghconfig.DefaultSoulConfig(),
+		Config:     compozyconfig.DefaultSoulConfig(),
 	}); err != nil {
 		return nil, fmt.Errorf("%w: profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
 	}
@@ -90,7 +90,7 @@ func loadBundleAgentHeartbeatSidecar(
 	if _, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
 		SourcePath: sourcePath,
 		Content:    body,
-		Config:     aghconfig.DefaultHeartbeatConfig(),
+		Config:     compozyconfig.DefaultHeartbeatConfig(),
 	}); err != nil {
 		return nil, fmt.Errorf("%w: profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
 	}

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -120,11 +120,11 @@ func validateReasoningApplication(opts StartOpts) error {
 	if effort == "" {
 		return nil
 	}
-	strategy := aghconfig.ReasoningApplyNone
+	strategy := compozyconfig.ReasoningApplyNone
 	if opts.ProviderConfig != nil {
 		strategy = opts.ProviderConfig.Models.EffectiveReasoningApply()
 	}
-	if strategy == aghconfig.ReasoningApplyACPOption {
+	if strategy == compozyconfig.ReasoningApplyACPOption {
 		return nil
 	}
 	return newNegotiationError(

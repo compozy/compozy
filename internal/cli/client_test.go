@@ -53,7 +53,7 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 			}
 		})
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -242,7 +242,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 			t.Parallel()
 
 			client := &unixSocketClient{
-				socketPath: "/tmp/agh.sock",
+				socketPath: "/tmp/compozy.sock",
 				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != tt.wantMethod || req.URL.Path != tt.wantPath || req.URL.RawQuery != tt.wantQuery {
 						t.Fatalf(
@@ -287,7 +287,7 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/agent/me" {
@@ -418,7 +418,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 			t.Parallel()
 
 			client := &unixSocketClient{
-				socketPath: "/tmp/agh.sock",
+				socketPath: "/tmp/compozy.sock",
 				httpClient: &http.Client{
 					Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 						assertAgentRequestHeaders(t, req, credentials)
@@ -480,7 +480,7 @@ func TestUnixSocketClientLoopCatalog(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/workspaces/ws-1/loops" {
@@ -534,7 +534,7 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		AgentName: "coder",
 	}
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				assertAgentRequestHeaders(t, req, credentials)
@@ -603,7 +603,7 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 				t.Fatal("HTTP transport should not be called for nil pointer requests")
@@ -679,7 +679,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	var sawRelease bool
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				assertAgentRequestHeaders(t, req, credentials)
@@ -877,7 +877,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 
 		rawToken := "compozy_claim_CLIENTERRORTOKEN123"
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 					return newHTTPResponse(
@@ -983,7 +983,7 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -1149,7 +1149,7 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -1243,7 +1243,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
@@ -1367,7 +1367,7 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/internal/hosted-mcp/projection/stream" {
@@ -1398,7 +1398,7 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
@@ -1457,7 +1457,7 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodPost {
@@ -1523,7 +1523,7 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			WorkspaceID: "ws-1",
 		}
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -1592,7 +1592,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -1843,7 +1843,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/status":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
+						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/drain":
 					return newHTTPResponse(http.StatusOK, `{"state":"draining"}`), nil
@@ -2241,7 +2241,7 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 
 		var paths []string
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				paths = append(paths, req.URL.Path)
 				if req.URL.Path != "/api/sessions/sess-target" {
@@ -2273,7 +2273,7 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
@@ -2317,7 +2317,7 @@ func TestUnixSocketClientSkillMarketplaceLifecycleMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
@@ -2383,7 +2383,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -2465,7 +2465,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 	endedAt := startedAt.Add(2 * time.Minute)
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -2880,7 +2880,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -2995,7 +2995,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if payload.IdempotencyKey != "idem-1" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
-					if got, want := string(payload.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+					if got, want := string(payload.Metadata), `{"schema":"compozy.harness.detached.v1"}`; got != want {
 						t.Fatalf("enqueue run metadata = %q, want %q", got, want)
 					}
 					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusQueued)})
@@ -3170,7 +3170,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
 			IdempotencyKey:       "idem-1",
 			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
-			Metadata:             json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
+			Metadata:             json.RawMessage(`{"schema":"compozy.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
@@ -3244,7 +3244,7 @@ func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges" {
 					t.Fatalf("request = %s %s, want GET /api/bridges", req.Method, req.URL.Path)
@@ -3295,7 +3295,7 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -3868,7 +3868,7 @@ func TestNewClientRequiresSocket(t *testing.T) {
 func TestNewClientConfiguresTimeouts(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient("/tmp/agh.sock")
+	client, err := NewClient("/tmp/compozy.sock")
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -3894,7 +3894,7 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if got := req.Header.Get("User-Agent"); got != defaultUserAgentName {
@@ -3929,7 +3929,7 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 	t.Parallel()
 
 	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
+		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{},
 	}
 
@@ -4306,7 +4306,7 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("hook events decode = %#v, want %#v", cliHookEvents, sharedHookEvents)
 	}
 
-	daemonResponse := `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":2,"version":"dev"}}`
+	daemonResponse := `{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/compozy.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":2,"version":"dev"}}`
 	var cliDaemon struct {
 		Daemon DaemonStatus `json:"daemon"`
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
@@ -14,7 +14,7 @@ import (
 // UpdateMarketplaceManaged updates marketplace extensions with rollback on reload failure.
 func UpdateMarketplaceManaged(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	req MarketplaceUpdateRequest,
@@ -44,7 +44,7 @@ func UpdateMarketplaceManaged(
 
 func updateMarketplaceExtension(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	info ExtensionInfo,
@@ -157,7 +157,7 @@ func newMarketplaceUpdateResult(
 
 func applyMarketplaceExtensionUpdate(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	downloader registrypkg.Downloader,
 	info ExtensionInfo,

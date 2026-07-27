@@ -103,7 +103,10 @@ function stalePatternViolations(pattern: RegExp): string[] {
     .map(doc => doc.path);
 }
 
-function extractManualAghCommandPrefixes(line: string, generatedCommands: Set<string>): string[] {
+function extractManualCompozyCommandPrefixes(
+  line: string,
+  generatedCommands: Set<string>
+): string[] {
   const commands: string[] = [];
   const tokens = line
     .replace(/^[\s$>]+/, "")
@@ -128,7 +131,7 @@ function extractManualAghCommandPrefixes(line: string, generatedCommands: Set<st
   return commands;
 }
 
-function manualAghCommandViolations(): string[] {
+function manualCompozyCommandViolations(): string[] {
   const generatedCommands = generatedCLICommands();
   return listManualDocs(contentRoot).flatMap(doc =>
     extractBashBlocks(doc).flatMap(block =>
@@ -136,7 +139,7 @@ function manualAghCommandViolations(): string[] {
         .replaceAll("\\\n", " ")
         .split("\n")
         .flatMap(line =>
-          extractManualAghCommandPrefixes(line, generatedCommands).map(command => ({
+          extractManualCompozyCommandPrefixes(line, generatedCommands).map(command => ({
             command,
             line,
           }))
@@ -161,7 +164,7 @@ describe("manual site CLI examples", () => {
   });
 
   it("uses command names that exist in the generated CLI reference", () => {
-    expect(manualAghCommandViolations()).toEqual([]);
+    expect(manualCompozyCommandViolations()).toEqual([]);
   });
 
   it("does not document stale command forms that are not implemented by cobra", () => {

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -71,7 +71,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			t,
 			harness,
 			"builders",
-			[]aghcontract.SessionPayload{opsSession, patchSession},
+			[]compozycontract.SessionPayload{opsSession, patchSession},
 			[]acpmock.Registration{regOps, regPatch},
 		)
 
@@ -532,7 +532,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			t,
 			harness,
 			"capabilities",
-			[]aghcontract.SessionPayload{releaseSession, curatorSession},
+			[]compozycontract.SessionPayload{releaseSession, curatorSession},
 			[]acpmock.Registration{regRelease, regCurator},
 		)
 
@@ -554,7 +554,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			curatorPeerID,
 		)
 
-		capabilityBody := mustCapabilityBodyString(t, aghconfig.CapabilityDef{
+		capabilityBody := mustCapabilityBodyString(t, compozyconfig.CapabilityDef{
 			ID:                "fix-go-migration-tests",
 			Summary:           "Repair failing Go migration test assertions and rerun the package verification lane.",
 			Outcome:           "A patched migration test with passing package verification output.",
@@ -923,10 +923,10 @@ func mustCreateNetworkChannel(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	agentNames ...string,
-) aghcontract.NetworkChannelDetailPayload {
+) compozycontract.NetworkChannelDetailPayload {
 	t.Helper()
 
-	detail, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+	detail, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
 		Channel:      channel,
 		Purpose:      "Release validation channel for " + channel,
 		WorkspaceID:  harness.WorkspaceID,
@@ -941,9 +941,9 @@ func mustCreateNetworkChannel(
 
 func requireChannelSession(
 	t testing.TB,
-	detail aghcontract.NetworkChannelDetailPayload,
+	detail compozycontract.NetworkChannelDetailPayload,
 	agentName string,
-) aghcontract.SessionPayload {
+) compozycontract.SessionPayload {
 	t.Helper()
 
 	target := strings.TrimSpace(agentName)
@@ -953,7 +953,7 @@ func requireChannelSession(
 		}
 	}
 	t.Fatalf("channel sessions = %#v, want agent %q", detail.Sessions, agentName)
-	return aghcontract.SessionPayload{}
+	return compozycontract.SessionPayload{}
 }
 
 func waitForChannelPeerCount(
@@ -962,10 +962,10 @@ func waitForChannelPeerCount(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	want int,
-) []aghcontract.NetworkPeerPayload {
+) []compozycontract.NetworkPeerPayload {
 	t.Helper()
 
-	var peers []aghcontract.NetworkPeerPayload
+	var peers []compozycontract.NetworkPeerPayload
 	waitForRuntimeCondition(t, "network peers for "+channel, 10*time.Second, func() bool {
 		var err error
 		peers, err = mustHTTPNetworkPeersMaybe(ctx, harness, channel)
@@ -976,7 +976,7 @@ func waitForChannelPeerCount(
 
 func requirePeerIDForSession(
 	t testing.TB,
-	peers []aghcontract.NetworkPeerPayload,
+	peers []compozycontract.NetworkPeerPayload,
 	sessionID string,
 ) string {
 	t.Helper()
@@ -993,7 +993,7 @@ func requirePeerIDForSession(
 
 func requireChannelMessage(
 	t testing.TB,
-	messages []aghcontract.NetworkConversationMessagePayload,
+	messages []compozycontract.NetworkConversationMessagePayload,
 	messageID string,
 	text string,
 ) {
@@ -1013,7 +1013,7 @@ func requireChannelMessage(
 
 func requireNoChannelMessage(
 	t testing.TB,
-	messages []aghcontract.NetworkConversationMessagePayload,
+	messages []compozycontract.NetworkConversationMessagePayload,
 	messageID string,
 ) {
 	t.Helper()
@@ -1028,7 +1028,7 @@ func requireNoChannelMessage(
 
 func requireThreadSummary(
 	t testing.TB,
-	threads []aghcontract.NetworkThreadSummaryPayload,
+	threads []compozycontract.NetworkThreadSummaryPayload,
 	threadID string,
 	rootMessageID string,
 ) {
@@ -1048,7 +1048,7 @@ func requireThreadSummary(
 
 func requireDirectRoomSummary(
 	t testing.TB,
-	directs []aghcontract.NetworkDirectRoomPayload,
+	directs []compozycontract.NetworkDirectRoomPayload,
 	directID string,
 ) {
 	t.Helper()
@@ -1063,12 +1063,12 @@ func requireDirectRoomSummary(
 
 func requireConversationMessage(
 	t testing.TB,
-	messages []aghcontract.NetworkConversationMessagePayload,
+	messages []compozycontract.NetworkConversationMessagePayload,
 	messageID string,
 	surface string,
 	threadID string,
 	directID string,
-) aghcontract.NetworkConversationMessagePayload {
+) compozycontract.NetworkConversationMessagePayload {
 	t.Helper()
 
 	for _, message := range messages {
@@ -1087,7 +1087,7 @@ func requireConversationMessage(
 		return message
 	}
 	t.Fatalf("conversation messages = %#v, want message_id %q", messages, messageID)
-	return aghcontract.NetworkConversationMessagePayload{}
+	return compozycontract.NetworkConversationMessagePayload{}
 }
 
 type networkConversationMessageExpectation struct {
@@ -1122,7 +1122,7 @@ type networkPromptCorrelationExpectation struct {
 
 func requireConversationMessageCorrelation(
 	t testing.TB,
-	message aghcontract.NetworkConversationMessagePayload,
+	message compozycontract.NetworkConversationMessagePayload,
 	expectation networkConversationMessageExpectation,
 ) {
 	t.Helper()
@@ -1163,11 +1163,17 @@ func requireNetworkPromptCorrelation(
 	}
 	for _, record := range acpmock.PromptDiagnostics(records) {
 		meta := record.PromptMeta.Normalize()
-		if meta.Network == nil || strings.TrimSpace(meta.Network.MessageID) != strings.TrimSpace(expectation.MessageID) {
+		if meta.Network == nil ||
+			strings.TrimSpace(meta.Network.MessageID) != strings.TrimSpace(expectation.MessageID) {
 			continue
 		}
 		if meta.TurnSource != acp.PromptTurnSourceNetwork {
-			t.Fatalf("network prompt %q turn_source = %q, want %q", expectation.MessageID, meta.TurnSource, acp.PromptTurnSourceNetwork)
+			t.Fatalf(
+				"network prompt %q turn_source = %q, want %q",
+				expectation.MessageID,
+				meta.TurnSource,
+				acp.PromptTurnSourceNetwork,
+			)
 		}
 		fields := []struct {
 			name string
@@ -1209,10 +1215,10 @@ func mustSendNetworkCLI(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	args []string,
-) aghcontract.NetworkSendPayload {
+) compozycontract.NetworkSendPayload {
 	t.Helper()
 
-	var payload aghcontract.NetworkSendPayload
+	var payload compozycontract.NetworkSendPayload
 	fullArgs := append(
 		[]string{"network", "--workspace", harness.WorkspaceID, "send"},
 		append(args, "-o", "json")...,
@@ -1240,10 +1246,10 @@ func mustSetNetworkEnabled(
 	}
 }
 
-func mustCapabilityBodyString(t testing.TB, def aghconfig.CapabilityDef) string {
+func mustCapabilityBodyString(t testing.TB, def compozyconfig.CapabilityDef) string {
 	t.Helper()
 
-	digest, err := aghconfig.CanonicalCapabilityDigest(def)
+	digest, err := compozyconfig.CanonicalCapabilityDigest(def)
 	if err != nil {
 		t.Fatalf("CanonicalCapabilityDigest(%q) error = %v", def.ID, err)
 	}
@@ -1273,14 +1279,14 @@ func assertCLINetworkParity(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	httpStatus aghcontract.NetworkStatusPayload,
-	httpPeers []aghcontract.NetworkPeerPayload,
-	httpChannel aghcontract.NetworkChannelPayload,
-	httpDetail aghcontract.NetworkChannelDetailPayload,
+	httpStatus compozycontract.NetworkStatusPayload,
+	httpPeers []compozycontract.NetworkPeerPayload,
+	httpChannel compozycontract.NetworkChannelPayload,
+	httpDetail compozycontract.NetworkChannelDetailPayload,
 ) {
 	t.Helper()
 
-	var cliStatus aghcontract.NetworkStatusPayload
+	var cliStatus compozycontract.NetworkStatusPayload
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&cliStatus,
@@ -1300,7 +1306,7 @@ func assertCLINetworkParity(
 		t.Fatalf("CLI network status = %#v, want parity with HTTP %#v", cliStatus, httpStatus)
 	}
 
-	var cliPeers []aghcontract.NetworkPeerPayload
+	var cliPeers []compozycontract.NetworkPeerPayload
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&cliPeers,
@@ -1328,7 +1334,7 @@ func assertCLINetworkParity(
 		}
 	}
 
-	var cliChannels []aghcontract.NetworkChannelPayload
+	var cliChannels []compozycontract.NetworkChannelPayload
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&cliChannels,
@@ -1355,7 +1361,7 @@ func assertCLINetworkParity(
 func assertNetworkPeerOrdering(
 	t testing.TB,
 	label string,
-	peers []aghcontract.NetworkPeerPayload,
+	peers []compozycontract.NetworkPeerPayload,
 ) {
 	t.Helper()
 
@@ -1372,9 +1378,9 @@ func assertNetworkPeerOrdering(
 func assertMatchingPeerOrder(
 	t testing.TB,
 	leftLabel string,
-	left []aghcontract.NetworkPeerPayload,
+	left []compozycontract.NetworkPeerPayload,
 	rightLabel string,
-	right []aghcontract.NetworkPeerPayload,
+	right []compozycontract.NetworkPeerPayload,
 ) {
 	t.Helper()
 
@@ -1389,8 +1395,8 @@ func assertMatchingPeerOrder(
 }
 
 func networkPeerShouldSortBefore(
-	left aghcontract.NetworkPeerPayload,
-	right aghcontract.NetworkPeerPayload,
+	left compozycontract.NetworkPeerPayload,
+	right compozycontract.NetworkPeerPayload,
 ) bool {
 	if left.Local != right.Local {
 		return left.Local
@@ -1418,11 +1424,11 @@ func networkPeerShouldSortBefore(
 	return strings.TrimSpace(left.Channel) <= strings.TrimSpace(right.Channel)
 }
 
-func networkPeerEffectiveRecency(peer aghcontract.NetworkPeerPayload) *time.Time {
+func networkPeerEffectiveRecency(peer compozycontract.NetworkPeerPayload) *time.Time {
 	return peer.JoinedAt
 }
 
-func networkPeerSortName(peer aghcontract.NetworkPeerPayload) string {
+func networkPeerSortName(peer compozycontract.NetworkPeerPayload) string {
 	if value := strings.TrimSpace(peer.DisplayName); value != "" {
 		return value
 	}
@@ -1430,26 +1436,26 @@ func networkPeerSortName(peer aghcontract.NetworkPeerPayload) string {
 }
 
 func findChannelPayload(
-	channels []aghcontract.NetworkChannelPayload,
+	channels []compozycontract.NetworkChannelPayload,
 	channel string,
-) (aghcontract.NetworkChannelPayload, bool) {
+) (compozycontract.NetworkChannelPayload, bool) {
 	target := strings.TrimSpace(channel)
 	for _, item := range channels {
 		if strings.TrimSpace(item.Channel) == target {
 			return item, true
 		}
 	}
-	return aghcontract.NetworkChannelPayload{}, false
+	return compozycontract.NetworkChannelPayload{}, false
 }
 
 func mustHTTPNetworkStatus(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) aghcontract.NetworkStatusPayload {
+) compozycontract.NetworkStatusPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkStatusResponse
+	var response compozycontract.NetworkStatusResponse
 	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/network/status", nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(/api/network/status) error = %v", err)
 	}
@@ -1468,7 +1474,7 @@ func mustHTTPNetworkPeers(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) []aghcontract.NetworkPeerPayload {
+) []compozycontract.NetworkPeerPayload {
 	t.Helper()
 
 	peers, err := mustHTTPNetworkPeersMaybe(ctx, harness, channel)
@@ -1482,8 +1488,8 @@ func mustHTTPNetworkPeersMaybe(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) ([]aghcontract.NetworkPeerPayload, error) {
-	var response aghcontract.NetworkPeersResponse
+) ([]compozycontract.NetworkPeerPayload, error) {
+	var response compozycontract.NetworkPeersResponse
 	path := httpWorkspaceNetworkPath(harness, "/peers")
 	if trimmed := strings.TrimSpace(channel); trimmed != "" {
 		path += "?channel=" + url.QueryEscape(trimmed)
@@ -1498,10 +1504,10 @@ func mustHTTPNetworkChannels(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) []aghcontract.NetworkChannelPayload {
+) []compozycontract.NetworkChannelPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkChannelsResponse
+	var response compozycontract.NetworkChannelsResponse
 	path := httpWorkspaceNetworkPath(harness, "/channels")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -1514,10 +1520,10 @@ func mustHTTPNetworkChannel(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) aghcontract.NetworkChannelDetailPayload {
+) compozycontract.NetworkChannelDetailPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkChannelResponse
+	var response compozycontract.NetworkChannelResponse
 	escapedChannel := url.PathEscape(channel)
 	path := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel)
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -1531,18 +1537,18 @@ func mustHTTPNetworkChannelMessages(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) []aghcontract.NetworkConversationMessagePayload {
+) []compozycontract.NetworkConversationMessagePayload {
 	t.Helper()
 
-	var threadsResponse aghcontract.NetworkThreadsResponse
+	var threadsResponse compozycontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
 	threadsPath := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", threadsPath, err)
 	}
-	messages := make([]aghcontract.NetworkConversationMessagePayload, 0)
+	messages := make([]compozycontract.NetworkConversationMessagePayload, 0)
 	for _, thread := range threadsResponse.Threads {
-		var response aghcontract.NetworkThreadMessagesResponse
+		var response compozycontract.NetworkThreadMessagesResponse
 		messagesPath := httpWorkspaceNetworkPath(
 			harness,
 			"/channels/"+escapedChannel+"/threads/"+url.PathEscape(thread.ThreadID)+"/messages",
@@ -1560,10 +1566,10 @@ func mustHTTPNetworkThreads(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) []aghcontract.NetworkThreadSummaryPayload {
+) []compozycontract.NetworkThreadSummaryPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkThreadsResponse
+	var response compozycontract.NetworkThreadsResponse
 	path := httpWorkspaceNetworkPath(harness, "/channels/"+url.PathEscape(channel)+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -1577,10 +1583,10 @@ func mustHTTPNetworkThread(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	threadID string,
-) aghcontract.NetworkThreadSummaryPayload {
+) compozycontract.NetworkThreadSummaryPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkThreadResponse
+	var response compozycontract.NetworkThreadResponse
 	path := httpWorkspaceNetworkPath(
 		harness,
 		"/channels/"+url.PathEscape(channel)+"/threads/"+url.PathEscape(threadID),
@@ -1597,10 +1603,10 @@ func mustHTTPNetworkThreadMessages(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	threadID string,
-) []aghcontract.NetworkConversationMessagePayload {
+) []compozycontract.NetworkConversationMessagePayload {
 	t.Helper()
 
-	var response aghcontract.NetworkThreadMessagesResponse
+	var response compozycontract.NetworkThreadMessagesResponse
 	path := httpWorkspaceNetworkPath(
 		harness,
 		"/channels/"+url.PathEscape(channel)+"/threads/"+url.PathEscape(threadID)+"/messages",
@@ -1616,10 +1622,10 @@ func mustHTTPNetworkDirectRooms(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-) []aghcontract.NetworkDirectRoomPayload {
+) []compozycontract.NetworkDirectRoomPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkDirectRoomsResponse
+	var response compozycontract.NetworkDirectRoomsResponse
 	path := httpWorkspaceNetworkPath(harness, "/channels/"+url.PathEscape(channel)+"/directs")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -1633,10 +1639,10 @@ func mustHTTPNetworkDirectRoom(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	directID string,
-) aghcontract.NetworkDirectRoomPayload {
+) compozycontract.NetworkDirectRoomPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkDirectRoomResponse
+	var response compozycontract.NetworkDirectRoomResponse
 	path := httpWorkspaceNetworkPath(
 		harness,
 		"/channels/"+url.PathEscape(channel)+"/directs/"+url.PathEscape(directID),
@@ -1653,10 +1659,10 @@ func mustHTTPNetworkDirectRoomMessages(
 	harness *e2etest.RuntimeHarness,
 	channel string,
 	directID string,
-) []aghcontract.NetworkConversationMessagePayload {
+) []compozycontract.NetworkConversationMessagePayload {
 	t.Helper()
 
-	var response aghcontract.NetworkDirectRoomMessagesResponse
+	var response compozycontract.NetworkDirectRoomMessagesResponse
 	path := httpWorkspaceNetworkPath(
 		harness,
 		"/channels/"+url.PathEscape(channel)+"/directs/"+url.PathEscape(directID)+"/messages",
@@ -1672,10 +1678,10 @@ func mustHTTPNetworkWork(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workID string,
-) aghcontract.NetworkWorkPayload {
+) compozycontract.NetworkWorkPayload {
 	t.Helper()
 
-	var response aghcontract.NetworkWorkResponse
+	var response compozycontract.NetworkWorkResponse
 	path := httpWorkspaceNetworkPath(harness, "/work/"+url.PathEscape(workID))
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
@@ -1689,7 +1695,7 @@ func channelHasMessageID(
 	channel string,
 	messageID string,
 ) bool {
-	var threadsResponse aghcontract.NetworkThreadsResponse
+	var threadsResponse compozycontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
 	threadsPath := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/threads")
 	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
@@ -1697,7 +1703,7 @@ func channelHasMessageID(
 	}
 	target := strings.TrimSpace(messageID)
 	for _, thread := range threadsResponse.Threads {
-		var response aghcontract.NetworkThreadMessagesResponse
+		var response compozycontract.NetworkThreadMessagesResponse
 		messagesPath := httpWorkspaceNetworkPath(
 			harness,
 			"/channels/"+escapedChannel+"/threads/"+url.PathEscape(thread.ThreadID)+"/messages",
@@ -1796,10 +1802,10 @@ func httpResolveNetworkDirectRoomMaybe(
 	sessionID string,
 	peerID string,
 ) (string, error) {
-	var response aghcontract.NetworkDirectRoomResponse
+	var response compozycontract.NetworkDirectRoomResponse
 	escapedChannel := url.PathEscape(channel)
 	path := httpWorkspaceNetworkPath(harness, "/channels/"+escapedChannel+"/directs/resolve")
-	request := aghcontract.NetworkDirectResolveRequest{
+	request := compozycontract.NetworkDirectResolveRequest{
 		SessionID: sessionID,
 		PeerID:    peerID,
 	}
@@ -1815,7 +1821,7 @@ func mustSessionTranscript(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-) aghcontract.SessionTranscriptResponse {
+) compozycontract.SessionTranscriptResponse {
 	t.Helper()
 
 	response, err := harness.SessionTranscript(ctx, sessionID)
@@ -1925,7 +1931,7 @@ func registerNetworkScenarioArtifacts(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	channel string,
-	sessions []aghcontract.SessionPayload,
+	sessions []compozycontract.SessionPayload,
 	registrations []acpmock.Registration,
 ) {
 	t.Helper()
@@ -1939,7 +1945,7 @@ func registerNetworkScenarioArtifacts(
 		}
 
 		transcripts := make(map[string][]transcript.UIMessage, len(sessions))
-		events := make(map[string][]aghcontract.SessionEventPayload, len(sessions))
+		events := make(map[string][]compozycontract.SessionEventPayload, len(sessions))
 		for _, session := range sessions {
 			transcriptResp, err := harness.SessionTranscript(ctx, session.ID)
 			if err != nil {

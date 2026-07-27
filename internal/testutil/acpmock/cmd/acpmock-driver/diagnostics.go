@@ -43,7 +43,7 @@ func (a *mockAgent) writeDiagnostics(record acpmock.DiagnosticsRecord) (err erro
 		}
 	}()
 
-	record.AGHSessionID = strings.TrimSpace(os.Getenv("COMPOZY_SESSION_ID"))
+	record.CompozySessionID = strings.TrimSpace(os.Getenv("COMPOZY_SESSION_ID"))
 	data, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("encode diagnostics: %w", err)

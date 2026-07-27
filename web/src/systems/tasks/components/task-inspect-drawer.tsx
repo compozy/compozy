@@ -190,7 +190,7 @@ function DiagnosticsPane({
       )}
 
       <CodeBlock
-        code={`# same view from the CLI\nagh task inspect ${taskId} -o json`}
+        code={`# same view from the CLI\ncompozy task inspect ${taskId} -o json`}
         language="bash"
       />
       <p className="text-form-hint text-subtle">

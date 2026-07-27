@@ -78,7 +78,7 @@ func (b *Builder) addLogTailArtifact(writer *bundleArchiveWriter, manifest *Mani
 
 func (b *Builder) addVersionsArtifact(writer *bundleArchiveWriter, manifest *Manifest) {
 	value := map[string]any{
-		"agh":       version.Current(),
+		"compozy":   version.Current(),
 		"generated": b.nowUTC(),
 	}
 	if err := writer.addJSON("versions.json", value, b.artifactMaxBytes(), false, manifest); err != nil {

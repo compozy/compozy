@@ -13,7 +13,7 @@ import {
   SessionToolCallRow,
   ThinkingBlock,
   useSessionRuntimeRenderContext,
-  type AghPermissionData,
+  type CompozyPermissionData,
   type GoalPromptMeta,
   type UIMessage,
 } from "@/systems/session";
@@ -42,7 +42,7 @@ import {
   visibleWorkEntries,
 } from "./session-timeline.logic";
 
-function isAghPermissionData(value: unknown): value is AghPermissionData {
+function isCompozyPermissionData(value: unknown): value is CompozyPermissionData {
   return isAgentEventPayload(value) && typeof value.request_id === "string";
 }
 
@@ -62,7 +62,11 @@ function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
 
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
   const renderContext = useSessionRuntimeRenderContext();
-  if (row.part.name === "data-agh-event" && renderContext && isClarifyEventData(row.part.data)) {
+  if (
+    row.part.name === "data-compozy-event" &&
+    renderContext &&
+    isClarifyEventData(row.part.data)
+  ) {
     return (
       <ClarificationDataPart
         data={row.part.data}
@@ -71,13 +75,13 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
       />
     );
   }
-  if (row.part.name === "data-agh-event" && isAgentEventPayload(row.part.data)) {
+  if (row.part.name === "data-compozy-event" && isAgentEventPayload(row.part.data)) {
     return <RuntimeActivityNotice event={row.part.data} />;
   }
   if (
-    row.part.name === "data-agh-permission" &&
+    row.part.name === "data-compozy-permission" &&
     renderContext &&
-    isAghPermissionData(row.part.data)
+    isCompozyPermissionData(row.part.data)
   ) {
     return (
       <PermissionDataPart

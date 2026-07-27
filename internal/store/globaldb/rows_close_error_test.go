@@ -14,7 +14,7 @@ import (
 
 var errQueryRowsClose = errors.New("query rows close failed")
 
-const queryRowsCloseErrorDriverName = "agh-query-rows-close-error"
+const queryRowsCloseErrorDriverName = "compozy-query-rows-close-error"
 
 func init() {
 	sql.Register(queryRowsCloseErrorDriverName, queryRowsCloseErrorDriver{})

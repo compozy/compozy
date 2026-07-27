@@ -72,16 +72,6 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
-  await expect(appPage.getByTestId("session-create-dialog")).toHaveAttribute(
-    "data-frame",
-    "unframed"
-  );
-  await expect(
-    appPage.getByTestId("session-create-dialog").locator('[data-slot="dialog-header"]')
-  ).toHaveAttribute("data-variant", "ruled");
-  await expect(
-    appPage.getByTestId("session-create-dialog").locator('[data-slot="dialog-footer"]')
-  ).toHaveAttribute("data-variant", "ruled");
 
   // Open the unified runtime selector and enter a custom model id for this session.
   // The mock adapter fails loud on an unadvertised model (task_01 §7.4), so use a

@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	apispec "github.com/compozy/compozy/internal/api/spec"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	tomltree "github.com/pelletier/go-toml"
@@ -54,7 +54,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportApprovalAgentName,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -74,7 +74,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 				return nil
 			}
 			approvedRequestID = payload.RequestID
-			return runtimeHarness.ApproveSessionPermission(ctx, session.ID, aghcontract.ApproveSessionRequest{
+			return runtimeHarness.ApproveSessionPermission(ctx, session.ID, compozycontract.ApproveSessionRequest{
 				RequestID: payload.RequestID,
 				Decision:  "allow-always",
 			})
@@ -145,8 +145,8 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 	defer cancel()
 
 	t.Run("Should round-trip the provider through create and read", func(t *testing.T) {
-		var created aghcontract.SessionResponse
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+		var created compozycontract.SessionResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 			AgentName:     transportAutomationAgent,
 			Provider:      provider,
 			WorkspacePath: runtimeHarness.WorkspaceRoot,
@@ -161,7 +161,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		}
 		created.Session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, created.Session)
 
-		var detail aghcontract.SessionResponse
+		var detail compozycontract.SessionResponse
 		if err := runtimeHarness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -189,8 +189,8 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			true,
 		)
 
-		var created aghcontract.SessionResponse
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+		var created compozycontract.SessionResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 			AgentName:     transportAutomationAgent,
 			Provider:      transportOverrideProvider,
 			WorkspacePath: runtimeHarness.WorkspaceRoot,
@@ -337,7 +337,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportFaultyAgent,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -357,7 +357,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 		t.Fatalf("HTTP prompt stream = %#v, want error event", stream)
 	}
 
-	var eventsResp aghcontract.SessionEventsResponse
+	var eventsResp compozycontract.SessionEventsResponse
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
@@ -376,8 +376,8 @@ func waitForHTTPTransportSessionActive(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	accepted aghcontract.SessionPayload,
-) aghcontract.SessionPayload {
+	accepted compozycontract.SessionPayload,
+) compozycontract.SessionPayload {
 	t.Helper()
 	active, err := harness.WaitForSessionActive(ctx, accepted.ID)
 	if err != nil {
@@ -434,10 +434,10 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 			string(body),
 		)
 	}
-	var httpList aghcontract.ExtensionsResponse
+	var httpList compozycontract.ExtensionsResponse
 	decodeHTTPJSON(t, httpListResp, &httpList)
 
-	var udsList aghcontract.ExtensionsResponse
+	var udsList compozycontract.ExtensionsResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
 		t.Fatalf("UDS list extensions error = %v", err)
 	}
@@ -465,10 +465,10 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		_ = httpStatusResp.Body.Close()
 		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
 	}
-	var httpStatus aghcontract.ExtensionResponse
+	var httpStatus compozycontract.ExtensionResponse
 	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
 
-	var udsStatus aghcontract.ExtensionResponse
+	var udsStatus compozycontract.ExtensionResponse
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -516,11 +516,11 @@ func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) (aghcontract.TriggerPayload, string) {
+) (compozycontract.TriggerPayload, string) {
 	t.Helper()
 
 	state, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
-		Triggers: []aghcontract.CreateTriggerRequest{{
+		Triggers: []compozycontract.CreateTriggerRequest{{
 			Scope:              automationpkg.AutomationScopeGlobal,
 			Name:               "deploy-review",
 			AgentName:          transportAutomationAgent,
@@ -552,7 +552,7 @@ func waitForHTTPAutomationRun(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) aghcontract.RunPayload {
+) compozycontract.RunPayload {
 	t.Helper()
 
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -565,7 +565,7 @@ func waitForHTTPAutomationRun(
 		lastSeen string
 	)
 	for {
-		var response aghcontract.RunResponse
+		var response compozycontract.RunResponse
 		err := harness.HTTPJSON(waitCtx, http.MethodGet, "/api/automation/runs/"+url.PathEscape(runID), nil, &response)
 		if err == nil && response.Run.ID == runID {
 			return response.Run
@@ -586,8 +586,8 @@ func waitForHTTPAutomationRun(
 	}
 }
 
-func sortExtensionsByName(values []aghcontract.ExtensionPayload) {
-	slices.SortFunc(values, func(left, right aghcontract.ExtensionPayload) int {
+func sortExtensionsByName(values []compozycontract.ExtensionPayload) {
+	slices.SortFunc(values, func(left, right compozycontract.ExtensionPayload) int {
 		switch {
 		case left.Name < right.Name:
 			return -1
@@ -599,11 +599,11 @@ func sortExtensionsByName(values []aghcontract.ExtensionPayload) {
 	})
 }
 
-func extensionsSemanticallyEqual(left, right []aghcontract.ExtensionPayload) bool {
+func extensionsSemanticallyEqual(left, right []compozycontract.ExtensionPayload) bool {
 	return slices.EqualFunc(left, right, extensionSemanticallyEqual)
 }
 
-func extensionSemanticallyEqual(left, right aghcontract.ExtensionPayload) bool {
+func extensionSemanticallyEqual(left, right compozycontract.ExtensionPayload) bool {
 	left = normalizeExtensionPayload(left)
 	right = normalizeExtensionPayload(right)
 
@@ -630,7 +630,7 @@ func extensionSemanticallyEqual(left, right aghcontract.ExtensionPayload) bool {
 	return extensionBundlesSemanticallyEqual(left.Bundles, right.Bundles)
 }
 
-func normalizeExtensionPayload(value aghcontract.ExtensionPayload) aghcontract.ExtensionPayload {
+func normalizeExtensionPayload(value compozycontract.ExtensionPayload) compozycontract.ExtensionPayload {
 	value.Capabilities = normalizeStrings(value.Capabilities)
 	value.Actions = normalizeStrings(value.Actions)
 	value.Bundles = normalizeExtensionBundles(value.Bundles)
@@ -638,13 +638,13 @@ func normalizeExtensionPayload(value aghcontract.ExtensionPayload) aghcontract.E
 }
 
 func normalizeExtensionBundles(
-	values []aghcontract.ExtensionBundleSummaryPayload,
-) []aghcontract.ExtensionBundleSummaryPayload {
+	values []compozycontract.ExtensionBundleSummaryPayload,
+) []compozycontract.ExtensionBundleSummaryPayload {
 	if len(values) == 0 {
 		return nil
 	}
 
-	normalized := make([]aghcontract.ExtensionBundleSummaryPayload, len(values))
+	normalized := make([]compozycontract.ExtensionBundleSummaryPayload, len(values))
 	for idx, value := range values {
 		value.Profiles = normalizeStrings(value.Profiles)
 		normalized[idx] = value
@@ -654,9 +654,9 @@ func normalizeExtensionBundles(
 
 func extensionBundlesSemanticallyEqual(
 	left,
-	right []aghcontract.ExtensionBundleSummaryPayload,
+	right []compozycontract.ExtensionBundleSummaryPayload,
 ) bool {
-	return slices.EqualFunc(left, right, func(left, right aghcontract.ExtensionBundleSummaryPayload) bool {
+	return slices.EqualFunc(left, right, func(left, right compozycontract.ExtensionBundleSummaryPayload) bool {
 		return left.Name == right.Name &&
 			left.Description == right.Description &&
 			slices.Equal(left.Profiles, right.Profiles)
@@ -689,12 +689,12 @@ func writeTransportProviderOverrideConfig(
 ) {
 	t.Helper()
 
-	configDir := filepath.Join(workspaceRoot, aghconfig.DirName)
+	configDir := filepath.Join(workspaceRoot, compozyconfig.DirName)
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", configDir, err)
 	}
 
-	configPath := filepath.Join(configDir, aghconfig.ConfigName)
+	configPath := filepath.Join(configDir, compozyconfig.ConfigName)
 	tree, err := loadTransportProviderOverrideTree(configPath)
 	if err != nil {
 		t.Fatalf("load transport override config %q error = %v", configPath, err)
@@ -770,7 +770,7 @@ type httpSessionEventContent struct {
 	Type string `json:"type"`
 }
 
-func httpSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
+func httpSessionEventsContainType(events []compozycontract.SessionEventPayload, want string) bool {
 	for _, event := range events {
 		var payload httpSessionEventContent
 		if err := json.Unmarshal([]byte(event.Content), &payload); err != nil {

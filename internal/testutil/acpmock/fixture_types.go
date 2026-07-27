@@ -100,7 +100,7 @@ type TurnMatchJudge struct {
 	CriterionID   string `json:"criterion_id,omitempty"`
 }
 
-// TurnMatchNetwork captures exact AGH network envelope field matching.
+// TurnMatchNetwork captures exact Compozy network envelope field matching.
 type TurnMatchNetwork struct {
 	MessageID   string `json:"message_id,omitempty"`
 	Kind        string `json:"kind,omitempty"`

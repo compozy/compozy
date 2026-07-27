@@ -872,7 +872,7 @@ func newInitializeRequest(runtimeCfg InitializeRuntime) InitializeRequest {
 	return InitializeRequest{
 		ProtocolVersion:          defaultProtocolVersion,
 		SupportedProtocolVersion: []string{defaultProtocolVersion},
-		AGHVersion:               "dev",
+		CompozyVersion:           "dev",
 		SessionNonce:             "session-nonce-test",
 		Extension: InitializeExtension{
 			Name:       "test-extension",
@@ -1027,7 +1027,7 @@ func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 		ExtensionInfo: InitializeExtensionInfo{
 			Name:    request.Extension.Name,
 			Version: request.Extension.Version,
-			SDKName: "agh-test-helper",
+			SDKName: "compozy-test-helper",
 		},
 		AcceptedCapabilities: AcceptedCapabilities{
 			Provides: append([]string(nil), request.Capabilities.Provides...),

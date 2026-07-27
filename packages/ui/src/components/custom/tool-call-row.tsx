@@ -21,7 +21,7 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
   status: ToolCallStatus;
   icon?: ToolCallIconComponent | React.ReactNode;
   /**
-   * True only for a genuine runtime error (an AGH `output-error`), which tones the
+   * True only for a genuine runtime error (a Compozy `output-error`), which tones the
    * heading danger. Error-shaped tool output keeps `status="failed"` (X glyph) with
    * `runtimeError` false, so its heading stays neutral.
    */

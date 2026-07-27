@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -68,22 +68,27 @@ func (s *service) ApplyProviderModelCuration(
 	if err != nil {
 		return ProviderModelCurationResult{}, err
 	}
-	values := providerModelConfigMaps([]aghconfig.ProviderModelConfig{curated})
+	values := providerModelConfigMaps([]compozyconfig.ProviderModelConfig{curated})
 	if len(values) != 1 {
 		return ProviderModelCurationResult{}, errors.New("settings: provider model curation produced no config row")
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
 	if err != nil {
 		return ProviderModelCurationResult{}, err
 	}
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		return editor.UpsertArrayTableItem(
-			[]string{"providers", providerID, "models", "curated"},
-			"id",
-			modelID,
-			values[0],
-		)
-	}); err != nil {
+	if _, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		"",
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			return editor.UpsertArrayTableItem(
+				[]string{"providers", providerID, "models", "curated"},
+				"id",
+				modelID,
+				values[0],
+			)
+		},
+	); err != nil {
 		return ProviderModelCurationResult{}, fmt.Errorf(
 			"settings: curate provider model %q/%q: %w",
 			providerID,
@@ -138,11 +143,11 @@ func (s *service) findProviderModel(
 }
 
 func providerModelCurationConfig(
-	base aghconfig.ProviderModelConfig,
+	base compozyconfig.ProviderModelConfig,
 	model modelcatalog.Model,
 	req ProviderModelCurationRequest,
-) (aghconfig.ProviderModelConfig, error) {
-	curated := cloneProviderModelConfigs([]aghconfig.ProviderModelConfig{base})[0]
+) (compozyconfig.ProviderModelConfig, error) {
+	curated := cloneProviderModelConfigs([]compozyconfig.ProviderModelConfig{base})[0]
 	curated.ID = model.ModelID
 	if req.Hidden != nil {
 		curated.Hidden = cloneBoolPtr(req.Hidden)
@@ -159,18 +164,18 @@ func providerModelCurationConfig(
 	effort := strings.TrimSpace(string(*req.DefaultReasoningEffort))
 	canonical := modelcatalog.ReasoningEffort(effort)
 	if !modelcatalog.IsValidEffort(effort) || !slices.Contains(model.ReasoningEfforts, canonical) {
-		return aghconfig.ProviderModelConfig{}, providerModelEffortUnsupportedError(model, effort)
+		return compozyconfig.ProviderModelConfig{}, providerModelEffortUnsupportedError(model, effort)
 	}
 	curated.DefaultReasoningEffort = effort
 	return curated, nil
 }
 
 func configuredProviderModelCurationBase(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	providerID string,
 	modelID string,
-) aghconfig.ProviderModelConfig {
-	base := aghconfig.ProviderModelConfig{ID: modelID}
+) compozyconfig.ProviderModelConfig {
+	base := compozyconfig.ProviderModelConfig{ID: modelID}
 	if cfg == nil {
 		return base
 	}
@@ -182,7 +187,7 @@ func configuredProviderModelCurationBase(
 		if strings.TrimSpace(configured.ID) != modelID {
 			continue
 		}
-		return cloneProviderModelConfigs([]aghconfig.ProviderModelConfig{configured})[0]
+		return cloneProviderModelConfigs([]compozyconfig.ProviderModelConfig{configured})[0]
 	}
 	return base
 }

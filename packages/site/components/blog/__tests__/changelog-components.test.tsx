@@ -83,7 +83,7 @@ describe("changelog public components", () => {
           version: "v0.6.0",
           status: "beta",
           summary: "Runtime surface polish",
-          compareUrl: "https://github.com/compozy/agh/compare/v0.5.0...v0.6.0",
+          compareUrl: "https://github.com/compozy/compozy/compare/v0.5.0...v0.6.0",
           added: ["Added docs navigation checks."],
           fixed: ["Fixed release copy drift."],
         })}
@@ -105,7 +105,7 @@ describe("changelog public components", () => {
     expect(screen.queryByText("CHANGED")).toBeNull();
     expect(screen.queryByText("BREAKING")).toBeNull();
     expect(compare.getAttribute("href")).toBe(
-      "https://github.com/compozy/agh/compare/v0.5.0...v0.6.0"
+      "https://github.com/compozy/compozy/compare/v0.5.0...v0.6.0"
     );
     expect(compare.getAttribute("target")).toBe("_blank");
     expect(compare.getAttribute("rel")).toContain("noopener");

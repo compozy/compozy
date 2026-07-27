@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
@@ -24,7 +24,7 @@ func TestMCPServerTargetSelectorValidation(t *testing.T) {
 name = "alpha"
 command = "config-before"
 `)
-		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		sidecarPath := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 		writeFile(t, sidecarPath, `{
   "mcpServers": {
     "alpha": { "command": "sidecar-before" }
@@ -38,7 +38,7 @@ command = "config-before"
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "alpha",
 			Target:            TargetSelector("cfg"),
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "after",
 			},
 		})
@@ -66,7 +66,7 @@ command = "config-before"
 name = "alpha"
 command = "config-before"
 `)
-		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		sidecarPath := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 		writeFile(t, sidecarPath, `{
   "mcpServers": {
     "alpha": { "command": "sidecar-before" }
@@ -121,11 +121,11 @@ client_id = "client-id"
 		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 		Name:              "linear",
 		Target:            TargetConfig,
-		MCPServer: &aghconfig.MCPServer{
-			Transport: aghconfig.MCPServerTransportHTTP,
+		MCPServer: &compozyconfig.MCPServer{
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://replacement.example/mcp",
-			Auth: aghconfig.MCPAuthConfig{
-				Type: aghconfig.MCPAuthTypeOAuth2PKCE, AuthorizationURL: "https://issuer.example/authorize",
+			Auth: compozyconfig.MCPAuthConfig{
+				Type: compozyconfig.MCPAuthTypeOAuth2PKCE, AuthorizationURL: "https://issuer.example/authorize",
 				TokenURL: "https://issuer.example/token", ClientID: "client-id",
 			},
 		},

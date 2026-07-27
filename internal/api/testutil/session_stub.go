@@ -7,7 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -137,7 +137,7 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 		if info.Lineage != nil && session.IsInternalSpawnRole(info.Lineage.SpawnRole) {
 			continue
 		}
-		agentName := aghconfig.NormalizeAgentName(info.AgentName)
+		agentName := compozyconfig.NormalizeAgentName(info.AgentName)
 		if agentName == "" {
 			continue
 		}

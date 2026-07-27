@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 
@@ -16,12 +16,12 @@ import (
 )
 
 func daemonConfigMCPDeclarationProvider(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	registry Registry,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) toolMCPConfigDeclarationProvider {
-	return func(ctx context.Context, override *aghconfig.Config) (toolMCPDesiredResources, error) {
+	return func(ctx context.Context, override *compozyconfig.Config) (toolMCPDesiredResources, error) {
 		desired := toolMCPDesiredResources{}
 		active := cfg
 		if override != nil {

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const defaultReasoningEffortField = "default_reasoning_effort"
@@ -20,12 +20,12 @@ type ProviderConfigSource struct {
 	kind      SourceKind
 	priority  int
 	mu        sync.RWMutex
-	providers map[string]aghconfig.ProviderConfig
+	providers map[string]compozyconfig.ProviderConfig
 }
 
 var _ Source = (*ProviderConfigSource)(nil)
 
-// NewBuiltinSource creates the offline bootstrap source from AGH built-ins.
+// NewBuiltinSource creates the offline bootstrap source from Compozy built-ins.
 func NewBuiltinSource() Source {
 	return newProviderConfigSource(
 		SourceIDBuiltin,
@@ -36,7 +36,7 @@ func NewBuiltinSource() Source {
 }
 
 // NewConfigSource creates the operator config model source.
-func NewConfigSource(providers map[string]aghconfig.ProviderConfig) *ProviderConfigSource {
+func NewConfigSource(providers map[string]compozyconfig.ProviderConfig) *ProviderConfigSource {
 	return newProviderConfigSource(SourceIDConfig, SourceKindConfig, PriorityConfig, providers)
 }
 
@@ -44,13 +44,13 @@ func newProviderConfigSource(
 	id string,
 	kind SourceKind,
 	priority int,
-	providers map[string]aghconfig.ProviderConfig,
+	providers map[string]compozyconfig.ProviderConfig,
 ) *ProviderConfigSource {
 	return &ProviderConfigSource{
 		id:        id,
 		kind:      kind,
 		priority:  priority,
-		providers: aghconfig.CloneProviderConfigs(providers),
+		providers: compozyconfig.CloneProviderConfigs(providers),
 	}
 }
 
@@ -79,7 +79,7 @@ func (s *ProviderConfigSource) ListModels(
 ) ([]ModelRow, error) {
 	now := defaultNow(opts.Now)
 	s.mu.RLock()
-	providersSnapshot := aghconfig.CloneProviderConfigs(s.providers)
+	providersSnapshot := compozyconfig.CloneProviderConfigs(s.providers)
 	s.mu.RUnlock()
 	providers := providerConfigIDs(providersSnapshot)
 	rows := make([]ModelRow, 0)
@@ -97,7 +97,7 @@ func (s *ProviderConfigSource) ListModels(
 	return rows, nil
 }
 
-func providerConfigIDs(providers map[string]aghconfig.ProviderConfig) []string {
+func providerConfigIDs(providers map[string]compozyconfig.ProviderConfig) []string {
 	ids := make([]string, 0, len(providers))
 	for providerID := range providers {
 		ids = append(ids, providerID)
@@ -107,18 +107,18 @@ func providerConfigIDs(providers map[string]aghconfig.ProviderConfig) []string {
 }
 
 // ReplaceProviders atomically replaces the source snapshot used by subsequent refreshes.
-func (s *ProviderConfigSource) ReplaceProviders(providers map[string]aghconfig.ProviderConfig) {
+func (s *ProviderConfigSource) ReplaceProviders(providers map[string]compozyconfig.ProviderConfig) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	s.providers = aghconfig.CloneProviderConfigs(providers)
+	s.providers = compozyconfig.CloneProviderConfigs(providers)
 	s.mu.Unlock()
 }
 
 func providerModelRows(
 	providerID string,
-	models aghconfig.ProviderModelsConfig,
+	models compozyconfig.ProviderModelsConfig,
 	sourceID string,
 	kind SourceKind,
 	priority int,
@@ -166,7 +166,7 @@ func providerModelRows(
 	return rows, nil
 }
 
-func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConfig) error {
+func enrichRowFromProviderModel(row *ModelRow, model compozyconfig.ProviderModelConfig) error {
 	row.DisplayName = strings.TrimSpace(model.DisplayName)
 	row.ContextWindow = model.ContextWindow
 	row.MaxInputTokens = model.MaxInputTokens

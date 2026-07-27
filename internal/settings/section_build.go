@@ -7,13 +7,13 @@ import (
 
 	"sort"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (s *service) buildMemorySection(ctx context.Context, cfg *aghconfig.Config) (MemorySection, error) {
+func (s *service) buildMemorySection(ctx context.Context, cfg *compozyconfig.Config) (MemorySection, error) {
 	health := MemoryHealthStatus{}
 	if s.memoryRuntime != nil {
 		status, err := s.memoryRuntime.MemoryHealthStatus(ctx)
@@ -38,7 +38,7 @@ func (s *service) buildMemorySection(ctx context.Context, cfg *aghconfig.Config)
 
 func (s *service) buildSkillsSection(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 	scope ScopeKind,
 	agentName string,
@@ -93,7 +93,7 @@ func (s *service) buildSkillsSection(
 
 func (s *service) buildAutomationSection(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) (AutomationSection, error) {
 	runtime := AutomationRuntimeStatus{}
 	if s.automationRuntime != nil {
@@ -118,7 +118,7 @@ func (s *service) buildAutomationSection(
 	}, nil
 }
 
-func (s *service) buildNetworkSection(ctx context.Context, cfg *aghconfig.Config) (NetworkSection, error) {
+func (s *service) buildNetworkSection(ctx context.Context, cfg *compozyconfig.Config) (NetworkSection, error) {
 	runtime := NetworkRuntimeStatus{}
 	if s.networkRuntime != nil {
 		status, err := s.networkRuntime.NetworkRuntimeStatus(ctx)
@@ -139,7 +139,7 @@ func (s *service) buildNetworkSection(ctx context.Context, cfg *aghconfig.Config
 
 func (s *service) buildObservabilitySection(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) (ObservabilitySection, error) {
 	runtime := ObservabilityRuntimeStatus{}
 	if s.observabilityRuntime != nil {
@@ -159,7 +159,7 @@ func (s *service) buildObservabilitySection(
 
 func (s *service) buildHooksExtensionsSection(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) (HooksExtensionsSection, error) {
 	hooks := buildHookItems(cfg.Hooks.Declarations)
 

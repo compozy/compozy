@@ -3,7 +3,7 @@ package modelcatalog
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -17,16 +17,16 @@ var authoritativeProviderModelIDs = map[string]map[string]struct{}{
 	},
 }
 
-// HasAuthoritativeProviderCatalog reports whether AGH can validate explicit models before provider startup.
+// HasAuthoritativeProviderCatalog reports whether Compozy can validate explicit models before provider startup.
 func HasAuthoritativeProviderCatalog(providerID string) bool {
 	_, ok := authoritativeProviderModelIDs[strings.TrimSpace(providerID)]
 	return ok
 }
 
-func builtinProviderConfigs() map[string]aghconfig.ProviderConfig {
-	providers := aghconfig.BuiltinProviders()
+func builtinProviderConfigs() map[string]compozyconfig.ProviderConfig {
+	providers := compozyconfig.BuiltinProviders()
 	cursor := providers[cursorProviderID]
-	cursor.Models.Curated = []aghconfig.ProviderModelConfig{{
+	cursor.Models.Curated = []compozyconfig.ProviderModelConfig{{
 		ID:          cursorGrok45HighFast,
 		DisplayName: "Grok 4.5 (High, Fast)",
 	}}

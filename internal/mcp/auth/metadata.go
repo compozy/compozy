@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -130,7 +130,7 @@ func (m Metadata) Validate() error {
 }
 
 func validateAbsoluteHTTPURL(label string, raw string) error {
-	if err := aghconfig.ValidateMCPOAuthURL(label, raw); err != nil {
+	if err := compozyconfig.ValidateMCPOAuthURL(label, raw); err != nil {
 		return fmt.Errorf("mcp auth: %w", err)
 	}
 	return nil

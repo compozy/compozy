@@ -83,7 +83,7 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   await expect(appPage.getByTestId("settings-vault-editor")).toBeVisible();
   await appPage.getByTestId("settings-vault-editor-ref-input").fill("providers/bad-ref");
   await appPage.getByTestId("settings-vault-editor-kind-input").fill("api_key");
-  await appPage.getByTestId("settings-vault-editor-secret-value-input").fill(secretValue);
+  await appPage.getByLabel("Secret value").fill(secretValue);
   await expect(appPage.getByTestId("settings-vault-editor-error")).toContainText(
     "Vault refs must start with vault:."
   );

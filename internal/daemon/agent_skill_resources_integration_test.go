@@ -19,7 +19,7 @@ import (
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
@@ -50,9 +50,9 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("resources.NewKernel() error = %v", err)
 		}
 
-		agentCodec, err := aghconfig.NewAgentResourceCodec()
+		agentCodec, err := compozyconfig.NewAgentResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 		}
 		agentStore, err := resources.NewStore(kernel, agentCodec)
 		if err != nil {
@@ -66,9 +66,9 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(skill) error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 		mcpStore, err := resources.NewStore(kernel, mcpCodec)
 		if err != nil {
@@ -174,7 +174,11 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if got, want := len(skills), 2; got != want {
 			t.Fatalf("len(skillStore.List()) = %d, want %d (%#v)", got, want, skills)
 		}
-		servers, err := mcpStore.List(testutil.Context(t), agentSkillSyncActor(), resources.ResourceFilter{Source: &source})
+		servers, err := mcpStore.List(
+			testutil.Context(t),
+			agentSkillSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
 		if err != nil {
 			t.Fatalf("mcpStore.List() error = %v", err)
 		}
@@ -227,14 +231,14 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if !agentHasMCP(extAgent, "ext-agent-mcp") {
 			t.Fatalf("ResolveAgent(ext-agent).MCPServers = %#v, want ext-agent-mcp", extAgent.MCPServers)
 		}
-		resolved.Config.Providers["claude"] = aghconfig.ProviderConfig{Command: "claude-acp"}
+		resolved.Config.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude-acp"}
 		resolved.Config.Roles.Dream.Agent = "ext-agent"
 		roleResolver := newRoleResolver(
 			&resolved.Config,
-			roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{workspace.ID: resolved.Config}},
+			roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{workspace.ID: resolved.Config}},
 			agentCatalog,
 		)
-		resolvedRole, err := roleResolver.Resolve(testutil.Context(t), workspace.ID, aghconfig.RoleDream)
+		resolvedRole, err := roleResolver.Resolve(testutil.Context(t), workspace.ID, compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("roleResolver.Resolve(dream) error = %v", err)
 		}
@@ -281,9 +285,9 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewKernel() error = %v", err)
 		}
-		agentCodec, err := aghconfig.NewAgentResourceCodec()
+		agentCodec, err := compozyconfig.NewAgentResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 		}
 		agentStore, err := resources.NewStore(kernel, agentCodec)
 		if err != nil {
@@ -297,9 +301,9 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(skill) error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 		mcpStore, err := resources.NewStore(kernel, mcpCodec)
 		if err != nil {
@@ -389,7 +393,11 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			}
 		}
 		if globalDevCycleCount != len(devCycleIntegrationSkillNames) {
-			t.Fatalf("global dev-cycle skill records = %d, want %d", globalDevCycleCount, len(devCycleIntegrationSkillNames))
+			t.Fatalf(
+				"global dev-cycle skill records = %d, want %d",
+				globalDevCycleCount,
+				len(devCycleIntegrationSkillNames),
+			)
 		}
 
 		rebuiltSkills := skillspkg.NewRegistry(
@@ -517,9 +525,9 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewKernel() error = %v", err)
 		}
-		agentCodec, err := aghconfig.NewAgentResourceCodec()
+		agentCodec, err := compozyconfig.NewAgentResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 		}
 		agentStore, err := resources.NewStore(kernel, agentCodec)
 		if err != nil {
@@ -533,9 +541,9 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(skill) error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 		mcpStore, err := resources.NewStore(kernel, mcpCodec)
 		if err != nil {
@@ -647,7 +655,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		sidecars := map[string]string{
 			"SOUL.md":      "Integration soul.\n",
 			"HEARTBEAT.md": "Integration heartbeat.\n",
-			aghconfig.MCPJSONName: `{
+			compozyconfig.MCPJSONName: `{
   "mcpServers": {
     "integration": {
       "command": "integration-mcp",
@@ -798,12 +806,12 @@ func (r *agentSkillIntegrationRuntime) HookDeclarations(context.Context) ([]hook
 func newAgentSkillIntegrationDriver(
 	t *testing.T,
 	kernel resources.RawStore,
-	agentCodec resources.KindCodec[aghconfig.AgentDef],
+	agentCodec resources.KindCodec[compozyconfig.AgentDef],
 	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
-	mcpCodec resources.KindCodec[aghconfig.MCPServer],
-	agentCatalog *resourceCatalog[aghconfig.AgentDef],
+	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
+	agentCatalog *resourceCatalog[compozyconfig.AgentDef],
 	skillRegistry *skillspkg.Registry,
-	mcpCatalog *resourceCatalog[aghconfig.MCPServer],
+	mcpCatalog *resourceCatalog[compozyconfig.MCPServer],
 ) resources.ReconcileDriver {
 	t.Helper()
 
@@ -844,20 +852,20 @@ func newAgentSkillIntegrationDriver(
 	return driver
 }
 
-func agentSkillIntegrationHome(t *testing.T) aghconfig.HomePaths {
+func agentSkillIntegrationHome(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
-		t.Fatalf("aghconfig.ResolveHomePathsFrom() error = %v", err)
+		t.Fatalf("compozyconfig.ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("aghconfig.EnsureHomeLayout() error = %v", err)
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("compozyconfig.EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
 }
 
-func agentSkillIntegrationSkillConfig(homePaths aghconfig.HomePaths) skillspkg.RegistryConfig {
+func agentSkillIntegrationSkillConfig(homePaths compozyconfig.HomePaths) skillspkg.RegistryConfig {
 	return skillspkg.RegistryConfig{
 		UserSkillsDir: homePaths.SkillsDir,
 		UserAgentsDir: homePaths.AgentsDir,
@@ -868,7 +876,7 @@ func agentSkillIntegrationWorkspace(t *testing.T) string {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "workspace")
-	agentDir := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder")
 	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, "AGENT.md"), `---
 name: coder
 provider: claude
@@ -877,7 +885,7 @@ tools: ["compozy__lookup"]
 
 Use the workspace tool catalog.
 `)
-	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, aghconfig.MCPJSONName), `{
+	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "workspace-agent-mcp": {
       "command": "workspace-agent-command"
@@ -885,7 +893,7 @@ Use the workspace tool catalog.
   }
 }`)
 
-	skillDir := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName, "workspace-review")
+	skillDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName, "workspace-review")
 	writeAgentSkillIntegrationFile(t, filepath.Join(skillDir, "SKILL.md"), `---
 name: workspace-review
 description: Workspace review skill
@@ -893,7 +901,7 @@ description: Workspace review skill
 
 Review workspace changes.
 `)
-	writeAgentSkillIntegrationFile(t, filepath.Join(skillDir, aghconfig.MCPJSONName), `{
+	writeAgentSkillIntegrationFile(t, filepath.Join(skillDir, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "workspace-skill-mcp": {
       "command": "workspace-skill-command"
@@ -943,7 +951,7 @@ description: Extension skill
 
 Use extension skill context.
 `)
-	writeAgentSkillIntegrationFile(t, filepath.Join(dir, "skills", aghconfig.MCPJSONName), `{
+	writeAgentSkillIntegrationFile(t, filepath.Join(dir, "skills", compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "ext-skill-mcp": {
       "command": "ext-skill-command"
@@ -966,9 +974,9 @@ Use extension skill context.
 	if err != nil {
 		t.Fatalf("registry.Get(%q) error = %v", manifest.Name, err)
 	}
-	agent, err := aghconfig.LoadAgentDefFile(agentPath)
+	agent, err := compozyconfig.LoadAgentDefFile(agentPath)
 	if err != nil {
-		t.Fatalf("aghconfig.LoadAgentDefFile(%q) error = %v", agentPath, err)
+		t.Fatalf("compozyconfig.LoadAgentDefFile(%q) error = %v", agentPath, err)
 	}
 	skill, err := skillspkg.ParseSkillFileWithSource(skillPath, skillspkg.SourceUser)
 	if err != nil {
@@ -978,7 +986,7 @@ Use extension skill context.
 		Info:     *info,
 		Manifest: manifest,
 		RootDir:  dir,
-		Agents:   []aghconfig.AgentDef{agent},
+		Agents:   []compozyconfig.AgentDef{agent},
 		Skills:   []*skillspkg.Skill{skill},
 		Status: extensionpkg.ExtensionStatus{
 			Name:       info.Name,
@@ -1060,7 +1068,7 @@ func agentSkillIntegrationSkillWorkspace(t *testing.T, withOverride bool) string
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 	if withOverride {
-		skillsRoot := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
+		skillsRoot := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		writeAgentSkillIntegrationFile(
 			t,
 			filepath.Join(skillsRoot, "cy-execute-task", "SKILL.md"),
@@ -1102,7 +1110,7 @@ func writeAgentSkillIntegrationFile(t *testing.T, path string, content string) {
 	}
 }
 
-func agentHasMCP(agent aghconfig.AgentDef, name string) bool {
+func agentHasMCP(agent compozyconfig.AgentDef, name string) bool {
 	for _, server := range agent.MCPServers {
 		if server.Name == name {
 			return true
@@ -1132,7 +1140,7 @@ func findIntegrationSkill(skills []*skillspkg.Skill, name string) *skillspkg.Ski
 	return nil
 }
 
-func mcpCatalogHas(catalog *resourceCatalog[aghconfig.MCPServer], name string) bool {
+func mcpCatalogHas(catalog *resourceCatalog[compozyconfig.MCPServer], name string) bool {
 	if catalog == nil {
 		return false
 	}

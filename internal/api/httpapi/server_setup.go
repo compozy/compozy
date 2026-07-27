@@ -10,21 +10,21 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/ginutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/gin-gonic/gin"
 )
 
-func newDefaultServer(homePaths aghconfig.HomePaths) *Server {
+func newDefaultServer(homePaths compozyconfig.HomePaths) *Server {
 	return &Server{
 		homePaths: homePaths,
-		config:    aghconfig.DefaultWithHome(homePaths),
+		config:    compozyconfig.DefaultWithHome(homePaths),
 		logger:    slog.Default(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 		pollInterval: defaultPollInterval,
-		agentLoader:  aghconfig.LoadAgentDef,
+		agentLoader:  compozyconfig.LoadAgentDef,
 	}
 }
 
@@ -61,7 +61,7 @@ func (s *Server) applyDefaults() {
 		s.startedAt = s.now()
 	}
 	if s.agentLoader == nil {
-		s.agentLoader = aghconfig.LoadAgentDef
+		s.agentLoader = compozyconfig.LoadAgentDef
 	}
 	if strings.TrimSpace(s.config.HTTP.Host) == "" {
 		s.config.HTTP.Host = serverLocalhostKey

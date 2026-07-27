@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -214,8 +214,8 @@ func agentDeleteBundle(result contract.DeleteAgentResponse) outputBundle {
 }
 
 func normalizePublicAgentName(name string) (string, error) {
-	name = aghconfig.NormalizeAgentName(name)
-	if err := aghconfig.ValidateAgentName(name); err != nil {
+	name = compozyconfig.NormalizeAgentName(name)
+	if err := compozyconfig.ValidateAgentName(name); err != nil {
 		return "", err
 	}
 	return name, nil

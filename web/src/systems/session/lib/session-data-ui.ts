@@ -1,14 +1,14 @@
 import { makeAssistantDataUI } from "@assistant-ui/react";
 
-import type { AgentEventPayload, AghPermissionData } from "../types";
-import { AghEventDataRenderer, AghPermissionDataRenderer } from "./session-data-renderers";
+import type { AgentEventPayload, CompozyPermissionData } from "../types";
+import { CompozyEventDataRenderer, CompozyPermissionDataRenderer } from "./session-data-renderers";
 
-export const AghPermissionDataUI = makeAssistantDataUI<AghPermissionData>({
-  name: "agh-permission",
-  render: AghPermissionDataRenderer,
+export const CompozyPermissionDataUI = makeAssistantDataUI<CompozyPermissionData>({
+  name: "compozy-permission",
+  render: CompozyPermissionDataRenderer,
 });
 
-export const AghEventDataUI = makeAssistantDataUI<AgentEventPayload>({
-  name: "agh-event",
-  render: AghEventDataRenderer,
+export const CompozyEventDataUI = makeAssistantDataUI<AgentEventPayload>({
+  name: "compozy-event",
+  render: CompozyEventDataRenderer,
 });

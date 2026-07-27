@@ -8,11 +8,11 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/procutil"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 )
 
@@ -25,21 +25,21 @@ func (d commandDeps) withDefaults() commandDeps {
 
 func (d commandDeps) withRegistryDefaults() commandDeps {
 	if d.loadConfig == nil {
-		d.loadConfig = func() (aghconfig.Config, error) {
-			return aghconfig.Load()
+		d.loadConfig = func() (compozyconfig.Config, error) {
+			return compozyconfig.Load()
 		}
 	}
 	if d.loadSkillRegistrySources == nil {
 		d.loadSkillRegistrySources = defaultSkillRegistrySourceLoader
 	}
 	if d.resolveHome == nil {
-		d.resolveHome = aghconfig.ResolveHomePaths
+		d.resolveHome = compozyconfig.ResolveHomePaths
 	}
 	if d.resolveHomeForWorkspace == nil {
-		d.resolveHomeForWorkspace = aghconfig.ResolveHomePathsForWorkspace
+		d.resolveHomeForWorkspace = compozyconfig.ResolveHomePathsForWorkspace
 	}
 	if d.ensureHome == nil {
-		d.ensureHome = aghconfig.EnsureHomeLayout
+		d.ensureHome = compozyconfig.EnsureHomeLayout
 	}
 	return d
 }
@@ -65,14 +65,14 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	d = d.withProviderAuthDefaults()
 	if d.newDaemon == nil {
 		d.newDaemon = func() (daemonRunner, error) {
-			return aghdaemon.New()
+			return compozydaemon.New()
 		}
 	}
 	if d.runRelaunchHelper == nil {
-		d.runRelaunchHelper = aghdaemon.RunRelaunchHelper
+		d.runRelaunchHelper = compozydaemon.RunRelaunchHelper
 	}
 	if d.readDaemonInfo == nil {
-		d.readDaemonInfo = aghdaemon.ReadInfo
+		d.readDaemonInfo = compozydaemon.ReadInfo
 	}
 	if d.signalProcess == nil {
 		d.signalProcess = procutil.Signal
@@ -99,13 +99,13 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 		d.inputIsTerminal = supportBundleInputIsTerminal
 	}
 	if d.spawnDetached == nil {
-		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {
+		d.spawnDetached = func(ctx context.Context, homePaths compozyconfig.HomePaths) (daemonProcess, error) {
 			return spawnDetachedDaemonProcess(ctx, homePaths, d.executable)
 		}
 	}
 	if d.newUpdateManager == nil {
-		d.newUpdateManager = func(homePaths aghconfig.HomePaths) (updateManager, error) {
-			return aghupdate.NewManager(aghupdate.Config{
+		d.newUpdateManager = func(homePaths compozyconfig.HomePaths) (updateManager, error) {
+			return compozyupdate.NewManager(compozyupdate.Config{
 				HomePaths:      homePaths,
 				CurrentVersion: version.Current().Version,
 				ExecutablePath: d.executable,

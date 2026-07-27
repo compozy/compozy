@@ -26,7 +26,9 @@ func TestProviderLifecycle(t *testing.T) {
 	t.Run("Should initialize no-op lifecycle hooks and shutdown deterministically", func(t *testing.T) {
 		t.Parallel()
 
-		provider := localprovider.New(memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "agh-home", "memory"))))
+		provider := localprovider.New(
+			memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "compozy-home", "memory"))),
+		)
 		ctx := testutil.Context(t)
 		if _, err := provider.SystemPromptBlock(
 			ctx,
@@ -234,7 +236,7 @@ func TestProviderSystemPromptBlock(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 5, 5, 8, 0, 0, 0, time.UTC)
-		store := memory.NewStore(filepath.Join(t.TempDir(), "agh-home", "memory"))
+		store := memory.NewStore(filepath.Join(t.TempDir(), "compozy-home", "memory"))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -301,7 +303,7 @@ func TestProviderRecall(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
-			filepath.Join(baseDir, "agh-home", "memory"),
+			filepath.Join(baseDir, "compozy-home", "memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		openProviderTestCatalog(t, store)
@@ -343,7 +345,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		store := memory.NewStore(
-			filepath.Join(t.TempDir(), "agh-home", "memory"),
+			filepath.Join(t.TempDir(), "compozy-home", "memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		openProviderTestCatalog(t, store)
@@ -676,7 +678,9 @@ func TestProviderRejectsCanceledContext(t *testing.T) {
 	t.Run("Should reject canceled lifecycle contexts", func(t *testing.T) {
 		t.Parallel()
 
-		provider := localprovider.New(memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "agh-home", "memory"))))
+		provider := localprovider.New(
+			memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "compozy-home", "memory"))),
+		)
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		cancel()
 		if err := provider.Initialize(ctx, memcontract.ProviderInit{}); err == nil {
@@ -695,7 +699,7 @@ func TestProviderAgentSnapshot(t *testing.T) {
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 		}
-		store := memory.NewStore(filepath.Join(baseDir, "agh-home", "memory")).ForWorkspace(workspaceRoot)
+		store := memory.NewStore(filepath.Join(baseDir, "compozy-home", "memory")).ForWorkspace(workspaceRoot)
 		agentStore := store.ForAgent("ws-alpha", "reviewer", memcontract.AgentTierWorkspace)
 		if err := agentStore.EnsureDirs(); err != nil {
 			t.Fatalf("agentStore.EnsureDirs() error = %v", err)

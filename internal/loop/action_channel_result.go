@@ -25,7 +25,7 @@ type ChannelResultConversationStore interface {
 	) ([]storepkg.NetworkConversationMessage, error)
 }
 
-// StoreChannelResultHarvester reads the durable AGH Network conversation store for result messages.
+// StoreChannelResultHarvester reads the durable Compozy Network conversation store for result messages.
 type StoreChannelResultHarvester struct {
 	conversations ChannelResultConversationStore
 	pollInterval  time.Duration

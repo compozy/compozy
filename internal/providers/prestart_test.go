@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -16,9 +16,9 @@ func TestPreStart(t *testing.T) {
 		InvalidatePreStartCache()
 
 		calls := 0
-		report := PreStart(testutil.Context(t), aghconfig.ProviderConfig{
+		report := PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
 			Command:  "missing-provider acp",
-			AuthMode: aghconfig.ProviderAuthModeNone,
+			AuthMode: compozyconfig.ProviderAuthModeNone,
 		}, &ProbeEnv{
 			ProviderName: "none-provider",
 			LookPath: func(string) (string, error) {
@@ -37,9 +37,9 @@ func TestPreStart(t *testing.T) {
 	t.Run("Should return provider CLI missing item when launch command is unavailable", func(t *testing.T) {
 		InvalidatePreStartCache()
 
-		report := PreStart(testutil.Context(t), aghconfig.ProviderConfig{
+		report := PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
 			Command:  "missing-provider acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}, &ProbeEnv{
 			ProviderName: "missing",
 			LookPath: func(string) (string, error) {
@@ -57,10 +57,10 @@ func TestPreStart(t *testing.T) {
 	t.Run("Should return credential unresolved item when required env ref is absent", func(t *testing.T) {
 		InvalidatePreStartCache()
 
-		report := PreStart(testutil.Context(t), aghconfig.ProviderConfig{
+		report := PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
 			Command:  "provider acp",
-			AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+			AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 				{Name: "api_key", TargetEnv: "TEST_API_KEY", SecretRef: "env:TEST_API_KEY", Required: true},
 			},
 		}, &ProbeEnv{
@@ -83,9 +83,9 @@ func TestPreStart(t *testing.T) {
 	t.Run("Should run status command without TTY", func(t *testing.T) {
 		InvalidatePreStartCache()
 
-		report := PreStart(testutil.Context(t), aghconfig.ProviderConfig{
+		report := PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
 			Command:       "provider acp",
-			AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
 			AuthStatusCmd: "provider auth status",
 		}, &ProbeEnv{
 			ProviderName: "native",
@@ -118,9 +118,9 @@ func TestPreStart(t *testing.T) {
 				return "", exec.ErrNotFound
 			},
 		}
-		provider := aghconfig.ProviderConfig{
+		provider := compozyconfig.ProviderConfig{
 			Command:  "cached-provider acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}
 		first := PreStart(context.Background(), provider, env)
 		second := PreStart(context.Background(), provider, env)
@@ -143,13 +143,13 @@ func TestPreStart(t *testing.T) {
 				return "", exec.ErrNotFound
 			},
 		}
-		_ = PreStart(context.Background(), aghconfig.ProviderConfig{
+		_ = PreStart(context.Background(), compozyconfig.ProviderConfig{
 			Command:  "changed-a acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}, env)
-		_ = PreStart(context.Background(), aghconfig.ProviderConfig{
+		_ = PreStart(context.Background(), compozyconfig.ProviderConfig{
 			Command:  "changed-b acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}, env)
 		if calls != 2 {
 			t.Fatalf("LookPath calls = %d, want 2", calls)
@@ -167,9 +167,9 @@ func TestPreStart(t *testing.T) {
 				return "", exec.ErrNotFound
 			},
 		}
-		provider := aghconfig.ProviderConfig{
+		provider := compozyconfig.ProviderConfig{
 			Command:  "invalidated-provider acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}
 		_ = PreStart(context.Background(), provider, env)
 		InvalidatePreStartCache()

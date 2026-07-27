@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -121,7 +121,7 @@ type Session struct {
 	creationProfile      *store.SessionCreationProfile
 	creationOptions      *store.SessionCreationOptions
 	creationIdentity     *store.SessionCreationIdentity
-	agentDef             aghconfig.AgentDef
+	agentDef             compozyconfig.AgentDef
 
 	sessionDir string
 	metaPath   string

@@ -22,7 +22,7 @@ type Story = StoryObj<typeof meta>;
 
 export const ShellCommand: Story = {
   args: {
-    code: "agh start",
+    code: "compozy start",
   },
   parameters: {
     docs: {
@@ -53,12 +53,12 @@ export const MultilineWithoutPrompt: Story = {
 
 export const LanguageLabel: Story = {
   args: {
-    caption: "agh network",
+    caption: "compozy network",
     language: "bash",
     code: `# discover peers, send one task
-agh network status
-agh network peers
-agh network send reviewer --kind direct \\
+compozy network status
+compozy network peers
+compozy network send reviewer --kind direct \\
     --body '{"task":"review PR #482"}'`,
   },
   parameters: {
@@ -125,7 +125,7 @@ export const WrappedLongLine: Story = {
 export const CopyDisabled: Story = {
   args: {
     copyable: false,
-    code: "agh start",
+    code: "compozy start",
   },
   parameters: {
     docs: {
@@ -138,7 +138,7 @@ export const CopyDisabled: Story = {
 
 export const CopyInteraction: Story = {
   args: {
-    code: "agh network status",
+    code: "compozy network status",
   },
   parameters: {
     docs: {
@@ -165,7 +165,7 @@ export const CopyInteraction: Story = {
       await step("Clicking copy invokes navigator.clipboard.writeText", async () => {
         const button = await canvas.findByRole("button", { name: "Copy to clipboard" });
         await userEvent.click(button);
-        await waitFor(() => expect(writeText).toHaveBeenCalledWith("agh network status"));
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith("compozy network status"));
       });
       await step("Button swaps to the check glyph", async () => {
         const success = await canvas.findByRole("button", { name: "Copied" });
@@ -208,7 +208,7 @@ export const WarningToneTruncated: Story = {
 
 export const CopyFailure: Story = {
   args: {
-    code: "agh network status",
+    code: "compozy network status",
   },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
@@ -240,7 +240,7 @@ export const CopyFailure: Story = {
 
 export const StandaloneCopyButton: Story = {
   args: {
-    code: "agh network status",
+    code: "compozy network status",
   },
   render: args => (
     <div className="flex items-center gap-3 rounded-md border border-line bg-canvas-soft p-3">

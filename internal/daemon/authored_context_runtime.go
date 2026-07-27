@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 
 	"github.com/compozy/compozy/internal/session"
@@ -122,7 +122,7 @@ func heartbeatWakeServiceDependency(
 	ctx context.Context,
 	store any,
 	sessions SessionManager,
-	config aghconfig.HeartbeatConfig,
+	config compozyconfig.HeartbeatConfig,
 	logger *slog.Logger,
 ) core.HeartbeatWakeService {
 	wakeStore, ok := store.(heartbeat.WakeStore)

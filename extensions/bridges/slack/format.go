@@ -77,7 +77,7 @@ type slackPlaceholders struct {
 }
 
 func newSlackPlaceholders(source string) *slackPlaceholders {
-	prefix := "\x00AGHSLACK"
+	prefix := "\x00COMPOZYSLACK"
 	for strings.Contains(source, prefix) {
 		prefix += "X"
 	}

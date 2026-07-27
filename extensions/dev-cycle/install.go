@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
@@ -17,7 +17,7 @@ const Name = "dev-cycle"
 
 // EnsureManagedInstall enrolls the first-party dev-cycle extension without
 // overwriting a user-installed extension with the same name.
-func EnsureManagedInstall(homePaths aghconfig.HomePaths, registry *extensionpkg.Registry) (err error) {
+func EnsureManagedInstall(homePaths compozyconfig.HomePaths, registry *extensionpkg.Registry) (err error) {
 	if registry == nil {
 		return errors.New("dev-cycle: extension registry is required")
 	}
@@ -70,7 +70,7 @@ func EnsureManagedInstall(homePaths aghconfig.HomePaths, registry *extensionpkg.
 	}
 }
 
-func materializeEmbeddedExtension(homePaths aghconfig.HomePaths) (string, error) {
+func materializeEmbeddedExtension(homePaths compozyconfig.HomePaths) (string, error) {
 	stagingDir, err := extensionpkg.NewManagedInstallStagingDir(homePaths)
 	if err != nil {
 		return "", err
@@ -107,7 +107,7 @@ func materializeEmbeddedExtension(homePaths aghconfig.HomePaths) (string, error)
 }
 
 func replaceBundledInstall(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry *extensionpkg.Registry,
 	manifest *extensionpkg.Manifest,
 	stagingDir string,

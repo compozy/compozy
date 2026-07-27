@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-validate-compozy-hard-cut
 expected: A fresh daemon boot creates the canonical .compozy home and workspace overlay, status and doctor report only those paths, and no legacy .agh directory or fallback is created or read.
 entry_points: compozy daemon start; compozy status -o json; compozy doctor -o json; fresh isolated home and workspace
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260727-dirty-build-release-track
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/daemon-start.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/browser/compozy-home.png
+last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
 overlaps: RT-refuse-legacy-database
 ---
 

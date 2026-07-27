@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -418,7 +418,7 @@ func ResolveManifestMCPServerResources(
 	rootDir string,
 	manifest *Manifest,
 	getenv func(string) string,
-) ([]aghconfig.MCPServer, error) {
+) ([]compozyconfig.MCPServer, error) {
 	if manifest == nil || len(manifest.Resources.MCPServers) == 0 {
 		return nil, nil
 	}
@@ -429,7 +429,7 @@ func ResolveManifestMCPServerResources(
 	}
 	slices.Sort(names)
 
-	servers := make([]aghconfig.MCPServer, 0, len(names))
+	servers := make([]compozyconfig.MCPServer, 0, len(names))
 	for _, name := range names {
 		decl := manifest.Resources.MCPServers[name]
 		command, err := resolveManifestCommand(rootDir, decl.Command, getenv, nil)
@@ -444,7 +444,7 @@ func ResolveManifestMCPServerResources(
 		if err != nil {
 			return nil, err
 		}
-		server := aghconfig.MCPServer{
+		server := compozyconfig.MCPServer{
 			Name:      strings.TrimSpace(name),
 			Command:   command,
 			Args:      args,

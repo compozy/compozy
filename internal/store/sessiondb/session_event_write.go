@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const canonicalEventSchema = "agh.session.event.v1"
+const canonicalEventSchema = "compozy.session.event.v1"
 
 // ErrEventIdentityCollision reports a deterministic event ID reused with different content.
 var ErrEventIdentityCollision = errors.New("store: session event identity collision")

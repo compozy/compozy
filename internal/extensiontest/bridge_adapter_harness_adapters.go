@@ -12,14 +12,14 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
 
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/subprocess"
-	aghtestutil "github.com/compozy/compozy/internal/testutil"
+	compozytestutil "github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -30,7 +30,7 @@ func (h *Harness) stopSessions(t testing.TB) {
 		if info == nil {
 			continue
 		}
-		if err := h.Sessions.Stop(aghtestutil.Context(t), info.ID); err != nil {
+		if err := h.Sessions.Stop(compozytestutil.Context(t), info.ID); err != nil {
 			t.Fatalf("Sessions.Stop(%q) error = %v", info.ID, err)
 		}
 	}
@@ -141,17 +141,17 @@ func defaultResolvedWorkspace(root string, now time.Time) workspacepkg.ResolvedW
 			UpdatedAt:    now,
 		},
 		WorkspaceID: "ws-bridge-adapter",
-		Config: aghconfig.Config{
-			Defaults: aghconfig.DefaultsConfig{Agent: bridgeAdapterHarnessCoderKey},
-			Providers: map[string]aghconfig.ProviderConfig{
+		Config: compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Agent: bridgeAdapterHarnessCoderKey},
+			Providers: map[string]compozyconfig.ProviderConfig{
 				acpmock.ProviderName: acpmock.ProviderConfig("fake-agent"),
 			},
-			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
+			Permissions: compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveAll},
 		},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:        bridgeAdapterHarnessCoderKey,
 			Provider:    acpmock.ProviderName,
-			Permissions: string(aghconfig.PermissionModeApproveAll),
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
 			Prompt:      "You are a reliable coder.",
 		}},
 		ResolvedAt: now,

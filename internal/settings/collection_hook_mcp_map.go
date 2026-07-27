@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
@@ -99,7 +99,7 @@ func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {
 	return values
 }
 
-func mcpAuthMap(auth aghconfig.MCPAuthConfig) map[string]any {
+func mcpAuthMap(auth compozyconfig.MCPAuthConfig) map[string]any {
 	values := map[string]any{}
 	if auth.Type != "" {
 		values["type"] = string(auth.Type)
@@ -158,5 +158,5 @@ func (s *service) envPresent(name string) bool {
 }
 
 func workspaceMCPSidecarPath(root string) string {
-	return filepath.Join(strings.TrimSpace(root), aghconfig.DirName, aghconfig.MCPJSONName)
+	return filepath.Join(strings.TrimSpace(root), compozyconfig.DirName, compozyconfig.MCPJSONName)
 }

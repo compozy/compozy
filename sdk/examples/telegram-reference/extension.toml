@@ -13,7 +13,7 @@ display_name = "Telegram"
 
 [[bridge.secret_slots]]
 name = "bot_token"
-description = "Telegram bot token bound through the AGH bridge vault."
+description = "Telegram bot token bound through the Compozy bridge vault."
 required = true
 
 [actions]

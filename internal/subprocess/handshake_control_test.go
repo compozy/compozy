@@ -1,6 +1,6 @@
 // Suite: bridge control initialize handshake
 // Invariant: a control subprocess gets one instance, one typed method, and zero Host API grants.
-// Boundary IN: AGH-to-extension initialize negotiation.
+// Boundary IN: Compozy-to-extension initialize negotiation.
 // Boundary OUT: transient process cleanup, owned by extension manager tests.
 package subprocess
 
@@ -250,7 +250,7 @@ func controlInitializeRequest(
 	return InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "test",
+		CompozyVersion:           "test",
 		SessionNonce:             "nonce-control",
 		Extension: InitializeExtension{
 			Name:       "telegram-adapter",

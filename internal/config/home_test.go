@@ -146,32 +146,32 @@ func TestResolveHomePathsFromExpandsTildePaths(t *testing.T) {
 		t.Fatalf("UserHomeDir() error = %v", err)
 	}
 
-	paths, err := ResolveHomePathsFrom("~/agh-test-home")
+	paths, err := ResolveHomePathsFrom("~/compozy-test-home")
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if paths.HomeDir != filepath.Join(userHome, "agh-test-home") {
+	if paths.HomeDir != filepath.Join(userHome, "compozy-test-home") {
 		t.Fatalf(
 			"ResolveHomePathsFrom() HomeDir = %q, want %q",
 			paths.HomeDir,
-			filepath.Join(userHome, "agh-test-home"),
+			filepath.Join(userHome, "compozy-test-home"),
 		)
 	}
-	if got, want := paths.MemoryDir, filepath.Join(userHome, "agh-test-home", MemoryDirName); got != want {
+	if got, want := paths.MemoryDir, filepath.Join(userHome, "compozy-test-home", MemoryDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() MemoryDir = %q, want %q", got, want)
 	}
-	if got, want := paths.SkillsDir, filepath.Join(userHome, "agh-test-home", SkillsDirName); got != want {
+	if got, want := paths.SkillsDir, filepath.Join(userHome, "compozy-test-home", SkillsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() SkillsDir = %q, want %q", got, want)
 	}
-	if got, want := paths.LoopsDir, filepath.Join(userHome, "agh-test-home", LoopsDirName); got != want {
+	if got, want := paths.LoopsDir, filepath.Join(userHome, "compozy-test-home", LoopsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() LoopsDir = %q, want %q", got, want)
 	}
-	if got, want := paths.RestartsDir, filepath.Join(userHome, "agh-test-home", RestartsDirName); got != want {
+	if got, want := paths.RestartsDir, filepath.Join(userHome, "compozy-test-home", RestartsDirName); got != want {
 		t.Fatalf("ResolveHomePathsFrom() RestartsDir = %q, want %q", got, want)
 	}
 	if got, want := paths.NetworkAuditFile, filepath.Join(
 		userHome,
-		"agh-test-home",
+		"compozy-test-home",
 		LogsDirName,
 		NetworkAuditFileName,
 	); got != want {

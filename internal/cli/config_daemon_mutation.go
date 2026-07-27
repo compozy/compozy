@@ -9,13 +9,13 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func maybeApplyConfigSetViaDaemon(
 	ctx context.Context,
 	deps commandDeps,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	path []string,
 	value any,
 	redacted bool,
@@ -56,7 +56,7 @@ func maybeApplyConfigSetViaDaemon(
 
 	outputValue := value
 	if redacted {
-		outputValue = aghconfig.RedactedValue()
+		outputValue = compozyconfig.RedactedValue()
 	}
 	return &configSetRecord{
 		Path:             strings.Join(path, "."),
@@ -78,10 +78,10 @@ func maybeApplyConfigSetViaDaemon(
 func maybeReloadConfigAfterLocalWrite(
 	ctx context.Context,
 	deps commandDeps,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	record configSetRecord,
 ) (*configSetRecord, error) {
-	if target.Scope() != aghconfig.WriteScopeGlobal {
+	if target.Scope() != compozyconfig.WriteScopeGlobal {
 		return nil, nil
 	}
 	client, running, err := daemonClientIfRunning(ctx, deps)
@@ -106,14 +106,14 @@ func maybeReloadConfigAfterLocalWrite(
 	return &record, nil
 }
 
-func supportsDaemonManagedConfigSet(path []string, target aghconfig.WriteTarget) bool {
-	return target.Scope() == aghconfig.WriteScopeGlobal &&
+func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTarget) bool {
+	return target.Scope() == compozyconfig.WriteScopeGlobal &&
 		len(path) == 2 &&
 		path[0] == configSkillsKey &&
 		path[1] == agentDisabledSkillsKey
 }
 
-func settingsSkillsPayloadFromConfig(cfg aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
+func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
 	return contract.SettingsSkillsConfigPayload{
 		Enabled:                 cfg.Enabled,
 		DisabledSkills:          append([]string(nil), cfg.DisabledSkills...),

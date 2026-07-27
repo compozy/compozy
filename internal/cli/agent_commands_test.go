@@ -15,7 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestAgentListAndInfoCommands(t *testing.T) {
@@ -40,7 +40,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			Prompt:           "You are coder.",
 			MCPServers: []AgentMCPServer{{
 				Name:    "github",
-				Command: "agh-github",
+				Command: "compozy-github",
 				Args:    []string{"serve"},
 			}},
 		}
@@ -287,7 +287,7 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Fatalf("created agent = %#v, want pricing strategist metadata", created)
 		}
 
-		if _, err := os.Stat(filepath.Join(workspaceRoot, aghconfig.DirName)); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(filepath.Join(workspaceRoot, compozyconfig.DirName)); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("CLI filesystem authoring path exists or stat failed: %v", err)
 		}
 	})

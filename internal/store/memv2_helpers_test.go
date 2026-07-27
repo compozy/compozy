@@ -12,14 +12,14 @@ func TestSessionFailureHelpers(t *testing.T) {
 		failure := SessionFailure{
 			Kind:            FailureTimeout,
 			Summary:         "  provider timeout  ",
-			CrashBundlePath: "  /tmp/agh-crash  ",
+			CrashBundlePath: "  /tmp/compozy-crash  ",
 		}
 		normalized := failure.Normalize()
 		if normalized.Summary != "provider timeout" {
 			t.Fatalf("Normalize().Summary = %q, want provider timeout", normalized.Summary)
 		}
-		if normalized.CrashBundlePath != "/tmp/agh-crash" {
-			t.Fatalf("Normalize().CrashBundlePath = %q, want /tmp/agh-crash", normalized.CrashBundlePath)
+		if normalized.CrashBundlePath != "/tmp/compozy-crash" {
+			t.Fatalf("Normalize().CrashBundlePath = %q, want /tmp/compozy-crash", normalized.CrashBundlePath)
 		}
 		if normalized.IsZero() {
 			t.Fatal("IsZero() = true, want false for populated failure")

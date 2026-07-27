@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/skills"
 )
@@ -320,9 +320,9 @@ func TestServiceSearch(t *testing.T) {
 
 		source := &recordingSearchSource{}
 		service := NewService(
-			aghconfig.HomePaths{},
-			aghconfig.SkillsConfig{},
-			WithSourceLoader(func(aghconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
+			compozyconfig.HomePaths{},
+			compozyconfig.SkillsConfig{},
+			WithSourceLoader(func(compozyconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
 				return []registrypkg.Source{source}, nil
 			}),
 		)
@@ -505,10 +505,10 @@ func TestVerifyInstallVisible(t *testing.T) {
 
 	result := InstallResult{
 		Name:     "review",
-		Slug:     "@agh/review",
+		Slug:     "@compozy/review",
 		Version:  "1.2.0",
 		Registry: "clawhub",
-		Path:     "/tmp/agh/skills/review",
+		Path:     "/tmp/compozy/skills/review",
 		Hash:     "sha256:abc",
 		Status:   "installed",
 	}
@@ -521,7 +521,7 @@ func TestVerifyInstallVisible(t *testing.T) {
 			Enabled:  true,
 			Provenance: &skills.Provenance{
 				Hash:     "sha256:abc",
-				Slug:     "@agh/review",
+				Slug:     "@compozy/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
 			},
@@ -555,11 +555,11 @@ func TestVerifyInstallVisible(t *testing.T) {
 				"review": {
 					Meta:     skills.SkillMeta{Name: "review"},
 					Source:   skills.SourceUser,
-					FilePath: "/tmp/agh/skills/review/SKILL.md",
+					FilePath: "/tmp/compozy/skills/review/SKILL.md",
 					Enabled:  true,
 				},
 			}},
-			wantText: "resolved as user from /tmp/agh/skills/review/SKILL.md",
+			wantText: "resolved as user from /tmp/compozy/skills/review/SKILL.md",
 		},
 		{
 			name: "Should classify missing provenance as unavailable",
@@ -593,7 +593,7 @@ func TestVerifyInstallVisible(t *testing.T) {
 					return skill
 				}(),
 			}},
-			wantText: "resolved slug \"@other/review\" after skill discovery, want \"@agh/review\"",
+			wantText: "resolved slug \"@other/review\" after skill discovery, want \"@compozy/review\"",
 		},
 		{
 			name: "Should classify registry mismatch as unavailable",

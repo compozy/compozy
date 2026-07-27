@@ -14,10 +14,10 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -89,7 +89,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		&diagnostics,
 		&combined,
 	)
-	if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+	if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
 		Channel:      "ops-nightly",
 		WorkspaceID:  harness.WorkspaceID,
 		Purpose:      "Nightly delegated task coordination",
@@ -100,7 +100,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
-		Jobs: []aghcontract.CreateJobRequest{{
+		Jobs: []compozycontract.CreateJobRequest{{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			WorkspaceID: harness.WorkspaceID,
 			Name:        "nightly-triage",
@@ -149,7 +149,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker); err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
-	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, aghcontract.StartTaskRunRequest{})
+	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, compozycontract.StartTaskRunRequest{})
 	if err != nil {
 		t.Fatalf("StartTaskRun(%q) error = %v", run.TaskRunID, err)
 	}
@@ -201,7 +201,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if len(stream) == 0 {
 		t.Fatal("prompt stream = empty, want runtime events")
 	}
-	sentMessage, err := harness.NetworkSend(ctx, aghcontract.NetworkSendRequest{
+	sentMessage, err := harness.NetworkSend(ctx, compozycontract.NetworkSendRequest{
 		SessionID: sessionID,
 		Channel:   "ops-nightly",
 		Surface:   "thread",
@@ -259,9 +259,14 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession(%q) before task completion error = %v", sessionID, err)
 	}
-	completedRun, err := harness.CompleteClaimedTaskRunForSession(ctx, run.TaskRunID, taskSession, aghcontract.AgentTaskCompleteRequest{
-		Result: json.RawMessage(`{"network_reply":"` + nightlyTaskResumeMessageID + `"}`),
-	})
+	completedRun, err := harness.CompleteClaimedTaskRunForSession(
+		ctx,
+		run.TaskRunID,
+		taskSession,
+		compozycontract.AgentTaskCompleteRequest{
+			Result: json.RawMessage(`{"network_reply":"` + nightlyTaskResumeMessageID + `"}`),
+		},
+	)
 	if err != nil {
 		t.Fatalf("CompleteClaimedTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
@@ -344,7 +349,7 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
 	}
 
-	if _, err := harness.InstallExtension(ctx, aghcontract.InstallExtensionRequest{
+	if _, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
 		Path:            extensionDir,
 		Checksum:        checksum,
 		AllowUnverified: true,
@@ -357,7 +362,7 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		return err == nil && ext.Enabled
 	})
 
-	createdBridge, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
+	createdBridge, err := harness.CreateBridge(ctx, compozycontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   harness.WorkspaceID,
 		Platform:      "telegram",
@@ -384,7 +389,7 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		ctx,
 		bridgeID,
 		"bot_token",
-		aghcontract.PutBridgeSecretBindingRequest{
+		compozycontract.PutBridgeSecretBindingRequest{
 			SecretRef:   "vault:bridges/" + bridgeID + "/bot_token",
 			Kind:        "token",
 			SecretValue: &secretValue,
@@ -713,11 +718,11 @@ func nightlyCombinedConfigSeed(
 	return e2etest.ConfigSeedOptions{
 		DefaultAgent:   agentName,
 		DefaultSandbox: nightlyCombinedEnvProfileName,
-		PermissionMode: aghconfig.PermissionModeApproveAll,
-		Providers: map[string]aghconfig.ProviderConfig{
+		PermissionMode: compozyconfig.PermissionModeApproveAll,
+		Providers: map[string]compozyconfig.ProviderConfig{
 			acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
 		},
-		Sandboxes: map[string]aghconfig.SandboxProfile{
+		Sandboxes: map[string]compozyconfig.SandboxProfile{
 			nightlyCombinedEnvProfileName: {
 				Backend:     string(sandbox.BackendLocal),
 				Persistence: string(sandbox.PersistenceReuse),
@@ -727,7 +732,7 @@ func nightlyCombinedConfigSeed(
 			Name:        agentName,
 			Provider:    acpmock.ProviderName,
 			Command:     helperCommand,
-			Permissions: string(aghconfig.PermissionModeApproveAll),
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
 			Prompt:      "You are a deterministic nightly combined-flow helper.",
 		}},
 	}

@@ -24,7 +24,7 @@ func OutputRefForPayload(payload json.RawMessage) string {
 	return outputRefSHA256Prefix + hex.EncodeToString(sum[:])
 }
 
-// OutputRefLooksContentAddressed reports whether a ref uses AGH's loop output hash form.
+// OutputRefLooksContentAddressed reports whether a ref uses Compozy's loop output hash form.
 func OutputRefLooksContentAddressed(ref string) bool {
 	trimmed := strings.TrimSpace(ref)
 	if !strings.HasPrefix(trimmed, outputRefSHA256Prefix) {

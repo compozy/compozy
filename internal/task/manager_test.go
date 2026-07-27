@@ -8898,7 +8898,7 @@ func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing
 		}
 
 		metadata := json.RawMessage(
-			`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-owner","wake_target":{"session_id":"sess-wake"}}`,
+			`{"schema":"compozy.harness.detached.v1","owner_session_id":"sess-owner","wake_target":{"session_id":"sess-wake"}}`,
 		)
 		firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{
 			TaskID:         taskRecord.ID,
@@ -8939,7 +8939,7 @@ func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing
 		}
 
 		conflictingMetadata := json.RawMessage(
-			`{"schema":"agh.harness.detached.v1","owner_session_id":"sess-other","wake_target":{"session_id":"sess-other","channel":"ops"}}`,
+			`{"schema":"compozy.harness.detached.v1","owner_session_id":"sess-other","wake_target":{"session_id":"sess-other","channel":"ops"}}`,
 		)
 		conflictingDuplicate, err := manager.EnqueueRun(context.Background(), EnqueueRun{
 			TaskID:         taskRecord.ID,

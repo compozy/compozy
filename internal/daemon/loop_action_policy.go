@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type loopSessionAgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
 type loopSessionPolicyGate struct {
@@ -23,7 +23,7 @@ type loopSessionPolicyGate struct {
 
 type loopSessionPolicyResolution struct {
 	workspace workspacepkg.ResolvedWorkspace
-	agent     aghconfig.ResolvedAgent
+	agent     compozyconfig.ResolvedAgent
 }
 
 func (g *loopSessionPolicyGate) apply(
@@ -58,7 +58,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 			err,
 		)
 	}
-	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, aghconfig.RuntimeOverrides{
+	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider:  opts.Provider,
 		Model:     opts.Model,
 		Reasoning: opts.ReasoningEffort,
@@ -134,10 +134,10 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 func (g *loopSessionPolicyGate) resolveAgent(
 	agentName string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	target := strings.TrimSpace(agentName)
 	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("daemon: loop session agent name is required")
+		return compozyconfig.AgentDef{}, errors.New("daemon: loop session agent name is required")
 	}
 	if g != nil && g.agentResolver != nil {
 		return g.agentResolver.ResolveAgent(target, resolved)
@@ -147,16 +147,16 @@ func (g *loopSessionPolicyGate) resolveAgent(
 			return agent, nil
 		}
 	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
 func sessionPolicyFromResolvedAgentWorkspace(
-	agent aghconfig.ResolvedAgent,
+	agent compozyconfig.ResolvedAgent,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) SessionPolicy {
 	policy := SessionPolicy{
 		Runtime: SessionRuntimePolicy{
-			Permissions: aghconfig.PermissionMode(strings.TrimSpace(agent.Permissions)),
+			Permissions: compozyconfig.PermissionMode(strings.TrimSpace(agent.Permissions)),
 		},
 	}
 	if sandboxRef := resolvedWorkspaceSandboxRef(resolved); sandboxRef != "" {

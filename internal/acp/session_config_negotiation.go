@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 func (d *Driver) applySessionMode(
 	ctx context.Context,
 	process *AgentProcess,
-	permissions aghconfig.PermissionMode,
+	permissions compozyconfig.PermissionMode,
 ) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
 		return false, nil
@@ -174,7 +174,7 @@ func (d *Driver) applySessionConfigOption(
 
 func preferredSessionMode(
 	supported []string,
-	permissions aghconfig.PermissionMode,
+	permissions compozyconfig.PermissionMode,
 	toolGatewayEnabled bool,
 ) string {
 	if len(supported) == 0 {
@@ -190,7 +190,7 @@ func preferredSessionMode(
 		lookup[strings.ToLower(trimmed)] = trimmed
 	}
 
-	if permissions == aghconfig.PermissionModeApproveAll {
+	if permissions == compozyconfig.PermissionModeApproveAll {
 		for _, candidate := range sessionModeCandidates(permissions) {
 			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
 				return matched
@@ -221,9 +221,9 @@ func permissionGatewayModeCandidates() []string {
 	}
 }
 
-func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
+func sessionModeCandidates(permissions compozyconfig.PermissionMode) []string {
 	switch permissions {
-	case aghconfig.PermissionModeApproveAll:
+	case compozyconfig.PermissionModeApproveAll:
 		return []string{
 			sessionModeAgent,
 			"full-access",
@@ -233,7 +233,7 @@ func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
 			"auto",
 			"acceptEdits",
 		}
-	case aghconfig.PermissionModeApproveReads, aghconfig.PermissionModeDenyAll:
+	case compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeDenyAll:
 		return []string{
 			"read-only",
 			"read_only",

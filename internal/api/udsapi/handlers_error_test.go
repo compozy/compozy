@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -266,8 +266,8 @@ func TestGetAgentAndObserveHandlersReturnErrors(t *testing.T) {
 			return nil, errors.New("boom")
 		},
 	}, homePaths)
-	handlers.AgentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-		return aghconfig.AgentDef{}, os.ErrNotExist
+	handlers.AgentLoader = func(_ string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
+		return compozyconfig.AgentDef{}, os.ErrNotExist
 	}
 	engine := newTestRouter(t, handlers)
 

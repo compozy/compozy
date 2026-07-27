@@ -1,4 +1,4 @@
-// Suite: AGH Web data-boundary lint
+// Suite: Compozy Web data-boundary lint
 // Invariant: Server-query consumers reuse canonical option and key factories.
 // Boundary IN: Oxlint parsing and compozy-data-boundaries diagnostics.
 // Boundary OUT: Query/cache behavior, owned by Web system and route suites.

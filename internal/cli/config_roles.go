@@ -1,32 +1,32 @@
 package cli
 
-import aghconfig "github.com/compozy/compozy/internal/config"
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
 func roleConfigSetPathKinds() map[string]configSetValueKind {
 	result := make(map[string]configSetValueKind)
-	for path, kind := range aghconfig.RoleMutableConfigKinds() {
+	for path, kind := range compozyconfig.RoleMutableConfigKinds() {
 		result[path] = configSetKindFromToolKind(kind)
 	}
 	return result
 }
 
-func configSetKindFromToolKind(kind aghconfig.ValueKind) configSetValueKind {
+func configSetKindFromToolKind(kind compozyconfig.ValueKind) configSetValueKind {
 	switch kind {
-	case aghconfig.ConfigValueString:
+	case compozyconfig.ConfigValueString:
 		return configSetString
-	case aghconfig.ConfigValueBool:
+	case compozyconfig.ConfigValueBool:
 		return configSetBool
-	case aghconfig.ConfigValueInt:
+	case compozyconfig.ConfigValueInt:
 		return configSetInt
-	case aghconfig.ConfigValueInt64:
+	case compozyconfig.ConfigValueInt64:
 		return configSetInt64
-	case aghconfig.ConfigValueFloat:
+	case compozyconfig.ConfigValueFloat:
 		return configSetFloat
-	case aghconfig.ConfigValueDuration:
+	case compozyconfig.ConfigValueDuration:
 		return configSetDuration
-	case aghconfig.ConfigValueStringSlice:
+	case compozyconfig.ConfigValueStringSlice:
 		return configSetStringSlice
-	case aghconfig.ConfigValueTable:
+	case compozyconfig.ConfigValueTable:
 		return configSetTable
 	default:
 		panic("cli: unsupported role config value kind")

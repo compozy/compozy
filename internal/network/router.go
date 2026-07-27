@@ -50,7 +50,7 @@ type SendRequest struct {
 	Ext         ExtensionMap
 }
 
-// RuntimeSendRequest carries one outbound envelope emitted by the AGH runtime peer.
+// RuntimeSendRequest carries one outbound envelope emitted by the Compozy runtime peer.
 type RuntimeSendRequest struct {
 	WorkspaceID string
 	Channel     string
@@ -196,7 +196,7 @@ func (r *Router) PrepareSend(ctx context.Context, req SendRequest) (SendResult, 
 	return SendResult{ID: envelope.ID, Envelope: envelope}, nil
 }
 
-// PrepareRuntimeSend validates an AGH-runtime-originated envelope before persistence.
+// PrepareRuntimeSend validates an Compozy-runtime-originated envelope before persistence.
 func (r *Router) PrepareRuntimeSend(ctx context.Context, req RuntimeSendRequest) (SendResult, error) {
 	if ctx == nil {
 		return SendResult{}, errors.New("network: runtime send context is required")

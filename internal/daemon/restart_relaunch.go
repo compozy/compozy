@@ -11,14 +11,14 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/procutil"
 )
 
 // RelaunchHelperConfig configures one internal `compozy daemon relaunch` execution.
 type RelaunchHelperConfig struct {
-	HomePaths      aghconfig.HomePaths
+	HomePaths      compozyconfig.HomePaths
 	OperationID    string
 	Executable     func() (string, error)
 	Sandbox        []string

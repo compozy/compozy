@@ -7,7 +7,7 @@ import (
 
 	"sync"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -20,7 +20,7 @@ type activeConfigState struct {
 	initialized bool
 	hash        string
 	generation  int64
-	config      aghconfig.Config
+	config      compozyconfig.Config
 }
 
 // ApplySection persists a section mutation through the config apply lifecycle.
@@ -134,10 +134,10 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 }
 
 // ActiveConfig returns the daemon's last successfully applied config generation.
-func (s *service) ActiveConfig(ctx context.Context) (aghconfig.Config, error) {
+func (s *service) ActiveConfig(ctx context.Context) (compozyconfig.Config, error) {
 	state, err := s.ensureActiveConfigState(ctx)
 	if err != nil {
-		return aghconfig.Config{}, err
+		return compozyconfig.Config{}, err
 	}
 	return state.config, nil
 }

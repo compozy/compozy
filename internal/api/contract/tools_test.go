@@ -27,7 +27,7 @@ func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {
 				},
 				Source: ToolSourceRefPayload{
 					Kind:  tools.SourceBuiltin,
-					Owner: "agh",
+					Owner: "compozy",
 				},
 				Visibility: tools.VisibilityModel,
 				Risk:       tools.RiskRead,

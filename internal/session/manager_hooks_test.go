@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -104,8 +104,8 @@ func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeDream {
 		t.Fatalf("session type = %q, want %q", got, SessionTypeDream)
 	}
-	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeApproveAll {
-		t.Fatalf("start permissions = %q, want %q", got, aghconfig.PermissionModeApproveAll)
+	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
+		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
 	}
 }
 
@@ -1517,7 +1517,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		h := newHarness(
 			t,
 			WithHookSet(fullHookSet(dispatcher)),
-			WithSessionCompactionConfig(aghconfig.SessionCompactionConfig{
+			WithSessionCompactionConfig(compozyconfig.SessionCompactionConfig{
 				Enabled:            true,
 				PressureThreshold:  0.85,
 				MaxAttemptsPerTurn: 1,
@@ -1618,7 +1618,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		h := newHarness(
 			t,
 			WithNow(func() time.Time { return now }),
-			WithSessionCompactionConfig(aghconfig.SessionCompactionConfig{
+			WithSessionCompactionConfig(compozyconfig.SessionCompactionConfig{
 				Enabled:            true,
 				PressureThreshold:  0.85,
 				MaxAttemptsPerTurn: 1,
@@ -1693,7 +1693,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		h := newHarness(
 			t,
 			WithHookSet(fullHookSet(dispatcher)),
-			WithSessionCompactionConfig(aghconfig.SessionCompactionConfig{
+			WithSessionCompactionConfig(compozyconfig.SessionCompactionConfig{
 				Enabled:            true,
 				PressureThreshold:  0,
 				MaxAttemptsPerTurn: 1,
@@ -1773,7 +1773,7 @@ func TestPressureCompactionArchivesCoveredReplaySpans(t *testing.T) {
 		}}
 		h := newHarness(
 			t,
-			WithSessionCompactionConfig(aghconfig.DefaultSessionCompactionConfig()),
+			WithSessionCompactionConfig(compozyconfig.DefaultSessionCompactionConfig()),
 			WithCompactionHandler(handler),
 		)
 		active := createSession(t, h)

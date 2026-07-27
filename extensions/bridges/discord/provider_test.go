@@ -1458,7 +1458,7 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/users/@me":
-			if err := json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "agh"}); err != nil {
+			if err := json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "compozy"}); err != nil {
 				t.Errorf("encode Discord bot identity: %v", err)
 			}
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/messages":
@@ -2769,7 +2769,7 @@ type discordAPIFake struct {
 }
 
 func (f *discordAPIFake) GetBotUser(context.Context) (*discordBotIdentity, error) {
-	return &discordBotIdentity{ID: "bot-1", Username: "agh"}, nil
+	return &discordBotIdentity{ID: "bot-1", Username: "compozy"}, nil
 }
 
 func (f *discordAPIFake) PostMessage(_ context.Context, req discordPostMessageRequest) (*discordPostedMessage, error) {

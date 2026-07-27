@@ -3,7 +3,7 @@ package workspace
 import (
 	"maps"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
@@ -55,8 +55,8 @@ func cloneWorkspaces(src []Workspace) []Workspace {
 	return cloned
 }
 
-func cloneConfig(src *aghconfig.Config) aghconfig.Config {
-	return aghconfig.Config{
+func cloneConfig(src *compozyconfig.Config) compozyconfig.Config {
+	return compozyconfig.Config{
 		Daemon:        src.Daemon,
 		HTTP:          src.HTTP,
 		WindowManager: cloneWindowManagerConfig(src.WindowManager),
@@ -64,8 +64,8 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Agents:        src.Agents,
 		Limits:        src.Limits,
 		Session:       src.Session,
-		Roles:         aghconfig.CloneRolesConfig(&src.Roles),
-		RoleSources:   aghconfig.CloneRoleFieldSources(src.RoleSources),
+		Roles:         compozyconfig.CloneRolesConfig(&src.Roles),
+		RoleSources:   compozyconfig.CloneRoleFieldSources(src.RoleSources),
 		Permissions:   src.Permissions,
 		MCPServers:    cloneMCPServers(src.MCPServers),
 		Providers:     cloneProviders(src.Providers),
@@ -73,8 +73,8 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Sandboxes:     cloneSandboxProfiles(src.Sandboxes),
 		Observability: src.Observability,
 		Log:           src.Log,
-		Memory:        aghconfig.CloneMemoryConfig(&src.Memory),
-		Skills: aghconfig.SkillsConfig{
+		Memory:        compozyconfig.CloneMemoryConfig(&src.Memory),
+		Skills: compozyconfig.SkillsConfig{
 			Enabled:                 src.Skills.Enabled,
 			DisabledSkills:          append([]string(nil), src.Skills.DisabledSkills...),
 			PollInterval:            src.Skills.PollInterval,
@@ -83,12 +83,12 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 			Marketplace:             src.Skills.Marketplace,
 		},
 		Extensions: cloneExtensionsConfig(src.Extensions),
-		Tools: aghconfig.ToolsConfig{
+		Tools: compozyconfig.ToolsConfig{
 			Enabled:               src.Tools.Enabled,
 			HostedMCPEnabled:      src.Tools.HostedMCPEnabled,
 			DefaultMaxResultBytes: src.Tools.DefaultMaxResultBytes,
 			HostedMCP:             src.Tools.HostedMCP,
-			Policy: aghconfig.ToolsPolicyConfig{
+			Policy: compozyconfig.ToolsPolicyConfig{
 				ExternalDefault:        src.Tools.Policy.ExternalDefault,
 				ApprovalTimeoutSeconds: src.Tools.Policy.ApprovalTimeoutSeconds,
 				TrustedSources:         append([]string(nil), src.Tools.Policy.TrustedSources...),
@@ -99,39 +99,39 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Goals:      src.Goals,
 		Task:       src.Task,
 		Autonomy:   src.Autonomy,
-		Hooks: aghconfig.HooksConfig{
+		Hooks: compozyconfig.HooksConfig{
 			Declarations: cloneHookDecls(src.Hooks.Declarations),
 		},
 		Network: src.Network,
 	}
 }
 
-func cloneWindowManagerConfig(src aghconfig.WindowManagerConfig) aghconfig.WindowManagerConfig {
+func cloneWindowManagerConfig(src compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
 	cloned := src
 	cloned.Snap.RepeatRatios = append([]float64(nil), src.Snap.RepeatRatios...)
 	cloned.Shortcuts = maps.Clone(src.Shortcuts)
 	return cloned
 }
 
-func cloneExtensionsConfig(src aghconfig.ExtensionsConfig) aghconfig.ExtensionsConfig {
+func cloneExtensionsConfig(src compozyconfig.ExtensionsConfig) compozyconfig.ExtensionsConfig {
 	cloned := src
 	cloned.Resources.AllowedKinds = append([]resources.ResourceKind(nil), src.Resources.AllowedKinds...)
 	return cloned
 }
 
-func cloneAutomationConfig(src aghconfig.AutomationConfig) aghconfig.AutomationConfig {
+func cloneAutomationConfig(src compozyconfig.AutomationConfig) compozyconfig.AutomationConfig {
 	cloned := src
 	cloned.Jobs = cloneAutomationJobs(src.Jobs)
 	cloned.Triggers = cloneAutomationTriggers(src.Triggers)
 	return cloned
 }
 
-func cloneAutomationJobs(src []aghconfig.AutomationJob) []aghconfig.AutomationJob {
+func cloneAutomationJobs(src []compozyconfig.AutomationJob) []compozyconfig.AutomationJob {
 	if len(src) == 0 {
 		return nil
 	}
 
-	cloned := make([]aghconfig.AutomationJob, len(src))
+	cloned := make([]compozyconfig.AutomationJob, len(src))
 	for idx, job := range src {
 		cloned[idx] = job
 		if job.Task != nil {
@@ -146,12 +146,12 @@ func cloneAutomationJobs(src []aghconfig.AutomationJob) []aghconfig.AutomationJo
 	return cloned
 }
 
-func cloneAutomationTriggers(src []aghconfig.AutomationTrigger) []aghconfig.AutomationTrigger {
+func cloneAutomationTriggers(src []compozyconfig.AutomationTrigger) []compozyconfig.AutomationTrigger {
 	if len(src) == 0 {
 		return nil
 	}
 
-	cloned := make([]aghconfig.AutomationTrigger, len(src))
+	cloned := make([]compozyconfig.AutomationTrigger, len(src))
 	for idx, trigger := range src {
 		cloned[idx] = trigger
 		cloned[idx].Filter = cloneStringMap(trigger.Filter)
@@ -159,27 +159,27 @@ func cloneAutomationTriggers(src []aghconfig.AutomationTrigger) []aghconfig.Auto
 	return cloned
 }
 
-func cloneSandboxProfiles(src map[string]aghconfig.SandboxProfile) map[string]aghconfig.SandboxProfile {
+func cloneSandboxProfiles(src map[string]compozyconfig.SandboxProfile) map[string]compozyconfig.SandboxProfile {
 	if len(src) == 0 {
-		return map[string]aghconfig.SandboxProfile{}
+		return map[string]compozyconfig.SandboxProfile{}
 	}
 
-	cloned := make(map[string]aghconfig.SandboxProfile, len(src))
+	cloned := make(map[string]compozyconfig.SandboxProfile, len(src))
 	for name, profile := range src {
 		cloned[name] = cloneSandboxProfile(profile)
 	}
 	return cloned
 }
 
-func cloneSandboxProfile(src aghconfig.SandboxProfile) aghconfig.SandboxProfile {
-	return aghconfig.SandboxProfile{
+func cloneSandboxProfile(src compozyconfig.SandboxProfile) compozyconfig.SandboxProfile {
+	return compozyconfig.SandboxProfile{
 		Backend:     src.Backend,
 		SyncMode:    src.SyncMode,
 		Persistence: src.Persistence,
 		RuntimeRoot: src.RuntimeRoot,
 		Env:         cloneStringMap(src.Env),
 		SecretEnv:   cloneStringMap(src.SecretEnv),
-		Network: aghconfig.NetworkProfile{
+		Network: compozyconfig.NetworkProfile{
 			AllowPublicIngress: src.Network.AllowPublicIngress,
 			AllowOutbound:      src.Network.AllowOutbound,
 			AllowList:          append([]string(nil), src.Network.AllowList...),
@@ -202,8 +202,8 @@ func cloneSandboxResolved(src sandbox.Resolved) sandbox.Resolved {
 	return cloned
 }
 
-func cloneProviders(src map[string]aghconfig.ProviderConfig) map[string]aghconfig.ProviderConfig {
-	return aghconfig.CloneProviderConfigs(src)
+func cloneProviders(src map[string]compozyconfig.ProviderConfig) map[string]compozyconfig.ProviderConfig {
+	return compozyconfig.CloneProviderConfigs(src)
 }
 
 func cloneBoolPtr(src *bool) *bool {
@@ -214,10 +214,10 @@ func cloneBoolPtr(src *bool) *bool {
 	return &value
 }
 
-func cloneModelCatalogConfig(src aghconfig.ModelCatalogConfig) aghconfig.ModelCatalogConfig {
-	return aghconfig.ModelCatalogConfig{
-		Sources: aghconfig.ModelCatalogSourcesConfig{
-			ModelsDev: aghconfig.ModelsDevSourceConfig{
+func cloneModelCatalogConfig(src compozyconfig.ModelCatalogConfig) compozyconfig.ModelCatalogConfig {
+	return compozyconfig.ModelCatalogConfig{
+		Sources: compozyconfig.ModelCatalogSourcesConfig{
+			ModelsDev: compozyconfig.ModelsDevSourceConfig{
 				Enabled:  cloneBoolPtr(src.Sources.ModelsDev.Enabled),
 				Endpoint: src.Sources.ModelsDev.Endpoint,
 				TTL:      src.Sources.ModelsDev.TTL,
@@ -227,14 +227,14 @@ func cloneModelCatalogConfig(src aghconfig.ModelCatalogConfig) aghconfig.ModelCa
 	}
 }
 
-func cloneAgentDefs(src []aghconfig.AgentDef) []aghconfig.AgentDef {
+func cloneAgentDefs(src []compozyconfig.AgentDef) []compozyconfig.AgentDef {
 	if len(src) == 0 {
 		return nil
 	}
 
-	cloned := make([]aghconfig.AgentDef, 0, len(src))
+	cloned := make([]compozyconfig.AgentDef, 0, len(src))
 	for _, agent := range src {
-		cloned = append(cloned, aghconfig.CloneAgentDef(agent))
+		cloned = append(cloned, compozyconfig.CloneAgentDef(agent))
 	}
 
 	return cloned
@@ -248,14 +248,14 @@ func cloneSkillPaths(src []SkillPath) []SkillPath {
 	return append([]SkillPath(nil), src...)
 }
 
-func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
+func cloneMCPServers(src []compozyconfig.MCPServer) []compozyconfig.MCPServer {
 	if len(src) == 0 {
 		return nil
 	}
 
-	cloned := make([]aghconfig.MCPServer, 0, len(src))
+	cloned := make([]compozyconfig.MCPServer, 0, len(src))
 	for _, server := range src {
-		cloned = append(cloned, aghconfig.MCPServer{
+		cloned = append(cloned, compozyconfig.MCPServer{
 			Name:      server.Name,
 			Transport: server.Transport,
 			Command:   server.Command,
@@ -270,7 +270,7 @@ func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
 	return cloned
 }
 
-func cloneMCPAuthConfig(src aghconfig.MCPAuthConfig) aghconfig.MCPAuthConfig {
+func cloneMCPAuthConfig(src compozyconfig.MCPAuthConfig) compozyconfig.MCPAuthConfig {
 	src.Scopes = append([]string(nil), src.Scopes...)
 	return src
 }

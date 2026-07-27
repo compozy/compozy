@@ -78,7 +78,7 @@ const (
 	defaultHostAPIBridgeIngestDedupTTL  = 24 * time.Hour
 	defaultHostAPIBridgeCleanupInterval = time.Hour
 	maxMemoryDescriptionLength          = 160
-	tagCommentPrefix                    = "<!-- agh-tags:"
+	tagCommentPrefix                    = "<!-- compozy-tags:"
 	hostAPIUnknownExtensionName         = "unknown"
 	hostAPISandboxStateSynced           = "synced"
 	hostAPISandboxStatePending          = "pending"

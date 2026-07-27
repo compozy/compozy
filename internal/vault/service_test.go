@@ -337,7 +337,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Run("Should create and reuse daemon key file with restricted permissions", func(t *testing.T) {
 		t.Parallel()
 
-		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
 		first, err := provider.Key()
 		if err != nil {
@@ -373,7 +373,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Run("Should tighten preexisting key directory before creating daemon key file", func(t *testing.T) {
 		t.Parallel()
 
-		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		if err := os.MkdirAll(homeDir, 0o755); err != nil {
 			t.Fatalf("MkdirAll(homeDir) error = %v", err)
 		}
@@ -398,7 +398,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Run("Should reject preexisting key files with group or other permissions", func(t *testing.T) {
 		t.Parallel()
 
-		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		keyPath := filepath.Join(homeDir, "vault.key")
 		if err := os.MkdirAll(homeDir, 0o700); err != nil {
 			t.Fatalf("MkdirAll(%q) error = %v", homeDir, err)
@@ -421,7 +421,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Run("Should reject preexisting key symlinks", func(t *testing.T) {
 		t.Parallel()
 
-		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		if err := os.MkdirAll(homeDir, 0o700); err != nil {
 			t.Fatalf("MkdirAll(%q) error = %v", homeDir, err)
 		}
@@ -448,7 +448,7 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 	t.Run("Should return the persisted key for concurrent first-use callers", func(t *testing.T) {
 		t.Parallel()
 
-		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		homeDir := filepath.Join(t.TempDir(), "compozy-home")
 		const workers = 128
 		start := make(chan struct{})
 		results := make([][]byte, workers)

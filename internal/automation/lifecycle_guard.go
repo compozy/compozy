@@ -14,8 +14,8 @@ var ErrDaemonLifecycleCommandBlocked = errors.New("automation: daemon lifecycle 
 type DaemonLifecycleCommandClass string
 
 const (
-	// DaemonLifecycleCommandClassAGHDaemon identifies the native daemon CLI.
-	DaemonLifecycleCommandClassAGHDaemon DaemonLifecycleCommandClass = "agh_daemon"
+	// DaemonLifecycleCommandClassCompozyDaemon identifies the native daemon CLI.
+	DaemonLifecycleCommandClassCompozyDaemon DaemonLifecycleCommandClass = "agh_daemon"
 	// DaemonLifecycleCommandClassProcessSignal identifies process-targeting kill commands.
 	DaemonLifecycleCommandClassProcessSignal DaemonLifecycleCommandClass = "process_signal"
 	// DaemonLifecycleCommandClassServiceManager identifies service-manager lifecycle commands.
@@ -47,7 +47,7 @@ type daemonLifecycleCommandPattern struct {
 
 var daemonLifecycleCommandPatterns = []daemonLifecycleCommandPattern{
 	{
-		class: DaemonLifecycleCommandClassAGHDaemon,
+		class: DaemonLifecycleCommandClassCompozyDaemon,
 		pattern: regexp.MustCompile(
 			`(?i)\bcompozy(?:[[:space:]]+(?:--json|--output(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)|-o(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)))*[[:space:]]+daemon[[:space:]]+(restart|stop)\b`,
 		),

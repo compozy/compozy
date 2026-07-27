@@ -3,7 +3,7 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -12,27 +12,27 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 	t.Parallel()
 
 	catalog := newResourceCatalog(cloneDaemonMCPServer)
-	catalog.Replace(1, []resources.Record[aghconfig.MCPServer]{
+	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
 		{
 			ID: "mcp-workspace-a", Version: 1,
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
-			Spec: aghconfig.MCPServer{
-				Name: "linear", Transport: aghconfig.MCPServerTransportHTTP,
+			Spec: compozyconfig.MCPServer{
+				Name: "linear", Transport: compozyconfig.MCPServerTransportHTTP,
 				URL: "https://workspace-a.linear.example/mcp",
 			},
 		},
 		{
 			ID: "mcp-workspace-b", Version: 1,
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-b"},
-			Spec: aghconfig.MCPServer{
-				Name: "linear", Transport: aghconfig.MCPServerTransportHTTP,
+			Spec: compozyconfig.MCPServer{
+				Name: "linear", Transport: compozyconfig.MCPServerTransportHTTP,
 				URL: "https://workspace-b.linear.example/mcp",
 			},
 		},
 	})
 	state := &bootState{
-		cfg: aghconfig.Config{MCPServers: []aghconfig.MCPServer{{
-			Name: "linear", Transport: aghconfig.MCPServerTransportHTTP,
+		cfg: compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{
+			Name: "linear", Transport: compozyconfig.MCPServerTransportHTTP,
 			URL: "https://global.linear.example/mcp",
 		}}},
 		mcpServerCatalog: catalog,

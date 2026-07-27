@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/udsapi"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/procutil"
 )
@@ -49,7 +49,7 @@ func (d *Daemon) applySystemDefaults() {
 		d.closeLogger = func() error { return nil }
 	}
 	if d.loadConfig == nil {
-		d.loadConfig = func() (aghconfig.Config, error) {
+		d.loadConfig = func() (compozyconfig.Config, error) {
 			return loadConfigFromHome(d.homePaths)
 		}
 	}

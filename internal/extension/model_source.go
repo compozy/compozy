@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-// ModelSourceRuntime calls AGH-to-extension model source services.
+// ModelSourceRuntime calls Compozy-to-extension model source services.
 type ModelSourceRuntime interface {
 	ListModelSourceRows(
 		ctx context.Context,

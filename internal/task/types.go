@@ -218,7 +218,7 @@ type ActorKind string
 const (
 	// ActorKindHuman identifies a human principal writing through CLI, web, HTTP, or UDS surfaces.
 	ActorKindHuman ActorKind = "human"
-	// ActorKindAgentSession identifies an AGH agent session principal.
+	// ActorKindAgentSession identifies an Compozy agent session principal.
 	ActorKindAgentSession ActorKind = "agent_session"
 	// ActorKindAutomation identifies daemon-owned automation flows.
 	ActorKindAutomation ActorKind = "automation"

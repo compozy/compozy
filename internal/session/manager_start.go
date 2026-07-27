@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workref"
 )
 
 type sessionStartRuntime struct {
-	agent               aghconfig.ResolvedAgent
-	agentDef            aghconfig.AgentDef
-	mcpServers          []aghconfig.MCPServer
+	agent               compozyconfig.ResolvedAgent
+	agentDef            compozyconfig.AgentDef
+	mcpServers          []compozyconfig.MCPServer
 	networkCapabilities []NetworkPeerCapability
 }
 
@@ -60,7 +60,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		provider:                strings.TrimSpace(meta.Provider),
 		model:                   strings.TrimSpace(meta.Model),
 		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
-		permissions:             aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
+		permissions:             compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:               resolvedWorkspace,
 		networkParticipation:    meta.NetworkSpecSnapshot(),
 		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),

@@ -194,7 +194,8 @@ export const RuledFull: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Ruled header + ruled footer + unframed body -- the canonical AGH dialog chrome.",
+        story:
+          "Ruled header + ruled footer + unframed body -- the canonical Compozy dialog chrome.",
       },
     },
   },
@@ -204,12 +205,12 @@ export const RuledFull: Story = {
         <DialogHeader variant="ruled">
           <DialogTitle>Connect workspace</DialogTitle>
           <DialogDescription>
-            Confirm the workspace path before AGH starts the daemon.
+            Confirm the workspace path before Compozy starts the daemon.
           </DialogDescription>
         </DialogHeader>
         <div className="p-5">
           <Label htmlFor="ruled-full-name">Workspace path</Label>
-          <Input id="ruled-full-name" defaultValue="/Users/pedro/Dev/agh" />
+          <Input id="ruled-full-name" defaultValue="/Users/pedro/Dev/compozy" />
         </div>
         <DialogFooter variant="ruled">
           <DialogClose render={<Button variant="ghost">Cancel</Button>} />

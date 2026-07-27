@@ -231,7 +231,7 @@ func sqliteIndexOrigin(index *schema.Index) string {
 
 func openAtlasClient(ctx context.Context) (*sqlclient.Client, error) {
 	sequence := atlasDatabaseSequence.Add(1)
-	dsn := fmt.Sprintf("file:agh-atlas-codegen-%d?mode=memory&cache=shared", sequence)
+	dsn := fmt.Sprintf("file:compozy-atlas-codegen-%d?mode=memory&cache=shared", sequence)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open SQLite database: %w", err)

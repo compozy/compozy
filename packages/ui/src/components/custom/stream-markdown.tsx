@@ -73,7 +73,7 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
 
 /**
  * Streaming wrapper around `<Markdown />` for chat threads. Reuses the canonical
- * prose grammar but swaps in the AGH `<CodeBlock>` for fenced code blocks (with
+ * prose grammar but swaps in the Compozy `<CodeBlock>` for fenced code blocks (with
  * copy + syntax highlighting). Inline code uses the shared Markdown recipe.
  */
 function StreamMarkdown({ children, streaming = false, className, ...props }: StreamMarkdownProps) {

@@ -882,7 +882,7 @@ func TestUtilityHelpers(t *testing.T) {
 		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
 	}
 
-	sideEffectRoot := tempSideEffectDir(t, "agh-telegram-reference-utils-")
+	sideEffectRoot := tempSideEffectDir(t, "compozy-telegram-reference-utils-")
 	target := filepath.Join(sideEffectRoot, "crash-once.json")
 	if !shouldCrashOnce(target) {
 		t.Fatal("shouldCrashOnce(missing file) = false, want true")
@@ -999,7 +999,7 @@ func testInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "0.5.0",
+		CompozyVersion:           "0.5.0",
 		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "telegram-reference",
@@ -1071,7 +1071,7 @@ func setAdapterTestEnv(t *testing.T) adapterEnv {
 	// not parallel: mutates process environment for adapter marker paths.
 	t.Helper()
 
-	root := tempSideEffectDir(t, "agh-telegram-reference-markers-")
+	root := tempSideEffectDir(t, "compozy-telegram-reference-markers-")
 	env := adapterEnv{
 		handshakePath: filepath.Join(root, "handshake.json"),
 		ownershipPath: filepath.Join(root, "ownership.json"),

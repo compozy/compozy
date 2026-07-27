@@ -17,7 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
@@ -177,7 +177,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
-		if err := globalDB.InsertWorkspace(ctx, aghworkspace.Workspace{
+		if err := globalDB.InsertWorkspace(ctx, compozyworkspace.Workspace{
 			ID:        "ws-beta",
 			RootDir:   t.TempDir(),
 			Name:      "Beta",
@@ -312,7 +312,7 @@ func TestGlobalDBBridgeListsPropagateRowsCloseErrors(t *testing.T) {
 
 var errBridgeCatalogRowsClose = errors.New("bridge catalog rows close failed")
 
-const bridgeCloseErrorDriverName = "agh-bridge-close-error"
+const bridgeCloseErrorDriverName = "compozy-bridge-close-error"
 
 func init() {
 	sql.Register(bridgeCloseErrorDriverName, bridgeCloseErrorDriver{})
@@ -1254,7 +1254,7 @@ func TestGlobalDBBridgeConstraintFailuresAndDefaultDedupLookupTime(t *testing.T)
 		Enabled:       true,
 		Status:        bridges.BridgeStatusReady,
 		RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
-	}); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+	}); !errors.Is(err, compozyworkspace.ErrWorkspaceNotFound) {
 		t.Fatalf("InsertBridgeInstance(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
 	}
 

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -139,8 +139,8 @@ func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
 
 // LiveProviderSourcesConfig configures built-in provider live discovery sources.
 type LiveProviderSourcesConfig struct {
-	Providers       map[string]aghconfig.ProviderConfig
-	HomePaths       aghconfig.HomePaths
+	Providers       map[string]compozyconfig.ProviderConfig
+	HomePaths       compozyconfig.HomePaths
 	BaseEnv         []string
 	SecretResolver  ProviderSecretResolver
 	HTTPClient      *http.Client
@@ -150,7 +150,7 @@ type LiveProviderSourcesConfig struct {
 
 // NewLiveProviderSources creates provider_live sources for known provider adapters.
 func NewLiveProviderSources(cfg LiveProviderSourcesConfig) ([]Source, error) {
-	providers := aghconfig.BuiltinProviders()
+	providers := compozyconfig.BuiltinProviders()
 	maps.Copy(providers, cfg.Providers)
 	providerIDs := make([]string, 0, len(providers))
 	for providerID := range providers {
@@ -173,7 +173,7 @@ func NewLiveProviderSources(cfg LiveProviderSourcesConfig) ([]Source, error) {
 // NewLiveProviderSource creates one provider_live source.
 func NewLiveProviderSource(
 	providerID string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	cfg LiveProviderSourcesConfig,
 ) (*LiveProviderSource, error) {
 	trimmedProviderID := strings.TrimSpace(providerID)
@@ -202,7 +202,7 @@ func NewLiveProviderSource(
 	}
 	return &LiveProviderSource{
 		providerID:      trimmedProviderID,
-		provider:        aghconfig.CloneProviderConfig(provider),
+		provider:        compozyconfig.CloneProviderConfig(provider),
 		adapter:         adapter,
 		sourceID:        sourceID,
 		homePaths:       cfg.HomePaths,
@@ -222,10 +222,10 @@ func SourceKindProviderLiveID(providerID string) string {
 // LiveProviderSource performs side-effect-free model discovery for one provider.
 type LiveProviderSource struct {
 	providerID      string
-	provider        aghconfig.ProviderConfig
+	provider        compozyconfig.ProviderConfig
 	adapter         liveProviderAdapter
 	sourceID        string
-	homePaths       aghconfig.HomePaths
+	homePaths       compozyconfig.HomePaths
 	baseEnv         []string
 	secretResolver  ProviderSecretResolver
 	httpClient      *http.Client

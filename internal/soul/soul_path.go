@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -92,7 +92,7 @@ func safePathWithoutRoot(path string) string {
 	slashed := filepath.ToSlash(filepath.Clean(path))
 	parts := strings.Split(slashed, "/")
 	for idx := 0; idx < len(parts)-2; idx++ {
-		if parts[idx] == aghconfig.DirName && parts[idx+1] == "agents" {
+		if parts[idx] == compozyconfig.DirName && parts[idx+1] == "agents" {
 			return strings.Join(parts[idx:], "/")
 		}
 	}

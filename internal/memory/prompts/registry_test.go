@@ -103,7 +103,7 @@ func TestRegistry(t *testing.T) {
 				name: NameDecide,
 				data: map[string]any{
 					"Candidate": map[string]any{
-						"Entity":    "AGH",
+						"Entity":    "Compozy",
 						"Attribute": "memory",
 						"Scope":     "workspace",
 						"AgentName": "codex",
@@ -122,7 +122,7 @@ func TestRegistry(t *testing.T) {
 						{
 							"ID":             "target-1",
 							"TargetFilename": "memory.md",
-							"Entity":         "AGH",
+							"Entity":         "Compozy",
 							"Attribute":      "memory",
 							"Content":        "Existing memory fact.",
 							"LastUpdatedAt":  "2026-05-17T00:00:00Z",
@@ -131,7 +131,7 @@ func TestRegistry(t *testing.T) {
 				},
 				fragments: []string{
 					"candidate.frontmatter.entity",
-					"AGH",
+					"Compozy",
 					"duplicate_check",
 					"target.target_filename",
 				},

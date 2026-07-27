@@ -51,7 +51,7 @@ const initialState: OnboardingDraftState = {
 };
 
 /** Bumped on every draft-shape change; drafts are never migrated. */
-export const ONBOARDING_DRAFT_STORAGE_KEY = "agh:onboarding:draft:v4";
+export const ONBOARDING_DRAFT_STORAGE_KEY = "compozy:onboarding:draft:v4";
 
 const draftStorage = createJSONStorage<OnboardingDraftState>(() => {
   if (typeof window === "undefined") {

@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -16,7 +16,7 @@ import (
 func (s *service) updateSkillsSection(
 	ctx context.Context,
 	req SectionRequest,
-	next aghconfig.SkillsConfig,
+	next compozyconfig.SkillsConfig,
 ) (MutationResult, error) {
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
 	if err != nil {
@@ -44,7 +44,7 @@ func (s *service) updateSkillsSection(
 		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, next)
 	}
 
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
 	}
@@ -71,9 +71,7 @@ func (s *service) updateSkillsSection(
 		return MutationResult{}, errors.New("settings: skills runtime is required to apply skills.disabled_skills")
 	}
 
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		return applySkillsSettings(editor, next)
-	}); err != nil {
+	if err := s.writeGlobalSkillsConfig(target, next); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: write section %q: %w", SectionSkills, err)
 	}
 
@@ -96,12 +94,27 @@ func (s *service) updateSkillsSection(
 	}, nil
 }
 
+func (s *service) writeGlobalSkillsConfig(
+	target compozyconfig.WriteTarget,
+	next compozyconfig.SkillsConfig,
+) error {
+	_, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		"",
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			return applySkillsSettings(editor, next)
+		},
+	)
+	return err
+}
+
 func (s *service) updateAgentSkillsSection(
-	base aghconfig.SkillsConfig,
+	base compozyconfig.SkillsConfig,
 	resolved *workspacepkg.ResolvedWorkspace,
 	workspaceID string,
 	agentName string,
-	next aghconfig.SkillsConfig,
+	next compozyconfig.SkillsConfig,
 ) (MutationResult, error) {
 	agent, targetKind, err := s.resolveEffectiveAgent(resolved, agentName)
 	if err != nil {

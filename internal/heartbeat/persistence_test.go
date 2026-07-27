@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestHeartbeatPersistenceSnapshot(t *testing.T) {
@@ -29,7 +29,7 @@ preferences:
 ---
 Read current context and avoid duplicate prompts.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)

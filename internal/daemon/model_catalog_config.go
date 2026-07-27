@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
@@ -15,7 +15,7 @@ type modelCatalogMergeOptionsUpdater interface {
 	UpdateMergeOptions(options modelcatalog.MergeOptions)
 }
 
-func (r *modelCatalogRuntime) ReconcileConfig(ctx context.Context, cfg *aghconfig.Config) error {
+func (r *modelCatalogRuntime) ReconcileConfig(ctx context.Context, cfg *compozyconfig.Config) error {
 	if r == nil || r.configSource == nil {
 		return errors.New("daemon: model catalog config source is unavailable")
 	}
@@ -23,7 +23,7 @@ func (r *modelCatalogRuntime) ReconcileConfig(ctx context.Context, cfg *aghconfi
 		return errors.New("daemon: model catalog config reconciliation context is required")
 	}
 	previousProviders := r.configSource.ProviderIDs()
-	nextProviders := map[string]aghconfig.ProviderConfig(nil)
+	nextProviders := map[string]compozyconfig.ProviderConfig(nil)
 	if cfg != nil {
 		nextProviders = cfg.Providers
 	}

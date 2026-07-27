@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	apispec "github.com/compozy/compozy/internal/api/spec"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,11 +34,11 @@ func TestServerHandlerConfigIncludesCoordinatorRole(t *testing.T) {
 		t.Parallel()
 
 		resolver := httpapiCoordinatorRoleResolverFunc(
-			func(_ context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error) {
+			func(_ context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error) {
 				if workspaceID != "ws-1" {
 					t.Fatalf("ResolveCoordinatorRole() workspaceID = %q, want ws-1", workspaceID)
 				}
-				return aghconfig.ResolvedCoordinatorRole{AgentName: "coordinator"}, nil
+				return compozyconfig.ResolvedCoordinatorRole{AgentName: "coordinator"}, nil
 			},
 		)
 
@@ -99,11 +99,11 @@ func normalizeHTTPAgentSpecRoutePath(routePath string) string {
 	return strings.Join(parts, "/")
 }
 
-type httpapiCoordinatorRoleResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
+type httpapiCoordinatorRoleResolverFunc func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error)
 
 func (f httpapiCoordinatorRoleResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.ResolvedCoordinatorRole, error) {
+) (compozyconfig.ResolvedCoordinatorRole, error) {
 	return f(ctx, workspaceID)
 }

@@ -1,4 +1,4 @@
-// Package logger configures AGH structured logging.
+// Package logger configures Compozy structured logging.
 package logger
 
 import (

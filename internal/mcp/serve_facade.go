@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const mcpServePrincipalPrefix = "__agh_mcp_serve__"
+const mcpServePrincipalPrefix = "__compozy_mcp_serve__"
 
 // HostAPIFacade binds MCP calls to one resolved workspace before dispatching existing Host API logic.
 type HostAPIFacade struct {

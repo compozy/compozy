@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -24,11 +24,11 @@ func newOverviewFixture(t *testing.T) *overviewFixture {
 	t.Helper()
 	ctx := observeTestContext(t)
 
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	if err := observeTestGlobalSeed.Clone(home.DatabaseFile); err != nil {

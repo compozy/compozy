@@ -281,10 +281,14 @@ function buildWebhookCurl(url: string): CurlLine[] {
     [{ text: `  https://your-daemon${url} \\` }],
     [
       { text: "  -H " },
-      { text: '"X-AGH-Webhook-Signature: sha256=…"', tone: "string" },
+      { text: '"X-Compozy-Webhook-Signature: sha256=…"', tone: "string" },
       { text: " \\" },
     ],
-    [{ text: "  -H " }, { text: '"X-AGH-Webhook-Timestamp: …"', tone: "string" }, { text: " \\" }],
+    [
+      { text: "  -H " },
+      { text: '"X-Compozy-Webhook-Timestamp: …"', tone: "string" },
+      { text: " \\" },
+    ],
     [{ text: "  -d " }, { text: `'{"action":"deploy_started"}'`, tone: "string" }],
   ];
 }

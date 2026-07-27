@@ -325,7 +325,7 @@ func TestUnixSocketClientInstallSettingsMCPServerUsesCanonicalEndpoint(t *testin
 			return newHTTPResponse(http.StatusOK, string(payload)), nil
 		})
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -364,7 +364,7 @@ func TestMCPInstallClientPropagatesTransportErrors(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 				return nil, errors.New("transport unavailable")
 			})},

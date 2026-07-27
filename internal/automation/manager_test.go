@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -28,18 +28,18 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []aghconfig.AutomationJob{
+		Jobs: []compozyconfig.AutomationJob{
 			managerConfigJob(AutomationScopeWorkspace, "config-job", h.workspaceRoot, ScheduleSpec{
 				Mode:     ScheduleModeEvery,
 				Interval: "1h",
 			}),
 		},
-		Triggers: []aghconfig.AutomationTrigger{
+		Triggers: []compozyconfig.AutomationTrigger{
 			managerConfigTrigger(AutomationScopeWorkspace, "config-trigger", h.workspaceRoot, "session.stopped"),
 		},
 	}
@@ -136,7 +136,7 @@ func TestManagerStartPreservesCallerContextValuesInRuntimeContext(t *testing.T) 
 	type contextKey string
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -167,18 +167,18 @@ func TestManagerStartUpdatesConfigDefinitionsAndPreservesEnabledOverlays(t *test
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []aghconfig.AutomationJob{
+		Jobs: []compozyconfig.AutomationJob{
 			managerConfigJob(AutomationScopeWorkspace, "config-job", h.workspaceRoot, ScheduleSpec{
 				Mode:     ScheduleModeEvery,
 				Interval: "45m",
 			}),
 		},
-		Triggers: []aghconfig.AutomationTrigger{
+		Triggers: []compozyconfig.AutomationTrigger{
 			managerConfigTrigger(AutomationScopeWorkspace, "config-trigger", h.workspaceRoot, "session.stopped"),
 		},
 	}
@@ -284,17 +284,17 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 	h := newManagerHarness(t)
 	nextFire := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
 	syncTime := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []aghconfig.AutomationJob{
+		Jobs: []compozyconfig.AutomationJob{
 			managerConfigJob(AutomationScopeWorkspace, "enabled-job", h.workspaceRoot, ScheduleSpec{
 				Mode: ScheduleModeAt,
 				Time: nextFire.Format(time.RFC3339),
 			}),
-			func() aghconfig.AutomationJob {
+			func() compozyconfig.AutomationJob {
 				job := managerConfigJob(AutomationScopeWorkspace, "disabled-job", h.workspaceRoot, ScheduleSpec{
 					Mode:     ScheduleModeEvery,
 					Interval: "2h",
@@ -303,9 +303,9 @@ func TestManagerStatusReportsCountsAndNextFire(t *testing.T) {
 				return job
 			}(),
 		},
-		Triggers: []aghconfig.AutomationTrigger{
+		Triggers: []compozyconfig.AutomationTrigger{
 			managerConfigTrigger(AutomationScopeWorkspace, "enabled-trigger", h.workspaceRoot, "session.stopped"),
-			func() aghconfig.AutomationTrigger {
+			func() compozyconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(
 					AutomationScopeWorkspace,
 					"disabled-trigger",
@@ -395,18 +395,18 @@ func TestManagerSetEnabledForConfigBackedDefinitionsUsesOverlaysOnly(t *testing.
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []aghconfig.AutomationJob{
+		Jobs: []compozyconfig.AutomationJob{
 			managerConfigJob(AutomationScopeWorkspace, "config-job", h.workspaceRoot, ScheduleSpec{
 				Mode:     ScheduleModeEvery,
 				Interval: "1h",
 			}),
 		},
-		Triggers: []aghconfig.AutomationTrigger{
+		Triggers: []compozyconfig.AutomationTrigger{
 			managerConfigTrigger(AutomationScopeWorkspace, "config-trigger", h.workspaceRoot, "session.stopped"),
 		},
 	}
@@ -508,13 +508,13 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Triggers: []aghconfig.AutomationTrigger{
-			func() aghconfig.AutomationTrigger {
+		Triggers: []compozyconfig.AutomationTrigger{
+			func() compozyconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(
 					AutomationScopeWorkspace,
 					"session-created",
@@ -525,7 +525,7 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 				return trigger
 			}(),
 			managerConfigTrigger(AutomationScopeWorkspace, "session-stopped", h.workspaceRoot, "session.stopped"),
-			func() aghconfig.AutomationTrigger {
+			func() compozyconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(
 					AutomationScopeWorkspace,
 					"hook-completed",
@@ -613,7 +613,7 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 		t.Parallel()
 
 		h := newManagerHarness(t)
-		manager := h.newManager(t, aghconfig.AutomationConfig{
+		manager := h.newManager(t, compozyconfig.AutomationConfig{
 			Enabled:           true,
 			Timezone:          DefaultTimezone,
 			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -650,13 +650,13 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 	h := newManagerHarness(t)
 	t.Setenv("COMPOZY_TEST_WEBHOOK_SECRET", "super-secret")
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Triggers: []aghconfig.AutomationTrigger{
-			func() aghconfig.AutomationTrigger {
+		Triggers: []compozyconfig.AutomationTrigger{
+			func() compozyconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(AutomationScopeWorkspace, "webhook-trigger", h.workspaceRoot, "webhook")
 				trigger.EndpointSlug = "deploy-review"
 				trigger.WebhookSecretRef = "env:COMPOZY_TEST_WEBHOOK_SECRET"
@@ -719,13 +719,13 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
 	h := newManagerHarness(t)
 	t.Setenv("COMPOZY_TEST_CONFIG_WEBHOOK_SECRET", "config-super-secret")
-	cfg := aghconfig.AutomationConfig{
+	cfg := compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Triggers: []aghconfig.AutomationTrigger{
-			func() aghconfig.AutomationTrigger {
+		Triggers: []compozyconfig.AutomationTrigger{
+			func() compozyconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(
 					AutomationScopeWorkspace,
 					"config-webhook-trigger",
@@ -793,7 +793,7 @@ func TestManagerSetEnabledForDynamicDefinitionsUpdatesStoredStateAndRuntime(t *t
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -878,7 +878,7 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -998,12 +998,12 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 		{
 			name:      "Should reject the Compozy daemon restart command",
 			prompt:    "Run `compozy daemon restart` now.",
-			wantClass: DaemonLifecycleCommandClassAGHDaemon,
+			wantClass: DaemonLifecycleCommandClassCompozyDaemon,
 		},
 		{
 			name:      "Should reject the Compozy daemon stop command after persistent flags",
 			prompt:    "Run `compozy --output json daemon stop` now.",
-			wantClass: DaemonLifecycleCommandClassAGHDaemon,
+			wantClass: DaemonLifecycleCommandClassCompozyDaemon,
 		},
 		{
 			name:      "Should reject a process kill targeting Compozy",
@@ -1033,7 +1033,7 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 			t.Parallel()
 
 			h := newManagerHarness(t)
-			manager := h.newManager(t, aghconfig.AutomationConfig{
+			manager := h.newManager(t, compozyconfig.AutomationConfig{
 				Enabled:           true,
 				Timezone:          DefaultTimezone,
 				MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1085,7 +1085,7 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 		t.Parallel()
 
 		h := newManagerHarness(t)
-		manager := h.newManager(t, aghconfig.AutomationConfig{
+		manager := h.newManager(t, compozyconfig.AutomationConfig{
 			Enabled:           true,
 			Timezone:          DefaultTimezone,
 			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1112,7 +1112,7 @@ func TestManagerUpdateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1147,7 +1147,7 @@ func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
 
 	h := newManagerHarness(t)
 	starter := &recordingLoopStarter{}
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1248,7 +1248,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1410,7 +1410,7 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1551,7 +1551,7 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1607,7 +1607,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1694,14 +1694,14 @@ func TestResolveConfigDefinitionsWrapValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
 	})
 
-	invalidJob := aghconfig.AutomationJob{
+	invalidJob := compozyconfig.AutomationJob{
 		Scope:   AutomationScopeGlobal,
 		Name:    "invalid-job",
 		Enabled: true,
@@ -1715,7 +1715,7 @@ func TestResolveConfigDefinitionsWrapValidationErrors(t *testing.T) {
 		t.Fatalf("resolveConfigJob(invalid) error = %v, want wrapped validation context", err)
 	}
 
-	invalidTrigger := aghconfig.AutomationTrigger{
+	invalidTrigger := compozyconfig.AutomationTrigger{
 		Scope:   AutomationScopeGlobal,
 		Name:    "invalid-trigger",
 		Enabled: true,
@@ -1731,7 +1731,7 @@ func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1820,7 +1820,7 @@ func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1890,12 +1890,12 @@ func TestManagerStartWrapsSyncConfigDefinitionFailure(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []aghconfig.AutomationJob{
+		Jobs: []compozyconfig.AutomationJob{
 			managerConfigJob(AutomationScopeWorkspace, "missing-workspace", "", ScheduleSpec{
 				Mode:     ScheduleModeEvery,
 				Interval: "1h",
@@ -1917,7 +1917,7 @@ func TestManagerTriggerJobReturnsStoredRunOnDispatchFailure(t *testing.T) {
 
 	h := newManagerHarness(t)
 	h.sessions = newManagerSessionStub(sessionAttemptPlan{promptErr: errors.New("prompt failed")})
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -1957,7 +1957,7 @@ func TestManagerSetEnabledBeforeStartUsesPersistenceOnly(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -2020,7 +2020,7 @@ func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 	t.Parallel()
 
 	h := newManagerHarness(t)
-	manager := h.newManager(t, aghconfig.AutomationConfig{
+	manager := h.newManager(t, compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
@@ -2153,7 +2153,7 @@ func TestManagerSortHelpersKeepDeterministicOrder(t *testing.T) {
 
 type managerHarness struct {
 	ctx           context.Context
-	homePaths     aghconfig.HomePaths
+	homePaths     compozyconfig.HomePaths
 	db            *globaldb.GlobalDB
 	resolver      workspacepkg.RuntimeResolver
 	workspaceRoot string
@@ -2165,11 +2165,11 @@ func newManagerHarness(t *testing.T) *managerHarness {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -2187,8 +2187,8 @@ func newManagerHarness(t *testing.T) *managerHarness {
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardAutomationLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -2215,7 +2215,7 @@ func newManagerHarness(t *testing.T) *managerHarness {
 	}
 }
 
-func (h *managerHarness) newManager(t *testing.T, cfg aghconfig.AutomationConfig, opts ...Option) *Manager {
+func (h *managerHarness) newManager(t *testing.T, cfg compozyconfig.AutomationConfig, opts ...Option) *Manager {
 	t.Helper()
 
 	baseOpts := []Option{
@@ -2386,8 +2386,8 @@ func managerConfigJob(
 	name string,
 	workspace string,
 	schedule ScheduleSpec,
-) aghconfig.AutomationJob {
-	return aghconfig.AutomationJob{
+) compozyconfig.AutomationJob {
+	return compozyconfig.AutomationJob{
 		Scope:     scope,
 		Name:      name,
 		AgentName: "researcher",
@@ -2406,8 +2406,8 @@ func managerConfigTrigger(
 	name string,
 	workspace string,
 	event string,
-) aghconfig.AutomationTrigger {
-	trigger := aghconfig.AutomationTrigger{
+) compozyconfig.AutomationTrigger {
+	trigger := compozyconfig.AutomationTrigger{
 		Scope:     scope,
 		Name:      name,
 		AgentName: "reviewer",

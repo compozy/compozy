@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -146,7 +146,7 @@ func newSectionEnvelope(
 func (s *service) populateSectionEnvelope(
 	ctx context.Context,
 	envelope *SectionEnvelope,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) error {
 	switch envelope.Section {
@@ -166,7 +166,7 @@ func (s *service) populateSectionEnvelope(
 		envelope.Memory = &section
 	case SectionRoles:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
-		section := RolesSection{Config: aghconfig.CloneRolesConfig(&cfg.Roles)}
+		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
 		envelope.Roles = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -113,7 +113,7 @@ type ManagedWakeService struct {
 	store        WakeStore
 	healthReader SessionHealthReader
 	prompter     SyntheticWakePrompter
-	config       aghconfig.HeartbeatConfig
+	config       compozyconfig.HeartbeatConfig
 	now          func() time.Time
 	newID        func(prefix string) string
 	mu           sync.Mutex
@@ -147,7 +147,7 @@ func NewManagedWakeService(
 	store WakeStore,
 	healthReader SessionHealthReader,
 	prompter SyntheticWakePrompter,
-	config aghconfig.HeartbeatConfig,
+	config compozyconfig.HeartbeatConfig,
 	options ...WakeOption,
 ) (*ManagedWakeService, error) {
 	if store == nil {

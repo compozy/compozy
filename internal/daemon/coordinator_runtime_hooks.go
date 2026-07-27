@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -46,7 +46,7 @@ func (r *coordinatorRuntime) dispatchSpawned(
 	ctx context.Context,
 	decision coordinator.Decision,
 	info *session.Info,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	reason string,
 ) {
 	if r.hooks == nil || info == nil {
@@ -158,7 +158,7 @@ func (r *coordinatorRuntime) dispatchDecision(
 
 func (r *coordinatorRuntime) preSpawnPayload(
 	decision coordinator.Decision,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	coordinatorParticipation participation.Spec,
 	reason string,
 ) hookspkg.CoordinatorPreSpawnPayload {

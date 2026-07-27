@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -36,14 +36,14 @@ func TestDecideBootstrap(t *testing.T) {
 		ChannelID:       "ch-run-1",
 		Source:          participation.SourceExplicitRequest,
 	}, "", "", "")
-	enabled := aghconfig.DefaultResolvedCoordinatorRole()
+	enabled := compozyconfig.DefaultResolvedCoordinatorRole()
 	enabled.Enabled = true
 
 	tests := []struct {
 		name   string
 		task   taskpkg.Task
 		run    taskpkg.Run
-		cfg    aghconfig.ResolvedCoordinatorRole
+		cfg    compozyconfig.ResolvedCoordinatorRole
 		want   string
 		should bool
 	}{
@@ -58,7 +58,7 @@ func TestDecideBootstrap(t *testing.T) {
 			name: "Should skip disabled config",
 			task: baseTask,
 			run:  baseRun,
-			cfg:  aghconfig.DefaultResolvedCoordinatorRole(),
+			cfg:  compozyconfig.DefaultResolvedCoordinatorRole(),
 			want: DecisionDisabled,
 		},
 		{
@@ -246,7 +246,7 @@ func TestLineageAndHealthySession(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultResolvedCoordinatorRole()
+		cfg := compozyconfig.DefaultResolvedCoordinatorRole()
 		cfg.Enabled = true
 		cfg.TTL = 2 * time.Hour
 		cfg.MaxChildren = 3

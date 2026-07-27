@@ -17,7 +17,7 @@ import (
 	"sort"
 	"strings"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/compozy/compozy/internal/store"
 
@@ -115,7 +115,7 @@ func (h *RuntimeHarness) CaptureNetworkWork(ctx context.Context, channel string)
 	if err != nil {
 		return err
 	}
-	work := make([]aghcontract.NetworkWorkPayload, 0, len(workIDs))
+	work := make([]compozycontract.NetworkWorkPayload, 0, len(workIDs))
 	for _, workID := range workIDs {
 		item, err := h.NetworkWork(ctx, workID)
 		if err != nil {
@@ -128,7 +128,7 @@ func (h *RuntimeHarness) CaptureNetworkWork(ctx context.Context, channel string)
 
 func (h *RuntimeHarness) networkWorkIDs(ctx context.Context, channel string) ([]string, error) {
 	seen := make(map[string]struct{})
-	add := func(messages []aghcontract.NetworkConversationMessagePayload) {
+	add := func(messages []compozycontract.NetworkConversationMessagePayload) {
 		for _, message := range messages {
 			workID := strings.TrimSpace(message.WorkID)
 			if workID != "" {
@@ -194,7 +194,7 @@ func (h *RuntimeHarness) CaptureNetworkArtifacts(ctx context.Context, channel st
 
 // CaptureAutomationRuns stores the current automation run projection.
 func (h *RuntimeHarness) CaptureAutomationRuns(ctx context.Context, query url.Values) error {
-	var response aghcontract.RunsResponse
+	var response compozycontract.RunsResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/automation/runs"+encodeQuery(query), nil, &response); err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (h *RuntimeHarness) CaptureAutomationRuns(ctx context.Context, query url.Va
 
 // CaptureTasks stores the current task projection.
 func (h *RuntimeHarness) CaptureTasks(ctx context.Context, query url.Values) error {
-	var response aghcontract.TasksResponse
+	var response compozycontract.TasksResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/tasks"+encodeQuery(query), nil, &response); err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (h *RuntimeHarness) CaptureTaskRuns(
 	taskID string,
 	query url.Values,
 ) error {
-	var response aghcontract.TaskRunsResponse
+	var response compozycontract.TaskRunsResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -278,7 +278,7 @@ func (h *RuntimeHarness) CaptureBridgeHealth(ctx context.Context, bridgeIDs ...s
 		return errors.New("bridge health stream returned no snapshot")
 	}
 
-	var snapshot aghcontract.BridgeHealthStreamPayload
+	var snapshot compozycontract.BridgeHealthStreamPayload
 	if err := json.Unmarshal(records[0].Data, &snapshot); err != nil {
 		return fmt.Errorf("decode bridge health snapshot: %w", err)
 	}

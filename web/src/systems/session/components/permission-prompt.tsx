@@ -5,7 +5,7 @@ import { Button, CodeBlock, Eyebrow, cn } from "@compozy/ui";
 import type { PermissionDecision } from "../adapters/session-api";
 import { useSessionPermissionDecision } from "../hooks/use-session-permission-decision";
 import { toPermissionRequest } from "../lib/message-parts";
-import type { AghPermissionData, PermissionRequest } from "../types";
+import type { CompozyPermissionData, PermissionRequest } from "../types";
 
 export interface PermissionPromptProps {
   permission: PermissionRequest;
@@ -219,7 +219,7 @@ export function PermissionDataPart({
   sessionId,
   workspaceId,
 }: {
-  data: AghPermissionData;
+  data: CompozyPermissionData;
   sessionId: string;
   workspaceId: string;
 }) {

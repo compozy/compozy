@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
@@ -55,7 +55,7 @@ type AuthoringTarget struct {
 	WorkspaceRoot string
 	AgentName     string
 	AgentPath     string
-	Config        aghconfig.SoulConfig
+	Config        compozyconfig.SoulConfig
 	ConfigSource  string
 }
 

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -254,7 +254,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if _, err := augmenter.skillsForSessionAgent(
 			t.Context(),
 			workspace,
-			aghconfig.AgentDef{Name: "authored", SourcePath: "/tmp/ws-1/.compozy/agents/authored/AGENT.md"},
+			compozyconfig.AgentDef{Name: "authored", SourcePath: "/tmp/ws-1/.compozy/agents/authored/AGENT.md"},
 			"sess-authored",
 		); err != nil {
 			t.Fatalf("skillsForSessionAgent(authored) error = %v", err)
@@ -262,7 +262,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if _, err := augmenter.skillsForSessionAgent(
 			t.Context(),
 			workspace,
-			aghconfig.AgentDef{Name: "packaged"},
+			compozyconfig.AgentDef{Name: "packaged"},
 			"sess-packaged",
 		); err != nil {
 			t.Fatalf("skillsForSessionAgent(packaged) error = %v", err)
@@ -368,7 +368,7 @@ func (s *stubPromptSkillsRegistry) ForWorkspace(
 func (s *stubPromptSkillsRegistry) ForAgentDefSession(
 	_ context.Context,
 	_ *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	_ string,
 ) ([]*skillspkg.Skill, error) {
 	if s == nil {

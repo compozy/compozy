@@ -1,7 +1,7 @@
 import type { ToolCallStatus } from "@compozy/ui";
 
 import type {
-  AghPermissionData,
+  CompozyPermissionData,
   AgentEventPayload,
   PermissionDecision,
   PermissionRequest,
@@ -47,7 +47,7 @@ function permissionToolInput(raw: Record<string, unknown> | undefined): Record<s
   return isRecord(raw?.tool_input) ? raw.tool_input : {};
 }
 
-export function toPermissionRequest(data: AghPermissionData): PermissionRequest {
+export function toPermissionRequest(data: CompozyPermissionData): PermissionRequest {
   const raw = data.raw;
   return {
     requestId: data.request_id,
@@ -114,7 +114,7 @@ function envelopeFromRecord(value: Record<string, unknown>): ToolResultEnvelope 
 
 function envelopeFromMetadata(value: Record<string, unknown>): ToolResultEnvelope | null {
   const metadata = isRecord(value._meta) ? value._meta : undefined;
-  const artifacts = artifactRefsFromValue(metadata?.["agh/artifacts"]);
+  const artifacts = artifactRefsFromValue(metadata?.["compozy/artifacts"]);
   if (!artifacts) return null;
   return {
     preview: firstTextContent(value.content),

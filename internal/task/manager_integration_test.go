@@ -27,7 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type integrationStopCall struct {
@@ -985,7 +985,11 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 			t.Fatalf("second recovery = %#v, want one exhausted run", secondRecovery)
 		}
 		if secondRecovery[0].Run.Error != taskpkg.LeaseRecoveryExhaustedReason {
-			t.Fatalf("exhausted reason = %q, want %q", secondRecovery[0].Run.Error, taskpkg.LeaseRecoveryExhaustedReason)
+			t.Fatalf(
+				"exhausted reason = %q, want %q",
+				secondRecovery[0].Run.Error,
+				taskpkg.LeaseRecoveryExhaustedReason,
+			)
 		}
 
 		escalated, err := db.GetTask(ctx, taskRecord.ID)
@@ -1497,7 +1501,12 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		for index, run := range runs {
 			spec := run.NetworkSpecSnapshot()
 			if spec.Source != participation.SourceWorkspaceCoordination || spec.ChannelID != sharedChannel {
-				t.Fatalf("fan-out run %d spec = %#v, want one workspace-coordination channel %q", index, spec, sharedChannel)
+				t.Fatalf(
+					"fan-out run %d spec = %#v, want one workspace-coordination channel %q",
+					index,
+					spec,
+					sharedChannel,
+				)
 			}
 		}
 
@@ -1538,16 +1547,16 @@ func setWorkspaceCoordinationIntegration(
 	enabled bool,
 	actor taskpkg.ActorContext,
 ) error {
-	commands := aghworkspace.NewCoordinationService(db)
-	ref := aghworkspace.CoordinationRef{
+	commands := compozyworkspace.NewCoordinationService(db)
+	ref := compozyworkspace.CoordinationRef{
 		WorkspaceID: workspaceID,
-		ScopeKind:   aghworkspace.InvitationScopeWorkspace,
+		ScopeKind:   compozyworkspace.InvitationScopeWorkspace,
 	}
 	current, err := commands.Get(ctx, ref, actor)
 	if err != nil {
 		return err
 	}
-	_, err = commands.Set(ctx, aghworkspace.SetCoordination{
+	_, err = commands.Set(ctx, compozyworkspace.SetCoordination{
 		Ref:              ref,
 		Enabled:          enabled,
 		ExpectedRevision: current.Setting.Revision,
@@ -1909,130 +1918,133 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish the committed parent completion after request cancellation and reconcile failure", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should publish the committed parent completion after request cancellation and reconcile failure",
+		func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t)
-		db := openTaskManagerGlobalDB(t)
-		requestCtx, cancelRequest := context.WithCancel(ctx)
-		reconcileErr := errors.New("forced dependent reconciliation failure")
-		store := &rollupPublicationFailureStore{
-			Store: db, cancel: cancelRequest, reconcileErr: reconcileErr,
-		}
-		var hookMu sync.Mutex
-		completedByTask := make(map[string]int)
-		hooks := integrationTaskRunHooks{
-			completed: func(
-				hookCtx context.Context,
-				payload hookspkg.TaskRunCompletedPayload,
-			) (hookspkg.TaskRunCompletedPayload, error) {
-				if hookCtx.Err() != nil {
-					t.Errorf("TaskRunCompleted hook context error = %v", hookCtx.Err())
-				}
-				if _, ok := hookCtx.Deadline(); !ok {
-					t.Error("TaskRunCompleted hook context has no publication deadline")
-				}
-				hookMu.Lock()
-				completedByTask[payload.TaskID]++
-				hookMu.Unlock()
-				return payload, nil
-			},
-		}
-		manager := newTaskManagerIntegration(t, store, taskpkg.WithTaskRunHooks(hooks))
-		actor, err := taskpkg.DeriveHumanActorContext(
-			"user-parent-publication",
-			taskpkg.OriginKindCLI,
-			"compozy task create",
-		)
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext() error = %v", err)
-		}
-		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal, Title: "Parent publication",
-		}, actor)
-		if err != nil {
-			t.Fatalf("CreateTask(parent) error = %v", err)
-		}
-		parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
-		if err != nil {
-			t.Fatalf("EnqueueRun(parent) error = %v", err)
-		}
-		if _, err := manager.MarkRunNeedsAttention(ctx, parentRun.ID, "await child", actor); err != nil {
-			t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
-		}
-		child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal, Title: "Only child",
-		}, actor)
-		if err != nil {
-			t.Fatalf("CreateChildTask() error = %v", err)
-		}
-		completion, worker := claimTaskRunForRollupIntegration(
-			t,
-			ctx,
-			manager,
-			child.ID,
-			actor,
-			"sess-parent-publication",
-		)
-
-		completedRun, err := manager.CompleteRunLease(requestCtx, completion, worker)
-		if completedRun == nil {
-			t.Fatal("CompleteRunLease() run = nil after committed settlement")
-		}
-		if !errors.Is(err, reconcileErr) {
-			t.Fatalf("CompleteRunLease() error = %v, want %v", err, reconcileErr)
-		}
-		if requestCtx.Err() != context.Canceled {
-			t.Fatalf("request context error = %v, want %v", requestCtx.Err(), context.Canceled)
-		}
-
-		storedParent, err := db.GetTask(ctx, parent.ID)
-		if err != nil {
-			t.Fatalf("GetTask(parent) error = %v", err)
-		}
-		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
-			t.Fatalf("parent status = %q, want %q", got, want)
-		}
-		parentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: parent.ID})
-		if err != nil {
-			t.Fatalf("ListTaskRuns(parent) error = %v", err)
-		}
-		if len(parentRuns) != 1 || parentRuns[0].Status.Normalize() != taskpkg.TaskRunStatusCompleted {
-			t.Fatalf("parent runs = %#v, want one completed run", parentRuns)
-		}
-		parentEvents, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
-		if err != nil {
-			t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
-		}
-		completedEventCount := 0
-		for _, record := range parentEvents {
-			if record.Event.EventType == "task.run.completed" {
-				completedEventCount++
+			ctx := testutil.Context(t)
+			db := openTaskManagerGlobalDB(t)
+			requestCtx, cancelRequest := context.WithCancel(ctx)
+			reconcileErr := errors.New("forced dependent reconciliation failure")
+			store := &rollupPublicationFailureStore{
+				Store: db, cancel: cancelRequest, reconcileErr: reconcileErr,
 			}
-		}
-		if completedEventCount != 1 {
-			t.Fatalf("parent task.run.completed event count = %d, want 1", completedEventCount)
-		}
-		hookMu.Lock()
-		parentHookCount := completedByTask[parent.ID]
-		hookMu.Unlock()
-		if parentHookCount != 1 {
-			t.Fatalf("parent TaskRunCompleted hook count = %d, want 1", parentHookCount)
-		}
+			var hookMu sync.Mutex
+			completedByTask := make(map[string]int)
+			hooks := integrationTaskRunHooks{
+				completed: func(
+					hookCtx context.Context,
+					payload hookspkg.TaskRunCompletedPayload,
+				) (hookspkg.TaskRunCompletedPayload, error) {
+					if hookCtx.Err() != nil {
+						t.Errorf("TaskRunCompleted hook context error = %v", hookCtx.Err())
+					}
+					if _, ok := hookCtx.Deadline(); !ok {
+						t.Error("TaskRunCompleted hook context has no publication deadline")
+					}
+					hookMu.Lock()
+					completedByTask[payload.TaskID]++
+					hookMu.Unlock()
+					return payload, nil
+				},
+			}
+			manager := newTaskManagerIntegration(t, store, taskpkg.WithTaskRunHooks(hooks))
+			actor, err := taskpkg.DeriveHumanActorContext(
+				"user-parent-publication",
+				taskpkg.OriginKindCLI,
+				"compozy task create",
+			)
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext() error = %v", err)
+			}
+			parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal, Title: "Parent publication",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateTask(parent) error = %v", err)
+			}
+			parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
+			if err != nil {
+				t.Fatalf("EnqueueRun(parent) error = %v", err)
+			}
+			if _, err := manager.MarkRunNeedsAttention(ctx, parentRun.ID, "await child", actor); err != nil {
+				t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
+			}
+			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal, Title: "Only child",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask() error = %v", err)
+			}
+			completion, worker := claimTaskRunForRollupIntegration(
+				t,
+				ctx,
+				manager,
+				child.ID,
+				actor,
+				"sess-parent-publication",
+			)
 
-		if _, replayErr := manager.CompleteRunLease(ctx, completion, worker); !errors.Is(
-			replayErr,
-			taskpkg.ErrInvalidStatusTransition,
-		) {
-			t.Fatalf("CompleteRunLease(replay) error = %v, want %v", replayErr, taskpkg.ErrInvalidStatusTransition)
-		}
-		hookMu.Lock()
-		parentHookCount = completedByTask[parent.ID]
-		hookMu.Unlock()
-		if parentHookCount != 1 {
-			t.Fatalf("parent TaskRunCompleted hook count after replay = %d, want 1", parentHookCount)
-		}
-	})
+			completedRun, err := manager.CompleteRunLease(requestCtx, completion, worker)
+			if completedRun == nil {
+				t.Fatal("CompleteRunLease() run = nil after committed settlement")
+			}
+			if !errors.Is(err, reconcileErr) {
+				t.Fatalf("CompleteRunLease() error = %v, want %v", err, reconcileErr)
+			}
+			if requestCtx.Err() != context.Canceled {
+				t.Fatalf("request context error = %v, want %v", requestCtx.Err(), context.Canceled)
+			}
+
+			storedParent, err := db.GetTask(ctx, parent.ID)
+			if err != nil {
+				t.Fatalf("GetTask(parent) error = %v", err)
+			}
+			if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+				t.Fatalf("parent status = %q, want %q", got, want)
+			}
+			parentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: parent.ID})
+			if err != nil {
+				t.Fatalf("ListTaskRuns(parent) error = %v", err)
+			}
+			if len(parentRuns) != 1 || parentRuns[0].Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+				t.Fatalf("parent runs = %#v, want one completed run", parentRuns)
+			}
+			parentEvents, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+			if err != nil {
+				t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+			}
+			completedEventCount := 0
+			for _, record := range parentEvents {
+				if record.Event.EventType == "task.run.completed" {
+					completedEventCount++
+				}
+			}
+			if completedEventCount != 1 {
+				t.Fatalf("parent task.run.completed event count = %d, want 1", completedEventCount)
+			}
+			hookMu.Lock()
+			parentHookCount := completedByTask[parent.ID]
+			hookMu.Unlock()
+			if parentHookCount != 1 {
+				t.Fatalf("parent TaskRunCompleted hook count = %d, want 1", parentHookCount)
+			}
+
+			if _, replayErr := manager.CompleteRunLease(ctx, completion, worker); !errors.Is(
+				replayErr,
+				taskpkg.ErrInvalidStatusTransition,
+			) {
+				t.Fatalf("CompleteRunLease(replay) error = %v, want %v", replayErr, taskpkg.ErrInvalidStatusTransition)
+			}
+			hookMu.Lock()
+			parentHookCount = completedByTask[parent.ID]
+			hookMu.Unlock()
+			if parentHookCount != 1 {
+				t.Fatalf("parent TaskRunCompleted hook count after replay = %d, want 1", parentHookCount)
+			}
+		},
+	)
 
 	t.Run("Should roll up once when final children complete concurrently", func(t *testing.T) {
 		t.Parallel()
@@ -3322,7 +3334,11 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		t.Fatalf("detail.Summary.CostCurrency = %#v, want USD", detail.Summary.CostCurrency)
 	}
 	if detail.Summary.CostStatus != "actual" || detail.Summary.CostSource != "agent_reported" {
-		t.Fatalf("detail.Summary cost provenance = %q/%q, want actual/agent_reported", detail.Summary.CostStatus, detail.Summary.CostSource)
+		t.Fatalf(
+			"detail.Summary cost provenance = %q/%q, want actual/agent_reported",
+			detail.Summary.CostStatus,
+			detail.Summary.CostSource,
+		)
 	}
 	if got, want := detail.Summary.LastEventType, "tool_call"; got != want {
 		t.Fatalf("detail.Summary.LastEventType = %q, want %q", got, want)
@@ -4034,7 +4050,7 @@ func registerTaskManagerWorkspace(t *testing.T, db *globaldb.GlobalDB, name stri
 		t.Fatalf("MkdirAll(%q) error = %v", rootDir, err)
 	}
 
-	workspace := aghworkspace.Workspace{
+	workspace := compozyworkspace.Workspace{
 		ID:        "ws-" + strings.ReplaceAll(name, " ", "-"),
 		RootDir:   rootDir,
 		Name:      name,

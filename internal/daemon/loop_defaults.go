@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func newLoopDefaultsResolver(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) looppkg.DefaultsResolver {
 	return func(ctx context.Context, ws looppkg.WorkspaceID) (looppkg.LoopDefaults, error) {
@@ -25,7 +25,7 @@ func newLoopDefaultsResolver(
 }
 
 func newLoopInputDefaultsResolver(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) looppkg.InputDefaultsResolver {
 	return func(
@@ -44,33 +44,33 @@ func newLoopInputDefaultsResolver(
 
 func resolveLoopServiceConfig(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	ws looppkg.WorkspaceID,
-) (aghconfig.Config, error) {
+) (compozyconfig.Config, error) {
 	workspaceID := strings.TrimSpace(string(ws))
 	if workspaceResolver != nil && workspaceID != "" {
 		resolved, err := workspaceResolver.Resolve(ctx, workspaceID)
 		if err != nil {
-			return aghconfig.Config{}, fmt.Errorf("daemon: resolve Loop service workspace %q: %w", workspaceID, err)
+			return compozyconfig.Config{}, fmt.Errorf("daemon: resolve Loop service workspace %q: %w", workspaceID, err)
 		}
 		return resolved.Config, nil
 	}
-	cfg, err := aghconfig.LoadForHome(homePaths)
+	cfg, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
-		return aghconfig.Config{}, fmt.Errorf("daemon: load Loop service config: %w", err)
+		return compozyconfig.Config{}, fmt.Errorf("daemon: load Loop service config: %w", err)
 	}
 	return cfg, nil
 }
 
-func loopDefaultsFromConfig(cfg aghconfig.LoopsConfig) looppkg.LoopDefaults {
+func loopDefaultsFromConfig(cfg compozyconfig.LoopsConfig) looppkg.LoopDefaults {
 	return looppkg.LoopDefaults{
 		Delivery: loopDefaultConfigFromConfig(cfg.Defaults.Delivery, true),
 		Watch:    loopDefaultConfigFromConfig(cfg.Defaults.Watch, false),
 	}
 }
 
-func loopDefaultConfigFromConfig(cfg aghconfig.LoopDefaultConfig, includeZeroGate bool) looppkg.LoopConfig {
+func loopDefaultConfigFromConfig(cfg compozyconfig.LoopDefaultConfig, includeZeroGate bool) looppkg.LoopConfig {
 	result := looppkg.LoopConfig{
 		IterationCap:     new(cfg.IterationCap),
 		NoProgressWindow: new(cfg.NoProgress.Window),

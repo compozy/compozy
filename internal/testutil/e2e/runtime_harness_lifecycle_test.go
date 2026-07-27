@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
@@ -27,10 +27,10 @@ func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if err := writeJSONResponse(w, aghcontract.StatusPayload{
-			Daemon: aghcontract.DaemonStatusPayload{
+		if err := writeJSONResponse(w, compozycontract.StatusPayload{
+			Daemon: compozycontract.DaemonStatusPayload{
 				Status:   "running",
-				Socket:   "/tmp/agh.sock",
+				Socket:   "/tmp/compozy.sock",
 				HTTPHost: "127.0.0.1",
 				HTTPPort: 2123,
 			},
@@ -47,7 +47,7 @@ func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
 		UDSClient:   server.Client(),
 		CLI: &CLIClient{
 			binaryPath: writeCLIScript(t, `#!/bin/sh
-printf '%s\n' '{"status":"running","socket":"/tmp/agh.sock","http_host":"127.0.0.1","http_port":2123}'
+printf '%s\n' '{"status":"running","socket":"/tmp/compozy.sock","http_host":"127.0.0.1","http_port":2123}'
 `),
 			workdir: t.TempDir(),
 		},
@@ -83,8 +83,8 @@ func TestReadSSERecordsInferSemanticEventsFromJSONFrames(t *testing.T) {
 
 	stream := strings.NewReader(
 		"data: {\"type\":\"text-delta\",\"delta\":\"partial\"}\n\n" +
-			"data: {\"type\":\"data-agh-permission\",\"data\":{\"request_id\":\"req-1\"}}\n\n" +
-			"data: {\"type\":\"data-agh-event\",\"data\":{\"type\":\"tool_call\"}}\n\n" +
+			"data: {\"type\":\"data-compozy-permission\",\"data\":{\"request_id\":\"req-1\"}}\n\n" +
+			"data: {\"type\":\"data-compozy-event\",\"data\":{\"type\":\"tool_call\"}}\n\n" +
 			"data: {\"type\":\"error\",\"errorText\":\"boom\"}\n\n" +
 			"data: [DONE]\n\n",
 	)
@@ -144,7 +144,7 @@ func TestInferSSEEventNameRecognizesAdditionalFrameTypes(t *testing.T) {
 	}{
 		{name: "reasoning delta", data: `{"type":"reasoning-delta","delta":"think"}`, want: "reasoning"},
 		{name: "tool output", data: `{"type":"tool-output-available","toolCallId":"tool-1"}`, want: "tool_result"},
-		{name: "generic event fallback", data: `{"type":"data-agh-event","data":{}}`, want: "event"},
+		{name: "generic event fallback", data: `{"type":"data-compozy-event","data":{}}`, want: "event"},
 		{name: "unknown passthrough", data: `{"type":"finish"}`, want: "finish"},
 	}
 
@@ -281,7 +281,7 @@ func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *test
 	if err := os.WriteFile(
 		processLogPath,
 		[]byte(
-			"error: daemon: start uds server: udsapi: listen on \"/tmp/agh.sock\": listen unix /tmp/agh.sock: bind: file exists\n",
+			"error: daemon: start uds server: udsapi: listen on \"/tmp/compozy.sock\": listen unix /tmp/compozy.sock: bind: file exists\n",
 		),
 		0o600,
 	); err != nil {
@@ -303,7 +303,7 @@ func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *test
 	if err := os.WriteFile(
 		processLogPath,
 		[]byte(
-			"error: daemon: start uds server: udsapi: listen on \"/tmp/agh.sock\": listen unix /tmp/agh.sock: bind: address already in use\n",
+			"error: daemon: start uds server: udsapi: listen on \"/tmp/compozy.sock\": listen unix /tmp/compozy.sock: bind: address already in use\n",
 		),
 		0o600,
 	); err != nil {
@@ -466,7 +466,7 @@ func TestRuntimeHarnessCaptureCLIOutputWritesTransportArtifactsAndManifest(t *te
 		UDSBaseURL:     "http://unix",
 		processLogPath: filepath.Join(t.TempDir(), "daemon-process.log"),
 		CLI: &CLIClient{
-			binaryPath: "/tmp/agh",
+			binaryPath: "/tmp/compozy",
 			workdir:    "/repo",
 		},
 	}
@@ -502,7 +502,7 @@ func TestRuntimeHarnessCaptureCLIOutputWritesTransportArtifactsAndManifest(t *te
 	if err != nil {
 		t.Fatalf("RuntimeManifest() error = %v", err)
 	}
-	if got, want := runtimeManifest.Transport.CLIBinary, "/tmp/agh"; got != want {
+	if got, want := runtimeManifest.Transport.CLIBinary, "/tmp/compozy"; got != want {
 		t.Fatalf("runtimeManifest.Transport.CLIBinary = %q, want %q", got, want)
 	}
 	if got, want := runtimeManifest.Transport.CLIWorkdir, "/repo"; got != want {
@@ -541,7 +541,7 @@ func TestRuntimeHarnessNilGuardsSurfaceStableErrors(t *testing.T) {
 func writeCLIScript(t testing.TB, contents string) string {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "agh-cli-script.sh")
+	path := filepath.Join(t.TempDir(), "compozy-cli-script.sh")
 	if err := os.WriteFile(path, []byte(contents), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
@@ -569,7 +569,7 @@ func TestCaptureNetworkAuditMissingFileIsNoop(t *testing.T) {
 	t.Parallel()
 
 	harness := &RuntimeHarness{
-		HomePaths: aghconfig.HomePaths{
+		HomePaths: compozyconfig.HomePaths{
 			NetworkAuditFile: filepath.Join(t.TempDir(), "missing.audit"),
 		},
 		Artifacts: NewArtifactCollector(t),

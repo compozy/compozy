@@ -9,11 +9,11 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func agentProbeTargetSource(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	catalog core.AgentCatalog,
 	logger *slog.Logger,
 ) func(context.Context) ([]acp.ProbeTarget, error) {
@@ -24,12 +24,12 @@ func agentProbeTargetSource(
 
 func collectAgentProbeTargets(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	catalog core.AgentCatalog,
 	logger *slog.Logger,
 ) ([]acp.ProbeTarget, error) {
 	if cfg == nil {
-		cfg = &aghconfig.Config{}
+		cfg = &compozyconfig.Config{}
 	}
 	targets := make([]acp.ProbeTarget, 0)
 	if catalog != nil {

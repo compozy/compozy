@@ -3,7 +3,7 @@ package session
 import (
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
@@ -20,7 +20,7 @@ type sessionStartSpec struct {
 	provider                 string
 	model                    string
 	reasoningEffort          string
-	permissions              aghconfig.PermissionMode
+	permissions              compozyconfig.PermissionMode
 	sandboxDisabled          bool
 	workspace                workspacepkg.ResolvedWorkspace
 	cwd                      string
@@ -38,6 +38,7 @@ type sessionStartSpec struct {
 	creationIdentity         *store.SessionCreationIdentity
 	creationIdentityPinned   bool
 	creationIdentityEnabled  bool
+	discardStartFailure      bool
 	advertisedCommands       []store.SessionAdvertisedCommand
 	postEvent                hookspkg.HookEvent
 	startAction              string

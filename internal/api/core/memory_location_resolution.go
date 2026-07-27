@@ -17,7 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/memory"
 
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -257,7 +257,7 @@ func (h *BaseHandlers) resolveMemoryWorkspaceRef(ctx context.Context, raw string
 	if err != nil {
 		return "", "", err
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspace)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspace)
 	if err != nil {
 		return "", "", fmt.Errorf("memory: resolve workspace identity: %w", err)
 	}

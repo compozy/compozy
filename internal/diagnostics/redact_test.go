@@ -97,7 +97,7 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 
-	t.Run("Should redact AGH composite secret keys and token colon assignments", func(t *testing.T) {
+	t.Run("Should redact Compozy composite secret keys and token colon assignments", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -189,7 +189,7 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 
-	t.Run("Should redact bare AGH claim tokens in display text", func(t *testing.T) {
+	t.Run("Should redact bare Compozy claim tokens in display text", func(t *testing.T) {
 		t.Parallel()
 
 		const leaked = "compozy_claim_display_secret_123"

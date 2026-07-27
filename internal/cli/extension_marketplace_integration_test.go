@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
@@ -28,7 +28,7 @@ import (
 
 type extensionRegistryTestEnv struct {
 	deps      commandDeps
-	homePaths aghconfig.HomePaths
+	homePaths compozyconfig.HomePaths
 }
 
 type extensionRegistryTestOptions struct {

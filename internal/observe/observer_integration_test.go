@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -28,7 +28,7 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 		CostInputSource:      modelcatalog.SourceKindConfig,
 		CostOutputSource:     modelcatalog.SourceKindConfig,
 	}}}
-	h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+	h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeBoundSecret)
 
 	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{

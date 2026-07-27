@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -32,7 +32,7 @@ func (n *daemonNativeTools) hooksCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if existing, err := aghconfig.OverlayHookDeclarations(target); err != nil {
+	if existing, err := compozyconfig.OverlayHookDeclarations(target); err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	} else if _, ok := findHookDecl(existing, input.Name); ok {
 		return toolspkg.ToolResult{}, nativeHookValidationError(
@@ -53,16 +53,16 @@ func (n *daemonNativeTools) hooksCreate(
 	if _, err := hookspkg.CanonicalizeHookDecl(decl); err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
 				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
 				nativeConfigHookToolsNameKey,
 				decl.Name,
-				aghconfig.HookDeclarationOverlayValues(decl),
+				compozyconfig.HookDeclarationOverlayValues(decl),
 			)
 		},
 	); err != nil {
@@ -90,7 +90,7 @@ func (n *daemonNativeTools) hooksUpdate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	decls, err := aghconfig.OverlayHookDeclarations(target)
+	decls, err := compozyconfig.OverlayHookDeclarations(target)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
@@ -111,16 +111,16 @@ func (n *daemonNativeTools) hooksUpdate(
 	if _, err := hookspkg.CanonicalizeHookDecl(decl); err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		n.deps.HomePaths,
 		workspaceRoot,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
 				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
 				nativeConfigHookToolsNameKey,
 				decl.Name,
-				aghconfig.HookDeclarationOverlayValues(decl),
+				compozyconfig.HookDeclarationOverlayValues(decl),
 			)
 		},
 	); err != nil {

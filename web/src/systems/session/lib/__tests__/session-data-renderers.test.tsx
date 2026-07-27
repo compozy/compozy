@@ -3,7 +3,7 @@ import { type ComponentProps } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { AgentEventPayload } from "../../types";
-import { AghEventDataRenderer } from "../session-data-renderers";
+import { CompozyEventDataRenderer } from "../session-data-renderers";
 import { SessionRuntimeRenderProvider } from "../session-runtime-render-context";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -41,8 +41,8 @@ const runtimeEvent: AgentEventPayload = {
 // The renderer only reads `data`; the assistant-ui prop bag is otherwise irrelevant here.
 function EventRenderer({ data }: { data: AgentEventPayload }) {
   return (
-    <AghEventDataRenderer
-      {...({ data } as unknown as ComponentProps<typeof AghEventDataRenderer>)}
+    <CompozyEventDataRenderer
+      {...({ data } as unknown as ComponentProps<typeof CompozyEventDataRenderer>)}
     />
   );
 }
@@ -55,7 +55,7 @@ function renderWithContext(data: AgentEventPayload) {
   );
 }
 
-describe("AghEventDataRenderer", () => {
+describe("CompozyEventDataRenderer", () => {
   it("Should route a clarify event to the clarification UI", () => {
     renderWithContext(clarifyResolved());
 

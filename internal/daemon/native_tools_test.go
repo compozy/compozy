@@ -20,7 +20,7 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -796,7 +796,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		bundleService := &nativeBundleServiceStub{
-			activateErr: fmt.Errorf("bundle agent: %w", aghconfig.ErrAgentNameReserved),
+			activateErr: fmt.Errorf("bundle agent: %w", compozyconfig.ErrAgentNameReserved),
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			BundleService: func() core.BundleService { return bundleService },
@@ -812,7 +812,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+		if !errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 			t.Fatalf("Registry.Call(bundles_activate reserved) error = %v, want ErrAgentNameReserved", err)
 		}
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -1200,8 +1200,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{toolspkg.ToolIDSessionList, json.RawMessage("{\"workspace\":\"ws-2\"}")},
 			{toolspkg.ToolIDSkillList, json.RawMessage("{\"workspace_id\":\"ws-2\"}")},
-			{toolspkg.ToolIDSkillSearch, json.RawMessage("{\"query\":\"agh\",\"workspace_id\":\"ws-2\"}")},
-			{toolspkg.ToolIDSkillView, json.RawMessage("{\"name\":\"agh\",\"workspace_id\":\"ws-2\"}")},
+			{toolspkg.ToolIDSkillSearch, json.RawMessage("{\"query\":\"compozy\",\"workspace_id\":\"ws-2\"}")},
+			{toolspkg.ToolIDSkillView, json.RawMessage("{\"name\":\"compozy\",\"workspace_id\":\"ws-2\"}")},
 		}
 		for _, tc := range cases {
 			t.Run(tc.id.String(), func(t *testing.T) {
@@ -1933,15 +1933,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		globalTarget, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		globalTarget, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
-		if _, err := aghconfig.EditConfigOverlay(
+		if _, err := compozyconfig.EditConfigOverlay(
 			homePaths,
 			"",
 			globalTarget,
-			func(editor *aghconfig.OverlayEditor) error {
+			func(editor *compozyconfig.OverlayEditor) error {
 				return editor.SetTable([]string{"providers", "codex"}, map[string]any{"command": "codex-acp"})
 			},
 		); err != nil {
@@ -1978,7 +1978,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set allowed) error = %v", err)
 		}
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -2047,7 +2047,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set dream role model) error = %v", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after dream role model) error = %v", err)
 		}
@@ -2081,7 +2081,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set roles table) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after roles table) error = %v", err)
 		}
@@ -2117,7 +2117,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set Goal ratio) error = %v", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after Goal ratio) error = %v", err)
 		}
@@ -2139,7 +2139,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set task workspace capacity) error = %v", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after task workspace capacity) error = %v", err)
 		}
@@ -2163,7 +2163,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(config_set Marketplace timeout) error = %v", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after Marketplace timeout) error = %v", err)
 		}
@@ -2198,7 +2198,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonConfigScopeNotAllowed)
 		}
-		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 		if _, statErr := os.Stat(workspaceConfig); !os.IsNotExist(statErr) {
 			t.Fatalf("workspace config stat error = %v, want no file", statErr)
 		}
@@ -2214,7 +2214,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
 			t.Fatalf("Registry.Call(config_set invalid Marketplace timeout) error = %v, want ErrToolInvalidInput", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after invalid Marketplace timeout) error = %v", err)
 		}
@@ -2361,7 +2361,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
 			t.Fatalf("Registry.Call(config_set approve-reads) error = %v, want ErrToolApprovalRequired", err)
 		}
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -2548,11 +2548,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, createResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, createResult, []byte(`"lifecycle":"restart-required"`))
 		requireNativeStructuredContains(t, createResult, []byte(`"next_action":"restart-daemon"`))
-		target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 		}
-		decls, err := aghconfig.OverlayHookDeclarations(target)
+		decls, err := compozyconfig.OverlayHookDeclarations(target)
 		if err != nil {
 			t.Fatalf("OverlayHookDeclarations() error = %v", err)
 		}
@@ -2573,11 +2573,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, disableResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, disableResult, []byte(`"lifecycle":"restart-required"`))
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		active, err := aghconfig.HookDeclarations(cfg.Hooks, nil)
+		active, err := compozyconfig.HookDeclarations(cfg.Hooks, nil)
 		if err != nil {
 			t.Fatalf("HookDeclarations(disabled) error = %v", err)
 		}
@@ -2598,11 +2598,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, enableResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, enableResult, []byte(`"next_action":"restart-daemon"`))
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(enabled) error = %v", err)
 		}
-		active, err = aghconfig.HookDeclarations(cfg.Hooks, nil)
+		active, err = compozyconfig.HookDeclarations(cfg.Hooks, nil)
 		if err != nil {
 			t.Fatalf("HookDeclarations(enabled) error = %v", err)
 		}
@@ -2623,7 +2623,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, updateResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, updateResult, []byte(`"lifecycle":"restart-required"`))
-		decls, err = aghconfig.OverlayHookDeclarations(target)
+		decls, err = compozyconfig.OverlayHookDeclarations(target)
 		if err != nil {
 			t.Fatalf("OverlayHookDeclarations(updated) error = %v", err)
 		}
@@ -2644,7 +2644,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, deleteResult, []byte(`"applied":false`))
 		requireNativeStructuredContains(t, deleteResult, []byte(`"next_action":"restart-daemon"`))
-		decls, err = aghconfig.OverlayHookDeclarations(target)
+		decls, err = compozyconfig.OverlayHookDeclarations(target)
 		if err != nil {
 			t.Fatalf("OverlayHookDeclarations(deleted) error = %v", err)
 		}
@@ -4013,14 +4013,14 @@ func TestDaemonNativeTools(t *testing.T) {
 				{Brief: "Valid lane"},
 				{Brief: "   "},
 			},
-		}, aghconfig.DefaultTaskDesignatedRunMax)
+		}, compozyconfig.DefaultTaskDesignatedRunMax)
 		if err == nil || !strings.Contains(err.Error(), "designations[1].brief") {
 			t.Fatalf("prepareNativeFanOutDesignations() error = %v, want second designation validation", err)
 		}
 
 		_, err = prepareNativeFanOutDesignations(taskFanOutRunsInput{
 			Designations: []contract.TaskFanOutRunDesignationRequest{{Brief: "Missing idempotency"}},
-		}, aghconfig.DefaultTaskDesignatedRunMax)
+		}, compozyconfig.DefaultTaskDesignatedRunMax)
 		if err == nil || !strings.Contains(err.Error(), "idempotency_key") {
 			t.Fatalf("prepareNativeFanOutDesignations() error = %v, want idempotency validation", err)
 		}
@@ -5169,16 +5169,16 @@ func TestDaemonNativeTools(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{
 						ID:      "ws-1",
-						RootDir: "/workspace/agh",
-						Name:    "agh",
+						RootDir: "/workspace/compozy",
+						Name:    "compozy",
 					},
 					WorkspaceID: "ws-1",
-					Config: aghconfig.Config{
-						Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+					Config: compozyconfig.Config{
+						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
 					},
-					Agents: []aghconfig.AgentDef{{
+					Agents: []compozyconfig.AgentDef{{
 						Name:       "coder",
-						SourcePath: "/workspace/agh/.compozy/agents/coder/AGENT.md",
+						SourcePath: "/workspace/compozy/.compozy/agents/coder/AGENT.md",
 					}},
 				}, nil
 			},
@@ -5281,7 +5281,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(agent_heartbeat_wake) error = %v", err)
 		}
 		requireNativeStructuredContains(t, wakeResult, []byte(`"wake_event_id":"hwe-tool"`))
-		if status.last.Target.AgentPath != "/workspace/agh/.compozy/agents/coder/AGENT.md" {
+		if status.last.Target.AgentPath != "/workspace/compozy/.compozy/agents/coder/AGENT.md" {
 			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
 		}
 		if wake.last.SessionID != "sess-heartbeat" ||
@@ -5338,8 +5338,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 		workspace := workspacepkg.Workspace{
 			ID:           "ws-1",
-			RootDir:      "/workspace/agh",
-			Name:         "agh",
+			RootDir:      "/workspace/compozy",
+			Name:         "compozy",
 			DefaultAgent: "coder",
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -5366,8 +5366,10 @@ func TestDaemonNativeTools(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace:   workspace,
 					WorkspaceID: "ws-1",
-					Agents:      []aghconfig.AgentDef{{Name: "coder", Provider: "codex"}},
-					Skills:      []workspacepkg.SkillPath{{Dir: "/workspace/agh/skills/review", Source: "workspace"}},
+					Agents:      []compozyconfig.AgentDef{{Name: "coder", Provider: "codex"}},
+					Skills: []workspacepkg.SkillPath{
+						{Dir: "/workspace/compozy/skills/review", Source: "workspace"},
+					},
 				}, nil
 			},
 		}
@@ -5832,7 +5834,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("Write(%q) error = %v", filename, err)
 			}
 		}
-		cfg := aghconfig.Config{}
+		cfg := compozyconfig.Config{}
 		cfg.Memory.Enabled = true
 		cfg.Memory.GlobalDir = globalDir
 		cfg.Memory.Dream.CheckInterval = time.Hour
@@ -7163,7 +7165,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
-			agent: aghconfig.AgentDef{
+			agent: compozyconfig.AgentDef{
 				Name:     "coder",
 				Provider: "opencode",
 				Prompt:   "Use the available tools to help the user.",
@@ -7313,7 +7315,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			t.Fatalf("runtime calls = %d, want 2", len(runtime.calls))
 		}
 
-		cfg.Permissions.Mode = aghconfig.PermissionModeApproveReads
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveReads
 		views, err = registry.SessionProjection(ctx, toolspkg.Scope{})
 		if err != nil {
 			t.Fatalf("SessionProjection(extension tools approve-reads) error = %v", err)
@@ -7392,7 +7394,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
-			agent: aghconfig.AgentDef{
+			agent: compozyconfig.AgentDef{
 				Name:     "catalog-only",
 				Provider: "opencode",
 				Prompt:   "Inspect the tool catalog.",
@@ -7659,11 +7661,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			},
 		}
 		agents := &nativeToolPolicyAgentResolverStub{
-			agent: aghconfig.AgentDef{
+			agent: compozyconfig.AgentDef{
 				Name:        "coder",
 				Provider:    "opencode",
 				Prompt:      "Use memory tools deliberately.",
-				Permissions: string(aghconfig.PermissionModeApproveAll),
+				Permissions: string(compozyconfig.PermissionModeApproveAll),
 				Toolsets:    []string{toolspkg.ToolsetIDMemory.String()},
 			},
 		}
@@ -7788,7 +7790,7 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(provider),
 		toolspkg.WithPolicyInputResolver(resolver, toolsets),
-		toolspkg.WithDefaultMaxResultBytes(aghconfig.DefaultToolsMaxResultBytes),
+		toolspkg.WithDefaultMaxResultBytes(compozyconfig.DefaultToolsMaxResultBytes),
 	)
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
@@ -7809,19 +7811,19 @@ func (s *nativeToolPolicySessionStub) Status(context.Context, string) (*session.
 }
 
 type nativeToolPolicyAgentResolverStub struct {
-	agent aghconfig.AgentDef
+	agent compozyconfig.AgentDef
 	err   error
 }
 
 func (r *nativeToolPolicyAgentResolverStub) ResolveAgent(
 	name string,
 	_ *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if r.err != nil {
-		return aghconfig.AgentDef{}, r.err
+		return compozyconfig.AgentDef{}, r.err
 	}
 	if name != r.agent.Name {
-		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, name)
+		return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, name)
 	}
 	return r.agent, nil
 }
@@ -7907,10 +7909,10 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		t.Fatalf("ProposeCandidate(agent) error = %v", err)
 	}
 
-	cfg := aghconfig.Config{}
+	cfg := compozyconfig.Config{}
 	cfg.Memory.Enabled = true
 	cfg.Memory.GlobalDir = globalDir
-	cfg.Roles.Dream.Agent = aghconfig.BuiltinDreamingCuratorAgentName
+	cfg.Roles.Dream.Agent = compozyconfig.BuiltinDreamingCuratorAgentName
 	cfg.Memory.Dream.CheckInterval = time.Hour
 	dream := &nativeDreamTriggerService{enabled: true, triggered: true, reason: "queued", last: now}
 	extractor := &nativeMemoryExtractorService{
@@ -8378,7 +8380,7 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 			Registry: newLoadedNativeSkillRegistry(t),
 		}
 		manager := &nativeSessionAgentManager{
-			agent: aghconfig.AgentDef{
+			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
 				SourcePath: "/tmp/.compozy/agents/reviewer/AGENT.md",
 			},
@@ -8407,11 +8409,11 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 
 type nativeSessionAgentManager struct {
 	apitest.StubSessionManager
-	agent aghconfig.AgentDef
+	agent compozyconfig.AgentDef
 }
 
-func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (aghconfig.AgentDef, bool) {
-	return aghconfig.CloneAgentDef(m.agent), true
+func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {
+	return compozyconfig.CloneAgentDef(m.agent), true
 }
 
 type recordingNativeSessionSkillRegistry struct {
@@ -8433,7 +8435,7 @@ func (r *recordingNativeSessionSkillRegistry) ForAgentSession(
 func (r *recordingNativeSessionSkillRegistry) ForAgentDefSession(
 	_ context.Context,
 	_ *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	_ string,
 ) ([]*skills.Skill, error) {
 	r.concreteNames = append(r.concreteNames, agent.Name)

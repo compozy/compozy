@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
@@ -77,8 +77,8 @@ type handlerConfig struct {
 	runtimeMemory      doctor.RuntimeMemorySnapshotSource
 	deadEntities       doctor.DeadEntitySource
 	staticFS           fs.FS
-	homePaths          aghconfig.HomePaths
-	config             aghconfig.Config
+	homePaths          compozyconfig.HomePaths
+	config             compozyconfig.Config
 	boundHost          string
 	logger             *slog.Logger
 	startedAt          time.Time
@@ -90,7 +90,7 @@ type handlerConfig struct {
 	extensions         ExtensionService
 }
 
-// Handlers expose request/response and SSE endpoints for the AGH API.
+// Handlers expose request/response and SSE endpoints for the Compozy API.
 type Handlers struct {
 	*core.BaseHandlers
 	staticFS     fs.FS

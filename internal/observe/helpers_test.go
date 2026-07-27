@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -26,13 +26,13 @@ import (
 func TestNewWithEmptyHomePathsReturnsError(t *testing.T) {
 	t.Parallel()
 
-	if _, err := New(testutil.Context(t), WithHomePaths(aghconfig.HomePaths{})); err == nil {
+	if _, err := New(testutil.Context(t), WithHomePaths(compozyconfig.HomePaths{})); err == nil {
 		t.Fatal("New(empty home paths) error = nil, want non-nil")
 	}
 }
 
 func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -59,7 +59,7 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
 	t.Parallel()
 
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -94,11 +94,11 @@ func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
 }
 
 func TestDefaultPermissionModeResolverUsesConfigAndAgent(t *testing.T) {
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -130,18 +130,18 @@ mode = "deny-all"
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
-	workspaceConfigDir := filepath.Join(workspace, aghconfig.DirName)
+	workspaceConfigDir := filepath.Join(workspace, compozyconfig.DirName)
 	if err := os.MkdirAll(workspaceConfigDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace config) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(workspaceConfigDir, aghconfig.ConfigName), []byte(`
+	if err := os.WriteFile(filepath.Join(workspaceConfigDir, compozyconfig.ConfigName), []byte(`
 [permissions]
 mode = "approve-all"
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(workspace config) error = %v", err)
 	}
 
-	workspaceAgentDir := filepath.Join(workspaceConfigDir, aghconfig.AgentsDirName, "coder")
+	workspaceAgentDir := filepath.Join(workspaceConfigDir, compozyconfig.AgentsDirName, "coder")
 	if err := os.MkdirAll(workspaceAgentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace agent) error = %v", err)
 	}
@@ -156,7 +156,7 @@ You write reliable code locally.
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(workspace agent) error = %v", err)
 	}
-	workspaceAgent, err := aghconfig.LoadAgentDefFile(workspaceAgentPath)
+	workspaceAgent, err := compozyconfig.LoadAgentDefFile(workspaceAgentPath)
 	if err != nil {
 		t.Fatalf("LoadAgentDefFile(workspace agent) error = %v", err)
 	}
@@ -168,7 +168,7 @@ You write reliable code locally.
 				ID:      "ws-observe",
 				RootDir: workspace,
 			},
-			Agents: []aghconfig.AgentDef{workspaceAgent},
+			Agents: []compozyconfig.AgentDef{workspaceAgent},
 		},
 	})
 	got, err := resolver(testutil.Context(t), "coder", "ws-observe")
@@ -181,11 +181,11 @@ You write reliable code locally.
 }
 
 func TestDefaultPermissionModeResolverReturnsErrorForMissingAgent(t *testing.T) {
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -218,11 +218,11 @@ command = "codex"
 func TestDefaultPermissionModeResolverUsesWorkspaceResolvedAgentDef(t *testing.T) {
 	t.Parallel()
 
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -248,7 +248,7 @@ command = "codex"
 	}
 
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	workspaceAgentDir := filepath.Join(workspace, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	workspaceAgentDir := filepath.Join(workspace, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder")
 	if err := os.MkdirAll(workspaceAgentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace agent) error = %v", err)
 	}
@@ -263,7 +263,7 @@ Workspace agent.
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(workspace agent) error = %v", err)
 	}
-	workspaceAgent, err := aghconfig.LoadAgentDefFile(workspaceAgentPath)
+	workspaceAgent, err := compozyconfig.LoadAgentDefFile(workspaceAgentPath)
 	if err != nil {
 		t.Fatalf("LoadAgentDefFile(workspace agent) error = %v", err)
 	}
@@ -275,7 +275,7 @@ Workspace agent.
 				ID:      "ws-observe",
 				RootDir: workspace,
 			},
-			Agents: []aghconfig.AgentDef{workspaceAgent},
+			Agents: []compozyconfig.AgentDef{workspaceAgent},
 		},
 	})
 
@@ -291,11 +291,11 @@ Workspace agent.
 func TestDefaultPermissionModeResolverRequiresResolverForWorkspaceID(t *testing.T) {
 	t.Parallel()
 
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 

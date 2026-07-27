@@ -20,7 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -446,7 +446,7 @@ func (s *stubSettingsRestartController) GetRestartOperation(
 type settingsHandlerFixture struct {
 	Handlers   *core.BaseHandlers
 	Engine     *gin.Engine
-	HomePaths  aghconfig.HomePaths
+	HomePaths  compozyconfig.HomePaths
 	StreamDone chan struct{}
 	Service    *stubSettingsService
 	Restart    *stubSettingsRestartController
@@ -463,7 +463,7 @@ func newSettingsHandlerFixture(
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	cfg.Daemon.Socket = "/tmp/settings-api-core.sock"
@@ -691,7 +691,7 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		for _, expected := range []string{
 			"<title>Authorization complete</title>",
 			"<h1>Authorization complete</h1>",
-			"You can close this tab and return to AGH.",
+			"You can close this tab and return to Compozy.",
 		} {
 			if !strings.Contains(callback.Body.String(), expected) {
 				t.Fatalf("callback success body missing %q: %s", expected, callback.Body.String())
@@ -722,7 +722,7 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		for _, expected := range []string{
 			"<title>Authorization failed</title>",
 			"<h1>Authorization failed</h1>",
-			"Return to AGH and try again, or use manual authorization.",
+			"Return to Compozy and try again, or use manual authorization.",
 		} {
 			if !strings.Contains(failedCallback.Body.String(), expected) {
 				t.Fatalf("callback failure body missing %q: %s", expected, failedCallback.Body.String())
@@ -1027,7 +1027,7 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 			Available:      true,
 			Status:         "available",
 			Recommendation: "Run `compozy update`.",
-			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+			ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
 			CheckedAt:      &checkedAt,
 		}, nil
 	}
@@ -1070,7 +1070,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					PID:            4100,
 					StartedAt:      startedAt,
 					UptimeSeconds:  900,
-					Socket:         "/tmp/agh.sock",
+					Socket:         "/tmp/compozy.sock",
 					HTTPHost:       "127.0.0.1",
 					HTTPPort:       2123,
 					ActiveSessions: 2,
@@ -1086,14 +1086,14 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DaemonInfo:       "/tmp/home/daemon.json",
 				},
 				Settings: settingspkg.GeneralSettings{
-					Defaults: aghconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
-					Limits:   aghconfig.LimitsConfig{MaxConcurrentAgents: 2},
-					Permissions: aghconfig.PermissionsConfig{
-						Mode: aghconfig.PermissionModeApproveReads,
+					Defaults: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
+					Limits:   compozyconfig.LimitsConfig{MaxConcurrentAgents: 2},
+					Permissions: compozyconfig.PermissionsConfig{
+						Mode: compozyconfig.PermissionModeApproveReads,
 					},
 					SessionTimeout: 30 * time.Minute,
-					HTTP:           aghconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
-					Daemon:         aghconfig.DaemonConfig{Socket: "/tmp/agh.sock"},
+					HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
+					Daemon:         compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
 				},
 				Actions: settingspkg.GeneralActions{
 					Restart: settingspkg.ActionMetadata{
@@ -1109,10 +1109,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Memory: &settingspkg.MemorySection{
-				Config: aghconfig.MemoryConfig{
+				Config: compozyconfig.MemoryConfig{
 					Enabled:   true,
 					GlobalDir: "/tmp/home/memory",
-					Dream: aghconfig.DreamConfig{
+					Dream: compozyconfig.DreamConfig{
 						MinHours:      1.5,
 						MinSessions:   2,
 						CheckInterval: time.Hour,
@@ -1138,10 +1138,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Skills: &settingspkg.SkillsSection{
-				Config: aghconfig.SkillsConfig{
+				Config: compozyconfig.SkillsConfig{
 					Enabled:      true,
 					PollInterval: time.Minute,
-					Marketplace: aghconfig.MarketplaceConfig{
+					Marketplace: compozyconfig.MarketplaceConfig{
 						Registry: "registry.example",
 						BaseURL:  "https://registry.example",
 					},
@@ -1185,10 +1185,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Network: &settingspkg.NetworkSection{
-				Config: aghconfig.NetworkConfig{
+				Config: compozyconfig.NetworkConfig{
 					Enabled:      true,
 					MaxReplayAge: 10,
-					Live:         aghconfig.DefaultNetworkConfig().Live,
+					Live:         compozyconfig.DefaultNetworkConfig().Live,
 				},
 				Runtime: settingspkg.NetworkRuntimeStatus{
 					Available:         true,
@@ -1208,28 +1208,28 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			WindowManager: &settingspkg.WindowManagerSection{
-				Config: aghconfig.WindowManagerConfig{
-					NewWindowPolicy:     aghconfig.WindowNewPolicyBesideFocus,
-					SmallViewportPolicy: aghconfig.WindowSmallViewportReject,
-					FocusPolicy:         aghconfig.WindowFocusDirectional,
+				Config: compozyconfig.WindowManagerConfig{
+					NewWindowPolicy:     compozyconfig.WindowNewPolicyBesideFocus,
+					SmallViewportPolicy: compozyconfig.WindowSmallViewportReject,
+					FocusPolicy:         compozyconfig.WindowFocusDirectional,
 					FocusWrap:           true,
 					FocusFollowsPointer: true,
 					RaiseOnFocus:        false,
-					DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
+					DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
 					GroupMoveModifier:   "control",
 					SwapModifier:        "meta",
 					HistoryLimit:        77,
-					DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
-					Gaps: aghconfig.WindowManagerGapsConfig{
+					DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
+					Gaps: compozyconfig.WindowManagerGapsConfig{
 						Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
 					},
-					Snap: aghconfig.WindowManagerSnapConfig{
+					Snap: compozyconfig.WindowManagerSnapConfig{
 						EdgeBand:     40,
 						CornerReach:  180,
 						ExitSlack:    20,
 						RepeatRatios: []float64{0.4, 0.7, 0.3},
 					},
-					Bindings: aghconfig.WindowManagerBindingConfig{
+					Bindings: compozyconfig.WindowManagerBindingConfig{
 						TopCenter: "none", BottomCenter: "zoom",
 					},
 					Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
@@ -1241,11 +1241,11 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Observability: &settingspkg.ObservabilitySection{
-				Config: aghconfig.ObservabilityConfig{
+				Config: compozyconfig.ObservabilityConfig{
 					Enabled:        true,
 					RetentionDays:  7,
 					MaxGlobalBytes: 2048,
-					Transcripts: aghconfig.ObservabilityTranscriptConfig{
+					Transcripts: compozyconfig.ObservabilityTranscriptConfig{
 						Enabled:            true,
 						SegmentBytes:       4096,
 						MaxBytesPerSession: 8192,
@@ -1288,20 +1288,20 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						AvailableTargets: []settingspkg.WriteTargetKind{settingspkg.WriteTargetGlobalConfig},
 					},
 				}},
-				Extensions: aghconfig.ExtensionsConfig{
-					Marketplace: aghconfig.ExtensionsMarketplaceConfig{
+				Extensions: compozyconfig.ExtensionsConfig{
+					Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
 						Registry: "extensions.example",
 						BaseURL:  "https://extensions.example",
 					},
-					Resources: aghconfig.ExtensionsResourcesConfig{
+					Resources: compozyconfig.ExtensionsResourcesConfig{
 						AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 						MaxScope:     resources.ResourceScopeKindWorkspace,
-						SnapshotRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+						SnapshotRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 							Requests: 10,
 							Window:   time.Minute,
 							Queue:    2,
 						},
-						OperatorWriteRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+						OperatorWriteRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 							Requests: 20,
 							Window:   time.Minute,
 							Queue:    4,
@@ -1382,10 +1382,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Name: "openai",
 					Settings: settingspkg.ProviderSettings{
 						Command: "codex",
-						Models: aghconfig.ProviderModelsConfig{
+						Models: compozyconfig.ProviderModelsConfig{
 							Default: "gpt-5.4",
 						},
-						CredentialSlots: []aghconfig.ProviderCredentialSlot{
+						CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 							{
 								Name:      "api_key",
 								TargetEnv: "OPENAI_API_KEY",
@@ -1424,7 +1424,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						},
 						Settings: settingspkg.ProviderSettings{
 							Command: "codex",
-							Models: aghconfig.ProviderModelsConfig{
+							Models: compozyconfig.ProviderModelsConfig{
 								Default: "gpt-5.4",
 							},
 						},
@@ -1460,7 +1460,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Sandboxes: []settingspkg.SandboxItem{{
 				Name: "local",
-				Profile: aghconfig.SandboxProfile{
+				Profile: compozyconfig.SandboxProfile{
 					Backend:     "local",
 					SyncMode:    "session-bidirectional",
 					Persistence: "reuse",
@@ -1541,7 +1541,7 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 				"port": 2123,
 			},
 			"daemon": map[string]any{
-				"socket": "/tmp/agh.sock",
+				"socket": "/tmp/compozy.sock",
 			},
 			"redact": map[string]any{
 				"enabled": true,
@@ -1595,7 +1595,7 @@ func TestUpdateSettingsGeneralRequiresRedactionGatePresence(t *testing.T) {
 				"permissions":     map[string]any{"mode": "approve-reads"},
 				"session_timeout": "30m",
 				"http":            map[string]any{"host": "127.0.0.1", "port": 2123},
-				"daemon":          map[string]any{"socket": "/tmp/agh.sock"},
+				"daemon":          map[string]any{"socket": "/tmp/compozy.sock"},
 			}
 			if tt.redact != nil {
 				config["redact"] = tt.redact
@@ -1807,7 +1807,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					},
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				},
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
@@ -2100,7 +2100,7 @@ func validSettingsRolesConfigPayload() contract.SettingsRolesConfigPayload {
 func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 	return contract.SettingsMemoryConfigPayload{
 		Enabled:   true,
-		GlobalDir: "/tmp/agh-memory",
+		GlobalDir: "/tmp/compozy-memory",
 		Controller: contract.SettingsMemoryControllerPayload{
 			Mode:            "hybrid",
 			MaxLatency:      "300ms",
@@ -2149,8 +2149,8 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			ThrottleTurns:    1,
 			Deadline:         "60s",
 			SandboxInboxOnly: true,
-			InboxPath:        "/tmp/agh-memory/_inbox",
-			DLQPath:          "/tmp/agh-memory/_system/extractor/failures",
+			InboxPath:        "/tmp/compozy-memory/_inbox",
+			DLQPath:          "/tmp/compozy-memory/_system/extractor/failures",
 			Queue: contract.SettingsMemoryExtractorQueuePayload{
 				Capacity:    1,
 				CoalesceMax: 16,
@@ -2179,7 +2179,7 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 		},
 		Session: contract.SettingsMemorySessionPayload{
 			LedgerFormat:     "jsonl",
-			LedgerRoot:       "/tmp/agh-sessions",
+			LedgerRoot:       "/tmp/compozy-sessions",
 			EventsPurgeGrace: "24h",
 			ColdArchiveDays:  30,
 			MaxArchiveBytes:  10737418240,
@@ -2464,9 +2464,9 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								Name: "openai",
 								Settings: settingspkg.ProviderSettings{
 									Command: "codex",
-									Models: aghconfig.ProviderModelsConfig{
+									Models: compozyconfig.ProviderModelsConfig{
 										Default: "gpt-5.4",
-										Curated: []aghconfig.ProviderModelConfig{{
+										Curated: []compozyconfig.ProviderModelConfig{{
 											ID:                       "gpt-5.4",
 											CostInputPerMillion:      &inputRate,
 											CostOutputPerMillion:     &outputRate,
@@ -2475,7 +2475,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 											CostReasoningPerMillion:  &reasoningRate,
 										}},
 									},
-									CredentialSlots: []aghconfig.ProviderCredentialSlot{
+									CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 										{
 											Name:      "api_key",
 											TargetEnv: "OPENAI_API_KEY",
@@ -2517,7 +2517,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 					case settingspkg.CollectionSandboxes:
 						envelope.Sandboxes = []settingspkg.SandboxItem{{
 							Name: "local",
-							Profile: aghconfig.SandboxProfile{
+							Profile: compozyconfig.SandboxProfile{
 								Backend: "local",
 							},
 							SourceMetadata: settingspkg.SourceMetadata{
@@ -2751,7 +2751,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	t.Run("Should serialize empty window-manager shortcuts as an object", func(t *testing.T) {
 		t.Parallel()
 
-		config := aghconfig.DefaultWindowManagerConfig()
+		config := compozyconfig.DefaultWindowManagerConfig()
 		config.Shortcuts = nil
 		service := &stubSettingsService{
 			GetSectionFn: func(
@@ -2805,26 +2805,26 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			switch req.Section {
 			case settingspkg.SectionMemory:
 				envelope.Memory = &settingspkg.MemorySection{
-					Config: aghconfig.MemoryConfig{
+					Config: compozyconfig.MemoryConfig{
 						Enabled: true,
-						Dream: aghconfig.DreamConfig{
+						Dream: compozyconfig.DreamConfig{
 							CheckInterval: time.Hour,
 						},
 					},
 				}
 			case settingspkg.SectionRoles:
-				roles := aghconfig.DefaultRolesConfig()
+				roles := compozyconfig.DefaultRolesConfig()
 				roles.Dream.Model = "claude-opus"
-				roles.AutoTitle.FallbackChain = []aghconfig.RoleFallback{{
+				roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
 					Provider: "openai", Model: "gpt-5-mini", ReasoningEffort: "medium",
 				}}
 				envelope.Roles = &settingspkg.RolesSection{Config: roles}
 			case settingspkg.SectionSkills:
 				envelope.Skills = &settingspkg.SkillsSection{
-					Config: aghconfig.SkillsConfig{
+					Config: compozyconfig.SkillsConfig{
 						Enabled:      true,
 						PollInterval: time.Minute,
-						Marketplace:  aghconfig.MarketplaceConfig{Registry: "clawhub"},
+						Marketplace:  compozyconfig.MarketplaceConfig{Registry: "clawhub"},
 					},
 				}
 			case settingspkg.SectionAutomation:
@@ -2838,14 +2838,14 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				}
 			case settingspkg.SectionNetwork:
 				envelope.Network = &settingspkg.NetworkSection{
-					Config: aghconfig.NetworkConfig{
+					Config: compozyconfig.NetworkConfig{
 						Enabled: true,
 					},
 				}
 			case settingspkg.SectionHooksExtensions:
 				envelope.HooksExtensions = &settingspkg.HooksExtensionsSection{
-					Extensions: aghconfig.ExtensionsConfig{
-						Marketplace: aghconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+					Extensions: compozyconfig.ExtensionsConfig{
+						Marketplace: compozyconfig.ExtensionsMarketplaceConfig{Registry: "github"},
 					},
 				}
 			default:
@@ -2864,7 +2864,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			case settingspkg.CollectionSandboxes:
 				envelope.Sandboxes = []settingspkg.SandboxItem{{
 					Name: "local",
-					Profile: aghconfig.SandboxProfile{
+					Profile: compozyconfig.SandboxProfile{
 						Backend: "local",
 					},
 					SourceMetadata: settingspkg.SourceMetadata{
@@ -2962,7 +2962,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 	registerSettingsRoutes(engine, core.NewBaseHandlers(&core.BaseHandlerConfig{
@@ -2990,7 +2990,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 					},
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				},
 			}),
 		},
@@ -3120,7 +3120,7 @@ func TestGetSettingsRestartStatusReturnsPersistedOperationShape(t *testing.T) {
 				Status:             "ready",
 				OldPID:             4100,
 				OldStartedAt:       time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC),
-				OldSocketPath:      "/tmp/agh.sock",
+				OldSocketPath:      "/tmp/compozy.sock",
 				NewPID:             4200,
 				ActiveSessionCount: 5,
 				StartedAt:          time.Date(2026, 4, 17, 18, 45, 0, 0, time.UTC),
@@ -3159,11 +3159,11 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 				return settingspkg.MCPCatalogInstallResult{
 					Item: settingspkg.MCPServerItem{
 						Name:          req.Name,
-						Transport:     aghconfig.MCPServerTransportStdio,
+						Transport:     compozyconfig.MCPServerTransportStdio,
 						Command:       "npx",
 						SecretEnvKeys: []string{"GITHUB_TOKEN"},
-						Auth: aghconfig.MCPAuthConfig{
-							Type: aghconfig.MCPAuthTypeOAuth2PKCE,
+						Auth: compozyconfig.MCPAuthConfig{
+							Type: compozyconfig.MCPAuthTypeOAuth2PKCE,
 						},
 						ClientSecretConfigured: true,
 						Scope:                  req.Scope,
@@ -3525,11 +3525,11 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 		Scope:           settingspkg.ScopeGlobal,
 		AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 		Observability: &settingspkg.ObservabilitySection{
-			Config: aghconfig.ObservabilityConfig{
+			Config: compozyconfig.ObservabilityConfig{
 				Enabled:        true,
 				RetentionDays:  7,
 				MaxGlobalBytes: 1024,
-				Transcripts: aghconfig.ObservabilityTranscriptConfig{
+				Transcripts: compozyconfig.ObservabilityTranscriptConfig{
 					Enabled:            true,
 					SegmentBytes:       2048,
 					MaxBytesPerSession: 4096,
@@ -3572,7 +3572,7 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 					Status:             "starting",
 					OldPID:             100,
 					OldStartedAt:       time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC),
-					OldSocketPath:      "/tmp/agh.sock",
+					OldSocketPath:      "/tmp/compozy.sock",
 					ActiveSessionCount: 2,
 					StartedAt:          time.Date(2026, 4, 17, 18, 44, 0, 0, time.UTC),
 					UpdatedAt:          time.Date(2026, 4, 17, 18, 44, 30, 0, time.UTC),

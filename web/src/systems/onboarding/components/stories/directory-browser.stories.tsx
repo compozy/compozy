@@ -23,7 +23,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const entries: FSEntry[] = [
-  { name: "agh-extensions", path: "/Users/you/Dev/agh-extensions", is_dir: true },
+  { name: "compozy-extensions", path: "/Users/you/Dev/compozy-extensions", is_dir: true },
   { name: "billing", path: "/Users/you/Dev/billing", is_dir: true },
   { name: "checkout-platform", path: "/Users/you/Dev/checkout-platform", is_dir: true },
   { name: "design-tokens", path: "/Users/you/Dev/design-tokens", is_dir: true },

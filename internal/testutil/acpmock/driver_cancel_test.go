@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -66,7 +66,7 @@ func TestDriverSandboxCancellationCleanup(t *testing.T) {
 				filepath.Join(t.TempDir(), "sandbox-diagnostics.jsonl"),
 			),
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeApproveAll,
+			Permissions: compozyconfig.PermissionModeApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)
@@ -165,7 +165,7 @@ func TestDriverLateCancelDoesNotPoisonNextPrompt(t *testing.T) {
 				filepath.Join(t.TempDir(), "late-cancel-diagnostics.jsonl"),
 			),
 			Cwd:         t.TempDir(),
-			Permissions: aghconfig.PermissionModeDenyAll,
+			Permissions: compozyconfig.PermissionModeDenyAll,
 		})
 		if err != nil {
 			t.Fatalf("driver.Start() error = %v", err)

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -180,7 +180,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
 		}
-		if payload.Role != string(aghconfig.RoleDream) || payload.Attempt != 1 ||
+		if payload.Role != string(compozyconfig.RoleDream) || payload.Attempt != 1 ||
 			payload.Provider != "secondary" || payload.Model != "m2" {
 			t.Fatalf("fallback payload = %#v", payload)
 		}
@@ -189,7 +189,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 	t.Run("Should emit the canonical error event with role correlation", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		cfg.Roles.Dream.Agent = "missing-curator"
 		recorder := &roleEventRecorder{}
 		resolver := newRoleResolver(&cfg, nil, nil, recorder)
@@ -204,7 +204,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		_, err := resolver.Resolve(
 			withRoleInvocationCorrelation(t.Context(), correlation),
 			"",
-			aghconfig.RoleDream,
+			compozyconfig.RoleDream,
 		)
 		var resolutionErr *RoleResolutionError
 		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorAgentNotFound {
@@ -220,7 +220,7 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(event.Content) error = %v", err)
 		}
-		if payload.Role != string(aghconfig.RoleDream) ||
+		if payload.Role != string(compozyconfig.RoleDream) ||
 			payload.ErrorCode != roleErrorAgentNotFound || payload.Agent != "missing-curator" {
 			t.Fatalf("resolution payload = %#v", payload)
 		}
@@ -229,12 +229,12 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 
 func fallbackTestRole(writer roleEventSummaryWriter) ResolvedRole {
 	return ResolvedRole{
-		Role:            aghconfig.RoleDream,
-		AgentName:       aghconfig.BuiltinDreamingCuratorAgentName,
+		Role:            compozyconfig.RoleDream,
+		AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
 		Provider:        "primary",
 		Model:           "m1",
 		ReasoningEffort: "low",
-		Fallbacks: []aghconfig.RoleFallback{
+		Fallbacks: []compozyconfig.RoleFallback{
 			{Provider: "secondary", Model: "m2", ReasoningEffort: "medium"},
 			{Provider: "tertiary", Model: "m3", ReasoningEffort: "high"},
 		},

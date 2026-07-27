@@ -450,7 +450,7 @@ func newTelegramProviderAPIServer(t *testing.T) *telegramProviderAPIServer {
 
 		switch method {
 		case "getMe":
-			writeTelegramProviderAPIResponse(t, w, map[string]any{"id": 1, "username": "aghbot"})
+			writeTelegramProviderAPIResponse(t, w, map[string]any{"id": 1, "username": "compozybot"})
 		case "sendMessage":
 			srv.mu.Lock()
 			messageID := srv.nextMessageID

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -75,7 +75,7 @@ func (cp *CatalogProvider) PromptSection(
 // being started when the prompt assembler provides that identity.
 func (cp *CatalogProvider) PromptAgentSection(
 	ctx context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if cp == nil || cp.registry == nil {
@@ -93,7 +93,7 @@ func (cp *CatalogProvider) PromptAgentSection(
 func (cp *CatalogProvider) PromptAgentSessionSection(
 	ctx context.Context,
 	sessionID string,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if cp == nil || cp.registry == nil {

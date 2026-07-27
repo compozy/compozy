@@ -194,7 +194,7 @@ func TestListBridgeProvidersHandlerReturnsRequestedPayload(t *testing.T) {
 							Required:    true,
 						}},
 						ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-							Schema:  "agh.bridge.telegram",
+							Schema:  "compozy.bridge.telegram",
 							Version: "v1",
 						},
 						Enabled: true,
@@ -232,7 +232,7 @@ func TestListBridgeProvidersHandlerReturnsRequestedPayload(t *testing.T) {
 				t.Fatalf("provider secret slots = %#v", response.Providers[0].SecretSlots)
 			}
 			if response.Providers[0].ConfigSchema == nil ||
-				response.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+				response.Providers[0].ConfigSchema.Schema != "compozy.bridge.telegram" {
 				t.Fatalf("provider config schema = %#v", response.Providers[0].ConfigSchema)
 			}
 		})

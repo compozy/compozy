@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
@@ -22,7 +22,7 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 	server := resolved.Server
 	transport := server.EffectiveTransport()
 	switch transport {
-	case aghconfig.MCPServerTransportStdio:
+	case compozyconfig.MCPServerTransportStdio:
 		env, err := e.mcpServerEnv(ctx, server)
 		if err != nil {
 			return nil, err
@@ -40,7 +40,7 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 			return nil, normalizeMCPStartError(client, err)
 		}
 		return client, nil
-	case aghconfig.MCPServerTransportHTTP:
+	case compozyconfig.MCPServerTransportHTTP:
 		options := []mcptransport.StreamableHTTPCOption{
 			mcptransport.WithHTTPBasicClient(e.httpClientForCall()),
 		}
@@ -55,7 +55,7 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 			return nil, normalizeMCPStartError(client, err)
 		}
 		return client, nil
-	case aghconfig.MCPServerTransportSSE:
+	case compozyconfig.MCPServerTransportSSE:
 		options := []mcptransport.ClientOption{
 			mcptransport.WithHTTPClient(e.httpClientForCall()),
 			mcptransport.WithEndpointTimeout(e.timeout),
@@ -172,7 +172,7 @@ func mcpStdioBaseEnv() map[string]string {
 	return base
 }
 
-func (e *CallExecutor) mcpServerEnv(ctx context.Context, server aghconfig.MCPServer) ([]string, error) {
+func (e *CallExecutor) mcpServerEnv(ctx context.Context, server compozyconfig.MCPServer) ([]string, error) {
 	env := cloneStringMap(server.Env)
 	if len(server.SecretEnv) > 0 {
 		if env == nil {

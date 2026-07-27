@@ -17,7 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -1538,7 +1538,7 @@ func TestCreateAutomationJobReturnsBlockedLifecycleClass(t *testing.T) {
 		t.Parallel()
 
 		blockedErr := &automationpkg.DaemonLifecycleCommandError{
-			Class: automationpkg.DaemonLifecycleCommandClassAGHDaemon,
+			Class: automationpkg.DaemonLifecycleCommandClassCompozyDaemon,
 		}
 		router := newAutomationCoreTestRouter(t, stubAutomationManager{
 			CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
@@ -1612,11 +1612,11 @@ func TestAutomationHandlersRequireConfiguredManager(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 
 	handlers := NewBaseHandlers(&BaseHandlerConfig{
 		TransportName: "core-automation-test",
@@ -1638,11 +1638,11 @@ func newAutomationCoreTestRouter(t *testing.T, automation stubAutomationManager)
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 
 	handlers := NewBaseHandlers(&BaseHandlerConfig{
 		TransportName: "core-automation-test",

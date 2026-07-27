@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -163,7 +163,7 @@ func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 					Layouts: []extensionpkg.BundleLayout{{Path: "layouts/ops.json"}},
 					Agents: []extensionpkg.BundleAgent{{
 						Path:  "agents/planner",
-						Agent: aghconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
+						Agent: compozyconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
 					}},
 					Jobs:     []extensionpkg.BundleJob{{Name: "job-a"}},
 					Triggers: []extensionpkg.BundleTrigger{{Name: "trigger-a"}},
@@ -232,7 +232,7 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		},
 		{
 			name: "Should map a reserved agent name to unprocessable entity",
-			err:  fmt.Errorf("bundle agent: %w", aghconfig.ErrAgentNameReserved),
+			err:  fmt.Errorf("bundle agent: %w", compozyconfig.ErrAgentNameReserved),
 			want: http.StatusUnprocessableEntity,
 		},
 		{

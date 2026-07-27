@@ -81,7 +81,7 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
 }
 
 function oauthConfig(): AuthConfig {
-  return { type: "oauth2_pkce", client_id: "agh-test" } as AuthConfig;
+  return { type: "oauth2_pkce", client_id: "compozy-test" } as AuthConfig;
 }
 
 describe("mcp status tone mapping", () => {

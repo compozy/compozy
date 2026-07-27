@@ -257,7 +257,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
   const settingsUI = settingsOperatorSelectors(appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-settings-mcp-workspace-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-settings-mcp-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
   await ensureGlobalWorkspace(runtime);

@@ -11,7 +11,7 @@ import (
 func main() {
 	homeDir, err := aghconfig.ResolveHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "resolve AGH home for Air state: %v\n", err)
+		fmt.Fprintf(os.Stderr, "resolve Compozy home for Air state: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -9,7 +9,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -109,7 +109,7 @@ func (s *Service) resolveWorkspace(
 		err      error
 	)
 	if isPathLikeWorkspaceRef(trimmed) {
-		normalized, normalizeErr := aghconfig.ResolvePath(trimmed)
+		normalized, normalizeErr := compozyconfig.ResolvePath(trimmed)
 		if normalizeErr != nil {
 			return "", normalizeErr
 		}

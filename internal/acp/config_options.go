@@ -10,7 +10,7 @@ const (
 	booleanTrueText = "true"
 )
 
-// SessionConfigOptionKind identifies the ACP config option shape AGH exposes.
+// SessionConfigOptionKind identifies the ACP config option shape Compozy exposes.
 type SessionConfigOptionKind string
 
 const (

@@ -11,7 +11,7 @@ import (
 )
 
 func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.ReadCloser, size int64, err error) {
-	file, err := os.CreateTemp("", "agh-clawhub-download-*")
+	file, err := os.CreateTemp("", "compozy-clawhub-download-*")
 	if err != nil {
 		return nil, 0, fmt.Errorf("create temp download file for %q: %w", slug, err)
 	}

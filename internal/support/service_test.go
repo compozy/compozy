@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestBuilderBuild(t *testing.T) {
@@ -23,7 +23,7 @@ func TestBuilderBuild(t *testing.T) {
 
 		homePaths := newSupportTestHome(t)
 		writeSupportTestFile(t, homePaths.LogFile, "before compozy_claim_logsecret_1234567890 after\n")
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 		builder := Builder{
 			HomePaths:            homePaths,
@@ -118,7 +118,7 @@ func TestBuilderBuild(t *testing.T) {
 		homePaths := newSupportTestHome(t)
 		builder := Builder{
 			HomePaths: homePaths,
-			Config:    aghconfig.DefaultWithHome(homePaths),
+			Config:    compozyconfig.DefaultWithHome(homePaths),
 			Now:       func() time.Time { return time.Date(2026, 5, 20, 13, 0, 0, 0, time.UTC) },
 			Sources: Sources{
 				Status: func(context.Context) (any, error) {
@@ -149,7 +149,7 @@ func TestBuilderBuild(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newSupportTestHome(t)
-		bootConfig := aghconfig.DefaultWithHome(homePaths)
+		bootConfig := compozyconfig.DefaultWithHome(homePaths)
 		bootConfig.Defaults.Provider = "boot-provider"
 		activeConfig := bootConfig
 		activeConfig.Defaults.Provider = "active-provider"
@@ -157,7 +157,7 @@ func TestBuilderBuild(t *testing.T) {
 		builder := Builder{
 			HomePaths: homePaths,
 			Config:    bootConfig,
-			ConfigSnapshot: func(context.Context) (aghconfig.Config, error) {
+			ConfigSnapshot: func(context.Context) (compozyconfig.Config, error) {
 				called = true
 				return activeConfig, nil
 			},
@@ -172,7 +172,7 @@ func TestBuilderBuild(t *testing.T) {
 			t.Fatal("ConfigSnapshot() was not called")
 		}
 		files := readSupportBundleArchive(t, operation.FilePath)
-		var captured aghconfig.Config
+		var captured compozyconfig.Config
 		if err := json.Unmarshal(files["config-redacted.json"], &captured); err != nil {
 			t.Fatalf("json.Unmarshal(config-redacted.json) error = %v", err)
 		}
@@ -191,7 +191,7 @@ func TestServiceCreate(t *testing.T) {
 		homePaths := newSupportTestHome(t)
 		svc := NewService(&Builder{
 			HomePaths: homePaths,
-			Config:    aghconfig.DefaultWithHome(homePaths),
+			Config:    compozyconfig.DefaultWithHome(homePaths),
 			Now:       func() time.Time { return time.Date(2026, 5, 20, 14, 0, 0, 0, time.UTC) },
 			Sources: Sources{
 				Status: func(ctx context.Context) (any, error) {
@@ -232,14 +232,14 @@ func TestServiceCreate(t *testing.T) {
 	})
 }
 
-func newSupportTestHome(t *testing.T) aghconfig.HomePaths {
+func newSupportTestHome(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths

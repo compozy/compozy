@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type { SessionMessage } from "../types";
 
-const aghEventDataSchema = z.looseObject({
+const compozyEventDataSchema = z.looseObject({
   type: z.string(),
   session_id: z.string().optional(),
   turn_id: z.string().optional(),
@@ -67,7 +67,7 @@ const aghEventDataSchema = z.looseObject({
   raw: z.unknown().optional(),
 });
 
-const aghPermissionDataSchema = aghEventDataSchema.extend({
+const compozyPermissionDataSchema = compozyEventDataSchema.extend({
   request_id: z.string(),
   raw: z.record(z.string(), z.unknown()).optional(),
 });
@@ -75,8 +75,8 @@ const aghPermissionDataSchema = aghEventDataSchema.extend({
 const unknownDataSchema = z.unknown();
 
 const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
-  "agh-event": aghEventDataSchema,
-  "agh-permission": aghPermissionDataSchema,
+  "compozy-event": compozyEventDataSchema,
+  "compozy-permission": compozyPermissionDataSchema,
 };
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];

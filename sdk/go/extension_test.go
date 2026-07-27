@@ -1,4 +1,4 @@
-package aghsdk_test
+package compozysdk_test
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 type digestFixture struct {
@@ -35,7 +35,7 @@ func TestToolRegistrationValidation(t *testing.T) {
 		testCases := []struct {
 			name    string
 			handler string
-			options aghsdk.ToolOptions
+			options compozysdk.ToolOptions
 		}{
 			{
 				name:    "Should Reject Empty Handler",
@@ -45,17 +45,17 @@ func TestToolRegistrationValidation(t *testing.T) {
 			{
 				name:    "Should Reject Missing Input Schema",
 				handler: "search",
-				options: aghsdk.ToolOptions{ReadOnly: true},
+				options: compozysdk.ToolOptions{ReadOnly: true},
 			},
 			{
 				name:    "Should Reject Non Object Schema",
 				handler: "search",
-				options: aghsdk.ToolOptions{ReadOnly: true, InputSchema: []any{"bad"}},
+				options: compozysdk.ToolOptions{ReadOnly: true, InputSchema: []any{"bad"}},
 			},
 			{
 				name:    "Should Reject Invalid Explicit ID",
 				handler: "search",
-				options: aghsdk.ToolOptions{
+				options: compozysdk.ToolOptions{
 					ID:          "Ext.Bad",
 					ReadOnly:    true,
 					InputSchema: map[string]any{"type": "object"},
@@ -70,9 +70,9 @@ func TestToolRegistrationValidation(t *testing.T) {
 				extension := newTestExtension()
 				err := extension.Tool(tc.handler, tc.options, func(
 					context.Context,
-					aghsdk.ToolRequest[json.RawMessage],
-				) (aghsdk.ToolResult, error) {
-					return aghsdk.EmptyResult(), nil
+					compozysdk.ToolRequest[json.RawMessage],
+				) (compozysdk.ToolResult, error) {
+					return compozysdk.EmptyResult(), nil
 				})
 				if err == nil {
 					t.Fatal("Tool() error = nil, want validation error")
@@ -111,7 +111,7 @@ func TestToolRegistrationValidation(t *testing.T) {
 		t.Parallel()
 
 		extension := newTestExtension()
-		options := aghsdk.ToolOptions{
+		options := compozysdk.ToolOptions{
 			ReadOnly:     true,
 			InputSchema:  json.RawMessage(`{"type":"object"}`),
 			OutputSchema: []byte(`{"type":"object"}`),
@@ -127,7 +127,7 @@ func TestToolRegistrationValidation(t *testing.T) {
 		extension := newTestExtension()
 		if err := extension.Handle("provide_tools", func(
 			context.Context,
-			aghsdk.ExtensionContext,
+			compozysdk.ExtensionContext,
 			json.RawMessage,
 		) (any, error) {
 			return nil, nil
@@ -148,7 +148,7 @@ func TestSchemaDigestFixturesMatchDaemonAndTypeScript(t *testing.T) {
 		t.Run("Should Match Fixture "+fixture.Name, func(t *testing.T) {
 			t.Parallel()
 
-			canonical, err := aghsdk.CanonicalJSON(fixture.Schema)
+			canonical, err := compozysdk.CanonicalJSON(fixture.Schema)
 			if err != nil {
 				t.Fatalf("CanonicalJSON() error = %v", err)
 			}
@@ -156,7 +156,7 @@ func TestSchemaDigestFixturesMatchDaemonAndTypeScript(t *testing.T) {
 				t.Fatalf("CanonicalJSON() = %q, want %q", got, fixture.Canonical)
 			}
 
-			digest, err := aghsdk.SchemaDigest(fixture.Schema)
+			digest, err := compozysdk.SchemaDigest(fixture.Schema)
 			if err != nil {
 				t.Fatalf("SchemaDigest() error = %v", err)
 			}
@@ -174,10 +174,10 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		t.Parallel()
 
 		transport := &recordingTransport{}
-		host := aghsdk.NewHostAPI(transport, func() bool { return true })
+		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
 			context.Background(),
-			aghsdk.HostAPIMethodNetworkSend,
+			compozysdk.HostAPIMethodNetworkSend,
 			map[string]any{"claim_token": "compozy_claim_secret"},
 			&json.RawMessage{},
 		)
@@ -193,10 +193,10 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		t.Parallel()
 
 		transport := &recordingTransport{}
-		host := aghsdk.NewHostAPI(transport, func() bool { return true })
+		host := compozysdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
 			context.Background(),
-			aghsdk.HostAPIMethodNetworkSend,
+			compozysdk.HostAPIMethodNetworkSend,
 			map[string]any{"note": "COMPOZY_CLAIM_EXTENSION_SECRET"},
 			&json.RawMessage{},
 		)
@@ -212,8 +212,8 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		t.Parallel()
 
 		transport := &recordingTransport{}
-		host := aghsdk.NewHostAPI(transport, func() bool { return false })
-		err := host.Request(context.Background(), aghsdk.HostAPIMethodSessionsList, nil, &json.RawMessage{})
+		host := compozysdk.NewHostAPI(transport, func() bool { return false })
+		err := host.Request(context.Background(), compozysdk.HostAPIMethodSessionsList, nil, &json.RawMessage{})
 		if err == nil {
 			t.Fatal("HostAPI.Request() error = nil, want not initialized")
 		}
@@ -230,20 +230,20 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{Name: "Go Tool", Version: "0.1.0"},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Go Tool", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
 		type searchInput struct {
 			Query string `json:"query"`
 		}
-		if err := aghsdk.Tool[searchInput](
+		if err := compozysdk.Tool[searchInput](
 			extension,
 			"search",
 			validToolOptions(),
-			func(_ context.Context, req aghsdk.ToolRequest[searchInput]) (aghsdk.ToolResult, error) {
-				return aghsdk.TextResult("result:" + req.Input.Query), nil
+			func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+				return compozysdk.TextResult("result:" + req.Input.Query), nil
 			},
 		); err != nil {
 			t.Fatalf("Tool() error = %v", err)
@@ -271,7 +271,7 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		if initialize.Error != nil {
 			t.Fatalf("initialize error = %#v", initialize.Error)
 		}
-		var initResult aghsdk.InitializeResponse
+		var initResult compozysdk.InitializeResponse
 		decodeResult(t, initialize.Result, &initResult)
 		if !contains(initResult.ImplementedMethods, "provide_tools") ||
 			!contains(initResult.ImplementedMethods, "tools/call") {
@@ -282,12 +282,12 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		if provideTools.Error != nil {
 			t.Fatalf("provide_tools error = %#v", provideTools.Error)
 		}
-		var provided aghsdk.ExtensionProvideToolsResponse
+		var provided compozysdk.ExtensionProvideToolsResponse
 		decodeResult(t, provideTools.Result, &provided)
 		if len(provided.Tools) != 1 {
 			t.Fatalf("provided tools = %d, want 1", len(provided.Tools))
 		}
-		if got, want := provided.Tools[0].ID, aghsdk.ToolID("ext__go_tool__search"); got != want {
+		if got, want := provided.Tools[0].ID, compozysdk.ToolID("ext__go_tool__search"); got != want {
 			t.Fatalf("provided tool id = %q, want %q", got, want)
 		}
 
@@ -299,7 +299,7 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		if call.Error != nil {
 			t.Fatalf("tools/call error = %#v", call.Error)
 		}
-		var callResult aghsdk.ExtensionToolCallResponse
+		var callResult compozysdk.ExtensionToolCallResponse
 		decodeResult(t, call.Result, &callResult)
 		if len(callResult.Result.Content) != 1 || callResult.Result.Content[0].Text != "result:alpha" {
 			t.Fatalf("tool result = %#v, want result:alpha", callResult.Result)
@@ -310,22 +310,22 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{Name: "Go Tool", Version: "0.1.0"},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Go Tool", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
 		type sensitiveInput struct {
 			Secret string `json:"secret"`
 		}
 		options := validToolOptions()
 		options.SensitiveInputFields = []string{"secret"}
-		if err := aghsdk.Tool[sensitiveInput](
+		if err := compozysdk.Tool[sensitiveInput](
 			extension,
 			"search",
 			options,
-			func(_ context.Context, req aghsdk.ToolRequest[sensitiveInput]) (aghsdk.ToolResult, error) {
-				return aghsdk.ToolResult{}, fmt.Errorf("bad secret %s", req.Input.Secret)
+			func(_ context.Context, req compozysdk.ToolRequest[sensitiveInput]) (compozysdk.ToolResult, error) {
+				return compozysdk.ToolResult{}, fmt.Errorf("bad secret %s", req.Input.Secret)
 			},
 		); err != nil {
 			t.Fatalf("Tool() error = %v", err)
@@ -380,24 +380,24 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 		t.Parallel()
 
 		runtime := newRuntimeHarness(t)
-		extension := aghsdk.NewExtension(
-			aghsdk.ExtensionDefinition{Name: "Go Watch", Version: "0.1.0"},
-			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
-			aghsdk.WithStderr(io.Discard),
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Go Watch", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
 		)
 		type watchSpec struct {
 			Kind  string `json:"kind"`
 			Query string `json:"query"`
 		}
-		if err := aghsdk.WatchSource[watchSpec](
+		if err := compozysdk.WatchSource[watchSpec](
 			extension,
 			"reviews",
-			aghsdk.WatchSourceOptions{},
-			func(_ context.Context, req aghsdk.WatchSourceRequest[watchSpec]) (aghsdk.WatchPollResponse, error) {
+			compozysdk.WatchSourceOptions{},
+			func(_ context.Context, req compozysdk.WatchSourceRequest[watchSpec]) (compozysdk.WatchPollResponse, error) {
 				if req.ExpectedStateDigest != "sha256:previous" {
 					t.Fatalf("ExpectedStateDigest = %q, want sha256:previous", req.ExpectedStateDigest)
 				}
-				return aghsdk.WatchPollResponse{
+				return compozysdk.WatchPollResponse{
 					Ready:       req.Spec.Query == "open",
 					StateDigest: "sha256:next",
 					Payload:     json.RawMessage(`{"review":"r1"}`),
@@ -432,7 +432,7 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 		if initialize.Error != nil {
 			t.Fatalf("initialize error = %#v", initialize.Error)
 		}
-		var initResult aghsdk.InitializeResponse
+		var initResult compozysdk.InitializeResponse
 		decodeResult(t, initialize.Result, &initResult)
 		if !contains(initResult.ImplementedMethods, "watch/poll") {
 			t.Fatalf("implemented methods = %#v, want watch/poll", initResult.ImplementedMethods)
@@ -448,7 +448,7 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 		if call.Error != nil {
 			t.Fatalf("watch/poll error = %#v", call.Error)
 		}
-		var pollResult aghsdk.WatchPollResponse
+		var pollResult compozysdk.WatchPollResponse
 		decodeResult(t, call.Result, &pollResult)
 		if !pollResult.Ready || pollResult.StateDigest != "sha256:next" {
 			t.Fatalf("watch poll result = %#v, want ready sha256:next", pollResult)
@@ -489,14 +489,14 @@ func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	writeText(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/agh-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
+		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
 	)
 	writeText(t, filepath.Join(dir, "main.go"), `package main
 
 import (
 	"context"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 type input struct {
@@ -504,12 +504,12 @@ type input struct {
 }
 
 func main() {
-	extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{Name: "consumer", Version: "0.1.0"})
-	if err := aghsdk.Tool[input](extension, "search", aghsdk.ToolOptions{
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "consumer", Version: "0.1.0"})
+	if err := compozysdk.Tool[input](extension, "search", compozysdk.ToolOptions{
 		ReadOnly: true,
 		InputSchema: map[string]any{"type": "object"},
-	}, func(context.Context, aghsdk.ToolRequest[input]) (aghsdk.ToolResult, error) {
-		return aghsdk.TextResult("ok"), nil
+	}, func(context.Context, compozysdk.ToolRequest[input]) (compozysdk.ToolResult, error) {
+		return compozysdk.TextResult("ok"), nil
 	}); err != nil {
 		panic(err)
 	}
@@ -539,22 +539,22 @@ func main() {
 	}
 }
 
-func newTestExtension() *aghsdk.Extension {
-	return aghsdk.NewExtension(
-		aghsdk.ExtensionDefinition{Name: "test-extension", Version: "0.1.0"},
-		aghsdk.WithStderr(io.Discard),
+func newTestExtension() *compozysdk.Extension {
+	return compozysdk.NewExtension(
+		compozysdk.ExtensionDefinition{Name: "test-extension", Version: "0.1.0"},
+		compozysdk.WithStderr(io.Discard),
 	)
 }
 
-func validToolOptions() aghsdk.ToolOptions {
-	return aghsdk.ToolOptions{
+func validToolOptions() compozysdk.ToolOptions {
+	return compozysdk.ToolOptions{
 		ReadOnly:    true,
 		InputSchema: map[string]any{"type": "object"},
 	}
 }
 
-func rawOKHandler(context.Context, aghsdk.ToolRequest[json.RawMessage]) (aghsdk.ToolResult, error) {
-	return aghsdk.EmptyResult(), nil
+func rawOKHandler(context.Context, compozysdk.ToolRequest[json.RawMessage]) (compozysdk.ToolResult, error) {
+	return compozysdk.EmptyResult(), nil
 }
 
 func readDigestFixtures(t *testing.T) []digestFixture {
@@ -579,7 +579,7 @@ type recordingTransport struct {
 	rawResult json.RawMessage
 }
 
-func (t *recordingTransport) Handle(string, aghsdk.TransportHandler) {}
+func (t *recordingTransport) Handle(string, compozysdk.TransportHandler) {}
 
 func (t *recordingTransport) Call(_ context.Context, _ string, _ any, result any) error {
 	t.calls++
@@ -600,10 +600,10 @@ func (t *recordingTransport) Close() error {
 }
 
 type rpcResponse struct {
-	JSONRPC string                     `json:"jsonrpc"`
-	ID      int                        `json:"id"`
-	Result  json.RawMessage            `json:"result,omitempty"`
-	Error   *aghsdk.JSONRPCErrorObject `json:"error,omitempty"`
+	JSONRPC string                         `json:"jsonrpc"`
+	ID      int                            `json:"id"`
+	Result  json.RawMessage                `json:"result,omitempty"`
+	Error   *compozysdk.JSONRPCErrorObject `json:"error,omitempty"`
 }
 
 type runtimeHarness struct {
@@ -664,7 +664,7 @@ func initializeParams(name string) map[string]any {
 	return map[string]any{
 		"protocol_version":            "1",
 		"supported_protocol_versions": []string{"1"},
-		"agh_version":                 "0.5.0",
+		"compozy_version":             "0.5.0",
 		"session_nonce":               "nonce",
 		"extension": map[string]any{
 			"name":        name,

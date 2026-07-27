@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -300,7 +300,7 @@ func TestWindowManagerWorkspaceConfigRuntime(t *testing.T) {
 		}
 		writeDaemonWindowManagerConfig(
 			t,
-			filepath.Join(workspaceARoot, aghconfig.DirName, aghconfig.ConfigName),
+			filepath.Join(workspaceARoot, compozyconfig.DirName, compozyconfig.ConfigName),
 			"[window_manager]\nnew_window_policy = \"beside_focus\"\n",
 		)
 		writeDaemonWindowManagerConfig(

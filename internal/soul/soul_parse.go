@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/frontmatter"
 	yaml "github.com/goccy/go-yaml"
@@ -15,7 +15,7 @@ import (
 
 func parseDocument(
 	content []byte,
-	cfg aghconfig.SoulConfig,
+	cfg compozyconfig.SoulConfig,
 	sourcePath string,
 ) (Frontmatter, string, int, []Diagnostic) {
 	normalized := normalizeLineEndings(content)

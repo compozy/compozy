@@ -26,8 +26,8 @@ import (
 	"github.com/compozy/compozy/internal/api/udsapi"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/memory"
@@ -441,7 +441,7 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
-	h.runner.cfg.Providers["fake-alt"] = aghconfig.ProviderConfig{Command: "fake-alt-agent"}
+	h.runner.cfg.Providers["fake-alt"] = compozyconfig.ProviderConfig{Command: "fake-alt-agent"}
 
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	defer func() {
@@ -1005,7 +1005,8 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if len(inbox) == 0 {
 		t.Fatal("network inbox = empty, want queued message while prompt is blocked")
 	}
-	if string(inbox[0].Ext["compozy.workflow_id"]) != `"wf-1"` || string(inbox[0].Ext["compozy.handoff_version"]) != `3` {
+	if string(inbox[0].Ext["compozy.workflow_id"]) != `"wf-1"` ||
+		string(inbox[0].Ext["compozy.handoff_version"]) != `3` {
 		t.Fatalf("network inbox = %#v, want workflow metadata", inbox)
 	}
 
@@ -2146,7 +2147,7 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		"--network-channel",
 		"builders",
 		"--metadata",
-		`{"schema":"agh.harness.detached.v1"}`,
+		`{"schema":"compozy.harness.detached.v1"}`,
 		"-o",
 		"json",
 	)
@@ -2233,7 +2234,7 @@ func assertDetachedHarnessMetadata(t *testing.T, label string, metadata json.Raw
 	if err := json.Unmarshal(metadata, &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(%s) error = %v; metadata=%s", label, err, string(metadata))
 	}
-	if got, want := decoded["schema"], "agh.harness.detached.v1"; got != want || len(decoded) != 1 {
+	if got, want := decoded["schema"], "compozy.harness.detached.v1"; got != want || len(decoded) != 1 {
 		t.Fatalf("%s = %#v, want schema %q only", label, decoded, want)
 	}
 }
@@ -2319,82 +2320,89 @@ func TestCLIHistoricalChannelTaskLeaseAfterDaemonRestartIntegration(t *testing.T
 	}
 
 	var worker SessionRecord
-	t.Run("Should claim and complete the historical run through one agent lease after daemon restart", func(t *testing.T) {
-		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-			t.Fatalf("daemon stop before restart error = %v", err)
-		}
-		if err := h.runner.waitForExit(); err != nil {
-			t.Fatalf("waitForExit(before restart) error = %v", err)
-		}
-		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	t.Run(
+		"Should claim and complete the historical run through one agent lease after daemon restart",
+		func(t *testing.T) {
+			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+				t.Fatalf("daemon stop before restart error = %v", err)
+			}
+			if err := h.runner.waitForExit(); err != nil {
+				t.Fatalf("waitForExit(before restart) error = %v", err)
+			}
+			mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 
-		agentDeps, claimedWorker := newIntegrationAgentCommandDeps(
-			t,
-			h,
-			"history-lease-worker",
-			"alpha",
-			channel,
-		)
-		worker = claimedWorker
-		claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
-		var next AgentTaskNextRecord
-		if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
-			t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
-		}
-		if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
-			next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
-			resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("task next = %#v, want exact claimed historical run", next)
-		}
+			agentDeps, claimedWorker := newIntegrationAgentCommandDeps(
+				t,
+				h,
+				"history-lease-worker",
+				"alpha",
+				channel,
+			)
+			worker = claimedWorker
+			claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+			var next AgentTaskNextRecord
+			if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+				t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
+			}
+			if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+				next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
+				resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
+				t.Fatalf("task next = %#v, want exact claimed historical run", next)
+			}
 
-		getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
-		var detail TaskDetailRecord
-		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
-			t.Fatalf("json.Unmarshal(task get) error = %v", err)
-		}
-		if detail.Task.Status != taskpkg.TaskStatusReady {
-			t.Fatalf("detail.Task.Status = %q, want %q while the lease is claimed", detail.Task.Status, taskpkg.TaskStatusReady)
-		}
-		if got, want := len(detail.Runs), 1; got != want {
-			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
-		}
-		if detail.Runs[0].SessionID != worker.ID ||
-			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
-			t.Fatalf("detail.Runs[0] = %#v, want claimed historical lease persisted", detail.Runs[0])
-		}
+			getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
+			var detail TaskDetailRecord
+			if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
+				t.Fatalf("json.Unmarshal(task get) error = %v", err)
+			}
+			if detail.Task.Status != taskpkg.TaskStatusReady {
+				t.Fatalf(
+					"detail.Task.Status = %q, want %q while the lease is claimed",
+					detail.Task.Status,
+					taskpkg.TaskStatusReady,
+				)
+			}
+			if got, want := len(detail.Runs), 1; got != want {
+				t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
+			}
+			if detail.Runs[0].SessionID != worker.ID ||
+				resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
+				t.Fatalf("detail.Runs[0] = %#v, want claimed historical lease persisted", detail.Runs[0])
+			}
 
-		completeOut := mustExecuteRoot(
-			t,
-			agentDeps,
-			"task",
-			"complete",
-			enqueued.ID,
-			"--result",
-			`{"ok":true,"path":"cli-historical-run-start-restart"}`,
-			"-o",
-			"json",
-		)
-		var completed AgentTaskLeaseRecord
-		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-			t.Fatalf("json.Unmarshal(task complete) error = %v", err)
-		}
-		if completed.Status != taskpkg.TaskRunStatusCompleted ||
-			completed.RunID != enqueued.ID ||
-			completed.SessionID != worker.ID ||
-			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
-			t.Fatalf("completed = %#v, want completed historical lease", completed)
-		}
+			completeOut := mustExecuteRoot(
+				t,
+				agentDeps,
+				"task",
+				"complete",
+				enqueued.ID,
+				"--result",
+				`{"ok":true,"path":"cli-historical-run-start-restart"}`,
+				"-o",
+				"json",
+			)
+			var completed AgentTaskLeaseRecord
+			if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
+				t.Fatalf("json.Unmarshal(task complete) error = %v", err)
+			}
+			if completed.Status != taskpkg.TaskRunStatusCompleted ||
+				completed.RunID != enqueued.ID ||
+				completed.SessionID != worker.ID ||
+				resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
+				t.Fatalf("completed = %#v, want completed historical lease", completed)
+			}
 
-		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
-		var stoppedWorker SessionRecord
-		if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
-			t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
-		}
-		if stoppedWorker.State != session.StateStopped {
-			t.Fatalf("stopped worker = %#v, want stopped", stoppedWorker)
-		}
+			stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+			var stoppedWorker SessionRecord
+			if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
+				t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
+			}
+			if stoppedWorker.State != session.StateStopped {
+				t.Fatalf("stopped worker = %#v, want stopped", stoppedWorker)
+			}
 
-	})
+		},
+	)
 
 	t.Run("Should persist the completed manual run and leave no active sessions", func(t *testing.T) {
 		getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
@@ -3005,7 +3013,7 @@ func assertNoActiveSessions(t *testing.T, deps commandDeps) {
 
 type integrationHarness struct {
 	deps      commandDeps
-	homePaths aghconfig.HomePaths
+	homePaths compozyconfig.HomePaths
 	workspace string
 	runner    *integrationDaemon
 }
@@ -3085,8 +3093,8 @@ func (integrationSoulRunActivityChecker) HasActiveRunForSession(context.Context,
 
 type integrationDaemon struct {
 	t         *testing.T
-	homePaths aghconfig.HomePaths
-	cfg       aghconfig.Config
+	homePaths compozyconfig.HomePaths
+	cfg       compozyconfig.Config
 	pid       int
 	startedAt time.Time
 
@@ -3120,7 +3128,7 @@ func (d *integrationDaemon) extensionMarketplaceLoader() extensionpkg.Marketplac
 }
 
 type integrationExtensionService struct {
-	homePaths                        aghconfig.HomePaths
+	homePaths                        compozyconfig.HomePaths
 	registry                         *extensionpkg.Registry
 	manager                          *extensionpkg.Manager
 	marketplaceLoader                extensionpkg.MarketplaceSourceLoader
@@ -3576,21 +3584,21 @@ func (b *lockedBuffer) String() string {
 func newIntegrationHarness(t *testing.T) integrationHarness {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	socketPath := shortSocketPath(t)
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	workspace := t.TempDir()
 	writeAgentDef(t, homePaths, "coder")
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 	cfg.Network.Enabled = true
-	cfg.Providers = map[string]aghconfig.ProviderConfig{
+	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
 
@@ -3603,18 +3611,18 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 	}
 
 	deps := commandDeps{
-		loadConfig: func() (aghconfig.Config, error) {
+		loadConfig: func() (compozyconfig.Config, error) {
 			return cfg, nil
 		},
-		resolveHome: func() (aghconfig.HomePaths, error) {
+		resolveHome: func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		},
-		ensureHome: aghconfig.EnsureHomeLayout,
+		ensureHome: compozyconfig.EnsureHomeLayout,
 		newClient:  NewClient,
 		newDaemon: func() (daemonRunner, error) {
 			return runner, nil
 		},
-		readDaemonInfo: aghdaemon.ReadInfo,
+		readDaemonInfo: compozydaemon.ReadInfo,
 		signalProcess:  runner.signalProcess,
 		processAlive:   runner.processAlive,
 		processMatchesStartTime: func(pid int, startedAt time.Time) bool {
@@ -3630,7 +3638,7 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 		pollInterval: 10 * time.Millisecond,
 		startTimeout: 5 * time.Second,
 		stopTimeout:  5 * time.Second,
-		spawnDetached: func(context.Context, aghconfig.HomePaths) (daemonProcess, error) {
+		spawnDetached: func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
 			return runner.spawnDetached()
 		},
 	}
@@ -3717,7 +3725,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		registry,
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return d.cfg, nil }),
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return d.cfg, nil }),
 	)
 	if err != nil {
 		return fmt.Errorf("new workspace resolver: %w", err)
@@ -3928,7 +3936,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		}
 		joinRunError("shutdown network manager", networkManager.Shutdown(shutdownCtx))
 		joinRunError("shutdown UDS server", server.Shutdown(shutdownCtx))
-		joinRunError("remove daemon info", aghdaemon.RemoveInfo(d.homePaths.DaemonInfo))
+		joinRunError("remove daemon info", compozydaemon.RemoveInfo(d.homePaths.DaemonInfo))
 		d.mu.Lock()
 		d.bridges = nil
 		d.manager = nil
@@ -3936,7 +3944,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		d.mu.Unlock()
 	}()
 
-	if err := aghdaemon.WriteInfo(d.homePaths.DaemonInfo, aghdaemon.Info{
+	if err := compozydaemon.WriteInfo(d.homePaths.DaemonInfo, compozydaemon.Info{
 		PID:       d.pid,
 		Port:      d.cfg.HTTP.Port,
 		StartedAt: d.startedAt,
@@ -4248,7 +4256,7 @@ func discardLogger() *slog.Logger {
 func shortSocketPath(t *testing.T) string {
 	t.Helper()
 
-	root, err := os.MkdirTemp(os.TempDir(), "aghc-")
+	root, err := os.MkdirTemp(os.TempDir(), "compozyc-")
 	if err != nil {
 		t.Fatalf("os.MkdirTemp() error = %v", err)
 	}
@@ -4258,7 +4266,7 @@ func shortSocketPath(t *testing.T) string {
 	return filepath.Join(root, "daemon.sock")
 }
 
-func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
+func writeAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string) {
 	t.Helper()
 
 	agentDir := filepath.Join(homePaths.AgentsDir, name)
@@ -4268,7 +4276,7 @@ func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
 func writeWorkspaceAgentDef(t *testing.T, root string, name string) {
 	t.Helper()
 
-	agentDir := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name)
+	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, name)
 	writeAgentDefInDir(t, agentDir, name)
 }
 

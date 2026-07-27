@@ -1004,7 +1004,7 @@ name = "bot_token"
 description = "Bot API token"
 required = true
 `,
-			bridgeConfigSchema:  "agh.bridge.telegram",
+			bridgeConfigSchema:  "compozy.bridge.telegram",
 			bridgeConfigVersion: "v1",
 			enabled:             true,
 		})
@@ -1054,7 +1054,7 @@ required = true
 		if providers[0].ConfigSchema == nil {
 			t.Fatal("provider config schema = nil, want value")
 		}
-		if got, want := providers[0].ConfigSchema.Schema, "agh.bridge.telegram"; got != want {
+		if got, want := providers[0].ConfigSchema.Schema, "compozy.bridge.telegram"; got != want {
 			t.Fatalf("provider config schema id = %q, want %q", got, want)
 		}
 		if got, want := providers[0].ConfigSchema.Version, "v1"; got != want {

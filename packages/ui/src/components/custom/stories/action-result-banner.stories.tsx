@@ -12,7 +12,7 @@ const meta: Meta<typeof ActionResultBanner> = {
     docs: {
       description: {
         component:
-          "Compact result banner used after a destructive or asynchronous action completes. Tones map to the desaturated AGH signal palette (success / warning / danger / info / neutral) and render at 6–10% tint.",
+          "Compact result banner used after a destructive or asynchronous action completes. Tones map to the desaturated Compozy signal palette (success / warning / danger / info / neutral) and render at 6–10% tint.",
       },
     },
   },

@@ -53,17 +53,17 @@ func appendInboundNetworkContext(
 	}
 	lines = append(
 		lines,
-		"AGH Network Channel: "+ref.Channel,
-		"AGH Network Surface: "+string(ref.Surface),
+		"Compozy Network Channel: "+ref.Channel,
+		"Compozy Network Surface: "+string(ref.Surface),
 	)
 	switch ref.Surface {
 	case bridgepkg.NetworkConversationSurfaceThread:
-		lines = append(lines, "AGH Thread ID: "+ref.ThreadID)
+		lines = append(lines, "Compozy Thread ID: "+ref.ThreadID)
 	case bridgepkg.NetworkConversationSurfaceDirect:
-		lines = append(lines, "AGH Direct ID: "+ref.DirectID)
+		lines = append(lines, "Compozy Direct ID: "+ref.DirectID)
 	}
 	if workID := strings.TrimSpace(ref.WorkID); workID != "" {
-		lines = append(lines, "AGH Work ID: "+workID)
+		lines = append(lines, "Compozy Work ID: "+workID)
 	}
 	return lines
 }

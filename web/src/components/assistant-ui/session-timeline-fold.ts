@@ -130,7 +130,7 @@ function foldTurnGroup(
 // Permission rows remain operator-visible audit and decision surfaces after a
 // turn settles; they are not transient reasoning or tool work.
 function isPersistentTurnRow(row: SessionRow): boolean {
-  return row.kind === "data" && row.part.name === "data-agh-permission";
+  return row.kind === "data" && row.part.name === "data-compozy-permission";
 }
 
 // Label fallbacks: a settled turn folds even when its duration is unknown, and

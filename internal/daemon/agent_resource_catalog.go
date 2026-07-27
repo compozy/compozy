@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -57,7 +57,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		return nil
 	}
 	records := c.catalog.Snapshot()
-	slices.SortFunc(records, func(left, right resources.Record[aghconfig.AgentDef]) int {
+	slices.SortFunc(records, func(left, right resources.Record[compozyconfig.AgentDef]) int {
 		return strings.Compare(agentRecordSortKey(left), agentRecordSortKey(right))
 	})
 	merged := make(map[string]core.AgentCatalogEntry)

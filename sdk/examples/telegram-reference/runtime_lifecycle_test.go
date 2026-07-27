@@ -172,7 +172,7 @@ func TestTelegramReferenceSideEffectAppend(t *testing.T) {
 		resetTelegramRuntimeSideEffectSnapshots()
 		t.Cleanup(resetTelegramRuntimeSideEffectSnapshots)
 
-		jsonlPath := filepath.Join(tempSideEffectDir(t, "agh-telegram-reference-side-effect-"), "data.jsonl")
+		jsonlPath := filepath.Join(tempSideEffectDir(t, "compozy-telegram-reference-side-effect-"), "data.jsonl")
 		if err := os.MkdirAll(filepath.Dir(jsonlPath), 0o700); err != nil {
 			t.Fatalf("os.MkdirAll(jsonl dir) error = %v", err)
 		}

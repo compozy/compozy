@@ -327,8 +327,8 @@ func TestEscapeJSX(t *testing.T) {
 		},
 		{
 			name: "escapes curly braces in text",
-			raw:  `use "${fpath[1]}/_agh" format`,
-			want: `use "$\{fpath[1]}/_agh" format`,
+			raw:  `use "${fpath[1]}/_compozy" format`,
+			want: `use "$\{fpath[1]}/_compozy" format`,
 		},
 		{
 			name: "preserves curly braces in inline code",
@@ -860,7 +860,7 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 	dstDir := filepath.Join(t.TempDir(), "nested", "deep", "output")
 
 	// Write a minimal .md file so Process has something to work on.
-	content := "## compozy\n\nAGH agent OS\n"
+	content := "## compozy\n\nCompozy agent OS\n"
 	if err := os.WriteFile(filepath.Join(srcDir, "compozy.md"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -887,7 +887,7 @@ func TestProcessRejectsNonManagedOutputDir(t *testing.T) {
 
 	if err := os.WriteFile(
 		filepath.Join(srcDir, "compozy.md"),
-		[]byte("## compozy\n\nAGH agent OS\n"),
+		[]byte("## compozy\n\nCompozy agent OS\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("write source file: %v", err)
@@ -918,7 +918,7 @@ func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
 
 	srcDir := t.TempDir()
 	dstDir := filepath.Join(t.TempDir(), "output")
-	content := "## compozy\n\nAGH agent OS\n"
+	content := "## compozy\n\nCompozy agent OS\n"
 	if err := os.WriteFile(filepath.Join(srcDir, "compozy.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write source file: %v", err)
 	}
@@ -939,7 +939,7 @@ func TestProcessAllowsManagedRootFilesAndDirs(t *testing.T) {
 
 	if err := os.WriteFile(
 		filepath.Join(srcDir, "compozy.md"),
-		[]byte("## compozy\n\nAGH agent OS\n"),
+		[]byte("## compozy\n\nCompozy agent OS\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("write source file: %v", err)
@@ -996,7 +996,7 @@ func TestProcess_StopsWhenContextCanceled(t *testing.T) {
 	dstDir := filepath.Join(t.TempDir(), "output")
 	if err := os.WriteFile(
 		filepath.Join(srcDir, "compozy.md"),
-		[]byte("## compozy\n\nAGH agent OS\n"),
+		[]byte("## compozy\n\nCompozy agent OS\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("write source file: %v", err)

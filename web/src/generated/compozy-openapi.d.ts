@@ -40148,7 +40148,7 @@ export interface operations {
         content: {
           "application/json": {
             data: {
-              agh: {
+              compozy: {
                 availability_state: string;
                 available: boolean | null;
                 /** Format: int64 */
@@ -80195,9 +80195,9 @@ export interface operations {
       query?: never;
       header: {
         /** @description Signed webhook timestamp */
-        "X-AGH-Webhook-Timestamp": string;
+        "X-Compozy-Webhook-Timestamp": string;
         /** @description Signed webhook HMAC signature */
-        "X-AGH-Webhook-Signature": string;
+        "X-Compozy-Webhook-Signature": string;
       };
       path: {
         /** @description Webhook endpoint slug and id */
@@ -80445,9 +80445,9 @@ export interface operations {
       query?: never;
       header: {
         /** @description Signed webhook timestamp */
-        "X-AGH-Webhook-Timestamp": string;
+        "X-Compozy-Webhook-Timestamp": string;
         /** @description Signed webhook HMAC signature */
-        "X-AGH-Webhook-Signature": string;
+        "X-Compozy-Webhook-Signature": string;
       };
       path: {
         /** @description Workspace id */

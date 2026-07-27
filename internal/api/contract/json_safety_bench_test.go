@@ -76,7 +76,7 @@ func jsonSafetyBenchmarkPayload() map[string]any {
 		},
 		"workspace": map[string]any{
 			"id":       "workspace-1",
-			"root_dir": "/workspace/agh",
+			"root_dir": "/workspace/compozy",
 		},
 		"sections": sections,
 		"metadata": map[string]any{

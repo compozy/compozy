@@ -16,7 +16,7 @@ import { skillFixtures } from "@/systems/skill/mocks";
 const gitFlowSkill = {
   ...skillFixtures[0]!,
   name: "git-flow",
-  dir: "/opt/agh/skills/git-flow",
+  dir: "/opt/compozy/skills/git-flow",
   version: "1.4.2",
   metadata: {
     ...skillFixtures[0]!.metadata,
@@ -51,20 +51,20 @@ const gitFlowShadows = {
   name: "git-flow",
   winner: {
     detected_at: "2026-04-17T16:41:00Z",
-    path: "/opt/agh/skills/git-flow/SKILL.md",
+    path: "/opt/compozy/skills/git-flow/SKILL.md",
     resolved_to_winner: true,
     tier: "workspace",
   },
   shadows: [
     {
       detected_at: "2026-04-17T16:41:00Z",
-      path: "/opt/agh/skills/git-flow/SKILL.md",
+      path: "/opt/compozy/skills/git-flow/SKILL.md",
       resolved_to_winner: true,
       tier: "workspace",
     },
     {
       detected_at: "2026-04-17T16:42:00Z",
-      path: "/opt/agh/marketplace/git-flow/SKILL.md",
+      path: "/opt/compozy/marketplace/git-flow/SKILL.md",
       resolved_to_winner: false,
       tier: "marketplace",
     },

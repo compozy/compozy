@@ -22,7 +22,7 @@ description = "Optional Telegram webhook secret token"
 required = false
 
 [bridge.config_schema]
-schema = "agh.bridge.telegram"
+schema = "compozy.bridge.telegram"
 version = "1"
 
 [actions]

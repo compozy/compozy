@@ -4,7 +4,7 @@ import (
 	"context"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -26,7 +26,7 @@ type daemonNativeSkillsRegistry interface {
 	ForAgentDefSession(
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		sessionID string,
 	) ([]*skillspkg.Skill, error)
 }
@@ -34,7 +34,7 @@ type daemonNativeSkillsRegistry interface {
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
 	ToolArtifacts              toolspkg.ToolArtifactStore
-	Config                     aghconfig.Config
+	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
 	Workspaces                 core.WorkspaceService
@@ -55,7 +55,7 @@ type daemonNativeToolsDeps struct {
 	MemoryProviders            core.MemoryProviderService
 	MemorySessionLedger        core.MemorySessionLedgerService
 	Bridges                    core.BridgeService
-	HomePaths                  aghconfig.HomePaths
+	HomePaths                  compozyconfig.HomePaths
 	Observer                   core.Observer
 	HookBindings               hookBindingPublisher
 	AgentCatalog               core.AgentCatalog
@@ -68,7 +68,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionRegistry          *extensionpkg.Registry
 	Extensions                 func() core.ExtensionService
 	ExtensionRuntime           func() extensionRuntime
-	ExtensionMarket            aghconfig.ExtensionsMarketplaceConfig
+	ExtensionMarket            compozyconfig.ExtensionsMarketplaceConfig
 	ExtensionSources           extensionMarketplaceSourceLoader
 	ExtensionEvents            store.EventSummaryStore
 	AgentSkills                agentSkillPublisher

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
@@ -71,8 +71,8 @@ type handlerConfig struct {
 	memoryLedger       core.MemorySessionLedgerService
 	runtimeMemory      doctor.RuntimeMemorySnapshotSource
 	deadEntities       doctor.DeadEntitySource
-	homePaths          aghconfig.HomePaths
-	config             aghconfig.Config
+	homePaths          compozyconfig.HomePaths
+	config             compozyconfig.Config
 	logger             *slog.Logger
 	startedAt          time.Time
 	now                func() time.Time

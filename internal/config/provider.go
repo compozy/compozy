@@ -76,7 +76,7 @@ const (
 	ProviderAuthModeNativeCLI ProviderAuthMode = "native_cli"
 	// ProviderAuthModeBoundSecret injects explicitly configured credential slots at launch.
 	ProviderAuthModeBoundSecret ProviderAuthMode = "bound_secret"
-	// ProviderAuthModeNone launches the provider without AGH-managed credentials.
+	// ProviderAuthModeNone launches the provider without Compozy-managed credentials.
 	ProviderAuthModeNone ProviderAuthMode = "none"
 )
 
@@ -96,7 +96,7 @@ type ProviderHomePolicy string
 const (
 	// ProviderHomePolicyOperator lets native CLIs read their existing operator login state.
 	ProviderHomePolicyOperator ProviderHomePolicy = "operator"
-	// ProviderHomePolicyIsolated points native CLIs at an AGH-owned provider home.
+	// ProviderHomePolicyIsolated points native CLIs at an Compozy-owned provider home.
 	ProviderHomePolicyIsolated ProviderHomePolicy = "isolated"
 )
 
@@ -159,7 +159,7 @@ type ProviderConfig struct {
 	MCPServers      []MCPServer              `toml:"mcp_servers,omitempty"`
 }
 
-// MCPServerTransport identifies how AGH reaches an MCP server.
+// MCPServerTransport identifies how Compozy reaches an MCP server.
 type MCPServerTransport string
 
 const (

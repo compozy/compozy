@@ -16,7 +16,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -1366,7 +1366,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				}},
 				Agents: []BundleAgent{{
 					Path: "agents/coder",
-					Agent: aghconfig.AgentDef{
+					Agent: compozyconfig.AgentDef{
 						Name:       "coder",
 						Provider:   "codex",
 						Tools:      []string{"read"},

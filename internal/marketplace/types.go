@@ -1,4 +1,4 @@
-// Package marketplace owns AGH-curated discovery feeds and their durable projection.
+// Package marketplace owns Compozy-curated discovery feeds and their durable projection.
 package marketplace
 
 import (

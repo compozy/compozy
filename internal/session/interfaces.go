@@ -1,4 +1,4 @@
-// Package session orchestrates AGH session lifecycle around ACP-backed agents.
+// Package session orchestrates Compozy session lifecycle around ACP-backed agents.
 package session
 
 import (
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -97,7 +97,7 @@ type LedgerMaterializer interface {
 
 // AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
 type AgentArtifacts struct {
-	Agent               aghconfig.AgentDef
+	Agent               compozyconfig.AgentDef
 	ResourceID          string
 	OwnerKind           string
 	OwnerID             string
@@ -395,12 +395,16 @@ type AgentEventNotifier interface {
 
 // PromptAssembler assembles the prompt context for a new session start.
 type PromptAssembler interface {
-	Assemble(ctx context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error)
+	Assemble(
+		ctx context.Context,
+		agent compozyconfig.AgentDef,
+		workspace *workspacepkg.ResolvedWorkspace,
+	) (string, error)
 }
 
 // AgentResolver resolves agent definitions from the daemon-authoritative catalog.
 type AgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
 // SkillRegistry resolves the active skill set for a workspace during session start.
@@ -409,89 +413,11 @@ type SkillRegistry interface {
 	ForAgentDef(
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 	) ([]*skillspkg.Skill, error)
 }
 
 // MCPResolver resolves skill-declared MCP servers into runtime config entries.
 type MCPResolver interface {
-	Resolve(skills []*skillspkg.Skill) []aghconfig.MCPServer
-}
-
-// ACPDriverAdapter adapts the concrete ACP driver to the session-local interface.
-type ACPDriverAdapter struct {
-	driver *acp.Driver
-}
-
-var _ AgentDriver = (*ACPDriverAdapter)(nil)
-var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
-
-// NewACPDriverAdapter wraps the provided ACP driver for use by the session manager.
-func NewACPDriverAdapter(driver *acp.Driver) *ACPDriverAdapter {
-	return &ACPDriverAdapter{driver: driver}
-}
-
-// Start launches a new ACP-backed runtime process.
-func (a *ACPDriverAdapter) Start(ctx context.Context, opts acp.StartOpts) (*AgentProcess, error) {
-	proc, err := a.driver.Start(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	return wrapACPProcess(proc), nil
-}
-
-// Prompt streams prompt events from the wrapped ACP runtime.
-func (a *ACPDriverAdapter) Prompt(
-	ctx context.Context,
-	proc *AgentProcess,
-	req acp.PromptRequest,
-) (<-chan acp.AgentEvent, error) {
-	native, err := a.nativeProcess(proc)
-	if err != nil {
-		return nil, err
-	}
-	return a.driver.Prompt(ctx, native, req)
-}
-
-// Cancel lets higher layers stop prompt work without bypassing ACP-owned lifecycle handling.
-func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error {
-	native, err := a.nativeProcess(proc)
-	if err != nil {
-		return err
-	}
-	return a.driver.Cancel(ctx, native)
-}
-
-// Interrupt signals only registered tool processes scoped to the session turn.
-func (a *ACPDriverAdapter) Interrupt(
-	ctx context.Context,
-	sessionID string,
-	turnID string,
-) (toolruntime.InterruptReport, error) {
-	return a.driver.Interrupt(ctx, toolruntime.InterruptScope{
-		SessionID: sessionID,
-		TurnID:    turnID,
-		Reason:    "prompt canceled",
-	})
-}
-
-// Stop stops the wrapped ACP runtime process.
-func (a *ACPDriverAdapter) Stop(ctx context.Context, proc *AgentProcess) error {
-	native, err := a.nativeProcess(proc)
-	if err != nil {
-		return err
-	}
-	return a.driver.Stop(ctx, native)
-}
-
-func (a *ACPDriverAdapter) nativeProcess(proc *AgentProcess) (*acp.AgentProcess, error) {
-	if proc == nil {
-		return nil, errors.New("session: agent process is required")
-	}
-
-	native, ok := proc.native.(*acp.AgentProcess)
-	if !ok || native == nil {
-		return nil, errors.New("session: unsupported agent process implementation")
-	}
-	return native, nil
+	Resolve(skills []*skillspkg.Skill) []compozyconfig.MCPServer
 }

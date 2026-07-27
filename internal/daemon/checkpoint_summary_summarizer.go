@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 )
@@ -57,7 +57,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		AgentName:   strings.TrimSpace(request.AgentName),
 	}
 	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
-	role, err := s.roles.Resolve(roleCtx, request.WorkspaceID, aghconfig.RoleCheckpointSummary)
+	role, err := s.roles.Resolve(roleCtx, request.WorkspaceID, compozyconfig.RoleCheckpointSummary)
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve checkpoint summary role: %w", err)
 	}
@@ -73,13 +73,14 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
 		created, createErr := s.sessions.Create(attemptCtx, session.CreateOpts{
-			AgentName:       route.AgentName,
-			Provider:        route.Provider,
-			Model:           route.Model,
-			ReasoningEffort: route.ReasoningEffort,
-			Name:            checkpointSummarySessionName,
-			Workspace:       strings.TrimSpace(request.WorkspaceRoot),
-			Type:            session.SessionTypeDream,
+			AgentName:           route.AgentName,
+			Provider:            route.Provider,
+			Model:               route.Model,
+			ReasoningEffort:     route.ReasoningEffort,
+			Name:                checkpointSummarySessionName,
+			Workspace:           strings.TrimSpace(request.WorkspaceRoot),
+			Type:                session.SessionTypeDream,
+			DiscardStartFailure: true,
 		})
 		return created, created != nil, createErr
 	})

@@ -40,7 +40,7 @@ import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures
 
 test.describe("Marketplace acquisition", () => {
   const skillEntryID = "browser-marketplace-skill";
-  const skillSlug = "@agh/browser-marketplace-skill";
+  const skillSlug = "@compozy/browser-marketplace-skill";
   const mcpEntryID = "browser-guided-mcp";
   const extensionEntryID = "browser-blocked-extension";
   const bundleExtensionName = "browser-marketplace-bundles";
@@ -59,14 +59,14 @@ test.describe("Marketplace acquisition", () => {
         marketplaceCatalog: {
           extensions: [
             {
-              artifact_url: `https://github.com/compozy/agh/releases/download/v1.0.0/${extensionEntryID}.tar.gz`,
-              author: "agh",
+              artifact_url: `https://github.com/compozy/compozy/releases/download/v1.0.0/${extensionEntryID}.tar.gz`,
+              author: "compozy",
               description: "An unverified extension blocked by the live side-load policy.",
               digest_sha256: "a".repeat(64),
               entry_id: extensionEntryID,
-              install_slug: `agh/${extensionEntryID}`,
+              install_slug: `compozy/${extensionEntryID}`,
               name: extensionEntryID,
-              repository: "https://github.com/compozy/agh",
+              repository: "https://github.com/compozy/compozy",
               tier: "unverified",
               version: "1.0.0",
             },
@@ -99,7 +99,7 @@ test.describe("Marketplace acquisition", () => {
           ],
           skills: [
             {
-              author: "agh",
+              author: "compozy",
               description: "A one-click skill installed from the local ClawHub fixture.",
               display_name: "Browser marketplace skill",
               entry_id: skillEntryID,
@@ -113,7 +113,7 @@ test.describe("Marketplace acquisition", () => {
         skillMarketplace: {
           listings: [
             {
-              author: "agh",
+              author: "compozy",
               description: "A one-click skill installed from the local ClawHub fixture.",
               downloads: 42,
               license: "MIT",
@@ -444,6 +444,8 @@ test.describe("Marketplace acquisition", () => {
       .toContain("/marketplace/extensions?tab=installed");
     await expect(installedCard(bundleExtensionName)).toBeHidden();
 
+    await marketplaceWin.getByRole("button", { name: "Close window" }).click();
+    await expect(marketplaceWin).toBeHidden();
     await appPage.goto(runtime.url("/settings/extensions"), { waitUntil: "domcontentloaded" });
     await expect(appPage.getByTestId("settings-page-extensions")).toBeVisible({ timeout: 20_000 });
     const allowUnverified = appPage.getByRole("switch", {
@@ -508,7 +510,7 @@ test.describe("Marketplace acquisition", () => {
   }
 
   async function createMarketplaceBundleExtension(): Promise<MarketplaceBundleExtensionFixture> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-marketplace-bundle-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-marketplace-bundle-"));
     const bundlesDir = path.join(rootDir, "bundles");
     await mkdir(bundlesDir, { recursive: true });
     await writeFile(
@@ -534,7 +536,7 @@ test.describe("Marketplace acquisition", () => {
   }
 
   async function createToggleExtension(): Promise<string> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-marketplace-toggle-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-marketplace-toggle-"));
     await writeFile(
       path.join(rootDir, "extension.json"),
       JSON.stringify(
@@ -644,6 +646,7 @@ test.describe("Skills marketplace management", () => {
   }
 
   interface DiagnosticsRecord {
+    compozy_session_id?: string;
     lifecycle_event?: string;
     prompt: string;
     prompt_index: number;
@@ -671,11 +674,11 @@ test.describe("Skills marketplace management", () => {
         skillMarketplace: {
           listings: [
             {
-              author: "agh",
+              author: "compozy",
               description: "Marketplace metadata visible through the daemon catalog.",
               downloads: 7,
               name: marketplaceSkillName,
-              slug: "@agh/browser-marketplace-skill",
+              slug: "@compozy/browser-marketplace-skill",
               source: "clawhub",
               version: "2.0.0",
             },
@@ -711,11 +714,11 @@ test.describe("Skills marketplace management", () => {
             description: "Marketplace metadata visible through the daemon catalog.",
             version: "2.0.0",
             marketplace: {
-              slug: "@agh/browser-marketplace-skill",
+              slug: "@compozy/browser-marketplace-skill",
               version: "2.0.0",
             },
             metadata: {
-              author: "agh",
+              author: "compozy",
               tags: ["testing", "security"],
             },
             body: "Marketplace-installed skill body remains read-only in the browser catalog.",
@@ -726,7 +729,7 @@ test.describe("Skills marketplace management", () => {
             version: "9.9.9",
             marketplace: {
               hashOverride: "0".repeat(64),
-              slug: "@agh/browser-tampered-skill",
+              slug: "@compozy/browser-tampered-skill",
               version: "9.9.9",
             },
             body: tamperedPayload,
@@ -836,11 +839,13 @@ test.describe("Skills marketplace management", () => {
     const baselinePrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
+      baselineSession.session.id,
       await acpSessionIDForSession(
         runtime,
         baselineSession.session.workspace_id,
         baselineSession.session.id
-      )
+      ),
+      SESSION_CREATE_FIRST_MESSAGE
     );
     expect(baselinePrompt).toContain("<current-available-skills>");
     expect(baselinePrompt).toContain(`name="${contextSkillName}"`);
@@ -850,6 +855,7 @@ test.describe("Skills marketplace management", () => {
       baselineSession.session.id,
       "skill context before disable"
     );
+    await closeSessionWindow(appPage, baselineSession.session.id);
 
     await appPage.goto(runtime.url(`/marketplace/skill/${encodeURIComponent(contextSkillName)}`), {
       waitUntil: "domcontentloaded",
@@ -882,11 +888,13 @@ test.describe("Skills marketplace management", () => {
     const disabledPrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
+      disabledSession.session.id,
       await acpSessionIDForSession(
         runtime,
         disabledSession.session.workspace_id,
         disabledSession.session.id
-      )
+      ),
+      SESSION_CREATE_FIRST_MESSAGE
     );
     expect(disabledPrompt).not.toContain(`name="${contextSkillName}"`);
     await assertStoredUserMessageClean(
@@ -895,6 +903,7 @@ test.describe("Skills marketplace management", () => {
       disabledSession.session.id,
       "skill context after disable"
     );
+    await closeSessionWindow(appPage, disabledSession.session.id);
 
     await appPage.goto(runtime.url(`/marketplace/skill/${encodeURIComponent(contextSkillName)}`), {
       waitUntil: "domcontentloaded",
@@ -921,11 +930,13 @@ test.describe("Skills marketplace management", () => {
     const restoredPrompt = await promptForSession(
       runtime,
       skillsContextAgentName,
+      restoredSession.session.id,
       await acpSessionIDForSession(
         runtime,
         restoredSession.session.workspace_id,
         restoredSession.session.id
-      )
+      ),
+      SESSION_CREATE_FIRST_MESSAGE
     );
     expect(restoredPrompt).toContain(`name="${contextSkillName}"`);
     expect(restoredPrompt).not.toMatch(sensitivePattern);
@@ -935,6 +946,7 @@ test.describe("Skills marketplace management", () => {
       restoredSession.session.id,
       "skill context after enable"
     );
+    await closeSessionWindow(appPage, restoredSession.session.id);
 
     await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
     await expect(settingsUI.skills.page).toBeVisible();
@@ -1086,11 +1098,17 @@ test.describe("Skills marketplace management", () => {
     page: Page,
     agentName: string
   ): Promise<SessionEnvelope> {
+    const marketplaceWin = page.getByTestId("os-window-app:marketplace");
+    if (await marketplaceWin.isVisible()) {
+      await marketplaceWin.getByRole("button", { name: "Close window" }).click();
+      await expect(marketplaceWin).toBeHidden();
+    }
     await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
       waitUntil: "domcontentloaded",
     });
     const agentsWin = page.getByTestId("os-window-app:agents");
     await expect(agentsWin).toBeVisible();
+    await expect(agentsWin).toHaveAttribute("data-focused", "");
     const agentsUI = sessionLifecycleSelectors(agentsWin);
     await expect(agentsUI.agentPageNewSession).toBeVisible();
     await agentsUI.agentPageNewSession.click();
@@ -1112,10 +1130,23 @@ test.describe("Skills marketplace management", () => {
     return session;
   }
 
+  async function closeSessionWindow(page: Page, sessionID: string): Promise<void> {
+    const win = sessionWindow(page, sessionID);
+    await win.getByRole("button", { name: "Close window" }).click();
+    await expect(win).toBeHidden();
+    const agentsWin = page.getByTestId("os-window-app:agents");
+    if (await agentsWin.isVisible()) {
+      await agentsWin.getByRole("button", { name: "Close window" }).click();
+      await expect(agentsWin).toBeHidden();
+    }
+  }
+
   async function promptForSession(
     runtime: BrowserRuntime,
     agentName: string,
-    acpSessionID: string
+    compozySessionID: string,
+    acpSessionID: string,
+    expectedUserMessage: string
   ): Promise<string> {
     let prompt = "";
     await expect
@@ -1123,7 +1154,12 @@ test.describe("Skills marketplace management", () => {
         const records = await promptDiagnostics(runtime, agentName);
         const record = [...records]
           .reverse()
-          .find(candidate => candidate.session_id === acpSessionID);
+          .find(
+            candidate =>
+              candidate.compozy_session_id === compozySessionID &&
+              candidate.session_id === acpSessionID &&
+              candidate.prompt.includes(expectedUserMessage)
+          );
         prompt = record?.prompt ?? "";
         return prompt !== "";
       })
@@ -1186,7 +1222,9 @@ test.describe("Skills marketplace management", () => {
         }>(sessionAPIPath(workspaceID, sessionID, "/transcript"));
         userMessage = transcript.entries
           .map(entry => entry.message)
-          .find(message => message.role === "user");
+          .find(
+            message => message.role === "user" && transcriptMessageText(message) === expectedText
+          );
         return transcriptMessageText(userMessage);
       })
       .toBe(expectedText);
@@ -1271,7 +1309,7 @@ test.describe("MCP marketplace authorization", () => {
   }) => {
     const sessionUI = sessionLifecycleSelectors(appPage);
     const authServer = await startMCPAuthServer();
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-mcp-authorize-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-mcp-authorize-"));
     const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
     let seeded: BrowserSettingsFixturesResult | undefined;
@@ -1290,7 +1328,7 @@ test.describe("MCP marketplace authorization", () => {
               url: `${authServer.baseURL}/mcp`,
               auth: {
                 type: "oauth2_pkce",
-                client_id: "agh-e2e-public",
+                client_id: "compozy-e2e-public",
                 issuer_url: authServer.baseURL,
                 scopes: ["read", "write"],
               },
@@ -1306,6 +1344,10 @@ test.describe("MCP marketplace authorization", () => {
         waitUntil: "domcontentloaded",
       });
       await switchWorkspace(appPage, workspace.id, workspace.name);
+
+      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+        waitUntil: "domcontentloaded",
+      });
 
       const installedCard = appPage
         .getByTestId(/^marketplace-installed-card-/)
@@ -1355,7 +1397,7 @@ test.describe("MCP marketplace authorization", () => {
   }) => {
     const sessionUI = sessionLifecycleSelectors(appPage);
     const authServer = await startMCPAuthServer();
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-mcp-browser-authorize-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-mcp-browser-authorize-"));
     const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
     let popup: typeof appPage | undefined;
@@ -1375,7 +1417,7 @@ test.describe("MCP marketplace authorization", () => {
               url: `${authServer.baseURL}/mcp`,
               auth: {
                 type: "oauth2_pkce",
-                client_id: "agh-e2e-public",
+                client_id: "compozy-e2e-public",
                 issuer_url: authServer.baseURL,
                 scopes: ["read", "write"],
               },
@@ -1390,6 +1432,9 @@ test.describe("MCP marketplace authorization", () => {
         waitUntil: "domcontentloaded",
       });
       await switchWorkspace(appPage, workspace.id, workspace.name);
+      await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+        waitUntil: "domcontentloaded",
+      });
       const installedCard = appPage
         .getByTestId(/^marketplace-installed-card-/)
         .filter({ hasText: SERVER_NAME })
@@ -2089,7 +2134,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
   }
 
   async function createBrowserToolProviderExtension(): Promise<string> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-browser-tool-provider-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-tool-provider-"));
     const bundlesDir = path.join(rootDir, "bundles");
     await mkdir(bundlesDir, { recursive: true });
 
@@ -2170,7 +2215,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
   }
 
   async function createInvalidExtensionManifest(): Promise<string> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-invalid-extension-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-invalid-extension-"));
     await writeFile(
       path.join(rootDir, "extension.json"),
       JSON.stringify(
@@ -2192,7 +2237,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
   }
 
   async function createChecksumFailureExtension(): Promise<string> {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-checksum-failure-extension-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-checksum-failure-extension-"));
     await writeFile(
       path.join(rootDir, "extension.json"),
       JSON.stringify(

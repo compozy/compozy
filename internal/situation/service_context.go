@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/session"
 
@@ -19,7 +19,7 @@ import (
 func (s *Service) ContextForStartup(
 	ctx context.Context,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 ) (contract.AgentContextPayload, error) {
 	if s == nil {
@@ -90,7 +90,7 @@ func (s *Service) ContextForSession(
 	resolvedAgent, agentDef, err := s.resolveAgent(
 		info.AgentName,
 		info.Provider,
-		aghconfig.AgentDef{},
+		compozyconfig.AgentDef{},
 		workspaceSnapshot,
 	)
 	if err != nil {
@@ -143,7 +143,7 @@ func (s *Service) PromptSection(
 		WorkspaceID: workspaceID(workspace),
 		Workspace:   workspaceRoot(workspace),
 		SessionType: session.SessionTypeUser,
-	}, aghconfig.AgentDef{}, workspace)
+	}, compozyconfig.AgentDef{}, workspace)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +154,7 @@ func (s *Service) PromptSection(
 func (s *Service) PromptStartupSection(
 	ctx context.Context,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	payload, err := s.ContextForStartup(ctx, startup, agent, workspace)

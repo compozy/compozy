@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -31,7 +31,7 @@ func TestManagerSendCommitsBeforeDispatch(t *testing.T) {
 	notifier := &managerWakeNotifierStub{}
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),
@@ -157,7 +157,7 @@ func TestManagerSendObservesCommittedMessagesOnce(t *testing.T) {
 	auditor := &managerAuditWriterSpy{acceptance: acceptance}
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),
@@ -261,7 +261,7 @@ func TestManagerSendObserverFailuresAreFailOpen(t *testing.T) {
 	auditErr := errors.New("audit observer offline")
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(slog.New(slog.NewTextHandler(&logs, nil))),
@@ -328,7 +328,7 @@ func TestManagerSendAuditsAcceptanceRejection(t *testing.T) {
 	auditor := &managerAuditWriterSpy{}
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),
@@ -472,7 +472,7 @@ func TestManagerSendWritesConfiguredAuditSinks(t *testing.T) {
 	auditPath := filepath.Join(t.TempDir(), "logs", "network.audit")
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		auditPath,
 		auditStore,
 		WithManagerLogger(discardManagerLogger()),
@@ -844,7 +844,7 @@ func TestManagerWakeAdmissionEligibility(t *testing.T) {
 
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),
@@ -933,7 +933,7 @@ func TestManagerSendRejectsRawCredentialsBeforeAcceptance(t *testing.T) {
 	acceptance := &managerAcceptanceStub{}
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(slog.New(slog.NewJSONHandler(&logs, nil))),
@@ -965,7 +965,7 @@ func TestManagerSendRejectsRawCredentialsBeforeAcceptance(t *testing.T) {
 			name: "extension metadata",
 			body: json.RawMessage(`{"text":"unsafe ext"}`),
 			ext: ExtensionMap{
-				"agh.metadata": json.RawMessage(`{"claim_token":"` + rawToken + `"}`),
+				"compozy.metadata": json.RawMessage(`{"claim_token":"` + rawToken + `"}`),
 			},
 		},
 	}
@@ -1130,7 +1130,7 @@ func newManagerSendTestManager(t *testing.T, acceptance *managerAcceptanceStub) 
 
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),
@@ -1225,7 +1225,7 @@ func decodeWhoisResponseCatalog(t *testing.T, ext ExtensionMap) whoisCapabilityC
 }
 
 func managerSendLiveSpec() participation.Spec {
-	defaults := aghconfig.DefaultNetworkConfig().Live.Defaults
+	defaults := compozyconfig.DefaultNetworkConfig().Live.Defaults
 	return participation.Spec{
 		Version: participation.SpecVersion, Mode: participation.ModeLive,
 		WorkspaceID: testWorkspaceID, ChannelStrategy: participation.StrategyNamed,

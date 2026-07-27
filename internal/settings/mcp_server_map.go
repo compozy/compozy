@@ -3,10 +3,10 @@ package settings
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func mcpServerMap(server aghconfig.MCPServer) map[string]any {
+func mcpServerMap(server compozyconfig.MCPServer) map[string]any {
 	values := map[string]any{}
 	if server.Transport != "" {
 		values["transport"] = string(server.Transport)

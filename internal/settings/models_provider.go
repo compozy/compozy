@@ -1,7 +1,7 @@
 package settings
 
 import (
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/providerauth"
@@ -11,18 +11,18 @@ import (
 type ProviderSettings struct {
 	Command         string
 	DisplayName     string
-	Models          aghconfig.ProviderModelsConfig
+	Models          compozyconfig.ProviderModelsConfig
 	ModelsSet       bool
-	Harness         aghconfig.ProviderHarness
+	Harness         compozyconfig.ProviderHarness
 	RuntimeProvider string
 	Transport       string
 	BaseURL         string
-	AuthMode        aghconfig.ProviderAuthMode
-	EnvPolicy       aghconfig.ProviderEnvPolicy
-	HomePolicy      aghconfig.ProviderHomePolicy
+	AuthMode        compozyconfig.ProviderAuthMode
+	EnvPolicy       compozyconfig.ProviderEnvPolicy
+	HomePolicy      compozyconfig.ProviderHomePolicy
 	AuthStatusCmd   string
 	AuthLoginCmd    string
-	CredentialSlots []aghconfig.ProviderCredentialSlot
+	CredentialSlots []compozyconfig.ProviderCredentialSlot
 }
 
 // ProviderCredentialStatus is a redacted launch credential status.
@@ -41,9 +41,9 @@ type ProviderNativeCLIStatus = providerauth.NativeCLIStatus
 
 // ProviderAuthStatus is a redacted provider authentication readiness summary.
 type ProviderAuthStatus struct {
-	Mode       aghconfig.ProviderAuthMode
-	EnvPolicy  aghconfig.ProviderEnvPolicy
-	HomePolicy aghconfig.ProviderHomePolicy
+	Mode       compozyconfig.ProviderAuthMode
+	EnvPolicy  compozyconfig.ProviderEnvPolicy
+	HomePolicy compozyconfig.ProviderHomePolicy
 	State      string
 	Code       string
 	Message    string
@@ -82,7 +82,7 @@ type ProviderItem struct {
 // SandboxItem is one sandbox collection row.
 type SandboxItem struct {
 	Name                string
-	Profile             aghconfig.SandboxProfile
+	Profile             compozyconfig.SandboxProfile
 	WorkspaceUsageCount int
 	SourceMetadata      SourceMetadata
 }

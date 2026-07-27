@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -38,8 +38,8 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 				deps: Deps{
 					Now: fixedNow,
 					CoordinatorRole: coordinatorResolverFunc(
-						func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
-							return aghconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
+						func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
+							return compozyconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
 						},
 					),
 				},
@@ -82,8 +82,8 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 			Now:           fixedNow,
 			SkillRegistry: contextErrorSkillRegistry{err: errors.New("skill registry unavailable")},
 			CoordinatorRole: coordinatorResolverFunc(
-				func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
-					return aghconfig.ResolvedCoordinatorRole{}, errors.New("coordinator unavailable")
+				func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
+					return compozyconfig.ResolvedCoordinatorRole{}, errors.New("coordinator unavailable")
 				},
 			),
 			SoulSnapshots: contextErrorSoulSnapshotStore{err: soul.ErrSnapshotNotFound},
@@ -123,8 +123,8 @@ func TestContextForStartupDependencyContextErrorsContract(t *testing.T) {
 			deps: Deps{
 				Now: fixedNow,
 				CoordinatorRole: coordinatorResolverFunc(
-					func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
-						return aghconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
+					func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
+						return compozyconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
 					},
 				),
 			},
@@ -143,10 +143,10 @@ func TestContextForStartupDependencyContextErrorsContract(t *testing.T) {
 					SessionID:   "sess-start",
 					AgentName:   "coder",
 					WorkspaceID: "ws-1",
-					Workspace:   "/work/agh",
+					Workspace:   "/work/compozy",
 					SessionType: session.SessionTypeUser,
 				},
-				aghconfig.AgentDef{Name: "coder", Provider: "codex"},
+				compozyconfig.AgentDef{Name: "coder", Provider: "codex"},
 				nil,
 			)
 			if !errors.Is(err, tt.wantErr) {
@@ -162,7 +162,7 @@ func sessionContextCancellationInfo() *session.Info {
 		AgentName:   "coder",
 		Provider:    "codex",
 		WorkspaceID: "ws-1",
-		Workspace:   "/work/agh",
+		Workspace:   "/work/compozy",
 		Type:        session.SessionTypeUser,
 		State:       session.StateActive,
 		CreatedAt:   fixedTime(),

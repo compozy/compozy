@@ -20,7 +20,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apispec "github.com/compozy/compozy/internal/api/spec"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network"
@@ -742,7 +742,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
 			if req.Section == settingspkg.SectionWindowManager {
 				envelope.WindowManager = &settingspkg.WindowManagerSection{
-					Config: aghconfig.DefaultWindowManagerConfig(),
+					Config: compozyconfig.DefaultWindowManagerConfig(),
 				}
 			}
 			return envelope, nil
@@ -814,7 +814,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					},
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
-					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				},
 			}),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
@@ -1552,12 +1552,12 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		},
 		WorkspaceID: "ws_alpha",
-		Config: aghconfig.Config{
-			Providers: map[string]aghconfig.ProviderConfig{
+		Config: compozyconfig.Config{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"alpha": {Command: "alpha --acp"},
 			},
 		},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "fake",
 			Prompt:   "hello",

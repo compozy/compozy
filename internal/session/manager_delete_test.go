@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -365,7 +365,7 @@ func TestManagerDelete(t *testing.T) {
 				resolver, err := workspacepkg.NewResolver(
 					db,
 					workspacepkg.WithHomePaths(h.homePaths),
-					workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return h.cfg, nil }),
+					workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return h.cfg, nil }),
 				)
 				if err != nil {
 					t.Fatalf("NewResolver() error = %v", err)
@@ -498,7 +498,7 @@ func TestManagerDelete(t *testing.T) {
 				resolver, err := workspacepkg.NewResolver(
 					db,
 					workspacepkg.WithHomePaths(h.homePaths),
-					workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return h.cfg, nil }),
+					workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return h.cfg, nil }),
 				)
 				if err != nil {
 					t.Fatalf("NewResolver() error = %v", err)

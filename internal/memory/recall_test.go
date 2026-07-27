@@ -131,7 +131,7 @@ func TestStoreRecall(t *testing.T) {
 
 		ctx := context.Background()
 		baseDir := t.TempDir()
-		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
+		globalDir := filepath.Join(baseDir, "compozy-home", memoryDirName)
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)

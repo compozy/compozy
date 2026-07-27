@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -44,7 +44,7 @@ func BenchmarkPermissionPolicy(b *testing.B) {
 }
 
 func BenchmarkLineage(b *testing.B) {
-	cfg := aghconfig.DefaultResolvedCoordinatorRole()
+	cfg := compozyconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	policy := PermissionPolicy(participation.LocalSpec())
 

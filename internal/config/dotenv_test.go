@@ -19,7 +19,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".env")
 	contents := strings.Join([]string{
 		"# keep comments",
-		"COMPOZY_HOME=/tmp/agh-home",
+		"COMPOZY_HOME=/tmp/compozy-home",
 		"OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key",
 		`PLAIN_VALUE="hello world"`,
 		"",
@@ -54,7 +54,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	repairedText := string(repaired)
 	for _, want := range []string{
 		"# keep comments",
-		"COMPOZY_HOME=/tmp/agh-home",
+		"COMPOZY_HOME=/tmp/compozy-home",
 		"OPENAI_API_KEY=sk-live",
 		"ANTHROPIC_API_KEY=anthropickey",
 		`PLAIN_VALUE="hello world"`,
@@ -72,7 +72,7 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 		t.Fatalf("parseDotEnvDocument(repaired) = %#v, want clean parse", parsed)
 	}
 	wantValues := map[string]string{
-		"COMPOZY_HOME":      "/tmp/agh-home",
+		"COMPOZY_HOME":      "/tmp/compozy-home",
 		"OPENAI_API_KEY":    "sk-live",
 		"ANTHROPIC_API_KEY": "anthropickey",
 		"PLAIN_VALUE":       "hello world",

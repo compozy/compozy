@@ -19,7 +19,7 @@ const mono = '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace';
 const styles = `
   @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Playfair+Display:wght@400&display=swap");
 
-  @keyframes aghRise {
+  @keyframes compozyRise {
     from { opacity: 0; transform: translateY(16px); }
     to   { opacity: 1; transform: translateY(0); }
   }
@@ -27,7 +27,7 @@ const styles = `
   .compozy-rise { opacity: 1; transform: translateY(0); }
 
   @media (prefers-reduced-motion: no-preference) {
-    .compozy-rise   { animation: aghRise 200ms cubic-bezier(0.2, 0, 0, 1) both; }
+    .compozy-rise   { animation: compozyRise 200ms cubic-bezier(0.2, 0, 0, 1) both; }
     .compozy-rise-1 { animation-delay: 0ms;   }
     .compozy-rise-2 { animation-delay: 60ms;  }
     .compozy-rise-3 { animation-delay: 120ms; }

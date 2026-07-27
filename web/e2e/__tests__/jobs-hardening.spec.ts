@@ -11,7 +11,7 @@ import type { Page } from "@playwright/test";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { sessionWindow, windowTitle } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -175,6 +175,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const workspace = await createWorkspace(runtime);
   const workspaceJob = await createJob(runtime, workspaceJobRequest(workspace));
   await useGlobalWorkspaceIfPrompted(shellUI);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
 
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(ui.jobsShell).toBeVisible();
@@ -195,7 +196,9 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(ui.submitJobForm).toBeDisabled();
   const initialName = uniqueName("jobs-lifecycle");
   await ui.jobNameInput.fill(initialName);
-  await ui.jobAgentInput.fill(automationAgentName);
+  await ui.jobAgentInput.click();
+  await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
+  await expect(ui.jobAgentInput).toContainText(automationAgentName);
   await ui.jobPromptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
   await enableCronExpressionEditing(ui);
   await ui.jobScheduleExpr.fill("");
@@ -462,7 +465,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
 });
 
 async function createWorkspace(runtime: BrowserRuntime): Promise<WorkspacePayload> {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-browser-jobs-workspace-"));
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-jobs-workspace-"));
   return await runtime.resolveWorkspace(rootDir);
 }
 

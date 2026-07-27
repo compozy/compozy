@@ -4,18 +4,18 @@ import (
 	"maps"
 	"reflect"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const windowManagerConfigRoot = "window_manager"
 
-func buildWindowManagerSection(cfg *aghconfig.Config) WindowManagerSection {
+func buildWindowManagerSection(cfg *compozyconfig.Config) WindowManagerSection {
 	return WindowManagerSection{Config: cloneWindowManagerConfig(cfg.WindowManager)}
 }
 
 func diffWindowManagerSettings(
-	current aghconfig.WindowManagerConfig,
-	desired aghconfig.WindowManagerConfig,
+	current compozyconfig.WindowManagerConfig,
+	desired compozyconfig.WindowManagerConfig,
 ) []string {
 	changed := make([]string, 0, 23)
 	appendChange := func(path string, differs bool) {
@@ -75,8 +75,8 @@ func diffWindowManagerSettings(
 }
 
 func applyWindowManagerSettings(
-	editor *aghconfig.OverlayEditor,
-	settings aghconfig.WindowManagerConfig,
+	editor *compozyconfig.OverlayEditor,
+	settings compozyconfig.WindowManagerConfig,
 ) error {
 	root := func(path ...string) []string {
 		return append([]string{windowManagerConfigRoot}, path...)
@@ -123,7 +123,7 @@ func applyWindowManagerSettings(
 	return editor.SetTable(shortcutsPath, values)
 }
 
-func cloneWindowManagerConfig(cfg aghconfig.WindowManagerConfig) aghconfig.WindowManagerConfig {
+func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
 	cfg.Snap.RepeatRatios = append([]float64(nil), cfg.Snap.RepeatRatios...)
 	cfg.Shortcuts = maps.Clone(cfg.Shortcuts)
 	return cfg

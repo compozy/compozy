@@ -12,7 +12,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -117,7 +117,7 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 	return loops, nil
 }
 
-func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDef, error) {
+func (m *Manager) loadAgentResources(ext *managedExtension) ([]compozyconfig.AgentDef, error) {
 	if ext == nil {
 		return nil, nil
 	}
@@ -125,12 +125,12 @@ func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDe
 }
 
 // LoadAgentResources discovers the current authored agent definitions for an extension.
-func LoadAgentResources(rootDir string, manifest *Manifest) ([]aghconfig.AgentDef, error) {
+func LoadAgentResources(rootDir string, manifest *Manifest) ([]compozyconfig.AgentDef, error) {
 	if manifest == nil || len(manifest.Resources.Agents) == 0 {
 		return nil, nil
 	}
 
-	loaded := make(map[string]aghconfig.AgentDef)
+	loaded := make(map[string]compozyconfig.AgentDef)
 	for _, resourcePath := range manifest.Resources.Agents {
 		resourceRoot, err := resolveResourcePath(rootDir, resourcePath)
 		if err != nil {
@@ -141,7 +141,7 @@ func LoadAgentResources(rootDir string, manifest *Manifest) ([]aghconfig.AgentDe
 			return nil, err
 		}
 		for _, file := range files {
-			agent, err := aghconfig.LoadAgentDefFile(file)
+			agent, err := compozyconfig.LoadAgentDefFile(file)
 			if err != nil {
 				return nil, err
 			}
@@ -149,9 +149,9 @@ func LoadAgentResources(rootDir string, manifest *Manifest) ([]aghconfig.AgentDe
 		}
 	}
 
-	agents := make([]aghconfig.AgentDef, 0, len(loaded))
+	agents := make([]compozyconfig.AgentDef, 0, len(loaded))
 	for _, name := range sortedKeys(loaded) {
-		agents = append(agents, aghconfig.CloneAgentDef(loaded[name]))
+		agents = append(agents, compozyconfig.CloneAgentDef(loaded[name]))
 	}
 	return agents, nil
 }

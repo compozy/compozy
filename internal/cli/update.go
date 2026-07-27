@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -30,10 +30,10 @@ const (
 )
 
 type updateManager interface {
-	Check(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
-	ApplyRelease(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error)
-	Restore(aghupdate.AppliedBinary) error
-	Finalize(aghupdate.AppliedBinary) error
+	Check(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
+	ApplyRelease(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error)
+	Restore(compozyupdate.AppliedBinary) error
+	Finalize(compozyupdate.AppliedBinary) error
 }
 
 type updateRecord struct {
@@ -80,7 +80,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool) erro
 		return err
 	}
 
-	state, release, err := manager.Check(cmd.Context(), aghupdate.CheckOptions{
+	state, release, err := manager.Check(cmd.Context(), compozyupdate.CheckOptions{
 		ForceRefresh:         true,
 		AllowCachedOnFailure: false,
 	})
@@ -88,7 +88,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool) erro
 	if err != nil {
 		return writeUpdateFailure(cmd, record, err)
 	}
-	if checkOnly || state.Status != aghupdate.StatusAvailable {
+	if checkOnly || state.Status != compozyupdate.StatusAvailable {
 		return writeCommandOutput(cmd, updateBundle(record))
 	}
 
@@ -110,7 +110,7 @@ func applyAvailableUpdate(
 	cmd *cobra.Command,
 	deps commandDeps,
 	manager updateManager,
-	release *aghupdate.Release,
+	release *compozyupdate.Release,
 	record updateRecord,
 ) error {
 	runtime, running, err := resolveUpdateRuntime(deps)
@@ -120,7 +120,7 @@ func applyAvailableUpdate(
 
 	applied, err := manager.ApplyRelease(cmd.Context(), release)
 	if err != nil {
-		record.Status = string(aghupdate.StatusFailed)
+		record.Status = string(compozyupdate.StatusFailed)
 		record.Message = err.Error()
 		return writeUpdateFailure(cmd, record, err)
 	}
@@ -145,16 +145,16 @@ func resolveUpdateRuntime(deps commandDeps) (*runtimeContext, bool, error) {
 func finishLocalUpdate(
 	cmd *cobra.Command,
 	manager updateManager,
-	applied aghupdate.AppliedBinary,
-	release *aghupdate.Release,
+	applied compozyupdate.AppliedBinary,
+	release *compozyupdate.Release,
 	record updateRecord,
 ) error {
 	if err := manager.Finalize(applied); err != nil {
-		record.Status = string(aghupdate.StatusFailed)
+		record.Status = string(compozyupdate.StatusFailed)
 		record.Message = err.Error()
 		return writeUpdateFailure(cmd, record, err)
 	}
-	record.Status = string(aghupdate.StatusUpdated)
+	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
 	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + "."
 	return writeCommandOutput(cmd, updateBundle(record))
@@ -165,8 +165,8 @@ func restartDaemonAfterUpdate(
 	deps commandDeps,
 	manager updateManager,
 	runtime *runtimeContext,
-	applied aghupdate.AppliedBinary,
-	release *aghupdate.Release,
+	applied compozyupdate.AppliedBinary,
+	release *compozyupdate.Release,
 	record updateRecord,
 ) error {
 	client, err := clientFromDeps(deps)
@@ -229,11 +229,11 @@ func restartDaemonAfterUpdate(
 	}
 
 	if err := manager.Finalize(applied); err != nil {
-		record.Status = string(aghupdate.StatusFailed)
+		record.Status = string(compozyupdate.StatusFailed)
 		record.Message = err.Error()
 		return writeUpdateFailure(cmd, record, err)
 	}
-	record.Status = string(aghupdate.StatusUpdated)
+	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
 	record.DaemonRestarted = true
 	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
@@ -243,7 +243,7 @@ func restartDaemonAfterUpdate(
 func failAppliedUpdate(
 	cmd *cobra.Command,
 	manager updateManager,
-	applied aghupdate.AppliedBinary,
+	applied compozyupdate.AppliedBinary,
 	deps commandDeps,
 	runtime *runtimeContext,
 	record updateRecord,
@@ -259,12 +259,12 @@ func failAppliedUpdate(
 		runtime,
 		attemptRecoveryStart,
 	)
-	record.Status = string(aghupdate.StatusFailed)
+	record.Status = string(compozyupdate.StatusFailed)
 	record.Message = combineUpdateErrors(prefix, cause, rollbackErr)
 	return writeUpdateFailure(cmd, record, errors.Join(cause, rollbackErr))
 }
 
-func updateRecordFromState(state aghupdate.State) updateRecord {
+func updateRecordFromState(state compozyupdate.State) updateRecord {
 	return updateRecord{
 		Status:         strings.TrimSpace(string(state.Status)),
 		InstallMethod:  strings.TrimSpace(state.InstallMethod),
@@ -398,7 +398,7 @@ func settingsRestartTimeout(deps commandDeps) time.Duration {
 func rollbackAppliedUpdate(
 	ctx context.Context,
 	manager updateManager,
-	applied aghupdate.AppliedBinary,
+	applied compozyupdate.AppliedBinary,
 	deps commandDeps,
 	runtime *runtimeContext,
 	attemptRecoveryStart bool,

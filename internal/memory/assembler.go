@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -103,7 +103,7 @@ func (a *Assembler) PromptSection(ctx context.Context, workspace *workspacepkg.R
 func (a *Assembler) PromptStartupSection(
 	ctx context.Context,
 	startup session.StartupPromptContext,
-	_ aghconfig.AgentDef,
+	_ compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if a == nil || a.snapshots == nil {
@@ -144,7 +144,7 @@ func (a *Assembler) ResumeContextSection(
 // Assemble renders the dual-scope memory context ahead of the agent system prompt.
 func (a *Assembler) Assemble(
 	ctx context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)

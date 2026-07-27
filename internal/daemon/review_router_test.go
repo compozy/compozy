@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -734,16 +734,16 @@ func stoppedReviewRouterSessionInfo(id string, agent string, channel string) *se
 	return info
 }
 
-func reviewRouterAgentDef(name string, capabilities ...string) aghconfig.AgentDef {
-	agent := aghconfig.AgentDef{Name: name, Provider: "codex", Model: "gpt-5"}
+func reviewRouterAgentDef(name string, capabilities ...string) compozyconfig.AgentDef {
+	agent := compozyconfig.AgentDef{Name: name, Provider: "codex", Model: "gpt-5"}
 	if len(capabilities) == 0 {
 		return agent
 	}
-	agent.Capabilities = &aghconfig.CapabilityCatalog{
-		Capabilities: make([]aghconfig.CapabilityDef, 0, len(capabilities)),
+	agent.Capabilities = &compozyconfig.CapabilityCatalog{
+		Capabilities: make([]compozyconfig.CapabilityDef, 0, len(capabilities)),
 	}
 	for _, capability := range capabilities {
-		agent.Capabilities.Capabilities = append(agent.Capabilities.Capabilities, aghconfig.CapabilityDef{
+		agent.Capabilities.Capabilities = append(agent.Capabilities.Capabilities, compozyconfig.CapabilityDef{
 			ID:      capability,
 			Summary: capability,
 			Outcome: capability,
@@ -898,15 +898,15 @@ func (s *reviewRouterTasksStub) RecordRunReview(
 	}, nil
 }
 
-type reviewRouterAgentResolverStub map[string]aghconfig.AgentDef
+type reviewRouterAgentResolverStub map[string]compozyconfig.AgentDef
 
 func (s reviewRouterAgentResolverStub) ResolveAgent(
 	name string,
 	_ *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	agent, ok := s[strings.TrimSpace(name)]
 	if !ok {
-		return aghconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+		return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 	}
 	return agent, nil
 }

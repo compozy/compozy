@@ -134,12 +134,12 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 						MessageID: 9002,
 						Date:      now.Unix(),
 						EditDate:  now.Add(2 * time.Minute).Unix(),
-						Chat:      telegramChat{ID: -100123, Type: "channel", Title: "AGH Updates"},
+						Chat:      telegramChat{ID: -100123, Type: "channel", Title: "Compozy Updates"},
 						SenderChat: &telegramChat{
 							ID:       -100456,
 							Type:     "channel",
-							Title:    "AGH Updates",
-							Username: "agh_updates",
+							Title:    "Compozy Updates",
+							Username: "compozy_updates",
 						},
 						Caption: "corrected channel post",
 					},
@@ -188,7 +188,7 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 					if got, want := envelope.Sender.ID, "-100456"; got != want {
 						t.Fatalf("channel edit sender id = %q, want %q", got, want)
 					}
-					if got, want := envelope.Sender.DisplayName, "AGH Updates"; got != want {
+					if got, want := envelope.Sender.DisplayName, "Compozy Updates"; got != want {
 						t.Fatalf("channel edit sender display name = %q, want %q", got, want)
 					}
 				}
@@ -2808,7 +2808,7 @@ type fakeTelegramAPI struct {
 
 func (f *fakeTelegramAPI) GetMe(context.Context) (*telegramBotIdentity, error) {
 	f.methods = append(f.methods, "getMe")
-	return &telegramBotIdentity{ID: 1, Username: "aghbot"}, nil
+	return &telegramBotIdentity{ID: 1, Username: "compozybot"}, nil
 }
 
 func (f *fakeTelegramAPI) SendMessage(
@@ -2966,7 +2966,7 @@ func newTelegramAPIServer(t *testing.T) *telegramAPIServer {
 
 		switch method {
 		case "getMe":
-			writeTelegramAPIResponse(t, w, map[string]any{"id": 1, "username": "aghbot"})
+			writeTelegramAPIResponse(t, w, map[string]any{"id": 1, "username": "compozybot"})
 		case "sendMessage":
 			srv.mu.Lock()
 			messageID := srv.nextMessageID
@@ -3107,7 +3107,7 @@ func testInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "0.5.0",
+		CompozyVersion:           "0.5.0",
 		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "telegram",

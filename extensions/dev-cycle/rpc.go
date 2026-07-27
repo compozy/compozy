@@ -17,7 +17,7 @@ import (
 
 const (
 	jsonRPCVersion        = "2.0"
-	devCycleSDKName       = "agh-dev-cycle"
+	devCycleSDKName       = "compozy-dev-cycle"
 	rpcMethodInitialize   = "initialize"
 	rpcMethodHealthCheck  = "health_check"
 	rpcMethodProvideTools = "provide_tools"

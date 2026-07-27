@@ -84,7 +84,7 @@ export const MonoVariant: Story = {
           id="textarea-mono"
           rows={5}
           variant="mono"
-          defaultValue="You are an AGH operator. Stay terse. Honor SD-007."
+          defaultValue="You are an Compozy operator. Stay terse. Honor SD-007."
         />
         <FieldDescription>Sent verbatim as the agent's first user message.</FieldDescription>
       </Field>

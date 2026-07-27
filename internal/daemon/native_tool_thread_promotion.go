@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -136,7 +136,7 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	}
 	maxDesignations := n.deps.Config.Task.Orchestration.DesignatedRunMax
 	if maxDesignations <= 0 {
-		maxDesignations = aghconfig.DefaultTaskDesignatedRunMax
+		maxDesignations = compozyconfig.DefaultTaskDesignatedRunMax
 	}
 	if len(input.Designations) == 0 {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "designations")

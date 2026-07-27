@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
@@ -16,7 +16,7 @@ const (
 	automationRunLinkageDelegated automationRunLinkage = "delegated_task"
 )
 
-func classifyAutomationRunLinkage(run aghcontract.RunPayload) (automationRunLinkage, error) {
+func classifyAutomationRunLinkage(run compozycontract.RunPayload) (automationRunLinkage, error) {
 	hasSession := strings.TrimSpace(run.SessionID) != ""
 	hasTaskID := strings.TrimSpace(run.TaskID) != ""
 	hasTaskRunID := strings.TrimSpace(run.TaskRunID) != ""
@@ -39,7 +39,7 @@ func classifyAutomationRunLinkage(run aghcontract.RunPayload) (automationRunLink
 	}
 }
 
-func requireCompletedSessionAutomationRun(run aghcontract.RunPayload) error {
+func requireCompletedSessionAutomationRun(run compozycontract.RunPayload) error {
 	linkage, err := classifyAutomationRunLinkage(run)
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func requireCompletedSessionAutomationRun(run aghcontract.RunPayload) error {
 	return nil
 }
 
-func requireDelegatedTaskAutomationRun(run aghcontract.RunPayload) error {
+func requireDelegatedTaskAutomationRun(run compozycontract.RunPayload) error {
 	linkage, err := classifyAutomationRunLinkage(run)
 	if err != nil {
 		return err
@@ -68,24 +68,24 @@ func requireDelegatedTaskAutomationRun(run aghcontract.RunPayload) error {
 }
 
 func findTaskRunPayload(
-	runs []aghcontract.TaskRunPayload,
+	runs []compozycontract.TaskRunPayload,
 	runID string,
-) (aghcontract.TaskRunPayload, bool) {
+) (compozycontract.TaskRunPayload, bool) {
 	target := strings.TrimSpace(runID)
 	for _, run := range runs {
 		if strings.TrimSpace(run.ID) == target {
 			return run, true
 		}
 	}
-	return aghcontract.TaskRunPayload{}, false
+	return compozycontract.TaskRunPayload{}, false
 }
 
 func findTaskRunInDetail(
-	detail *aghcontract.TaskDetailPayload,
+	detail *compozycontract.TaskDetailPayload,
 	runID string,
-) (aghcontract.TaskRunPayload, bool) {
+) (compozycontract.TaskRunPayload, bool) {
 	if detail == nil {
-		return aghcontract.TaskRunPayload{}, false
+		return compozycontract.TaskRunPayload{}, false
 	}
 	return findTaskRunPayload(detail.Runs, runID)
 }
@@ -93,7 +93,7 @@ func findTaskRunInDetail(
 func TestRequireCompletedSessionAutomationRun(t *testing.T) {
 	t.Parallel()
 
-	run := aghcontract.RunPayload{
+	run := compozycontract.RunPayload{
 		ID:        "run-session",
 		SessionID: "sess-1",
 		Status:    automationpkg.RunCompleted,
@@ -106,7 +106,7 @@ func TestRequireCompletedSessionAutomationRun(t *testing.T) {
 func TestRequireDelegatedTaskAutomationRun(t *testing.T) {
 	t.Parallel()
 
-	run := aghcontract.RunPayload{
+	run := compozycontract.RunPayload{
 		ID:        "run-delegated",
 		TaskID:    "task-1",
 		TaskRunID: "task-run-1",
@@ -132,7 +132,7 @@ func TestFindTaskRunInDetailReturnsMissingForNilDetail(t *testing.T) {
 func TestClassifyAutomationRunLinkageRejectsMixedSurfaces(t *testing.T) {
 	t.Parallel()
 
-	run := aghcontract.RunPayload{
+	run := compozycontract.RunPayload{
 		ID:        "run-mixed",
 		SessionID: "sess-1",
 		TaskID:    "task-1",
@@ -147,7 +147,7 @@ func TestClassifyAutomationRunLinkageRejectsMixedSurfaces(t *testing.T) {
 func TestFindTaskRunHelpers(t *testing.T) {
 	t.Parallel()
 
-	runs := []aghcontract.TaskRunPayload{{
+	runs := []compozycontract.TaskRunPayload{{
 		ID:        "task-run-1",
 		TaskID:    "task-1",
 		SessionID: "sess-1",
@@ -160,7 +160,7 @@ func TestFindTaskRunHelpers(t *testing.T) {
 		t.Fatalf("run.SessionID = %q, want %q", got, want)
 	}
 
-	detailRun, ok := findTaskRunInDetail(&aghcontract.TaskDetailPayload{Runs: runs}, "task-run-1")
+	detailRun, ok := findTaskRunInDetail(&compozycontract.TaskDetailPayload{Runs: runs}, "task-run-1")
 	if !ok {
 		t.Fatal("findTaskRunInDetail() = missing, want present")
 	}

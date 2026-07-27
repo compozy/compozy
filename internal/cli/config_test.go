@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
@@ -73,7 +73,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			)
 		}
 
-		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
@@ -120,7 +120,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatalf("json.Unmarshal(config path) error = %v", err)
 		}
 		if pathRecord.GlobalConfig != homePaths.ConfigFile ||
-			pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName) {
+			pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName) {
 			t.Fatalf("config path record = %#v, want resolved home paths", pathRecord)
 		}
 
@@ -144,7 +144,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		); err != nil {
 			t.Fatalf("config set window manager shortcut error = %v", err)
 		}
-		configured, err := aghconfig.LoadGlobalConfig(homePaths)
+		configured, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(window manager) error = %v", err)
 		}
@@ -165,7 +165,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		); err != nil {
 			t.Fatalf("config set roles error = %v", err)
 		}
-		configured, err = aghconfig.LoadGlobalConfig(homePaths)
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(roles) error = %v", err)
 		}
@@ -360,7 +360,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "global-only") {
 			t.Fatalf("config set workspace Marketplace error = %v, want global-only rejection", err)
 		}
-		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 		if _, statErr := os.Stat(workspaceConfig); !os.IsNotExist(statErr) {
 			t.Fatalf("workspace config stat error = %v, want no file", statErr)
 		}
@@ -391,8 +391,8 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 
 	deps := newTestDeps(t, client)
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(pid int) bool { return pid == 42 }
 
@@ -464,8 +464,8 @@ func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *test
 	}
 
 	deps := newTestDeps(t, client)
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(pid int) bool { return pid == 42 }
 	deps.processMatchesStartTime = func(int, time.Time) bool { return false }
@@ -559,7 +559,7 @@ func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *te
 	if record.DotEnv == nil {
 		t.Fatal("config validate --repair-env DotEnv = nil, want repair report")
 	}
-	if record.DotEnv.Status != aghconfig.DotEnvStatusRepaired || !record.DotEnv.Repaired {
+	if record.DotEnv.Status != compozyconfig.DotEnvStatusRepaired || !record.DotEnv.Repaired {
 		t.Fatalf("DotEnv report = %#v, want repaired", record.DotEnv)
 	}
 	if len(record.DotEnv.Diagnostics) != 2 {
@@ -593,7 +593,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	deps.getwd = func() (string, error) {
 		return workspaceRoot, nil
 	}
-	deps.resolveHomeForWorkspace = aghconfig.ResolveHomePathsForWorkspace
+	deps.resolveHomeForWorkspace = compozyconfig.ResolveHomePathsForWorkspace
 
 	restoreEnvAfterTest(t, "COMPOZY_HOME")
 	if err := os.Unsetenv("COMPOZY_HOME"); err != nil {
@@ -607,7 +607,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &cwdRecord); err != nil {
 		t.Fatalf("json.Unmarshal(config validate cwd) error = %v", err)
 	}
-	if cwdRecord.ConfigFile != filepath.Join(dotEnvHome, aghconfig.ConfigName) {
+	if cwdRecord.ConfigFile != filepath.Join(dotEnvHome, compozyconfig.ConfigName) {
 		t.Fatalf("ConfigFile = %q, want dotenv home", cwdRecord.ConfigFile)
 	}
 
@@ -619,7 +619,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &workspaceRecord); err != nil {
 		t.Fatalf("json.Unmarshal(config validate workspace) error = %v", err)
 	}
-	if workspaceRecord.ConfigFile != filepath.Join(dotEnvHome, aghconfig.ConfigName) {
+	if workspaceRecord.ConfigFile != filepath.Join(dotEnvHome, compozyconfig.ConfigName) {
 		t.Fatalf("workspace ConfigFile = %q, want dotenv home", workspaceRecord.ConfigFile)
 	}
 
@@ -634,7 +634,7 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &processRecord); err != nil {
 		t.Fatalf("json.Unmarshal(config validate process) error = %v", err)
 	}
-	if processRecord.ConfigFile != filepath.Join(processHome, aghconfig.ConfigName) {
+	if processRecord.ConfigFile != filepath.Join(processHome, compozyconfig.ConfigName) {
 		t.Fatalf("process ConfigFile = %q, want process COMPOZY_HOME", processRecord.ConfigFile)
 	}
 }
@@ -660,7 +660,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 	t.Run("Should emit an invalid JSON record for TOML parse errors", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -672,10 +672,10 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		}
 
 		deps := newTestDeps(t, &stubClient{})
-		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		deps.resolveHomeForWorkspace = func(string) (aghconfig.HomePaths, error) {
+		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
 		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
@@ -708,7 +708,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 	t.Run("Should include config path for validation errors", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -721,10 +721,10 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 		}
 
 		deps := newTestDeps(t, &stubClient{})
-		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		deps.resolveHomeForWorkspace = func(string) (aghconfig.HomePaths, error) {
+		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
 		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
@@ -783,7 +783,7 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 		t.Fatalf("workspace config set error = %v", err)
 	}
 
-	workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+	workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 	contents, err := os.ReadFile(workspaceConfig)
 	if err != nil {
 		t.Fatalf("ReadFile(workspace config) error = %v", err)
@@ -791,14 +791,14 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	if !strings.Contains(string(contents), "max_wakes = 12") {
 		t.Fatalf("workspace config = %s, want network Live max_wakes 12", string(contents))
 	}
-	loaded, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
 	if got, want := loaded.Network.Live.Defaults.MaxWakes, 12; got != want {
 		t.Fatalf("Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
 	}
-	if got, want := loaded.Network.Live.Limits.MaxWakes, aghconfig.DefaultNetworkConfig().Live.Limits.MaxWakes; got != want {
+	if got, want := loaded.Network.Live.Limits.MaxWakes, compozyconfig.DefaultNetworkConfig().Live.Limits.MaxWakes; got != want {
 		t.Fatalf("Network.Live.Limits.MaxWakes = %d, want default %d", got, want)
 	}
 
@@ -870,7 +870,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 			t.Fatalf("config set agents.heartbeat.default_interval error = %v", err)
 		}
 
-		loaded, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -881,7 +881,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 			t.Fatalf("Agents.Heartbeat.DefaultInterval = %q, want 25m0s", got)
 		}
 
-		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
 		before, err := os.ReadFile(workspaceConfig)
 		if err != nil {
 			t.Fatalf("ReadFile(workspace config) error = %v", err)
@@ -949,7 +949,7 @@ backend = "local"
 		strings.Contains(listOut, "vault:sandbox/dev/api-token") {
 		t.Fatalf("config list leaked secret values:\n%s", listOut)
 	}
-	if !strings.Contains(listOut, aghconfig.RedactedValue()) {
+	if !strings.Contains(listOut, compozyconfig.RedactedValue()) {
 		t.Fatalf("config list = %s, want redacted placeholder", listOut)
 	}
 
@@ -961,7 +961,7 @@ backend = "local"
 	if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
 		t.Fatalf("json.Unmarshal(config get redacted) error = %v", err)
 	}
-	if valueRecord.Value != aghconfig.RedactedValue() || !valueRecord.Redacted {
+	if valueRecord.Value != compozyconfig.RedactedValue() || !valueRecord.Redacted {
 		t.Fatalf("redacted config value = %#v, want placeholder/redacted", valueRecord)
 	}
 }
@@ -973,14 +973,14 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 		{Path: "defaults.provider", Value: "claude"},
 		{Path: "http.port", Value: int64(4141)},
 		{Path: "telemetry.enabled", Value: true},
-		{Path: "mcp_servers[0].env.API_TOKEN", Value: aghconfig.RedactedValue(), Redacted: true},
+		{Path: "mcp_servers[0].env.API_TOKEN", Value: compozyconfig.RedactedValue(), Redacted: true},
 		{Path: "providers.claude.models", Value: []string{"sonnet", "opus"}},
 	}
 
 	t.Run("Should flatten anonymous TOML fields into canonical parent paths", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.Config{Roles: aghconfig.DefaultRolesConfig()}
+		cfg := compozyconfig.Config{Roles: compozyconfig.DefaultRolesConfig()}
 		flattened := flattenConfigEntries(redactedConfigMap(&cfg))
 		foundCanonical := false
 		for _, entry := range flattened {
@@ -1044,9 +1044,9 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 		t.Parallel()
 
 		pathBundle := configPathBundle(configPathRecord{
-			HomeDir:              "/home/agh",
-			GlobalConfig:         "/home/agh/config.toml",
-			GlobalMCPJSON:        "/home/agh/mcp.json",
+			HomeDir:              "/home/compozy",
+			GlobalConfig:         "/home/compozy/config.toml",
+			GlobalMCPJSON:        "/home/compozy/mcp.json",
 			Scope:                "workspace",
 			WorkspaceRoot:        "/workspace/project",
 			WorkspaceConfig:      "/workspace/project/.compozy/config.toml",
@@ -1317,13 +1317,13 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 	if err := json.Unmarshal([]byte(out), &setRecord); err != nil {
 		t.Fatalf("json.Unmarshal(secret config set) error = %v", err)
 	}
-	if setRecord.Value != aghconfig.RedactedValue() || !setRecord.Redacted {
+	if setRecord.Value != compozyconfig.RedactedValue() || !setRecord.Redacted {
 		t.Fatalf("secret config set record = %#v, want redacted placeholder", setRecord)
 	}
 
 	managedDeps := newTestDeps(t, &stubClient{})
 	managedDeps.getenv = func(key string) string {
-		if key == aghupdate.ManagedEnvName {
+		if key == compozyupdate.ManagedEnvName {
 			return "homebrew"
 		}
 		return ""

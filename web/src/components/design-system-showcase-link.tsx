@@ -1,6 +1,6 @@
 import { Button } from "@compozy/ui";
 
-const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
+const DESIGN_MD_BASE = "https://github.com/compozy/compozy/blob/main/DESIGN.md";
 
 export function DesignSystemShowcaseLink() {
   return (

@@ -3,10 +3,10 @@ package settings
 import (
 	"reflect"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func diffExtensionsSettings(current aghconfig.ExtensionsConfig, desired aghconfig.ExtensionsConfig) []string {
+func diffExtensionsSettings(current compozyconfig.ExtensionsConfig, desired compozyconfig.ExtensionsConfig) []string {
 	var changed []string
 	if current.Marketplace.Registry != desired.Marketplace.Registry {
 		changed = append(changed, "extensions.marketplace.registry")
@@ -32,7 +32,7 @@ func diffExtensionsSettings(current aghconfig.ExtensionsConfig, desired aghconfi
 	return changed
 }
 
-func applyExtensionsSettings(editor *aghconfig.OverlayEditor, settings aghconfig.ExtensionsConfig) error {
+func applyExtensionsSettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.ExtensionsConfig) error {
 	updates := []struct {
 		path  []string
 		value any
@@ -105,22 +105,22 @@ func applyExtensionsSettings(editor *aghconfig.OverlayEditor, settings aghconfig
 	return applyValueUpdates(editor, updates)
 }
 
-func cloneExtensionsConfig(value aghconfig.ExtensionsConfig) aghconfig.ExtensionsConfig {
-	return aghconfig.ExtensionsConfig{
-		Marketplace: aghconfig.ExtensionsMarketplaceConfig{
+func cloneExtensionsConfig(value compozyconfig.ExtensionsConfig) compozyconfig.ExtensionsConfig {
+	return compozyconfig.ExtensionsConfig{
+		Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
 			Registry:        value.Marketplace.Registry,
 			BaseURL:         value.Marketplace.BaseURL,
 			AllowUnverified: value.Marketplace.AllowUnverified,
 		},
-		Resources: aghconfig.ExtensionsResourcesConfig{
+		Resources: compozyconfig.ExtensionsResourcesConfig{
 			AllowedKinds: cloneAllowedKinds(value.Resources.AllowedKinds),
 			MaxScope:     value.Resources.MaxScope,
-			SnapshotRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+			SnapshotRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 				Requests: value.Resources.SnapshotRateLimit.Requests,
 				Window:   value.Resources.SnapshotRateLimit.Window,
 				Queue:    value.Resources.SnapshotRateLimit.Queue,
 			},
-			OperatorWriteRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+			OperatorWriteRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 				Requests: value.Resources.OperatorWriteRateLimit.Requests,
 				Window:   value.Resources.OperatorWriteRateLimit.Window,
 				Queue:    value.Resources.OperatorWriteRateLimit.Queue,

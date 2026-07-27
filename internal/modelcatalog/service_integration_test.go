@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -30,17 +30,17 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		store, _ := openCatalogGlobalDB(t)
-		source := modelcatalog.NewConfigSource(map[string]aghconfig.ProviderConfig{
+		source := modelcatalog.NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "manual-model",
-					Curated: []aghconfig.ProviderModelConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{ID: "gpt-5.4", DisplayName: "GPT-5.4"},
 					},
 				},
 			},
 			"claude": {
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "claude-sonnet-4-6",
 				},
 			},
@@ -116,7 +116,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		enabled := true
-		source, err := modelcatalog.NewModelsDevSource(nil, aghconfig.ModelsDevSourceConfig{
+		source, err := modelcatalog.NewModelsDevSource(nil, compozyconfig.ModelsDevSourceConfig{
 			Enabled:  &enabled,
 			Endpoint: server.URL,
 			TTL:      "1h",

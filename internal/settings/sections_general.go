@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func (s *service) buildGeneralSection(ctx context.Context, cfg *aghconfig.Config) (GeneralSection, error) {
+func (s *service) buildGeneralSection(ctx context.Context, cfg *compozyconfig.Config) (GeneralSection, error) {
 	runtime := DaemonRuntimeStatus{}
 	if s.generalRuntime != nil {
 		status, err := s.generalRuntime.GeneralRuntimeStatus(ctx)

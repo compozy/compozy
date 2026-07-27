@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestBridgeSlackManifestCommand(t *testing.T) {
@@ -114,12 +114,12 @@ func TestBridgeSlackManifestCommand(t *testing.T) {
 				return manifest, nil
 			},
 		})
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		deps.resolveHome = func() (aghconfig.HomePaths, error) { return homePaths, nil }
-		deps.ensureHome = aghconfig.EnsureHomeLayout
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) { return homePaths, nil }
+		deps.ensureHome = compozyconfig.EnsureHomeLayout
 
 		stdout, stderr, err := executeRootCommand(
 			t,

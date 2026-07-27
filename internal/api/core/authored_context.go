@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
@@ -35,8 +35,8 @@ type authoredAgentTarget struct {
 	workspaceRoot       string
 	agentName           string
 	agentPath           string
-	soulConfig          aghconfig.SoulConfig
-	heartbeatConfig     aghconfig.HeartbeatConfig
+	soulConfig          compozyconfig.SoulConfig
+	heartbeatConfig     compozyconfig.HeartbeatConfig
 	packageOwned        bool
 	soulSourcePath      string
 	soulBody            string

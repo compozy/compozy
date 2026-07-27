@@ -38,7 +38,7 @@ function remoteEntry(): SettingsMCPServerEntry {
     url: "https://mcp.linear.app/mcp",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-linear-public",
+      client_id: "compozy-linear-public",
       client_secret_configured: true,
       issuer_url: "https://auth.linear.app",
       scopes: ["read", "write"],
@@ -101,7 +101,7 @@ describe("withTransport", () => {
       ...emptyDraft("http"),
       name: "srv",
       url: "https://mcp.example/mcp",
-      oauth: { ...emptyDraft("http").oauth, enabled: true, clientId: "agh" },
+      oauth: { ...emptyDraft("http").oauth, enabled: true, clientId: "compozy" },
     };
     const stdio = withTransport(remote, "stdio");
     expect(stdio.transport).toBe("stdio");
@@ -118,7 +118,7 @@ describe("withTransport", () => {
       oauth: {
         ...emptyDraft("http").oauth,
         enabled: true,
-        clientId: "agh",
+        clientId: "compozy",
         discovery: "issuer",
         issuerUrl: "https://auth",
       },
@@ -127,7 +127,7 @@ describe("withTransport", () => {
     expect(sse.transport).toBe("sse");
     expect(sse.url).toBe("https://mcp.example/mcp");
     expect(sse.oauth.enabled).toBe(true);
-    expect(sse.oauth.clientId).toBe("agh");
+    expect(sse.oauth.clientId).toBe("compozy");
   });
 
   it("returns the same draft reference when the transport is unchanged", () => {
@@ -165,7 +165,7 @@ describe("toDraft", () => {
     expect(draft.transport).toBe("http");
     expect(draft.url).toBe("https://mcp.linear.app/mcp");
     expect(draft.oauth.enabled).toBe(true);
-    expect(draft.oauth.clientId).toBe("agh-linear-public");
+    expect(draft.oauth.clientId).toBe("compozy-linear-public");
     expect(draft.oauth.discovery).toBe("issuer");
     expect(draft.oauth.scopes).toBe("read write");
     expect(draft.oauth.clientSecret).toEqual({
@@ -410,7 +410,7 @@ describe("validateDraft", () => {
       ...draft,
       name: "srv",
       url: "https://x",
-      oauth: { ...draft.oauth, enabled: true, clientId: "agh", discovery: "metadata" },
+      oauth: { ...draft.oauth, enabled: true, clientId: "compozy", discovery: "metadata" },
     });
     expect(missingMetadata.errors.metadata).toBe("Metadata URL is required");
 
@@ -418,7 +418,7 @@ describe("validateDraft", () => {
       ...draft,
       name: "srv",
       url: "https://x",
-      oauth: { ...draft.oauth, enabled: true, clientId: "agh", discovery: "endpoints" },
+      oauth: { ...draft.oauth, enabled: true, clientId: "compozy", discovery: "endpoints" },
     });
     expect(endpointsMissing.errors.metadata).toBe("Authorization URL and token URL are required");
   });
@@ -518,7 +518,7 @@ describe("validateDraft", () => {
         oauth: {
           ...remote.oauth,
           enabled: true,
-          clientId: "agh",
+          clientId: "compozy",
           discovery: "issuer",
           issuerUrl: "https://auth",
         },

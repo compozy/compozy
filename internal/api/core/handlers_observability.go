@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -154,7 +154,7 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {
-	userHomeDir, err := aghconfig.ResolveOperatorHomeDir(h.HomePaths)
+	userHomeDir, err := compozyconfig.ResolveOperatorHomeDir(h.HomePaths)
 	if err == nil {
 		return userHomeDir
 	}

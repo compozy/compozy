@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -108,7 +108,7 @@ func (s *Service) recentTaskEvents(
 func (s *Service) reviewContinuation(
 	ctx context.Context,
 	run taskpkg.Run,
-	cfg aghconfig.TaskOrchestrationConfig,
+	cfg compozyconfig.TaskOrchestrationConfig,
 ) (*taskpkg.ReviewContinuation, error) {
 	if run.Review == nil ||
 		strings.TrimSpace(run.Review.ReviewID) == "" ||
@@ -159,7 +159,7 @@ func (s *Service) reviewContinuation(
 func (s *Service) reviewHistory(
 	ctx context.Context,
 	taskRecord taskpkg.Task,
-	cfg aghconfig.TaskOrchestrationConfig,
+	cfg compozyconfig.TaskOrchestrationConfig,
 ) ([]taskpkg.RunReviewSummary, error) {
 	limit := cfg.ContextPriorAttempts
 	if limit <= 0 {

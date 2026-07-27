@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -90,7 +90,7 @@ func (r *loopGateJudgeRunner) Judge(
 		return gate.JudgeResponse{}, err
 	}
 	opts.RuntimeMode = session.RuntimeModeVerdictOnly
-	opts.Permissions = aghconfig.PermissionModeDenyAll
+	opts.Permissions = compozyconfig.PermissionModeDenyAll
 	created, createErr := r.sessions.Create(ctx, opts)
 	if created == nil {
 		if createErr != nil {

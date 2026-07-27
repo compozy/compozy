@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/providerenv"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -56,7 +56,7 @@ func (r envProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (
 func (m *Manager) prepareProviderForStart(
 	ctx context.Context,
 	session *Session,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, error) {
 	opts, secretBindings, err := m.prepareProviderStartPolicies(ctx, resolved, opts)
@@ -66,8 +66,8 @@ func (m *Manager) prepareProviderForStart(
 	if session != nil {
 		session.addProviderSecretRedactions(secretBindings.redactionCleanups)
 	}
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
-		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
+	if resolved.Harness == compozyconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == compozyconfig.ProviderAuthModeBoundSecret {
 		runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
 		if err != nil {
 			return acp.StartOpts{}, err
@@ -79,13 +79,13 @@ func (m *Manager) prepareProviderForStart(
 
 func (m *Manager) prepareProviderStartPolicies(
 	ctx context.Context,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, providerSecretBindings, error) {
 	opts.Env = setProviderStartEnv(opts.Env, resolved)
 
 	var err error
-	if resolved.HomePolicy == aghconfig.ProviderHomePolicyIsolated {
+	if resolved.HomePolicy == compozyconfig.ProviderHomePolicyIsolated {
 		opts.Env, err = providerenv.ApplyHomePolicy(
 			m.homePaths,
 			strings.TrimSpace(resolved.Provider),
@@ -96,8 +96,8 @@ func (m *Manager) prepareProviderStartPolicies(
 			return acp.StartOpts{}, providerSecretBindings{}, fmt.Errorf("session: apply provider home policy: %w", err)
 		}
 	}
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
-		resolved.AuthMode == aghconfig.ProviderAuthModeNativeCLI {
+	if resolved.Harness == compozyconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == compozyconfig.ProviderAuthModeNativeCLI {
 		opts.Env, err = providerenv.ApplyPiAgentDirPolicy(
 			m.homePaths,
 			strings.TrimSpace(resolved.Provider),
@@ -124,7 +124,7 @@ func (m *Manager) prepareProviderStartPolicies(
 	return opts, secretBindings, nil
 }
 
-func setProviderStartEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
+func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent) []string {
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER", strings.TrimSpace(resolved.Provider))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_HARNESS", string(resolved.Harness))
 	env = setSessionStartEnvValue(env, "COMPOZY_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
@@ -136,7 +136,7 @@ func setProviderStartEnv(env []string, resolved aghconfig.ResolvedAgent) []strin
 
 func providerProbeEnvForStart(
 	m *Manager,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	env []string,
 ) authproviders.ProbeEnv {
 	return authproviders.ProbeEnv{

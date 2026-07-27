@@ -105,7 +105,7 @@ func BenchmarkExtensionToolProviderListAndResolve(b *testing.B) {
 func extensionBenchmarkToolRegistry(b *testing.B, count int) (*Registry, toolspkg.ToolID) {
 	b.Helper()
 
-	dbPath := filepath.Join(b.TempDir(), "agh-extension-tools.db")
+	dbPath := filepath.Join(b.TempDir(), "compozy-extension-tools.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(b), dbPath, func(ctx context.Context, db *sql.DB) error {
 		return store.Apply(ctx, db, globaldb.MigrationStream())
 	})

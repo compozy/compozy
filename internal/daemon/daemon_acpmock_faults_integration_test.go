@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -61,7 +61,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		taskRecord := createFaultyProfiledTask(t, ctx, harness)
 		run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
 		claimant := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-claimant")
-		var claimResponse aghcontract.AgentTaskClaimResponse
+		var claimResponse compozycontract.AgentTaskClaimResponse
 		agentUDSJSON(
 			t,
 			ctx,
@@ -69,7 +69,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 			claimant,
 			http.MethodPost,
 			"/api/agent/tasks/claim-next",
-			aghcontract.AgentTaskClaimNextRequest{
+			compozycontract.AgentTaskClaimNextRequest{
 				RunID:        run.ID,
 				WorkspaceID:  harness.WorkspaceID,
 				LeaseSeconds: 30,
@@ -80,7 +80,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		if got, want := claimed.Status.Normalize(), taskpkg.TaskRunStatusClaimed; got != want {
 			t.Fatalf("claimed run status = %q, want %q", got, want)
 		}
-		started, err := harness.StartTaskRun(ctx, run.ID, aghcontract.StartTaskRunRequest{})
+		started, err := harness.StartTaskRun(ctx, run.ID, compozycontract.StartTaskRunRequest{})
 		if err != nil {
 			t.Fatalf("StartTaskRun(%q) error = %v", run.ID, err)
 		}
@@ -125,19 +125,19 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		}
 
 		statusPath := "/api/status?workspace=" + url.QueryEscape(harness.WorkspaceRoot)
-		var httpStatus aghcontract.StatusPayload
+		var httpStatus compozycontract.StatusPayload
 		if err := harness.HTTPJSON(ctx, http.MethodGet, statusPath, nil, &httpStatus); err != nil {
 			t.Fatalf("HTTP status error = %v", err)
 		}
-		var udsStatus aghcontract.StatusPayload
+		var udsStatus compozycontract.StatusPayload
 		if err := harness.UDSJSON(ctx, http.MethodGet, statusPath, nil, &udsStatus); err != nil {
 			t.Fatalf("UDS status error = %v", err)
 		}
-		var cliStatus aghcontract.StatusPayload
+		var cliStatus compozycontract.StatusPayload
 		if err := harness.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
 			t.Fatalf("CLI JSON status error = %v", err)
 		}
-		for surface, status := range map[string]aghcontract.StatusPayload{
+		for surface, status := range map[string]compozycontract.StatusPayload{
 			"HTTP": httpStatus,
 			"UDS":  udsStatus,
 			"CLI":  cliStatus,
@@ -217,7 +217,7 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	t.Run("Should stop a blocked prompt without orphaning runtime liveness", func(t *testing.T) {
 		t.Parallel()
 
-		harness, session := startFaultyMockSession(t, func(cfg *aghconfig.Config) {
+		harness, session := startFaultyMockSession(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
 			cfg.Session.Supervision.ProgressNotifyInterval = 20 * time.Millisecond
 			cfg.Session.Supervision.InactivityWarningAfter = 0
@@ -288,7 +288,7 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 
 		eventsResp := mustSessionEvents(t, ctx, harness, session.ID)
 		events := decodeAgentEvents(t, eventsResp.Events)
-		if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "runtime_progress"}) {
+		if !containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "runtime_progress"}) {
 			t.Fatalf("events = %#v, want runtime_progress before blocked peer stop", events)
 		}
 		assertNoFatalBlockedCancelError(t, events)
@@ -307,8 +307,8 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 
 func startFaultyMockSession(
 	t testing.TB,
-	mutateConfig ...func(*aghconfig.Config),
-) (*e2etest.RuntimeHarness, aghcontract.SessionPayload) {
+	mutateConfig ...func(*compozyconfig.Config),
+) (*e2etest.RuntimeHarness, compozycontract.SessionPayload) {
 	t.Helper()
 
 	harness := startFaultyMockHarness(t, mutateConfig...)
@@ -321,13 +321,13 @@ func startFaultyMockSession(
 
 func startFaultyMockHarness(
 	t testing.TB,
-	mutateConfig ...func(*aghconfig.Config),
+	mutateConfig ...func(*compozyconfig.Config),
 ) *e2etest.RuntimeHarness {
 	t.Helper()
 
 	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				for _, mutate := range mutateConfig {
 					if mutate != nil {
 						mutate(cfg)
@@ -348,11 +348,11 @@ func createFaultyProfiledTask(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) aghcontract.TaskPayload {
+) compozycontract.TaskPayload {
 	t.Helper()
 
-	var response aghcontract.TaskResponse
-	request := aghcontract.CreateTaskRequest{
+	var response compozycontract.TaskResponse
+	request := compozycontract.CreateTaskRequest{
 		Scope:     taskpkg.ScopeWorkspace,
 		Workspace: harness.WorkspaceID,
 		Title:     "Escalate crashed task subprocess",
@@ -361,13 +361,13 @@ func createFaultyProfiledTask(
 		t.Fatalf("UDS create faulty-profiled task error = %v", err)
 	}
 
-	profileRequest := aghcontract.SetTaskExecutionProfileRequest{
+	profileRequest := compozycontract.SetTaskExecutionProfileRequest{
 		Worker: taskpkg.WorkerProfile{
 			Mode:      taskpkg.WorkerModeSelect,
 			AgentName: faultyMockAgentName,
 		},
 	}
-	var profileResponse aghcontract.TaskExecutionProfileResponse
+	var profileResponse compozycontract.TaskExecutionProfileResponse
 	profilePath := "/api/tasks/" + url.PathEscape(response.Task.ID) + "/execution-profile"
 	if err := harness.UDSJSON(ctx, http.MethodPut, profilePath, profileRequest, &profileResponse); err != nil {
 		t.Fatalf("UDS set faulty task execution profile error = %v", err)
@@ -378,7 +378,7 @@ func createFaultyProfiledTask(
 	return response.Task
 }
 
-func countTaskEvents(events []aghcontract.TaskEventPayload, eventType string, runID string) int {
+func countTaskEvents(events []compozycontract.TaskEventPayload, eventType string, runID string) int {
 	count := 0
 	for _, event := range events {
 		if event.EventType == eventType && event.RunID == runID {
@@ -388,7 +388,7 @@ func countTaskEvents(events []aghcontract.TaskEventPayload, eventType string, ru
 	return count
 }
 
-func taskRunTotal(health aghcontract.TaskHealthPayload, status taskpkg.RunStatus) int {
+func taskRunTotal(health compozycontract.TaskHealthPayload, status taskpkg.RunStatus) int {
 	total := 0
 	for _, row := range health.RunTotals {
 		if row.Status == status.String() {
@@ -442,19 +442,19 @@ func assertFaultPromptProjection(
 
 	eventsResp := mustSessionEvents(t, ctx, harness, sessionID)
 	events := decodeAgentEvents(t, eventsResp.Events)
-	if wantTranscriptFragment != "" && !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if wantTranscriptFragment != "" && !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type: "agent_message",
 		Text: wantTranscriptFragment,
 	}) {
 		t.Fatalf("events = %#v, want agent_message %q", events, wantTranscriptFragment)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "error"}) {
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "error"}) {
 		t.Fatalf("events = %#v, want error event", events)
 	}
-	if containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "done"}) {
+	if containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "done"}) {
 		t.Fatalf("events = %#v, want no done event after runtime failure", events)
 	}
-	if wantPermission && !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "permission"}) {
+	if wantPermission && !containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "permission"}) {
 		t.Fatalf("events = %#v, want permission event", events)
 	}
 
@@ -473,7 +473,7 @@ func assertFaultPromptProjection(
 	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
 }
 
-func assertNoFatalBlockedCancelError(t testing.TB, events []aghcontract.AgentEventPayload) {
+func assertNoFatalBlockedCancelError(t testing.TB, events []compozycontract.AgentEventPayload) {
 	t.Helper()
 
 	for _, event := range events {
@@ -492,10 +492,10 @@ func mustHTTPSession(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-) aghcontract.SessionPayload {
+) compozycontract.SessionPayload {
 	t.Helper()
 
-	var response aghcontract.SessionResponse
+	var response compozycontract.SessionResponse
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodGet,

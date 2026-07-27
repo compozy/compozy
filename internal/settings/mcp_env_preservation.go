@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -12,7 +12,7 @@ func preserveMCPEnvValues(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	preservation []string,
 ) error {
 	if len(preservation) == 0 {

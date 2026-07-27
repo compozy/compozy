@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -187,17 +187,17 @@ func TestResolveWorkspaceSandboxCascade(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	baseConfig := validConfig(homePaths)
 	baseConfig.Defaults.Sandbox = "default-env"
-	baseConfig.Sandboxes["default-env"] = aghconfig.SandboxProfile{
+	baseConfig.Sandboxes["default-env"] = compozyconfig.SandboxProfile{
 		Backend:     "daytona",
 		Persistence: "reuse",
-		Daytona: aghconfig.DaytonaProfile{
+		Daytona: compozyconfig.DaytonaProfile{
 			Snapshot: "snap-default",
 		},
 	}
-	baseConfig.Sandboxes["explicit-env"] = aghconfig.SandboxProfile{
+	baseConfig.Sandboxes["explicit-env"] = compozyconfig.SandboxProfile{
 		Backend:  "daytona",
 		SyncMode: "none",
-		Daytona: aghconfig.DaytonaProfile{
+		Daytona: compozyconfig.DaytonaProfile{
 			Snapshot: "snap-explicit",
 		},
 	}
@@ -205,7 +205,7 @@ func TestResolveWorkspaceSandboxCascade(t *testing.T) {
 	tests := []struct {
 		name        string
 		workspace   Workspace
-		cfg         aghconfig.Config
+		cfg         compozyconfig.Config
 		wantProfile string
 		wantBackend sandbox.Backend
 		wantSync    sandbox.SyncMode
@@ -242,7 +242,7 @@ func TestResolveWorkspaceSandboxCascade(t *testing.T) {
 				RootDir: mustCanonicalRoot(t, t.TempDir()),
 				Name:    "local",
 			},
-			cfg: func() aghconfig.Config {
+			cfg: func() compozyconfig.Config {
 				cfg := validConfig(homePaths)
 				cfg.Defaults.Sandbox = ""
 				return cfg
@@ -288,11 +288,11 @@ func TestRegisterUpdateAndLoadWorkspaceSandboxRef(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	cfg := validConfig(homePaths)
-	cfg.Sandboxes["daytona-dev"] = aghconfig.SandboxProfile{
+	cfg.Sandboxes["daytona-dev"] = compozyconfig.SandboxProfile{
 		Backend: "daytona",
-		Daytona: aghconfig.DaytonaProfile{Snapshot: "snap-dev"},
+		Daytona: compozyconfig.DaytonaProfile{Snapshot: "snap-dev"},
 	}
-	cfg.Sandboxes["local-dev"] = aghconfig.SandboxProfile{Backend: "local"}
+	cfg.Sandboxes["local-dev"] = compozyconfig.SandboxProfile{Backend: "local"}
 
 	store := newMockWorkspaceStore()
 	resolver := newTestResolver(t, store,
@@ -510,11 +510,11 @@ func TestResolverCRUDFlow(t *testing.T) {
 	if resolved.DefaultAgent != "" {
 		t.Fatalf("Resolve(updated) DefaultAgent = %q, want empty", resolved.DefaultAgent)
 	}
-	if resolved.Config.Defaults.Agent != aghconfig.DefaultAgentName {
+	if resolved.Config.Defaults.Agent != compozyconfig.DefaultAgentName {
 		t.Fatalf(
 			"Resolve(updated) Config.Defaults.Agent = %q, want %q",
 			resolved.Config.Defaults.Agent,
-			aghconfig.DefaultAgentName,
+			compozyconfig.DefaultAgentName,
 		)
 	}
 
@@ -540,9 +540,9 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
-	workspaceConfig := filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
-	agentFile := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile)
-	skillsDir := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
+	workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
+	agentFile := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile)
+	skillsDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
 	skillOne := filepath.Join(skillsDir, "alpha")
 	skillTwo := filepath.Join(skillsDir, "beta")
 
@@ -911,7 +911,7 @@ func TestResolveLocalAgentOverridesGlobalByName(t *testing.T) {
 	writeAgentDef(t, filepath.Join(homePaths.AgentsDir, "coder", agentDefinitionFile), "coder", "global")
 	writeAgentDef(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
 		"coder",
 		"local",
 	)
@@ -945,28 +945,28 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 
 	writeAgentDef(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "healthy", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "healthy", agentDefinitionFile),
 		"healthy",
 		"local",
 	)
 	writeFile(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "no-fence", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "no-fence", agentDefinitionFile),
 		"plain body",
 	)
 	writeFile(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "unterminated", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "unterminated", agentDefinitionFile),
 		"---\nname: broken",
 	)
 	writeFile(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "bom", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "bom", agentDefinitionFile),
 		"\ufeff---\nname: broken\n---\nPrompt.",
 	)
 	writeFile(
 		t,
-		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "embedded-tab", agentDefinitionFile),
+		filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "embedded-tab", agentDefinitionFile),
 		"---\nna\tme: broken\n---\nPrompt.",
 	)
 	store := newMockWorkspaceStore(Workspace{ID: "ws_agents", RootDir: root, Name: "repo"})
@@ -1015,28 +1015,28 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 			t,
 			filepath.Join(
 				root,
-				aghconfig.DirName,
-				aghconfig.AgentsDirName,
-				aghconfig.BuiltinCoordinatorAgentName,
+				compozyconfig.DirName,
+				compozyconfig.AgentsDirName,
+				compozyconfig.BuiltinCoordinatorAgentName,
 				agentDefinitionFile,
 			),
-			aghconfig.BuiltinCoordinatorAgentName,
+			compozyconfig.BuiltinCoordinatorAgentName,
 			"shadowed-coordinator",
 		)
 		writeAgentDef(
 			t,
 			filepath.Join(
 				homePaths.AgentsDir,
-				aghconfig.BuiltinDreamingCuratorAgentName,
+				compozyconfig.BuiltinDreamingCuratorAgentName,
 				agentDefinitionFile,
 			),
-			aghconfig.BuiltinDreamingCuratorAgentName,
+			compozyconfig.BuiltinDreamingCuratorAgentName,
 			"shadowed-curator",
 		)
 		writeAgentDef(
 			t,
-			filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "alias", agentDefinitionFile),
-			aghconfig.BuiltinCoordinatorAgentName,
+			filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "alias", agentDefinitionFile),
+			compozyconfig.BuiltinCoordinatorAgentName,
 			"aliased-coordinator",
 		)
 
@@ -1047,10 +1047,10 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
-		if got := agentModel(resolved.Agents, aghconfig.BuiltinCoordinatorAgentName); got != "" {
+		if got := agentModel(resolved.Agents, compozyconfig.BuiltinCoordinatorAgentName); got != "" {
 			t.Fatalf("reserved coordinator model = %q, want excluded", got)
 		}
-		if got := agentModel(resolved.Agents, aghconfig.BuiltinDreamingCuratorAgentName); got != "" {
+		if got := agentModel(resolved.Agents, compozyconfig.BuiltinDreamingCuratorAgentName); got != "" {
 			t.Fatalf("reserved dreaming-curator model = %q, want excluded", got)
 		}
 		if got, want := len(resolved.AgentDiagnostics), 3; got != want {
@@ -1065,9 +1065,9 @@ func TestResolveRejectsReservedAgentIdentities(t *testing.T) {
 		}
 		slices.Sort(names)
 		wantNames := []string{
-			aghconfig.BuiltinCoordinatorAgentName,
-			aghconfig.BuiltinCoordinatorAgentName,
-			aghconfig.BuiltinDreamingCuratorAgentName,
+			compozyconfig.BuiltinCoordinatorAgentName,
+			compozyconfig.BuiltinCoordinatorAgentName,
+			compozyconfig.BuiltinDreamingCuratorAgentName,
 		}
 		if !slices.Equal(names, wantNames) {
 			t.Fatalf("diagnostic names = %#v, want %#v", names, wantNames)
@@ -1083,8 +1083,8 @@ func TestResolveConfigFromRootOnly(t *testing.T) {
 	t.Setenv("COMPOZY_HOME", homePaths.HomeDir)
 
 	writeFile(t, homePaths.ConfigFile, "[http]\nhost = \"localhost\"\nport = 2123\n")
-	writeFile(t, filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName), "[http]\nport = 4242\n")
-	writeFile(t, filepath.Join(additional, aghconfig.DirName, aghconfig.ConfigName), "[http]\nport = 9999\n")
+	writeFile(t, filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName), "[http]\nport = 4242\n")
+	writeFile(t, filepath.Join(additional, compozyconfig.DirName, compozyconfig.ConfigName), "[http]\nport = 9999\n")
 
 	store := newMockWorkspaceStore(Workspace{
 		ID:             "ws_config",
@@ -1150,8 +1150,8 @@ func TestRegisterRollsBackWhenResolveFails(t *testing.T) {
 
 	resolver := newTestResolver(t, store,
 		WithHomePaths(homePaths),
-		WithConfigLoader(func(string) (aghconfig.Config, error) {
-			return aghconfig.Config{}, errors.New("boom")
+		WithConfigLoader(func(string) (compozyconfig.Config, error) {
+			return compozyconfig.Config{}, errors.New("boom")
 		}),
 		WithIDGenerator(func(_ string) string { return "ws_fail" }),
 	)
@@ -1647,14 +1647,14 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		deprecated := false
 		hidden := true
 		featured := false
-		original := aghconfig.Config{
-			Providers: map[string]aghconfig.ProviderConfig{
+		original := compozyconfig.Config{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"claude": {
-					Models: aghconfig.ProviderModelsConfig{
-						Reasoning: aghconfig.ProviderReasoningConfig{
-							Apply: aghconfig.ReasoningApplyNone,
+					Models: compozyconfig.ProviderModelsConfig{
+						Reasoning: compozyconfig.ProviderReasoningConfig{
+							Apply: compozyconfig.ReasoningApplyNone,
 						},
-						Curated: []aghconfig.ProviderModelConfig{{
+						Curated: []compozyconfig.ProviderModelConfig{{
 							ID:          "claude-sonnet-5",
 							Deprecated:  &deprecated,
 							Hidden:      &hidden,
@@ -1668,7 +1668,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 
 		cloned := cloneConfig(&original)
 		provider := cloned.Providers["claude"]
-		if got, want := provider.Models.Reasoning.Apply, aghconfig.ReasoningApplyNone; got != want {
+		if got, want := provider.Models.Reasoning.Apply, compozyconfig.ReasoningApplyNone; got != want {
 			t.Fatalf("cloned reasoning apply = %q, want %q", got, want)
 		}
 		model := provider.Models.Curated[0]
@@ -1690,14 +1690,14 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		t.Parallel()
 
 		toolReadOnly := true
-		original := aghconfig.Config{
-			Agents: aghconfig.AgentsConfig{
-				Soul: aghconfig.SoulConfig{
+		original := compozyconfig.Config{
+			Agents: compozyconfig.AgentsConfig{
+				Soul: compozyconfig.SoulConfig{
 					Enabled:                true,
 					MaxBodyBytes:           32768,
 					ContextProjectionBytes: 2048,
 				},
-				Heartbeat: aghconfig.HeartbeatConfig{
+				Heartbeat: compozyconfig.HeartbeatConfig{
 					Enabled:                      true,
 					MaxBodyBytes:                 32768,
 					ContextProjectionBytes:       4096,
@@ -1712,35 +1712,35 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 					SessionHealthHookMinInterval: time.Minute,
 				},
 			},
-			Session: aghconfig.SessionConfig{
-				Limits: aghconfig.SessionLimitsConfig{
+			Session: compozyconfig.SessionConfig{
+				Limits: compozyconfig.SessionLimitsConfig{
 					Timeout: time.Minute,
 				},
 			},
-			Roles: aghconfig.RolesConfig{
-				Coordinator: aghconfig.CoordinatorRoleConfig{
-					RoleConfig: aghconfig.RoleConfig{
+			Roles: compozyconfig.RolesConfig{
+				Coordinator: compozyconfig.CoordinatorRoleConfig{
+					RoleConfig: compozyconfig.RoleConfig{
 						Enabled:       true,
 						Agent:         "coordinator",
 						Provider:      "codex",
 						Model:         "gpt-4o",
-						FallbackChain: []aghconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}},
+						FallbackChain: []compozyconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}},
 					},
 					TTL:                           45 * time.Minute,
 					MaxChildren:                   5,
 					MaxActiveSessionsPerWorkspace: 5,
 				},
 			},
-			RoleSources: aghconfig.RoleFieldSources{
-				aghconfig.RoleCoordinator: {"model": aghconfig.RoleFieldSourceDefault},
+			RoleSources: compozyconfig.RoleFieldSources{
+				compozyconfig.RoleCoordinator: {"model": compozyconfig.RoleFieldSourceDefault},
 			},
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"claude": {
 					Command: "claude",
-					Models: aghconfig.ProviderModelsConfig{
+					Models: compozyconfig.ProviderModelsConfig{
 						Default: "sonnet",
 					},
-					CredentialSlots: []aghconfig.ProviderCredentialSlot{
+					CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 						{
 							Name:      "api_key",
 							TargetEnv: "ANTHROPIC_API_KEY",
@@ -1749,7 +1749,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 							Required:  true,
 						},
 					},
-					MCPServers: []aghconfig.MCPServer{
+					MCPServers: []compozyconfig.MCPServer{
 						{
 							Name:    "github",
 							Command: "npx",
@@ -1759,12 +1759,12 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 					},
 				},
 			},
-			Skills: aghconfig.SkillsConfig{
+			Skills: compozyconfig.SkillsConfig{
 				Enabled:        true,
 				DisabledSkills: []string{"alpha"},
 				PollInterval:   time.Second,
 			},
-			Hooks: aghconfig.HooksConfig{
+			Hooks: compozyconfig.HooksConfig{
 				Declarations: []hookspkg.HookDecl{{
 					Name: "test-hook",
 					Args: []string{"one"},
@@ -1785,7 +1785,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			!slices.Equal(cloned.Roles.Coordinator.FallbackChain, original.Roles.Coordinator.FallbackChain) {
 			t.Fatalf("cloned Roles.Coordinator = %#v, want preserved role config", cloned.Roles.Coordinator)
 		}
-		if got := cloned.RoleSources[aghconfig.RoleCoordinator]["model"]; got != aghconfig.RoleFieldSourceDefault {
+		if got := cloned.RoleSources[compozyconfig.RoleCoordinator]["model"]; got != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf("cloned RoleSources = %#v, want preserved coordinator model source", cloned.RoleSources)
 		}
 		cloned.Agents.Soul.MaxBodyBytes = 8192
@@ -1795,8 +1795,8 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		cloned.Roles.Coordinator.Agent = "mutated-coordinator"
 		cloned.Roles.Coordinator.TTL = 2 * time.Hour
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated-model"
-		cloned.RoleSources[aghconfig.RoleCoordinator]["model"] = "overlay"
-		cloned.Providers["claude"] = aghconfig.ProviderConfig{}
+		cloned.RoleSources[compozyconfig.RoleCoordinator]["model"] = "overlay"
+		cloned.Providers["claude"] = compozyconfig.ProviderConfig{}
 		cloned.Skills.DisabledSkills[0] = "beta"
 		cloned.Hooks.Declarations[0].Args[0] = "two"
 		cloned.Hooks.Declarations[0].Env["TOKEN"] = "two"
@@ -1824,7 +1824,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		if got, want := original.Roles.Coordinator.FallbackChain[0].Model, "sonnet"; got != want {
 			t.Fatalf("original.Roles.Coordinator.FallbackChain[0].Model = %q, want %q", got, want)
 		}
-		if got := original.RoleSources[aghconfig.RoleCoordinator]["model"]; got != aghconfig.RoleFieldSourceDefault {
+		if got := original.RoleSources[compozyconfig.RoleCoordinator]["model"]; got != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf("original RoleSources mutated through clone: %#v", original.RoleSources)
 		}
 		provider := original.Providers["claude"]
@@ -1919,13 +1919,13 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 			t.Fatalf("snapshots for missing path = %#v, want empty", snapshots)
 		}
 
-		cfg := aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Agent: aghconfig.DefaultAgentName}}
+		cfg := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Agent: compozyconfig.DefaultAgentName}}
 		applyDefaultAgentOverride(&cfg, "")
-		if cfg.Defaults.Agent != aghconfig.DefaultAgentName {
+		if cfg.Defaults.Agent != compozyconfig.DefaultAgentName {
 			t.Fatalf(
 				"Defaults.Agent after empty override = %q, want %q",
 				cfg.Defaults.Agent,
-				aghconfig.DefaultAgentName,
+				compozyconfig.DefaultAgentName,
 			)
 		}
 		applyDefaultAgentOverride(&cfg, "workspace-agent")
@@ -2113,7 +2113,7 @@ func (m *mockWorkspaceStore) mustWorkspace(id string) Workspace {
 
 type countingConfigLoader struct {
 	mu    sync.Mutex
-	cfg   aghconfig.Config
+	cfg   compozyconfig.Config
 	calls int
 	roots []string
 }
@@ -2196,7 +2196,7 @@ func (s *cancelOnInsertStore) DeleteWorkspace(ctx context.Context, id string) er
 	return s.mockWorkspaceStore.DeleteWorkspace(ctx, id)
 }
 
-func (l *countingConfigLoader) Load(root string) (aghconfig.Config, error) {
+func (l *countingConfigLoader) Load(root string) (compozyconfig.Config, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -2231,14 +2231,14 @@ func newTestResolver(tb testing.TB, store Store, opts ...Option) *Resolver {
 	return resolver
 }
 
-func newTestHomePaths(tb testing.TB) aghconfig.HomePaths {
+func newTestHomePaths(tb testing.TB) compozyconfig.HomePaths {
 	tb.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(tb.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(tb.TempDir(), "home"))
 	if err != nil {
 		tb.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		tb.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
@@ -2254,8 +2254,8 @@ func mustCanonicalRoot(t *testing.T, path string) string {
 	return root
 }
 
-func validConfig(homePaths aghconfig.HomePaths) aghconfig.Config {
-	cfg := aghconfig.DefaultWithHome(homePaths)
+func validConfig(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Port = 2123
 	return cfg
 }
@@ -2318,7 +2318,7 @@ func createSymlink(t *testing.T, target string, link string) {
 	}
 }
 
-func agentModel(agents []aghconfig.AgentDef, name string) string {
+func agentModel(agents []compozyconfig.AgentDef, name string) string {
 	for _, agent := range agents {
 		if agent.Name == name {
 			return agent.Model

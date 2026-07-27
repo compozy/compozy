@@ -18,7 +18,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     agent_name: "codex",
     provider: "codex",
     workspace_id: "workspace-1",
-    workspace_path: "/workspace/agh",
+    workspace_path: "/workspace/compozy",
     state: "active",
     badge: "waiting-for-auth",
     attachable: true,
@@ -33,7 +33,7 @@ function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
     id: "task-1",
     title: "Approve deploy",
-    identifier: "AGH-42",
+    identifier: "Compozy-42",
     status: "ready",
     scope: "workspace",
     origin: { kind: "web", ref: "operator" },
@@ -139,7 +139,7 @@ describe("OS attention model", () => {
         kind: "task",
         id: "task-1",
         title: "Approve deploy",
-        identifier: "AGH-42",
+        identifier: "Compozy-42",
       },
     ]);
   });

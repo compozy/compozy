@@ -649,7 +649,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 type searchInput struct {
@@ -657,17 +657,17 @@ type searchInput struct {
 }
 
 func main() {
-	extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 		Name:    %[2]q,
 		Version: "0.1.0",
-		Capabilities: aghsdk.CapabilitiesConfig{
+		Capabilities: compozysdk.CapabilitiesConfig{
 			Provides: []string{"tool.provider"},
 		},
 	})
-	if err := aghsdk.Tool[searchInput](
+	if err := compozysdk.Tool[searchInput](
 		extension,
 		"search",
-		aghsdk.ToolOptions{
+		compozysdk.ToolOptions{
 			ReadOnly:    %[3]t,
 			InputSchema: map[string]any{
 				"type": "object",
@@ -677,8 +677,8 @@ func main() {
 				},
 			},
 		},
-		func(_ context.Context, req aghsdk.ToolRequest[searchInput]) (aghsdk.ToolResult, error) {
-			return aghsdk.TextResult("go-sdk:" + req.Input.Query), nil
+		func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+			return compozysdk.TextResult("go-sdk:" + req.Input.Query), nil
 		},
 	); err != nil {
 		fmt.Fprintf(os.Stderr, "register tool: %%v\n", err)

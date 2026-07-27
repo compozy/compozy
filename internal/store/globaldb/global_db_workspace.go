@@ -10,11 +10,11 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 // InsertWorkspace creates a new persisted workspace registration row.
-func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws aghworkspace.Workspace) error {
+func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace.Workspace) error {
 	if err := g.checkReady(ctx, "insert workspace"); err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws aghworkspace.Wor
 }
 
 // UpdateWorkspace updates an existing persisted workspace registration row.
-func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspace) error {
+func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace.Workspace) error {
 	if err := g.checkReady(ctx, "update workspace"); err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws aghworkspace.Wor
 	}
 
 	if affected == 0 {
-		return fmt.Errorf("store: workspace %q: %w", normalized.ID, aghworkspace.ErrWorkspaceNotFound)
+		return fmt.Errorf("store: workspace %q: %w", normalized.ID, compozyworkspace.ErrWorkspaceNotFound)
 	}
 
 	return nil
@@ -93,7 +93,7 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 			return fmt.Errorf(
 				"store: delete workspace %q: %w: %s",
 				trimmedID,
-				aghworkspace.ErrWorkspaceHasActiveSessions,
+				compozyworkspace.ErrWorkspaceHasActiveSessions,
 				strings.Join(activeSessions, ", "),
 			)
 		}
@@ -126,7 +126,7 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		}
 
 		if affected == 0 {
-			return fmt.Errorf("store: workspace %q: %w", trimmedID, aghworkspace.ErrWorkspaceNotFound)
+			return fmt.Errorf("store: workspace %q: %w", trimmedID, compozyworkspace.ErrWorkspaceNotFound)
 		}
 
 		return nil
@@ -134,14 +134,14 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 }
 
 // GetWorkspace loads a workspace registration by primary key.
-func (g *WorkspaceRepo) GetWorkspace(ctx context.Context, id string) (aghworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspace(ctx context.Context, id string) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace"); err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
 
 	trimmedID := strings.TrimSpace(id)
 	if trimmedID == "" {
-		return aghworkspace.Workspace{}, errors.New("store: workspace id is required")
+		return compozyworkspace.Workspace{}, errors.New("store: workspace id is required")
 	}
 
 	row, err := g.queries.GetWorkspace(ctx, trimmedID)
@@ -149,14 +149,14 @@ func (g *WorkspaceRepo) GetWorkspace(ctx context.Context, id string) (aghworkspa
 }
 
 // GetWorkspaceByPath loads a workspace registration by canonical root directory.
-func (g *WorkspaceRepo) GetWorkspaceByPath(ctx context.Context, rootDir string) (aghworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspaceByPath(ctx context.Context, rootDir string) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace by path"); err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
 
 	trimmedRoot := strings.TrimSpace(rootDir)
 	if trimmedRoot == "" {
-		return aghworkspace.Workspace{}, errors.New("store: workspace root directory is required")
+		return compozyworkspace.Workspace{}, errors.New("store: workspace root directory is required")
 	}
 
 	row, err := g.queries.GetWorkspaceByPath(ctx, trimmedRoot)
@@ -164,14 +164,14 @@ func (g *WorkspaceRepo) GetWorkspaceByPath(ctx context.Context, rootDir string) 
 }
 
 // GetWorkspaceByName loads a workspace registration by unique workspace name.
-func (g *WorkspaceRepo) GetWorkspaceByName(ctx context.Context, name string) (aghworkspace.Workspace, error) {
+func (g *WorkspaceRepo) GetWorkspaceByName(ctx context.Context, name string) (compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "get workspace by name"); err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
 
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
-		return aghworkspace.Workspace{}, errors.New("store: workspace name is required")
+		return compozyworkspace.Workspace{}, errors.New("store: workspace name is required")
 	}
 
 	row, err := g.queries.GetWorkspaceByName(ctx, trimmedName)
@@ -179,7 +179,7 @@ func (g *WorkspaceRepo) GetWorkspaceByName(ctx context.Context, name string) (ag
 }
 
 // ListWorkspaces returns all registered workspaces in stable name order.
-func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]aghworkspace.Workspace, error) {
+func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]compozyworkspace.Workspace, error) {
 	if err := g.checkReady(ctx, "list workspaces"); err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]aghworkspace.Work
 	if err != nil {
 		return nil, fmt.Errorf("store: query workspaces: %w", err)
 	}
-	workspaces := make([]aghworkspace.Workspace, 0, len(rows))
+	workspaces := make([]compozyworkspace.Workspace, 0, len(rows))
 	for _, row := range rows {
 		ws, scanErr := workspaceFromGenerated(row, nil)
 		if scanErr != nil {
@@ -199,14 +199,16 @@ func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]aghworkspace.Work
 	return workspaces, nil
 }
 
-func (g *WorkspaceRepo) normalizeWorkspaceForInsert(ws aghworkspace.Workspace) (aghworkspace.Workspace, string, error) {
+func (g *WorkspaceRepo) normalizeWorkspaceForInsert(
+	ws compozyworkspace.Workspace,
+) (compozyworkspace.Workspace, string, error) {
 	normalized, addDirsJSON, err := normalizeWorkspaceRecord(ws)
 	if err != nil {
-		return aghworkspace.Workspace{}, "", err
+		return compozyworkspace.Workspace{}, "", err
 	}
 
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = aghworkspace.NewWorkspaceID()
+		normalized.ID = compozyworkspace.NewWorkspaceID()
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -218,14 +220,16 @@ func (g *WorkspaceRepo) normalizeWorkspaceForInsert(ws aghworkspace.Workspace) (
 	return normalized, addDirsJSON, nil
 }
 
-func (g *WorkspaceRepo) normalizeWorkspaceForUpdate(ws aghworkspace.Workspace) (aghworkspace.Workspace, string, error) {
+func (g *WorkspaceRepo) normalizeWorkspaceForUpdate(
+	ws compozyworkspace.Workspace,
+) (compozyworkspace.Workspace, string, error) {
 	normalized, addDirsJSON, err := normalizeWorkspaceRecord(ws)
 	if err != nil {
-		return aghworkspace.Workspace{}, "", err
+		return compozyworkspace.Workspace{}, "", err
 	}
 
 	if strings.TrimSpace(normalized.ID) == "" {
-		return aghworkspace.Workspace{}, "", errors.New("store: workspace id is required")
+		return compozyworkspace.Workspace{}, "", errors.New("store: workspace id is required")
 	}
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = g.now()
@@ -234,26 +238,26 @@ func (g *WorkspaceRepo) normalizeWorkspaceForUpdate(ws aghworkspace.Workspace) (
 	return normalized, addDirsJSON, nil
 }
 
-func workspaceFromGenerated(row sqlcgen.Workspace, queryErr error) (aghworkspace.Workspace, error) {
+func workspaceFromGenerated(row sqlcgen.Workspace, queryErr error) (compozyworkspace.Workspace, error) {
 	if queryErr != nil {
 		if errors.Is(queryErr, sql.ErrNoRows) {
-			return aghworkspace.Workspace{}, aghworkspace.ErrWorkspaceNotFound
+			return compozyworkspace.Workspace{}, compozyworkspace.ErrWorkspaceNotFound
 		}
-		return aghworkspace.Workspace{}, fmt.Errorf("store: scan workspace: %w", queryErr)
+		return compozyworkspace.Workspace{}, fmt.Errorf("store: scan workspace: %w", queryErr)
 	}
 	addDirs, err := decodeWorkspaceDirs(row.AddDirs)
 	if err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
 	createdAt, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
 	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
-		return aghworkspace.Workspace{}, err
+		return compozyworkspace.Workspace{}, err
 	}
-	return aghworkspace.Workspace{
+	return compozyworkspace.Workspace{
 		ID: row.ID, RootDir: row.RootDir, AdditionalDirs: addDirs, Name: row.Name,
 		DefaultAgent: strings.TrimSpace(row.DefaultAgent.String), SandboxRef: strings.TrimSpace(row.SandboxRef),
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
@@ -264,7 +268,7 @@ func nullableWorkspaceString(value string) sql.NullString {
 	return store.SQLNullString(value)
 }
 
-func normalizeWorkspaceRecord(ws aghworkspace.Workspace) (aghworkspace.Workspace, string, error) {
+func normalizeWorkspaceRecord(ws compozyworkspace.Workspace) (compozyworkspace.Workspace, string, error) {
 	normalized := ws
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.RootDir = strings.TrimSpace(normalized.RootDir)
@@ -275,14 +279,14 @@ func normalizeWorkspaceRecord(ws aghworkspace.Workspace) (aghworkspace.Workspace
 
 	switch {
 	case normalized.RootDir == "":
-		return aghworkspace.Workspace{}, "", errors.New("store: workspace root directory is required")
+		return compozyworkspace.Workspace{}, "", errors.New("store: workspace root directory is required")
 	case normalized.Name == "":
-		return aghworkspace.Workspace{}, "", errors.New("store: workspace name is required")
+		return compozyworkspace.Workspace{}, "", errors.New("store: workspace name is required")
 	}
 
 	addDirsJSON, err := encodeWorkspaceDirs(normalized.AdditionalDirs)
 	if err != nil {
-		return aghworkspace.Workspace{}, "", err
+		return compozyworkspace.Workspace{}, "", err
 	}
 
 	return normalized, addDirsJSON, nil
@@ -333,7 +337,7 @@ func compactStrings(values []string) []string {
 func mapWorkspaceWriteConstraintError(
 	ctx context.Context,
 	exec globalSQLExecutor,
-	workspace aghworkspace.Workspace,
+	workspace compozyworkspace.Workspace,
 	err error,
 ) error {
 	if err == nil {
@@ -347,7 +351,7 @@ func mapWorkspaceWriteConstraintError(
 	byPath, pathErr := queries.GetWorkspaceByPath(ctx, workspace.RootDir)
 	switch {
 	case pathErr == nil && byPath.ID != workspace.ID:
-		return aghworkspace.ErrWorkspacePathTaken
+		return compozyworkspace.ErrWorkspacePathTaken
 	case pathErr != nil && !errors.Is(pathErr, sql.ErrNoRows):
 		return errors.Join(err, fmt.Errorf("store: classify workspace path constraint: %w", pathErr))
 	}
@@ -355,7 +359,7 @@ func mapWorkspaceWriteConstraintError(
 	byName, nameErr := queries.GetWorkspaceByName(ctx, workspace.Name)
 	switch {
 	case nameErr == nil && byName.ID != workspace.ID:
-		return aghworkspace.ErrWorkspaceNameTaken
+		return compozyworkspace.ErrWorkspaceNameTaken
 	case nameErr != nil && !errors.Is(nameErr, sql.ErrNoRows):
 		return errors.Join(err, fmt.Errorf("store: classify workspace name constraint: %w", nameErr))
 	default:
@@ -368,7 +372,7 @@ func mapWorkspaceDeleteConstraintError(err error) error {
 		return nil
 	}
 	if isSQLiteForeignKeyConstraint(err) {
-		return aghworkspace.ErrWorkspaceHasSessions
+		return compozyworkspace.ErrWorkspaceHasSessions
 	}
 	return err
 }

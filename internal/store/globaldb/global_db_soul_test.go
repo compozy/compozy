@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -26,7 +26,7 @@ func TestGlobalDBSoulSnapshotStore(t *testing.T) {
 		root := t.TempDir()
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "soul-resolver-workspace", root)
 		sourcePath := filepath.Join(root, "agents", "reviewer", soul.FileName)
-		cfg := aghconfig.DefaultSoulConfig()
+		cfg := compozyconfig.DefaultSoulConfig()
 		content := []byte(`---
 version: "1"
 role: reviewer

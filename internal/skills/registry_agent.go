@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -43,8 +43,8 @@ func (r *Registry) ForAgentSession(
 		return nil, err
 	}
 
-	target := aghconfig.NormalizeAgentName(agentName)
-	if err := aghconfig.ValidateAgentName(target); err != nil {
+	target := compozyconfig.NormalizeAgentName(agentName)
+	if err := compozyconfig.ValidateAgentName(target); err != nil {
 		return nil, err
 	}
 
@@ -63,7 +63,7 @@ func (r *Registry) ForAgentSession(
 func (r *Registry) ForAgentDef(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 ) ([]*Skill, error) {
 	return r.ForAgentDefSession(ctx, resolved, agent, "")
 }
@@ -74,18 +74,18 @@ func (r *Registry) ForAgentDef(
 func (r *Registry) ForAgentDefSession(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*Skill, error) {
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, err
 	}
 
-	target := aghconfig.NormalizeAgentName(agent.Name)
-	if err := aghconfig.ValidateAgentName(target); err != nil {
+	target := compozyconfig.NormalizeAgentName(agent.Name)
+	if err := compozyconfig.ValidateAgentName(target); err != nil {
 		return nil, err
 	}
-	agent = aghconfig.CloneAgentDef(agent)
+	agent = compozyconfig.CloneAgentDef(agent)
 	agent.Name = target
 
 	baseSkills, err := r.baseSkillsForAgent(ctx, resolved)
@@ -98,7 +98,7 @@ func (r *Registry) ForAgentDefSession(
 		return r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, mergedSkillList(nil, skillsByName))
 	}
 
-	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), aghconfig.SkillsDirName)
+	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), compozyconfig.SkillsDirName)
 	agentLocalSkills, err := r.loadAgentLocalSkills(ctx, agentSkillsDir, target, agent.Skills.Disabled)
 	if err != nil {
 		r.emitSkillsLoadFailed(ctx, resourceWorkspaceKey(resolved), target, err)
@@ -125,7 +125,7 @@ func (r *Registry) ForAgentDefSession(
 func (r *Registry) projectAgentSkillActivation(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	sessionID string,
 	skills []*Skill,
 ) ([]*Skill, error) {
@@ -158,8 +158,8 @@ func (r *Registry) SetEnabledForAgent(
 		return errors.New("skills: skill name is required")
 	}
 
-	targetAgent := aghconfig.NormalizeAgentName(agentName)
-	if err := aghconfig.ValidateAgentName(targetAgent); err != nil {
+	targetAgent := compozyconfig.NormalizeAgentName(agentName)
+	if err := compozyconfig.ValidateAgentName(targetAgent); err != nil {
 		return err
 	}
 
@@ -171,7 +171,7 @@ func (r *Registry) SetEnabledForAgent(
 		return fmt.Errorf("%w: agent %q source path is required", ErrAgentLocalInvalid, targetAgent)
 	}
 
-	_, err = aghconfig.EditAgentDefFile(agent.SourcePath, func(def *aghconfig.AgentDef) error {
+	_, err = compozyconfig.EditAgentDefFile(agent.SourcePath, func(def *compozyconfig.AgentDef) error {
 		if def == nil {
 			return errors.New("skills: agent definition is required")
 		}
@@ -198,13 +198,13 @@ func (r *Registry) baseSkillsForAgent(
 func (r *Registry) resolveAgentScope(
 	resolved *workspacepkg.ResolvedWorkspace,
 	agentName string,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if resolved != nil {
 		for _, diagnostic := range resolved.AgentDiagnostics {
-			if aghconfig.NormalizeAgentName(diagnostic.Name) != agentName {
+			if compozyconfig.NormalizeAgentName(diagnostic.Name) != agentName {
 				continue
 			}
-			return aghconfig.AgentDef{}, fmt.Errorf(
+			return compozyconfig.AgentDef{}, fmt.Errorf(
 				"%w: agent %q at %q: %s",
 				ErrAgentLocalInvalid,
 				agentName,
@@ -213,34 +213,34 @@ func (r *Registry) resolveAgentScope(
 			)
 		}
 		for _, agent := range resolved.Agents {
-			if aghconfig.NormalizeAgentName(agent.Name) != agentName {
+			if compozyconfig.NormalizeAgentName(agent.Name) != agentName {
 				continue
 			}
-			return aghconfig.CloneAgentDef(agent), nil
+			return compozyconfig.CloneAgentDef(agent), nil
 		}
-		if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+		if builtin, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 			return builtin, nil
 		}
-		return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
+		return compozyconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 	}
 
 	agentsDir := r.globalAgentsDir()
 	if strings.TrimSpace(agentsDir) == "" {
-		if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+		if builtin, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 			return builtin, nil
 		}
-		return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
+		return compozyconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 	}
 	path := filepath.Join(agentsDir, agentName, "AGENT.md")
-	agent, err := aghconfig.LoadAgentDefFile(path)
+	agent, err := compozyconfig.LoadAgentDefFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+			if builtin, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 				return builtin, nil
 			}
-			return aghconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
+			return compozyconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 		}
-		return aghconfig.AgentDef{}, fmt.Errorf(
+		return compozyconfig.AgentDef{}, fmt.Errorf(
 			"%w",
 			newAgentLocalLoadError(
 				"validation",
@@ -250,8 +250,8 @@ func (r *Registry) resolveAgentScope(
 			),
 		)
 	}
-	if aghconfig.NormalizeAgentName(agent.Name) != agentName {
-		return aghconfig.AgentDef{}, fmt.Errorf("%w", newAgentLocalLoadError(
+	if compozyconfig.NormalizeAgentName(agent.Name) != agentName {
+		return compozyconfig.AgentDef{}, fmt.Errorf("%w", newAgentLocalLoadError(
 			"validation",
 			path,
 			fmt.Sprintf("agent file %q defines %q, expected %q", path, agent.Name, agentName),
@@ -392,5 +392,5 @@ func (r *Registry) globalAgentsDir() string {
 	if userSkillsDir == "" {
 		return ""
 	}
-	return filepath.Join(filepath.Dir(userSkillsDir), aghconfig.AgentsDirName)
+	return filepath.Join(filepath.Dir(userSkillsDir), compozyconfig.AgentsDirName)
 }

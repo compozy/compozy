@@ -167,7 +167,7 @@ test("operator manages a local sandbox profile and binds it to real session exec
   await appPage.goto(runtime.url("/sandbox"), { waitUntil: "domcontentloaded" });
   await expect(sandboxUI.profile(sandboxProfileName)).toBeVisible();
 
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-browser-sandbox-workspace-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-sandbox-workspace-"));
   await writeFile(
     path.join(workspaceRoot, "browser-allowed-source.txt"),
     "sandbox-browser-allowed"
@@ -281,7 +281,7 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
     },
   ]);
 
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-browser-sandbox-blocked-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-sandbox-blocked-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
   await setWorkspaceSandbox(runtime, workspace.id, sandboxProfileName);
   const session = await createSession(runtime, blockedAgent, workspace.id);
@@ -331,9 +331,10 @@ async function createSandboxProfileThroughUI(win: Locator, name: string): Promis
   await ui.createButton.click();
   await expect(ui.editor).toBeVisible();
   await ui.editorNameInput.fill(name);
-  await ui.editorBackendInput.selectOption("local");
-  await ui.editorSyncModeInput.fill("none");
-  await ui.editorPersistenceInput.fill("reuse");
+  await ui.editorBackendLocal.click();
+  await ui.editorSyncModeInput.selectOption("none");
+  await ui.editorAdvancedMode.click();
+  await ui.editorPersistenceInput.selectOption("reuse");
   await ui.editorRuntimeRootInput.fill("");
 
   const response = page.waitForResponse(

@@ -23,7 +23,7 @@ func TestUnixSocketClientCreateTaskAsAgentSendsIdentityHeaders(t *testing.T) {
 			WorkspaceID: "ws-1",
 		}
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -71,7 +71,7 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 			WorkspaceID: "ws-1",
 		}
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -115,7 +115,7 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 			WorkspaceID: "ws-1",
 		}
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)

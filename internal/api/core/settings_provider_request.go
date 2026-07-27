@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/modelcatalog"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -40,13 +40,13 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		DisplayName:     strings.TrimSpace(body.Settings.DisplayName),
 		Models:          providerModelsFromPayload(body.Settings.Models),
 		ModelsSet:       body.Settings.Models != nil,
-		Harness:         aghconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
+		Harness:         compozyconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
 		RuntimeProvider: strings.TrimSpace(body.Settings.RuntimeProvider),
 		Transport:       strings.TrimSpace(body.Settings.Transport),
 		BaseURL:         strings.TrimSpace(body.Settings.BaseURL),
-		AuthMode:        aghconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
-		EnvPolicy:       aghconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
-		HomePolicy:      aghconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
+		AuthMode:        compozyconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
+		EnvPolicy:       compozyconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
+		HomePolicy:      compozyconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
 		AuthStatusCmd:   strings.TrimSpace(body.Settings.AuthStatusCmd),
 		AuthLoginCmd:    strings.TrimSpace(body.Settings.AuthLoginCmd),
 		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
@@ -103,13 +103,13 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPaylo
 
 func providerCredentialSlotsFromPayload(
 	payloads []contract.SettingsProviderCredentialSlotPayload,
-) []aghconfig.ProviderCredentialSlot {
+) []compozyconfig.ProviderCredentialSlot {
 	if len(payloads) == 0 {
 		return nil
 	}
-	slots := make([]aghconfig.ProviderCredentialSlot, 0, len(payloads))
+	slots := make([]compozyconfig.ProviderCredentialSlot, 0, len(payloads))
 	for _, payload := range payloads {
-		slots = append(slots, aghconfig.ProviderCredentialSlot{
+		slots = append(slots, compozyconfig.ProviderCredentialSlot{
 			Name:      strings.TrimSpace(payload.Name),
 			TargetEnv: strings.TrimSpace(payload.TargetEnv),
 			SecretRef: strings.TrimSpace(payload.SecretRef),

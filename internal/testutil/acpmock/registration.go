@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -24,7 +24,7 @@ type RegisterOptions struct {
 // ProviderName is the auth-free local provider used by fixture-backed ACP mocks.
 const ProviderName = "acpmock"
 
-// Registration captures one temporary mock-agent definition written into AGH home.
+// Registration captures one temporary mock-agent definition written into Compozy home.
 type Registration struct {
 	AgentName       string
 	FixtureAgent    string
@@ -38,8 +38,8 @@ type Registration struct {
 	Permissions     string
 }
 
-// Register writes one temporary fixture-backed AGENT.md file into the supplied AGH home.
-func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration, error) {
+// Register writes one temporary fixture-backed AGENT.md file into the supplied Compozy home.
+func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registration, error) {
 	if strings.TrimSpace(homePaths.AgentsDir) == "" {
 		return Registration{}, errors.New("acpmock: home paths agents directory is required")
 	}
@@ -84,7 +84,7 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
 
-	loaded, err := aghconfig.LoadAgentDefFile(agentDefPath)
+	loaded, err := compozyconfig.LoadAgentDefFile(agentDefPath)
 	if err != nil {
 		return Registration{}, postWriteRegistrationError(
 			agentDefPath,
@@ -92,7 +92,7 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 			err,
 		)
 	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	if providerName == ProviderName {
 		cfg.Providers[ProviderName] = ProviderConfig(driverPath)
 	}
@@ -119,19 +119,19 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 }
 
 // ProviderConfig returns the local auth-free provider config for ACP mock agents.
-func ProviderConfig(command ...string) aghconfig.ProviderConfig {
+func ProviderConfig(command ...string) compozyconfig.ProviderConfig {
 	providerCommand := "acpmock-driver"
 	if len(command) > 0 {
 		if trimmed := strings.TrimSpace(command[0]); trimmed != "" {
 			providerCommand = trimmed
 		}
 	}
-	return aghconfig.ProviderConfig{
+	return compozyconfig.ProviderConfig{
 		Command:      providerCommand,
 		DisplayName:  "ACP Mock",
-		Harness:      aghconfig.ProviderHarnessACP,
-		AuthMode:     aghconfig.ProviderAuthModeNone,
-		NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+		Harness:      compozyconfig.ProviderHarnessACP,
+		AuthMode:     compozyconfig.ProviderAuthModeNone,
+		NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
 	}
 }
 
@@ -149,7 +149,7 @@ type registrationFixture struct {
 }
 
 func resolveRegistrationFixture(opts RegisterOptions) (registrationFixture, error) {
-	fixturePath, err := aghconfig.ResolvePath(opts.FixturePath)
+	fixturePath, err := compozyconfig.ResolvePath(opts.FixturePath)
 	if err != nil {
 		return registrationFixture{}, fmt.Errorf("acpmock: resolve fixture path: %w", err)
 	}
@@ -227,9 +227,9 @@ func sanitizeAgentPathSegment(value string) (string, error) {
 	return trimmed, nil
 }
 
-func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override string) (string, error) {
+func resolveDiagnosticsPath(homePaths compozyconfig.HomePaths, name string, override string) (string, error) {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
-		resolved, err := aghconfig.ResolvePath(trimmed)
+		resolved, err := compozyconfig.ResolvePath(trimmed)
 		if err != nil {
 			return "", err
 		}

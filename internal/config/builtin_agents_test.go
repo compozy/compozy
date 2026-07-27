@@ -19,7 +19,7 @@ func TestBuiltinAgentDefReturnsRuntimeOwnedIdentities(t *testing.T) {
 		if got.Name != "coordinator" || strings.TrimSpace(got.Prompt) == "" {
 			t.Fatalf("BuiltinAgentDef(coordinator) = %#v, want named non-empty identity", got)
 		}
-		if got.Prompt == "AGH coordinator agent identity." {
+		if got.Prompt == "Compozy coordinator agent identity." {
 			t.Fatal("BuiltinAgentDef(coordinator).Prompt uses the deleted placeholder")
 		}
 		if got.Provider != "" || got.Model != "" {

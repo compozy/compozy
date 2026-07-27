@@ -404,7 +404,7 @@ func TestAutomationTriggersCreateParsesFilters(t *testing.T) {
 		"--scope", "workspace",
 		"--workspace", "alpha",
 		"--event", "session.stopped",
-		"--filter", "data.branch=main,data.repo=agh",
+		"--filter", "data.branch=main,data.repo=compozy",
 		"--agent", "coder",
 		"--prompt", `review {{ index .Data "session_id" }}`,
 		"-o", "json",
@@ -416,7 +416,7 @@ func TestAutomationTriggersCreateParsesFilters(t *testing.T) {
 	if request.Scope != automationpkg.AutomationScopeWorkspace || request.WorkspaceID != "ws-alpha" {
 		t.Fatalf("request scope/workspace = %#v, want workspace ws-alpha", request)
 	}
-	if request.Filter["data.branch"] != "main" || request.Filter["data.repo"] != "agh" {
+	if request.Filter["data.branch"] != "main" || request.Filter["data.repo"] != "compozy" {
 		t.Fatalf("request.Filter = %#v, want parsed filter map", request.Filter)
 	}
 

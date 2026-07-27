@@ -11,13 +11,13 @@ import (
 
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-var _ aghworkspace.Store = (*WorkspaceRepo)(nil)
-var _ aghworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
+var _ compozyworkspace.Store = (*WorkspaceRepo)(nil)
+var _ compozyworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
 
-// OpenGlobalDB opens or creates the global AGH index database.
+// OpenGlobalDB opens or creates the global Compozy index database.
 func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*GlobalDB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open global database context is required")

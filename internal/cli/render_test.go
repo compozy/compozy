@@ -75,7 +75,7 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 					Status:         "running",
 					PID:            10,
 					StartedAt:      fixedTestNow.Add(-time.Minute),
-					Socket:         "/tmp/agh.sock",
+					Socket:         "/tmp/compozy.sock",
 					HTTPHost:       "localhost",
 					HTTPPort:       2123,
 					ActiveSessions: 1,

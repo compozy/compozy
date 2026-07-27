@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -85,7 +85,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 	}
 	maxDesignations := h.Config.Task.Orchestration.DesignatedRunMax
 	if maxDesignations <= 0 {
-		maxDesignations = aghconfig.DefaultTaskDesignatedRunMax
+		maxDesignations = compozyconfig.DefaultTaskDesignatedRunMax
 	}
 	prepared, err := prepareFanOutTaskRunsRequest(req, maxDesignations)
 	if err != nil {

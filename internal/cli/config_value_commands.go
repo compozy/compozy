@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -43,7 +43,7 @@ func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Write scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
 	return cmd
 }
@@ -70,10 +70,15 @@ func runConfigUnsetCommand(
 		return err
 	}
 	deleted := false
-	if _, err := aghconfig.EditConfigOverlay(homePaths, workspace, target, func(editor *aghconfig.OverlayEditor) error {
-		deleted = editor.HasPath(path)
-		return editor.Delete(path)
-	}); err != nil {
+	if _, err := compozyconfig.EditConfigOverlay(
+		homePaths,
+		workspace,
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			deleted = editor.HasPath(path)
+			return editor.Delete(path)
+		},
+	); err != nil {
 		return err
 	}
 	lifecycle := classifyConfigSetLifecycle(path)
@@ -189,7 +194,7 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Write scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
 	return cmd
 }
@@ -227,16 +232,21 @@ func runConfigSetCommand(
 	if liveRecord != nil {
 		return writeCommandOutput(cmd, configSetBundle(*liveRecord))
 	}
-	if _, err := aghconfig.EditConfigOverlay(homePaths, workspace, target, func(editor *aghconfig.OverlayEditor) error {
-		if kind == configSetTable {
-			table, ok := value.(map[string]any)
-			if !ok {
-				return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
+	if _, err := compozyconfig.EditConfigOverlay(
+		homePaths,
+		workspace,
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			if kind == configSetTable {
+				table, ok := value.(map[string]any)
+				if !ok {
+					return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
+				}
+				return editor.SetTable(path, table)
 			}
-			return editor.SetTable(path, table)
-		}
-		return editor.SetValue(path, value)
-	}); err != nil {
+			return editor.SetValue(path, value)
+		},
+	); err != nil {
 		return err
 	}
 	record := configSetRecordForLocalWrite(path, value, target, redacted, lifecycle)
@@ -253,13 +263,13 @@ func runConfigSetCommand(
 func configSetRecordForLocalWrite(
 	path []string,
 	value any,
-	target aghconfig.WriteTarget,
+	target compozyconfig.WriteTarget,
 	redacted bool,
 	lifecycle configMutationLifecycle,
 ) configSetRecord {
 	outputValue := value
 	if redacted {
-		outputValue = aghconfig.RedactedValue()
+		outputValue = compozyconfig.RedactedValue()
 	}
 	return configSetRecord{
 		Path:            strings.Join(path, "."),

@@ -48,7 +48,7 @@ const CONFIG: WindowManagerConfig = {
 
 const SNAPSHOT: WindowManagerSnapshot = {
   version: 1,
-  workspaceId: "workspace-agh",
+  workspaceId: "workspace-compozy",
   revision: 12,
   desktops: [],
   windows: {},
@@ -92,7 +92,7 @@ export function createLiveStoryShell(): OsShellHandle {
     snapshot: SNAPSHOT,
     windowManagerConfig: CONFIG,
     client: {
-      workspaceId: "workspace-agh",
+      workspaceId: "workspace-compozy",
       clientId: "client:story",
       activeDesktopId: STORY_DESKTOP_ID,
       focusedWindowId: focused.id,

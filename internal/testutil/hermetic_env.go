@@ -44,8 +44,8 @@ func ApplyHermeticEnv(t testing.TB) HermeticEnv {
 	}
 
 	state := HermeticEnv{
-		HomeDir:          filepath.Join(t.TempDir(), "agh-home"),
-		ConfigHomeDir:    filepath.Join(t.TempDir(), "agh-config-home"),
+		HomeDir:          filepath.Join(t.TempDir(), "compozy-home"),
+		ConfigHomeDir:    filepath.Join(t.TempDir(), "compozy-config-home"),
 		ProviderHomeDir:  filepath.Join(t.TempDir(), "provider-home"),
 		ProviderCodexDir: filepath.Join(t.TempDir(), "provider-codex-home"),
 		ClaudeConfigDir:  filepath.Join(t.TempDir(), "claude-config"),
@@ -68,8 +68,8 @@ func ApplyHermeticEnv(t testing.TB) HermeticEnv {
 }
 
 // HermeticProcessEnv returns a child-process environment with credential-shaped
-// and AGH/provider-local state removed, plus deterministic timezone and locale
-// pins. It intentionally leaves HOME untouched; tests that need isolated AGH
+// and Compozy/provider-local state removed, plus deterministic timezone and locale
+// pins. It intentionally leaves HOME untouched; tests that need isolated Compozy
 // state should set COMPOZY_HOME explicitly after calling this helper.
 func HermeticProcessEnv(base []string) []string {
 	if base == nil {

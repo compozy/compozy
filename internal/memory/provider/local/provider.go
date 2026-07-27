@@ -16,7 +16,7 @@ import (
 // Name is the bundled local MemoryProvider registration name.
 const Name = "local"
 
-// Backend is the contract-typed substrate the local provider needs from AGH's
+// Backend is the contract-typed substrate the local provider needs from Compozy's
 // memory store without depending on controller or recall internals directly.
 type Backend interface {
 	EnsureDirs() error

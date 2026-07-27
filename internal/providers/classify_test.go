@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -60,9 +60,9 @@ func TestClassifyProviderAuth(t *testing.T) {
 	t.Run("Should return missing credential when required bound secret is absent", func(t *testing.T) {
 		t.Parallel()
 
-		provider := aghconfig.ProviderConfig{
-			AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+		provider := compozyconfig.ProviderConfig{
+			AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 				{Name: "api_key", TargetEnv: "TEST_API_KEY", SecretRef: "env:TEST_API_KEY", Required: true},
 			},
 		}
@@ -83,8 +83,8 @@ func TestClassifyProviderAuth(t *testing.T) {
 	t.Run("Should return explicit none when auth mode is none", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := ClassifyDeclared(context.Background(), aghconfig.ProviderConfig{
-			AuthMode: aghconfig.ProviderAuthModeNone,
+		got, err := ClassifyDeclared(context.Background(), compozyconfig.ProviderConfig{
+			AuthMode: compozyconfig.ProviderAuthModeNone,
 		}, nil)
 		if err != nil {
 			t.Fatalf("ClassifyDeclared(none) error = %v", err)
@@ -155,10 +155,10 @@ func TestClassifyProviderAuth(t *testing.T) {
 	})
 }
 
-func nativeProvider() aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
+func nativeProvider() compozyconfig.ProviderConfig {
+	return compozyconfig.ProviderConfig{
 		Command:       "provider-cli acp",
-		AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+		AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
 		AuthStatusCmd: "provider-cli auth status",
 		AuthLoginCmd:  "provider-cli login",
 	}

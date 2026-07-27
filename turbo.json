@@ -12,7 +12,7 @@
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]
         },
-        "agh-web#build": {
+        "compozy-web#build": {
             "dependsOn": ["//#codegen-check", "typecheck", "^build"],
             "outputs": ["dist/**"],
             "env": ["VITE_COMPOZY_API_URL"]

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"golang.org/x/term"
 )
 
@@ -155,7 +155,7 @@ func parseMCPInstallValueKey(rawKey string) (string, error) {
 	if key == "" || strings.Contains(key, "=") {
 		return "", errors.New("cli: --set requires a field name without a value")
 	}
-	if err := aghconfig.ValidateMCPStdioEnvName("--set", key, true); err != nil {
+	if err := compozyconfig.ValidateMCPStdioEnvName("--set", key, true); err != nil {
 		return "", fmt.Errorf("cli: invalid MCP install field: %w", err)
 	}
 	return key, nil
@@ -167,7 +167,7 @@ func parseMCPInstallAssignment(flag string, assignment string) (string, string, 
 	if !ok || key == "" || strings.TrimSpace(value) == "" {
 		return "", "", fmt.Errorf("cli: %s requires KEY=VALUE", flag)
 	}
-	if err := aghconfig.ValidateMCPStdioEnvName(flag, key, true); err != nil {
+	if err := compozyconfig.ValidateMCPStdioEnvName(flag, key, true); err != nil {
 		return "", "", fmt.Errorf("cli: invalid MCP install field: %w", err)
 	}
 	return key, value, nil

@@ -285,7 +285,7 @@ describe("SDK integration", () => {
     "builds an SDK-based extension and serves real JSON-RPC over stdio",
     async () => {
       const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "agh-sdk-integration-"));
+      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-integration-"));
       tempDirs.push(tempDir);
       await writeFile(
         join(tempDir, "index.mjs"),
@@ -330,7 +330,7 @@ describe("SDK integration", () => {
             params: {
               protocol_version: "1",
               supported_protocol_versions: ["1"],
-              agh_version: "0.5.0",
+              compozy_version: "0.5.0",
               session_nonce: "integration-nonce",
               extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
@@ -438,7 +438,7 @@ describe("SDK integration", () => {
     "serves extension.tool descriptors and calls over real stdio",
     async () => {
       const sdkEntry = resolve(packageDir, "dist/esm/index.js");
-      const tempDir = await mkdtemp(join(tmpdir(), "agh-sdk-tool-integration-"));
+      const tempDir = await mkdtemp(join(tmpdir(), "compozy-sdk-tool-integration-"));
       tempDirs.push(tempDir);
       await writeFile(
         join(tempDir, "index.mjs"),
@@ -481,7 +481,7 @@ describe("SDK integration", () => {
             params: {
               protocol_version: "1",
               supported_protocol_versions: ["1"],
-              agh_version: "0.5.0",
+              compozy_version: "0.5.0",
               session_nonce: "tool-nonce",
               extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {

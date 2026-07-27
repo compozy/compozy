@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/spf13/cobra"
@@ -84,7 +84,7 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			skillDir := filepath.Join(workspace, aghconfig.DirName, aghconfig.SkillsDirName, skillName)
+			skillDir := filepath.Join(workspace, compozyconfig.DirName, compozyconfig.SkillsDirName, skillName)
 			if _, err := os.Stat(skillDir); err == nil {
 				return fmt.Errorf("skill %q already exists at %s", skillName, skillDir)
 			} else if !errors.Is(err, os.ErrNotExist) {

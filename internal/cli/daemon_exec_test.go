@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghlogger "github.com/compozy/compozy/internal/logger"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 )
 
 func TestSpawnDetachedDaemonProcess(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -41,7 +41,7 @@ func TestSpawnDetachedDaemonProcess(t *testing.T) {
 func TestSpawnDetachedDaemonProcessWaitIncludesStderr(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 	t.Run("ShouldDisableStderrMirroringInDetachedChild", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -109,7 +109,7 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 		}
 
 		if !strings.Contains(
-			strings.Join(aghlogger.WithMirrorToStderrEnv(nil, false), "\n"),
+			strings.Join(compozylogger.WithMirrorToStderrEnv(nil, false), "\n"),
 			"COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0",
 		) {
 			t.Fatal("WithMirrorToStderrEnv(nil, false) did not inject COMPOZY_INTERNAL_LOG_MIRROR_STDERR=0")

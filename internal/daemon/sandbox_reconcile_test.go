@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session"
@@ -210,8 +210,8 @@ func TestReconcileDaemonSandboxesFindsAndAttachesPartialCreate(t *testing.T) {
 	if got := len(provider.findRequests); got != 1 {
 		t.Fatalf("FindSandbox calls = %d, want 1", got)
 	}
-	if got := provider.findRequests[0].Labels["agh_sandbox_id"]; got != "env-partial" {
-		t.Fatalf("FindSandbox label agh_sandbox_id = %q, want env-partial", got)
+	if got := provider.findRequests[0].Labels["compozy_sandbox_id"]; got != "env-partial" {
+		t.Fatalf("FindSandbox label compozy_sandbox_id = %q, want env-partial", got)
 	}
 	if got := len(provider.prepareRequests); got != 1 {
 		t.Fatalf("Prepare calls = %d, want 1", got)
@@ -322,13 +322,13 @@ func TestReconcileDaemonSandboxesUsesResolvedWorkspaceInputs(t *testing.T) {
 				},
 			},
 		},
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) {
-			return aghconfig.Config{
-				Sandboxes: map[string]aghconfig.SandboxProfile{
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) {
+			return compozyconfig.Config{
+				Sandboxes: map[string]compozyconfig.SandboxProfile{
 					"daytona-dev": {
 						Backend:  string(sandbox.BackendDaytona),
 						SyncMode: string(sandbox.SyncModeNone),
-						Daytona: aghconfig.DaytonaProfile{
+						Daytona: compozyconfig.DaytonaProfile{
 							Snapshot: "snap-reconcile",
 						},
 					},
@@ -546,7 +546,7 @@ func newSandboxReconcileHarness(
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	daemon := &Daemon{
-		homePaths: aghconfig.HomePaths{SessionsDir: filepath.Join(t.TempDir(), "sessions")},
+		homePaths: compozyconfig.HomePaths{SessionsDir: filepath.Join(t.TempDir(), "sessions")},
 		now: func() time.Time {
 			return time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 		},

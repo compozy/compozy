@@ -17,7 +17,7 @@ import (
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 
@@ -990,11 +990,11 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		globalAt := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 		workspaceAAt := globalAt.Add(time.Minute)
 		workspaceBAt := globalAt.Add(2 * time.Minute)
-		identityA, err := aghworkspace.EnsureIdentity(ctx, workspaceA)
+		identityA, err := compozyworkspace.EnsureIdentity(ctx, workspaceA)
 		if err != nil {
 			t.Fatalf("workspace A EnsureIdentity() error = %v", err)
 		}
-		identityB, err := aghworkspace.EnsureIdentity(ctx, workspaceB)
+		identityB, err := compozyworkspace.EnsureIdentity(ctx, workspaceB)
 		if err != nil {
 			t.Fatalf("workspace B EnsureIdentity() error = %v", err)
 		}
@@ -1158,7 +1158,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("len(results) = %d, want 0", len(results))
 		}
 
-		identity, err := aghworkspace.EnsureIdentity(context.Background(), workspaceRoot)
+		identity, err := compozyworkspace.EnsureIdentity(context.Background(), workspaceRoot)
 		if err != nil {
 			t.Fatalf("workspace EnsureIdentity() error = %v", err)
 		}
@@ -1324,7 +1324,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	}, "Common token is workspace-local.\n")); err != nil {
 		t.Fatalf("Store.Write(workspace) error = %v", err)
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		t.Fatalf("workspace EnsureIdentity() error = %v", err)
 	}
@@ -1470,11 +1470,11 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 		}, "Beta workspace signal.\n")); err != nil {
 			t.Fatalf("storeB.Write(workspace) error = %v", err)
 		}
-		identityA, err := aghworkspace.EnsureIdentity(ctx, workspaceA)
+		identityA, err := compozyworkspace.EnsureIdentity(ctx, workspaceA)
 		if err != nil {
 			t.Fatalf("workspace A EnsureIdentity() error = %v", err)
 		}
-		identityB, err := aghworkspace.EnsureIdentity(ctx, workspaceB)
+		identityB, err := compozyworkspace.EnsureIdentity(ctx, workspaceB)
 		if err != nil {
 			t.Fatalf("workspace B EnsureIdentity() error = %v", err)
 		}
@@ -2046,7 +2046,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 			if results[0].Scope != memcontract.ScopeWorkspace {
 				t.Fatalf("results[0].Scope = %q, want %q", results[0].Scope, memcontract.ScopeWorkspace)
 			}
-			if !aghworkspace.IsWorkspaceID(results[0].Workspace) {
+			if !compozyworkspace.IsWorkspaceID(results[0].Workspace) {
 				t.Fatalf("results[0].Workspace = %q, want workspace_id", results[0].Workspace)
 			}
 		},

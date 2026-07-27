@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -145,7 +145,7 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
-	case errors.Is(err, aghconfig.ErrSandboxProfileNotFound):
+	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
@@ -175,9 +175,9 @@ func statusForSessionError(err error) int {
 		return http.StatusGone
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
 		return http.StatusBadRequest
-	case errors.Is(err, aghconfig.ErrSandboxProfileNotFound):
+	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
 		return http.StatusBadRequest
-	case errors.Is(err, aghconfig.ErrProviderUnavailable):
+	case errors.Is(err, compozyconfig.ErrProviderUnavailable):
 		return http.StatusBadRequest
 	case isProviderNegotiationFailure(err):
 		return http.StatusUnprocessableEntity

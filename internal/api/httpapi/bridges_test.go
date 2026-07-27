@@ -41,7 +41,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 							Required:    true,
 						}},
 						ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-							Schema:  "agh.bridge.telegram",
+							Schema:  "compozy.bridge.telegram",
 							Version: "v1",
 						},
 						Enabled: true,
@@ -69,7 +69,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 					t.Fatalf("provider secret slots = %#v", response.Providers[0].SecretSlots)
 				}
 				if response.Providers[0].ConfigSchema == nil ||
-					response.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+					response.Providers[0].ConfigSchema.Schema != "compozy.bridge.telegram" {
 					t.Fatalf("provider config schema = %#v", response.Providers[0].ConfigSchema)
 				}
 			},
@@ -97,7 +97,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 						Platform:      "slack",
 						ExtensionName: "slack-reference",
 						DisplayName:   "Slack",
-						Description:   "Connect Slack messages, commands, actions, and reactions to AGH.",
+						Description:   "Connect Slack messages, commands, actions, and reactions to Compozy.",
 					}}, nil
 				},
 			},

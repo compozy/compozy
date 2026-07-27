@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func (s *service) providerSettingsFromConfig(
 	ctx context.Context,
 	name string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 ) (ProviderSettings, error) {
 	settings := providerSettingsBaseFromConfig(name, provider)
 	if s.modelCatalog == nil {
@@ -33,7 +33,7 @@ func (s *service) providerSettingsFromConfig(
 	return settings, nil
 }
 
-func providerSettingsBaseFromConfig(name string, provider aghconfig.ProviderConfig) ProviderSettings {
+func providerSettingsBaseFromConfig(name string, provider compozyconfig.ProviderConfig) ProviderSettings {
 	models := cloneProviderModelsConfig(provider.Models)
 	models.Curated = nil
 	return ProviderSettings{
@@ -53,7 +53,7 @@ func providerSettingsBaseFromConfig(name string, provider aghconfig.ProviderConf
 	}
 }
 
-func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
+func providerFallbackFromBuiltin(name string, builtin compozyconfig.ProviderConfig) *ProviderFallback {
 	return &ProviderFallback{
 		Source:   builtinProviderSource(),
 		Settings: providerSettingsBaseFromConfig(name, builtin),
@@ -62,18 +62,18 @@ func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) 
 
 func providerModelConfigsFromCatalog(
 	models []modelcatalog.Model,
-	configured []aghconfig.ProviderModelConfig,
-) []aghconfig.ProviderModelConfig {
+	configured []compozyconfig.ProviderModelConfig,
+) []compozyconfig.ProviderModelConfig {
 	if len(models) == 0 {
 		return nil
 	}
-	configuredByID := make(map[string]aghconfig.ProviderModelConfig, len(configured))
+	configuredByID := make(map[string]compozyconfig.ProviderModelConfig, len(configured))
 	for _, model := range configured {
 		if id := strings.TrimSpace(model.ID); id != "" {
 			configuredByID[id] = model
 		}
 	}
-	values := make([]aghconfig.ProviderModelConfig, 0, len(models))
+	values := make([]compozyconfig.ProviderModelConfig, 0, len(models))
 	for _, model := range models {
 		projected := providerModelConfigFromCatalog(model)
 		if desired, ok := configuredByID[model.ModelID]; ok {
@@ -85,8 +85,8 @@ func providerModelConfigsFromCatalog(
 }
 
 func applyDesiredProviderModelCuration(
-	projected *aghconfig.ProviderModelConfig,
-	desired aghconfig.ProviderModelConfig,
+	projected *compozyconfig.ProviderModelConfig,
+	desired compozyconfig.ProviderModelConfig,
 ) {
 	if projected == nil {
 		return
@@ -105,7 +105,7 @@ func applyDesiredProviderModelCuration(
 	}
 }
 
-func providerModelConfigFromCatalog(model modelcatalog.Model) aghconfig.ProviderModelConfig {
+func providerModelConfigFromCatalog(model modelcatalog.Model) compozyconfig.ProviderModelConfig {
 	defaultEffort := ""
 	if model.DefaultReasoningEffort != nil {
 		defaultEffort = string(*model.DefaultReasoningEffort)
@@ -118,7 +118,7 @@ func providerModelConfigFromCatalog(model modelcatalog.Model) aghconfig.Provider
 	for _, effort := range model.ReasoningEfforts {
 		efforts = append(efforts, string(effort))
 	}
-	return aghconfig.ProviderModelConfig{
+	return compozyconfig.ProviderModelConfig{
 		ID:                       model.ModelID,
 		DisplayName:              model.DisplayName,
 		ContextWindow:            cloneInt64Ptr(model.ContextWindow),
@@ -140,8 +140,8 @@ func providerModelConfigFromCatalog(model modelcatalog.Model) aghconfig.Provider
 	}
 }
 
-func cloneProviderModelsConfig(value aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
-	return aghconfig.ProviderModelsConfig{
+func cloneProviderModelsConfig(value compozyconfig.ProviderModelsConfig) compozyconfig.ProviderModelsConfig {
+	return compozyconfig.ProviderModelsConfig{
 		Default:   value.Default,
 		Curated:   cloneProviderModelConfigs(value.Curated),
 		Discovery: cloneProviderModelsDiscoveryConfig(value.Discovery),
@@ -150,9 +150,9 @@ func cloneProviderModelsConfig(value aghconfig.ProviderModelsConfig) aghconfig.P
 }
 
 func cloneProviderModelsDiscoveryConfig(
-	value aghconfig.ProviderModelsDiscoveryConfig,
-) aghconfig.ProviderModelsDiscoveryConfig {
-	return aghconfig.ProviderModelsDiscoveryConfig{
+	value compozyconfig.ProviderModelsDiscoveryConfig,
+) compozyconfig.ProviderModelsDiscoveryConfig {
+	return compozyconfig.ProviderModelsDiscoveryConfig{
 		Enabled:  cloneBoolPtr(value.Enabled),
 		Command:  value.Command,
 		Endpoint: value.Endpoint,
@@ -160,13 +160,13 @@ func cloneProviderModelsDiscoveryConfig(
 	}
 }
 
-func cloneProviderModelConfigs(values []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
+func cloneProviderModelConfigs(values []compozyconfig.ProviderModelConfig) []compozyconfig.ProviderModelConfig {
 	if values == nil {
 		return nil
 	}
-	cloned := make([]aghconfig.ProviderModelConfig, len(values))
+	cloned := make([]compozyconfig.ProviderModelConfig, len(values))
 	for idx, value := range values {
-		cloned[idx] = aghconfig.ProviderModelConfig{
+		cloned[idx] = compozyconfig.ProviderModelConfig{
 			ID:                       value.ID,
 			DisplayName:              value.DisplayName,
 			ContextWindow:            cloneInt64Ptr(value.ContextWindow),

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -44,9 +44,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 			"name: " + gatedSkillName,
 			"description: Must never be advertised by this integration fixture.",
 			"metadata:",
-			"  agh:",
+			"  compozy:",
 			"    when:",
-			"      platforms: [agh-integration-impossible]",
+			"      platforms: [compozy-integration-impossible]",
 			"---",
 			"body",
 		}, "\n"),
@@ -66,7 +66,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatal("boot() did not inject a startup-aware prompt assembler")
 	}
 	if capturedDeps.StartupPromptOverlay == nil {
-		t.Fatal("boot() did not inject the AGH runtime startup prompt overlay")
+		t.Fatal("boot() did not inject the Compozy runtime startup prompt overlay")
 	}
 	if capturedDeps.PromptInputAugmenter == nil {
 		t.Fatal("boot() did not inject the prompt input augmenter")
@@ -159,7 +159,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "# AGH Network Response Register") {
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "# Compozy Network Response Register") {
 		t.Fatalf("start system prompt = %q, want compact network response register section", got)
 	}
 	if got := driver.startCalls[0].SystemPrompt; strings.Contains(got, networkSkill) {
@@ -171,7 +171,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, nativeToolsGuide) {
 		t.Fatalf("start system prompt = %q, want bundled native tools guide content", got)
 	}
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, "# AGH Network Response Register"); got != 1 {
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, "# Compozy Network Response Register"); got != 1 {
 		t.Fatalf("network response register occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, toolsGuide); got != 1 {
@@ -190,33 +190,33 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, "</compozy-situation-context>"); got != 1 {
 		t.Fatalf("situation context section occurrences = %d, want 1", got)
 	}
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
-		t.Fatalf("AGH runtime envelope occurrences = %d, want 1", got)
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, compozyRuntimeEnvelopeStart); got != 1 {
+		t.Fatalf("Compozy runtime envelope occurrences = %d, want 1", got)
 	}
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "You are running inside AGH") ||
-		!strings.Contains(got, "AGH is a local-first daemon") ||
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "You are running inside Compozy") ||
+		!strings.Contains(got, "Compozy is a local-first daemon") ||
 		!strings.Contains(got, "- workspace_id: ws-harness") {
-		t.Fatalf("start system prompt = %q, want AGH runtime envelope with workspace facts", got)
+		t.Fatalf("start system prompt = %q, want Compozy runtime envelope with workspace facts", got)
 	}
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "<agh_checkpoint_summary>") ||
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "<compozy_checkpoint_summary>") ||
 		!strings.Contains(got, "The prior session selected cobalt.") {
 		t.Fatalf("start system prompt = %q, want prior-session checkpoint summary", got)
 	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
-		aghRuntimeEnvelopeStart,
-		"# AGH Runtime",
+		compozyRuntimeEnvelopeStart,
+		"# Compozy Runtime",
 		"canonical registry IDs",
 		"<compozy-situation-context>",
 		"# Persistent Memory",
-		"<agh_checkpoint_summary>",
+		"<compozy_checkpoint_summary>",
 		"The prior session selected cobalt.",
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolsGuide,
 		nativeToolsGuide,
-		"# AGH Network Response Register",
+		"# Compozy Network Response Register",
 	)
 
 	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
@@ -332,7 +332,7 @@ func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact stri
 	}, "\n\n")
 	writeDaemonFile(
 		t,
-		filepath.Join(workspaceRoot, aghconfig.DirName, "memory", memory.CheckpointSummaryFilename),
+		filepath.Join(workspaceRoot, compozyconfig.DirName, "memory", memory.CheckpointSummaryFilename),
 		memoryDocument(
 			"Workspace Checkpoint Summary",
 			"Continuity checkpoint updated from completed workspace sessions.",
@@ -421,7 +421,7 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-	if got := strings.Count(driver.startCalls[1].SystemPrompt, "# AGH Network Response Register"); got != 1 {
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, "# Compozy Network Response Register"); got != 1 {
 		t.Fatalf("resume prompt network response register occurrences = %d, want 1", got)
 	}
 	if got := driver.startCalls[1].SystemPrompt; strings.Contains(got, networkSkill) {
@@ -433,8 +433,8 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, nativeToolsGuide); got != 1 {
 		t.Fatalf("resume prompt native tools guide occurrences = %d, want 1", got)
 	}
-	if got := strings.Count(driver.startCalls[1].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
-		t.Fatalf("resume prompt AGH runtime envelope occurrences = %d, want 1", got)
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, compozyRuntimeEnvelopeStart); got != 1 {
+		t.Fatalf("resume prompt Compozy runtime envelope occurrences = %d, want 1", got)
 	}
 }
 
@@ -494,8 +494,8 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
-		aghRuntimeEnvelopeStart,
-		"# AGH Runtime",
+		compozyRuntimeEnvelopeStart,
+		"# Compozy Runtime",
 		"canonical registry IDs",
 		"<compozy-situation-context>",
 		"# Persistent Memory",
@@ -565,8 +565,8 @@ func seedHarnessSituationTaskRun(
 
 func bootHarnessPolicyDaemon(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
-	cfg *aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	cfg *compozyconfig.Config,
 ) (*Daemon, SessionManagerDeps) {
 	t.Helper()
 
@@ -602,7 +602,7 @@ func bootHarnessPolicyDaemon(
 
 func newHarnessIntegrationManager(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	deps SessionManagerDeps,
 	resolvedWorkspace workspacepkg.ResolvedWorkspace,
 	driver *harnessIntegrationDriver,
@@ -640,13 +640,13 @@ func drainHarnessIntegrationEvents(events <-chan acp.AgentEvent) {
 
 func newHarnessIntegrationWorkspace(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
-	cfg aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	cfg compozyconfig.Config,
 	root string,
 ) workspacepkg.ResolvedWorkspace {
 	t.Helper()
 
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -665,7 +665,7 @@ func newHarnessIntegrationWorkspace(
 			Name:    "workspace",
 		},
 		Config: cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
 				Name:     "coder",
 				Provider: "claude",
@@ -734,7 +734,7 @@ func (d *harnessIntegrationDriver) Start(_ context.Context, opts acp.StartOpts) 
 	copied := opts
 	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
 	copied.Env = append([]string(nil), opts.Env...)
-	copied.MCPServers = append([]aghconfig.MCPServer(nil), opts.MCPServers...)
+	copied.MCPServers = append([]compozyconfig.MCPServer(nil), opts.MCPServers...)
 	d.startCalls = append(d.startCalls, copied)
 	if d.startHook != nil {
 		if err := d.startHook(copied, d.sequence); err != nil {

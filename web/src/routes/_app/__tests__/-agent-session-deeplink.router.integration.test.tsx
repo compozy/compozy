@@ -163,7 +163,7 @@ describe("cross-workspace session deep-link router integration", () => {
       expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
     });
     expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe(PRIMARY_WORKSPACE_ID);
-    expect(localStorage.getItem("agh:active-workspace")).toContain(PRIMARY_WORKSPACE_ID);
+    expect(localStorage.getItem("compozy:active-workspace")).toContain(PRIMARY_WORKSPACE_ID);
   });
 
   it("Should adopt the owner on every cross-workspace hop, both directions", async () => {

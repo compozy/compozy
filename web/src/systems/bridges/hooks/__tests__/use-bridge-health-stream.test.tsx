@@ -303,7 +303,7 @@ describe("useBridgeHealthStream", () => {
     );
     expect(eventSourceFactory).toHaveBeenCalledTimes(2);
     const idCounts = eventSourceFactory.mock.calls.map(([url]) => {
-      const query = new URL(url, "http://agh.local").searchParams.get("bridge_ids") ?? "";
+      const query = new URL(url, "http://compozy.local").searchParams.get("bridge_ids") ?? "";
       return query.split(",").length;
     });
     expect(idCounts).toEqual([200, 1]);

@@ -35,7 +35,6 @@ ai-docs/
 .deep-review/*
 !.deep-review/learnings.md
 .peer-reviews
-.agh
 .clawpatch
 .claude/analysis
 .claude/ledger

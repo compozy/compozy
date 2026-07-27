@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func applyDefaultAgentOverride(cfg *aghconfig.Config, defaultAgent string) {
+func applyDefaultAgentOverride(cfg *compozyconfig.Config, defaultAgent string) {
 	if cfg == nil {
 		return
 	}

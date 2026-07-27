@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -217,7 +217,7 @@ func TestManagerSessionHealthHooks(t *testing.T) {
 		clock := newSessionHealthTestClock(baseAt)
 		healthStore := newFakeSessionHealthStore()
 		hooks := &recordingSessionHealthHooks{}
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.SessionHealthHookMinInterval = time.Second
 		h := newHarness(
 			t,
@@ -813,7 +813,7 @@ func TestManagerSessionHealthRecovery(t *testing.T) {
 			t,
 			WithNow(clock.Now),
 			WithSessionHealthStore(healthStore),
-			WithSessionHealthConfig(aghconfig.HeartbeatConfig{SessionHealthStaleAfter: time.Minute}),
+			WithSessionHealthConfig(compozyconfig.HeartbeatConfig{SessionHealthStaleAfter: time.Minute}),
 		)
 		session := createSession(t, h)
 		t.Cleanup(func() {
@@ -842,7 +842,7 @@ func TestManagerSessionHealthRecovery(t *testing.T) {
 			h,
 			WithNow(clock.Now),
 			WithSessionHealthStore(healthStore),
-			WithSessionHealthConfig(aghconfig.HeartbeatConfig{SessionHealthStaleAfter: time.Minute}),
+			WithSessionHealthConfig(compozyconfig.HeartbeatConfig{SessionHealthStaleAfter: time.Minute}),
 		)
 
 		result, err := restarted.RecoverSessionHealth(ctx)

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-validate-compozy-hard-cut
 expected: Two temporary COMPOZY_HOME values create independent compozy.db files, daemon metadata, logs, and sockets; each compozy status -o json reports only its selected home, and an AGH_HOME-only process never redirects or merges either runtime.
 entry_points: COMPOZY_HOME=<tempdir> compozy daemon start; compozy status -o json; compozy doctor -o json; AGH_HOME-only negative control
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/bootstrap-manifest.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/cross-surface/onboarding-complete.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-runtime.log
+last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
 overlaps: RT-compozy-home-layout;RT-refuse-legacy-database
 ---
 

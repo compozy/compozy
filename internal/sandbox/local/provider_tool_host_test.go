@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestLocalProviderToolHostAdditionalDirsContract(t *testing.T) {
@@ -15,7 +15,7 @@ func TestLocalProviderToolHostAdditionalDirsContract(t *testing.T) {
 		t.Parallel()
 
 		req := newTestPrepareRequest(t)
-		provider := NewProvider(WithPermissionMode(aghconfig.PermissionModeApproveAll))
+		provider := NewProvider(WithPermissionMode(compozyconfig.PermissionModeApproveAll))
 		prepared, err := provider.Prepare(context.Background(), req)
 		if err != nil {
 			t.Fatalf("Prepare() error = %v", err)

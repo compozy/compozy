@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
@@ -47,7 +47,7 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 
 	resolver := newIntegrationResolver(t, db, homePaths)
 
-	registered, err := resolver.Register(ctx, aghworkspace.RegisterOptions{
+	registered, err := resolver.Register(ctx, compozyworkspace.RegisterOptions{
 		RootDir:        root,
 		Name:           "repo",
 		AdditionalDirs: []string{additional},
@@ -105,7 +105,7 @@ func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T)
 	createSymlink(t, targetOne, link)
 
 	now := time.Now().UTC()
-	if err := db.InsertWorkspace(ctx, aghworkspace.Workspace{
+	if err := db.InsertWorkspace(ctx, compozyworkspace.Workspace{
 		ID:        "ws_symlink",
 		RootDir:   link,
 		Name:      "symlinked",
@@ -176,7 +176,7 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 		t.Fatalf("Mkdir(%q) error = %v", missingRoot, err)
 	}
 	now := time.Now().UTC()
-	for _, workspace := range []aghworkspace.Workspace{
+	for _, workspace := range []compozyworkspace.Workspace{
 		{ID: "ws_reopen_healthy", RootDir: healthyRoot, Name: "healthy", CreatedAt: now, UpdatedAt: now},
 		{ID: "ws_reopen_missing", RootDir: missingRoot, Name: "missing", CreatedAt: now, UpdatedAt: now},
 	} {
@@ -227,8 +227,14 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
 		t.Fatalf("List(after reopen) = %#v, want only healthy workspace", listed)
 	}
-	if _, err := reopened.GetWorkspace(ctx, "ws_reopen_missing"); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
-		t.Fatalf("GetWorkspace(pruned after reopen) error = %v, want %v", err, aghworkspace.ErrWorkspaceNotFound)
+	if _, err := reopened.GetWorkspace(
+		ctx,
+		"ws_reopen_missing",
+	); !errors.Is(
+		err,
+		compozyworkspace.ErrWorkspaceNotFound,
+	) {
+		t.Fatalf("GetWorkspace(pruned after reopen) error = %v, want %v", err, compozyworkspace.ErrWorkspaceNotFound)
 	}
 	healthySessions, err := reopened.ListSessions(ctx, storepkg.SessionListQuery{WorkspaceID: "ws_reopen_healthy"})
 	if err != nil {
@@ -274,7 +280,7 @@ snapshot = "snap-integration"
 `)
 
 	resolver := newIntegrationResolver(t, db, homePaths)
-	registered, err := resolver.Register(ctx, aghworkspace.RegisterOptions{
+	registered, err := resolver.Register(ctx, compozyworkspace.RegisterOptions{
 		RootDir:    root,
 		Name:       "repo-env",
 		SandboxRef: "daytona-dev",
@@ -312,14 +318,14 @@ snapshot = "snap-integration"
 
 func newIntegrationResolver(
 	t *testing.T,
-	store aghworkspace.Store,
-	homePaths aghconfig.HomePaths,
-) *aghworkspace.Resolver {
+	store compozyworkspace.Store,
+	homePaths compozyconfig.HomePaths,
+) *compozyworkspace.Resolver {
 	t.Helper()
 
-	resolver, err := aghworkspace.NewResolver(store,
-		aghworkspace.WithHomePaths(homePaths),
-		aghworkspace.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	resolver, err := compozyworkspace.NewResolver(store,
+		compozyworkspace.WithHomePaths(homePaths),
+		compozyworkspace.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	)
 	if err != nil {
 		t.Fatalf("NewResolver() error = %v", err)
@@ -327,14 +333,14 @@ func newIntegrationResolver(
 	return resolver
 }
 
-func newIntegrationHomePaths(t *testing.T) aghconfig.HomePaths {
+func newIntegrationHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
@@ -413,15 +419,15 @@ func mkdirAll(t *testing.T, path string) {
 }
 
 func rootConfigPath(root string) string {
-	return filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
+	return filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
 }
 
 func agentDir(root string) string {
-	return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName)
+	return filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName)
 }
 
 func skillRoot(root string) string {
-	return filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
+	return filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
 }
 
 func agentFilePath(root string, name string) string {
@@ -432,7 +438,7 @@ func skillDir(root string, name string) string {
 	return filepath.Join(root, name)
 }
 
-func agentModel(agents []aghconfig.AgentDef, name string) string {
+func agentModel(agents []compozyconfig.AgentDef, name string) string {
 	for _, agent := range agents {
 		if agent.Name == name {
 			return agent.Model
@@ -441,7 +447,7 @@ func agentModel(agents []aghconfig.AgentDef, name string) string {
 	return ""
 }
 
-func skillSourceByName(skills []aghworkspace.SkillPath, name string) string {
+func skillSourceByName(skills []compozyworkspace.SkillPath, name string) string {
 	for _, skill := range skills {
 		if filepath.Base(skill.Dir) == name {
 			return skill.Source

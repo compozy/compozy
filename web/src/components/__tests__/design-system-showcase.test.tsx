@@ -28,7 +28,9 @@ describe("DesignSystemShowcase", () => {
     it("links the top-level DESIGN.md shortcut to the spec", () => {
       renderShowcase();
       const link = screen.getByTestId("showcase-open-design-md");
-      expect(link.getAttribute("href")).toBe("https://github.com/compozy/agh/blob/main/DESIGN.md");
+      expect(link.getAttribute("href")).toBe(
+        "https://github.com/compozy/compozy/blob/main/DESIGN.md"
+      );
     });
 
     it("renders a dedicated section for every primitive grouping", () => {
@@ -43,7 +45,7 @@ describe("DesignSystemShowcase", () => {
       for (const section of SECTIONS) {
         const link = screen.getByTestId(`section-link-${section.id}`);
         expect(link.getAttribute("href")).toBe(
-          `https://github.com/compozy/agh/blob/main/DESIGN.md${section.anchor}`
+          `https://github.com/compozy/compozy/blob/main/DESIGN.md${section.anchor}`
         );
         expect(link.getAttribute("data-section-id")).toBe(section.id);
         expect(link.getAttribute("data-section-anchor")).toBe(section.anchor);

@@ -91,7 +91,7 @@ func filterAgentChannelEnvelopes(envelopes []network.Envelope, channel string) [
 func coordinationMetadataFromEnvelope(
 	envelope network.Envelope,
 ) (contract.CoordinationMessageMetadataPayload, bool) {
-	for _, key := range []string{agentCoordinationExtKey, "coordination_metadata", "agh_coordination", "metadata"} {
+	for _, key := range []string{agentCoordinationExtKey, "coordination_metadata", "compozy_coordination", "metadata"} {
 		if raw, ok := envelope.Ext[key]; ok {
 			var metadata contract.CoordinationMessageMetadataPayload
 			if err := json.Unmarshal(raw, &metadata); err == nil {

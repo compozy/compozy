@@ -3,18 +3,18 @@ package testutil
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // ConfigWithDisabledNetwork returns a default test config with networking turned off.
-func ConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
-	cfg := aghconfig.DefaultWithHome(homePaths)
+func ConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Network.Enabled = false
 	return cfg
 }
 
 // NewDisabledNetworkHomeConfig creates one test home and derives a disabled-network config from it.
-func NewDisabledNetworkHomeConfig(t *testing.T) (aghconfig.HomePaths, aghconfig.Config) {
+func NewDisabledNetworkHomeConfig(t *testing.T) (compozyconfig.HomePaths, compozyconfig.Config) {
 	t.Helper()
 
 	homePaths := NewTestHomePaths(t)

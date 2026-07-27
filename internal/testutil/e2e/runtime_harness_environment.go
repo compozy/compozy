@@ -13,12 +13,12 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string {
+func runtimeEnv(homePaths compozyconfig.HomePaths, extra map[string]string) []string {
 	base := testutil.HermeticProcessEnv(os.Environ())
 	base = setEnvValue(base, "COMPOZY_HOME", homePaths.HomeDir)
 	base = setEnvValue(base, "HOME", homePaths.HomeDir)
@@ -49,7 +49,7 @@ func reservedRuntimeEnvKey(key string) bool {
 }
 
 func withRuntimeCLIEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	env []string,
 	binaryPath string,
 ) ([]string, error) {
@@ -68,7 +68,7 @@ func withRuntimeCLIEnv(
 	return withPath, nil
 }
 
-func installRuntimeCLI(homePaths aghconfig.HomePaths, binaryPath string) (string, error) {
+func installRuntimeCLI(homePaths compozyconfig.HomePaths, binaryPath string) (string, error) {
 	binDir := filepath.Join(homePaths.HomeDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return "", fmt.Errorf("mkdir runtime cli dir %q: %w", binDir, err)

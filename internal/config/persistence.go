@@ -21,9 +21,9 @@ var (
 type WriteScope string
 
 const (
-	// WriteScopeGlobal targets the global AGH home config.
+	// WriteScopeGlobal targets the global Compozy home config.
 	WriteScopeGlobal WriteScope = "global"
-	// WriteScopeWorkspace targets a workspace-local AGH overlay.
+	// WriteScopeWorkspace targets a workspace-local Compozy overlay.
 	WriteScopeWorkspace WriteScope = "workspace"
 )
 

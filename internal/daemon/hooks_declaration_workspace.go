@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -31,7 +31,7 @@ func workspaceHookDeclarations(
 	decls := make([]hookspkg.HookDecl, 0, len(workspaces))
 	for idx := range workspaces {
 		resolved := &workspaces[idx]
-		workspaceDecls, err := aghconfig.HookDeclarations(resolved.Config.Hooks, resolved.Agents)
+		workspaceDecls, err := compozyconfig.HookDeclarations(resolved.Config.Hooks, resolved.Agents)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: load hook declarations for workspace %q: %w", resolved.WorkspaceID, err)
 		}

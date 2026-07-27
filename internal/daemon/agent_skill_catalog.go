@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -19,7 +19,7 @@ import (
 )
 
 type resourceAgentCatalog struct {
-	catalog          *resourceCatalog[aghconfig.AgentDef]
+	catalog          *resourceCatalog[compozyconfig.AgentDef]
 	soulCatalog      *resourceCatalog[soul.ResourceSpec]
 	heartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
 }
@@ -33,7 +33,7 @@ type agentSidecarCatalogs struct {
 }
 
 func agentCatalogDependency(
-	catalog *resourceCatalog[aghconfig.AgentDef],
+	catalog *resourceCatalog[compozyconfig.AgentDef],
 	sidecars ...agentSidecarCatalogs,
 ) *resourceAgentCatalog {
 	if catalog == nil {
@@ -50,10 +50,10 @@ func agentCatalogDependency(
 func (c *resourceAgentCatalog) ResolveAgent(
 	name string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	target := strings.TrimSpace(name)
 	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("session: agent name is required")
+		return compozyconfig.AgentDef{}, errors.New("session: agent name is required")
 	}
 	if c == nil || c.catalog == nil {
 		return resolveAgentFromWorkspaceSnapshot(target, resolved)
@@ -64,15 +64,15 @@ func (c *resourceAgentCatalog) ResolveAgent(
 	if resolved != nil {
 		return resolveAgentFromWorkspaceSnapshot(target, resolved)
 	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
 func (c *resourceAgentCatalog) lookupAgentRecord(
 	target string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (resources.Record[aghconfig.AgentDef], bool) {
+) (resources.Record[compozyconfig.AgentDef], bool) {
 	if c == nil || c.catalog == nil {
-		return resources.Record[aghconfig.AgentDef]{}, false
+		return resources.Record[compozyconfig.AgentDef]{}, false
 	}
 
 	workspaceID := ""
@@ -81,10 +81,10 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	}
 	var (
 		globalKey      string
-		globalAgent    resources.Record[aghconfig.AgentDef]
+		globalAgent    resources.Record[compozyconfig.AgentDef]
 		globalFound    bool
 		workspaceKey   string
-		workspaceAgent resources.Record[aghconfig.AgentDef]
+		workspaceAgent resources.Record[compozyconfig.AgentDef]
 		workspaceFound bool
 	)
 
@@ -121,22 +121,22 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	if globalFound {
 		return c.catalog.cloneRecord(globalAgent), true
 	}
-	return resources.Record[aghconfig.AgentDef]{}, false
+	return resources.Record[compozyconfig.AgentDef]{}, false
 }
 
 func resolveAgentFromWorkspaceSnapshot(
 	target string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if resolved == nil {
-		return aghconfig.AgentDef{}, errors.New("session: resolved workspace is required")
+		return compozyconfig.AgentDef{}, errors.New("session: resolved workspace is required")
 	}
 	for _, agent := range resolved.Agents {
 		if strings.TrimSpace(agent.Name) == target {
 			return cloneAgentDef(agent), nil
 		}
 	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
 func (c *resourceAgentCatalog) ResolveAgentArtifacts(
@@ -196,16 +196,16 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		return heartbeat.ResolvedPolicy{}, false, err
 	}
 	config := target.Config
-	if config == (aghconfig.HeartbeatConfig{}) {
-		config = aghconfig.DefaultHeartbeatConfig()
+	if config == (compozyconfig.HeartbeatConfig{}) {
+		config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	workspace := &workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      strings.TrimSpace(target.WorkspaceID),
 			RootDir: strings.TrimSpace(target.WorkspaceRoot),
 		},
-		Config: aghconfig.Config{
-			Agents: aghconfig.AgentsConfig{Heartbeat: config},
+		Config: compozyconfig.Config{
+			Agents: compozyconfig.AgentsConfig{Heartbeat: config},
 		},
 	}
 	artifacts, err := c.ResolveAgentArtifacts(target.AgentName, workspace)
@@ -233,7 +233,7 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 }
 
 func (c *resourceAgentCatalog) lookupSoulForAgent(
-	agent resources.Record[aghconfig.AgentDef],
+	agent resources.Record[compozyconfig.AgentDef],
 ) (soul.ResourceSpec, bool) {
 	if c == nil || c.soulCatalog == nil {
 		return soul.ResourceSpec{}, false
@@ -258,7 +258,7 @@ func (c *resourceAgentCatalog) lookupSoulForAgent(
 }
 
 func (c *resourceAgentCatalog) lookupHeartbeatForAgent(
-	agent resources.Record[aghconfig.AgentDef],
+	agent resources.Record[compozyconfig.AgentDef],
 ) (heartbeat.ResourceSpec, bool) {
 	if c == nil || c.heartbeatCatalog == nil {
 		return heartbeat.ResourceSpec{}, false
@@ -286,7 +286,7 @@ func sidecarRecordMatchesAgent(
 	scope resources.ResourceScope,
 	owner resources.ResourceOwner,
 	agentResourceID string,
-	agent resources.Record[aghconfig.AgentDef],
+	agent resources.Record[compozyconfig.AgentDef],
 ) bool {
 	return strings.TrimSpace(agentResourceID) == strings.TrimSpace(agent.ID) &&
 		scope.Normalize() == agent.Scope.Normalize() &&

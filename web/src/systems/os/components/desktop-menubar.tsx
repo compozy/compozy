@@ -11,7 +11,7 @@ import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
-import { AghMenu } from "./menubar/agh-menu";
+import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
 import { SessionMenu } from "./menubar/session-menu";
@@ -104,9 +104,9 @@ export function DesktopMenubar({
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}
       logoMenu={trigger => (
-        <AghMenu
+        <CompozyMenu
           trigger={trigger}
-          {...overlay("agh-menu")}
+          {...overlay("compozy-menu")}
           canOpenApps={actions.canOpenApps}
           onAbout={() => onOverlayOpenChange("about", true)}
           onSettings={actions.openSettings}

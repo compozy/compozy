@@ -6,13 +6,13 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type mcpSourceEntry struct {
 	Source SourceRef
 	Target WriteTargetKind
-	Server aghconfig.MCPServer
+	Server compozyconfig.MCPServer
 }
 
 func (s *service) resolveMCPTargetContext(
@@ -43,7 +43,7 @@ func (s *service) loadMCPSources(
 ) (map[string][]mcpSourceEntry, error) {
 	sources := make(map[string][]mcpSourceEntry)
 
-	appendServers := func(kind WriteTargetKind, serverList []aghconfig.MCPServer) {
+	appendServers := func(kind WriteTargetKind, serverList []compozyconfig.MCPServer) {
 		for _, server := range serverList {
 			name := strings.TrimSpace(server.Name)
 			if name == "" {
@@ -63,7 +63,7 @@ func (s *service) loadMCPSources(
 	}
 	appendServers(WriteTargetGlobalConfig, globalConfigServers)
 
-	globalSidecarServers, err := aghconfig.LoadMCPServersJSONFile(globalMCPSidecarPath(s.homePaths))
+	globalSidecarServers, err := compozyconfig.LoadMCPServersJSONFile(globalMCPSidecarPath(s.homePaths))
 	if err != nil {
 		return nil, fmt.Errorf("settings: load global MCP sidecar: %w", err)
 	}
@@ -79,7 +79,7 @@ func (s *service) loadMCPSources(
 		}
 		appendServers(WriteTargetWorkspaceConfig, workspaceConfigServers)
 
-		workspaceSidecarServers, loadErr := aghconfig.LoadMCPServersJSONFile(
+		workspaceSidecarServers, loadErr := compozyconfig.LoadMCPServersJSONFile(
 			workspaceMCPSidecarPath(workspaceRoot),
 		)
 		if loadErr != nil {
@@ -91,12 +91,12 @@ func (s *service) loadMCPSources(
 	return sources, nil
 }
 
-func loadMCPServersFromConfigFile(path string, homePaths aghconfig.HomePaths) ([]aghconfig.MCPServer, error) {
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	if err := aghconfig.ApplyConfigOverlayFile(path, &cfg); err != nil {
+func loadMCPServersFromConfigFile(path string, homePaths compozyconfig.HomePaths) ([]compozyconfig.MCPServer, error) {
+	cfg := compozyconfig.DefaultWithHome(homePaths)
+	if err := compozyconfig.ApplyConfigOverlayFile(path, &cfg); err != nil {
 		return nil, err
 	}
-	return append([]aghconfig.MCPServer(nil), cfg.MCPServers...), nil
+	return append([]compozyconfig.MCPServer(nil), cfg.MCPServers...), nil
 }
 
 func (s *service) resolveMCPPutTarget(
@@ -105,26 +105,26 @@ func (s *service) resolveMCPPutTarget(
 	name string,
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
-) (aghconfig.WriteTarget, error) {
+) (compozyconfig.WriteTarget, error) {
 	normalized, err := normalizeTargetSelector(selector)
 	if err != nil {
-		return aghconfig.WriteTarget{}, err
+		return compozyconfig.WriteTarget{}, err
 	}
 	if normalized == TargetConfig {
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 	if normalized == TargetSidecar {
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 
 	targetKind := preferredMCPPutTarget(scope, name, sources)
 	switch targetKind {
 	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	default:
-		return aghconfig.WriteTarget{}, conflictError(
+		return compozyconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
 		)
 	}
@@ -136,31 +136,31 @@ func (s *service) resolveMCPDeleteTarget(
 	name string,
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
-) (aghconfig.WriteTarget, error) {
+) (compozyconfig.WriteTarget, error) {
 	normalized, err := normalizeTargetSelector(selector)
 	if err != nil {
-		return aghconfig.WriteTarget{}, err
+		return compozyconfig.WriteTarget{}, err
 	}
 	if normalized == TargetConfig {
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 	if normalized == TargetSidecar {
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 
 	targetKind, ok := preferredMCPDeleteTarget(scope, name, sources)
 	if !ok {
-		return aghconfig.WriteTarget{}, notFoundError(
+		return compozyconfig.WriteTarget{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", name, scope),
 		)
 	}
 	switch targetKind {
 	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	default:
-		return aghconfig.WriteTarget{}, conflictError(
+		return compozyconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
 		)
 	}

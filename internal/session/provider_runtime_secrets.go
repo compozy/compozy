@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -45,9 +45,9 @@ func (r providerSecretMetadataResolver) GetMetadata(
 	}, nil
 }
 
-func setProviderModelEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
+func setProviderModelEnv(env []string, resolved compozyconfig.ResolvedAgent) []string {
 	model := strings.TrimSpace(resolved.Model)
-	if model == "" || resolved.Harness != aghconfig.ProviderHarnessACP {
+	if model == "" || resolved.Harness != compozyconfig.ProviderHarnessACP {
 		return env
 	}
 
@@ -72,7 +72,7 @@ type providerSecretBindings struct {
 
 func (m *Manager) injectProviderSecrets(
 	ctx context.Context,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	env []string,
 ) (providerSecretBindings, error) {
 	bindings := providerSecretBindings{
@@ -107,8 +107,8 @@ func (m *Manager) injectProviderSecrets(
 
 func (m *Manager) injectProviderSecret(
 	ctx context.Context,
-	resolved aghconfig.ResolvedAgent,
-	slot aghconfig.ProviderCredentialSlot,
+	resolved compozyconfig.ResolvedAgent,
+	slot compozyconfig.ProviderCredentialSlot,
 	env []string,
 ) ([]string, string, func(), error) {
 	secretRef := vault.NormalizeRef(slot.SecretRef)
@@ -144,14 +144,14 @@ func (m *Manager) injectProviderSecret(
 		), nil
 }
 
-func isMissingRequiredProviderSecret(slot aghconfig.ProviderCredentialSlot, err error) bool {
+func isMissingRequiredProviderSecret(slot compozyconfig.ProviderCredentialSlot, err error) bool {
 	return slot.Required &&
 		(errors.Is(err, vault.ErrMissingSecret) || errors.Is(err, vault.ErrSecretNotFound))
 }
 
 func providerCredentialFailure(
-	resolved aghconfig.ResolvedAgent,
-	slot aghconfig.ProviderCredentialSlot,
+	resolved compozyconfig.ResolvedAgent,
+	slot compozyconfig.ProviderCredentialSlot,
 	err error,
 ) error {
 	status := authproviders.CredentialStatus{

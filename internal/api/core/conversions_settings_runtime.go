@@ -5,7 +5,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
@@ -55,7 +55,7 @@ func settingsConfigPathsPayload(paths settingspkg.ConfigPaths) contract.Settings
 	}
 }
 
-func settingsMemoryConfigPayload(value *aghconfig.MemoryConfig) contract.SettingsMemoryConfigPayload {
+func settingsMemoryConfigPayload(value *compozyconfig.MemoryConfig) contract.SettingsMemoryConfigPayload {
 	if value == nil {
 		return contract.SettingsMemoryConfigPayload{}
 	}
@@ -78,7 +78,9 @@ func settingsMemoryConfigPayload(value *aghconfig.MemoryConfig) contract.Setting
 	}
 }
 
-func settingsMemoryControllerPayload(value aghconfig.MemoryControllerConfig) contract.SettingsMemoryControllerPayload {
+func settingsMemoryControllerPayload(
+	value compozyconfig.MemoryControllerConfig,
+) contract.SettingsMemoryControllerPayload {
 	return contract.SettingsMemoryControllerPayload{
 		Mode:            strings.TrimSpace(value.Mode),
 		MaxLatency:      value.MaxLatency.String(),
@@ -91,7 +93,7 @@ func settingsMemoryControllerPayload(value aghconfig.MemoryControllerConfig) con
 	}
 }
 
-func settingsMemoryRecallPayload(value aghconfig.MemoryRecallConfig) contract.SettingsMemoryRecallPayload {
+func settingsMemoryRecallPayload(value compozyconfig.MemoryRecallConfig) contract.SettingsMemoryRecallPayload {
 	return contract.SettingsMemoryRecallPayload{
 		TopK:                   value.TopK,
 		RawCandidates:          value.RawCandidates,
@@ -115,7 +117,7 @@ func settingsMemoryRecallPayload(value aghconfig.MemoryRecallConfig) contract.Se
 	}
 }
 
-func settingsMemoryDecisionsPayload(value aghconfig.MemoryDecisionsConfig) contract.SettingsMemoryDecisionsPayload {
+func settingsMemoryDecisionsPayload(value compozyconfig.MemoryDecisionsConfig) contract.SettingsMemoryDecisionsPayload {
 	return contract.SettingsMemoryDecisionsPayload{
 		PruneAfterAppliedDays: value.PruneAfterAppliedDays,
 		KeepAuditSummary:      value.KeepAuditSummary,
@@ -123,7 +125,7 @@ func settingsMemoryDecisionsPayload(value aghconfig.MemoryDecisionsConfig) contr
 	}
 }
 
-func settingsMemoryExtractorPayload(value aghconfig.MemoryExtractorConfig) contract.SettingsMemoryExtractorPayload {
+func settingsMemoryExtractorPayload(value compozyconfig.MemoryExtractorConfig) contract.SettingsMemoryExtractorPayload {
 	return contract.SettingsMemoryExtractorPayload{
 		Mode:             strings.TrimSpace(value.Mode),
 		ThrottleTurns:    value.ThrottleTurns,
@@ -138,7 +140,7 @@ func settingsMemoryExtractorPayload(value aghconfig.MemoryExtractorConfig) contr
 	}
 }
 
-func settingsMemoryDreamPayload(value aghconfig.DreamConfig) contract.SettingsMemoryDreamPayload {
+func settingsMemoryDreamPayload(value compozyconfig.DreamConfig) contract.SettingsMemoryDreamPayload {
 	return contract.SettingsMemoryDreamPayload{
 		MinHours:      value.MinHours,
 		MinSessions:   value.MinSessions,
@@ -155,7 +157,7 @@ func settingsMemoryDreamPayload(value aghconfig.DreamConfig) contract.SettingsMe
 }
 
 func settingsMemoryDreamScoringPayload(
-	value aghconfig.MemoryDreamScoringConfig,
+	value compozyconfig.MemoryDreamScoringConfig,
 ) contract.SettingsMemoryDreamScoringPayload {
 	return contract.SettingsMemoryDreamScoringPayload{
 		RecencyHalfLifeDays: value.RecencyHalfLifeDays,
@@ -168,7 +170,7 @@ func settingsMemoryDreamScoringPayload(
 	}
 }
 
-func settingsMemorySessionPayload(value aghconfig.MemorySessionConfig) contract.SettingsMemorySessionPayload {
+func settingsMemorySessionPayload(value compozyconfig.MemorySessionConfig) contract.SettingsMemorySessionPayload {
 	return contract.SettingsMemorySessionPayload{
 		LedgerFormat:     strings.TrimSpace(value.LedgerFormat),
 		LedgerRoot:       strings.TrimSpace(value.LedgerRoot),
@@ -180,7 +182,7 @@ func settingsMemorySessionPayload(value aghconfig.MemorySessionConfig) contract.
 	}
 }
 
-func settingsMemoryDailyPayload(value aghconfig.MemoryDailyConfig) contract.SettingsMemoryDailyPayload {
+func settingsMemoryDailyPayload(value compozyconfig.MemoryDailyConfig) contract.SettingsMemoryDailyPayload {
 	return contract.SettingsMemoryDailyPayload{
 		MaxBytes:        value.MaxBytes,
 		MaxLines:        value.MaxLines,
@@ -194,7 +196,7 @@ func settingsMemoryDailyPayload(value aghconfig.MemoryDailyConfig) contract.Sett
 	}
 }
 
-func settingsMemoryProviderPayload(value aghconfig.MemoryProviderConfig) contract.SettingsMemoryProviderPayload {
+func settingsMemoryProviderPayload(value compozyconfig.MemoryProviderConfig) contract.SettingsMemoryProviderPayload {
 	return contract.SettingsMemoryProviderPayload{
 		Name:             strings.TrimSpace(value.Name),
 		Timeout:          value.Timeout.String(),
@@ -203,7 +205,7 @@ func settingsMemoryProviderPayload(value aghconfig.MemoryProviderConfig) contrac
 	}
 }
 
-func settingsSkillsConfigPayload(value aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
+func settingsSkillsConfigPayload(value compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
 	return contract.SettingsSkillsConfigPayload{
 		Enabled:                 value.Enabled,
 		DisabledSkills:          cloneStrings(value.DisabledSkills),
@@ -227,7 +229,7 @@ func settingsAutomationConfigPayload(value settingspkg.AutomationSettings) contr
 }
 
 func settingsObservabilityConfigPayload(
-	value aghconfig.ObservabilityConfig,
+	value compozyconfig.ObservabilityConfig,
 ) contract.SettingsObservabilityConfigPayload {
 	return contract.SettingsObservabilityConfigPayload{
 		Enabled:        value.Enabled,

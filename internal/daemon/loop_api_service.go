@@ -12,7 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
@@ -55,7 +55,7 @@ type daemonLoopAPIService struct {
 	publisher         loopResourcePublisher
 	toolRegistry      toolspkg.Registry
 	workspaceResolver loopAPIWorkspaceResolver
-	homePaths         aghconfig.HomePaths
+	homePaths         compozyconfig.HomePaths
 	now               func() time.Time
 	goalContext       *loopGoalContextRuntime
 	sessionStatus     loopSessionStatusReader
@@ -81,7 +81,7 @@ func (s *daemonLoopAPIService) Start(
 
 func newDaemonLoopAPIService(
 	state *bootState,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	now func() time.Time,
 ) (core.LoopService, error) {
 	if state == nil {
@@ -144,7 +144,7 @@ func newDaemonLoopAPIService(
 
 func loopAPIServiceOptions(
 	state *bootState,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	now func() time.Time,
 	logger *slog.Logger,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,

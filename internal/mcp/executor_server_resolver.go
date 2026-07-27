@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.
 type ResolvedServer struct {
-	Server aghconfig.MCPServer
+	Server compozyconfig.MCPServer
 	Target mcpauth.Target
 }
 

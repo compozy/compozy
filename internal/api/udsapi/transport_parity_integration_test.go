@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	apispec "github.com/compozy/compozy/internal/api/spec"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -51,36 +51,36 @@ func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	var httpDraining aghcontract.DrainStatusResponse
+	var httpDraining compozycontract.DrainStatusResponse
 	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/drain", nil, &httpDraining); err != nil {
 		t.Fatalf("HTTP drain error = %v", err)
 	}
-	var udsDraining aghcontract.DrainStatusResponse
+	var udsDraining compozycontract.DrainStatusResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/drain", nil, &udsDraining); err != nil {
 		t.Fatalf("UDS drain error = %v", err)
 	}
-	var cliDraining aghcontract.DrainStatusResponse
+	var cliDraining compozycontract.DrainStatusResponse
 	if err := runtimeHarness.CLI.RunJSON(ctx, &cliDraining, "drain", "-o", "json"); err != nil {
 		t.Fatalf("CLI drain error = %v", err)
 	}
-	if httpDraining.State != aghcontract.DrainStateDraining ||
+	if httpDraining.State != compozycontract.DrainStateDraining ||
 		httpDraining != udsDraining || udsDraining != cliDraining {
 		t.Fatalf("drain parity mismatch: HTTP=%#v UDS=%#v CLI=%#v", httpDraining, udsDraining, cliDraining)
 	}
 
-	var cliActive aghcontract.DrainStatusResponse
+	var cliActive compozycontract.DrainStatusResponse
 	if err := runtimeHarness.CLI.RunJSON(ctx, &cliActive, "undrain", "-o", "json"); err != nil {
 		t.Fatalf("CLI undrain error = %v", err)
 	}
-	var udsActive aghcontract.DrainStatusResponse
+	var udsActive compozycontract.DrainStatusResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/undrain", nil, &udsActive); err != nil {
 		t.Fatalf("UDS undrain error = %v", err)
 	}
-	var httpActive aghcontract.DrainStatusResponse
+	var httpActive compozycontract.DrainStatusResponse
 	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/undrain", nil, &httpActive); err != nil {
 		t.Fatalf("HTTP undrain error = %v", err)
 	}
-	if cliActive.State != aghcontract.DrainStateActive ||
+	if cliActive.State != compozycontract.DrainStateActive ||
 		cliActive != udsActive || udsActive != httpActive {
 		t.Fatalf("undrain parity mismatch: CLI=%#v UDS=%#v HTTP=%#v", cliActive, udsActive, httpActive)
 	}
@@ -95,15 +95,15 @@ func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
-		var httpPayload aghcontract.DoctorPayload
+		var httpPayload compozycontract.DoctorPayload
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, "/api/doctor", nil, &httpPayload); err != nil {
 			t.Fatalf("HTTP doctor error = %v", err)
 		}
-		var udsPayload aghcontract.DoctorPayload
+		var udsPayload compozycontract.DoctorPayload
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/doctor", nil, &udsPayload); err != nil {
 			t.Fatalf("UDS doctor error = %v", err)
 		}
-		var cliPayload aghcontract.DoctorPayload
+		var cliPayload compozycontract.DoctorPayload
 		if err := runtimeHarness.CLI.RunJSON(ctx, &cliPayload, "doctor", "-o", "json"); err != nil {
 			t.Fatalf("CLI doctor error = %v", err)
 		}
@@ -125,217 +125,224 @@ func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
 }
 
 func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
-	t.Run("Should preserve window manager reads mutations clients layouts and errors across real transports", func(t *testing.T) {
-		t.Parallel()
-		acpmock.RequireDriver(t)
+	t.Run(
+		"Should preserve window manager reads mutations clients layouts and errors across real transports",
+		func(t *testing.T) {
+			t.Parallel()
+			acpmock.RequireDriver(t)
 
-		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-		clients, err := runtimeHarness.TransportClients()
-		if err != nil {
-			t.Fatalf("TransportClients() error = %v", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
+			runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+			clients, err := runtimeHarness.TransportClients()
+			if err != nil {
+				t.Fatalf("TransportClients() error = %v", err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
 
-		basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
-		var httpSnapshot aghcontract.WindowManagerSnapshot
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath, nil, &httpSnapshot); err != nil {
-			t.Fatalf("HTTP window manager snapshot error = %v", err)
-		}
-		var udsSnapshot aghcontract.WindowManagerSnapshot
-		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath, nil, &udsSnapshot); err != nil {
-			t.Fatalf("UDS window manager snapshot error = %v", err)
-		}
-		if !reflect.DeepEqual(httpSnapshot, udsSnapshot) {
-			t.Fatalf("window manager snapshot parity mismatch: HTTP=%#v UDS=%#v", httpSnapshot, udsSnapshot)
-		}
+			basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
+			var httpSnapshot compozycontract.WindowManagerSnapshot
+			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath, nil, &httpSnapshot); err != nil {
+				t.Fatalf("HTTP window manager snapshot error = %v", err)
+			}
+			var udsSnapshot compozycontract.WindowManagerSnapshot
+			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath, nil, &udsSnapshot); err != nil {
+				t.Fatalf("UDS window manager snapshot error = %v", err)
+			}
+			if !reflect.DeepEqual(httpSnapshot, udsSnapshot) {
+				t.Fatalf("window manager snapshot parity mismatch: HTTP=%#v UDS=%#v", httpSnapshot, udsSnapshot)
+			}
 
-		createRequest := windowManagerTransportCreateDesktopRequest(
-			runtimeHarness.WorkspaceID,
-			httpSnapshot.Revision,
-			"desktop-http",
-		)
-		var httpPreview aghcontract.WindowManagerPreview
-		if err := runtimeHarness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/preview",
-			createRequest,
-			&httpPreview,
-		); err != nil {
-			t.Fatalf("HTTP window manager preview error = %v", err)
-		}
-		var udsPreview aghcontract.WindowManagerPreview
-		if err := runtimeHarness.UDSJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/preview",
-			createRequest,
-			&udsPreview,
-		); err != nil {
-			t.Fatalf("UDS window manager preview error = %v", err)
-		}
-		if !reflect.DeepEqual(httpPreview, udsPreview) {
-			t.Fatalf("window manager preview parity mismatch: HTTP=%#v UDS=%#v", httpPreview, udsPreview)
-		}
-
-		var httpMutation aghcontract.WindowManagerResult
-		if err := runtimeHarness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/commands",
-			createRequest,
-			&httpMutation,
-		); err != nil {
-			t.Fatalf("HTTP window manager command error = %v", err)
-		}
-		if !httpMutation.Applied || httpMutation.Snapshot.Revision != httpSnapshot.Revision+1 {
-			t.Fatalf("HTTP window manager mutation = %#v, want applied revision %d", httpMutation, httpSnapshot.Revision+1)
-		}
-
-		udsCreateRequest := windowManagerTransportCreateDesktopRequest(
-			runtimeHarness.WorkspaceID,
-			httpMutation.Snapshot.Revision,
-			"desktop-uds",
-		)
-		var udsMutation aghcontract.WindowManagerResult
-		if err := runtimeHarness.UDSJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/commands",
-			udsCreateRequest,
-			&udsMutation,
-		); err != nil {
-			t.Fatalf("UDS window manager command error = %v", err)
-		}
-		if !udsMutation.Applied || udsMutation.Snapshot.Revision != httpMutation.Snapshot.Revision+1 {
-			t.Fatalf(
-				"UDS window manager mutation = %#v, want applied revision %d",
-				udsMutation,
-				httpMutation.Snapshot.Revision+1,
+			createRequest := windowManagerTransportCreateDesktopRequest(
+				runtimeHarness.WorkspaceID,
+				httpSnapshot.Revision,
+				"desktop-http",
 			)
-		}
+			var httpPreview compozycontract.WindowManagerPreview
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/preview",
+				createRequest,
+				&httpPreview,
+			); err != nil {
+				t.Fatalf("HTTP window manager preview error = %v", err)
+			}
+			var udsPreview compozycontract.WindowManagerPreview
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/preview",
+				createRequest,
+				&udsPreview,
+			); err != nil {
+				t.Fatalf("UDS window manager preview error = %v", err)
+			}
+			if !reflect.DeepEqual(httpPreview, udsPreview) {
+				t.Fatalf("window manager preview parity mismatch: HTTP=%#v UDS=%#v", httpPreview, udsPreview)
+			}
 
-		registration := aghcontract.WindowManagerClientRegistration{
-			WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
-			ClientID:    "transport-parity-client",
-		}
-		var httpClient aghcontract.WindowManagerClientView
-		if err := runtimeHarness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/clients",
-			registration,
-			&httpClient,
-		); err != nil {
-			t.Fatalf("HTTP window manager client registration error = %v", err)
-		}
-		var udsClient aghcontract.WindowManagerClientView
-		if err := runtimeHarness.UDSJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/clients",
-			registration,
-			&udsClient,
-		); err != nil {
-			t.Fatalf("UDS window manager client registration error = %v", err)
-		}
-		if !reflect.DeepEqual(httpClient, udsClient) {
-			t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpClient, udsClient)
-		}
+			var httpMutation compozycontract.WindowManagerResult
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				createRequest,
+				&httpMutation,
+			); err != nil {
+				t.Fatalf("HTTP window manager command error = %v", err)
+			}
+			if !httpMutation.Applied || httpMutation.Snapshot.Revision != httpSnapshot.Revision+1 {
+				t.Fatalf(
+					"HTTP window manager mutation = %#v, want applied revision %d",
+					httpMutation,
+					httpSnapshot.Revision+1,
+				)
+			}
 
-		var httpLayout aghcontract.WindowManagerLayoutDocument
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath+"/layout", nil, &httpLayout); err != nil {
-			t.Fatalf("HTTP window manager layout export error = %v", err)
-		}
-		var udsLayout aghcontract.WindowManagerLayoutDocument
-		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath+"/layout", nil, &udsLayout); err != nil {
-			t.Fatalf("UDS window manager layout export error = %v", err)
-		}
-		if !reflect.DeepEqual(httpLayout, udsLayout) {
-			t.Fatalf("window manager layout parity mismatch: HTTP=%#v UDS=%#v", httpLayout, udsLayout)
-		}
-
-		validationRequest := aghcontract.WindowManagerLayoutValidationRequest{
-			WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
-			Document:    httpLayout,
-		}
-		var httpValidation aghcontract.WindowManagerLayoutValidationResponse
-		if err := runtimeHarness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/layout/validate",
-			validationRequest,
-			&httpValidation,
-		); err != nil {
-			t.Fatalf("HTTP window manager layout validation error = %v", err)
-		}
-		var udsValidation aghcontract.WindowManagerLayoutValidationResponse
-		if err := runtimeHarness.UDSJSON(
-			ctx,
-			http.MethodPost,
-			basePath+"/layout/validate",
-			validationRequest,
-			&udsValidation,
-		); err != nil {
-			t.Fatalf("UDS window manager layout validation error = %v", err)
-		}
-		if !reflect.DeepEqual(httpValidation, udsValidation) || !httpValidation.Valid {
-			t.Fatalf("window manager validation parity mismatch: HTTP=%#v UDS=%#v", httpValidation, udsValidation)
-		}
-
-		invalidRequest := windowManagerTransportCreateDesktopRequest(
-			runtimeHarness.WorkspaceID,
-			udsMutation.Snapshot.Revision,
-			"desktop-invalid",
-		)
-		invalidRequest.CommandID = "desktop.unknown"
-		invalidBody, err := json.Marshal(invalidRequest)
-		if err != nil {
-			t.Fatalf("json.Marshal(invalid window manager request) error = %v", err)
-		}
-		httpErrorResponse := mustUnixRequest(
-			t,
-			clients.HTTPClient,
-			http.MethodPost,
-			runtimeHarness.HTTPURL(basePath+"/commands"),
-			invalidBody,
-			nil,
-		)
-		udsErrorResponse := mustUnixRequest(
-			t,
-			clients.UDSClient,
-			http.MethodPost,
-			runtimeHarness.UDSURL(basePath+"/commands"),
-			invalidBody,
-			nil,
-		)
-		httpErrorBody := readAndCloseHTTPBody(t, httpErrorResponse)
-		udsErrorBody := readAndCloseHTTPBody(t, udsErrorResponse)
-		if httpErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
-			udsErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
-			!jsonEqual(httpErrorBody, udsErrorBody) {
-			t.Fatalf(
-				"window manager error parity mismatch: HTTP=(%d %s) UDS=(%d %s)",
-				httpErrorResponse.StatusCode,
-				httpErrorBody,
-				udsErrorResponse.StatusCode,
-				udsErrorBody,
+			udsCreateRequest := windowManagerTransportCreateDesktopRequest(
+				runtimeHarness.WorkspaceID,
+				httpMutation.Snapshot.Revision,
+				"desktop-uds",
 			)
-		}
-	})
+			var udsMutation compozycontract.WindowManagerResult
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				udsCreateRequest,
+				&udsMutation,
+			); err != nil {
+				t.Fatalf("UDS window manager command error = %v", err)
+			}
+			if !udsMutation.Applied || udsMutation.Snapshot.Revision != httpMutation.Snapshot.Revision+1 {
+				t.Fatalf(
+					"UDS window manager mutation = %#v, want applied revision %d",
+					udsMutation,
+					httpMutation.Snapshot.Revision+1,
+				)
+			}
+
+			registration := compozycontract.WindowManagerClientRegistration{
+				WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
+				ClientID:    "transport-parity-client",
+			}
+			var httpClient compozycontract.WindowManagerClientView
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/clients",
+				registration,
+				&httpClient,
+			); err != nil {
+				t.Fatalf("HTTP window manager client registration error = %v", err)
+			}
+			var udsClient compozycontract.WindowManagerClientView
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/clients",
+				registration,
+				&udsClient,
+			); err != nil {
+				t.Fatalf("UDS window manager client registration error = %v", err)
+			}
+			if !reflect.DeepEqual(httpClient, udsClient) {
+				t.Fatalf("window manager client parity mismatch: HTTP=%#v UDS=%#v", httpClient, udsClient)
+			}
+
+			var httpLayout compozycontract.WindowManagerLayoutDocument
+			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath+"/layout", nil, &httpLayout); err != nil {
+				t.Fatalf("HTTP window manager layout export error = %v", err)
+			}
+			var udsLayout compozycontract.WindowManagerLayoutDocument
+			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, basePath+"/layout", nil, &udsLayout); err != nil {
+				t.Fatalf("UDS window manager layout export error = %v", err)
+			}
+			if !reflect.DeepEqual(httpLayout, udsLayout) {
+				t.Fatalf("window manager layout parity mismatch: HTTP=%#v UDS=%#v", httpLayout, udsLayout)
+			}
+
+			validationRequest := compozycontract.WindowManagerLayoutValidationRequest{
+				WorkspaceID: windowmanager.WorkspaceID(runtimeHarness.WorkspaceID),
+				Document:    httpLayout,
+			}
+			var httpValidation compozycontract.WindowManagerLayoutValidationResponse
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/layout/validate",
+				validationRequest,
+				&httpValidation,
+			); err != nil {
+				t.Fatalf("HTTP window manager layout validation error = %v", err)
+			}
+			var udsValidation compozycontract.WindowManagerLayoutValidationResponse
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/layout/validate",
+				validationRequest,
+				&udsValidation,
+			); err != nil {
+				t.Fatalf("UDS window manager layout validation error = %v", err)
+			}
+			if !reflect.DeepEqual(httpValidation, udsValidation) || !httpValidation.Valid {
+				t.Fatalf("window manager validation parity mismatch: HTTP=%#v UDS=%#v", httpValidation, udsValidation)
+			}
+
+			invalidRequest := windowManagerTransportCreateDesktopRequest(
+				runtimeHarness.WorkspaceID,
+				udsMutation.Snapshot.Revision,
+				"desktop-invalid",
+			)
+			invalidRequest.CommandID = "desktop.unknown"
+			invalidBody, err := json.Marshal(invalidRequest)
+			if err != nil {
+				t.Fatalf("json.Marshal(invalid window manager request) error = %v", err)
+			}
+			httpErrorResponse := mustUnixRequest(
+				t,
+				clients.HTTPClient,
+				http.MethodPost,
+				runtimeHarness.HTTPURL(basePath+"/commands"),
+				invalidBody,
+				nil,
+			)
+			udsErrorResponse := mustUnixRequest(
+				t,
+				clients.UDSClient,
+				http.MethodPost,
+				runtimeHarness.UDSURL(basePath+"/commands"),
+				invalidBody,
+				nil,
+			)
+			httpErrorBody := readAndCloseHTTPBody(t, httpErrorResponse)
+			udsErrorBody := readAndCloseHTTPBody(t, udsErrorResponse)
+			if httpErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
+				udsErrorResponse.StatusCode != http.StatusUnprocessableEntity ||
+				!jsonEqual(httpErrorBody, udsErrorBody) {
+				t.Fatalf(
+					"window manager error parity mismatch: HTTP=(%d %s) UDS=(%d %s)",
+					httpErrorResponse.StatusCode,
+					httpErrorBody,
+					udsErrorResponse.StatusCode,
+					udsErrorBody,
+				)
+			}
+		},
+	)
 }
 
 func windowManagerTransportCreateDesktopRequest(
 	workspaceID string,
-	revision aghcontract.WindowManagerRevision,
+	revision compozycontract.WindowManagerRevision,
 	desktopID string,
-) aghcontract.WindowManagerCommandRequest {
-	return aghcontract.WindowManagerCommandRequest{
+) compozycontract.WindowManagerCommandRequest {
+	return compozycontract.WindowManagerCommandRequest{
 		WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
-		CommandID:        aghcontract.WindowManagerCommandDesktopCreate,
+		CommandID:        compozycontract.WindowManagerCommandDesktopCreate,
 		ExpectedRevision: &revision,
-		Actor:            aghcontract.WindowManagerActor{Kind: "test", ID: "transport-parity"},
+		Actor:            compozycontract.WindowManagerActor{Kind: "test", ID: "transport-parity"},
 		Origin:           "transport-parity",
 		Payload: json.RawMessage(fmt.Sprintf(
 			`{"desktop_id":%q,"name":%q,"purpose":"standard"}`,
@@ -372,7 +379,7 @@ func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	sessionPayload, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSAutoTitleAgent,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -433,7 +440,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSApprovalAgent,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -525,8 +532,8 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	var created aghcontract.SessionResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+	var created compozycontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSAutomationAgent,
 		Provider:      provider,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
@@ -553,7 +560,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 		"Delegated task session responded.",
 	)
 
-	var udsDetail aghcontract.SessionResponse
+	var udsDetail compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -571,7 +578,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 		)
 	}
 
-	var httpDetail aghcontract.SessionResponse
+	var httpDetail compozycontract.SessionResponse
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
@@ -618,8 +625,8 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	var created aghcontract.SessionResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", aghcontract.CreateSessionRequest{
+	var created compozycontract.SessionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSAutomationAgent,
 		Provider:      transportUDSOverrideProvider,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
@@ -743,7 +750,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		t.Helper()
 		return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: e2etest.ConfigSeedOptions{
-				Mutate: func(cfg *aghconfig.Config) {
+				Mutate: func(cfg *compozyconfig.Config) {
 					cfg.Marketplace.Catalog.BaseURL = catalogServer.URL
 					cfg.Marketplace.Catalog.TTL = time.Hour.String()
 					cfg.Marketplace.Catalog.Timeout = time.Second.String()
@@ -763,16 +770,25 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 	t.Run("Should return the same grouped search payload over HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/marketplace/search?limit=20"
-		var httpValue aghcontract.MarketplaceSearchResponse
+		var httpValue compozycontract.MarketplaceSearchResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
-		var udsValue aghcontract.MarketplaceSearchResponse
+		var udsValue compozycontract.MarketplaceSearchResponse
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
 			t.Fatalf("UDSJSON(%s) error = %v", path, err)
 		}
-		var cliValue aghcontract.MarketplaceSearchResponse
-		if err := clients.CLI.RunJSON(ctx, &cliValue, "marketplace", "search", "--limit", "20", "-o", "json"); err != nil {
+		var cliValue compozycontract.MarketplaceSearchResponse
+		if err := clients.CLI.RunJSON(
+			ctx,
+			&cliValue,
+			"marketplace",
+			"search",
+			"--limit",
+			"20",
+			"-o",
+			"json",
+		); err != nil {
 			t.Fatalf("CLI marketplace search error = %v", err)
 		}
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
@@ -780,15 +796,15 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 	t.Run("Should return the same kind browse payload over HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/marketplace/extension?limit=20"
-		var httpValue aghcontract.MarketplaceKindResponse
+		var httpValue compozycontract.MarketplaceKindResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
-		var udsValue aghcontract.MarketplaceKindResponse
+		var udsValue compozycontract.MarketplaceKindResponse
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
 			t.Fatalf("UDSJSON(%s) error = %v", path, err)
 		}
-		var cliValue aghcontract.MarketplaceKindResponse
+		var cliValue compozycontract.MarketplaceKindResponse
 		if err := clients.CLI.RunJSON(
 			ctx,
 			&cliValue,
@@ -808,15 +824,15 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 	t.Run("Should return the same entry detail payload over HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/marketplace/extension/bridge-github"
-		var httpValue aghcontract.MarketplaceEntryResponse
+		var httpValue compozycontract.MarketplaceEntryResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
-		var udsValue aghcontract.MarketplaceEntryResponse
+		var udsValue compozycontract.MarketplaceEntryResponse
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
 			t.Fatalf("UDSJSON(%s) error = %v", path, err)
 		}
-		var cliValue aghcontract.MarketplaceEntryResponse
+		var cliValue compozycontract.MarketplaceEntryResponse
 		if err := clients.CLI.RunJSON(
 			ctx,
 			&cliValue,
@@ -834,15 +850,15 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 	t.Run("Should install the same catalog MCP semantics over HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/settings/mcp-servers/install"
-		request := aghcontract.InstallSettingsMCPServerRequest{
+		request := compozycontract.InstallSettingsMCPServerRequest{
 			EntryID: "filesystem",
 			Name:    "filesystem-parity",
-			Scope:   aghcontract.SettingsWorkspaceScopeGlobal,
-			Values:  &aghcontract.SettingsMCPCatalogInstallValuesPayload{},
+			Scope:   compozycontract.SettingsWorkspaceScopeGlobal,
+			Values:  &compozycontract.SettingsMCPCatalogInstallValuesPayload{},
 		}
-		var httpValue aghcontract.InstallSettingsMCPServerResponse
-		var udsValue aghcontract.InstallSettingsMCPServerResponse
-		var cliValue aghcontract.InstallSettingsMCPServerResponse
+		var httpValue compozycontract.InstallSettingsMCPServerResponse
+		var udsValue compozycontract.InstallSettingsMCPServerResponse
+		var cliValue compozycontract.InstallSettingsMCPServerResponse
 		t.Run("Should install over HTTP from fresh state", func(t *testing.T) {
 			harness := startMarketplaceHarness(t)
 			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
@@ -882,7 +898,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		assertTransportMCPInstallParity(t, path, httpValue, udsValue, cliValue)
 		if httpValue.MCPServer.CatalogEntry != "filesystem" ||
 			httpValue.MCPServer.CatalogVersion != "1.0.0" ||
-			httpValue.NextStep != aghcontract.SettingsMCPInstallNextStepNone {
+			httpValue.NextStep != compozycontract.SettingsMCPInstallNextStepNone {
 			t.Fatalf("catalog MCP install response = %#v", httpValue)
 		}
 	})
@@ -914,7 +930,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		item := cliValue[0]
 		if item.Slug != "compozy/bridge-github" ||
 			item.Name != "GitHub bridge" ||
-			item.Description != "Connect GitHub events to AGH" ||
+			item.Description != "Connect GitHub events to Compozy" ||
 			item.Version != "1.0.0" ||
 			item.Source != "compozy-catalog" {
 			t.Fatalf("CLI extension search item = %#v, want unchanged extension search fields", item)
@@ -923,11 +939,11 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 
 	t.Run("Should refresh the same curated kind over guarded HTTP and unguarded UDS", func(t *testing.T) {
 		path := "/api/marketplace/refresh?kind=extension"
-		var httpValue aghcontract.MarketplaceRefreshResponse
+		var httpValue compozycontract.MarketplaceRefreshResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, path, nil, &httpValue); err != nil {
 			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
-		var udsValue aghcontract.MarketplaceRefreshResponse
+		var udsValue compozycontract.MarketplaceRefreshResponse
 		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, path, nil, &udsValue); err != nil {
 			t.Fatalf("UDSJSON(%s) error = %v", path, err)
 		}
@@ -943,15 +959,15 @@ func newTransportMarketplaceCatalogServer(t testing.TB) *httptest.Server {
 			`"entry_id":"filesystem","name":"Filesystem","description":"Read approved local files",` +
 			`"version":"1.0.0","transport":"stdio","command":"npx","args":["server-filesystem"]}]}`,
 		"/extensions.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to AGH",` +
+			`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 			`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 			`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
 			`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
 			`"tier":"official"}]}`,
 		"/skills.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-			`"entry_id":"agh","name":"AGH","display_name":"AGH operator",` +
-			`"description":"Operate AGH through structured surfaces","version":"1.0.0",` +
-			`"install_slug":"compozy/agh","author":"Compozy","tags":["agh","operations"]}]}`,
+			`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
+			`"description":"Operate Compozy through structured surfaces","version":"1.0.0",` +
+			`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]}]}`,
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		document, ok := documents[request.URL.Path]
@@ -989,14 +1005,20 @@ func assertTransportMarketplaceParity(t testing.TB, path string, values ...any) 
 				valueErr,
 			)
 		}
-		t.Fatalf("%s transport 0 payload = %s, want parity with transport %d payload %s", path, expectedJSON, index+1, valueJSON)
+		t.Fatalf(
+			"%s transport 0 payload = %s, want parity with transport %d payload %s",
+			path,
+			expectedJSON,
+			index+1,
+			valueJSON,
+		)
 	}
 }
 
 func assertTransportMCPInstallParity(
 	t testing.TB,
 	path string,
-	values ...aghcontract.InstallSettingsMCPServerResponse,
+	values ...compozycontract.InstallSettingsMCPServerResponse,
 ) {
 	t.Helper()
 
@@ -1036,7 +1058,7 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSFaultyAgent,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -1086,7 +1108,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	session, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSObserveAgent,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	})
@@ -1117,8 +1139,8 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		ctx,
 		"waitForHTTPListLogs",
 		wantTransportObserveHarnessTypes(),
-		func(fetchCtx context.Context) ([]aghcontract.LogEventPayload, error) {
-			var response aghcontract.LogsListResponse
+		func(fetchCtx context.Context) ([]compozycontract.LogEventPayload, error) {
+			var response compozycontract.LogsListResponse
 			err := runtimeHarness.HTTPJSON(
 				fetchCtx,
 				http.MethodGet,
@@ -1134,8 +1156,8 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		ctx,
 		"waitForUDSListLogs",
 		wantTransportObserveHarnessTypes(),
-		func(fetchCtx context.Context) ([]aghcontract.LogEventPayload, error) {
-			var response aghcontract.LogsListResponse
+		func(fetchCtx context.Context) ([]compozycontract.LogEventPayload, error) {
+			var response compozycontract.LogsListResponse
 			err := runtimeHarness.UDSJSON(
 				fetchCtx,
 				http.MethodGet,
@@ -1226,24 +1248,24 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 		{
 			name:   "general section",
 			path:   "/api/settings/general",
-			decode: func() any { return &aghcontract.SettingsGeneralResponse{} },
+			decode: func() any { return &compozycontract.SettingsGeneralResponse{} },
 		},
 		{
 			name:   "providers collection",
 			path:   "/api/settings/providers",
-			decode: func() any { return &aghcontract.SettingsProvidersResponse{} },
+			decode: func() any { return &compozycontract.SettingsProvidersResponse{} },
 		},
 		{
 			name: "workspace mcp servers collection",
 			path: "/api/settings/mcp-servers?scope=workspace&workspace_id=" + url.QueryEscape(workspaceID),
 			decode: func() any {
-				return &aghcontract.SettingsMCPServersResponse{}
+				return &compozycontract.SettingsMCPServersResponse{}
 			},
 		},
 		{
 			name:   "hooks and extensions section",
 			path:   "/api/settings/hooks-extensions",
-			decode: func() any { return &aghcontract.SettingsHooksExtensionsResponse{} },
+			decode: func() any { return &compozycontract.SettingsHooksExtensionsResponse{} },
 		},
 	}
 
@@ -1306,10 +1328,10 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 			string(body),
 		)
 	}
-	var httpList aghcontract.ExtensionsResponse
+	var httpList compozycontract.ExtensionsResponse
 	decodeHTTPJSON(t, httpListResp, &httpList)
 
-	var udsList aghcontract.ExtensionsResponse
+	var udsList compozycontract.ExtensionsResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &udsList); err != nil {
 		t.Fatalf("UDSJSON(/api/extensions) error = %v", err)
 	}
@@ -1334,10 +1356,10 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 		_ = httpStatusResp.Body.Close()
 		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
 	}
-	var httpStatus aghcontract.ExtensionResponse
+	var httpStatus compozycontract.ExtensionResponse
 	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
 
-	var udsStatus aghcontract.ExtensionResponse
+	var udsStatus compozycontract.ExtensionResponse
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -1373,8 +1395,8 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	workspaceID := runtimeHarness.WorkspaceID
 	putPath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	putBody, err := json.Marshal(aghcontract.PutSettingsMCPServerRequest{
-		Server: aghcontract.SettingsMCPServerPayload{
+	putBody, err := json.Marshal(compozycontract.PutSettingsMCPServerRequest{
+		Server: compozycontract.SettingsMCPServerPayload{
 			Name:    "server-a",
 			Command: "mcpd",
 			Args:    []string{"serve"},
@@ -1402,16 +1424,16 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 			string(body),
 		)
 	}
-	var forbidden aghcontract.ErrorPayload
+	var forbidden compozycontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
 
-	var udsMutation aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var udsMutation compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodPut,
 		putPath,
-		aghcontract.PutSettingsMCPServerRequest{
-			Server: aghcontract.SettingsMCPServerPayload{
+		compozycontract.PutSettingsMCPServerRequest{
+			Server: compozycontract.SettingsMCPServerPayload{
 				Name:    "server-a",
 				Command: "mcpd",
 				Args:    []string{"serve"},
@@ -1421,7 +1443,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	); err != nil {
 		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
 	}
-	if udsMutation.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+	if udsMutation.Scope != compozycontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
 		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
 	}
 
@@ -1444,10 +1466,10 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 			string(body),
 		)
 	}
-	var listForbidden aghcontract.ErrorPayload
+	var listForbidden compozycontract.ErrorPayload
 	decodeHTTPJSON(t, httpListResp, &listForbidden)
 
-	var udsList aghcontract.SettingsMCPServersResponse
+	var udsList compozycontract.SettingsMCPServersResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsList); err != nil {
 		t.Fatalf("UDSJSON(GET %s) error = %v", listPath, err)
 	}
@@ -1457,11 +1479,12 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 
 	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	var deleteResult aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var deleteResult compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
 		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
 	}
-	if deleteResult.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
+	if deleteResult.Scope != compozycontract.SettingsWorkspaceScopeWorkspace ||
+		deleteResult.WorkspaceID != workspaceID {
 		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
 	}
 
@@ -1483,10 +1506,10 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 			string(body),
 		)
 	}
-	var listAfterDeleteForbidden aghcontract.ErrorPayload
+	var listAfterDeleteForbidden compozycontract.ErrorPayload
 	decodeHTTPJSON(t, httpListResp, &listAfterDeleteForbidden)
 
-	var udsListAfterDelete aghcontract.SettingsMCPServersResponse
+	var udsListAfterDelete compozycontract.SettingsMCPServersResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsListAfterDelete); err != nil {
 		t.Fatalf("UDSJSON(GET %s after delete) error = %v", listPath, err)
 	}
@@ -1517,7 +1540,7 @@ func waitForUDSAutomationRun(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) aghcontract.RunPayload {
+) compozycontract.RunPayload {
 	t.Helper()
 
 	return waitForTransportAutomationRun(
@@ -1525,7 +1548,7 @@ func waitForUDSAutomationRun(
 		ctx,
 		runID,
 		"waitForUDSAutomationRun",
-		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
+		func(fetchCtx context.Context) (compozycontract.RunPayload, error) {
 			return harness.GetAutomationRun(fetchCtx, runID)
 		},
 	)
@@ -1535,7 +1558,7 @@ func transportSettingsHTTPURL(harness *e2etest.RuntimeHarness, path string) stri
 	return fmt.Sprintf("http://127.0.0.1:%d%s", harness.Config.HTTP.Port, path)
 }
 
-func settingsMCPServerPresent(items []aghcontract.SettingsMCPServerItemPayload, name string) bool {
+func settingsMCPServerPresent(items []compozycontract.SettingsMCPServerItemPayload, name string) bool {
 	for _, item := range items {
 		if item.Name == name {
 			return true
@@ -1549,7 +1572,7 @@ func waitForCLIAutomationRun(
 	ctx context.Context,
 	client *e2etest.CLIClient,
 	runID string,
-) aghcontract.RunPayload {
+) compozycontract.RunPayload {
 	t.Helper()
 
 	return waitForTransportAutomationRun(
@@ -1557,8 +1580,8 @@ func waitForCLIAutomationRun(
 		ctx,
 		runID,
 		"waitForCLIAutomationRun",
-		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
-			var run aghcontract.RunPayload
+		func(fetchCtx context.Context) (compozycontract.RunPayload, error) {
+			var run compozycontract.RunPayload
 			err := client.RunJSON(fetchCtx, &run, "automation", "runs", "get", runID, "-o", "json")
 			return run, err
 		},
@@ -1569,11 +1592,11 @@ func seedTransportWebhookTrigger(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) (aghcontract.TriggerPayload, string) {
+) (compozycontract.TriggerPayload, string) {
 	t.Helper()
 
 	state, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
-		Triggers: []aghcontract.CreateTriggerRequest{{
+		Triggers: []compozycontract.CreateTriggerRequest{{
 			Scope:              automationpkg.AutomationScopeGlobal,
 			Name:               "deploy-review",
 			AgentName:          transportUDSAutomationAgent,
@@ -1647,7 +1670,7 @@ func waitForHTTPAutomationRun(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) aghcontract.RunPayload {
+) compozycontract.RunPayload {
 	t.Helper()
 
 	return waitForTransportAutomationRun(
@@ -1655,8 +1678,8 @@ func waitForHTTPAutomationRun(
 		ctx,
 		runID,
 		"waitForHTTPAutomationRun",
-		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
-			var response aghcontract.RunResponse
+		func(fetchCtx context.Context) (compozycontract.RunPayload, error) {
+			var response compozycontract.RunResponse
 			err := harness.HTTPJSON(
 				fetchCtx,
 				http.MethodGet,
@@ -1674,8 +1697,8 @@ func waitForTransportAutomationRun(
 	ctx context.Context,
 	runID string,
 	label string,
-	fetch func(context.Context) (aghcontract.RunPayload, error),
-) aghcontract.RunPayload {
+	fetch func(context.Context) (compozycontract.RunPayload, error),
+) compozycontract.RunPayload {
 	t.Helper()
 
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -1685,7 +1708,7 @@ func waitForTransportAutomationRun(
 
 	var (
 		lastErr error
-		lastRun aghcontract.RunPayload
+		lastRun compozycontract.RunPayload
 	)
 	for {
 		run, err := fetch(waitCtx)
@@ -1715,7 +1738,7 @@ func waitForTransportSessionTitle(
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	wantTitle string,
-) (aghcontract.SessionsResponse, aghcontract.SessionsResponse) {
+) (compozycontract.SessionsResponse, compozycontract.SessionsResponse) {
 	t.Helper()
 
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -1725,15 +1748,15 @@ func waitForTransportSessionTitle(
 	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID)
 
 	var (
-		httpCatalog aghcontract.SessionsResponse
-		udsCatalog  aghcontract.SessionsResponse
+		httpCatalog compozycontract.SessionsResponse
+		udsCatalog  compozycontract.SessionsResponse
 		httpErr     error
 		udsErr      error
 	)
 	for {
-		httpCatalog = aghcontract.SessionsResponse{}
+		httpCatalog = compozycontract.SessionsResponse{}
 		httpErr = harness.HTTPJSON(waitCtx, http.MethodGet, path, nil, &httpCatalog)
-		udsCatalog = aghcontract.SessionsResponse{}
+		udsCatalog = compozycontract.SessionsResponse{}
 		udsErr = harness.UDSJSON(waitCtx, http.MethodGet, path, nil, &udsCatalog)
 		if httpErr == nil && udsErr == nil &&
 			transportCatalogHasSingleTitle(httpCatalog, sessionID, wantTitle) &&
@@ -1762,8 +1785,8 @@ func waitForTransportSessionActive(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	accepted aghcontract.SessionPayload,
-) aghcontract.SessionPayload {
+	accepted compozycontract.SessionPayload,
+) compozycontract.SessionPayload {
 	t.Helper()
 	active, err := harness.WaitForSessionActive(ctx, accepted.ID)
 	if err != nil {
@@ -1773,7 +1796,7 @@ func waitForTransportSessionActive(
 }
 
 func transportCatalogHasSingleTitle(
-	catalog aghcontract.SessionsResponse,
+	catalog compozycontract.SessionsResponse,
 	sessionID string,
 	wantTitle string,
 ) bool {
@@ -1785,7 +1808,7 @@ func transportCatalogHasSingleTitle(
 func assertTransportCatalogTitle(
 	t testing.TB,
 	transport string,
-	catalog aghcontract.SessionsResponse,
+	catalog compozycontract.SessionsResponse,
 	sessionID string,
 	wantTitle string,
 ) {
@@ -1807,8 +1830,8 @@ func waitForTransportListLogs(
 	ctx context.Context,
 	label string,
 	wantTypes []string,
-	fetch func(context.Context) ([]aghcontract.LogEventPayload, error),
-) []aghcontract.LogEventPayload {
+	fetch func(context.Context) ([]compozycontract.LogEventPayload, error),
+) []compozycontract.LogEventPayload {
 	t.Helper()
 
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -1818,7 +1841,7 @@ func waitForTransportListLogs(
 
 	var (
 		lastErr    error
-		lastEvents []aghcontract.LogEventPayload
+		lastEvents []compozycontract.LogEventPayload
 	)
 	for {
 		events, err := fetch(waitCtx)
@@ -1866,7 +1889,7 @@ func udsSSEContainsEvent(records []e2etest.SSEEvent, want string) bool {
 	return false
 }
 
-func udsSessionEventsContainType(events []aghcontract.SessionEventPayload, want string) bool {
+func udsSessionEventsContainType(events []compozycontract.SessionEventPayload, want string) bool {
 	for _, event := range events {
 		var payload struct {
 			Type string `json:"type"`
@@ -1878,8 +1901,8 @@ func udsSessionEventsContainType(events []aghcontract.SessionEventPayload, want 
 	return false
 }
 
-func filterHarnessListLogs(events []aghcontract.LogEventPayload) []aghcontract.LogEventPayload {
-	filtered := make([]aghcontract.LogEventPayload, 0, len(events))
+func filterHarnessListLogs(events []compozycontract.LogEventPayload) []compozycontract.LogEventPayload {
+	filtered := make([]compozycontract.LogEventPayload, 0, len(events))
 	for _, event := range events {
 		if strings.HasPrefix(event.Type, "harness.") {
 			filtered = append(filtered, event)
@@ -1888,7 +1911,7 @@ func filterHarnessListLogs(events []aghcontract.LogEventPayload) []aghcontract.L
 	return filtered
 }
 
-func logEventTypes(events []aghcontract.LogEventPayload) []string {
+func logEventTypes(events []compozycontract.LogEventPayload) []string {
 	types := make([]string, 0, len(events))
 	for _, event := range events {
 		types = append(types, event.Type)
@@ -1969,7 +1992,7 @@ func writeTransportProviderOverrideConfig(
 ) {
 	t.Helper()
 
-	configDir := filepath.Join(workspaceRoot, aghconfig.DirName)
+	configDir := filepath.Join(workspaceRoot, compozyconfig.DirName)
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", configDir, err)
 	}
@@ -1990,7 +2013,7 @@ func writeTransportProviderOverrideConfig(
 		builder.WriteString(`required = false` + "\n")
 	}
 
-	configPath := filepath.Join(configDir, aghconfig.ConfigName)
+	configPath := filepath.Join(configDir, compozyconfig.ConfigName)
 	if err := os.WriteFile(configPath, []byte(builder.String()), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", configPath, err)
 	}
@@ -2003,9 +2026,9 @@ func escapeTransportConfigString(value string) string {
 
 func transportDoctorItem(
 	t testing.TB,
-	payload aghcontract.DoctorPayload,
+	payload compozycontract.DoctorPayload,
 	id string,
-) aghcontract.DiagnosticItem {
+) compozycontract.DiagnosticItem {
 	t.Helper()
 	for _, item := range payload.Items {
 		if item.ID == id {
@@ -2013,7 +2036,7 @@ func transportDoctorItem(
 		}
 	}
 	t.Fatalf("doctor items = %#v, want %q", payload.Items, id)
-	return aghcontract.DiagnosticItem{}
+	return compozycontract.DiagnosticItem{}
 }
 
 func transportPositiveNumber(value any) bool {

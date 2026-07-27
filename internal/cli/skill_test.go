@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
@@ -30,7 +30,7 @@ import (
 
 type skillTestEnv struct {
 	deps      commandDeps
-	homePaths aghconfig.HomePaths
+	homePaths compozyconfig.HomePaths
 	userHome  string
 	workspace string
 }
@@ -150,7 +150,7 @@ func TestSkillCommandRegisteredInHelp(t *testing.T) {
 func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 	t.Parallel()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
 		cfg.Skills.DisabledSkills = []string{"disabled-skill"}
 	})
 
@@ -223,8 +223,8 @@ func TestSkillListCommandDefaultsToGlobalScopeWithoutWorkspaceFlag(t *testing.T)
 	resolver, err := workspacepkg.NewResolver(
 		globalDB,
 		workspacepkg.WithHomePaths(env.homePaths),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(env.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(env.homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -591,8 +591,8 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 
 	skillPath := filepath.Join(
 		env.workspace,
-		aghconfig.DirName,
-		aghconfig.SkillsDirName,
+		compozyconfig.DirName,
+		compozyconfig.SkillsDirName,
 		"plan-review",
 		skillMarkdownFileName,
 	)
@@ -620,8 +620,8 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 
 		skillPath := filepath.Join(
 			env.workspace,
-			aghconfig.DirName,
-			aghconfig.SkillsDirName,
+			compozyconfig.DirName,
+			compozyconfig.SkillsDirName,
 			defaultSkillName,
 			skillMarkdownFileName,
 		)
@@ -727,18 +727,18 @@ func TestSkillSearchCommandPassesLimitAndRendersTable(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		searchResults: []registrypkg.Listing{{
-			Slug:        "@agh/review",
+			Slug:        "@compozy/review",
 			Name:        "review",
 			Description: "Review helper",
-			Author:      "agh",
+			Author:      "compozy",
 			Version:     "1.2.0",
 			Downloads:   42,
 		}},
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
@@ -752,7 +752,7 @@ func TestSkillSearchCommandPassesLimitAndRendersTable(t *testing.T) {
 	if got := server.LastSearchLimit(); got != 7 {
 		t.Fatalf("search limit = %d, want 7", got)
 	}
-	if !strings.Contains(stdout, "Marketplace Skills") || !strings.Contains(stdout, "@agh/review") ||
+	if !strings.Contains(stdout, "Marketplace Skills") || !strings.Contains(stdout, "@compozy/review") ||
 		!strings.Contains(stdout, "Downloads") {
 		t.Fatalf("search output = %q, want human table with listing", stdout)
 	}
@@ -764,8 +764,8 @@ func TestSkillSearchCommandRejectsNonPositiveLimit(t *testing.T) {
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
@@ -787,8 +787,8 @@ func TestSkillSearchCommandReturnsOfflineError(t *testing.T) {
 	serverURL := server.URL
 	server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  serverURL,
 		}
@@ -826,7 +826,7 @@ func TestSkillInstallCommandBlocksCriticalContent(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		downloads: map[string]marketplaceDownloadFixture{
-			"@agh/malicious": {
+			"@compozy/malicious": {
 				version: "1.0.0",
 				files: map[string]string{
 					"malicious/SKILL.md": skillDocument(
@@ -840,14 +840,14 @@ func TestSkillInstallCommandBlocksCriticalContent(t *testing.T) {
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
 	})
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/malicious")
+	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "@compozy/malicious")
 	if err == nil {
 		t.Fatal("skill install critical error = nil, want failure")
 	}
@@ -865,7 +865,7 @@ func TestSkillInstallCommandInstallsMarketplaceSkill(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		downloads: map[string]marketplaceDownloadFixture{
-			"@agh/review": {
+			"@compozy/review": {
 				version: "1.2.0",
 				files: map[string]string{
 					"review/SKILL.md": skillDocument("review", "Review skill", "body"),
@@ -875,14 +875,14 @@ func TestSkillInstallCommandInstallsMarketplaceSkill(t *testing.T) {
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
 	})
 
-	stdout, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review", "-o", "json")
+	stdout, _, err := executeRootCommand(t, env.deps, "skill", "install", "@compozy/review", "-o", "json")
 	if err != nil {
 		t.Fatalf("skill install error = %v", err)
 	}
@@ -891,7 +891,7 @@ func TestSkillInstallCommandInstallsMarketplaceSkill(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(skill install) error = %v; stdout=%s", err, stdout)
 	}
-	if payload.Status != "installed" || payload.Name != "review" || payload.Slug != "@agh/review" {
+	if payload.Status != "installed" || payload.Name != "review" || payload.Slug != "@compozy/review" {
 		t.Fatalf("skill install payload = %#v, want installed review skill", payload)
 	}
 	if payload.Hash == "" {
@@ -907,26 +907,28 @@ func TestSkillInstallCommandRejectsInvalidArchive(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		downloads: map[string]marketplaceDownloadFixture{
-			"@agh/review": {
+			"@compozy/review": {
 				version:     "1.2.0",
 				archive:     []byte("not-a-gzip-archive"),
 				contentType: "application/gzip",
 			},
 		},
 		info: map[string]registrypkg.Detail{
-			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+			"@compozy/review": {
+				Listing: registrypkg.Listing{Slug: "@compozy/review", Name: "review", Version: "1.2.0"},
+			},
 		},
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
 	})
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review")
+	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "@compozy/review")
 	if err == nil {
 		t.Fatal("skill install invalid archive error = nil, want failure")
 	}
@@ -972,7 +974,7 @@ func TestSkillRemoveCommandDeletesMarketplaceSkillDirectory(t *testing.T) {
 		t,
 		env.homePaths,
 		"installed",
-		"@agh/installed",
+		"@compozy/installed",
 		"1.0.0",
 		skillDocument("installed", "Installed skill", "body"),
 	)
@@ -999,17 +1001,17 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		info: map[string]registrypkg.Detail{
-			"@agh/alpha": {Listing: registrypkg.Listing{Slug: "@agh/alpha", Name: "alpha", Version: "1.1.0"}},
-			"@agh/beta":  {Listing: registrypkg.Listing{Slug: "@agh/beta", Name: "beta", Version: "2.2.0"}},
+			"@compozy/alpha": {Listing: registrypkg.Listing{Slug: "@compozy/alpha", Name: "alpha", Version: "1.1.0"}},
+			"@compozy/beta":  {Listing: registrypkg.Listing{Slug: "@compozy/beta", Name: "beta", Version: "2.2.0"}},
 		},
 		downloads: map[string]marketplaceDownloadFixture{
-			"@agh/alpha": {
+			"@compozy/alpha": {
 				version: "1.1.0",
 				files: map[string]string{
 					"alpha/SKILL.md": skillDocument("alpha", "Alpha skill", "body"),
 				},
 			},
-			"@agh/beta": {
+			"@compozy/beta": {
 				version: "2.2.0",
 				files: map[string]string{
 					"beta/SKILL.md": skillDocument("beta", "Beta skill", "body"),
@@ -1019,8 +1021,8 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
@@ -1029,7 +1031,7 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 		t,
 		env.homePaths,
 		"alpha",
-		"@agh/alpha",
+		"@compozy/alpha",
 		"1.0.0",
 		skillDocument("alpha", "Alpha skill", "body"),
 	)
@@ -1037,7 +1039,7 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 		t,
 		env.homePaths,
 		"beta",
-		"@agh/beta",
+		"@compozy/beta",
 		"2.0.0",
 		skillDocument("beta", "Beta skill", "body"),
 	)
@@ -1059,10 +1061,10 @@ func TestSkillUpdateCommandAllUpdatesMarketplaceSkills(t *testing.T) {
 			t.Fatalf("skill update item = %#v, want updated status", item)
 		}
 	}
-	if got := server.DownloadCount("@agh/alpha"); got != 1 {
+	if got := server.DownloadCount("@compozy/alpha"); got != 1 {
 		t.Fatalf("alpha download count = %d, want 1", got)
 	}
-	if got := server.DownloadCount("@agh/beta"); got != 1 {
+	if got := server.DownloadCount("@compozy/beta"); got != 1 {
 		t.Fatalf("beta download count = %d, want 1", got)
 	}
 }
@@ -1072,13 +1074,15 @@ func TestSkillUpdateCommandReportsAlreadyUpToDate(t *testing.T) {
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		info: map[string]registrypkg.Detail{
-			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+			"@compozy/review": {
+				Listing: registrypkg.Listing{Slug: "@compozy/review", Name: "review", Version: "1.2.0"},
+			},
 		},
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
@@ -1087,7 +1091,7 @@ func TestSkillUpdateCommandReportsAlreadyUpToDate(t *testing.T) {
 		t,
 		env.homePaths,
 		"review",
-		"@agh/review",
+		"@compozy/review",
 		"1.2.0",
 		skillDocument("review", "Review skill", "body"),
 	)
@@ -1106,10 +1110,12 @@ func TestSkillUpdateCommandCheckOnlyReportsUpdateWithoutDownloading(t *testing.T
 
 	server := newMarketplaceTestServer(t, marketplaceServerFixture{
 		info: map[string]registrypkg.Detail{
-			"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.3.0"}},
+			"@compozy/review": {
+				Listing: registrypkg.Listing{Slug: "@compozy/review", Name: "review", Version: "1.3.0"},
+			},
 		},
 		downloads: map[string]marketplaceDownloadFixture{
-			"@agh/review": {
+			"@compozy/review": {
 				version: "1.3.0",
 				files: map[string]string{
 					"review/SKILL.md": skillDocument("review", "Review skill", "new body"),
@@ -1119,8 +1125,8 @@ func TestSkillUpdateCommandCheckOnlyReportsUpdateWithoutDownloading(t *testing.T
 	})
 	defer server.Close()
 
-	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+	env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+		cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 			Registry: "clawhub",
 			BaseURL:  server.URL(),
 		}
@@ -1129,7 +1135,7 @@ func TestSkillUpdateCommandCheckOnlyReportsUpdateWithoutDownloading(t *testing.T
 		t,
 		env.homePaths,
 		"review",
-		"@agh/review",
+		"@compozy/review",
 		"1.0.0",
 		skillDocument("review", "Review skill", "body"),
 	)
@@ -1149,7 +1155,7 @@ func TestSkillUpdateCommandCheckOnlyReportsUpdateWithoutDownloading(t *testing.T
 	if payload[0].Status != "update available" {
 		t.Fatalf("skill update --check payload = %#v, want update available", payload)
 	}
-	if got := server.DownloadCount("@agh/review"); got != 0 {
+	if got := server.DownloadCount("@compozy/review"); got != 0 {
 		t.Fatalf("download count = %d, want 0 during check-only update", got)
 	}
 }
@@ -1182,13 +1188,15 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should load-marketplace-registry-default-and-unsupported", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			info: map[string]registrypkg.Detail{
-				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "1.2.0"}},
+				"@compozy/review": {
+					Listing: registrypkg.Listing{Slug: "@compozy/review", Name: "review", Version: "1.2.0"},
+				},
 			},
 		})
 		defer server.Close()
 
-		defaultEnv := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+		defaultEnv := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				BaseURL: server.URL(),
 			}
 		})
@@ -1204,7 +1212,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 				t.Fatalf("registry.Close() error = %v", closeErr)
 			}
 		}()
-		detail, infoErr := registry.Info(testutil.Context(t), "@agh/review")
+		detail, infoErr := registry.Info(testutil.Context(t), "@compozy/review")
 		if infoErr != nil {
 			t.Fatalf("registry.Info() error = %v", infoErr)
 		}
@@ -1212,8 +1220,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t.Fatalf("registry.Info() = %#v, want clawhub-backed detail", detail)
 		}
 
-		unsupportedEnv := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{Registry: "custom"}
+		unsupportedEnv := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{Registry: "custom"}
 		})
 		if _, _, err := loadSkillRegistry(unsupportedEnv.deps); err == nil {
 			t.Fatal("loadSkillRegistry(custom) error = nil, want unsupported registry")
@@ -1340,7 +1348,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t,
 			env.homePaths,
 			"installed",
-			"@agh/installed",
+			"@compozy/installed",
 			"1.0.0",
 			skillDocument("installed", "Installed", "body"),
 		)
@@ -1349,7 +1357,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("findInstalledMarketplaceSkill() error = %v", err)
 		}
-		if item.Name != "installed" || item.Provenance.Slug != "@agh/installed" {
+		if item.Name != "installed" || item.Provenance.Slug != "@compozy/installed" {
 			t.Fatalf("findInstalledMarketplaceSkill() = %#v, want installed metadata", item)
 		}
 
@@ -1412,7 +1420,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should install-marketplace-skill-replaces-existing-directory", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
-				"@agh/review": {
+				"@compozy/review": {
 					version: "1.3.0",
 					files: map[string]string{
 						"review/SKILL.md": skillDocument("review", "Review helper", "new body"),
@@ -1422,8 +1430,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		defer server.Close()
 
-		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+		env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  server.URL(),
 			}
@@ -1432,7 +1440,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t,
 			env.homePaths,
 			"review",
-			"@agh/review",
+			"@compozy/review",
 			"1.0.0",
 			skillDocument("review", "Review helper", "old body"),
 		)
@@ -1451,7 +1459,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			testutil.Context(t),
 			runtime,
 			registry,
-			"@agh/review",
+			"@compozy/review",
 			"",
 			"",
 			env.deps.now,
@@ -1475,7 +1483,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should install-marketplace-skill-replaces-existing-target", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
-				"@agh/review": {
+				"@compozy/review": {
 					version: "1.1.0",
 					files: map[string]string{
 						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
@@ -1485,8 +1493,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		defer server.Close()
 
-		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+		env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  server.URL(),
 			}
@@ -1495,7 +1503,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t,
 			env.homePaths,
 			"review",
-			"@agh/review",
+			"@compozy/review",
 			"1.0.0",
 			skillDocument("review", "Review helper", "old body"),
 		)
@@ -1514,7 +1522,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			testutil.Context(t),
 			runtime,
 			registry,
-			"@agh/review",
+			"@compozy/review",
 			"",
 			"",
 			env.deps.now,
@@ -1526,7 +1534,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should install-marketplace-skill-rejects-disabled-discovery", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
-				"@agh/review": {
+				"@compozy/review": {
 					version: "1.1.0",
 					files: map[string]string{
 						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
@@ -1536,9 +1544,9 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		defer server.Close()
 
-		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+		env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
 			cfg.Skills.DisabledSkills = []string{"review"}
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  server.URL(),
 			}
@@ -1557,7 +1565,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			testutil.Context(t),
 			runtime,
 			registry,
-			"@agh/review",
+			"@compozy/review",
 			"",
 			"",
 			env.deps.now,
@@ -1582,7 +1590,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return nil, nil
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil archive) error = nil, want failure")
 		}
@@ -1603,7 +1611,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{Version: "1.0.0"}, nil
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil stream) error = nil, want failure")
 		}
@@ -1615,7 +1623,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should install-marketplace-skill-rejects-missing-skill-file", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			downloads: map[string]marketplaceDownloadFixture{
-				"@agh/review": {
+				"@compozy/review": {
 					version: "1.1.0",
 					files: map[string]string{
 						"review/docs/guide.md": "guide",
@@ -1625,8 +1633,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		defer server.Close()
 
-		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+		env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  server.URL(),
 			}
@@ -1646,7 +1654,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			testutil.Context(t),
 			runtime,
 			registry,
-			"@agh/review",
+			"@compozy/review",
 			"",
 			"",
 			env.deps.now,
@@ -1684,7 +1692,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 					},
 				}, nil
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(close error) error = nil, want failure")
 		}
@@ -1717,7 +1725,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 				}
 				return nil, errors.New("download failed")
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(cleanup error) error = nil, want failure")
 		}
@@ -1746,14 +1754,14 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
 						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
 					}))),
 				}, nil
 			},
-		}, "@agh/review", "", targetDir, func() time.Time { return time.Time{} })
+		}, "@compozy/review", "", targetDir, func() time.Time { return time.Time{} })
 		if err != nil {
 			t.Fatalf("installMarketplaceSkill(fallbacks) error = %v", err)
 		}
@@ -1811,7 +1819,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					Version:     "1.4.0",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
@@ -1819,7 +1827,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 					}))),
 				}, nil
 			},
-		}, "@agh/review", "", "", nil)
+		}, "@compozy/review", "", "", nil)
 		if err != nil {
 			t.Fatalf("installMarketplaceSkill(nil clock) error = %v", err)
 		}
@@ -1842,7 +1850,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
 				return nil, errors.New("lookup failed")
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(info error) error = nil, want failure")
 		}
@@ -1860,7 +1868,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
 				return nil, nil
 			},
-		}, "@agh/review", "", "", env.deps.now)
+		}, "@compozy/review", "", "", env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(nil detail) error = nil, want failure")
 		}
@@ -1886,7 +1894,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					Version:     "1.4.0",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
@@ -1894,7 +1902,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 					}))),
 				}, nil
 			},
-		}, "@agh/review", "", filepath.Join(env.homePaths.SkillsDir, "..", "escape"), env.deps.now)
+		}, "@compozy/review", "", filepath.Join(env.homePaths.SkillsDir, "..", "escape"), env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(outside target override) error = nil, want failure")
 		}
@@ -1920,7 +1928,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					Version:     "1.4.0",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
@@ -1928,7 +1936,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 					}))),
 				}, nil
 			},
-		}, "@agh/review", "", filepath.Join(env.homePaths.SkillsDir, "missing-parent", "review"), env.deps.now)
+		}, "@compozy/review", "", filepath.Join(env.homePaths.SkillsDir, "missing-parent", "review"), env.deps.now)
 		if err == nil {
 			t.Fatal("installMarketplaceSkill(move error) error = nil, want failure")
 		}
@@ -1973,7 +1981,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t,
 			env.homePaths,
 			"review",
-			"@agh/review",
+			"@compozy/review",
 			"1.0.0",
 			skillDocument("review", "Review helper", "old body"),
 		)
@@ -1982,7 +1990,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			name: "clawhub",
 			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
 				return &registrypkg.Detail{Listing: registrypkg.Listing{
-					Slug:    "@agh/review",
+					Slug:    "@compozy/review",
 					Name:    "review",
 					Version: "2.0.0",
 					Source:  "clawhub",
@@ -1990,7 +1998,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					Version:     "2.0.0",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
@@ -2003,7 +2011,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			name: "github",
 			infoFn: func(context.Context, string) (*registrypkg.Detail, error) {
 				return &registrypkg.Detail{Listing: registrypkg.Listing{
-					Slug:    "@agh/review",
+					Slug:    "@compozy/review",
 					Name:    "review",
 					Version: "9.9.9",
 					Source:  "github",
@@ -2011,7 +2019,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			},
 			downloadFn: func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 				return &registrypkg.DownloadResult{
-					Slug:        "@agh/review",
+					Slug:        "@compozy/review",
 					Version:     "9.9.9",
 					ContentType: "application/gzip",
 					Reader: io.NopCloser(bytes.NewReader(mustTarGz(t, map[string]string{
@@ -2065,10 +2073,12 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 	t.Run("Should update-marketplace-skill-keeps-existing-directory-when-package-name-changes", func(t *testing.T) {
 		server := newMarketplaceTestServer(t, marketplaceServerFixture{
 			info: map[string]registrypkg.Detail{
-				"@agh/review": {Listing: registrypkg.Listing{Slug: "@agh/review", Name: "review", Version: "2.0.0"}},
+				"@compozy/review": {
+					Listing: registrypkg.Listing{Slug: "@compozy/review", Name: "review", Version: "2.0.0"},
+				},
 			},
 			downloads: map[string]marketplaceDownloadFixture{
-				"@agh/review": {
+				"@compozy/review": {
 					version: "2.0.0",
 					files: map[string]string{
 						"renamed-review/SKILL.md": skillDocument(
@@ -2082,8 +2092,8 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		})
 		defer server.Close()
 
-		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+		env := newSkillTestEnv(t, func(cfg *compozyconfig.Config) {
+			cfg.Skills.Marketplace = compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  server.URL(),
 			}
@@ -2092,7 +2102,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t,
 			env.homePaths,
 			"review",
-			"@agh/review",
+			"@compozy/review",
 			"1.0.0",
 			skillDocument("review", "Review helper", "old body"),
 		)
@@ -2209,7 +2219,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	t.Run("Should validate helper skill slug normalization", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := normalizeSkillSlug("@agh/review"); err != nil {
+		if _, err := normalizeSkillSlug("@compozy/review"); err != nil {
 			t.Fatalf("normalizeSkillSlug(valid) error = %v", err)
 		}
 		if _, err := normalizeSkillSlug("bad/slug"); err == nil {
@@ -2310,37 +2320,37 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 
 	searchHuman, err := skillSearchBundle([]registrypkg.Listing{{
-		Slug:        "@agh/review",
+		Slug:        "@compozy/review",
 		Name:        "review",
 		Description: "Review helper",
-		Author:      "agh",
+		Author:      "compozy",
 		Version:     "1.2.0",
 		Downloads:   42,
 	}}).human()
 	if err != nil {
 		t.Fatalf("skillSearchBundle().human() error = %v", err)
 	}
-	if !strings.Contains(searchHuman, "@agh/review") {
+	if !strings.Contains(searchHuman, "@compozy/review") {
 		t.Fatalf("skillSearchBundle().human() = %q, want listing", searchHuman)
 	}
 	searchToon, err := skillSearchBundle([]registrypkg.Listing{{
-		Slug:        "@agh/review",
+		Slug:        "@compozy/review",
 		Name:        "review",
 		Description: "Review helper",
-		Author:      "agh",
+		Author:      "compozy",
 		Version:     "1.2.0",
 		Downloads:   42,
 	}}).toon()
 	if err != nil {
 		t.Fatalf("skillSearchBundle().toon() error = %v", err)
 	}
-	if !strings.Contains(searchToon, "skills[") || !strings.Contains(searchToon, "@agh/review") {
+	if !strings.Contains(searchToon, "skills[") || !strings.Contains(searchToon, "@compozy/review") {
 		t.Fatalf("skillSearchBundle().toon() = %q, want toon listing", searchToon)
 	}
 
 	updateHuman, err := skillUpdateBundle([]skillUpdateItem{{
 		Name:           "review",
-		Slug:           "@agh/review",
+		Slug:           "@compozy/review",
 		CurrentVersion: "1.0.0",
 		LatestVersion:  "1.2.0",
 		Path:           "/tmp/review",
@@ -2354,7 +2364,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 	updateToon, err := skillUpdateBundle([]skillUpdateItem{{
 		Name:           "review",
-		Slug:           "@agh/review",
+		Slug:           "@compozy/review",
 		CurrentVersion: "1.0.0",
 		LatestVersion:  "1.2.0",
 		Path:           "/tmp/review",
@@ -2369,7 +2379,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 
 	installHuman, err := skillInstallBundle(skillInstallItem{
 		Name:     "review",
-		Slug:     "@agh/review",
+		Slug:     "@compozy/review",
 		Version:  "1.2.0",
 		Registry: "clawhub",
 		Path:     "/tmp/review",
@@ -2384,7 +2394,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 	installToon, err := skillInstallBundle(skillInstallItem{
 		Name:     "review",
-		Slug:     "@agh/review",
+		Slug:     "@compozy/review",
 		Version:  "1.2.0",
 		Registry: "clawhub",
 		Path:     "/tmp/review",
@@ -2400,7 +2410,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 
 	removeHuman, err := skillRemoveBundle(skillRemoveItem{
 		Name:   "review",
-		Slug:   "@agh/review",
+		Slug:   "@compozy/review",
 		Path:   "/tmp/review",
 		Status: "removed",
 	}).human()
@@ -2412,7 +2422,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 	removeToon, err := skillRemoveBundle(skillRemoveItem{
 		Name:   "review",
-		Slug:   "@agh/review",
+		Slug:   "@compozy/review",
 		Path:   "/tmp/review",
 		Status: "removed",
 	}).toon()
@@ -2424,30 +2434,30 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	}
 }
 
-func newSkillTestEnv(t *testing.T, mutateConfig func(*aghconfig.Config)) skillTestEnv {
+func newSkillTestEnv(t *testing.T, mutateConfig func(*compozyconfig.Config)) skillTestEnv {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy-home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
 	userHome := filepath.Join(t.TempDir(), "user-home")
 	workspace := filepath.Join(t.TempDir(), "workspace")
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	if mutateConfig != nil {
 		mutateConfig(&cfg)
 	}
 
 	return skillTestEnv{
 		deps: commandDeps{
-			loadConfig: func() (aghconfig.Config, error) {
+			loadConfig: func() (compozyconfig.Config, error) {
 				return cfg, nil
 			},
-			resolveHome: func() (aghconfig.HomePaths, error) {
+			resolveHome: func() (compozyconfig.HomePaths, error) {
 				return homePaths, nil
 			},
-			ensureHome: func(aghconfig.HomePaths) error { return nil },
+			ensureHome: func(compozyconfig.HomePaths) error { return nil },
 			newClient: func(string) (DaemonClient, error) {
 				return nil, errors.New("unexpected daemon client call")
 			},
@@ -2474,12 +2484,12 @@ func writeWorkspaceSkill(t *testing.T, workspace, name, content string) string {
 	t.Helper()
 	return writeFile(
 		t,
-		filepath.Join(workspace, aghconfig.DirName, aghconfig.SkillsDirName, name, skillMarkdownFileName),
+		filepath.Join(workspace, compozyconfig.DirName, compozyconfig.SkillsDirName, name, skillMarkdownFileName),
 		content,
 	)
 }
 
-func writeUserSkill(t *testing.T, homePaths aghconfig.HomePaths, name, content string) string {
+func writeUserSkill(t *testing.T, homePaths compozyconfig.HomePaths, name, content string) string {
 	t.Helper()
 	return writeFile(t, filepath.Join(homePaths.SkillsDir, name, skillMarkdownFileName), content)
 }
@@ -2693,7 +2703,7 @@ func (s *marketplaceTestServer) DownloadCount(slug string) int {
 
 func writeInstalledMarketplaceSkill(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	name string,
 	slug string,
 	version string,

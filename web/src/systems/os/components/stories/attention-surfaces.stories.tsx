@@ -25,8 +25,8 @@ function session(
     name,
     agent_name: agentName,
     provider: "codex",
-    workspace_id: "workspace-agh",
-    workspace_path: "/workspace/agh",
+    workspace_id: "workspace-compozy",
+    workspace_path: "/workspace/compozy",
     state: badge === "stopped" || badge === "failed" ? "stopped" : "active",
     badge,
     attachable: true,
@@ -47,9 +47,9 @@ const CATALOG: SessionPayload[] = [
 ];
 
 const WORKSPACE: WorkspacePayload = {
-  id: "workspace-agh",
-  name: "agh",
-  root_dir: "/workspace/agh",
+  id: "workspace-compozy",
+  name: "compozy",
+  root_dir: "/workspace/compozy",
   add_dirs: [],
   created_at: "2026-07-20T12:00:00Z",
   updated_at: "2026-07-20T12:00:00Z",

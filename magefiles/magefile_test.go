@@ -278,11 +278,11 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 
 		rules := []dependencyClosureRule{{
 			root:            "./fixture",
-			allowedPrefixes: []string{aghModulePath + "internal/bridges/contract"},
+			allowedPrefixes: []string{compozyModulePath + "internal/bridges/contract"},
 			forbiddenPrefixes: []string{
-				aghModulePath + "internal/bridges",
-				aghModulePath + "internal/store",
-				aghModulePath + "internal/extension",
+				compozyModulePath + "internal/bridges",
+				compozyModulePath + "internal/store",
+				compozyModulePath + "internal/extension",
 			},
 		}}
 		violations, err := inspectDependencyClosures(rules, func(root string) ([]string, error) {
@@ -291,22 +291,22 @@ func TestDependencyClosureBoundaries(t *testing.T) {
 			}
 			return []string{
 				"fmt",
-				aghModulePath + "internal/bridges/contract",
-				aghModulePath + "internal/extensionprotocol",
-				aghModulePath + "internal/store/globaldb",
-				aghModulePath + "internal/extension/contract",
-				aghModulePath + "internal/bridges",
-				aghModulePath + "internal/bridges/experimental",
+				compozyModulePath + "internal/bridges/contract",
+				compozyModulePath + "internal/extensionprotocol",
+				compozyModulePath + "internal/store/globaldb",
+				compozyModulePath + "internal/extension/contract",
+				compozyModulePath + "internal/bridges",
+				compozyModulePath + "internal/bridges/experimental",
 			}, nil
 		})
 		if err != nil {
 			t.Fatalf("inspectDependencyClosures() error = %v", err)
 		}
 		want := []dependencyClosureViolation{
-			{root: "./fixture", dependency: aghModulePath + "internal/bridges"},
-			{root: "./fixture", dependency: aghModulePath + "internal/bridges/experimental"},
-			{root: "./fixture", dependency: aghModulePath + "internal/extension/contract"},
-			{root: "./fixture", dependency: aghModulePath + "internal/store/globaldb"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/bridges"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/bridges/experimental"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/extension/contract"},
+			{root: "./fixture", dependency: compozyModulePath + "internal/store/globaldb"},
 		}
 		if !slices.Equal(violations, want) {
 			t.Fatalf("inspectDependencyClosures() = %#v, want %#v", violations, want)

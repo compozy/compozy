@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -42,7 +42,7 @@ func BenchmarkBuildCatalog(b *testing.B) {
 func BenchmarkMCPResolverResolve(b *testing.B) {
 	b.ReportAllocs()
 
-	resolver := NewMCPResolver(aghconfig.SkillsConfig{
+	resolver := NewMCPResolver(compozyconfig.SkillsConfig{
 		AllowedMarketplaceMCP: []string{"skill-001", "trusted-registry:skill-003", "hash-005"},
 	}, nil)
 	skills := benchmarkMCPSkills(96)

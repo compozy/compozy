@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -118,7 +118,7 @@ func invokeRoleWithFallback[T any](
 	)
 }
 
-func roleAttemptError(role aghconfig.RoleName, attempt int, err error) error {
+func roleAttemptError(role compozyconfig.RoleName, attempt int, err error) error {
 	if err == nil {
 		err = errors.New("invocation returned without acceptance")
 	}
@@ -159,7 +159,7 @@ func recordRoleFallbackEvent(
 func (r *roleResolver) recordRoleResolveError(
 	ctx context.Context,
 	workspaceID string,
-	role aghconfig.RoleName,
+	role compozyconfig.RoleName,
 	resolveErr error,
 ) error {
 	if r == nil || r.events == nil || resolveErr == nil {

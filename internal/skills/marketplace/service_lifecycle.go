@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// Install installs one marketplace skill into the configured AGH skills root.
+// Install installs one marketplace skill into the configured Compozy skills root.
 func (s *Service) Install(ctx context.Context, slug string, version string) (_ InstallResult, err error) {
 	registry, err := s.loadRegistry()
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestWriteAgentDefCategoryPath(t *testing.T) {
@@ -21,7 +21,7 @@ func TestWriteAgentDefCategoryPath(t *testing.T) {
 			Prompt:       "You are a builder.",
 		})
 
-		agent, err := aghconfig.LoadAgentDef("builder", homePaths)
+		agent, err := compozyconfig.LoadAgentDef("builder", homePaths)
 		if err != nil {
 			t.Fatalf("LoadAgentDef(builder) error = %v", err)
 		}

@@ -12,7 +12,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -31,7 +31,7 @@ type bundleResourceUnitHarness struct {
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
 	layouts        resources.Store[windowmanager.LayoutResource]
-	agents         resources.Store[aghconfig.AgentDef]
+	agents         resources.Store[compozyconfig.AgentDef]
 	souls          resources.Store[soul.ResourceSpec]
 	heartbeats     resources.Store[heartbeat.ResourceSpec]
 	jobs           resources.Store[automationpkg.Job]
@@ -51,7 +51,7 @@ type failingLayoutStore struct {
 }
 
 type deadlineObservingAgentStore struct {
-	base            resources.Store[aghconfig.AgentDef]
+	base            resources.Store[compozyconfig.AgentDef]
 	listSawDeadline bool
 }
 
@@ -128,8 +128,8 @@ func (s failingLayoutStore) List(
 func (s *deadlineObservingAgentStore) Put(
 	ctx context.Context,
 	actor resources.MutationActor,
-	draft resources.Draft[aghconfig.AgentDef],
-) (resources.Record[aghconfig.AgentDef], error) {
+	draft resources.Draft[compozyconfig.AgentDef],
+) (resources.Record[compozyconfig.AgentDef], error) {
 	return s.base.Put(ctx, actor, draft)
 }
 
@@ -146,7 +146,7 @@ func (s *deadlineObservingAgentStore) Get(
 	ctx context.Context,
 	actor resources.MutationActor,
 	id string,
-) (resources.Record[aghconfig.AgentDef], error) {
+) (resources.Record[compozyconfig.AgentDef], error) {
 	return s.base.Get(ctx, actor, id)
 }
 
@@ -154,7 +154,7 @@ func (s *deadlineObservingAgentStore) List(
 	ctx context.Context,
 	actor resources.MutationActor,
 	filter resources.ResourceFilter,
-) ([]resources.Record[aghconfig.AgentDef], error) {
+) ([]resources.Record[compozyconfig.AgentDef], error) {
 	_, s.listSawDeadline = ctx.Deadline()
 	return s.base.List(ctx, actor, filter)
 }
@@ -731,7 +731,7 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 	if err != nil {
 		t.Fatalf("NewLayoutResourceCodec() error = %v", err)
 	}
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	agentCodec, err := compozyconfig.NewAgentResourceCodec()
 	if err != nil {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
 	}

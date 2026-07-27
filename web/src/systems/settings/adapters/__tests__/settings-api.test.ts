@@ -46,7 +46,7 @@ const generalSectionFixture = {
     },
   },
   config: {
-    daemon: { socket: "/tmp/agh.sock" },
+    daemon: { socket: "/tmp/compozy.sock" },
     defaults: { agent: "claude-code" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 4 },
@@ -54,11 +54,11 @@ const generalSectionFixture = {
     session_timeout: "30m",
   },
   config_paths: {
-    daemon_info: "/home/agh/.agh/daemon.json",
-    global_config: "/home/agh/.agh/config.toml",
-    global_mcp_sidecar: "/home/agh/.agh/mcp.json",
-    home_dir: "/home/agh/.agh",
-    log_file: "/home/agh/.agh/agh.log",
+    daemon_info: "/home/compozy/.compozy/daemon.json",
+    global_config: "/home/compozy/.compozy/config.toml",
+    global_mcp_sidecar: "/home/compozy/.compozy/mcp.json",
+    home_dir: "/home/compozy/.compozy",
+    log_file: "/home/compozy/.compozy/compozy.log",
   },
   runtime: {
     active_agents: 2,
@@ -216,7 +216,7 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "agh" },
+        marketplace: { registry: "compozy" },
       },
       links: [{ label: "skills", path: "/marketplace/skills?tab=installed" }],
     };
@@ -250,7 +250,7 @@ describe("section reads and updates", () => {
         enabled: true,
         disabled_skills: ["review"],
         poll_interval: "5m",
-        marketplace: { registry: "agh" },
+        marketplace: { registry: "compozy" },
       },
     };
 
@@ -538,7 +538,7 @@ describe("restart action", () => {
       operation_id: "op_001",
       status: "ready" as const,
       old_pid: 1000,
-      old_socket_path: "/tmp/agh.sock",
+      old_socket_path: "/tmp/compozy.sock",
       old_started_at: "2026-04-17T10:00:00Z",
       active_session_count: 0,
       started_at: "2026-04-17T10:05:00Z",

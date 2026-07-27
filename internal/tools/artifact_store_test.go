@@ -20,7 +20,7 @@ func TestFilesystemToolArtifactStoreRoundTrip(t *testing.T) {
 		root := filepath.Join(t.TempDir(), "tool-artifacts")
 		retention := testToolArtifactRetention()
 		store := openTestToolArtifactStore(t, root, retention)
-		content := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+		content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
 
 		ref, err := store.Put(t.Context(), "workspace-a", content)
 		if err != nil {

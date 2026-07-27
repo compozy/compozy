@@ -5,23 +5,23 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func NewTestHomePaths(t *testing.T) aghconfig.HomePaths {
+func NewTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
 }
 
-func WriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
+func WriteAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string) {
 	t.Helper()
 
 	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")

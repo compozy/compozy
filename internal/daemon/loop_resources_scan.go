@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -88,11 +88,11 @@ func appendLoopResources(
 	}
 }
 
-func loopSourceForDiscoveryRoot(source aghconfig.WorkspaceDiscoverySource) looppkg.Source {
+func loopSourceForDiscoveryRoot(source compozyconfig.WorkspaceDiscoverySource) looppkg.Source {
 	switch source {
-	case aghconfig.WorkspaceDiscoverySourceWorkspace:
+	case compozyconfig.WorkspaceDiscoverySourceWorkspace:
 		return looppkg.SourceWorkspace
-	case aghconfig.WorkspaceDiscoverySourceAdditional:
+	case compozyconfig.WorkspaceDiscoverySourceAdditional:
 		return looppkg.SourceAdditional
 	default:
 		return looppkg.SourceUser

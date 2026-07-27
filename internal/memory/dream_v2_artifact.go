@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/fileutil"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -106,7 +106,7 @@ func dreamArtifactFilename(at time.Time) string {
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
-	return at.UTC().Format("20060102") + "-" + aghconfig.BuiltinDreamingCuratorAgentName + ".md"
+	return at.UTC().Format("20060102") + "-" + compozyconfig.BuiltinDreamingCuratorAgentName + ".md"
 }
 
 func safeDreamRunFilename(runID string) string {

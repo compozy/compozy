@@ -18,7 +18,7 @@ const (
 	DotEnvStatusRepairable = "repairable"
 	// DotEnvStatusRepaired reports that the .env file was safely rewritten.
 	DotEnvStatusRepaired = "repaired"
-	// DotEnvStatusUnsupported reports that AGH found content it will not rewrite.
+	// DotEnvStatusUnsupported reports that Compozy found content it will not rewrite.
 	DotEnvStatusUnsupported = "unsupported"
 )
 

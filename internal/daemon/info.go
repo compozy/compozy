@@ -1,4 +1,4 @@
-// Package daemon wires the AGH runtime packages into a single long-lived process.
+// Package daemon wires the Compozy runtime packages into a single long-lived process.
 package daemon
 
 import (

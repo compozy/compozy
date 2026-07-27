@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -123,11 +123,11 @@ func reviewCreateAgentCandidates(
 	return uniqueTrimmedStrings(values)
 }
 
-func sortedResolvedAgents(resolved *workspacepkg.ResolvedWorkspace) []aghconfig.AgentDef {
+func sortedResolvedAgents(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.AgentDef {
 	if resolved == nil {
 		return nil
 	}
-	agents := append([]aghconfig.AgentDef(nil), resolved.Agents...)
+	agents := append([]compozyconfig.AgentDef(nil), resolved.Agents...)
 	sort.SliceStable(agents, func(i int, j int) bool {
 		return strings.TrimSpace(agents[i].Name) < strings.TrimSpace(agents[j].Name)
 	})

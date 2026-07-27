@@ -67,7 +67,7 @@ export function SandboxProfileSheet({
               data-testid="sandbox-profile-sheet-foot"
             >
               <span className="min-w-0 truncate font-mono text-mono-id text-faint">
-                agh config get sandboxes.{entry.name}.backend
+                compozy config get sandboxes.{entry.name}.backend
               </span>
             </footer>
           </>

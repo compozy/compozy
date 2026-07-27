@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -33,15 +33,15 @@ func TestDaemonE2EDrainRefusesNewSessionsUntilUndrained(t *testing.T) {
 	defer cancel()
 
 	active := createFixtureBackedSession(t, ctx, harness, agentName, "admitted-before-drain")
-	var draining aghcontract.DrainStatusResponse
+	var draining compozycontract.DrainStatusResponse
 	if err := harness.HTTPJSON(ctx, http.MethodPost, "/api/drain", nil, &draining); err != nil {
 		t.Fatalf("HTTP drain error = %v", err)
 	}
-	if draining.State != aghcontract.DrainStateDraining {
-		t.Fatalf("drain state = %q, want %q", draining.State, aghcontract.DrainStateDraining)
+	if draining.State != compozycontract.DrainStateDraining {
+		t.Fatalf("drain state = %q, want %q", draining.State, compozycontract.DrainStateDraining)
 	}
 
-	status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+	status, payload := createSessionHTTPFailure(t, ctx, harness, compozycontract.CreateSessionRequest{
 		AgentName:     agentName,
 		Name:          "refused-while-draining",
 		WorkspacePath: harness.WorkspaceRoot,
@@ -57,12 +57,12 @@ func TestDaemonE2EDrainRefusesNewSessionsUntilUndrained(t *testing.T) {
 		t.Fatalf("visible session id = %q, want %q", visible.ID, active.ID)
 	}
 
-	var activeState aghcontract.DrainStatusResponse
+	var activeState compozycontract.DrainStatusResponse
 	if err := harness.UDSJSON(ctx, http.MethodPost, "/api/undrain", nil, &activeState); err != nil {
 		t.Fatalf("UDS undrain error = %v", err)
 	}
-	if activeState.State != aghcontract.DrainStateActive {
-		t.Fatalf("undrain state = %q, want %q", activeState.State, aghcontract.DrainStateActive)
+	if activeState.State != compozycontract.DrainStateActive {
+		t.Fatalf("undrain state = %q, want %q", activeState.State, compozycontract.DrainStateActive)
 	}
 	restored := createFixtureBackedSession(t, ctx, harness, agentName, "admitted-after-undrain")
 	if restored.ID == active.ID {

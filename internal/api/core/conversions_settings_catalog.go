@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -90,7 +90,7 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 }
 
 func settingsProviderCredentialSlotPayloads(
-	values []aghconfig.ProviderCredentialSlot,
+	values []compozyconfig.ProviderCredentialSlot,
 ) []contract.SettingsProviderCredentialSlotPayload {
 	if len(values) == 0 {
 		return nil
@@ -171,7 +171,7 @@ func settingsSandboxItemPayloads(values []settingspkg.SandboxItem) []contract.Se
 	return payloads
 }
 
-func settingsSandboxProfilePayload(value aghconfig.SandboxProfile) contract.SettingsSandboxProfilePayload {
+func settingsSandboxProfilePayload(value compozyconfig.SandboxProfile) contract.SettingsSandboxProfilePayload {
 	payload := contract.SettingsSandboxProfilePayload{
 		Backend:     strings.TrimSpace(value.Backend),
 		SyncMode:    strings.TrimSpace(value.SyncMode),
@@ -190,7 +190,7 @@ func settingsSandboxProfilePayload(value aghconfig.SandboxProfile) contract.Sett
 }
 
 func settingsSandboxNetworkPayload(
-	value aghconfig.NetworkProfile,
+	value compozyconfig.NetworkProfile,
 ) *contract.SettingsSandboxNetworkPayload {
 	if !value.AllowPublicIngress &&
 		!value.AllowOutbound &&
@@ -209,7 +209,7 @@ func settingsSandboxNetworkPayload(
 }
 
 func settingsSandboxDaytonaPayload(
-	value aghconfig.DaytonaProfile,
+	value compozyconfig.DaytonaProfile,
 ) *contract.SettingsSandboxDaytonaPayload {
 	if strings.TrimSpace(value.APIURL) == "" &&
 		strings.TrimSpace(value.Target) == "" &&

@@ -137,7 +137,7 @@ test("captures console and network diagnostics after a forced failure path", asy
   await expect(appPage.getByTestId("onboarding-setup-panel")).toBeVisible();
 
   const failure = await appPage.evaluate(async () => {
-    console.error("agh-playwright-forced-console-error");
+    console.error("compozy-playwright-forced-console-error");
     const response = await fetch("/api/not-found");
     return { ok: response.ok, status: response.status };
   });
@@ -150,7 +150,7 @@ test("captures console and network diagnostics after a forced failure path", asy
     await readFile(runtime.artifactCollector.artifactPath("browser_console"), "utf8")
   ) as BrowserConsoleEntry[];
   expect(
-    consoleEntries.some(entry => entry.text.includes("agh-playwright-forced-console-error"))
+    consoleEntries.some(entry => entry.text.includes("compozy-playwright-forced-console-error"))
   ).toBe(true);
 
   const networkEntries = JSON.parse(

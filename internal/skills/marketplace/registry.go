@@ -5,13 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registryclawhub "github.com/compozy/compozy/internal/registry/clawhub"
 )
 
 // DefaultSourceLoader resolves the configured marketplace registry source.
-func DefaultSourceLoader(registryCfg aghconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
+func DefaultSourceLoader(registryCfg compozyconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
 	registryName := strings.ToLower(strings.TrimSpace(registryCfg.Registry))
 	if registryName == "" {
 		registryName = DefaultRegistry

@@ -9,7 +9,7 @@ import (
 func TestEnsureHomeLayoutPermissionsContract(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create AGH-owned runtime directories with private mode", func(t *testing.T) {
+	t.Run("Should create Compozy-owned runtime directories with private mode", func(t *testing.T) {
 		t.Parallel()
 
 		paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -31,7 +31,7 @@ func TestEnsureHomeLayoutPermissionsContract(t *testing.T) {
 		assertConfigPathMode(t, paths.LogsDir, 0o700)
 	})
 
-	t.Run("Should tighten existing AGH-owned runtime directories to private mode", func(t *testing.T) {
+	t.Run("Should tighten existing Compozy-owned runtime directories to private mode", func(t *testing.T) {
 		t.Parallel()
 
 		paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))

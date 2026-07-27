@@ -1,4 +1,4 @@
-package aghsdk
+package compozysdk
 
 import (
 	"context"
@@ -20,7 +20,7 @@ const SDKName = "github.com/compozy/compozy/sdk/go"
 // SDKVersion is the public SDK protocol implementation version.
 const SDKVersion = "0.1.0"
 
-// ProtocolVersion is the AGH extension subprocess protocol version.
+// ProtocolVersion is the Compozy extension subprocess protocol version.
 const ProtocolVersion = "1"
 
 // CapabilityToolProvider is the provide surface for executable extension-host tools.
@@ -49,7 +49,7 @@ var segmentedIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(?:__[a-z][a-z0-9_]
 // ToolID is the canonical public tool identity.
 type ToolID string
 
-// Validate ensures the tool id follows the canonical AGH grammar.
+// Validate ensures the tool id follows the canonical Compozy grammar.
 func (id ToolID) Validate() error {
 	value := string(id)
 	switch {
@@ -123,11 +123,11 @@ type SecurityConfig struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 }
 
-// InitializeRequest is the AGH -> extension session contract request.
+// InitializeRequest is the Compozy -> extension session contract request.
 type InitializeRequest struct {
 	ProtocolVersion           string                 `json:"protocol_version"`
 	SupportedProtocolVersions []string               `json:"supported_protocol_versions"`
-	AGHVersion                string                 `json:"agh_version"`
+	CompozyVersion            string                 `json:"compozy_version"`
 	SessionNonce              string                 `json:"session_nonce"`
 	Extension                 InitializeExtension    `json:"extension"`
 	Capabilities              InitializeCapabilities `json:"capabilities"`
@@ -166,7 +166,7 @@ type InitializeRuntime struct {
 	Bridge                json.RawMessage `json:"bridge,omitempty"`
 }
 
-// InitializeResponse is the extension -> AGH initialize acknowledgment.
+// InitializeResponse is the extension -> Compozy initialize acknowledgment.
 type InitializeResponse struct {
 	ProtocolVersion      string                  `json:"protocol_version"`
 	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
@@ -251,7 +251,7 @@ type ExtensionProvideToolsResponse struct {
 	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
 }
 
-// ExtensionToolCallRequest is sent by AGH for tools/call.
+// ExtensionToolCallRequest is sent by Compozy for tools/call.
 type ExtensionToolCallRequest struct {
 	ToolID       ToolID          `json:"tool_id"`
 	Handler      string          `json:"handler"`
@@ -281,7 +281,7 @@ type ExtensionToolCallResponse struct {
 // WatchSourceOptions reserves future watch-source registration options.
 type WatchSourceOptions struct{}
 
-// WatchPollRequest is sent by AGH for watch/poll.
+// WatchPollRequest is sent by Compozy for watch/poll.
 type WatchPollRequest struct {
 	Spec                json.RawMessage `json:"spec"`
 	ExpectedStateDigest string          `json:"expected_state_digest,omitempty"`

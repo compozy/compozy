@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
@@ -27,6 +27,6 @@ type Service interface {
 	DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error)
 	ApplyCollectionDelete(ctx context.Context, req CollectionItemDeleteRequest) (ApplyResult, error)
 	Reload(ctx context.Context) (ApplyResult, error)
-	ActiveConfig(ctx context.Context) (aghconfig.Config, error)
+	ActiveConfig(ctx context.Context) (compozyconfig.Config, error)
 	ListApplyRecords(ctx context.Context, filter ApplyRecordFilter) ([]ApplyRecord, error)
 }

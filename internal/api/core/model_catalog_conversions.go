@@ -113,7 +113,7 @@ func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelP
 		Object:  openAIModelObjectValue,
 		Created: 0,
 		OwnedBy: model.ProviderID,
-		AGH: contract.OpenAIModelAGHPayload{
+		Compozy: contract.OpenAIModelCompozyPayload{
 			ProviderID:             model.ProviderID,
 			ModelID:                model.ModelID,
 			DisplayName:            model.DisplayName,

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (m *Manager) sessionMCPServers(
 	ctx context.Context,
 	spec *sessionStartSpec,
-	resolved aghconfig.ResolvedAgent,
-	agentDef aghconfig.AgentDef,
-) ([]aghconfig.MCPServer, error) {
+	resolved compozyconfig.ResolvedAgent,
+	agentDef compozyconfig.AgentDef,
+) ([]compozyconfig.MCPServer, error) {
 	if strings.EqualFold(spec.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil, nil
 	}
@@ -42,5 +42,5 @@ func (m *Manager) sessionMCPServers(
 	if err != nil {
 		return nil, fmt.Errorf("session: mint hosted MCP launch for %q: %w", spec.sessionID, err)
 	}
-	return []aghconfig.MCPServer{hosted}, nil
+	return []compozyconfig.MCPServer{hosted}, nil
 }

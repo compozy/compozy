@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -46,7 +46,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 			manager,
 			resolvedRoleResolver(ResolvedRole{
 				Enabled:   true,
-				AgentName: aghconfig.BuiltinDreamingCuratorAgentName,
+				AgentName: compozyconfig.BuiltinDreamingCuratorAgentName,
 				Builtin:   true,
 			}),
 		)
@@ -61,7 +61,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 		if manager.createOpts.Name != checkpointSummarySessionName ||
 			manager.createOpts.Type != session.SessionTypeDream ||
 			manager.createOpts.Workspace != request.WorkspaceRoot ||
-			manager.createOpts.AgentName != aghconfig.BuiltinDreamingCuratorAgentName {
+			manager.createOpts.AgentName != compozyconfig.BuiltinDreamingCuratorAgentName {
 			t.Fatalf("Create() opts = %#v, want checkpoint dream session", manager.createOpts)
 		}
 		if manager.promptID != "checkpoint-session" ||
@@ -86,7 +86,7 @@ func TestDaemonCheckpointSummarizer(t *testing.T) {
 			manager,
 			resolvedRoleResolver(ResolvedRole{
 				Enabled:   true,
-				AgentName: aghconfig.BuiltinDreamingCuratorAgentName,
+				AgentName: compozyconfig.BuiltinDreamingCuratorAgentName,
 				Builtin:   true,
 			}),
 		)

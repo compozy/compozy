@@ -23,7 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
@@ -2598,12 +2598,12 @@ func TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog(t *testing.T) {
 
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 			ID:      "ws-alpha",
 			RootDir: filepath.Join(t.TempDir(), "alpha"),
 			Name:    "Alpha",
 		})
-		insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 			ID:      "ws-beta",
 			RootDir: filepath.Join(t.TempDir(), "beta"),
 			Name:    "Beta",

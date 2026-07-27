@@ -291,7 +291,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 					t.Fatalf("tool approval input = %s", request.Input)
 				}
 				return ToolApprovalRecord{
-					ApprovalToken: "agh_tool_approval_test",
+					ApprovalToken: "compozy_tool_approval_test",
 					ToolID:        toolspkg.ToolIDToolInfo,
 					InputDigest:   "sha256:test",
 					ExpiresAt:     time.Unix(3, 0).UTC(),
@@ -324,7 +324,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 			t.Fatalf("decode stdout %q: %v", stdout, err)
 		}
-		if payload.Approval.ApprovalToken != "agh_tool_approval_test" {
+		if payload.Approval.ApprovalToken != "compozy_tool_approval_test" {
 			t.Fatalf("tool approval payload = %#v", payload)
 		}
 	})

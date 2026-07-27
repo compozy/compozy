@@ -13,7 +13,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -158,7 +158,7 @@ type Extension struct {
 	Manifest              *Manifest
 	RootDir               string
 	Hooks                 []hookspkg.HookDecl
-	Agents                []aghconfig.AgentDef
+	Agents                []compozyconfig.AgentDef
 	Bundles               []BundleSpec
 	Skills                []*skillspkg.Skill
 	Loops                 []looppkg.ResourceSpec
@@ -175,7 +175,7 @@ type managedExtension struct {
 	rootDir               string
 	manifest              *Manifest
 	hooks                 []hookspkg.HookDecl
-	agents                []aghconfig.AgentDef
+	agents                []compozyconfig.AgentDef
 	bundles               []BundleSpec
 	skills                []*skillspkg.Skill
 	loops                 []looppkg.ResourceSpec

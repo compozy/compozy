@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -19,7 +19,7 @@ func (m *Manager) persistResolvedSoul(
 	workspaceID string,
 	agentName string,
 	resolved *soul.ResolvedSoul,
-	config aghconfig.SoulConfig,
+	config compozyconfig.SoulConfig,
 	source string,
 	now time.Time,
 ) (*soul.Snapshot, error) {
@@ -100,7 +100,7 @@ func (m *Manager) resolveSoulRefreshWorkspace(
 			ID:      strings.TrimSpace(info.WorkspaceID),
 			RootDir: strings.TrimSpace(info.Workspace),
 		},
-		Config: aghconfig.DefaultWithHome(m.homePaths),
+		Config: compozyconfig.DefaultWithHome(m.homePaths),
 	}, nil
 }
 
@@ -115,9 +115,9 @@ func (m *Manager) hasActiveSoulRun(ctx context.Context, sessionID string, now ti
 	return active, nil
 }
 
-func sessionSoulConfig(config aghconfig.SoulConfig) aghconfig.SoulConfig {
-	if config == (aghconfig.SoulConfig{}) {
-		return aghconfig.DefaultSoulConfig()
+func sessionSoulConfig(config compozyconfig.SoulConfig) compozyconfig.SoulConfig {
+	if config == (compozyconfig.SoulConfig{}) {
+		return compozyconfig.DefaultSoulConfig()
 	}
 	return config
 }

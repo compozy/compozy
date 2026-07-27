@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type loopRuntimeCatalogFactory struct {
-	homePaths         aghconfig.HomePaths
+	homePaths         compozyconfig.HomePaths
 	workspaceResolver workspacepkg.RuntimeResolver
 	models            modelcatalog.Service
 }
@@ -29,16 +29,16 @@ func (f loopRuntimeCatalogFactory) ForWorkspace(
 }
 
 type loopRuntimeCatalog struct {
-	config *aghconfig.Config
+	config *compozyconfig.Config
 	models modelcatalog.Service
 }
 
 func (c *loopRuntimeCatalog) CanonicalProvider(provider string) string {
-	return aghconfig.CanonicalProviderName(provider)
+	return compozyconfig.CanonicalProviderName(provider)
 }
 
 func (c *loopRuntimeCatalog) ValidateRuntime(ctx context.Context, runtime looppkg.RuntimeSpec) error {
-	provider := aghconfig.CanonicalProviderName(runtime.Provider)
+	provider := compozyconfig.CanonicalProviderName(runtime.Provider)
 	if provider != "" {
 		if c == nil || c.config == nil {
 			return fmt.Errorf("%w: runtime config is unavailable", looppkg.ErrActionDependencyMissing)

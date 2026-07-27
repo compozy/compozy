@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -85,7 +85,7 @@ type observedSession struct {
 	agentName       string
 	provider        string
 	model           string
-	authMode        aghconfig.ProviderAuthMode
+	authMode        compozyconfig.ProviderAuthMode
 	workspaceID     string
 	permissionMode  string
 	parentSessionID string
@@ -122,7 +122,7 @@ type Observer struct {
 	mu sync.RWMutex
 
 	registry              Registry
-	homePaths             aghconfig.HomePaths
+	homePaths             compozyconfig.HomePaths
 	sessionSource         SessionSource
 	resolvePermissionMode PermissionModeResolver
 	resolveProviderAuth   ProviderAuthModeResolver
@@ -159,8 +159,8 @@ func WithRegistry(registry Registry) Option {
 	}
 }
 
-// WithHomePaths overrides the AGH home layout used by observe/.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+// WithHomePaths overrides the Compozy home layout used by observe/.
+func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(observer *Observer) {
 		observer.homePaths = homePaths
 	}
@@ -254,7 +254,7 @@ func WithTaskDashboardConfig(cfg TaskDashboardConfig) Option {
 }
 
 // WithObservabilityConfig applies observability settings that affect observer-owned background work.
-func WithObservabilityConfig(cfg aghconfig.ObservabilityConfig) Option {
+func WithObservabilityConfig(cfg compozyconfig.ObservabilityConfig) Option {
 	return func(observer *Observer) {
 		observer.retention = RetentionConfigFromObservability(cfg)
 	}
@@ -300,13 +300,13 @@ func normalizeTaskDashboardConfig(base taskDashboardConfig, cfg TaskDashboardCon
 	return normalized
 }
 
-// New constructs an Observer and opens the global AGH database when needed.
+// New constructs an Observer and opens the global Compozy database when needed.
 func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if ctx == nil {
 		return nil, errors.New("observe: context is required")
 	}
 
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return nil, fmt.Errorf("observe: resolve home paths: %w", err)
 	}
@@ -369,7 +369,7 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	observer.setRetentionHealth(observer.initialRetentionHealth())
 
 	if observer.registry == nil {
-		if err := aghconfig.EnsureHomeLayout(observer.homePaths); err != nil {
+		if err := compozyconfig.EnsureHomeLayout(observer.homePaths); err != nil {
 			return nil, fmt.Errorf("observe: ensure home layout: %w", err)
 		}
 

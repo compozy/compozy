@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -466,7 +466,7 @@ func testNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
 	t.Parallel()
 
 	cfg := dreamConfig()
-	cfg.Roles.Dream.Agent = aghconfig.BuiltinDreamingCuratorAgentName
+	cfg.Roles.Dream.Agent = compozyconfig.BuiltinDreamingCuratorAgentName
 	sessions := &fakeSessionManager{}
 	resolver := &fakeWorkspaceResolver{
 		resolveResolved: workspacepkg.ResolvedWorkspace{
@@ -479,8 +479,8 @@ func testNewSessionSpawnerUsesResolvedBuiltInDreamingCurator(t *testing.T) {
 		t.Fatalf("spawner() error = %v", err)
 	}
 
-	if got := sessions.createCall(0).AgentName; got != aghconfig.BuiltinDreamingCuratorAgentName {
-		t.Fatalf("Create() agent = %q, want %q", got, aghconfig.BuiltinDreamingCuratorAgentName)
+	if got := sessions.createCall(0).AgentName; got != compozyconfig.BuiltinDreamingCuratorAgentName {
+		t.Fatalf("Create() agent = %q, want %q", got, compozyconfig.BuiltinDreamingCuratorAgentName)
 	}
 }
 
@@ -820,11 +820,11 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 				Provider:        "primary",
 				Model:           "m1",
 				ReasoningEffort: "low",
-				Fallbacks: []aghconfig.RoleFallback{
+				Fallbacks: []compozyconfig.RoleFallback{
 					{Provider: "secondary", Model: "m2", ReasoningEffort: "high"},
 					{Provider: "tertiary", Model: "m3"},
 				},
-				BeforeFallback: func(_ context.Context, attempt int, fallback aghconfig.RoleFallback) error {
+				BeforeFallback: func(_ context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
 					events++
 					if attempt != 1 || fallback.Provider != "secondary" {
 						t.Fatalf("fallback event = %d/%#v, want first secondary route", attempt, fallback)
@@ -863,8 +863,8 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 			SessionRoute{
 				AgentName: "memory-agent",
 				Provider:  "primary",
-				Fallbacks: []aghconfig.RoleFallback{{Provider: "secondary", Model: "m2"}},
-				BeforeFallback: func(context.Context, int, aghconfig.RoleFallback) error {
+				Fallbacks: []compozyconfig.RoleFallback{{Provider: "secondary", Model: "m2"}},
+				BeforeFallback: func(context.Context, int, compozyconfig.RoleFallback) error {
 					events++
 					return nil
 				},
@@ -888,8 +888,8 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 	})
 }
 
-func dreamConfig() aghconfig.Config {
-	cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+func dreamConfig() compozyconfig.Config {
+	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 	cfg.Memory.Enabled = true
 	cfg.Roles.Dream.Enabled = true
 	cfg.Roles.Dream.Agent = "memory-agent"
@@ -900,12 +900,12 @@ func dreamConfig() aghconfig.Config {
 func newTestSessionSpawner(
 	sessions SessionManager,
 	resolver workspacepkg.RuntimeResolver,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) memory.SessionSpawner {
 	return NewSessionSpawner(sessions, resolver, cfg.Memory.Enabled, testDreamRouteResolver(cfg))
 }
 
-func testDreamRouteResolver(cfg *aghconfig.Config) SessionRouteResolver {
+func testDreamRouteResolver(cfg *compozyconfig.Config) SessionRouteResolver {
 	return func(context.Context, string) (SessionRoute, error) {
 		role := cfg.Roles.Dream
 		return SessionRoute{
@@ -914,7 +914,7 @@ func testDreamRouteResolver(cfg *aghconfig.Config) SessionRouteResolver {
 			Provider:        role.Provider,
 			Model:           role.Model,
 			ReasoningEffort: role.ReasoningEffort,
-			Fallbacks:       append([]aghconfig.RoleFallback(nil), role.FallbackChain...),
+			Fallbacks:       append([]compozyconfig.RoleFallback(nil), role.FallbackChain...),
 		}, nil
 	}
 }

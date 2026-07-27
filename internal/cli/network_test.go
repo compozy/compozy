@@ -965,7 +965,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				"--channel", "builders",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
-				"--ext", `{"agh":{"claim_token":"compozy_claim_cli"}}`,
+				"--ext", `{"compozy":{"claim_token":"compozy_claim_cli"}}`,
 			},
 			wantErr: "network_raw_token_rejected",
 		},

@@ -896,7 +896,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"--network-channel-strategy", "named",
 					"--network-channel", "builders",
 					"--metadata",
-					`{"schema":"agh.harness.detached.v1"}`,
+					`{"schema":"compozy.harness.detached.v1"}`,
 					"-o",
 					"json",
 				); err != nil {
@@ -906,7 +906,9 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				if enqueueRequest.IdempotencyKey != "idem-1" {
 					t.Fatalf("enqueueRequest = %#v, want idempotency key", enqueueRequest)
 				}
-				if got, want := string(enqueueRequest.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+				if got, want := string(
+					enqueueRequest.Metadata,
+				), `{"schema":"compozy.harness.detached.v1"}`; got != want {
 					t.Fatalf("enqueueRequest.Metadata = %q, want %q", got, want)
 				}
 			},

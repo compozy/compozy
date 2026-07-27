@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -121,12 +121,12 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	if err != nil {
 		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
-	capabilityAgent := aghconfig.AgentDef{
+	capabilityAgent := compozyconfig.AgentDef{
 		Name:     "coder",
 		Provider: "claude",
 		Prompt:   "You are a coding assistant.",
-		Capabilities: &aghconfig.CapabilityCatalog{
-			Capabilities: []aghconfig.CapabilityDef{{
+		Capabilities: &compozyconfig.CapabilityCatalog{
+			Capabilities: []compozyconfig.CapabilityDef{{
 				ID:      "review-pr",
 				Summary: "Review pull requests",
 				Outcome: "Deliver actionable pull request feedback",
@@ -155,9 +155,9 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
-				Name:     aghconfig.DefaultAgentName,
+				Name:     compozyconfig.DefaultAgentName,
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
@@ -186,7 +186,7 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	if got, want := firstJoin.peerID, "coder."+session.ID; got != want {
 		t.Fatalf("first join peer_id = %q, want %q", got, want)
 	}
-	wantDigest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+	wantDigest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
 		ID:      "review-pr",
 		Summary: "Review pull requests",
 		Outcome: "Deliver actionable pull request feedback",
@@ -293,12 +293,12 @@ func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *test
 	if err != nil {
 		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
-	capabilityAgent := aghconfig.AgentDef{
+	capabilityAgent := compozyconfig.AgentDef{
 		Name:     "coder",
 		Provider: "claude",
 		Prompt:   "You are a coding assistant.",
-		Capabilities: &aghconfig.CapabilityCatalog{
-			Capabilities: []aghconfig.CapabilityDef{{
+		Capabilities: &compozyconfig.CapabilityCatalog{
+			Capabilities: []compozyconfig.CapabilityDef{{
 				ID:               "review-pr",
 				Summary:          "Review pull requests",
 				Outcome:          "Deliver actionable pull request feedback",
@@ -322,9 +322,9 @@ func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *test
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
-				Name:     aghconfig.DefaultAgentName,
+				Name:     compozyconfig.DefaultAgentName,
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
@@ -752,14 +752,14 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 
 		resolvedWorkspace := &workspacepkg.ResolvedWorkspace{
-			Config: aghconfig.DefaultWithHome(homePaths),
-			Agents: []aghconfig.AgentDef{{
+			Config: compozyconfig.DefaultWithHome(homePaths),
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",

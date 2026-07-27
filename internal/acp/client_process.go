@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -92,7 +92,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	}
 	normalized.AdditionalDirs = additionalDirs
 	if normalized.Permissions == "" {
-		normalized.Permissions = aghconfig.PermissionModeApproveReads
+		normalized.Permissions = compozyconfig.PermissionModeApproveReads
 	}
 	if normalized.AdditionalDirs != nil {
 		normalized.AdditionalDirs = append([]string(nil), normalized.AdditionalDirs...)
@@ -101,7 +101,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.Env = append([]string(nil), normalized.Env...)
 	}
 	if normalized.MCPServers != nil {
-		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
+		normalized.MCPServers = append([]compozyconfig.MCPServer(nil), normalized.MCPServers...)
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
 	if strings.TrimSpace(normalized.SystemPrompt) == "" {

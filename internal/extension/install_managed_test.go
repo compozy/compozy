@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
@@ -39,7 +39,7 @@ func (s managedInstallRegistryStub) Install(
 func TestManagedInstallHelpers(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -88,7 +88,7 @@ func TestManagedInstallHelpers(t *testing.T) {
 func TestInstallLocalManagedRejectsUnsafeManifestName(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -372,7 +372,7 @@ func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *test
 		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
 	}
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -420,7 +420,7 @@ func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {
 		t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
 	}
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -441,7 +441,7 @@ func TestInstallLocalManagedNormalizesProvidedChecksum(t *testing.T) {
 func TestInstallLocalManagedRejectsExistingOrFailedInstall(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -581,7 +581,7 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 	t.Run("ShouldWrapSourceChecksumFailures", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
@@ -617,7 +617,7 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
 		}
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}

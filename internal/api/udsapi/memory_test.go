@@ -16,11 +16,11 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 
@@ -633,7 +633,7 @@ func newTestMemoryHandlers(
 	t.Helper()
 
 	homePaths := newTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
@@ -646,7 +646,7 @@ func newTestMemoryHandlers(
 		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
 		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
+		agentLoader:  compozyconfig.LoadAgentDef,
 	})
 }
 
@@ -668,7 +668,7 @@ func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 		}
 	})
 	workspace := t.TempDir()
-	if _, err := aghworkspace.EnsureIdentity(context.Background(), workspace); err != nil {
+	if _, err := compozyworkspace.EnsureIdentity(context.Background(), workspace); err != nil {
 		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
 	}
 	return store, workspace

@@ -64,7 +64,7 @@ func renderMemoryTranscript(snapshot memcontract.TranscriptSnapshot) string {
 
 func memoryExtractorOverlay() string {
 	return strings.TrimSpace(`
-You are an AGH internal Memory v2 extractor child session.
+You are an Compozy internal Memory v2 extractor child session.
 Return only JSONL candidates that match the requested schema.
 Do not modify files, run commands, or include commentary outside JSONL.
 `)

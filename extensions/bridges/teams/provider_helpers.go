@@ -76,7 +76,7 @@ func defaultTeamsTokenURL(tenantID string) string {
 }
 
 func teamsOAuthTokenURLEnvName() string {
-	return strings.Join([]string{"AGH", "BRIDGE", "TEAMS", "TOKEN", "URL"}, "_")
+	return strings.Join([]string{"COMPOZY", "BRIDGE", "TEAMS", "TOKEN", "URL"}, "_")
 }
 
 func listenTeamsWebhook(listenAddr string) (net.Listener, error) {

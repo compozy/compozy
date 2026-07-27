@@ -175,14 +175,14 @@ export interface AgentEventPayload {
   raw?: unknown;
 }
 
-export interface AghPermissionData extends AgentEventPayload {
+export interface CompozyPermissionData extends AgentEventPayload {
   request_id: string;
   raw?: Record<string, unknown>;
 }
 
 export interface SessionDataParts extends Record<string, unknown> {
-  "agh-event": AgentEventPayload;
-  "agh-permission": AghPermissionData;
+  "compozy-event": AgentEventPayload;
+  "compozy-permission": CompozyPermissionData;
 }
 
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;

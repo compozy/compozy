@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -26,7 +26,7 @@ type startupPromptSectionProvider interface {
 	PromptStartupSection(
 		ctx context.Context,
 		startup session.StartupPromptContext,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		workspace *workspacepkg.ResolvedWorkspace,
 	) (string, error)
 }
@@ -34,7 +34,7 @@ type startupPromptSectionProvider interface {
 type agentPromptSectionProvider interface {
 	PromptAgentSection(
 		ctx context.Context,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		workspace *workspacepkg.ResolvedWorkspace,
 	) (string, error)
 }
@@ -43,7 +43,7 @@ type agentSessionPromptSectionProvider interface {
 	PromptAgentSessionSection(
 		ctx context.Context,
 		sessionID string,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		workspace *workspacepkg.ResolvedWorkspace,
 	) (string, error)
 }
@@ -139,7 +139,7 @@ func WithAppendPromptProviders(providers ...session.PromptProvider) ComposedAsse
 // context for callers that only know about the legacy assembler seam.
 func (a *ComposedAssembler) Assemble(
 	ctx context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return a.AssembleStartup(ctx, session.StartupPromptContext{
@@ -153,7 +153,7 @@ func (a *ComposedAssembler) Assemble(
 func (a *ComposedAssembler) AssembleStartup(
 	ctx context.Context,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	basePrompt := strings.TrimSpace(agent.Prompt)
@@ -247,7 +247,7 @@ func filterPromptDescriptorsForStartup(
 func gatherPromptSections(
 	ctx context.Context,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 	descriptors []PromptSectionDescriptor,
 ) ([]string, []string, error) {
@@ -295,7 +295,7 @@ func promptSection(
 	ctx context.Context,
 	provider session.PromptProvider,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if sessionProvider, ok := provider.(agentSessionPromptSectionProvider); ok {

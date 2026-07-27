@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -24,7 +24,7 @@ type Option func(*localProvider)
 type localProvider struct {
 	logger          *slog.Logger
 	stopTimeout     time.Duration
-	permissionMode  aghconfig.PermissionMode
+	permissionMode  compozyconfig.PermissionMode
 	processRegistry *toolruntime.Registry
 }
 
@@ -43,7 +43,7 @@ func WithStopTimeout(timeout time.Duration) Option {
 }
 
 // WithPermissionMode configures the local tool host permission policy.
-func WithPermissionMode(mode aghconfig.PermissionMode) Option {
+func WithPermissionMode(mode compozyconfig.PermissionMode) Option {
 	return func(provider *localProvider) {
 		provider.permissionMode = mode
 	}
@@ -60,7 +60,7 @@ func WithProcessRegistry(registry *toolruntime.Registry) Option {
 func NewProvider(opts ...Option) sandbox.Provider {
 	provider := &localProvider{
 		logger:         slog.Default(),
-		permissionMode: aghconfig.PermissionModeApproveReads,
+		permissionMode: compozyconfig.PermissionModeApproveReads,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -161,9 +161,9 @@ func (p *localProvider) Destroy(ctx context.Context, _ sandbox.SessionState) err
 	return nil
 }
 
-func (p *localProvider) permissionModeFor(req sandbox.PrepareRequest) aghconfig.PermissionMode {
+func (p *localProvider) permissionModeFor(req sandbox.PrepareRequest) compozyconfig.PermissionMode {
 	if mode := strings.TrimSpace(req.Permissions); mode != "" {
-		return aghconfig.PermissionMode(mode)
+		return compozyconfig.PermissionMode(mode)
 	}
 	return p.permissionMode
 }

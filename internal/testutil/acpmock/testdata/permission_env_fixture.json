@@ -45,7 +45,7 @@
                             "kind": "sandbox_exec",
                             "tool_call_id": "cmd-1",
                             "title": "Run fake network status",
-                            "command": "agh",
+                            "command": "compozy",
                             "args": ["network", "status"],
                             "expect_exit_code": 0,
                             "expect_output_contains": "network-ok",

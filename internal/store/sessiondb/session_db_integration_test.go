@@ -192,14 +192,14 @@ func TestReadOnlyPoolServesConcurrentInactiveReads(t *testing.T) {
 		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
 			TTL: time.Second,
 			Now: currentTime,
-			Open: func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+			Open: func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 				openCount.Add(1)
 				reader, err := OpenSessionDBReadOnly(ctx, sessionID, path)
 				if err != nil {
 					return nil, err
 				}
-				return &closeCountingRecorder{
-					EventRecorder: reader,
+				return &closeCountingReader{
+					EventReadCloser: reader,
 					onClose: func() {
 						closeCount.Add(1)
 					},
@@ -306,14 +306,14 @@ func TestReadOnlyPoolServesConcurrentInactiveReads(t *testing.T) {
 		)
 		pool := NewReadOnlyPool(ReadOnlyPoolConfig{
 			TTL: time.Second,
-			Open: func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+			Open: func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
 				openCount.Add(1)
 				reader, err := OpenSessionDBReadOnly(ctx, sessionID, path)
 				if err != nil {
 					return nil, err
 				}
-				return &closeCountingRecorder{
-					EventRecorder: reader,
+				return &closeCountingReader{
+					EventReadCloser: reader,
 					onClose: func() {
 						closeCount.Add(1)
 					},
@@ -406,14 +406,14 @@ func TestReadOnlyPoolServesConcurrentInactiveReads(t *testing.T) {
 	})
 }
 
-type closeCountingRecorder struct {
-	store.EventRecorder
+type closeCountingReader struct {
+	store.EventReadCloser
 	onClose func()
 	once    sync.Once
 }
 
-func (r *closeCountingRecorder) Close(ctx context.Context) error {
-	err := r.EventRecorder.Close(ctx)
+func (r *closeCountingReader) Close(ctx context.Context) error {
+	err := r.EventReadCloser.Close(ctx)
 	r.once.Do(func() {
 		if r.onClose != nil {
 			r.onClose()

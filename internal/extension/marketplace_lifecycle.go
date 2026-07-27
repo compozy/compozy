@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
@@ -116,7 +116,7 @@ type marketplaceManagedInstall struct {
 // provenance in the installed-extension registry.
 func InstallMarketplaceManaged(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	req MarketplaceInstallRequest,
@@ -149,7 +149,7 @@ func InstallMarketplaceManaged(
 
 func prepareMarketplaceManagedInstall(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	req MarketplaceInstallRequest,
@@ -266,7 +266,7 @@ func installMarketplaceArchive(
 }
 
 func moveMarketplaceInstallIntoPlace(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	slug string,
 	result *registrypkg.InstallResult,

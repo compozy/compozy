@@ -32,23 +32,23 @@ const (
 	ToolIDNetworkStatus ToolID = "compozy__network_status"
 	// ToolIDNetworkUsage reads bounded workspace-scoped network wake usage.
 	ToolIDNetworkUsage ToolID = "compozy__network_usage"
-	// ToolIDNetworkChannels lists active AGH network channels.
+	// ToolIDNetworkChannels lists active Compozy network channels.
 	ToolIDNetworkChannels ToolID = "compozy__network_channels"
 	// ToolIDNetworkInbox reads queued inbound network messages for one local session.
 	ToolIDNetworkInbox ToolID = "compozy__network_inbox"
 	// ToolIDNetworkSend sends one network message through the existing network manager.
 	ToolIDNetworkSend ToolID = "compozy__network_send"
-	// ToolIDNetworkChannelCreate registers one AGH network channel with a stated purpose.
+	// ToolIDNetworkChannelCreate registers one Compozy network channel with a stated purpose.
 	ToolIDNetworkChannelCreate ToolID = "compozy__network_channel_create"
-	// ToolIDNetworkChannelUpdate updates one AGH network channel delivery policy.
+	// ToolIDNetworkChannelUpdate updates one Compozy network channel delivery policy.
 	ToolIDNetworkChannelUpdate ToolID = "compozy__network_channel_update"
-	// ToolIDNetworkSubscriptions lists AGH network delivery preferences.
+	// ToolIDNetworkSubscriptions lists Compozy network delivery preferences.
 	ToolIDNetworkSubscriptions ToolID = "compozy__network_subscriptions"
-	// ToolIDNetworkSubscribe sets one AGH network delivery preference to full delivery.
+	// ToolIDNetworkSubscribe sets one Compozy network delivery preference to full delivery.
 	ToolIDNetworkSubscribe ToolID = "compozy__network_subscribe"
-	// ToolIDNetworkMute mutes one AGH network delivery preference.
+	// ToolIDNetworkMute mutes one Compozy network delivery preference.
 	ToolIDNetworkMute ToolID = "compozy__network_mute"
-	// ToolIDNetworkUnmute removes one AGH network delivery preference.
+	// ToolIDNetworkUnmute removes one Compozy network delivery preference.
 	ToolIDNetworkUnmute ToolID = "compozy__network_unmute"
 	// ToolIDNetworkThreads lists public network thread summaries.
 	ToolIDNetworkThreads ToolID = "compozy__network_threads"
@@ -489,7 +489,7 @@ const (
 	ToolsetIDMCPAuth ToolsetID = "compozy__mcp_auth"
 )
 
-// BuiltinSource returns the provenance shared by daemon-compiled AGH tools.
+// BuiltinSource returns the provenance shared by daemon-compiled Compozy tools.
 func BuiltinSource() SourceRef {
 	return SourceRef{
 		Kind:  SourceBuiltin,

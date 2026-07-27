@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
@@ -103,10 +103,10 @@ func TestProviderAuthHandlers(t *testing.T) {
 		t.Parallel()
 
 		cfg := providerAuthTestConfig(t)
-		cfg.Providers["bad"] = aghconfig.ProviderConfig{
+		cfg.Providers["bad"] = compozyconfig.ProviderConfig{
 			Command:  "bad-provider acp",
-			AuthMode: aghconfig.ProviderAuthModeNone,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+			AuthMode: compozyconfig.ProviderAuthModeNone,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
 				Name:      "api",
 				TargetEnv: "BAD_API_KEY",
 				SecretRef: "env:BAD_API_KEY",
@@ -200,14 +200,14 @@ func TestDiagnosticStatus(t *testing.T) {
 
 func providerAuthTestRouter(
 	t *testing.T,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	runner authproviders.ProviderAuthCommandRunner,
 ) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 	if cfg == nil {
-		cfg = &aghconfig.Config{}
+		cfg = &compozyconfig.Config{}
 	}
 	handlers := NewBaseHandlers(&BaseHandlerConfig{
 		Config:             *cfg,
@@ -219,22 +219,22 @@ func providerAuthTestRouter(
 	return router
 }
 
-func providerAuthTestConfig(t *testing.T) aghconfig.Config {
+func providerAuthTestConfig(t *testing.T) compozyconfig.Config {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.Providers["public"] = aghconfig.ProviderConfig{
+	cfg := compozyconfig.DefaultWithHome(homePaths)
+	cfg.Providers["public"] = compozyconfig.ProviderConfig{
 		Command:      "public-provider acp",
-		AuthMode:     aghconfig.ProviderAuthModeNone,
-		NoneSecurity: aghconfig.ProviderNoneSecurityPublicReadonly,
+		AuthMode:     compozyconfig.ProviderAuthModeNone,
+		NoneSecurity: compozyconfig.ProviderNoneSecurityPublicReadonly,
 	}
-	cfg.Providers["native"] = aghconfig.ProviderConfig{
+	cfg.Providers["native"] = compozyconfig.ProviderConfig{
 		Command:       "provider-cli acp",
-		AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+		AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
 		AuthStatusCmd: "provider-cli auth status",
 		AuthLoginCmd:  "provider-cli login",
 	}

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
@@ -116,7 +116,7 @@ func WithMCPResolver(resolver MCPResolver) Option {
 	}
 }
 
-// WithHostedMCPLauncher injects the session-bound AGH-hosted MCP launcher.
+// WithHostedMCPLauncher injects the session-bound Compozy-hosted MCP launcher.
 func WithHostedMCPLauncher(launcher HostedMCPLauncher) Option {
 	return func(manager *Manager) {
 		manager.hostedMCP = launcher
@@ -183,7 +183,7 @@ func WithLedgerMaterializer(materializer LedgerMaterializer) Option {
 }
 
 // WithSessionHealthConfig injects Agent Heartbeat bounds used by session health.
-func WithSessionHealthConfig(config aghconfig.HeartbeatConfig) Option {
+func WithSessionHealthConfig(config compozyconfig.HeartbeatConfig) Option {
 	return func(manager *Manager) {
 		manager.sessionHealthStaleAfter = config.SessionHealthStaleAfter
 		manager.sessionHealthHookMinInterval = config.SessionHealthHookMinInterval
@@ -197,8 +197,8 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithHomePaths overrides the resolved AGH home directory layout.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+// WithHomePaths overrides the resolved Compozy home directory layout.
+func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(manager *Manager) {
 		manager.homePaths = homePaths
 	}
@@ -282,21 +282,21 @@ func WithPromptBufferSize(size int) Option {
 }
 
 // WithSessionSupervision overrides runtime activity supervision settings.
-func WithSessionSupervision(config aghconfig.SessionSupervisionConfig) Option {
+func WithSessionSupervision(config compozyconfig.SessionSupervisionConfig) Option {
 	return func(manager *Manager) {
 		manager.supervision = config
 	}
 }
 
 // WithSessionBusyInputConfig overrides busy-input queue behavior.
-func WithSessionBusyInputConfig(config aghconfig.SessionBusyInputConfig) Option {
+func WithSessionBusyInputConfig(config compozyconfig.SessionBusyInputConfig) Option {
 	return func(manager *Manager) {
 		manager.busyInput = config.Normalize()
 	}
 }
 
 // WithSessionCompactionConfig overrides pressure-triggered context compaction guards.
-func WithSessionCompactionConfig(config aghconfig.SessionCompactionConfig) Option {
+func WithSessionCompactionConfig(config compozyconfig.SessionCompactionConfig) Option {
 	return func(manager *Manager) {
 		manager.compaction = config
 	}

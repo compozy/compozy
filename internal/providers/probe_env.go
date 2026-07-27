@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -22,7 +22,7 @@ type VaultRefResolver interface {
 // ProbeEnv supplies process, env, and vault access to provider auth probes.
 type ProbeEnv struct {
 	ProviderName string
-	HomePaths    aghconfig.HomePaths
+	HomePaths    compozyconfig.HomePaths
 	LookPath     func(string) (string, error)
 	LookupEnv    func(string) (string, bool)
 	Vault        VaultRefResolver
@@ -65,7 +65,7 @@ func (e *ProbeEnv) Normalize() ProbeEnv {
 
 // NativeCLIStatus resolves the CLI binary used by a native provider-auth probe.
 func NativeCLIStatus(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) (*providerauth.NativeCLIStatus, error) {
 	normalized := env.Normalize()
@@ -74,7 +74,7 @@ func NativeCLIStatus(
 
 // LaunchCommandStatus resolves the first token of the launch command used by a session start.
 func LaunchCommandStatus(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) (*providerauth.NativeCLIStatus, error) {
 	normalized := env.Normalize()
@@ -88,7 +88,7 @@ func LaunchCommandStatus(
 // CredentialStatuses resolves configured credential slots without reading plaintext secrets.
 func CredentialStatuses(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) ([]CredentialStatus, error) {
 	normalized := env.Normalize()
@@ -109,7 +109,7 @@ func CredentialStatuses(
 
 func credentialStatus(
 	ctx context.Context,
-	slot aghconfig.ProviderCredentialSlot,
+	slot compozyconfig.ProviderCredentialSlot,
 	env ProbeEnv,
 ) (CredentialStatus, error) {
 	secretRef := vault.NormalizeRef(slot.SecretRef)

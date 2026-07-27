@@ -5,10 +5,10 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func diffMemorySettings(current *aghconfig.MemoryConfig, desired *aghconfig.MemoryConfig) []string {
+func diffMemorySettings(current *compozyconfig.MemoryConfig, desired *compozyconfig.MemoryConfig) []string {
 	var changed []string
 	currentValues := memorySettingsUpdates(current)
 	desiredValues := memorySettingsUpdates(desired)
@@ -25,7 +25,7 @@ func diffMemorySettings(current *aghconfig.MemoryConfig, desired *aghconfig.Memo
 	return changed
 }
 
-func diffSkillsSettings(current aghconfig.SkillsConfig, desired aghconfig.SkillsConfig) []string {
+func diffSkillsSettings(current compozyconfig.SkillsConfig, desired compozyconfig.SkillsConfig) []string {
 	var changed []string
 	if current.Enabled != desired.Enabled {
 		changed = append(changed, "skills.enabled")
@@ -51,7 +51,7 @@ func diffSkillsSettings(current aghconfig.SkillsConfig, desired aghconfig.Skills
 	return changed
 }
 
-func diffAgentImmutableSkillsSettings(current aghconfig.SkillsConfig, desired aghconfig.SkillsConfig) []string {
+func diffAgentImmutableSkillsSettings(current compozyconfig.SkillsConfig, desired compozyconfig.SkillsConfig) []string {
 	baseCurrent := current
 	baseCurrent.DisabledSkills = nil
 	baseDesired := desired
@@ -59,7 +59,7 @@ func diffAgentImmutableSkillsSettings(current aghconfig.SkillsConfig, desired ag
 	return diffSkillsSettings(baseCurrent, baseDesired)
 }
 
-func diffAutomationSettings(cfg *aghconfig.Config, desired AutomationSettings) []string {
+func diffAutomationSettings(cfg *compozyconfig.Config, desired AutomationSettings) []string {
 	var changed []string
 	if cfg.Automation.Enabled != desired.Enabled {
 		changed = append(changed, "automation.enabled")
@@ -76,7 +76,10 @@ func diffAutomationSettings(cfg *aghconfig.Config, desired AutomationSettings) [
 	return changed
 }
 
-func diffObservabilitySettings(current aghconfig.ObservabilityConfig, desired aghconfig.ObservabilityConfig) []string {
+func diffObservabilitySettings(
+	current compozyconfig.ObservabilityConfig,
+	desired compozyconfig.ObservabilityConfig,
+) []string {
 	var changed []string
 	if current.Enabled != desired.Enabled {
 		changed = append(changed, "observability.enabled")

@@ -6,14 +6,14 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func (m *Manager) validateExplicitModel(
 	ctx context.Context,
 	spec *sessionStartSpec,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 ) error {
 	modelID := strings.TrimSpace(spec.model)
 	providerID := strings.TrimSpace(resolved.Provider)

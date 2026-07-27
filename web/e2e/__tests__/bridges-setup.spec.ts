@@ -33,7 +33,7 @@ const CREATED_WEBHOOK_PUBLIC_URL = "https://hooks.example.com/browser-slack-setu
 const PROVIDER_KEY = "ext-slack::slack";
 
 const slackProvider: BridgeProvider = {
-  config_schema: { schema: "agh.bridge.slack", version: "1" },
+  config_schema: { schema: "compozy.bridge.slack", version: "1" },
   description: "Slack bridge adapter",
   display_name: "Slack",
   enabled: true,
@@ -107,17 +107,16 @@ test("Should wait for Slack create 201 before manifest, copy daemon JSON, and op
   await ui.createBridgeButton.click();
   await expect(ui.createDialog).toBeVisible();
   await ui.createDialog.getByTestId(`bridge-provider-card-${PROVIDER_KEY}`).click();
-  await ui.createWizardNext.click();
-
   await expect(ui.createDisplayNameInput).toBeVisible();
   await ui.createDisplayNameInput.fill("Browser Slack Setup");
-  await ui.createScopeSelect.selectOption("global");
+  await ui.createScopeGlobal.click();
+  await expect(ui.createScopeGlobal).toHaveAttribute("aria-pressed", "true");
+  await ui.createModeAdvanced.click();
   await ui.createProviderConfigInput.fill(
     JSON.stringify({
       webhook: { public_url: CREATED_WEBHOOK_PUBLIC_URL },
     })
   );
-  await ui.createWizardNext.click();
   await expect(ui.submitBridgeCreate).toBeEnabled();
 
   expect(daemon.counts.create).toBe(0);

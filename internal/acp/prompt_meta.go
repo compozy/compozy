@@ -12,7 +12,7 @@ const (
 	// user-facing prompt surfaces.
 	PromptTurnSourceUser = "user"
 	// PromptTurnSourceNetwork identifies a daemon prompt that originated from an
-	// AGH network envelope delivery.
+	// Compozy network envelope delivery.
 	PromptTurnSourceNetwork = "network"
 	// PromptTurnSourceSynthetic identifies a daemon-owned prompt turn injected by
 	// internal runtime code.
@@ -33,7 +33,7 @@ type PromptSystemMeta struct {
 	PromptDelivery string `json:"prompt_delivery,omitempty"`
 }
 
-// PromptNetworkMeta captures stable AGH network envelope correlation fields.
+// PromptNetworkMeta captures stable Compozy network envelope correlation fields.
 type PromptNetworkMeta struct {
 	MessageID             string   `json:"message_id,omitempty"`
 	Kind                  string   `json:"kind,omitempty"`

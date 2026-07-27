@@ -247,6 +247,6 @@ func isLoopbackMCPCallbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-const mcpOAuthSuccessPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization complete</title></head><body><main><h1>Authorization complete</h1><p>You can close this tab and return to AGH.</p></main></body></html>`
+const mcpOAuthSuccessPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization complete</title></head><body><main><h1>Authorization complete</h1><p>You can close this tab and return to Compozy.</p></main></body></html>`
 
-const mcpOAuthFailurePage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization failed</title></head><body><main><h1>Authorization failed</h1><p>Return to AGH and try again, or use manual authorization.</p></main></body></html>`
+const mcpOAuthFailurePage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Authorization failed</title></head><body><main><h1>Authorization failed</h1><p>Return to Compozy and try again, or use manual authorization.</p></main></body></html>`

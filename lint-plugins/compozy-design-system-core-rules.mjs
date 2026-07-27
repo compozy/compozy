@@ -13,7 +13,7 @@ const ALLOW_FILE_SUFFIXES = [".test.tsx", ".test.ts", ".stories.tsx", ".stories.
 
 // Files whose entire purpose is to BE a typographic primitive (avatars whose
 // rendered glyph happens to use mono uppercase, custom site eyebrows, etc.).
-// New consumers go through `<Eyebrow>` from `@agh/ui`; these declare it.
+// New consumers go through `<Eyebrow>` from `@compozy/ui`; these declare it.
 const ALLOW_FILE_PATHS = [
   "/web/src/systems/network/components/timeline/message-avatar.tsx",
   "/packages/site/components/blog/mono-eyebrow.tsx",
@@ -199,12 +199,12 @@ export const noInlineEyebrow = {
     type: "problem",
     docs: {
       description:
-        "Forbid inlining the AGH eyebrow tuple in JSX className. Use <Eyebrow> from @agh/ui instead.",
+        "Forbid inlining the Compozy eyebrow tuple in JSX className. Use <Eyebrow> from @compozy/ui instead.",
       recommended: true,
     },
     messages: {
       inlineEyebrow:
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui (Inter UC 11/600/-0.005em, single style — no case/family/tone/size props). See DESIGN.md §3 and lesson L-022.",
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Inter UC 11/600/-0.005em, single style — no case/family/tone/size props). See DESIGN.md §3 and lesson L-022.",
     },
     schema: [],
   },
@@ -252,7 +252,7 @@ export const noDesignGlazeRgba = {
     type: "problem",
     docs: {
       description:
-        "Forbid inline white rgba glaze backgrounds in frontend JSX className. Use named AGH glaze tokens instead.",
+        "Forbid inline white rgba glaze backgrounds in frontend JSX className. Use named Compozy glaze tokens instead.",
       recommended: false,
     },
     messages: {
@@ -295,7 +295,7 @@ export const noBannedImports = {
     },
     messages: {
       bannedImport:
-        "Importing {{name}} from lucide-react is banned in frontend code. Use <Spinner> from @agh/ui instead. See DESIGN.md §10.",
+        "Importing {{name}} from lucide-react is banned in frontend code. Use <Spinner> from @compozy/ui instead. See DESIGN.md §10.",
     },
     schema: [],
   },

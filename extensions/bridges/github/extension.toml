@@ -32,7 +32,7 @@ description = "GitHub App private key PEM for app mode"
 required = false
 
 [bridge.config_schema]
-schema = "agh.bridge.github"
+schema = "compozy.bridge.github"
 version = "1"
 
 [actions]

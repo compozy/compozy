@@ -169,7 +169,7 @@ func TestBridgeSecretSlotAndConfigSchemaValidation(t *testing.T) {
 			t.Fatal("BridgeSecretSlot.Validate(empty) error = nil, want non-nil")
 		}
 
-		schema := BridgeProviderConfigSchema{Schema: "agh.bridge.slack", Version: "v1"}
+		schema := BridgeProviderConfigSchema{Schema: "compozy.bridge.slack", Version: "v1"}
 		if err := schema.Validate(); err != nil {
 			t.Fatalf("BridgeProviderConfigSchema.Validate(valid) error = %v", err)
 		}

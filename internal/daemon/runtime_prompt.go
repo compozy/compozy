@@ -4,25 +4,25 @@ import (
 	"context"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
-	aghRuntimeEnvelopeStart = "<agh-runtime-context>"
-	aghRuntimeEnvelopeEnd   = "</agh-runtime-context>"
+	compozyRuntimeEnvelopeStart = "<compozy-runtime-context>"
+	compozyRuntimeEnvelopeEnd   = "</compozy-runtime-context>"
 )
 
 var (
-	_ session.PromptProvider       = aghRuntimePromptProvider{}
-	_ session.StartupPromptOverlay = aghRuntimePromptOverlay{}
+	_ session.PromptProvider       = compozyRuntimePromptProvider{}
+	_ session.StartupPromptOverlay = compozyRuntimePromptOverlay{}
 )
 
-type aghRuntimePromptProvider struct{}
+type compozyRuntimePromptProvider struct{}
 
-func (aghRuntimePromptProvider) PromptSection(
+func (compozyRuntimePromptProvider) PromptSection(
 	_ context.Context,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
@@ -31,37 +31,37 @@ func (aghRuntimePromptProvider) PromptSection(
 		startup.WorkspaceID = strings.TrimSpace(workspace.ID)
 		startup.Workspace = strings.TrimSpace(workspace.RootDir)
 	}
-	return renderAGHRuntimeEnvelope(startup), nil
+	return renderCompozyRuntimeEnvelope(startup), nil
 }
 
-func (aghRuntimePromptProvider) PromptStartupSection(
+func (compozyRuntimePromptProvider) PromptStartupSection(
 	_ context.Context,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
-	startup = hydrateAGHRuntimeEnvelopeContext(startup, agent, workspace)
-	return renderAGHRuntimeEnvelope(startup), nil
+	startup = hydrateCompozyRuntimeEnvelopeContext(startup, agent, workspace)
+	return renderCompozyRuntimeEnvelope(startup), nil
 }
 
-type aghRuntimePromptOverlay struct{}
+type compozyRuntimePromptOverlay struct{}
 
-func (aghRuntimePromptOverlay) Apply(
+func (compozyRuntimePromptOverlay) Apply(
 	_ context.Context,
 	startup session.StartupPromptContext,
 	prompt string,
 ) (string, error) {
-	envelope := renderAGHRuntimeEnvelope(startup)
-	body := stripAGHRuntimeEnvelope(prompt)
+	envelope := renderCompozyRuntimeEnvelope(startup)
+	body := stripCompozyRuntimeEnvelope(prompt)
 	if body == "" {
 		return envelope, nil
 	}
 	return envelope + "\n\n" + body, nil
 }
 
-func hydrateAGHRuntimeEnvelopeContext(
+func hydrateCompozyRuntimeEnvelopeContext(
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) session.StartupPromptContext {
 	if strings.TrimSpace(startup.AgentName) == "" {
@@ -81,20 +81,20 @@ func hydrateAGHRuntimeEnvelopeContext(
 	return startup
 }
 
-func renderAGHRuntimeEnvelope(startup session.StartupPromptContext) string {
+func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 	var builder strings.Builder
-	builder.WriteString(aghRuntimeEnvelopeStart)
-	builder.WriteString("\n# AGH Runtime\n\n")
+	builder.WriteString(compozyRuntimeEnvelopeStart)
+	builder.WriteString("\n# Compozy Runtime\n\n")
 	builder.WriteString(
-		"You are running inside AGH. AGH is a local-first daemon and agent operating system " +
-			"that launched and supervises this agent session. AGH owns the session lifecycle, " +
+		"You are running inside Compozy. Compozy is a local-first daemon and agent operating system " +
+			"that launched and supervises this agent session. Compozy owns the session lifecycle, " +
 			"workspace context, memory and situation prompt sections, native tool gateway, and " +
 			"observable event stream.\n\n",
 	)
 	builder.WriteString(
-		"Treat AGH-provided startup sections, live turn context, and metadata as daemon-owned " +
-			"runtime guidance. Prefer AGH-native tools when they are visible and callable; " +
-			"otherwise use AGH CLI, HTTP, or UDS surfaces for AGH runtime operations.\n\n",
+		"Treat Compozy-provided startup sections, live turn context, and metadata as daemon-owned " +
+			"runtime guidance. Prefer Compozy-native tools when they are visible and callable; " +
+			"otherwise use Compozy CLI, HTTP, or UDS surfaces for Compozy runtime operations.\n\n",
 	)
 	builder.WriteString(
 		"Compozy native tool IDs such as `compozy__tool_search` are canonical registry IDs, not guaranteed " +
@@ -104,21 +104,21 @@ func renderAGHRuntimeEnvelope(startup session.StartupPromptContext) string {
 			"CLI/API commands, and `tool_id` inputs.\n\n",
 	)
 	builder.WriteString("Current session facts:\n")
-	writeAGHRuntimeFact(&builder, "session_id", startup.SessionID)
-	writeAGHRuntimeFact(&builder, "session_name", startup.SessionName)
-	writeAGHRuntimeFact(&builder, "session_type", string(startup.SessionType))
-	writeAGHRuntimeFact(&builder, "agent_name", startup.AgentName)
-	writeAGHRuntimeFact(&builder, "provider", startup.Provider)
-	writeAGHRuntimeFact(&builder, "workspace_id", startup.WorkspaceID)
-	writeAGHRuntimeFact(&builder, "workspace", startup.Workspace)
+	writeCompozyRuntimeFact(&builder, "session_id", startup.SessionID)
+	writeCompozyRuntimeFact(&builder, "session_name", startup.SessionName)
+	writeCompozyRuntimeFact(&builder, "session_type", string(startup.SessionType))
+	writeCompozyRuntimeFact(&builder, "agent_name", startup.AgentName)
+	writeCompozyRuntimeFact(&builder, "provider", startup.Provider)
+	writeCompozyRuntimeFact(&builder, "workspace_id", startup.WorkspaceID)
+	writeCompozyRuntimeFact(&builder, "workspace", startup.Workspace)
 	if startup.NetworkParticipation.Mode == participation.ModeLive {
-		writeAGHRuntimeFact(&builder, "channel", startup.NetworkParticipation.ChannelID)
+		writeCompozyRuntimeFact(&builder, "channel", startup.NetworkParticipation.ChannelID)
 	}
-	builder.WriteString(aghRuntimeEnvelopeEnd)
+	builder.WriteString(compozyRuntimeEnvelopeEnd)
 	return strings.TrimSpace(builder.String())
 }
 
-func writeAGHRuntimeFact(builder *strings.Builder, name string, value string) {
+func writeCompozyRuntimeFact(builder *strings.Builder, name string, value string) {
 	if builder == nil {
 		return
 	}
@@ -133,22 +133,22 @@ func writeAGHRuntimeFact(builder *strings.Builder, name string, value string) {
 	builder.WriteString("\n")
 }
 
-func stripAGHRuntimeEnvelope(prompt string) string {
+func stripCompozyRuntimeEnvelope(prompt string) string {
 	text := strings.TrimSpace(prompt)
 	for {
-		start := strings.Index(text, aghRuntimeEnvelopeStart)
+		start := strings.Index(text, compozyRuntimeEnvelopeStart)
 		if start < 0 {
 			return strings.TrimSpace(text)
 		}
 
-		searchFrom := start + len(aghRuntimeEnvelopeStart)
-		endOffset := strings.Index(text[searchFrom:], aghRuntimeEnvelopeEnd)
+		searchFrom := start + len(compozyRuntimeEnvelopeStart)
+		endOffset := strings.Index(text[searchFrom:], compozyRuntimeEnvelopeEnd)
 		if endOffset < 0 {
 			text = strings.TrimSpace(text[:start] + text[searchFrom:])
 			continue
 		}
 
-		end := searchFrom + endOffset + len(aghRuntimeEnvelopeEnd)
+		end := searchFrom + endOffset + len(compozyRuntimeEnvelopeEnd)
 		before := strings.TrimSpace(text[:start])
 		after := strings.TrimSpace(text[end:])
 		switch {

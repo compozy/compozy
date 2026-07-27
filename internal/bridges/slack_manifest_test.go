@@ -1,5 +1,5 @@
 // Suite: Slack app manifest contract
-// Invariant: generated Slack manifests match actual AGH Slack capabilities and Slack's pinned schema.
+// Invariant: generated Slack manifests match actual Compozy Slack capabilities and Slack's pinned schema.
 // Boundary IN: deterministic bridge-instance and provider metadata to manifest generation.
 // Boundary OUT: daemon routes and CLI file output, owned by their transport suites.
 package bridges
@@ -175,7 +175,7 @@ func testSlackManifestProvider() BridgeProvider {
 		Platform:      "slack",
 		ExtensionName: "slack-reference",
 		DisplayName:   "Slack",
-		Description:   "Connect Slack messages, commands, actions, and reactions to AGH.",
+		Description:   "Connect Slack messages, commands, actions, and reactions to Compozy.",
 	}
 }
 

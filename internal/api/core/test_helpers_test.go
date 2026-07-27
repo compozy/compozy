@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -84,14 +84,14 @@ func (s *stubDreamTrigger) Enabled() bool {
 type handlerFixture struct {
 	Handlers  *core.BaseHandlers
 	Engine    *gin.Engine
-	HomePaths aghconfig.HomePaths
+	HomePaths compozyconfig.HomePaths
 }
 
 type noOpAgentDefinitionSync struct{}
 
 func (noOpAgentDefinitionSync) Sync(context.Context) error { return nil }
 
-func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
+func testConfigWithDisabledNetwork(homePaths compozyconfig.HomePaths) compozyconfig.Config {
 	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
 

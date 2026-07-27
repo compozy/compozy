@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
@@ -149,17 +149,17 @@ func (h *RuntimeHarness) UDSJSON(
 func (h *RuntimeHarness) ResolveWorkspace(
 	ctx context.Context,
 	root string,
-) (aghcontract.WorkspacePayload, error) {
-	var response aghcontract.WorkspaceResponse
+) (compozycontract.WorkspacePayload, error) {
+	var response compozycontract.WorkspaceResponse
 	err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
 		"/api/workspaces/resolve",
-		aghcontract.ResolveWorkspaceRequest{Path: root},
+		compozycontract.ResolveWorkspaceRequest{Path: root},
 		&response,
 	)
 	if err != nil {
-		return aghcontract.WorkspacePayload{}, err
+		return compozycontract.WorkspacePayload{}, err
 	}
 	h.WorkspaceID = response.Workspace.ID
 	return response.Workspace, nil
@@ -169,10 +169,10 @@ func (h *RuntimeHarness) ResolveWorkspace(
 func (h *RuntimeHarness) GetWorkspace(
 	ctx context.Context,
 	workspaceID string,
-) (aghcontract.WorkspacePayload, error) {
-	var response aghcontract.WorkspaceResponse
+) (compozycontract.WorkspacePayload, error) {
+	var response compozycontract.WorkspaceResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/workspaces/"+workspaceID, nil, &response); err != nil {
-		return aghcontract.WorkspacePayload{}, err
+		return compozycontract.WorkspacePayload{}, err
 	}
 	return response.Workspace, nil
 }
@@ -206,11 +206,11 @@ func (h *RuntimeHarness) networkScopedAPIPath(workspaceID string, suffix string)
 // CreateSession creates one session through the operator surface.
 func (h *RuntimeHarness) CreateSession(
 	ctx context.Context,
-	request aghcontract.CreateSessionRequest,
-) (aghcontract.SessionPayload, error) {
-	var response aghcontract.SessionResponse
+	request compozycontract.CreateSessionRequest,
+) (compozycontract.SessionPayload, error) {
+	var response compozycontract.SessionResponse
 	if err := h.UDSJSON(ctx, http.MethodPost, "/api/sessions", request, &response); err != nil {
-		return aghcontract.SessionPayload{}, err
+		return compozycontract.SessionPayload{}, err
 	}
 	return response.Session, nil
 }
@@ -219,14 +219,14 @@ func (h *RuntimeHarness) CreateSession(
 func (h *RuntimeHarness) GetSession(
 	ctx context.Context,
 	sessionID string,
-) (aghcontract.SessionPayload, error) {
-	var response aghcontract.SessionResponse
+) (compozycontract.SessionPayload, error) {
+	var response compozycontract.SessionResponse
 	path, err := h.sessionScopedAPIPath(sessionID, "")
 	if err != nil {
-		return aghcontract.SessionPayload{}, err
+		return compozycontract.SessionPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.SessionPayload{}, err
+		return compozycontract.SessionPayload{}, err
 	}
 	return response.Session, nil
 }
@@ -235,19 +235,19 @@ func (h *RuntimeHarness) GetSession(
 func (h *RuntimeHarness) WaitForSessionActive(
 	ctx context.Context,
 	sessionID string,
-) (aghcontract.SessionPayload, error) {
+) (compozycontract.SessionPayload, error) {
 	if ctx == nil {
-		return aghcontract.SessionPayload{}, errors.New("runtime harness session wait context is required")
+		return compozycontract.SessionPayload{}, errors.New("runtime harness session wait context is required")
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return aghcontract.SessionPayload{}, errors.New("runtime harness session wait ID is required")
+		return compozycontract.SessionPayload{}, errors.New("runtime harness session wait ID is required")
 	}
 
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	var (
-		current aghcontract.SessionPayload
+		current compozycontract.SessionPayload
 		lastErr error
 	)
 	for {
@@ -311,11 +311,11 @@ func (h *RuntimeHarness) StopSession(ctx context.Context, sessionID string) (err
 func (h *RuntimeHarness) ResumeSession(
 	ctx context.Context,
 	sessionID string,
-) (aghcontract.SessionPayload, error) {
-	var response aghcontract.SessionAttachResponse
+) (compozycontract.SessionPayload, error) {
+	var response compozycontract.SessionAttachResponse
 	path, err := h.sessionScopedAPIPath(sessionID, "/attach")
 	if err != nil {
-		return aghcontract.SessionPayload{}, err
+		return compozycontract.SessionPayload{}, err
 	}
 	if err := h.UDSJSON(
 		ctx,
@@ -324,7 +324,7 @@ func (h *RuntimeHarness) ResumeSession(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.SessionPayload{}, err
+		return compozycontract.SessionPayload{}, err
 	}
 	return response.Session, nil
 }
@@ -405,14 +405,14 @@ func (h *RuntimeHarness) PromptSessionUntil(
 func (h *RuntimeHarness) SessionTranscript(
 	ctx context.Context,
 	sessionID string,
-) (aghcontract.SessionTranscriptResponse, error) {
-	var response aghcontract.SessionTranscriptResponse
+) (compozycontract.SessionTranscriptResponse, error) {
+	var response compozycontract.SessionTranscriptResponse
 	path, err := h.sessionScopedAPIPath(sessionID, "/transcript")
 	if err != nil {
-		return aghcontract.SessionTranscriptResponse{}, err
+		return compozycontract.SessionTranscriptResponse{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.SessionTranscriptResponse{}, err
+		return compozycontract.SessionTranscriptResponse{}, err
 	}
 	return response, nil
 }
@@ -421,14 +421,14 @@ func (h *RuntimeHarness) SessionTranscript(
 func (h *RuntimeHarness) SessionEvents(
 	ctx context.Context,
 	sessionID string,
-) (aghcontract.SessionEventsResponse, error) {
-	var response aghcontract.SessionEventsResponse
+) (compozycontract.SessionEventsResponse, error) {
+	var response compozycontract.SessionEventsResponse
 	path, err := h.sessionScopedAPIPath(sessionID, "/events")
 	if err != nil {
-		return aghcontract.SessionEventsResponse{}, err
+		return compozycontract.SessionEventsResponse{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.SessionEventsResponse{}, err
+		return compozycontract.SessionEventsResponse{}, err
 	}
 	return response, nil
 }

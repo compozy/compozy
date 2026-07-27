@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -18,7 +18,7 @@ import (
 
 func (s *service) buildSandboxItems(
 	ctx context.Context,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) ([]SandboxItem, error) {
 	usage := make(map[string]int)
 	if s.workspaceResolver != nil {
@@ -128,10 +128,10 @@ func (s *service) putProvider(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	var target aghconfig.WriteTarget
+	var target compozyconfig.WriteTarget
 	classification := providerWriteClassification{}
 	if len(values) != 0 {
-		target, err = aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
 		if err != nil {
 			return MutationResult{}, err
 		}
@@ -152,13 +152,18 @@ func (s *service) putProvider(
 		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", WriteTargetGlobalConfig), nil
 	}
 
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		path := []string{string(CollectionProviders), name}
-		if err := editor.Delete(path); err != nil {
-			return err
-		}
-		return editor.SetTable(path, values)
-	}); err != nil {
+	if _, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		"",
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			path := []string{string(CollectionProviders), name}
+			if err := editor.Delete(path); err != nil {
+				return err
+			}
+			return editor.SetTable(path, values)
+		},
+	); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 	}
 
@@ -217,8 +222,8 @@ func (s *service) prepareProviderSecretWrites(
 	return writes, nil
 }
 
-func providerConfigFromSettings(settings ProviderSettings) aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
+func providerConfigFromSettings(settings ProviderSettings) compozyconfig.ProviderConfig {
+	return compozyconfig.ProviderConfig{
 		Command:         strings.TrimSpace(settings.Command),
 		DisplayName:     strings.TrimSpace(settings.DisplayName),
 		Models:          providerModelsConfigFromSettings(settings.Models),
@@ -236,11 +241,11 @@ func providerConfigFromSettings(settings ProviderSettings) aghconfig.ProviderCon
 }
 
 func providerCredentialSlotsFromSettings(
-	slots []aghconfig.ProviderCredentialSlot,
-) []aghconfig.ProviderCredentialSlot {
-	values := make([]aghconfig.ProviderCredentialSlot, 0, len(slots))
+	slots []compozyconfig.ProviderCredentialSlot,
+) []compozyconfig.ProviderCredentialSlot {
+	values := make([]compozyconfig.ProviderCredentialSlot, 0, len(slots))
 	for _, slot := range slots {
-		normalized := aghconfig.ProviderCredentialSlot{
+		normalized := compozyconfig.ProviderCredentialSlot{
 			Name:      strings.TrimSpace(slot.Name),
 			TargetEnv: strings.TrimSpace(slot.TargetEnv),
 			SecretRef: strings.TrimSpace(slot.SecretRef),

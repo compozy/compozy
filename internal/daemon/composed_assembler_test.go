@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
@@ -355,7 +355,7 @@ func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
 			t.TempDir(),
 		)
 
-		assertPromptOrder(t, got, []string{"Base prompt.", "<agh-agent-soul>", "skills block"})
+		assertPromptOrder(t, got, []string{"Base prompt.", "<compozy-agent-soul>", "skills block"})
 		for _, want := range []string{
 			"# Agent Soul",
 			"Snapshot ID: soul-test",
@@ -403,7 +403,7 @@ func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
 		if got != want {
 			t.Fatalf("AssembleStartup() = %q, want %q", got, want)
 		}
-		if strings.Contains(got, "<agh-agent-soul>") {
+		if strings.Contains(got, "<compozy-agent-soul>") {
 			t.Fatalf("AssembleStartup() included soul section without snapshot: %q", got)
 		}
 	})
@@ -434,7 +434,7 @@ func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
 			t.TempDir(),
 		)
 
-		if !strings.Contains(got, "<agh-agent-soul>") {
+		if !strings.Contains(got, "<compozy-agent-soul>") {
 			t.Fatalf("AssembleStartup() = %q, want trimmed soul section", got)
 		}
 		if strings.Contains(got, "tail-marker") {
@@ -566,7 +566,7 @@ func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *
 		if err != nil {
 			t.Fatalf("LoadResource(%q, %q) error = %v", bundledCompozySkillName, bundledNetworkReference, err)
 		}
-		if !strings.Contains(got, "# AGH Network Response Register") ||
+		if !strings.Contains(got, "# Compozy Network Response Register") ||
 			!strings.Contains(got, "Threads decide and discuss; actionable work is promoted to tasks") {
 			t.Fatalf("AssembleStartup() = %q, want compact network response register", got)
 		}
@@ -684,7 +684,7 @@ type composedAssemblerMemoryEnv struct {
 	store     *memory.Store
 	globalDir string
 	workspace string
-	agent     aghconfig.AgentDef
+	agent     compozyconfig.AgentDef
 }
 
 func newComposedAssemblerMemoryEnv(t *testing.T) composedAssemblerMemoryEnv {
@@ -716,7 +716,7 @@ func (e composedAssemblerMemoryEnv) writeGlobalIndex(t *testing.T, content strin
 
 func (e composedAssemblerMemoryEnv) writeWorkspaceIndex(t *testing.T, content string) {
 	t.Helper()
-	writeComposedAssemblerFile(t, filepath.Join(e.workspace, aghconfig.DirName, "memory", "MEMORY.md"), content)
+	writeComposedAssemblerFile(t, filepath.Join(e.workspace, compozyconfig.DirName, "memory", "MEMORY.md"), content)
 }
 
 func writeComposedAssemblerFile(t *testing.T, path string, content string) {
@@ -729,7 +729,7 @@ func writeComposedAssemblerFile(t *testing.T, path string, content string) {
 	}
 }
 
-func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent aghconfig.AgentDef, workspace string) string {
+func assemblePrompt(t *testing.T, assembler *ComposedAssembler, agent compozyconfig.AgentDef, workspace string) string {
 	t.Helper()
 
 	resolvedWorkspace := testResolvedWorkspace(workspace)
@@ -744,7 +744,7 @@ func assembleStartupPrompt(
 	t *testing.T,
 	assembler *ComposedAssembler,
 	startup session.StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace string,
 ) string {
 	t.Helper()
@@ -757,8 +757,8 @@ func assembleStartupPrompt(
 	return got
 }
 
-func testPromptAgent(prompt string) aghconfig.AgentDef {
-	return aghconfig.AgentDef{
+func testPromptAgent(prompt string) compozyconfig.AgentDef {
+	return compozyconfig.AgentDef{
 		Name:     "coder",
 		Provider: "claude",
 		Prompt:   prompt,
@@ -774,7 +774,7 @@ func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
 func testPromptSoulSnapshot(t *testing.T, body string) *soul.Snapshot {
 	t.Helper()
 
-	cfg := aghconfig.DefaultSoulConfig()
+	cfg := compozyconfig.DefaultSoulConfig()
 	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
 		SourcePath:    "/workspace/.compozy/agents/coder/SOUL.md",
 		WorkspaceRoot: "/workspace",

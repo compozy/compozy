@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -30,7 +30,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		h := newHarness(
 			t,
 			WithSessionInputQueueStore(queueStore),
-			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     3,
 				MaxTextBytes: 4096,
@@ -861,7 +861,7 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 		h := newHarness(
 			t,
 			WithSessionInputQueueStore(queueStore),
-			WithSessionBusyInputConfig(aghconfig.SessionBusyInputConfig{
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     3,
 				MaxTextBytes: 4096,

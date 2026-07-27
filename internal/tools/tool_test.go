@@ -117,7 +117,7 @@ func TestToolIDValidation(t *testing.T) {
 		reason ReasonCode
 	}{
 		{name: "Should reject empty ids", id: "", reason: ReasonIDEmpty},
-		{name: "Should reject dotted ids", id: "agh.skill_view", reason: ReasonIDInvalidFormat},
+		{name: "Should reject dotted ids", id: "compozy.skill_view", reason: ReasonIDInvalidFormat},
 		{name: "Should reject hyphenated ids", id: "compozy__skill-view", reason: ReasonIDInvalidFormat},
 		{name: "Should reject uppercase ids", id: "compozy__Skill_view", reason: ReasonIDInvalidFormat},
 		{name: "Should reject empty segments", id: "compozy__", reason: ReasonIDEmptySegment},
@@ -279,7 +279,7 @@ func TestShouldValidateIdentifierHelpers(t *testing.T) {
 		if decoded.String() != "compozy__core" {
 			t.Fatalf("decoded ToolsetID = %q, want compozy__core", decoded)
 		}
-		requireReason(t, decoded.UnmarshalText([]byte("agh.core")), ReasonIDInvalidFormat)
+		requireReason(t, decoded.UnmarshalText([]byte("compozy.core")), ReasonIDInvalidFormat)
 	})
 
 	t.Run("Should canonicalize raw external segments", func(t *testing.T) {
@@ -449,7 +449,7 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 		{
 			name: "Should wrap invalid toolset ids with their field",
 			mutate: func(d *Descriptor) {
-				d.Toolsets = []ToolsetID{"agh.bad"}
+				d.Toolsets = []ToolsetID{"compozy.bad"}
 			},
 			reason: ReasonIDInvalidFormat,
 		},

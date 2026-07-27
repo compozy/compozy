@@ -9,7 +9,7 @@ import { useWindowManagerActions, useWindowManagerOverlay } from "./use-window-m
  * race-safe functional update below regardless of which side fires first.
  */
 export type DesktopOverlay =
-  | "agh-menu"
+  | "compozy-menu"
   | "workspace-menu"
   | "session-menu"
   | "go-menu"

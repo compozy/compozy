@@ -108,6 +108,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"output_ref",
 		"task_run_id",
 		"child_loop_run_id",
+		"resolved_runtime_json",
 		"goal_status",
 		"goal_turns_used",
 		"goal_turn_limit",
@@ -171,8 +172,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"no_progress_window",
 		"fan_out_width",
 		"gate_max_revisions",
-		"model_default_worker",
-		"model_default_judge",
+		"runtime_defaults_json",
+		"runtime_rules_json",
 	})
 	assertTableHasColumn(t, globalDB.db, "task_runs", "run_kind")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "loop_run_id")
@@ -191,14 +192,14 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		t,
 		globalDB.db,
 		"idx_loop_runs_queue_order",
-		"ON `loop_runs` (`workspace_id`, `loop_name`, `status`, `created_at`, `id`)",
+		"ON loop_runs(workspace_id, loop_name, status, created_at ASC, id ASC)",
 	)
 	assertIndexesPresent(t, globalDB.db, "loop_runs", "idx_loop_runs_catalog")
 	assertIndexSQLContains(
 		t,
 		globalDB.db,
 		"idx_loop_runs_catalog",
-		"ON `loop_runs` (`workspace_id`, `loop_name`, `created_at` DESC, `id` DESC, `status`)",
+		"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_runs", "uq_task_runs_active_loop_coordinator")
 	assertIndexesPresent(t, globalDB.db, "loop_generation_outputs", "idx_loop_generation_outputs_output_ref")
@@ -206,7 +207,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		t,
 		globalDB.db,
 		"uq_task_runs_active_loop_coordinator",
-		"ON `task_runs` (`loop_run_id`)",
+		"ON task_runs(loop_run_id)",
 	)
 	assertIndexSQLContains(t, globalDB.db, "uq_task_runs_active_loop_coordinator", "run_kind = 'coordinator'")
 	assertIndexSQLContains(

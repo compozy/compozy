@@ -17,8 +17,8 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
@@ -127,11 +127,11 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 	}
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			for _, providerName := range []string{"claude", "codex"} {
 				provider := cfg.Providers[providerName]
-				provider.AuthMode = aghconfig.ProviderAuthModeNone
-				provider.NoneSecurity = aghconfig.ProviderNoneSecurityLocalTransport
+				provider.AuthMode = compozyconfig.ProviderAuthModeNone
+				provider.NoneSecurity = compozyconfig.ProviderNoneSecurityLocalTransport
 				cfg.Providers[providerName] = provider
 			}
 		}},
@@ -147,7 +147,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-claude-agent-default) = missing")
 		}
-		sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 			AgentName:     "reasoning-claude-agent-default",
 			WorkspacePath: harness.WorkspaceRoot,
 		})
@@ -156,7 +156,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 		sessionPayload = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
 		if sessionPayload.Provider != "claude" || sessionPayload.Model != "claude-sonnet-5" ||
-			sessionPayload.ReasoningEffort != aghcontract.ReasoningEffort("max") {
+			sessionPayload.ReasoningEffort != compozycontract.ReasoningEffort("max") {
 			t.Fatalf("session runtime = %#v, want claude/claude-sonnet-5/max", sessionPayload)
 		}
 		if _, err := harness.PromptSession(ctx, sessionPayload.ID, "claude max"); err != nil {
@@ -168,7 +168,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 		assertReasoningProtocolSequence(
 			t,
-			acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)),
+			acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForCompozySession(records, sessionPayload.ID)),
 			"sonnet",
 			"effort",
 			"max",
@@ -181,7 +181,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		provider          string
 		model             string
 		transportModel    string
-		effort            aghcontract.ReasoningEffort
+		effort            compozycontract.ReasoningEffort
 		prompt            string
 		reasoningOptionID string
 	}{
@@ -222,7 +222,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			if !ok {
 				t.Fatalf("MockAgentRegistration(%q) = missing", tt.agentName)
 			}
-			sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 				AgentName:       tt.agentName,
 				Provider:        tt.provider,
 				Model:           tt.model,
@@ -246,7 +246,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			}
 			assertReasoningProtocolSequence(
 				t,
-				acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)),
+				acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForCompozySession(records, sessionPayload.ID)),
 				tt.transportModel,
 				tt.reasoningOptionID,
 				string(tt.effort),
@@ -260,9 +260,9 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatal("MockAgentRegistration(reasoning-claude-concurrent) = missing")
 		}
 
-		sessions := make([]aghcontract.SessionPayload, 0, 2)
+		sessions := make([]compozycontract.SessionPayload, 0, 2)
 		for index := 0; index < 2; index++ {
-			sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 				AgentName:       "reasoning-claude-concurrent",
 				Provider:        "claude",
 				Model:           "claude-sonnet-5",
@@ -278,7 +278,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			sessions[index] = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
 		}
 		if sessions[0].ID == sessions[1].ID {
-			t.Fatalf("concurrent AGH session IDs = %q, want distinct owners", sessions[0].ID)
+			t.Fatalf("concurrent Compozy session IDs = %q, want distinct owners", sessions[0].ID)
 		}
 
 		promptResults := make(chan error, len(sessions))
@@ -305,16 +305,16 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatalf("ReadDiagnostics(concurrent) error = %v", err)
 		}
 		for index, record := range records {
-			if strings.TrimSpace(record.AGHSessionID) == "" {
-				t.Fatalf("diagnostics[%d] = %#v, want a daemon-owned AGH session ID", index, record)
+			if strings.TrimSpace(record.CompozySessionID) == "" {
+				t.Fatalf("diagnostics[%d] = %#v, want a daemon-owned Compozy session ID", index, record)
 			}
 		}
 
 		owned := make([][]acpmock.DiagnosticsRecord, 0, len(sessions))
 		for _, sessionPayload := range sessions {
-			sessionRecords := acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)
+			sessionRecords := acpmock.DiagnosticsForCompozySession(records, sessionPayload.ID)
 			for index, record := range sessionRecords {
-				if record.AGHSessionID != sessionPayload.ID {
+				if record.CompozySessionID != sessionPayload.ID {
 					t.Fatalf("owned diagnostics[%d] = %#v, want owner %q", index, record, sessionPayload.ID)
 				}
 			}
@@ -336,7 +336,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-missing) = missing")
 		}
-		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-missing",
 			Provider:        "codex",
 			Model:           "gpt-5.6-sol",
@@ -374,7 +374,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-unavailable) = missing")
 		}
-		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-unavailable",
 			Provider:        "codex",
 			Model:           "gpt-5.6-terra",
@@ -408,7 +408,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if !ok {
 			t.Fatal("MockAgentRegistration(reasoning-codex-unsupported) = missing")
 		}
-		status, accepted := createSessionHTTPAccepted(t, ctx, harness, aghcontract.CreateSessionRequest{
+		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
 			AgentName:       "reasoning-codex-unsupported",
 			Provider:        "codex",
 			Model:           "gpt-5.6-sol",
@@ -446,8 +446,8 @@ func waitForReasoningSessionActive(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	accepted aghcontract.SessionPayload,
-) aghcontract.SessionPayload {
+	accepted compozycontract.SessionPayload,
+) compozycontract.SessionPayload {
 	t.Helper()
 	current := accepted
 	waitForRuntimeCondition(t, "reasoning session startup", 10*time.Second, func() bool {
@@ -470,9 +470,9 @@ func waitForReasoningNegotiationFailure(
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	wantSummary string,
-) aghcontract.SessionPayload {
+) compozycontract.SessionPayload {
 	t.Helper()
-	var current aghcontract.SessionPayload
+	var current compozycontract.SessionPayload
 	waitForRuntimeCondition(t, "reasoning negotiation failure", 10*time.Second, func() bool {
 		resolved, err := harness.GetSession(ctx, sessionID)
 		if err != nil {
@@ -638,7 +638,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 			if !ok {
 				return nil
 			}
-			return harness.ApproveSessionPermission(ctx, session.ID, aghcontract.ApproveSessionRequest{
+			return harness.ApproveSessionPermission(ctx, session.ID, compozycontract.ApproveSessionRequest{
 				RequestID: requestID,
 				Decision:  "allow-always",
 			})
@@ -656,34 +656,34 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 		t.Fatalf("SessionEvents() error = %v", err)
 	}
 	events := decodeAgentEvents(t, eventsResp.Events)
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type:       "tool_call",
 		Title:      "Inspect fixture",
 		ToolCallID: "tool-1",
 	}) {
 		t.Fatalf("events = %#v, want tool_call event", events)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type:       "tool_result",
 		Title:      "Inspect fixture",
 		ToolCallID: "tool-1",
 	}) {
 		t.Fatalf("events = %#v, want tool_result event", events)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type:     "permission",
 		Resource: "danger.txt",
 	}) {
 		t.Fatalf("events = %#v, want permission event", events)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type:     "permission",
 		Resource: "danger.txt",
 		Decision: "allow-always",
 	}) {
 		t.Fatalf("events = %#v, want approved permission event", events)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{
+	if !containsAgentEvent(events, compozycontract.AgentEventPayload{
 		Type: "agent_message",
 		Text: "allow-always",
 	}) {
@@ -722,7 +722,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		defer cancel()
 
 		channelID := "hostednative"
-		if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+		if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
 			Channel:      channelID,
 			WorkspaceID:  harness.WorkspaceID,
 			Purpose:      "Hosted MCP native tool projection",
@@ -731,7 +731,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		}); err != nil {
 			t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
 		}
-		session, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		session, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 			AgentName:            "mock-hosted-native",
 			Name:                 "hosted-native-session",
 			WorkspacePath:        harness.WorkspaceRoot,
@@ -868,7 +868,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			}
 		}
 
-		var refresh aghcontract.ProviderModelRefreshResponse
+		var refresh compozycontract.ProviderModelRefreshResponse
 		if err := harness.CLI.RunJSON(
 			ctx,
 			&refresh,
@@ -888,7 +888,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("CLI provider models refresh = %#v, want builtin status", refresh)
 		}
 
-		var hidden aghcontract.ProviderModelCurationResponse
+		var hidden compozycontract.ProviderModelCurationResponse
 		if err := harness.CLI.RunJSON(
 			ctx,
 			&hidden,
@@ -905,7 +905,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("CLI provider models set error = %v", err)
 		}
 		if !hidden.Apply.Applied || !hidden.Model.Hidden || hidden.Model.DefaultReasoningEffort == nil ||
-			*hidden.Model.DefaultReasoningEffort != aghcontract.ReasoningEffort("max") {
+			*hidden.Model.DefaultReasoningEffort != compozycontract.ReasoningEffort("max") {
 			t.Fatalf("CLI provider models set = %#v, want applied hidden max", hidden)
 		}
 
@@ -923,7 +923,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		solHTTP := requireProviderModelPayload(t, allHTTP.Models, "gpt-5.6-sol")
 		assertCanonicalHiddenSolPayload(t, solHTTP)
 
-		var nativeAll aghcontract.ProviderModelListResponse
+		var nativeAll compozycontract.ProviderModelListResponse
 		callHostedMCPToolJSON(
 			t,
 			ctx,
@@ -937,7 +937,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("native Sol = %#v, want HTTP payload %#v", solNative, solHTTP)
 		}
 
-		var unhidden aghcontract.ProviderModelCurationResponse
+		var unhidden compozycontract.ProviderModelCurationResponse
 		callHostedMCPToolJSON(
 			t,
 			ctx,
@@ -954,7 +954,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("native provider model curation = %#v, want visible curated Sol", unhidden)
 		}
 
-		var nativeCurated aghcontract.ProviderModelListResponse
+		var nativeCurated compozycontract.ProviderModelListResponse
 		callHostedMCPToolJSON(
 			t,
 			ctx,
@@ -965,7 +965,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		)
 		solCuratedNative := requireProviderModelPayload(t, nativeCurated.Models, "gpt-5.6-sol")
 
-		var cliCurated aghcontract.ProviderModelListResponse
+		var cliCurated compozycontract.ProviderModelListResponse
 		if err := harness.CLI.RunJSON(
 			ctx,
 			&cliCurated,
@@ -1249,7 +1249,7 @@ func callHostedMCPToolJSON(
 	}
 }
 
-func providerModelPayloadExists(models []aghcontract.ProviderModelPayload, modelID string) bool {
+func providerModelPayloadExists(models []compozycontract.ProviderModelPayload, modelID string) bool {
 	for _, model := range models {
 		if model.ModelID == modelID {
 			return true
@@ -1260,9 +1260,9 @@ func providerModelPayloadExists(models []aghcontract.ProviderModelPayload, model
 
 func requireProviderModelPayload(
 	t testing.TB,
-	models []aghcontract.ProviderModelPayload,
+	models []compozycontract.ProviderModelPayload,
 	modelID string,
-) aghcontract.ProviderModelPayload {
+) compozycontract.ProviderModelPayload {
 	t.Helper()
 	for _, model := range models {
 		if model.ModelID == modelID {
@@ -1270,23 +1270,23 @@ func requireProviderModelPayload(
 		}
 	}
 	t.Fatalf("provider model %q not found in %#v", modelID, models)
-	return aghcontract.ProviderModelPayload{}
+	return compozycontract.ProviderModelPayload{}
 }
 
-func assertCanonicalHiddenSolPayload(t testing.TB, model aghcontract.ProviderModelPayload) {
+func assertCanonicalHiddenSolPayload(t testing.TB, model compozycontract.ProviderModelPayload) {
 	t.Helper()
 
-	wantEfforts := []aghcontract.ReasoningEffort{
-		aghcontract.ReasoningEffort("none"),
-		aghcontract.ReasoningEffort("low"),
-		aghcontract.ReasoningEffort("medium"),
-		aghcontract.ReasoningEffort("high"),
-		aghcontract.ReasoningEffort("xhigh"),
-		aghcontract.ReasoningEffort("max"),
+	wantEfforts := []compozycontract.ReasoningEffort{
+		compozycontract.ReasoningEffort("none"),
+		compozycontract.ReasoningEffort("low"),
+		compozycontract.ReasoningEffort("medium"),
+		compozycontract.ReasoningEffort("high"),
+		compozycontract.ReasoningEffort("xhigh"),
+		compozycontract.ReasoningEffort("max"),
 	}
 	if model.ProviderID != "codex" || model.ModelID != "gpt-5.6-sol" || model.Curated ||
 		!model.Hidden || model.Deprecated || !model.Featured || model.ReleaseDate != "2026-06-26" ||
-		model.ReasoningSource != aghcontract.ReasoningSource("catalog") {
+		model.ReasoningSource != compozycontract.ReasoningSource("catalog") {
 		t.Fatalf("Sol identity/curation payload = %#v", model)
 	}
 	if model.ContextWindow == nil || *model.ContextWindow != 1_050_000 ||
@@ -1296,7 +1296,7 @@ func assertCanonicalHiddenSolPayload(t testing.TB, model aghcontract.ProviderMod
 		t.Fatalf("Sol capability payload = %#v", model)
 	}
 	if !reflect.DeepEqual(model.ReasoningEfforts, wantEfforts) ||
-		model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != aghcontract.ReasoningEffort("max") {
+		model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != compozycontract.ReasoningEffort("max") {
 		t.Fatalf("Sol reasoning payload = %#v, want efforts %#v and default max", model, wantEfforts)
 	}
 	if model.Cost == nil || model.Cost.InputPerMillion == nil || *model.Cost.InputPerMillion != 5 ||
@@ -1353,7 +1353,7 @@ func completeWakeTaskRunViaSession(
 	taskID string,
 	sessionID string,
 	idempotencyPrefix string,
-) aghcontract.TaskRunPayload {
+) compozycontract.TaskRunPayload {
 	t.Helper()
 
 	run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, taskID, idempotencyPrefix+"-enqueue")
@@ -1365,7 +1365,7 @@ func completeWakeTaskRunViaSession(
 	if err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", run.ID, err)
 	}
-	var completedLease aghcontract.AgentTaskLeaseResponse
+	var completedLease compozycontract.AgentTaskLeaseResponse
 	agentUDSJSON(
 		t,
 		ctx,
@@ -1373,7 +1373,7 @@ func completeWakeTaskRunViaSession(
 		sessionRecord,
 		http.MethodPost,
 		"/api/agent/tasks/"+url.PathEscape(claimed.ID)+"/complete",
-		aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+		compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 		&completedLease,
 	)
 	if completedLease.Lease.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
@@ -1389,7 +1389,7 @@ func completeWakeTaskRunViaSession(
 		}
 	}
 	t.Fatalf("ListTaskRuns(%s) missing completed run %s", taskID, claimed.ID)
-	return aghcontract.TaskRunPayload{}
+	return compozycontract.TaskRunPayload{}
 }
 
 func enqueueWakeTaskRunForWakeE2E(
@@ -1398,16 +1398,16 @@ func enqueueWakeTaskRunForWakeE2E(
 	harness *e2etest.RuntimeHarness,
 	taskID string,
 	idempotencyKey string,
-) aghcontract.TaskRunPayload {
+) compozycontract.TaskRunPayload {
 	t.Helper()
 
-	var response aghcontract.TaskRunResponse
+	var response compozycontract.TaskRunResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/runs"
 	if err := harness.UDSJSON(
 		ctx,
 		http.MethodPost,
 		path,
-		aghcontract.EnqueueTaskRunRequest{IdempotencyKey: strings.TrimSpace(idempotencyKey)},
+		compozycontract.EnqueueTaskRunRequest{IdempotencyKey: strings.TrimSpace(idempotencyKey)},
 		&response,
 	); err != nil {
 		t.Fatalf("enqueue task run %q error = %v", taskID, err)
@@ -1421,16 +1421,16 @@ func attachWakeTaskRunSessionForWakeE2E(
 	harness *e2etest.RuntimeHarness,
 	runID string,
 	sessionID string,
-) aghcontract.TaskRunPayload {
+) compozycontract.TaskRunPayload {
 	t.Helper()
 
-	var response aghcontract.TaskRunResponse
+	var response compozycontract.TaskRunResponse
 	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/attach-session"
 	if err := harness.UDSJSON(
 		ctx,
 		http.MethodPost,
 		path,
-		aghcontract.AttachTaskRunSessionRequest{SessionID: strings.TrimSpace(sessionID)},
+		compozycontract.AttachTaskRunSessionRequest{SessionID: strings.TrimSpace(sessionID)},
 		&response,
 	); err != nil {
 		t.Fatalf("attach task run session %q/%q error = %v", runID, sessionID, err)
@@ -1594,7 +1594,7 @@ func taskTimelineHasWakeSuppression(
 ) bool {
 	t.Helper()
 
-	var response aghcontract.TaskTimelineResponse
+	var response compozycontract.TaskTimelineResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/timeline"
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("task timeline %q error = %v", taskID, err)
@@ -1631,7 +1631,7 @@ func permissionRequestIDFromSSE(event e2etest.SSEEvent) (string, bool) {
 	if err := json.Unmarshal(event.Data, &envelope); err != nil {
 		return "", false
 	}
-	if envelope.Type != "data-agh-permission" || envelope.Data.Decision != "" || envelope.Data.RequestID == "" {
+	if envelope.Type != "data-compozy-permission" || envelope.Data.Decision != "" || envelope.Data.RequestID == "" {
 		return "", false
 	}
 	return envelope.Data.RequestID, true
@@ -1648,13 +1648,13 @@ func streamContainsPermission(events []e2etest.SSEEvent) bool {
 
 func decodeAgentEvents(
 	t testing.TB,
-	events []aghcontract.SessionEventPayload,
-) []aghcontract.AgentEventPayload {
+	events []compozycontract.SessionEventPayload,
+) []compozycontract.AgentEventPayload {
 	t.Helper()
 
-	decoded := make([]aghcontract.AgentEventPayload, 0, len(events))
+	decoded := make([]compozycontract.AgentEventPayload, 0, len(events))
 	for _, event := range events {
-		var payload aghcontract.AgentEventPayload
+		var payload compozycontract.AgentEventPayload
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(session event %q) error = %v", event.ID, err)
 		}
@@ -1663,7 +1663,7 @@ func decodeAgentEvents(
 	return decoded
 }
 
-func containsAgentEvent(events []aghcontract.AgentEventPayload, want aghcontract.AgentEventPayload) bool {
+func containsAgentEvent(events []compozycontract.AgentEventPayload, want compozycontract.AgentEventPayload) bool {
 	for _, event := range events {
 		if want.Type != "" && event.Type != want.Type {
 			continue

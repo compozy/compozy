@@ -123,7 +123,7 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
         </p>
         <h1 className="text-xl font-medium">Agent and bridge logos</h1>
         <p className="max-w-[62ch] text-sm leading-6 text-muted">
-          Brand SVGs exported by `@compozy/ui/logos` for AGH site and runtime surfaces.
+          Brand SVGs exported by `@compozy/ui/logos` for Compozy site and runtime surfaces.
         </p>
       </div>
       {showAgents ? <LogoSection title="Agent providers" logos={AGENT_LOGOS} /> : null}
@@ -140,7 +140,7 @@ const meta: Meta<typeof LogoGallery> = {
     docs: {
       description: {
         component:
-          "Shared brand logo registry for agent providers and bridge surfaces consumed by AGH public pages.",
+          "Shared brand logo registry for agent providers and bridge surfaces consumed by Compozy public pages.",
       },
     },
   },
@@ -156,7 +156,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Full logo registry used by the AGH site.
+ * Full logo registry used by the Compozy site.
  */
 export const Default: Story = {
   args: {

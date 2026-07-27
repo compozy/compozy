@@ -12,7 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
@@ -97,7 +97,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 			t.Fatalf("workspace.NewResolver() error = %v", err)
 		}
 
-		loopRoot := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.LoopsDirName)
+		loopRoot := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		initialSpec := testLoopSpec(t, "alpha", looppkg.SourceWorkspace)
 		initialSpec.Dir = filepath.Join(loopRoot, "alpha")
@@ -700,8 +700,8 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 		sourcePath:  sourcePath,
 		forkPath: filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.LoopsDirName,
+			compozyconfig.DirName,
+			compozyconfig.LoopsDirName,
 			"software-delivery",
 			looppkg.DefinitionFileName,
 		),

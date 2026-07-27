@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/memory"
@@ -248,7 +248,7 @@ func TestForkedMemoryExtractor(t *testing.T) {
 		extractor := &forkedMemoryExtractor{
 			sessions: sessions,
 			roles: resolvedRoleResolver(ResolvedRole{
-				Role:    aghconfig.RoleMemoryExtractor,
+				Role:    compozyconfig.RoleMemoryExtractor,
 				Enabled: true,
 				Inherit: true,
 				Model:   "claude-haiku-memory",

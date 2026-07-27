@@ -62,11 +62,11 @@ func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *tes
 	if create.Image != "" {
 		t.Fatalf("Create image = %q, want empty when snapshot wins", create.Image)
 	}
-	if got, want := create.Labels["agh_session_id"], req.SessionID; got != want {
-		t.Fatalf("label agh_session_id = %q, want %q", got, want)
+	if got, want := create.Labels["compozy_session_id"], req.SessionID; got != want {
+		t.Fatalf("label compozy_session_id = %q, want %q", got, want)
 	}
-	if got, want := create.Labels["agh_sandbox_id"], req.SandboxID; got != want {
-		t.Fatalf("label agh_sandbox_id = %q, want %q", got, want)
+	if got, want := create.Labels["compozy_sandbox_id"], req.SandboxID; got != want {
+		t.Fatalf("label compozy_sandbox_id = %q, want %q", got, want)
 	}
 	if _, leaked := create.EnvVars["DAYTONA_API_KEY"]; leaked {
 		t.Fatal("Create env propagated DAYTONA_API_KEY")
@@ -174,7 +174,7 @@ func TestDaytonaProviderFindSandboxUsesDaemonSandboxLabel(t *testing.T) {
 		t.Fatalf("FindOne calls = %d, want %d", got, want)
 	}
 	if got, want := client.findLabels[0], map[string]string{
-		"agh_sandbox_id": req.SandboxID,
+		"compozy_sandbox_id": req.SandboxID,
 	}; !reflect.DeepEqual(
 		got,
 		want,
@@ -203,14 +203,14 @@ func TestDaytonaProviderFindSandboxUsesExplicitLabelsAndMapsNotFound(t *testing.
 		WorkspaceID: req.WorkspaceID,
 		SandboxID:   req.SandboxID,
 		Sandbox:     req.Sandbox,
-		Labels:      map[string]string{"agh_sandbox_id": req.SandboxID, "custom": "true"},
+		Labels:      map[string]string{"compozy_sandbox_id": req.SandboxID, "custom": "true"},
 	})
 	if !errors.Is(err, sandbox.ErrSandboxNotFound) {
 		t.Fatalf("FindSandbox() error = %v, want ErrSandboxNotFound", err)
 	}
 	if got, want := client.findLabels[0], map[string]string{
-		"agh_sandbox_id": req.SandboxID,
-		"custom":         "true",
+		"compozy_sandbox_id": req.SandboxID,
+		"custom":             "true",
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("FindOne labels = %#v, want %#v", got, want)
 	}

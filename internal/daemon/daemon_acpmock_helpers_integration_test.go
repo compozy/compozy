@@ -13,7 +13,7 @@ import (
 	"runtime"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -34,10 +34,10 @@ func createFixtureBackedSession(
 	harness *e2etest.RuntimeHarness,
 	agentName string,
 	name string,
-) aghcontract.SessionPayload {
+) compozycontract.SessionPayload {
 	t.Helper()
 
-	session, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	session, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     agentName,
 		Name:          name,
 		WorkspacePath: harness.WorkspaceRoot,
@@ -56,24 +56,24 @@ func createSessionHTTPFailure(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	request aghcontract.CreateSessionRequest,
-) (int, aghcontract.ErrorPayload) {
+	request compozycontract.CreateSessionRequest,
+) (int, compozycontract.ErrorPayload) {
 	t.Helper()
 
 	response := postSessionHTTP(t, ctx, harness, request)
-	return response.StatusCode, decodeSessionHTTPResponse[aghcontract.ErrorPayload](t, response)
+	return response.StatusCode, decodeSessionHTTPResponse[compozycontract.ErrorPayload](t, response)
 }
 
 func createSessionHTTPAccepted(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	request aghcontract.CreateSessionRequest,
-) (int, aghcontract.SessionPayload) {
+	request compozycontract.CreateSessionRequest,
+) (int, compozycontract.SessionPayload) {
 	t.Helper()
 
 	response := postSessionHTTP(t, ctx, harness, request)
-	payload := decodeSessionHTTPResponse[aghcontract.SessionResponse](t, response)
+	payload := decodeSessionHTTPResponse[compozycontract.SessionResponse](t, response)
 	return response.StatusCode, payload.Session
 }
 
@@ -92,7 +92,7 @@ func postSessionHTTP(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	request aghcontract.CreateSessionRequest,
+	request compozycontract.CreateSessionRequest,
 ) *http.Response {
 	t.Helper()
 	body, err := json.Marshal(request)
@@ -122,7 +122,7 @@ func providerModelListHTTP(
 	harness *e2etest.RuntimeHarness,
 	providerID string,
 	view string,
-) (int, aghcontract.ProviderModelListResponse) {
+) (int, compozycontract.ProviderModelListResponse) {
 	t.Helper()
 
 	path := "/api/model-catalog/providers/" + url.PathEscape(providerID) + "/models"
@@ -137,7 +137,7 @@ func providerModelListHTTP(
 	if err != nil {
 		t.Fatalf("HTTP provider models error = %v", err)
 	}
-	var payload aghcontract.ProviderModelListResponse
+	var payload compozycontract.ProviderModelListResponse
 	decodeErr := json.NewDecoder(response.Body).Decode(&payload)
 	closeErr := response.Body.Close()
 	if decodeErr != nil {
@@ -153,6 +153,6 @@ func joinTranscriptContent(messages []transcript.UIMessage) string {
 	return transcript.JoinUIMessageText(messages)
 }
 
-func sessionTranscriptMessages(response aghcontract.SessionTranscriptResponse) []transcript.UIMessage {
+func sessionTranscriptMessages(response compozycontract.SessionTranscriptResponse) []transcript.UIMessage {
 	return transcript.MessagesFromEntries(response.Entries)
 }

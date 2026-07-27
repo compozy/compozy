@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -15,7 +15,7 @@ import (
 )
 
 type nativeToolPolicyResolverDeps struct {
-	Config            *aghconfig.Config
+	Config            *compozyconfig.Config
 	Sessions          nativeToolPolicySessionReader
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	AgentResolver     nativeToolPolicyAgentResolver
@@ -28,11 +28,11 @@ type nativeToolPolicySessionReader interface {
 }
 
 type nativeToolPolicyAgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
 type nativeToolPolicyResolver struct {
-	cfg               *aghconfig.Config
+	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
 	workspaceResolver workspacepkg.RuntimeResolver
 	agentResolver     nativeToolPolicyAgentResolver
@@ -163,7 +163,7 @@ func (r *nativeToolPolicyResolver) sessionInfo(
 func (r *nativeToolPolicyResolver) resolveWorkspaceConfig(
 	ctx context.Context,
 	workspaceID string,
-) (*workspacepkg.ResolvedWorkspace, *aghconfig.Config, error) {
+) (*workspacepkg.ResolvedWorkspace, *compozyconfig.Config, error) {
 	cfg := r.cfg
 	if strings.TrimSpace(workspaceID) == "" {
 		return nil, cfg, nil
@@ -182,7 +182,7 @@ func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	inputs *toolspkg.PolicyInputs,
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) error {
 	agent, err := r.resolveAgent(agentName, resolvedWorkspace)
 	if err != nil {
@@ -198,7 +198,7 @@ func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 	}
 	inputs.Agent = policy
 	if strings.TrimSpace(resolvedAgent.Permissions) != "" {
-		inputs.SystemPermissionMode = nativeToolPermissionMode(aghconfig.PermissionMode(resolvedAgent.Permissions))
+		inputs.SystemPermissionMode = nativeToolPermissionMode(compozyconfig.PermissionMode(resolvedAgent.Permissions))
 	}
 	return nil
 }
@@ -206,22 +206,22 @@ func (r *nativeToolPolicyResolver) applyAgentToolPolicy(
 func (r *nativeToolPolicyResolver) resolveAgent(
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if r.agentResolver != nil {
 		agent, err := r.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
 		if err != nil {
-			return aghconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
+			return compozyconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
 		}
 		return agent, nil
 	}
 	agent, err := resolveAgentFromWorkspaceSnapshot(agentName, resolvedWorkspace)
 	if err != nil {
-		return aghconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
+		return compozyconfig.AgentDef{}, fmt.Errorf("daemon: resolve agent tool policy %q: %w", agentName, err)
 	}
 	return agent, nil
 }
 
-func resolvedAgentToolPolicy(resolved aghconfig.ResolvedAgent) (toolspkg.AgentToolPolicy, error) {
+func resolvedAgentToolPolicy(resolved compozyconfig.ResolvedAgent) (toolspkg.AgentToolPolicy, error) {
 	tools, err := toolspkg.ParseToolPatterns(resolved.Tools)
 	if err != nil {
 		return toolspkg.AgentToolPolicy{}, fmt.Errorf("daemon: agent %q tools: %w", resolved.Name, err)
@@ -241,7 +241,7 @@ func resolvedAgentToolPolicy(resolved aghconfig.ResolvedAgent) (toolspkg.AgentTo
 	}, nil
 }
 
-func parseAgentToolsets(resolved aghconfig.ResolvedAgent) ([]toolspkg.ToolsetID, error) {
+func parseAgentToolsets(resolved compozyconfig.ResolvedAgent) ([]toolspkg.ToolsetID, error) {
 	toolsets := make([]toolspkg.ToolsetID, 0, len(resolved.Toolsets))
 	for i, raw := range resolved.Toolsets {
 		id := toolspkg.ToolsetID(strings.TrimSpace(raw))

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -32,12 +32,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			string(toolspkg.ToolIDTaskRead),
 			string(toolspkg.ToolIDTaskUpdate),
 		}
-		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
 			Name:        "task-worker",
 			Provider:    "mock",
 			Prompt:      "Handle the loop node.",
 			Tools:       append([]string(nil), allowedTools...),
-			Permissions: string(aghconfig.PermissionModeDenyAll),
+			Permissions: string(compozyconfig.PermissionModeDenyAll),
 		}})
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-policy"}
 		loopParticipation := daemonTestLiveParticipation("ws-loop", "loop-run-channel")
@@ -72,7 +72,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
 			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
 		}
-		if got, want := createCall.Permissions, aghconfig.PermissionModeDenyAll; got != want {
+		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
 		if got := createCall.RuntimeMode; got != "" {
@@ -111,7 +111,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 	t.Run("Should report agent runtime when engine runtime is empty", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
 			Name: "task-worker", Provider: "mock", Model: "agent-model", Prompt: "Handle the loop node.",
 		}})
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-agent-runtime"}
@@ -138,7 +138,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 
 		readTool := string(toolspkg.ToolIDTaskRead)
 		updateTool := string(toolspkg.ToolIDTaskUpdate)
-		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
 			Name:     "task-worker",
 			Provider: "mock",
 			Prompt:   "Handle the loop node.",
@@ -239,11 +239,11 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 	t.Run("Should force an isolated judge policy and stop the temporary session", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
 			Name:        "loop-judge",
 			Provider:    "mock",
 			Prompt:      "Judge the loop gate.",
-			Permissions: string(aghconfig.PermissionModeApproveAll),
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
 		}})
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge",
@@ -281,7 +281,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
 			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
 		}
-		if got, want := createCall.Permissions, aghconfig.PermissionModeDenyAll; got != want {
+		if got, want := createCall.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
 		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
@@ -980,13 +980,13 @@ func (r loopActionBinderWorkspaceResolver) ResolveOrRegister(
 	return resolved, nil
 }
 
-func loopActionBinderWorkspace(t *testing.T, agents []aghconfig.AgentDef) workspacepkg.ResolvedWorkspace {
+func loopActionBinderWorkspace(t *testing.T, agents []compozyconfig.AgentDef) workspacepkg.ResolvedWorkspace {
 	t.Helper()
-	cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{HomeDir: t.TempDir()})
+	cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
 	cfg.Defaults.Provider = "mock"
 	cfg.Defaults.Sandbox = "evidence-lab"
-	cfg.Providers["mock"] = aghconfig.ProviderConfig{Command: "mock-acp"}
-	cfg.Sandboxes["evidence-lab"] = aghconfig.SandboxProfile{Backend: "local"}
+	cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
+	cfg.Sandboxes["evidence-lab"] = compozyconfig.SandboxProfile{Backend: "local"}
 	return workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:         "ws-loop",
@@ -995,7 +995,7 @@ func loopActionBinderWorkspace(t *testing.T, agents []aghconfig.AgentDef) worksp
 		},
 		WorkspaceID: "ws-loop",
 		Config:      cfg,
-		Agents:      append([]aghconfig.AgentDef(nil), agents...),
+		Agents:      append([]compozyconfig.AgentDef(nil), agents...),
 	}
 }
 
@@ -1055,11 +1055,11 @@ func loopJudgeRunnerForTest(
 	sessions *loopActionBinderSessionManager,
 ) *loopGateJudgeRunner {
 	t.Helper()
-	resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+	resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
 		Name:        "loop-judge",
 		Provider:    "mock",
 		Prompt:      "Judge the loop gate.",
-		Permissions: string(aghconfig.PermissionModeApproveAll),
+		Permissions: string(compozyconfig.PermissionModeApproveAll),
 	}})
 	return &loopGateJudgeRunner{
 		sessions: sessions,

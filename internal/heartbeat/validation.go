@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func resolvePreferences(
 	front Frontmatter,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 	sourcePath string,
 ) (Preferences, []Diagnostic) {
 	preferences := Preferences{

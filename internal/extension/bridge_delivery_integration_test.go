@@ -20,7 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -61,7 +61,7 @@ type scriptedPromptProcess struct {
 
 type deliveryIntegrationEnv struct {
 	now           time.Time
-	homePaths     aghconfig.HomePaths
+	homePaths     compozyconfig.HomePaths
 	workspace     workspacepkg.ResolvedWorkspace
 	workspaces    *hostAPIFakeWorkspaceResolver
 	globalDB      *globaldb.GlobalDB
@@ -307,7 +307,10 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 					sequence := make([]string, 0, len(markers))
 					for _, marker := range markers {
 						event := marker.Request.Event
-						sequence = append(sequence, fmt.Sprintf("%d:%s:%q", event.Seq, event.EventType, event.Content.Text))
+						sequence = append(
+							sequence,
+							fmt.Sprintf("%d:%s:%q", event.Seq, event.EventType, event.Content.Text),
+						)
 					}
 					t.Fatalf("last delivery seq = %d, want %d; projected sequence = %v", got, want, sequence)
 				}
@@ -502,11 +505,11 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
-		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
 		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
@@ -639,7 +642,11 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 			t.Fatalf("restart request = %#v, want fail-open terminal post", resume)
 		}
 		if resume.Event.Operation != bridgepkg.DeliveryOperationPost || resume.Event.Reference != nil {
-			t.Fatalf("restart operation/reference = %q/%#v, want universal post", resume.Event.Operation, resume.Event.Reference)
+			t.Fatalf(
+				"restart operation/reference = %q/%#v, want universal post",
+				resume.Event.Operation,
+				resume.Event.Reference,
+			)
 		}
 		if !strings.Contains(resume.Event.Content.Text, "session stopped before delivery completed") {
 			t.Fatalf("restart content = %q, want visible stopped-session terminal error", resume.Event.Content.Text)
@@ -713,11 +720,11 @@ func newDeliveryIntegrationEnv(
 ) *deliveryIntegrationEnv {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -732,17 +739,17 @@ func newDeliveryIntegrationEnv(
 			RootDir: workspaceRoot,
 			Name:    "bridge-delivery-workspace",
 		},
-		Config: aghconfig.Config{
-			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
-			Providers: map[string]aghconfig.ProviderConfig{
+		Config: compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"fake": {Command: "fake-agent"},
 			},
-			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
+			Permissions: compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveAll},
 		},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:        "coder",
 			Provider:    "fake",
-			Permissions: string(aghconfig.PermissionModeApproveAll),
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
 			Prompt:      "You are a reliable coder.",
 		}},
 		ResolvedAt: baseNow,

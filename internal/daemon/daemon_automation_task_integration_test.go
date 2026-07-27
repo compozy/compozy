@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/network/participation"
 	sessionpkg "github.com/compozy/compozy/internal/session"
@@ -36,7 +36,7 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
-		Triggers: []aghcontract.CreateTriggerRequest{{
+		Triggers: []compozycontract.CreateTriggerRequest{{
 			Scope:              automationpkg.AutomationScopeGlobal,
 			Name:               "deploy-review",
 			AgentName:          automationTaskFixtureAgentName,
@@ -171,7 +171,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	live := participation.ModeLive
 	named := participation.StrategyNamed
 	channelID := "ops-automation"
-	if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+	if _, err := harness.CreateNetworkChannel(ctx, compozycontract.CreateNetworkChannelRequest{
 		Channel:      channelID,
 		WorkspaceID:  harness.WorkspaceID,
 		Purpose:      "Automation task coordination",
@@ -182,7 +182,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
-		Jobs: []aghcontract.CreateJobRequest{{
+		Jobs: []compozycontract.CreateJobRequest{{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			WorkspaceID: harness.WorkspaceID,
 			Name:        "triage-deploy",
@@ -308,7 +308,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("claimedRun.Status = %q, want %q", got, want)
 	}
 
-	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, aghcontract.StartTaskRunRequest{})
+	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, compozycontract.StartTaskRunRequest{})
 	if err != nil {
 		t.Fatalf("StartTaskRun(%q) error = %v", run.TaskRunID, err)
 	}
@@ -353,7 +353,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("task transcript = %q, want mock task-session response", taskTranscriptContent)
 	}
 
-	var completedLease aghcontract.AgentTaskLeaseResponse
+	var completedLease compozycontract.AgentTaskLeaseResponse
 	agentUDSJSON(
 		t,
 		ctx,
@@ -361,7 +361,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		taskSessionInfo,
 		http.MethodPost,
 		"/api/agent/tasks/"+url.PathEscape(run.TaskRunID)+"/complete",
-		aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"result":"ok"}`)},
+		compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"result":"ok"}`)},
 		&completedLease,
 	)
 	if got, want := completedLease.Lease.Status.Normalize(), taskpkg.TaskRunStatusCompleted; got != want {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -22,8 +22,14 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 		ctx := context.Background()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
-		workspaceConfig := filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
-		agentFile := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile)
+		workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
+		agentFile := filepath.Join(
+			root,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
+			"coder",
+			agentDefinitionFile,
+		)
 		writeFile(t, workspaceConfig, "[http]\nport = 4242\n")
 		writeAgentDef(t, agentFile, "coder", "v1")
 
@@ -44,7 +50,7 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 			t.Fatalf("config loader calls after first resolve = %d, want 1", got)
 		}
 
-		workspaceEnv := aghconfig.WorkspaceDotEnvFile(root)
+		workspaceEnv := compozyconfig.WorkspaceDotEnvFile(root)
 		writeFile(t, workspaceEnv, "COMPOZY_TEST_CACHE_MARKER=one\n")
 		touchPath(t, workspaceEnv, time.Unix(1_700_010_100, 0).UTC())
 		currentTime = currentTime.Add(time.Minute)
@@ -62,8 +68,14 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 		ctx := context.Background()
 		homePaths := newTestHomePaths(t)
 		root := t.TempDir()
-		workspaceConfig := filepath.Join(root, aghconfig.DirName, aghconfig.ConfigName)
-		agentFile := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "coder", agentDefinitionFile)
+		workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
+		agentFile := filepath.Join(
+			root,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
+			"coder",
+			agentDefinitionFile,
+		)
 		capabilityFile := filepath.Join(filepath.Dir(agentFile), "capabilities.toml")
 		writeFile(t, workspaceConfig, "[http]\nport = 4242\n")
 		writeAgentDef(t, agentFile, "coder", "v1")
@@ -121,19 +133,19 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 	t.Run("Should preserve Loop Goal and task runtime config", func(t *testing.T) {
 		t.Parallel()
 
-		original := aghconfig.Config{
-			Loops: aghconfig.LoopsConfig{
-				Defaults: aghconfig.LoopsDefaultsConfig{
-					Delivery: aghconfig.LoopDefaultConfig{
+		original := compozyconfig.Config{
+			Loops: compozyconfig.LoopsConfig{
+				Defaults: compozyconfig.LoopsDefaultsConfig{
+					Delivery: compozyconfig.LoopDefaultConfig{
 						RuntimeDefaults: dsl.RuntimeDefaults{
 							Judge: dsl.RuntimeSpec{Model: "judge-v1", Reasoning: "high"},
 						},
 					},
 				},
 			},
-			Goals: aghconfig.GoalsConfig{MaxTurns: 7, ContextNudgeRatio: 0.4},
-			Task: aghconfig.TaskConfig{
-				Orchestration: aghconfig.TaskOrchestrationConfig{SummaryMaxBytes: 4096},
+			Goals: compozyconfig.GoalsConfig{MaxTurns: 7, ContextNudgeRatio: 0.4},
+			Task: compozyconfig.TaskConfig{
+				Orchestration: compozyconfig.TaskOrchestrationConfig{SummaryMaxBytes: 4096},
 			},
 		}
 
@@ -153,21 +165,21 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 	t.Run("Should deep copy mutable memory extensions and automation config", func(t *testing.T) {
 		t.Parallel()
 
-		original := aghconfig.Config{
-			Memory: aghconfig.MemoryConfig{
-				Controller: aghconfig.MemoryControllerConfig{
-					Policy: aghconfig.MemoryControllerPolicyConfig{
+		original := compozyconfig.Config{
+			Memory: compozyconfig.MemoryConfig{
+				Controller: compozyconfig.MemoryControllerConfig{
+					Policy: compozyconfig.MemoryControllerPolicyConfig{
 						AllowOrigins: []string{"agent"},
 					},
 				},
 			},
-			Extensions: aghconfig.ExtensionsConfig{
-				Resources: aghconfig.ExtensionsResourcesConfig{
+			Extensions: compozyconfig.ExtensionsConfig{
+				Resources: compozyconfig.ExtensionsResourcesConfig{
 					AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 				},
 			},
-			Automation: aghconfig.AutomationConfig{
-				Triggers: []aghconfig.AutomationTrigger{{
+			Automation: compozyconfig.AutomationConfig{
+				Triggers: []compozyconfig.AutomationTrigger{{
 					Name:   "github-push",
 					Filter: map[string]string{"branch": "main"},
 				}},
@@ -196,7 +208,7 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 	})
 }
 
-func agentCapabilityIDsForContract(agents []aghconfig.AgentDef, name string) []string {
+func agentCapabilityIDsForContract(agents []compozyconfig.AgentDef, name string) []string {
 	for _, agent := range agents {
 		if agent.Name != name || agent.Capabilities == nil {
 			continue

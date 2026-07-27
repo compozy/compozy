@@ -12,7 +12,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -51,7 +51,7 @@ const (
 )
 
 type bootState struct {
-	cfg                    aghconfig.Config
+	cfg                    compozyconfig.Config
 	logger                 *slog.Logger
 	closeLogger            func() error
 	lock                   *Lock
@@ -108,12 +108,12 @@ type bootState struct {
 	hookBindings          hookBindingPublisher
 	resourceKernel        *resources.Kernel
 	resourceCodecs        *resources.CodecRegistry
-	agentCatalog          *resourceCatalog[aghconfig.AgentDef]
+	agentCatalog          *resourceCatalog[compozyconfig.AgentDef]
 	roleResolver          *roleResolver
 	soulCatalog           *resourceCatalog[soul.ResourceSpec]
 	heartbeatCatalog      *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog      *resourceCatalog[aghconfig.MCPServer]
+	mcpServerCatalog      *resourceCatalog[compozyconfig.MCPServer]
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]
 	agentSkillResources   agentSkillPublisher
@@ -236,7 +236,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			)...,
 		),
 	)
-	state.startupOverlay = aghRuntimePromptOverlay{}
+	state.startupOverlay = compozyRuntimePromptOverlay{}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		memory.NewRecallAugmenter(state.memoryStore),
 		newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/goccy/go-yaml"
 )
@@ -30,7 +30,7 @@ type AgentSeed struct {
 	Toolsets     []string
 	DenyTools    []string
 	CategoryPath []string
-	MCPServers   []aghconfig.MCPServer
+	MCPServers   []compozyconfig.MCPServer
 	Prompt       string
 }
 
@@ -42,11 +42,11 @@ type ConfigSeedOptions struct {
 	DefaultAgent    string
 	DefaultProvider string
 	DefaultSandbox  string
-	PermissionMode  aghconfig.PermissionMode
-	Providers       map[string]aghconfig.ProviderConfig
-	Sandboxes       map[string]aghconfig.SandboxProfile
+	PermissionMode  compozyconfig.PermissionMode
+	Providers       map[string]compozyconfig.ProviderConfig
+	Sandboxes       map[string]compozyconfig.SandboxProfile
 	AgentDefs       []AgentSeed
-	Mutate          func(*aghconfig.Config)
+	Mutate          func(*compozyconfig.Config)
 }
 
 // WorkspaceSeedOptions configures the seeded workspace root.
@@ -56,23 +56,23 @@ type WorkspaceSeedOptions struct {
 }
 
 type configSeedFile struct {
-	Daemon      *configSeedDaemonSection            `toml:"daemon,omitempty"`
-	HTTP        *configSeedHTTPSection              `toml:"http,omitempty"`
-	Defaults    *configSeedDefaultsSection          `toml:"defaults,omitempty"`
-	Permissions *configSeedPermissionsSection       `toml:"permissions,omitempty"`
-	Session     *aghconfig.SessionConfig            `toml:"session,omitempty"`
-	Roles       *aghconfig.RolesConfig              `toml:"roles,omitempty"`
-	Memory      *aghconfig.MemoryConfig             `toml:"memory,omitempty"`
-	Network     *aghconfig.NetworkConfig            `toml:"network,omitempty"`
-	Tools       *aghconfig.ToolsConfig              `toml:"tools,omitempty"`
-	Marketplace *aghconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
-	Extensions  *configSeedExtensionsSection        `toml:"extensions,omitempty"`
-	Providers   map[string]aghconfig.ProviderConfig `toml:"providers,omitempty"`
-	Sandboxes   map[string]aghconfig.SandboxProfile `toml:"sandboxes,omitempty"`
+	Daemon      *configSeedDaemonSection                `toml:"daemon,omitempty"`
+	HTTP        *configSeedHTTPSection                  `toml:"http,omitempty"`
+	Defaults    *configSeedDefaultsSection              `toml:"defaults,omitempty"`
+	Permissions *configSeedPermissionsSection           `toml:"permissions,omitempty"`
+	Session     *compozyconfig.SessionConfig            `toml:"session,omitempty"`
+	Roles       *compozyconfig.RolesConfig              `toml:"roles,omitempty"`
+	Memory      *compozyconfig.MemoryConfig             `toml:"memory,omitempty"`
+	Network     *compozyconfig.NetworkConfig            `toml:"network,omitempty"`
+	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
+	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
+	Extensions  *configSeedExtensionsSection            `toml:"extensions,omitempty"`
+	Providers   map[string]compozyconfig.ProviderConfig `toml:"providers,omitempty"`
+	Sandboxes   map[string]compozyconfig.SandboxProfile `toml:"sandboxes,omitempty"`
 }
 
 type configSeedExtensionsSection struct {
-	Marketplace *aghconfig.ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
+	Marketplace *compozyconfig.ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -91,28 +91,28 @@ type configSeedDefaultsSection struct {
 }
 
 type configSeedPermissionsSection struct {
-	Mode aghconfig.PermissionMode `toml:"mode,omitempty"`
+	Mode compozyconfig.PermissionMode `toml:"mode,omitempty"`
 }
 
-// NewHomePaths creates an isolated AGH home layout for one test run.
-func NewHomePaths(t testing.TB) aghconfig.HomePaths {
+// NewHomePaths creates an isolated Compozy home layout for one test run.
+func NewHomePaths(t testing.TB) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
 }
 
 // SeedConfig writes a minimal config overlay and any requested agent definitions.
-func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOptions) aghconfig.Config {
+func SeedConfig(t testing.TB, homePaths compozyconfig.HomePaths, opts ConfigSeedOptions) compozyconfig.Config {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = defaultString(opts.Host, "127.0.0.1")
 	if opts.HTTPPort > 0 {
 		cfg.HTTP.Port = opts.HTTPPort
@@ -155,7 +155,7 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 	return cfg
 }
 
-func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) error {
+func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.Config) error {
 	if cfg == nil {
 		return errors.New("seed config is required")
 	}
@@ -178,7 +178,7 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 		Memory:  cloneMemoryConfig(&cfg.Memory),
 		Network: &cfg.Network,
 		Tools:   cloneToolsConfig(&cfg.Tools),
-		Marketplace: &aghconfig.MarketplaceRuntimeConfig{
+		Marketplace: &compozyconfig.MarketplaceRuntimeConfig{
 			Catalog: cfg.Marketplace.Catalog,
 		},
 		Extensions: &configSeedExtensionsSection{
@@ -212,22 +212,22 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 	return nil
 }
 
-func cloneSessionConfig(cfg aghconfig.SessionConfig) *aghconfig.SessionConfig {
+func cloneSessionConfig(cfg compozyconfig.SessionConfig) *compozyconfig.SessionConfig {
 	cloned := cfg
 	return &cloned
 }
 
-func cloneRolesConfig(cfg *aghconfig.RolesConfig) *aghconfig.RolesConfig {
-	cloned := aghconfig.CloneRolesConfig(cfg)
+func cloneRolesConfig(cfg *compozyconfig.RolesConfig) *compozyconfig.RolesConfig {
+	cloned := compozyconfig.CloneRolesConfig(cfg)
 	return &cloned
 }
 
-func cloneMemoryConfig(cfg *aghconfig.MemoryConfig) *aghconfig.MemoryConfig {
-	cloned := aghconfig.CloneMemoryConfig(cfg)
+func cloneMemoryConfig(cfg *compozyconfig.MemoryConfig) *compozyconfig.MemoryConfig {
+	cloned := compozyconfig.CloneMemoryConfig(cfg)
 	return &cloned
 }
 
-func cloneToolsConfig(cfg *aghconfig.ToolsConfig) *aghconfig.ToolsConfig {
+func cloneToolsConfig(cfg *compozyconfig.ToolsConfig) *compozyconfig.ToolsConfig {
 	if cfg == nil {
 		return nil
 	}
@@ -291,12 +291,12 @@ func seedWorkspaceTargetPath(root string, relativePath string) (string, error) {
 }
 
 func cloneSandboxProfiles(
-	profiles map[string]aghconfig.SandboxProfile,
-) map[string]aghconfig.SandboxProfile {
+	profiles map[string]compozyconfig.SandboxProfile,
+) map[string]compozyconfig.SandboxProfile {
 	if len(profiles) == 0 {
 		return nil
 	}
-	cloned := make(map[string]aghconfig.SandboxProfile, len(profiles))
+	cloned := make(map[string]compozyconfig.SandboxProfile, len(profiles))
 	for name, profile := range profiles {
 		next := profile
 		next.Env = maps.Clone(profile.Env)
@@ -308,7 +308,7 @@ func cloneSandboxProfiles(
 }
 
 // WriteAgentDef persists one AGENT.md fixture under the supplied home.
-func WriteAgentDef(t testing.TB, homePaths aghconfig.HomePaths, seed AgentSeed) {
+func WriteAgentDef(t testing.TB, homePaths compozyconfig.HomePaths, seed AgentSeed) {
 	t.Helper()
 
 	name := strings.TrimSpace(seed.Name)
@@ -426,11 +426,11 @@ func shortSocketPath(t testing.TB) string {
 	return path
 }
 
-func cloneProviders(in map[string]aghconfig.ProviderConfig) map[string]aghconfig.ProviderConfig {
+func cloneProviders(in map[string]compozyconfig.ProviderConfig) map[string]compozyconfig.ProviderConfig {
 	if len(in) == 0 {
-		return map[string]aghconfig.ProviderConfig{}
+		return map[string]compozyconfig.ProviderConfig{}
 	}
-	out := make(map[string]aghconfig.ProviderConfig, len(in))
+	out := make(map[string]compozyconfig.ProviderConfig, len(in))
 	maps.Copy(out, in)
 	return out
 }

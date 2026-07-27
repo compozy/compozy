@@ -39,7 +39,7 @@ import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";
 
 export function CodeAndChatSection() {
-  const sampleCode = `agh start --workspace agh-core
+  const sampleCode = `compozy start --workspace compozy-core
 compozy session list --active`;
 
   return (
@@ -68,7 +68,7 @@ compozy session list --active`;
               </>
             }
           >
-            Starting run_01HQ8… against agh-core. Streaming events to the inspector.
+            Starting run_01HQ8… against compozy-core. Streaming events to the inspector.
           </ChatMessageBubble>
           <ChatMessageBubble messageRole="tool">
             <ToolCallRow
@@ -100,7 +100,7 @@ export function LayoutSection() {
               <>
                 <button
                   type="button"
-                  aria-label="Workspace agh-core"
+                  aria-label="Workspace compozy-core"
                   className="inline-flex size-7 items-center justify-center rounded-full border border-accent bg-elevated font-mono text-eyebrow text-accent"
                 >
                   A
@@ -117,7 +117,7 @@ export function LayoutSection() {
             header={
               <>
                 <FolderIcon className="size-3 text-subtle" />
-                <span className="text-small-body font-medium">agh-core</span>
+                <span className="text-small-body font-medium">compozy-core</span>
               </>
             }
             nav={

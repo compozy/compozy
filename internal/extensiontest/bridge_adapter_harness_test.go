@@ -11,7 +11,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	observepkg "github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -178,7 +178,7 @@ func TestHarnessHelperUtilities(t *testing.T) {
 	sink.RecordBridgeRuntimeIssue("brg-1", bridgepkg.BridgeStatusError, "adapter failed")
 	sink.ClearBridgeRuntimeIssue("brg-1")
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

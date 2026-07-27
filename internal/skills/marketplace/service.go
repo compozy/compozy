@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/skills"
 )
@@ -93,18 +93,18 @@ type NamedRegistry interface {
 	SourceNamed(name string) registrypkg.Source
 }
 
-// SkillResolver resolves installed skills from the loaded AGH skill catalog.
+// SkillResolver resolves installed skills from the loaded Compozy skill catalog.
 type SkillResolver interface {
 	Get(name string) (*skills.Skill, bool)
 }
 
 // SourceLoader resolves configured marketplace sources.
-type SourceLoader func(aghconfig.MarketplaceConfig) ([]registrypkg.Source, error)
+type SourceLoader func(compozyconfig.MarketplaceConfig) ([]registrypkg.Source, error)
 
 // Service exposes daemon-safe marketplace operations for skills.
 type Service struct {
-	homePaths    aghconfig.HomePaths
-	skillsConfig aghconfig.SkillsConfig
+	homePaths    compozyconfig.HomePaths
+	skillsConfig compozyconfig.SkillsConfig
 	logger       *slog.Logger
 	now          func() time.Time
 	sourceLoader SourceLoader
@@ -136,8 +136,8 @@ func WithSourceLoader(loader SourceLoader) Option {
 
 // NewService constructs a skill marketplace lifecycle service.
 func NewService(
-	homePaths aghconfig.HomePaths,
-	skillsConfig aghconfig.SkillsConfig,
+	homePaths compozyconfig.HomePaths,
+	skillsConfig compozyconfig.SkillsConfig,
 	opts ...Option,
 ) *Service {
 	service := &Service{

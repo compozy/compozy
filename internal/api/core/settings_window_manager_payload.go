@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -25,7 +25,7 @@ func settingsWindowManagerSectionResponse(
 }
 
 func settingsWindowManagerConfigPayload(
-	cfg aghconfig.WindowManagerConfig,
+	cfg compozyconfig.WindowManagerConfig,
 ) contract.SettingsWindowManagerConfigPayload {
 	return contract.SettingsWindowManagerConfigPayload{
 		NewWindowPolicy:     contract.SettingsWindowNewPolicy(cfg.NewWindowPolicy),
@@ -68,8 +68,8 @@ func requiredWindowManagerShortcutsPayload(src map[string]string) map[string]str
 
 func windowManagerConfigFromPayload(
 	payload contract.SettingsWindowManagerConfigPayload,
-) (aghconfig.WindowManagerConfig, error) {
-	value := aghconfig.WindowManagerConfig{
+) (compozyconfig.WindowManagerConfig, error) {
+	value := compozyconfig.WindowManagerConfig{
 		NewWindowPolicy:     strings.TrimSpace(string(payload.NewWindowPolicy)),
 		SmallViewportPolicy: strings.TrimSpace(string(payload.SmallViewportPolicy)),
 		FocusPolicy:         strings.TrimSpace(string(payload.FocusPolicy)),
@@ -81,27 +81,27 @@ func windowManagerConfigFromPayload(
 		SwapModifier:        strings.TrimSpace(string(payload.SwapModifier)),
 		HistoryLimit:        payload.HistoryLimit,
 		DesktopTransition:   strings.TrimSpace(string(payload.DesktopTransition)),
-		Gaps: aghconfig.WindowManagerGapsConfig{
+		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner:  payload.Gaps.Inner,
 			Top:    payload.Gaps.Top,
 			Right:  payload.Gaps.Right,
 			Bottom: payload.Gaps.Bottom,
 			Left:   payload.Gaps.Left,
 		},
-		Snap: aghconfig.WindowManagerSnapConfig{
+		Snap: compozyconfig.WindowManagerSnapConfig{
 			EdgeBand:     payload.Snap.EdgeBand,
 			CornerReach:  payload.Snap.CornerReach,
 			ExitSlack:    payload.Snap.ExitSlack,
 			RepeatRatios: append([]float64(nil), payload.Snap.RepeatRatios...),
 		},
-		Bindings: aghconfig.WindowManagerBindingConfig{
+		Bindings: compozyconfig.WindowManagerBindingConfig{
 			TopCenter:    strings.TrimSpace(string(payload.Bindings.TopCenter)),
 			BottomCenter: strings.TrimSpace(string(payload.Bindings.BottomCenter)),
 		},
 		Shortcuts: cloneStringMap(payload.Shortcuts),
 	}
 	if err := value.Validate(); err != nil {
-		return aghconfig.WindowManagerConfig{}, NewSettingsValidationError(err)
+		return compozyconfig.WindowManagerConfig{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }

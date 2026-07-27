@@ -350,10 +350,10 @@ func loopRuntimeSessionForOption(
 	for _, record := range acpmock.ProtocolDiagnostics(records) {
 		if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
 			record.ConfigOptionID == optionID && record.ConfigOptionValue == value {
-			if strings.TrimSpace(record.AGHSessionID) == "" {
+			if strings.TrimSpace(record.CompozySessionID) == "" {
 				t.Fatalf("config option %s=%s omitted daemon session identity", optionID, value)
 			}
-			return record.AGHSessionID
+			return record.CompozySessionID
 		}
 	}
 	t.Fatalf("protocol diagnostics = %#v, want %s=%s", records, optionID, value)
@@ -369,7 +369,7 @@ func loopRuntimeRequireSessionOption(
 ) {
 	t.Helper()
 	for _, record := range acpmock.ProtocolDiagnostics(records) {
-		if record.AGHSessionID == sessionID && record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
+		if record.CompozySessionID == sessionID && record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
 			record.ConfigOptionID == optionID && record.ConfigOptionValue == value {
 			return
 		}

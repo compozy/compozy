@@ -3,7 +3,7 @@ package extensionpkg
 import (
 	"slices"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extension/surfaces"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -48,7 +48,7 @@ func marketplaceActionCeiling() []string {
 
 func effectiveResourceGrants(
 	source ExtensionSource,
-	operatorPolicy aghconfig.ExtensionsResourcesConfig,
+	operatorPolicy compozyconfig.ExtensionsResourcesConfig,
 	requested surfaces.GrantRequest,
 	sessionMaxScope resources.ResourceScopeKind,
 ) ([]resources.ResourceKind, []resources.ResourceScopeKind, error) {
@@ -202,16 +202,16 @@ func intersectScopes(
 	return scopes
 }
 
-func cloneResourcePolicy(policy aghconfig.ExtensionsResourcesConfig) aghconfig.ExtensionsResourcesConfig {
-	return aghconfig.ExtensionsResourcesConfig{
+func cloneResourcePolicy(policy compozyconfig.ExtensionsResourcesConfig) compozyconfig.ExtensionsResourcesConfig {
+	return compozyconfig.ExtensionsResourcesConfig{
 		AllowedKinds: append([]resources.ResourceKind(nil), policy.AllowedKinds...),
 		MaxScope:     policy.MaxScope,
-		SnapshotRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+		SnapshotRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 			Requests: policy.SnapshotRateLimit.Requests,
 			Window:   policy.SnapshotRateLimit.Window,
 			Queue:    policy.SnapshotRateLimit.Queue,
 		},
-		OperatorWriteRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+		OperatorWriteRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 			Requests: policy.OperatorWriteRateLimit.Requests,
 			Window:   policy.OperatorWriteRateLimit.Window,
 			Queue:    policy.OperatorWriteRateLimit.Queue,

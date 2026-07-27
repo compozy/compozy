@@ -3,11 +3,11 @@ package session
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
-func networkPeerCapabilities(catalog *aghconfig.CapabilityCatalog) []NetworkPeerCapability {
+func networkPeerCapabilities(catalog *compozyconfig.CapabilityCatalog) []NetworkPeerCapability {
 	if catalog == nil || len(catalog.Capabilities) == 0 {
 		return []NetworkPeerCapability{}
 	}

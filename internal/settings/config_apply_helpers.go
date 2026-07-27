@@ -5,7 +5,7 @@ import (
 	"maps"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
@@ -105,7 +105,7 @@ func (s *service) collectionItemExistsBeforeMutation(
 	return false, nil
 }
 
-func automationSettingsFromConfig(cfg *aghconfig.Config) AutomationSettings {
+func automationSettingsFromConfig(cfg *compozyconfig.Config) AutomationSettings {
 	return AutomationSettings{
 		Enabled:           cfg.Automation.Enabled,
 		Timezone:          cfg.Automation.Timezone,
@@ -114,14 +114,14 @@ func automationSettingsFromConfig(cfg *aghconfig.Config) AutomationSettings {
 	}
 }
 
-func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
+func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned := *cfg
-	cloned.Providers = aghconfig.CloneProviderConfigs(cfg.Providers)
+	cloned.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
-	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
+	cloned.MCPServers = append([]compozyconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)
-	cloned.Roles = aghconfig.CloneRolesConfig(&cfg.Roles)
-	cloned.RoleSources = aghconfig.CloneRoleFieldSources(cfg.RoleSources)
+	cloned.Roles = compozyconfig.CloneRolesConfig(&cfg.Roles)
+	cloned.RoleSources = compozyconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
 	return cloned
 }

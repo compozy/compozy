@@ -20,7 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type Job = automation.Job
@@ -1732,7 +1732,7 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 		),
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("CreateJob(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
 	}
@@ -1746,7 +1746,7 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 		),
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("CreateTrigger(missing workspace) error = %v, want ErrWorkspaceNotFound", err)
 	}

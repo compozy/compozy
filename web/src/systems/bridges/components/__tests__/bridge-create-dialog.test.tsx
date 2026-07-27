@@ -519,7 +519,11 @@ describe("BridgeCreateDialog", () => {
 
   it("Should render the committed Slack manifest with copy and dashboard handoff", async () => {
     const user = userEvent.setup();
-    const manifestJSON = JSON.stringify({ display_information: { name: "AGH Support" } }, null, 2);
+    const manifestJSON = JSON.stringify(
+      { display_information: { name: "Compozy Support" } },
+      null,
+      2
+    );
     const onOpenBridge = vi.fn();
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
@@ -558,7 +562,7 @@ describe("BridgeCreateDialog", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Set up Slack app" })).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-manifest-json")).toHaveTextContent("AGH Support");
+    expect(screen.getByTestId("bridge-manifest-json")).toHaveTextContent("Compozy Support");
     expect(screen.getByRole("link", { name: "Open Slack app dashboard" })).toHaveAttribute(
       "href",
       "https://api.slack.com/apps"

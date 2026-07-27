@@ -61,7 +61,7 @@ const (
 	gchatReplyMode = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
 )
 
-var gchatTokenURLEnv = strings.Join([]string{"AGH", "BRIDGE", "GCHAT", "TOKEN", "URL"}, "_")
+var gchatTokenURLEnv = strings.Join([]string{"COMPOZY", "BRIDGE", "GCHAT", "TOKEN", "URL"}, "_")
 
 var reactionMessagePattern = regexp.MustCompile(`^(spaces/[^/]+/messages/[^/]+)/reactions/[^/]+$`)
 

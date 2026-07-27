@@ -7,7 +7,7 @@ import {
 
 import type { ToolArtifactPage } from "../types";
 
-const TOOL_ARTIFACT_URI_PATTERN = /^agh:\/\/tool-artifacts\/(art_[a-f0-9]{64})$/;
+const TOOL_ARTIFACT_URI_PATTERN = /^compozy:\/\/tool-artifacts\/(art_[a-f0-9]{64})$/;
 
 export class ToolArtifactApiError extends Error {
   constructor(

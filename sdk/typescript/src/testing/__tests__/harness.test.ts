@@ -70,7 +70,7 @@ describe("TestHarness", () => {
   });
 
   it("loads a module export by path", async () => {
-    const dir = join(tmpdir(), `agh-harness-${Date.now()}`);
+    const dir = join(tmpdir(), `compozy-harness-${Date.now()}`);
     const filePath = join(dir, "extension.ts");
     await mkdir(dir, { recursive: true });
     await writeFile(

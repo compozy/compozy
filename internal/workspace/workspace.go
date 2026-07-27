@@ -1,5 +1,5 @@
 // Package workspace defines workspace domain models, sentinel errors, and
-// resolver contracts used across AGH runtime packages.
+// resolver contracts used across Compozy runtime packages.
 package workspace
 
 import (
@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 )
 
@@ -50,8 +50,8 @@ type Workspace struct {
 type ResolvedWorkspace struct {
 	Workspace
 	WorkspaceID      string
-	Config           aghconfig.Config
-	Agents           []aghconfig.AgentDef
+	Config           compozyconfig.Config
+	Agents           []compozyconfig.AgentDef
 	AgentDiagnostics []AgentDiagnostic
 	Skills           []SkillPath
 	Sandbox          sandbox.Resolved

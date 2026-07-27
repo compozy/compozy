@@ -23,7 +23,7 @@ export const useHomePrefsStore = create<HomePrefsStore>()(
       },
     }),
     {
-      name: "agh:home-prefs",
+      name: "compozy:home-prefs",
       partialize: state => ({ usageWindow: state.usageWindow, systemOpen: state.systemOpen }),
       merge: (persisted, current) => {
         const incoming = (persisted ?? {}) as Partial<HomePrefsStore>;

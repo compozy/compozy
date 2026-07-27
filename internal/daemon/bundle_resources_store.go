@@ -10,7 +10,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -72,8 +72,8 @@ type bundleResourceStoreDeps struct {
 	activationStore resources.Store[bundlepkg.ActivationResourceSpec]
 	layoutCodec     resources.KindCodec[windowmanager.LayoutResource]
 	layoutStore     resources.Store[windowmanager.LayoutResource]
-	agentCodec      resources.KindCodec[aghconfig.AgentDef]
-	agentStore      resources.Store[aghconfig.AgentDef]
+	agentCodec      resources.KindCodec[compozyconfig.AgentDef]
+	agentStore      resources.Store[compozyconfig.AgentDef]
 	soulCodec       resources.KindCodec[soul.ResourceSpec]
 	soulStore       resources.Store[soul.ResourceSpec]
 	heartbeatCodec  resources.KindCodec[heartbeat.ResourceSpec]
@@ -131,10 +131,10 @@ func resolveBundleBaseResourceStoreDeps(
 	if err != nil {
 		return bundleResourceStoreDeps{}, err
 	}
-	agentCodec, agentStore, err := resolveDaemonResourceStore[aghconfig.AgentDef](
+	agentCodec, agentStore, err := resolveDaemonResourceStore[compozyconfig.AgentDef](
 		state,
 		raw,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		"bundle agent",
 	)
 	if err != nil {

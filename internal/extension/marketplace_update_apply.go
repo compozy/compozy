@@ -3,12 +3,12 @@ package extensionpkg
 import (
 	"context"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func applyResolvedMarketplaceUpdate(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	info ExtensionInfo,
 	req MarketplaceUpdateRequest,

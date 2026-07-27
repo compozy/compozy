@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -107,7 +107,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Parallel()
 
 			store := newMemoryStore()
-			source := newLiveSourceForTest(t, "claude", aghconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+			source := newLiveSourceForTest(t, "claude", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
 				BaseEnv: []string{"PATH=/bin", "ANTHROPIC_API_KEY=ambient-secret"},
 			})
 			service := newTestService(t, store, []Source{source})
@@ -160,7 +160,7 @@ func TestLiveProviderSources(t *testing.T) {
 				`"pricing":{"input":"0.000001","output":0.000002}` +
 				`}]}`
 		})
-		vercel := aghconfig.ProviderConfig{}
+		vercel := compozyconfig.ProviderConfig{}
 		vercel.Models.Discovery.Endpoint = vercelServer.URL
 		vercelRows, err := newLiveSourceForTest(t, "vercel-ai-gateway", vercel, LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
@@ -222,7 +222,7 @@ func TestLiveProviderSources(t *testing.T) {
 		server := liveJSONServer(t, func(_ *http.Request) string {
 			return `{"models":[{"name":"llama3:latest","model":"llama3:latest"}]}`
 		})
-		provider := aghconfig.ProviderConfig{}
+		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Endpoint = server.URL
 		rows, err := newLiveSourceForTest(t, "ollama", provider, LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
@@ -241,13 +241,13 @@ func TestLiveProviderSources(t *testing.T) {
 		executor := &fakeDiscoveryExecutor{
 			result: DiscoveryCommandResult{Stdout: "anthropic/claude-sonnet-4-6\nopenai/gpt-5.4\n"},
 		}
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		provider := aghconfig.ProviderConfig{
-			EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
-			HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+		provider := compozyconfig.ProviderConfig{
+			EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
+			HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 		}
 		source := newLiveSourceForTest(t, "opencode", provider, LiveProviderSourcesConfig{
 			HomePaths:       homePaths,
@@ -289,7 +289,7 @@ func TestLiveProviderSources(t *testing.T) {
 			result: DiscoveryCommandResult{Stderr: "api_key=opencode-secret missing"},
 			err:    errors.New("exec: opencode not found"),
 		}
-		source := newLiveSourceForTest(t, "opencode", aghconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
 			BaseEnv:         []string{"PATH=/bin"},
 			CommandExecutor: executor,
 		})
@@ -315,7 +315,7 @@ func TestLiveProviderSources(t *testing.T) {
 	t.Run("Should fail closed for OpenClaw without configured discovery path", func(t *testing.T) {
 		t.Parallel()
 
-		source := newLiveSourceForTest(t, "openclaw", aghconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "openclaw", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		})
 		store := newMemoryStore()
@@ -343,7 +343,7 @@ func TestLiveProviderSources(t *testing.T) {
 		executor := &fakeDiscoveryExecutor{
 			result: DiscoveryCommandResult{Stdout: `[{"id":"hermes-model"}]`},
 		}
-		provider := aghconfig.ProviderConfig{}
+		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Command = "hermes models --json"
 		disabledSource := newLiveSourceForTest(t, "hermes", provider, LiveProviderSourcesConfig{
 			BaseEnv:         []string{"PATH=/bin"},
@@ -394,7 +394,7 @@ func TestLiveProviderSources(t *testing.T) {
 			return `{"data":[{"id":"anthropic/claude-sonnet-4-6"}]}`
 		})
 		enabled := true
-		provider := aghconfig.ProviderConfig{}
+		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Enabled = &enabled
 		provider.Models.Discovery.Endpoint = server.URL
 		rows, err := newLiveSourceForTest(t, "pi", provider, LiveProviderSourcesConfig{
@@ -416,7 +416,7 @@ func TestLiveProviderSources(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		t.Cleanup(server.Close)
-		provider := aghconfig.ProviderConfig{}
+		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Endpoint = server.URL
 		provider.Models.Discovery.Timeout = "20ms"
 		source := newLiveSourceForTest(t, "vercel-ai-gateway", provider, LiveProviderSourcesConfig{
@@ -594,12 +594,12 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		t.Parallel()
 
 		sources, err := NewLiveProviderSources(LiveProviderSourcesConfig{
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"ollama": {Command: "ollama serve"},
 				"openai": {
 					Command:  "openai",
-					AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-					CredentialSlots: []aghconfig.ProviderCredentialSlot{
+					AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+					CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 						{Name: "api_key", TargetEnv: "OPENAI_API_KEY", SecretRef: "env:OPENAI_API_KEY", Required: true},
 					},
 				},
@@ -661,7 +661,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		provider := boundSecretProvider("OPENAI_API_KEY", "env:OPENAI_API_KEY")
 		provider.Models.Discovery.Enabled = &enabled
 		provider.Models.Discovery.Endpoint = "https://api.openai.test/v1/models"
-		provider.Models.Curated = []aghconfig.ProviderModelConfig{{
+		provider.Models.Curated = []compozyconfig.ProviderModelConfig{{
 			ID:     "gpt-test",
 			Hidden: &hidden,
 		}}
@@ -809,10 +809,10 @@ func liveJSONServer(t *testing.T, body func(*http.Request) string) *httptest.Ser
 	return server
 }
 
-func boundSecretProvider(targetEnv string, secretRef string) aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
-		AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-		CredentialSlots: []aghconfig.ProviderCredentialSlot{
+func boundSecretProvider(targetEnv string, secretRef string) compozyconfig.ProviderConfig {
+	return compozyconfig.ProviderConfig{
+		AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+		CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 			{Name: "api_key", TargetEnv: targetEnv, SecretRef: secretRef, Required: true},
 		},
 	}
@@ -821,7 +821,7 @@ func boundSecretProvider(targetEnv string, secretRef string) aghconfig.ProviderC
 func newLiveSourceForTest(
 	t *testing.T,
 	providerID string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	cfg LiveProviderSourcesConfig,
 ) *LiveProviderSource {
 	t.Helper()

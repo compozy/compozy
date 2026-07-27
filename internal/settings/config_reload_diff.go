@@ -3,11 +3,11 @@ package settings
 import (
 	"reflect"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
-func classifyReloadLifecycle(current *aghconfig.Config, desired *aghconfig.Config) lifecycle.Lifecycle {
+func classifyReloadLifecycle(current *compozyconfig.Config, desired *compozyconfig.Config) lifecycle.Lifecycle {
 	changed := reloadChangedPaths(current, desired)
 	if len(changed) == 0 {
 		return lifecycle.RestartRequired
@@ -19,7 +19,7 @@ func classifyReloadLifecycle(current *aghconfig.Config, desired *aghconfig.Confi
 	return configLifecycle
 }
 
-func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []string {
+func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Config) []string {
 	var changed []string
 	changed = append(changed, diffGeneralSettings(current, generalSettingsFromConfig(desired))...)
 	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
@@ -48,8 +48,8 @@ func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []
 }
 
 func diffMarketplaceCatalog(
-	current aghconfig.MarketplaceCatalogConfig,
-	desired aghconfig.MarketplaceCatalogConfig,
+	current compozyconfig.MarketplaceCatalogConfig,
+	desired compozyconfig.MarketplaceCatalogConfig,
 ) []string {
 	changed := make([]string, 0, 3)
 	if current.BaseURL != desired.BaseURL {

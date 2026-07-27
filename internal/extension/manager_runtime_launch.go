@@ -156,7 +156,7 @@ func (m *Manager) initializeRuntimeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          m.protocolVersion,
 		SupportedProtocolVersion: slices.Clone(m.supportedProtocolVersions),
-		AGHVersion:               version.Current().Version,
+		CompozyVersion:           version.Current().Version,
 		SessionNonce:             resourceSession.Actor.SessionNonce,
 		Extension: subprocess.InitializeExtension{
 			Name:       ext.manifest.Name,

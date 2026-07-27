@@ -161,7 +161,7 @@ const noLowContrastFocusRing = {
   create(context) {
     const filename = normalizeFilename(context.filename || "");
     // The focus-ring floor (BUG-20260714) applies to every frontend surface —
-    // the web app, the `@agh/ui` primitives, and `packages/site`.
+    // the web app, the `@compozy/ui` primitives, and `packages/site`.
     if (!isFrontendSourcePath(filename) || isTestOrStoryPath(filename)) {
       return {};
     }

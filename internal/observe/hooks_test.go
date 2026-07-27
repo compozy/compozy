@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -279,7 +279,7 @@ func (s *stubHookRunStore) Close(context.Context) error {
 	return nil
 }
 
-func openObserverHookSessionDB(t *testing.T, homePaths aghconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
+func openObserverHookSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
 	t.Helper()
 
 	db, err := sessiondb.OpenSessionDB(

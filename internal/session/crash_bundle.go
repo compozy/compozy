@@ -17,7 +17,7 @@ import (
 
 const (
 	crashBundleDirName      = "crash-bundles"
-	crashBundleSchema       = "agh.session_crash_bundle.v1"
+	crashBundleSchema       = "compozy.session_crash_bundle.v1"
 	maxCrashEvidenceBytes   = 32 << 10
 	crashBundleFileMode     = 0o600
 	crashBundleDirMode      = 0o700

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -103,7 +103,7 @@ type PromptInput struct {
 // DecideBootstrap evaluates the mechanical coordinator bootstrap rules. It
 // does not check for already-running coordinator sessions; that singleton check
 // belongs to the daemon runtime.
-func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.ResolvedCoordinatorRole) Decision {
+func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg compozyconfig.ResolvedCoordinatorRole) Decision {
 	decision := Decision{
 		WorkspaceID:          strings.TrimSpace(task.WorkspaceID),
 		TaskID:               strings.TrimSpace(task.ID),
@@ -194,7 +194,7 @@ func SpawnRoleAllowed(role string) bool {
 // Lineage builds root lineage metadata for a managed coordinator session.
 func Lineage(
 	now time.Time,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	policy store.SessionPermissionPolicy,
 ) *store.SessionLineage {
 	ttl := now.UTC().Add(cfg.TTL)
@@ -240,7 +240,7 @@ func HealthySession(info *session.Info, workspaceID string, now time.Time) bool 
 // public API surface.
 func PromptOverlay(input PromptInput) string {
 	var b strings.Builder
-	b.WriteString("You are the AGH workspace coordinator for executable task runs.\n\n")
+	b.WriteString("You are the Compozy workspace coordinator for executable task runs.\n\n")
 	b.WriteString("Current run context:\n")
 	writePromptLine(&b, "workspace_id", input.WorkspaceID)
 	writePromptLine(&b, "task_id", input.TaskID)
@@ -249,7 +249,7 @@ func PromptOverlay(input PromptInput) string {
 	if input.NetworkParticipation.Mode == participation.ModeLive {
 		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
 	}
-	b.WriteString("\nUse public AGH agent APIs only:\n")
+	b.WriteString("\nUse public Compozy agent APIs only:\n")
 	b.WriteString("- `compozy me context` for the Situation Surface.\n")
 	b.WriteString("- `compozy task create` to persist follow-up task intent.\n")
 	b.WriteString("- `compozy task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")

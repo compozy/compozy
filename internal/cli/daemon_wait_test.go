@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -110,8 +110,8 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		})
 		deps.pollInterval = time.Millisecond
 		deps.stopTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{
 				PID:       42,
 				StartedAt: fixedTestNow,
 			}, nil
@@ -127,7 +127,7 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadRuntimeContext() error = %v", err)
 		}
-		info := aghdaemon.Info{
+		info := compozydaemon.Info{
 			PID:       42,
 			StartedAt: fixedTestNow,
 		}
@@ -155,11 +155,11 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 		})
 		deps.pollInterval = time.Millisecond
 		deps.stopTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{
 				PID:       42,
 				StartedAt: fixedTestNow,
-				Network: &aghdaemon.NetworkInfo{
+				Network: &compozydaemon.NetworkInfo{
 					Enabled: true,
 					Status:  "active",
 				},
@@ -176,10 +176,10 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadRuntimeContext() error = %v", err)
 		}
-		info := aghdaemon.Info{
+		info := compozydaemon.Info{
 			PID:       42,
 			StartedAt: fixedTestNow,
-			Network: &aghdaemon.NetworkInfo{
+			Network: &compozydaemon.NetworkInfo{
 				Enabled: true,
 				Status:  "active",
 			},
@@ -216,8 +216,8 @@ func TestDaemonStopCommandSignalsAndWaitsForShutdown(t *testing.T) {
 		})
 		deps.pollInterval = time.Millisecond
 		deps.stopTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{
 				PID:       42,
 				StartedAt: fixedTestNow,
 			}, nil
@@ -258,8 +258,8 @@ func TestDaemonStopCommandRejectsReusedPIDFromDaemonInfo(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{})
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{
 				PID:       42,
 				StartedAt: fixedTestNow,
 			}, nil
@@ -413,8 +413,8 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 
 		runner := &stubRunner{}
 		deps := newTestDeps(t, &stubClient{})
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{}, os.ErrNotExist
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{}, os.ErrNotExist
 		}
 		deps.newDaemon = func() (daemonRunner, error) {
 			return runner, nil
@@ -433,8 +433,8 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 
 		runner := &stubRunner{}
 		deps := newTestDeps(t, &stubClient{})
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{}, os.ErrNotExist
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{}, os.ErrNotExist
 		}
 		deps.newDaemon = func() (daemonRunner, error) {
 			return runner, nil
@@ -465,10 +465,10 @@ func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
 		})
 		deps.pollInterval = time.Millisecond
 		deps.startTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{}, os.ErrNotExist
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{}, os.ErrNotExist
 		}
-		deps.spawnDetached = func(context.Context, aghconfig.HomePaths) (daemonProcess, error) {
+		deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
 			return child, nil
 		}
 
@@ -497,8 +497,8 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		})
 		deps.pollInterval = time.Millisecond
 		deps.startTimeout = 100 * time.Millisecond
-		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-			return aghdaemon.Info{
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{
 				PID:       42,
 				StartedAt: fixedTestNow,
 			}, nil
@@ -507,7 +507,7 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
 
 		spawned := false
-		deps.spawnDetached = func(context.Context, aghconfig.HomePaths) (daemonProcess, error) {
+		deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
 			spawned = true
 			return child, nil
 		}

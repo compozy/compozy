@@ -125,7 +125,7 @@ type telegramPlaceholders struct {
 }
 
 func newTelegramPlaceholders(source string) *telegramPlaceholders {
-	prefix := "\x00AGHTELEGRAM"
+	prefix := "\x00COMPOZYTELEGRAM"
 	for strings.Contains(source, prefix) {
 		prefix += "X"
 	}

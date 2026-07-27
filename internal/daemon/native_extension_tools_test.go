@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
@@ -360,7 +360,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			nil,
 			nil,
 			withDaemonExtensionMarketplace(
-				aghconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+				compozyconfig.ExtensionsMarketplaceConfig{Registry: "github"},
 				deps.ExtensionSources,
 			),
 			withDaemonExtensionCatalog(catalog),
@@ -430,7 +430,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		service := newDaemonExtensionService(
 			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
 			withDaemonExtensionMarketplace(
-				aghconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+				compozyconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
 				deps.ExtensionSources,
 			),
 			withDaemonExtensionCatalog(catalog),
@@ -467,7 +467,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
 		sourceCalls := 0
-		deps.ExtensionSources = func(context.Context, aghconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
+		deps.ExtensionSources = func(context.Context, compozyconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
 			sourceCalls++
 			return nil, errors.New("source should not be called")
 		}
@@ -504,11 +504,11 @@ func newNativeExtensionToolDeps(
 ) (*daemonNativeToolsDeps, *extensionpkg.Registry, *nativeExtensionSource, *fakeExtensionRuntime) {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	db, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
@@ -530,10 +530,10 @@ func newNativeExtensionToolDeps(
 		ExtensionRuntime: func() extensionRuntime {
 			return runtime
 		},
-		ExtensionSources: func(context.Context, aghconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
+		ExtensionSources: func(context.Context, compozyconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
 			return []registrypkg.Source{source}, nil
 		},
-		ExtensionMarket: aghconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+		ExtensionMarket: compozyconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
 		ExtensionEvents: db,
 	}
 	return &deps, extRegistry, source, runtime

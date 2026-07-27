@@ -78,7 +78,7 @@ const (
 	SourceFileImport SourceKind = "file-import"
 	// SourceWatchSource polls an extension watch source.
 	SourceWatchSource SourceKind = "watch-source"
-	// SourceWatchEvents subscribes to committed internal AGH events.
+	// SourceWatchEvents subscribes to committed internal Compozy events.
 	SourceWatchEvents SourceKind = "watch-events"
 )
 

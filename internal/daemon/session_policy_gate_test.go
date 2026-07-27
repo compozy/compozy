@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -58,13 +58,13 @@ func TestSessionPolicyGateAppliesEvidencePermissionPolicy(t *testing.T) {
 	t.Run("Should auto approve evidence mode only with sandbox ref", func(t *testing.T) {
 		t.Parallel()
 
-		opts := session.CreateOpts{Permissions: aghconfig.PermissionModeDenyAll}
+		opts := session.CreateOpts{Permissions: compozyconfig.PermissionModeDenyAll}
 		applySessionPermissionPolicy(&opts, SessionPolicy{
 			Sandbox: SessionSandboxPolicy{Mode: SessionSandboxModeRef, SandboxRef: "evidence-lab"},
 			Runtime: SessionRuntimePolicy{Mode: SessionRuntimeModeEvidence},
 		})
 
-		if got, want := opts.Permissions, aghconfig.PermissionModeApproveAll; got != want {
+		if got, want := opts.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
 			t.Fatalf("Permissions = %q, want %q", got, want)
 		}
 		if !strings.Contains(opts.PromptOverlay, "Runtime evidence mode is enabled") {
@@ -75,12 +75,12 @@ func TestSessionPolicyGateAppliesEvidencePermissionPolicy(t *testing.T) {
 	t.Run("Should preserve configured permission mode without sandbox ref", func(t *testing.T) {
 		t.Parallel()
 
-		opts := session.CreateOpts{Permissions: aghconfig.PermissionModeDenyAll}
+		opts := session.CreateOpts{Permissions: compozyconfig.PermissionModeDenyAll}
 		applySessionPermissionPolicy(&opts, SessionPolicy{
 			Runtime: SessionRuntimePolicy{Mode: SessionRuntimeModeEvidence},
 		})
 
-		if got, want := opts.Permissions, aghconfig.PermissionModeDenyAll; got != want {
+		if got, want := opts.Permissions, compozyconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("Permissions = %q, want configured %q", got, want)
 		}
 		if !strings.Contains(opts.PromptOverlay, "did not select a sandbox") {
@@ -164,7 +164,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			Model:           "sonnet",
 			SandboxRef:      "evidence-lab",
 			DisableSandbox:  false,
-			Permissions:     aghconfig.PermissionModeApproveAll,
+			Permissions:     compozyconfig.PermissionModeApproveAll,
 			Name:            "task-role:frontend-engineer:run-parity:63e604975a4c215d",
 			Workspace:       "ws-parity",
 			WorkspacePath:   "",
@@ -172,7 +172,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			ResolvedNetworkParticipation: participationSnapshotPointer(
 				daemonTestLiveParticipation("ws-parity", "design-review"),
 			),
-			PromptOverlay: "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `compozy task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			PromptOverlay: "A queued Compozy task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `compozy task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the Compozy task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
 			Type:          session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {

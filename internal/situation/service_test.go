@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -33,8 +33,8 @@ func TestRenderPromptPreservesSectionOrderAndOmitsUnavailableSections(t *testing
 		},
 		Workspace: contract.AgentWorkspacePayload{
 			ID:      "ws-1",
-			Name:    "agh",
-			RootDir: "/work/agh",
+			Name:    "compozy",
+			RootDir: "/work/compozy",
 		},
 		Session: contract.AgentSessionPayload{
 			ID:        "sess-1",
@@ -165,16 +165,16 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 		SectionLimit: 2,
 		WorkspaceResolver: workspaceResolverFunc(func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "AGH", RootDir: "/work/agh"},
-				Config:    aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}},
+				Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
+				Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 			}, nil
 		}),
-		AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
-			return aghconfig.AgentDef{
+		AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+			return compozyconfig.AgentDef{
 				Name:     "coder",
 				Provider: "codex",
 				Model:    "gpt-test",
-				Capabilities: &aghconfig.CapabilityCatalog{Capabilities: []aghconfig.CapabilityDef{
+				Capabilities: &compozyconfig.CapabilityCatalog{Capabilities: []compozyconfig.CapabilityDef{
 					{ID: "build", Summary: "Build code"},
 					{ID: "review", Summary: "Review code"},
 				}},
@@ -227,8 +227,8 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 			},
 		},
 		CoordinatorRole: coordinatorResolverFunc(
-			func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error) {
-				return aghconfig.ResolvedCoordinatorRole{MaxChildren: 3}, nil
+			func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
+				return compozyconfig.ResolvedCoordinatorRole{MaxChildren: 3}, nil
 			},
 		),
 	})
@@ -239,7 +239,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 		AgentName:   "coder",
 		Provider:    "codex",
 		WorkspaceID: "ws-1",
-		Workspace:   "/work/agh",
+		Workspace:   "/work/compozy",
 		Type:        session.SessionTypeUser,
 		Lineage: &store.SessionLineage{
 			ParentSessionID: "sess-parent",
@@ -394,7 +394,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-redact", Name: "AGH", RootDir: "/work/agh"},
+						Workspace: workspacepkg.Workspace{ID: "ws-redact", Name: "Compozy", RootDir: "/work/compozy"},
 						Config:    workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
@@ -543,7 +543,7 @@ func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "AGH", RootDir: "/work/agh"},
+						Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "Compozy", RootDir: "/work/compozy"},
 						Config:    cfg,
 					}, nil
 				},
@@ -583,8 +583,8 @@ func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{
 						ID:      taskRecord.WorkspaceID,
-						Name:    "AGH",
-						RootDir: "/work/agh",
+						Name:    "Compozy",
+						RootDir: "/work/compozy",
 					},
 					Config: cfg,
 				}, nil
@@ -646,14 +646,16 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "AGH", RootDir: "/work/agh"},
+						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy"},
 						Config:    workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
-			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
-				return aghconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
-			}),
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
+				},
+			),
 			TaskStore: taskStoreStub{
 				tasks:   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
 				runs:    []taskpkg.Run{run},
@@ -666,7 +668,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          "ws-review",
-			Workspace:            "/work/agh",
+			Workspace:            "/work/compozy",
 			NetworkParticipation: situationLiveSpec(t, "ws-review", "reviews"),
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -730,14 +732,16 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "AGH", RootDir: "/work/agh"},
+						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "Compozy", RootDir: "/work/compozy"},
 						Config:    workspaceConfigWithTaskDefaults(),
 					}, nil
 				},
 			),
-			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
-				return aghconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
-			}),
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
+				},
+			),
 			TaskStore: taskStoreStub{
 				tasks:   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
 				runs:    []taskpkg.Run{run},
@@ -750,7 +754,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          "ws-review",
-			Workspace:            "/work/agh",
+			Workspace:            "/work/compozy",
 			NetworkParticipation: situationLiveSpec(t, "ws-review", "reviews"),
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -804,8 +808,8 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
 							ID:      taskRecord.WorkspaceID,
-							Name:    "AGH",
-							RootDir: "/work/agh",
+							Name:    "Compozy",
+							RootDir: "/work/compozy",
 						},
 						Config: workspaceConfigWithTaskDefaults(),
 					}, nil
@@ -823,7 +827,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 			AgentName:            "coder",
 			Provider:             "codex",
 			WorkspaceID:          taskRecord.WorkspaceID,
-			Workspace:            "/work/agh",
+			Workspace:            "/work/compozy",
 			NetworkParticipation: situationLiveSpec(t, "ws-bundle-active", "coord-active"),
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -886,8 +890,8 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
 							ID:      taskRecord.WorkspaceID,
-							Name:    "AGH",
-							RootDir: "/work/agh",
+							Name:    "Compozy",
+							RootDir: "/work/compozy",
 						},
 						Config: workspaceConfigWithTaskDefaults(),
 					}, nil
@@ -906,7 +910,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          taskRecord.WorkspaceID,
-			Workspace:            "/work/agh",
+			Workspace:            "/work/compozy",
 			NetworkParticipation: situationLiveSpec(t, "ws-bundle-review", "coord-review"),
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
@@ -962,14 +966,16 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 			WorkspaceResolver: workspaceResolverFunc(
 				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "AGH", RootDir: "/work/agh"},
-						Config:    aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}},
+						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
+						Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 					}, nil
 				},
 			),
-			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
-				return aghconfig.AgentDef{Name: "coder", Provider: "codex", Model: "gpt-test"}, nil
-			}),
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{Name: "coder", Provider: "codex", Model: "gpt-test"}, nil
+				},
+			),
 			TaskStore: taskStoreStub{
 				tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
 				runs:  []taskpkg.Run{run},
@@ -984,7 +990,7 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 			AgentName:      "coder",
 			Provider:       "codex",
 			WorkspaceID:    "ws-1",
-			Workspace:      "/work/agh",
+			Workspace:      "/work/compozy",
 			Type:           session.SessionTypeUser,
 			State:          session.StateActive,
 			SoulSnapshotID: snapshot.ID,
@@ -1053,7 +1059,7 @@ func TestContextForSessionMissingOptionalServicesOmitsUnavailableSections(t *tes
 		AgentName:   "coder",
 		Provider:    "codex",
 		WorkspaceID: "ws-1",
-		Workspace:   "/work/agh",
+		Workspace:   "/work/compozy",
 		Type:        session.SessionTypeUser,
 		State:       session.StateActive,
 		CreatedAt:   fixedTime(),
@@ -1094,8 +1100,8 @@ func TestPromptStartupSectionIncludesStartupIdentity(t *testing.T) {
 
 	service := NewService(Deps{Now: fixedNow, SectionLimit: 4})
 	workspace := &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "AGH", RootDir: "/work/agh"},
-		Config:    aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}},
+		Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
+		Config:    compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}},
 	}
 
 	rendered, err := service.PromptStartupSection(
@@ -1106,12 +1112,12 @@ func TestPromptStartupSectionIncludesStartupIdentity(t *testing.T) {
 			AgentName:   "coder",
 			Provider:    "codex",
 			WorkspaceID: "ws-1",
-			Workspace:   "/work/agh",
+			Workspace:   "/work/compozy",
 			SessionType: session.SessionTypeUser,
 			CreatedAt:   fixedTime(),
 			UpdatedAt:   fixedTime(),
 		},
-		aghconfig.AgentDef{Name: "coder", Provider: "codex", Model: "gpt-test"},
+		compozyconfig.AgentDef{Name: "coder", Provider: "codex", Model: "gpt-test"},
 		workspace,
 	)
 	if err != nil {
@@ -1256,7 +1262,7 @@ func TestPromptSectionAndHelperBranches(t *testing.T) {
 
 	service := NewService(Deps{Now: fixedNow})
 	rendered, err := service.PromptSection(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/work/agh", Name: "AGH"},
+		Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/work/compozy", Name: "Compozy"},
 	})
 	if err != nil {
 		t.Fatalf("PromptSection() error = %v", err)
@@ -1483,7 +1489,7 @@ func newSituationCompactionSession() *session.Session {
 		AgentName:    "coder",
 		Provider:     "codex",
 		WorkspaceID:  "ws-compact",
-		Workspace:    "/work/agh",
+		Workspace:    "/work/compozy",
 		Type:         session.SessionTypeUser,
 		State:        session.StateActive,
 		ACPSessionID: "acp-1",
@@ -1501,10 +1507,10 @@ func jsonRaw(t *testing.T, value string) json.RawMessage {
 	return json.RawMessage(value)
 }
 
-func workspaceConfigWithTaskDefaults() aghconfig.Config {
-	return aghconfig.Config{
-		Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
-		Task:     aghconfig.DefaultTaskConfig(),
+func workspaceConfigWithTaskDefaults() compozyconfig.Config {
+	return compozyconfig.Config{
+		Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
+		Task:     compozyconfig.DefaultTaskConfig(),
 	}
 }
 
@@ -1569,7 +1575,7 @@ func capabilityPayload(
 ) network.CapabilityEnvelopePayload {
 	t.Helper()
 
-	digest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+	digest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
 		ID:      id,
 		Summary: summary,
 		Outcome: outcome,
@@ -1594,12 +1600,12 @@ func (fn workspaceResolverFunc) Resolve(
 	return fn(ctx, idOrPath)
 }
 
-type agentResolverFunc func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
+type agentResolverFunc func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 
 func (fn agentResolverFunc) ResolveAgent(
 	name string,
 	workspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	return fn(name, workspace)
 }
 
@@ -1620,12 +1626,12 @@ func (fn skillRegistryFunc) ForAgent(
 	return fn(ctx, workspace)
 }
 
-type coordinatorResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
+type coordinatorResolverFunc func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error)
 
 func (fn coordinatorResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.ResolvedCoordinatorRole, error) {
+) (compozyconfig.ResolvedCoordinatorRole, error) {
 	return fn(ctx, workspaceID)
 }
 
@@ -1886,10 +1892,10 @@ func (s networkStub) ListPeers(_ context.Context, _ string, _ string) ([]network
 func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
 	t.Helper()
 
-	cfg := aghconfig.DefaultSoulConfig()
+	cfg := compozyconfig.DefaultSoulConfig()
 	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
-		SourcePath:    "/work/agh/.compozy/agents/coder/SOUL.md",
-		WorkspaceRoot: "/work/agh",
+		SourcePath:    "/work/compozy/.compozy/agents/coder/SOUL.md",
+		WorkspaceRoot: "/work/compozy",
 		Content: []byte(strings.Join([]string{
 			"---",
 			"role: Reviewer",

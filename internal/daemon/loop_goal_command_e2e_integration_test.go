@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -36,7 +36,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 
 	// Subtests share one runtime and are intentionally sequential.
 	var rejectionSessionID string
-	var rejectionSnapshot aghcontract.GoalSnapshot
+	var rejectionSnapshot compozycontract.GoalSnapshot
 	var judgeSessionIDsBeforeRestart []string
 	t.Run("Should retry rejected Goal turns through approval", func(t *testing.T) {
 		rejectionSession := createFixtureBackedSession(t, ctx, harness, "goal-rejections", "goal-rejections")
@@ -56,8 +56,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			harness,
 			rejectionSession.ID,
-			func(goal *aghcontract.GoalSnapshot) bool {
-				if goal != nil && goal.RunStatus == aghcontract.LoopRunStatusNeedsApproval {
+			func(goal *compozycontract.GoalSnapshot) bool {
+				if goal != nil && goal.RunStatus == compozycontract.LoopRunStatusNeedsApproval {
 					events, eventsErr := harness.SessionEvents(ctx, rejectionSession.ID)
 					t.Fatalf(
 						"rejection Goal unexpectedly requires approval: snapshot=%#v cause=%v events=%#v events_error=%v",
@@ -67,7 +67,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 						eventsErr,
 					)
 				}
-				return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusDone && goal.Status == "complete"
+				return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusDone && goal.Status == "complete"
 			},
 		)
 		rejectionTurns := waitForGoalTurns(
@@ -75,7 +75,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			harness,
 			rejectionSnapshot.RunID,
-			func(page aghcontract.GoalTurnPage) bool {
+			func(page compozycontract.GoalTurnPage) bool {
 				return len(page.Turns) == 3 && page.Turns[2].ResultStatus != nil
 			},
 		)
@@ -92,19 +92,19 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			pauseSession.ID,
 			"/goal Pause and resume at a durable boundary",
 		)
-		if startedStatus != http.StatusAccepted || started.Outcome != aghcontract.GoalOutcomeStarted ||
+		if startedStatus != http.StatusAccepted || started.Outcome != compozycontract.GoalOutcomeStarted ||
 			started.Snapshot == nil {
 			t.Fatalf("pause Goal start = status:%d result:%#v", startedStatus, started)
 		}
 		pauseStatus, paused := callGoalCommandUDS(ctx, t, harness, pauseSession.ID, "/goal pause")
-		if pauseStatus != http.StatusOK || paused.Outcome != aghcontract.GoalOutcomePaused {
+		if pauseStatus != http.StatusOK || paused.Outcome != compozycontract.GoalOutcomePaused {
 			t.Fatalf("pause Goal command = status:%d result:%#v", pauseStatus, paused)
 		}
-		waitForGoalSnapshot(ctx, t, harness, pauseSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
-			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusPaused
+		waitForGoalSnapshot(ctx, t, harness, pauseSession.ID, func(goal *compozycontract.GoalSnapshot) bool {
+			return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusPaused
 		})
 		resumeStatus, resumed := callGoalCommandUDS(ctx, t, harness, pauseSession.ID, "/goal resume")
-		if resumeStatus != http.StatusOK || resumed.Outcome != aghcontract.GoalOutcomeResumed {
+		if resumeStatus != http.StatusOK || resumed.Outcome != compozycontract.GoalOutcomeResumed {
 			t.Fatalf("resume paused Goal command = status:%d result:%#v", resumeStatus, resumed)
 		}
 		pauseCompleted := waitForGoalSnapshot(
@@ -112,13 +112,19 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			harness,
 			pauseSession.ID,
-			func(goal *aghcontract.GoalSnapshot) bool {
-				return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusDone
+			func(goal *compozycontract.GoalSnapshot) bool {
+				return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusDone
 			},
 		)
-		pauseTurns := waitForGoalTurns(ctx, t, harness, pauseCompleted.RunID, func(page aghcontract.GoalTurnPage) bool {
-			return len(page.Turns) >= 1 && page.Turns[len(page.Turns)-1].ResultStatus != nil
-		})
+		pauseTurns := waitForGoalTurns(
+			ctx,
+			t,
+			harness,
+			pauseCompleted.RunID,
+			func(page compozycontract.GoalTurnPage) bool {
+				return len(page.Turns) >= 1 && page.Turns[len(page.Turns)-1].ResultStatus != nil
+			},
+		)
 		assertMonotonicGoalTurns(t, pauseTurns)
 		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-pause", countGoalVerdicts(pauseTurns))
 	})
@@ -144,11 +150,11 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 				currentErr,
 			)
 		}
-		waitForGoalSnapshot(ctx, t, harness, approvalSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
-			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusNeedsApproval
+		waitForGoalSnapshot(ctx, t, harness, approvalSession.ID, func(goal *compozycontract.GoalSnapshot) bool {
+			return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusNeedsApproval
 		})
 		grantStatus, granted := callGoalCommandUDS(ctx, t, harness, approvalSession.ID, "/goal resume")
-		if grantStatus != http.StatusOK || granted.Outcome != aghcontract.GoalOutcomeResumed {
+		if grantStatus != http.StatusOK || granted.Outcome != compozycontract.GoalOutcomeResumed {
 			t.Fatalf("approval grant command = status:%d result:%#v", grantStatus, granted)
 		}
 		approvalCompleted := waitForGoalSnapshot(
@@ -156,8 +162,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			harness,
 			approvalSession.ID,
-			func(goal *aghcontract.GoalSnapshot) bool {
-				return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusDone
+			func(goal *compozycontract.GoalSnapshot) bool {
+				return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusDone
 			},
 		)
 		approvalTurns := waitForGoalTurns(
@@ -165,7 +171,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			harness,
 			approvalCompleted.RunID,
-			func(page aghcontract.GoalTurnPage) bool {
+			func(page compozycontract.GoalTurnPage) bool {
 				return len(page.Turns) >= 2 && page.Turns[len(page.Turns)-1].ResultStatus != nil
 			},
 		)
@@ -195,7 +201,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			)
 		}
 		clearRunID := clearStart.Snapshot.RunID
-		waitForGoalTurns(ctx, t, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
+		waitForGoalTurns(ctx, t, harness, clearRunID, func(page compozycontract.GoalTurnPage) bool {
 			return len(page.Turns) == 1 && page.Turns[0].ResultStatus == nil
 		})
 		waitForActiveGoalJudgeSession(ctx, t, harness, "goal-clear")
@@ -206,13 +212,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			clearSession.ID,
 			"/goal replace stale-run-id Replace the wrong Run",
 		)
-		if staleStatus != http.StatusConflict || stale.Outcome != aghcontract.GoalOutcomeError ||
-			stale.ReasonCode == nil || *stale.ReasonCode != aghcontract.GoalReasonReplaceStale ||
+		if staleStatus != http.StatusConflict || stale.Outcome != compozycontract.GoalOutcomeError ||
+			stale.ReasonCode == nil || *stale.ReasonCode != compozycontract.GoalReasonReplaceStale ||
 			stale.Snapshot == nil || stale.Snapshot.RunID != clearRunID {
 			t.Fatalf("stale replacement result = status:%d result:%#v", staleStatus, stale)
 		}
 		clearStatus, cleared := callGoalCommandUDS(ctx, t, harness, clearSession.ID, "/goal clear")
-		if clearStatus != http.StatusOK || cleared.Outcome != aghcontract.GoalOutcomeCleared ||
+		if clearStatus != http.StatusOK || cleared.Outcome != compozycontract.GoalOutcomeCleared ||
 			cleared.Snapshot != nil {
 			t.Fatalf("clear active Goal result = status:%d result:%#v", clearStatus, cleared)
 		}
@@ -223,7 +229,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		if clearedProjection.Goal != nil {
 			t.Fatalf("cleared Goal projection = %#v, want nil", clearedProjection.Goal)
 		}
-		clearedTurns := waitForGoalTurns(ctx, t, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
+		clearedTurns := waitForGoalTurns(ctx, t, harness, clearRunID, func(page compozycontract.GoalTurnPage) bool {
 			return len(page.Turns) == 1 && page.Turns[0].ResultStatus != nil
 		})
 		if clearedTurns.Turns[0].ResultStatus == nil || clearedTurns.Turns[0].ReasonCode != nil ||
@@ -231,7 +237,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t.Fatalf("cleared judging turn = %#v, want completed work without a stale verdict", clearedTurns.Turns[0])
 		}
 		clearedRun := waitForClearedGoalRun(ctx, t, harness, clearRunID)
-		if clearedRun.Run.Status != aghcontract.LoopRunStatusFailed {
+		if clearedRun.Run.Status != compozycontract.LoopRunStatusFailed {
 			t.Fatalf("cleared Loop Run status = %q, want failed", clearedRun.Run.Status)
 		}
 		afterClear, err := getGoalTurns(ctx, harness, clearRunID)
@@ -277,9 +283,9 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t,
 			restarted,
 			rejectionSessionID,
-			func(goal *aghcontract.GoalSnapshot) bool {
+			func(goal *compozycontract.GoalSnapshot) bool {
 				return goal != nil && goal.RunID == rejectionSnapshot.RunID &&
-					goal.RunStatus == aghcontract.LoopRunStatusDone
+					goal.RunStatus == compozycontract.LoopRunStatusDone
 			},
 		)
 		if restartedSnapshot.TurnsUsed != 3 || restartedSnapshot.LastVerdict == nil ||
@@ -298,7 +304,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 
 func goalCommandRuntimeOptions(
 	t testing.TB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceRoot string,
 ) e2etest.RuntimeHarnessOptions {
 	t.Helper()
@@ -324,7 +330,7 @@ func goalCommandRuntimeOptions(
 		Workspace: e2etest.WorkspaceSeedOptions{
 			Root: workspaceRoot,
 			Files: map[string]string{
-				filepath.Join(aghconfig.DirName, aghconfig.ConfigName): `
+				filepath.Join(compozyconfig.DirName, compozyconfig.ConfigName): `
 [memory]
 enabled = false
 
@@ -350,7 +356,7 @@ func startGoalThroughHTTPAndDisconnect(
 	objective string,
 ) int {
 	t.Helper()
-	payload, err := json.Marshal(aghcontract.SendPromptRequest{Message: "/goal " + strings.TrimSpace(objective)})
+	payload, err := json.Marshal(compozycontract.SendPromptRequest{Message: "/goal " + strings.TrimSpace(objective)})
 	if err != nil {
 		t.Fatalf("marshal disconnected Goal start error = %v", err)
 	}
@@ -393,9 +399,9 @@ func callGoalCommandUDS(
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	command string,
-) (int, aghcontract.GoalCommandResult) {
+) (int, compozycontract.GoalCommandResult) {
 	t.Helper()
-	payload, err := json.Marshal(aghcontract.SendPromptRequest{Message: strings.TrimSpace(command)})
+	payload, err := json.Marshal(compozycontract.SendPromptRequest{Message: strings.TrimSpace(command)})
 	if err != nil {
 		t.Fatalf("marshal Goal command error = %v", err)
 	}
@@ -421,7 +427,7 @@ func callGoalCommandUDS(
 	if contentType := response.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("Goal command content type = %q, want application/json", contentType)
 	}
-	var result aghcontract.GoalCommandResult
+	var result compozycontract.GoalCommandResult
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("decode Goal command result error = %v; body=%s", err, body)
 	}
@@ -435,8 +441,8 @@ func getGoalSnapshot(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-) (aghcontract.SessionGoalResponse, error) {
-	var response aghcontract.SessionGoalResponse
+) (compozycontract.SessionGoalResponse, error) {
+	var response compozycontract.SessionGoalResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 		"/sessions/" + url.PathEscape(strings.TrimSpace(sessionID)) + "/goal"
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
@@ -447,8 +453,8 @@ func getGoalTurns(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) (aghcontract.GoalTurnPage, error) {
-	var response aghcontract.GoalTurnPage
+) (compozycontract.GoalTurnPage, error) {
+	var response compozycontract.GoalTurnPage
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 		"/loop-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/turns"
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
@@ -459,8 +465,8 @@ func getGoalLoopRun(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) (aghcontract.LoopRunResponse, error) {
-	var response aghcontract.LoopRunResponse
+) (compozycontract.LoopRunResponse, error) {
+	var response compozycontract.LoopRunResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 		"/loop-runs/" + url.PathEscape(strings.TrimSpace(runID))
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
@@ -470,8 +476,8 @@ func getGoalLoopRun(
 func listGoalRuntimeSessions(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-) (aghcontract.SessionCatalogResponse, error) {
-	var response aghcontract.SessionCatalogResponse
+) (compozycontract.SessionCatalogResponse, error) {
+	var response compozycontract.SessionCatalogResponse
 	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
 	return response, err
@@ -489,7 +495,7 @@ func waitForStoppedGoalJudgeSessions(
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var last []aghcontract.SessionPayload
+	var last []compozycontract.SessionPayload
 	var lastErr error
 	for {
 		page, err := listGoalRuntimeSessions(ctx, harness)
@@ -542,7 +548,7 @@ func waitForActiveGoalJudgeSession(
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var last []aghcontract.SessionPayload
+	var last []compozycontract.SessionPayload
 	var lastErr error
 	for {
 		page, err := listGoalRuntimeSessions(ctx, harness)
@@ -582,7 +588,7 @@ func waitForActiveGoalJudgeSession(
 	}
 }
 
-func allGoalJudgeSessionsStopped(sessions []aghcontract.SessionPayload) bool {
+func allGoalJudgeSessionsStopped(sessions []compozycontract.SessionPayload) bool {
 	for _, item := range sessions {
 		if item.State != session.StateStopped {
 			return false
@@ -641,8 +647,8 @@ func waitForGoalJudgeSessionIDs(
 	}
 }
 
-func goalJudgeSessions(sessions []aghcontract.SessionPayload) []aghcontract.SessionPayload {
-	judges := make([]aghcontract.SessionPayload, 0, len(sessions))
+func goalJudgeSessions(sessions []compozycontract.SessionPayload) []compozycontract.SessionPayload {
+	judges := make([]compozycontract.SessionPayload, 0, len(sessions))
 	for _, item := range sessions {
 		if item.Type == session.SessionTypeSystem && strings.HasPrefix(item.Name, "loop gate ") {
 			judges = append(judges, item)
@@ -651,7 +657,7 @@ func goalJudgeSessions(sessions []aghcontract.SessionPayload) []aghcontract.Sess
 	return judges
 }
 
-func goalJudgeSessionIDs(sessions []aghcontract.SessionPayload) []string {
+func goalJudgeSessionIDs(sessions []compozycontract.SessionPayload) []string {
 	judges := goalJudgeSessions(sessions)
 	ids := make([]string, 0, len(judges))
 	for _, item := range judges {
@@ -666,17 +672,17 @@ func waitForClearedGoalRun(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) aghcontract.LoopRunResponse {
+) compozycontract.LoopRunResponse {
 	t.Helper()
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var last aghcontract.LoopRunResponse
+	var last compozycontract.LoopRunResponse
 	var lastErr error
 	for {
 		last, lastErr = getGoalLoopRun(ctx, harness, runID)
-		if lastErr == nil && last.Run.Status == aghcontract.LoopRunStatusFailed {
+		if lastErr == nil && last.Run.Status == compozycontract.LoopRunStatusFailed {
 			return last
 		}
 		select {
@@ -694,14 +700,14 @@ func waitForGoalSnapshot(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-	predicate func(*aghcontract.GoalSnapshot) bool,
-) aghcontract.GoalSnapshot {
+	predicate func(*compozycontract.GoalSnapshot) bool,
+) compozycontract.GoalSnapshot {
 	t.Helper()
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var last aghcontract.SessionGoalResponse
+	var last compozycontract.SessionGoalResponse
 	var lastErr error
 	for {
 		last, lastErr = getGoalSnapshot(ctx, harness, sessionID)
@@ -727,14 +733,14 @@ func waitForGoalSnapshot(
 	}
 }
 
-func goalSnapshotValue(response aghcontract.SessionGoalResponse) any {
+func goalSnapshotValue(response compozycontract.SessionGoalResponse) any {
 	if response.Goal == nil {
 		return nil
 	}
 	return *response.Goal
 }
 
-func goalReasonValue(reason *aghcontract.GoalReasonCode) any {
+func goalReasonValue(reason *compozycontract.GoalReasonCode) any {
 	if reason == nil {
 		return nil
 	}
@@ -746,14 +752,14 @@ func waitForGoalTurns(
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-	predicate func(aghcontract.GoalTurnPage) bool,
-) aghcontract.GoalTurnPage {
+	predicate func(compozycontract.GoalTurnPage) bool,
+) compozycontract.GoalTurnPage {
 	t.Helper()
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	var last aghcontract.GoalTurnPage
+	var last compozycontract.GoalTurnPage
 	var lastErr error
 	for {
 		last, lastErr = getGoalTurns(ctx, harness, runID)
@@ -770,7 +776,7 @@ func waitForGoalTurns(
 	}
 }
 
-func assertGoalJudgeOutcomes(t testing.TB, page aghcontract.GoalTurnPage, want []string) {
+func assertGoalJudgeOutcomes(t testing.TB, page compozycontract.GoalTurnPage, want []string) {
 	t.Helper()
 	if len(page.Turns) != len(want) {
 		t.Fatalf("Goal turn count = %d, want %d: %#v", len(page.Turns), len(want), page)
@@ -783,7 +789,7 @@ func assertGoalJudgeOutcomes(t testing.TB, page aghcontract.GoalTurnPage, want [
 	assertMonotonicGoalTurns(t, page)
 }
 
-func countGoalVerdicts(page aghcontract.GoalTurnPage) int {
+func countGoalVerdicts(page compozycontract.GoalTurnPage) int {
 	count := 0
 	for _, turn := range page.Turns {
 		if turn.VerdictOutcome != nil {
@@ -793,7 +799,7 @@ func countGoalVerdicts(page aghcontract.GoalTurnPage) int {
 	return count
 }
 
-func assertMonotonicGoalTurns(t testing.TB, page aghcontract.GoalTurnPage) {
+func assertMonotonicGoalTurns(t testing.TB, page compozycontract.GoalTurnPage) {
 	t.Helper()
 	type streamKey struct {
 		generation int64
@@ -817,11 +823,11 @@ func assertGoalTurnsCLIParity(
 	ctx context.Context,
 	t testing.TB,
 	harness *e2etest.RuntimeHarness,
-	want aghcontract.GoalTurnPage,
+	want compozycontract.GoalTurnPage,
 	runID string,
 ) {
 	t.Helper()
-	var jsonPage aghcontract.GoalTurnPage
+	var jsonPage compozycontract.GoalTurnPage
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&jsonPage,
@@ -861,7 +867,7 @@ func assertGoalTurnsCLIParity(
 		t.Fatalf("CLI Goal turns JSONL lines = %d, want %d; stdout=%s", len(lines), len(want.Turns), stdout)
 	}
 	for index, line := range lines {
-		var turn aghcontract.GoalTurn
+		var turn compozycontract.GoalTurn
 		if err := json.Unmarshal([]byte(line), &turn); err != nil {
 			t.Fatalf("decode CLI Goal turn JSONL line %d error = %v; line=%s", index, err, line)
 		}

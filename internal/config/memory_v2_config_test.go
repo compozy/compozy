@@ -135,8 +135,8 @@ mode = "post_message"
 throttle_turns = 2
 deadline = "45s"
 sandbox_inbox_only = false
-inbox_path = "~/agh-inbox"
-dlq_path = "~/agh-dlq"
+inbox_path = "~/compozy-inbox"
+dlq_path = "~/compozy-dlq"
 
 [memory.extractor.queue]
 capacity = 2
@@ -165,7 +165,7 @@ freshness = 0.15
 
 [memory.session]
 ledger_format = "jsonl"
-ledger_root = "~/agh-sessions"
+ledger_root = "~/compozy-sessions"
 events_purge_grace = "12h"
 cold_archive_days = 14
 hard_delete_days = 1
@@ -223,8 +223,8 @@ auto_create = false
 			memory.Workspace.AutoCreate {
 			t.Fatalf("Load() Memory tail config = %#v", memory)
 		}
-		if !strings.HasSuffix(memory.Extractor.InboxPath, "agh-inbox") ||
-			!strings.HasSuffix(memory.Session.LedgerRoot, "agh-sessions") {
+		if !strings.HasSuffix(memory.Extractor.InboxPath, "compozy-inbox") ||
+			!strings.HasSuffix(memory.Session.LedgerRoot, "compozy-sessions") {
 			t.Fatalf("Load() normalized paths = %q/%q", memory.Extractor.InboxPath, memory.Session.LedgerRoot)
 		}
 	})

@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -590,7 +590,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
-		if err := os.Remove(filepath.Join(workspace, aghconfig.DirName, "memory", "orphan.md")); err != nil {
+		if err := os.Remove(filepath.Join(workspace, compozyconfig.DirName, "memory", "orphan.md")); err != nil {
 			t.Fatalf("os.Remove(orphan memory) error = %v", err)
 		}
 
@@ -1284,12 +1284,12 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 		resolved := workspacepkg.ResolvedWorkspace{
 			Workspace: workspace,
-			Config: aghconfig.Config{
-				Providers: map[string]aghconfig.ProviderConfig{
+			Config: compozyconfig.Config{
+				Providers: map[string]compozyconfig.ProviderConfig{
 					"alpha": {Command: "alpha --acp"},
 				},
 			},
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "fake",
 				Prompt:   "hello",
@@ -1441,7 +1441,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 
 		fixture, workspace, _, _, _, _, _, _ := setup(t)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			agents: []aghconfig.AgentDef{
+			agents: []compozyconfig.AgentDef{
 				{
 					Name:     "coder",
 					Provider: "catalog-should-not-win",

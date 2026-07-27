@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -50,7 +50,7 @@ type HostedConfig struct {
 	Enabled        bool
 	BindNonceTTL   time.Duration
 	ExpectedBinary string
-	HomePaths      aghconfig.HomePaths
+	HomePaths      compozyconfig.HomePaths
 	Registry       HostedRegistry
 	Logger         *slog.Logger
 	Now            func() time.Time
@@ -64,7 +64,7 @@ type HostedService struct {
 	enabled        bool
 	bindNonceTTL   time.Duration
 	expectedBinary string
-	homePaths      aghconfig.HomePaths
+	homePaths      compozyconfig.HomePaths
 	registry       HostedRegistry
 	logger         *slog.Logger
 	now            func() time.Time
@@ -160,7 +160,7 @@ func NewHostedService(cfg HostedConfig) (*HostedService, error) {
 	}
 	ttl := cfg.BindNonceTTL
 	if ttl <= 0 {
-		ttl = aghconfig.DefaultHostedMCPBindNonceTTLSeconds * time.Second
+		ttl = compozyconfig.DefaultHostedMCPBindNonceTTLSeconds * time.Second
 	}
 	expected, err := normalizeExecutablePath(cfg.ExpectedBinary)
 	if err != nil {
@@ -181,24 +181,24 @@ func NewHostedService(cfg HostedConfig) (*HostedService, error) {
 }
 
 // Launch mints a session-bound, single-use hosted MCP launch record.
-func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (aghconfig.MCPServer, error) {
+func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (compozyconfig.MCPServer, error) {
 	if err := ctxErr(ctx); err != nil {
-		return aghconfig.MCPServer{}, err
+		return compozyconfig.MCPServer{}, err
 	}
 	if s == nil || !s.enabled {
-		return aghconfig.MCPServer{}, ErrHostedDisabled
+		return compozyconfig.MCPServer{}, ErrHostedDisabled
 	}
 	sessionID := strings.TrimSpace(req.SessionID)
 	if sessionID == "" {
-		return aghconfig.MCPServer{}, ErrHostedSessionRequired
+		return compozyconfig.MCPServer{}, ErrHostedSessionRequired
 	}
 	nonce, err := s.randomToken(hostedNonceBytes)
 	if err != nil {
-		return aghconfig.MCPServer{}, fmt.Errorf("mcp: mint hosted MCP nonce: %w", err)
+		return compozyconfig.MCPServer{}, fmt.Errorf("mcp: mint hosted MCP nonce: %w", err)
 	}
 	correlation, err := s.randomToken(hostedBindBytes)
 	if err != nil {
-		return aghconfig.MCPServer{}, fmt.Errorf("mcp: mint hosted MCP correlation id: %w", err)
+		return compozyconfig.MCPServer{}, fmt.Errorf("mcp: mint hosted MCP correlation id: %w", err)
 	}
 	now := s.now().UTC()
 	record := &hostedLaunchRecord{
@@ -219,9 +219,9 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (ag
 	if home := strings.TrimSpace(s.homePaths.HomeDir); home != "" {
 		env["COMPOZY_HOME"] = home
 	}
-	return aghconfig.MCPServer{
+	return compozyconfig.MCPServer{
 		Name:      HostedServerName,
-		Transport: aghconfig.MCPServerTransportStdio,
+		Transport: compozyconfig.MCPServerTransportStdio,
 		Command:   s.expectedBinary,
 		Args:      []string{"tool", hostedMCPKey, "--session", sessionID, "--bind-nonce", nonce},
 		Env:       env,

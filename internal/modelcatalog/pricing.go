@@ -13,7 +13,7 @@ type TokenBuckets struct {
 	Reasoning  *int64
 }
 
-// CostStatus identifies how AGH obtained a cost result.
+// CostStatus identifies how Compozy obtained a cost result.
 type CostStatus string
 
 const (

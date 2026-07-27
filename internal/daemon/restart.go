@@ -10,7 +10,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -176,7 +176,7 @@ type restartTransition struct {
 }
 
 type restartStore struct {
-	homePaths aghconfig.HomePaths
+	homePaths compozyconfig.HomePaths
 	now       func() time.Time
 }
 

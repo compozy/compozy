@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/sandbox/providertest"
 )
@@ -27,7 +27,7 @@ func TestLocalProviderPrepareReturnsLocalRuntime(t *testing.T) {
 	t.Parallel()
 
 	req := newTestPrepareRequest(t)
-	provider := NewProvider(WithPermissionMode(aghconfig.PermissionModeDenyAll))
+	provider := NewProvider(WithPermissionMode(compozyconfig.PermissionModeDenyAll))
 
 	prepared, err := provider.Prepare(context.Background(), req)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestLocalProviderPrepareClonesMutableInputs(t *testing.T) {
 	t.Parallel()
 
 	req := newTestPrepareRequest(t)
-	provider := NewProvider(WithPermissionMode(aghconfig.PermissionModeApproveAll))
+	provider := NewProvider(WithPermissionMode(compozyconfig.PermissionModeApproveAll))
 
 	prepared, err := provider.Prepare(context.Background(), req)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestLocalProviderPreparePreservesNilMutableInputs(t *testing.T) {
 	req.LocalAdditionalDirs = nil
 	req.AgentEnv = nil
 	req.ProviderState = nil
-	provider := NewProvider(WithPermissionMode(aghconfig.PermissionModeApproveAll))
+	provider := NewProvider(WithPermissionMode(compozyconfig.PermissionModeApproveAll))
 
 	prepared, err := provider.Prepare(context.Background(), req)
 	if err != nil {
@@ -127,7 +127,7 @@ func TestLocalProviderOptions(t *testing.T) {
 	provider := NewProvider(
 		WithLogger(logger),
 		WithStopTimeout(25*time.Millisecond),
-		WithPermissionMode(aghconfig.PermissionModeApproveAll),
+		WithPermissionMode(compozyconfig.PermissionModeApproveAll),
 	)
 	concrete, ok := provider.(*localProvider)
 	if !ok {
@@ -139,11 +139,11 @@ func TestLocalProviderOptions(t *testing.T) {
 	if concrete.stopTimeout != 25*time.Millisecond {
 		t.Fatalf("WithStopTimeout() = %v, want %v", concrete.stopTimeout, 25*time.Millisecond)
 	}
-	if concrete.permissionMode != aghconfig.PermissionModeApproveAll {
+	if concrete.permissionMode != compozyconfig.PermissionModeApproveAll {
 		t.Fatalf(
 			"WithPermissionMode() = %q, want %q",
 			concrete.permissionMode,
-			aghconfig.PermissionModeApproveAll,
+			compozyconfig.PermissionModeApproveAll,
 		)
 	}
 
@@ -204,7 +204,7 @@ func TestLocalProviderNoopLifecycleMethods(t *testing.T) {
 func TestLocalProviderRegistryResolvesLocalDefault(t *testing.T) {
 	t.Parallel()
 
-	registry, err := NewRegistry(WithPermissionMode(aghconfig.PermissionModeApproveAll))
+	registry, err := NewRegistry(WithPermissionMode(compozyconfig.PermissionModeApproveAll))
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestLocalProviderLifecycleCompliance(t *testing.T) {
 	t.Parallel()
 
 	req := newTestPrepareRequest(t)
-	provider := NewProvider(WithPermissionMode(aghconfig.PermissionModeApproveAll))
+	provider := NewProvider(WithPermissionMode(compozyconfig.PermissionModeApproveAll))
 
 	prepared := providertest.RunLifecycle(t, providertest.LifecycleCase{
 		Provider:       provider,
@@ -266,7 +266,7 @@ func newTestPrepareRequest(t *testing.T) sandbox.PrepareRequest {
 		},
 		AgentCommand:  "sh -c 'cat'",
 		AgentEnv:      []string{"COMPOZY_SESSION_ID=sess-local", "CUSTOM=value"},
-		Permissions:   string(aghconfig.PermissionModeApproveAll),
+		Permissions:   string(compozyconfig.PermissionModeApproveAll),
 		ProviderState: json.RawMessage(`{"sandbox":"local"}`),
 	}
 }

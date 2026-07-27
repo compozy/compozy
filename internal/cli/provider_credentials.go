@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/vault"
@@ -15,7 +15,7 @@ import (
 
 func providerCredentialStatuses(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	env *authproviders.ProbeEnv,
 ) ([]providerCredentialStatusItem, error) {
 	statuses, err := authproviders.CredentialStatuses(ctx, provider, env)
@@ -41,9 +41,9 @@ func providerCredentialStatuses(
 }
 
 func providerAuthProbeEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	deps commandDeps,
 ) (authproviders.ProbeEnv, error) {
 	commandEnv, err := providerauth.CommandEnv(homePaths, providerName, provider, os.Environ())
@@ -65,7 +65,7 @@ func providerAuthProbeEnv(
 }
 
 type cliProviderVaultMetadataResolver struct {
-	homePaths aghconfig.HomePaths
+	homePaths compozyconfig.HomePaths
 	getenv    func(string) string
 }
 

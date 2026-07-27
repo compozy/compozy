@@ -5,7 +5,7 @@ package session
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -116,7 +116,7 @@ func TestManagerIntegrationLegacyProviderRepairPersistsAndResumeStaysDeterminist
 				Name:    h.workspaceName,
 			},
 			Config: h.cfg,
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "codex",
 				Prompt:   "You are a coding assistant.",

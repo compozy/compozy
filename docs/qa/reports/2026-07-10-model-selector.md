@@ -16,7 +16,7 @@ The cycle walked CH-028 through CH-036 against one isolated daemon, exercised th
   "manifest_path": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts/qa/bootstrap-manifest.json",
   "lab_root": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab",
   "qa_output_path": "/Users/pedronauck/dev/qa-labs/compozy-model-selector-20260710-194713-914643-lab/qa-artifacts",
-  "agh_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a9ca00a24cc3/runtime",
+  "compozy_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a9ca00a24cc3/runtime",
   "http_base_url": "http://127.0.0.1:62339",
   "uds_socket": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-a9ca00a24cc3/runtime/compozyd.sock",
   "web_url": "http://localhost:3001",

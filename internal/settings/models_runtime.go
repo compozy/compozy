@@ -4,7 +4,7 @@ import (
 	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
@@ -26,19 +26,19 @@ type GeneralSection struct {
 
 // MemorySection is the memory section read model.
 type MemorySection struct {
-	Config  aghconfig.MemoryConfig
+	Config  compozyconfig.MemoryConfig
 	Health  MemoryHealthStatus
 	Actions MemoryActions
 }
 
 // RolesSection is the background-role routing read model.
 type RolesSection struct {
-	Config aghconfig.RolesConfig
+	Config compozyconfig.RolesConfig
 }
 
 // SkillsSection is the skills section read model.
 type SkillsSection struct {
-	Config           aghconfig.SkillsConfig
+	Config           compozyconfig.SkillsConfig
 	DiscoveredCount  int
 	DisabledCount    int
 	RuntimeAvailable bool
@@ -55,19 +55,19 @@ type AutomationSection struct {
 
 // NetworkSection is the network section read model.
 type NetworkSection struct {
-	Config  aghconfig.NetworkConfig
+	Config  compozyconfig.NetworkConfig
 	Runtime NetworkRuntimeStatus
 	Links   []OperationalLink
 }
 
 // WindowManagerSection is the window-manager section read model.
 type WindowManagerSection struct {
-	Config aghconfig.WindowManagerConfig
+	Config compozyconfig.WindowManagerConfig
 }
 
 // ObservabilitySection is the observability section read model.
 type ObservabilitySection struct {
-	Config         aghconfig.ObservabilityConfig
+	Config         compozyconfig.ObservabilityConfig
 	Runtime        ObservabilityRuntimeStatus
 	LogTailSupport CapabilityStatus
 }
@@ -75,7 +75,7 @@ type ObservabilitySection struct {
 // HooksExtensionsSection is the hooks and extensions section read model.
 type HooksExtensionsSection struct {
 	Hooks           []HookItem
-	Extensions      aghconfig.ExtensionsConfig
+	Extensions      compozyconfig.ExtensionsConfig
 	Installed       []InstalledExtension
 	TransportParity TransportParityStatus
 }

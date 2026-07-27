@@ -146,7 +146,12 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 				&accepted,
 			)
 			if status != http.StatusOK || accepted.DryRun == nil {
-				t.Fatalf("%s non-authoritative model response = status:%d payload:%#v", transport.name, status, accepted)
+				t.Fatalf(
+					"%s non-authoritative model response = status:%d payload:%#v",
+					transport.name,
+					status,
+					accepted,
+				)
 			}
 		}
 
@@ -274,16 +279,32 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 				t.Fatalf("%s Loop input-default dry-run = %#v, want plan", response.name, response.body)
 			}
 			plan := response.body.DryRun
-			if plan.ResolvedInputs["task_name"] != "task_09" || plan.InputOrigins["task_name"] != contract.LoopInputOriginRun {
-				t.Fatalf("%s task_name = %#v/%q, want task_09/run", response.name, plan.ResolvedInputs, plan.InputOrigins["task_name"])
+			if plan.ResolvedInputs["task_name"] != "task_09" ||
+				plan.InputOrigins["task_name"] != contract.LoopInputOriginRun {
+				t.Fatalf(
+					"%s task_name = %#v/%q, want task_09/run",
+					response.name,
+					plan.ResolvedInputs,
+					plan.InputOrigins["task_name"],
+				)
 			}
 			if plan.ResolvedInputs["auto_commit"] != true ||
 				plan.InputOrigins["auto_commit"] != contract.LoopInputOriginWorkspace {
-				t.Fatalf("%s auto_commit = %#v/%q, want true/workspace", response.name, plan.ResolvedInputs, plan.InputOrigins["auto_commit"])
+				t.Fatalf(
+					"%s auto_commit = %#v/%q, want true/workspace",
+					response.name,
+					plan.ResolvedInputs,
+					plan.InputOrigins["auto_commit"],
+				)
 			}
 			if plan.ResolvedInputs["reviewer"] != "definition-reviewer" ||
 				plan.InputOrigins["reviewer"] != contract.LoopInputOriginDefinition {
-				t.Fatalf("%s reviewer = %#v/%q, want definition origin", response.name, plan.ResolvedInputs, plan.InputOrigins["reviewer"])
+				t.Fatalf(
+					"%s reviewer = %#v/%q, want definition origin",
+					response.name,
+					plan.ResolvedInputs,
+					plan.InputOrigins["reviewer"],
+				)
 			}
 			if response.body.WebURL != "" {
 				t.Fatalf("%s dry-run web_url = %q, want omitted", response.name, response.body.WebURL)
@@ -529,7 +550,7 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		waitForLoopRunStatus(t, ctx, harness, run.ID, contract.LoopRunStatusDone)
 		records := loopRuntimeDiagnostics(t, environment.judgeDiagnostics)
 		judgeSession := loopRuntimeSessionForOption(t, records, "model", "criterion-judge")
-		if len(acpmock.PromptDiagnostics(acpmock.DiagnosticsForAGHSession(records, judgeSession))) != 1 {
+		if len(acpmock.PromptDiagnostics(acpmock.DiagnosticsForCompozySession(records, judgeSession))) != 1 {
 			t.Fatalf("judge session diagnostics = %#v, want one real prompt", records)
 		}
 	}) {
@@ -602,7 +623,12 @@ func loopRuntimeValidationBody(
 	var response contract.LoopValidationResponse
 	status := loopRuntimeRawJSON(t, ctx, client, target, http.MethodPost, body, &response)
 	if status != http.StatusUnprocessableEntity {
-		t.Fatalf("runtime validation status = %d, want %d; payload=%#v", status, http.StatusUnprocessableEntity, response)
+		t.Fatalf(
+			"runtime validation status = %d, want %d; payload=%#v",
+			status,
+			http.StatusUnprocessableEntity,
+			response,
+		)
 	}
 	return response
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -60,7 +60,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist the registered workspace id when AGH identity differs", func(t *testing.T) {
+	t.Run("Should persist the registered workspace id when Compozy identity differs", func(t *testing.T) {
 		registryWorkspaceID := "ws-native-network"
 		identityWorkspaceID := "01KSGVKVZVS4WP4HVMFE08J96Y"
 		var stored store.NetworkChannelEntry
@@ -284,7 +284,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		if err == nil {
 			t.Fatal("Registry.Call(agent_create) error = nil, want unavailable sync error")
 		}
-		path := filepath.Join(homePaths.AgentsDir, "missing-sync", aghconfig.AgentDefinitionFileName)
+		path := filepath.Join(homePaths.AgentsDir, "missing-sync", compozyconfig.AgentDefinitionFileName)
 		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("os.Stat(unwritten agent) error = %v, want os.ErrNotExist", statErr)
 		}
@@ -294,9 +294,9 @@ func TestNativeAgentCreate(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.Defaults.Provider = "claude"
-		cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: "claude"}
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
 		var publisher agentSkillPublisher
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:  homePaths,
@@ -317,7 +317,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(agent_create late publisher) error = %v", err)
 		}
-		path := filepath.Join(homePaths.AgentsDir, "late-publisher", aghconfig.AgentDefinitionFileName)
+		path := filepath.Join(homePaths.AgentsDir, "late-publisher", compozyconfig.AgentDefinitionFileName)
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("os.Stat(late-publisher agent) error = %v", err)
 		}
@@ -347,7 +347,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		if _, err := registry.Call(t.Context(), toolspkg.Scope{}, request); !errors.Is(err, syncErr) {
 			t.Fatalf("first Registry.Call(agent_create) error = %v, want sync failure", err)
 		}
-		path := filepath.Join(homePaths.AgentsDir, "retryable", aghconfig.AgentDefinitionFileName)
+		path := filepath.Join(homePaths.AgentsDir, "retryable", compozyconfig.AgentDefinitionFileName)
 		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("os.Stat(rolled back agent) error = %v, want os.ErrNotExist", statErr)
 		}
@@ -360,11 +360,11 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	homePaths := testHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Defaults.Provider = "claude"
-	cfg.Providers["claude"] = aghconfig.ProviderConfig{
+	cfg.Providers["claude"] = compozyconfig.ProviderConfig{
 		Command: "claude",
-		Models:  aghconfig.ProviderModelsConfig{Default: "claude-sonnet"},
+		Models:  compozyconfig.ProviderModelsConfig{Default: "claude-sonnet"},
 	}
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 		HomePaths:   homePaths,
@@ -388,7 +388,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		if _, statErr := os.Stat(path); statErr != nil {
 			t.Fatalf("agent definition not written at %q: %v", path, statErr)
 		}
-		agent, loadErr := aghconfig.LoadAgentDefFile(path)
+		agent, loadErr := compozyconfig.LoadAgentDefFile(path)
 		if loadErr != nil {
 			t.Fatalf("LoadAgentDefFile() error = %v", loadErr)
 		}
@@ -414,7 +414,7 @@ func TestNativeAgentCreate(t *testing.T) {
 				`{"scope":"global","name":"coordinator","provider":"claude","prompt":"Reserved."}`,
 			),
 		})
-		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+		if !errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 			t.Fatalf("Registry.Call(agent_create reserved) error = %v, want ErrAgentNameReserved", err)
 		}
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -441,10 +441,10 @@ func TestNativeAgentCreate(t *testing.T) {
 			result,
 			[]byte(`"effective_runtime":{"provider":"claude","model":"claude-sonnet"`),
 		)
-		agent, loadErr := aghconfig.LoadAgentDefFile(filepath.Join(
+		agent, loadErr := compozyconfig.LoadAgentDefFile(filepath.Join(
 			homePaths.AgentsDir,
 			"inherited",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		))
 		if loadErr != nil {
 			t.Fatalf("LoadAgentDefFile(inherited) error = %v", loadErr)
@@ -508,15 +508,15 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 						Name:    "native-network",
 					},
 					WorkspaceID: workspaceID,
-					Agents: []aghconfig.AgentDef{
-						{Name: aghconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
+					Agents: []compozyconfig.AgentDef{
+						{Name: compozyconfig.DefaultAgentName, Provider: "codex", Prompt: "General."},
 						{Name: "onboarding", Provider: "codex", Prompt: "Onboarding."},
 					},
 				}, nil
 			},
 		},
 		Sessions: nativeNetworkTestSessionManager(workspaceID),
-		AgentCatalog: nativeAgentCatalogStub{agents: []aghconfig.AgentDef{
+		AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
 			{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
 			{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
 		}},
@@ -535,14 +535,14 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 }
 
 type nativeAgentCatalogStub struct {
-	agents []aghconfig.AgentDef
+	agents []compozyconfig.AgentDef
 }
 
 func (s nativeAgentCatalogStub) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
 	entries := make([]core.AgentCatalogEntry, 0, len(s.agents))
 	for _, agent := range s.agents {
 		entries = append(entries, core.AgentCatalogEntry{
-			Def:    aghconfig.CloneAgentDef(agent),
+			Def:    compozyconfig.CloneAgentDef(agent),
 			Origin: contract.AgentOriginGlobal,
 		})
 	}

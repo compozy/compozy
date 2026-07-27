@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func settingsDaemonPayload(value aghconfig.DaemonConfig) contract.SettingsDaemonPayload {
+func settingsDaemonPayload(value compozyconfig.DaemonConfig) contract.SettingsDaemonPayload {
 	return contract.SettingsDaemonPayload{
 		Socket:               strings.TrimSpace(value.Socket),
 		MemoryReportInterval: value.MemoryReportInterval.String(),

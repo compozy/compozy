@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/sandbox"
 )
@@ -35,7 +35,7 @@ type UpdateOptions struct {
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
 type Resolver struct {
 	store       Store
-	homePaths   aghconfig.HomePaths
+	homePaths   compozyconfig.HomePaths
 	loadConfig  ConfigLoader
 	logger      *slog.Logger
 	now         func() time.Time
@@ -330,7 +330,7 @@ func (r *Resolver) buildResolvedWorkspace(
 	}, nil
 }
 
-func resolveWorkspaceSandbox(ws Workspace, cfg *aghconfig.Config) (sandbox.Resolved, error) {
+func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.Resolved, error) {
 	ref := strings.TrimSpace(ws.SandboxRef)
 	if ref == "" {
 		ref = strings.TrimSpace(cfg.Defaults.Sandbox)

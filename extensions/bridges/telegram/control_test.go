@@ -437,7 +437,7 @@ func telegramControlInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "test",
+		CompozyVersion:           "test",
 		SessionNonce:             "nonce-telegram-control",
 		Extension: subprocess.InitializeExtension{
 			Name:       "telegram",

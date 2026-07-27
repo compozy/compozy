@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func nilGlobalContext() context.Context {
@@ -140,8 +140,8 @@ func TestGlobalDBWorkspaceAndAutomationGuardClauses(t *testing.T) {
 	}
 
 	globalDB := openTestGlobalDB(t)
-	assertErr("InsertWorkspace(nil ctx)", globalDB.InsertWorkspace(nilGlobalContext(), aghworkspace.Workspace{}))
-	assertErr("UpdateWorkspace(nil ctx)", globalDB.UpdateWorkspace(nilGlobalContext(), aghworkspace.Workspace{}))
+	assertErr("InsertWorkspace(nil ctx)", globalDB.InsertWorkspace(nilGlobalContext(), compozyworkspace.Workspace{}))
+	assertErr("UpdateWorkspace(nil ctx)", globalDB.UpdateWorkspace(nilGlobalContext(), compozyworkspace.Workspace{}))
 	assertErr("DeleteWorkspace(nil ctx)", globalDB.DeleteWorkspace(nilGlobalContext(), "ws-1"))
 	_, err := globalDB.GetWorkspace(nilGlobalContext(), "ws-1")
 	assertErr("GetWorkspace(nil ctx)", err)

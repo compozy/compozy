@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-const aghModulePath = "github.com/compozy/compozy/"
+const compozyModulePath = "github.com/compozy/compozy/"
 
 type dependencyClosureRule struct {
 	root              string
@@ -31,17 +31,17 @@ type dependencyClosureViolation struct {
 }
 
 var bridgeDependencyClosureRules = func() []dependencyClosureRule {
-	allowedPrefixes := []string{aghModulePath + "internal/bridges/contract"}
+	allowedPrefixes := []string{compozyModulePath + "internal/bridges/contract"}
 	forbiddenPrefixes := []string{
-		aghModulePath + "internal/bridges",
-		aghModulePath + "internal/store",
-		aghModulePath + "internal/resources",
-		aghModulePath + "internal/task",
-		aghModulePath + "internal/session",
-		aghModulePath + "internal/automation",
-		aghModulePath + "internal/observe",
-		aghModulePath + "internal/extension",
-		aghModulePath + "internal/daemon",
+		compozyModulePath + "internal/bridges",
+		compozyModulePath + "internal/store",
+		compozyModulePath + "internal/resources",
+		compozyModulePath + "internal/task",
+		compozyModulePath + "internal/session",
+		compozyModulePath + "internal/automation",
+		compozyModulePath + "internal/observe",
+		compozyModulePath + "internal/extension",
+		compozyModulePath + "internal/daemon",
 	}
 	roots := []string{
 		"./internal/bridgesdk",

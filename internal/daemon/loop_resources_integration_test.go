@@ -11,7 +11,7 @@ import (
 	"time"
 
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
@@ -37,7 +37,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		}
 
 		workspaceRoot := t.TempDir()
-		workspaceLoopsDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.LoopsDirName)
+		workspaceLoopsDir := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 		if _, _, err := looppkg.WriteDefinition(
 			workspaceLoopsDir,
 			[]byte(testLoopYAML("software-delivery", "workspace shadow")),
@@ -324,15 +324,15 @@ func newLoopIntegrationHarness(t *testing.T) loopIntegrationHarness {
 	return loopIntegrationHarness{codec: codec, store: store, catalog: catalog, driver: driver}
 }
 
-func loopIntegrationHome(t *testing.T) aghconfig.HomePaths {
+func loopIntegrationHome(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
-		t.Fatalf("aghconfig.ResolveHomePathsFrom() error = %v", err)
+		t.Fatalf("compozyconfig.ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("aghconfig.EnsureHomeLayout() error = %v", err)
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("compozyconfig.EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
 }
@@ -341,7 +341,7 @@ func newDevCycleLoopE2EState(
 	t *testing.T,
 	d *Daemon,
 	db *globaldb.GlobalDB,
-	cfg aghconfig.Config,
+	cfg compozyconfig.Config,
 ) *bootState {
 	t.Helper()
 

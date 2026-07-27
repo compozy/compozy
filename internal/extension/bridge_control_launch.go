@@ -126,7 +126,7 @@ func (m *Manager) bridgeControlInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          m.protocolVersion,
 		SupportedProtocolVersion: slices.Clone(m.supportedProtocolVersions),
-		AGHVersion:               version.Current().Version,
+		CompozyVersion:           version.Current().Version,
 		SessionNonce:             sessionNonce,
 		Extension: subprocess.InitializeExtension{
 			Name:       extension.manifest.Name,

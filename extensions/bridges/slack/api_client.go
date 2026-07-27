@@ -107,7 +107,7 @@ func slackMetadataMatchesDelivery(
 	if metadata == nil {
 		return false
 	}
-	if strings.TrimSpace(metadata.EventType) != providerAghBridgeDeliveryKey {
+	if strings.TrimSpace(metadata.EventType) != providerCompozyBridgeDeliveryKey {
 		return false
 	}
 	return strings.TrimSpace(metadata.EventPayload.DeliveryID) == strings.TrimSpace(req.DeliveryID) &&

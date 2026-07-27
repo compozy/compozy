@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -297,12 +297,21 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 		if !errors.As(err, &blockedErr) {
 			t.Fatalf("Registry.Call(automation_jobs_create) error = %T, want *DaemonLifecycleCommandError", err)
 		}
-		if blockedErr.Class != automationpkg.DaemonLifecycleCommandClassAGHDaemon {
-			t.Fatalf("blocked command class = %q, want %q", blockedErr.Class, automationpkg.DaemonLifecycleCommandClassAGHDaemon)
+		if blockedErr.Class != automationpkg.DaemonLifecycleCommandClassCompozyDaemon {
+			t.Fatalf(
+				"blocked command class = %q, want %q",
+				blockedErr.Class,
+				automationpkg.DaemonLifecycleCommandClassCompozyDaemon,
+			)
 		}
 		reason, ok := toolspkg.ReasonOf(err)
 		if !ok || reason != toolspkg.ReasonAutomationValidationFailed {
-			t.Fatalf("Registry.Call(automation_jobs_create) reason = %q, %v, want %q", reason, ok, toolspkg.ReasonAutomationValidationFailed)
+			t.Fatalf(
+				"Registry.Call(automation_jobs_create) reason = %q, %v, want %q",
+				reason,
+				ok,
+				toolspkg.ReasonAutomationValidationFailed,
+			)
 		}
 
 		page, listErr := manager.ListJobs(ctx, automationpkg.JobListQuery{})
@@ -333,8 +342,8 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 	)
 	if err != nil {
@@ -352,7 +361,7 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 		automationpkg.WithStore(db),
 		automationpkg.WithSessions(newNativeAutomationSessionManager()),
 		automationpkg.WithWorkspaceResolver(resolver),
-		automationpkg.WithConfig(aghconfig.AutomationConfig{
+		automationpkg.WithConfig(compozyconfig.AutomationConfig{
 			Enabled:           true,
 			Timezone:          automationpkg.DefaultTimezone,
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,

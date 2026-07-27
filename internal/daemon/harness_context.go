@@ -54,17 +54,17 @@ const (
 type HarnessPromptSection string
 
 const (
-	// HarnessPromptSectionRuntimeIdentity injects the daemon-owned AGH runtime envelope.
+	// HarnessPromptSectionRuntimeIdentity injects the daemon-owned Compozy runtime envelope.
 	HarnessPromptSectionRuntimeIdentity HarnessPromptSection = "runtime_identity"
-	// HarnessPromptSectionSituation injects the bounded AGH situation context.
+	// HarnessPromptSectionSituation injects the bounded Compozy situation context.
 	HarnessPromptSectionSituation HarnessPromptSection = "situation"
 	// HarnessPromptSectionMemory injects durable memory prompt context.
 	HarnessPromptSectionMemory HarnessPromptSection = "memory"
 	// HarnessPromptSectionSkills injects the active skills catalog prompt context.
 	HarnessPromptSectionSkills HarnessPromptSection = "skills"
-	// HarnessPromptSectionTools injects AGH-native tool discovery and invocation guidance.
+	// HarnessPromptSectionTools injects Compozy-native tool discovery and invocation guidance.
 	HarnessPromptSectionTools HarnessPromptSection = "tools"
-	// HarnessPromptSectionNetwork injects the bundled AGH network startup section.
+	// HarnessPromptSectionNetwork injects the bundled Compozy network startup section.
 	HarnessPromptSectionNetwork HarnessPromptSection = "network"
 )
 
@@ -72,7 +72,7 @@ const (
 type HarnessAugmenter string
 
 const (
-	// HarnessAugmenterSituation injects fresh bounded AGH situation context.
+	// HarnessAugmenterSituation injects fresh bounded Compozy situation context.
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
 	// HarnessAugmenterSkills injects the current effective skills catalog.
 	HarnessAugmenterSkills HarnessAugmenter = "skills"

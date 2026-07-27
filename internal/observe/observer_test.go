@@ -13,14 +13,14 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/version"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
@@ -147,7 +147,7 @@ func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		memoryIdentity, err := aghworkspace.EnsureIdentity(testutil.Context(t), h.workspace)
+		memoryIdentity, err := compozyworkspace.EnsureIdentity(testutil.Context(t), h.workspace)
 		if err != nil {
 			t.Fatalf("EnsureIdentity(%q) error = %v", h.workspace, err)
 		}
@@ -517,7 +517,7 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		catalog := &stubCostCatalog{}
 		h := newHarness(t)
 		h.observer.costCatalog = catalog
-		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeNativeCLI)
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeNativeCLI)
 		sess := newSession("sess-cost-actual", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		h.observeSessionCreated(t, sess)
@@ -543,7 +543,7 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		catalog := &stubCostCatalog{}
 		h := newHarness(t)
 		h.observer.costCatalog = catalog
-		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeBoundSecret)
 		sess := newSession("sess-cost-actual-missing-currency", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		h.observeSessionCreated(t, sess)
@@ -577,7 +577,7 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		}}}
 		h := newHarness(t)
 		h.observer.costCatalog = catalog
-		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeBoundSecret)
 		sess := newSession("sess-cost-estimated", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		h.observeSessionCreated(t, sess)
@@ -611,7 +611,7 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		}}}
 		h := newHarness(t)
 		h.observer.costCatalog = catalog
-		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeBoundSecret)
 		sess := newSession("sess-cost-unknown", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		h.observeSessionCreated(t, sess)
@@ -632,7 +632,7 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		catalog := &stubCostCatalog{}
 		h := newHarness(t)
 		h.observer.costCatalog = catalog
-		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeNativeCLI)
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeNativeCLI)
 		sess := newSession("sess-cost-included", session.StateActive, h.workspace, h.now)
 		sess.Model = "claude-test"
 		h.observeSessionCreated(t, sess)
@@ -1171,7 +1171,7 @@ type harness struct {
 	observer    *Observer
 	registry    *globaldb.GlobalDB
 	bridges     *observeBridgeSource
-	home        aghconfig.HomePaths
+	home        compozyconfig.HomePaths
 	source      *stubSessionSource
 	now         time.Time
 	workspaceID string
@@ -1218,8 +1218,8 @@ func (s *stubCostCatalog) ListModels(
 	return append([]modelcatalog.Model(nil), s.models...), s.err
 }
 
-func fixedProviderAuthMode(mode aghconfig.ProviderAuthMode) ProviderAuthModeResolver {
-	return func(context.Context, string, string, string, string) (aghconfig.ProviderAuthMode, error) {
+func fixedProviderAuthMode(mode compozyconfig.ProviderAuthMode) ProviderAuthModeResolver {
+	return func(context.Context, string, string, string, string) (compozyconfig.ProviderAuthMode, error) {
 		return mode, nil
 	}
 }
@@ -1285,11 +1285,11 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	ctx := observeTestContext(t)
 
-	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(home); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(home); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -1317,24 +1317,24 @@ func newHarness(t *testing.T) *harness {
 	if err := os.MkdirAll(workspace, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
-	cfg := aghconfig.DefaultWithHome(home)
+	cfg := compozyconfig.DefaultWithHome(home)
 	workspaceResolver := &fakeObserveWorkspaceResolver{
 		expectedRef: observerWorkspaceID,
-		resolved: aghworkspace.ResolvedWorkspace{
-			Workspace: aghworkspace.Workspace{
+		resolved: compozyworkspace.ResolvedWorkspace{
+			Workspace: compozyworkspace.Workspace{
 				ID:      observerWorkspaceID,
 				RootDir: workspace,
 				Name:    "observe-workspace",
 			},
 			Config: cfg,
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			}},
 		},
 	}
-	if err := registry.InsertWorkspace(ctx, aghworkspace.Workspace{
+	if err := registry.InsertWorkspace(ctx, compozyworkspace.Workspace{
 		ID:        observerWorkspaceID,
 		RootDir:   workspace,
 		Name:      "observe-workspace",

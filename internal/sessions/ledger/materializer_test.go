@@ -509,7 +509,7 @@ func createLegacyRawEventDB(ctx context.Context, t *testing.T) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "events.db")
-	legacyContent := `{"schema":"agh.session.event.v1","type":"tool_call","raw":{"content":"preserve"}}`
+	legacyContent := `{"schema":"compozy.session.event.v1","type":"tool_call","raw":{"content":"preserve"}}`
 	recorder, err := sessiondb.OpenSessionDB(ctx, "sess-legacy-raw", path)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(legacy raw) error = %v", err)

@@ -171,10 +171,11 @@ export const bridgeOperatorTestIds = {
   createBridgeDisplayNameInput: "bridge-display-name-input",
   createBridgeProviderConfigInput: "bridge-provider-config-input",
   createBridgeProviderConfigError: "bridge-provider-config-error",
+  createBridgeModeAdvanced: "bridge-create-mode-advanced",
   createBridgeRoutingIncludePeer: "bridge-routing-include-peer",
   createBridgeRoutingIncludeThread: "bridge-routing-include-thread",
-  createBridgeScopeSelect: "bridge-scope-select",
-  createBridgeWizardNext: "bridge-wizard-next",
+  createBridgeScopeGlobal: "bridge-create-scope-global",
+  createBridgeScopeWorkspace: "bridge-create-scope-workspace",
   createBridgeButton: "create-bridge-btn",
   detailOverflow: "bridge-detail-overflow",
   disableBridgeButton: "disable-bridge-btn",
@@ -253,13 +254,14 @@ export const sandboxOperatorTestIds = {
   deleteDialog: "settings-sandboxes-delete",
   deleteUsage: "sandbox-delete-usage",
   editor: "settings-sandbox-editor",
-  editorBackendInput: "sandbox-editor-backend-input",
+  editorAdvancedMode: "sandbox-editor-mode-advanced",
+  editorBackendLocal: "sandbox-editor-backend-local",
   editorError: "settings-sandbox-editor-error",
-  editorNameInput: "sandbox-editor-name-input",
-  editorPersistenceInput: "sandbox-editor-persistence-input",
-  editorRuntimeRootInput: "sandbox-editor-runtime-root-input",
+  editorNameInput: "sandbox-editor-name",
+  editorPersistenceInput: "sandbox-editor-persistence",
+  editorRuntimeRootInput: "sandbox-editor-runtime-root",
   editorSave: "settings-sandbox-editor-save",
-  editorSyncModeInput: "sandbox-editor-sync-mode-input",
+  editorSyncModeInput: "sandbox-editor-sync-mode",
   empty: "sandbox-page-empty",
   list: "sandbox-page-list",
   restartNotice: "settings-page-sandbox-restart-notice",
@@ -393,10 +395,11 @@ export interface BridgeOperatorSelectors {
   createDisplayNameInput: Locator;
   createProviderConfigError: Locator;
   createProviderConfigInput: Locator;
+  createModeAdvanced: Locator;
   createRoutingIncludePeer: Locator;
   createRoutingIncludeThread: Locator;
-  createScopeSelect: Locator;
-  createWizardNext: Locator;
+  createScopeGlobal: Locator;
+  createScopeWorkspace: Locator;
   deleteSecret(bindingName: string): Locator;
   detailPanel: Locator;
   detailOverflow: Locator;
@@ -507,7 +510,8 @@ export interface SandboxOperatorSelectors {
   deleteUsage: Locator;
   editProfile(name: string): Locator;
   editor: Locator;
-  editorBackendInput: Locator;
+  editorAdvancedMode: Locator;
+  editorBackendLocal: Locator;
   editorError: Locator;
   editorNameInput: Locator;
   editorPersistenceInput: Locator;
@@ -1178,7 +1182,8 @@ export function sandboxOperatorSelectors(
     deleteUsage: page.getByTestId(sandboxOperatorTestIds.deleteUsage),
     editProfile: (name: string) => page.getByTestId(`sandbox-page-card-${name}-edit`),
     editor: page.getByTestId(sandboxOperatorTestIds.editor),
-    editorBackendInput: page.getByTestId(sandboxOperatorTestIds.editorBackendInput),
+    editorAdvancedMode: page.getByTestId(sandboxOperatorTestIds.editorAdvancedMode),
+    editorBackendLocal: page.getByTestId(sandboxOperatorTestIds.editorBackendLocal),
     editorError: page.getByTestId(sandboxOperatorTestIds.editorError),
     editorNameInput: page.getByTestId(sandboxOperatorTestIds.editorNameInput),
     editorPersistenceInput: page.getByTestId(sandboxOperatorTestIds.editorPersistenceInput),
@@ -1312,14 +1317,15 @@ export function bridgeOperatorSelectors(
     createProviderConfigInput: page.getByTestId(
       bridgeOperatorTestIds.createBridgeProviderConfigInput
     ),
+    createModeAdvanced: page.getByTestId(bridgeOperatorTestIds.createBridgeModeAdvanced),
     createRoutingIncludePeer: page.getByTestId(
       bridgeOperatorTestIds.createBridgeRoutingIncludePeer
     ),
     createRoutingIncludeThread: page.getByTestId(
       bridgeOperatorTestIds.createBridgeRoutingIncludeThread
     ),
-    createScopeSelect: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeSelect),
-    createWizardNext: page.getByTestId(bridgeOperatorTestIds.createBridgeWizardNext),
+    createScopeGlobal: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeGlobal),
+    createScopeWorkspace: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeWorkspace),
     deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
     detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
     detailOverflow: page.getByTestId(bridgeOperatorTestIds.detailOverflow),

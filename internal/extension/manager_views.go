@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -170,7 +170,7 @@ func (m *Manager) HookDeclarations(ctx context.Context) ([]hookspkg.HookDecl, er
 }
 
 // AgentDefinitions returns the currently registered extension agent definitions.
-func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
+func (m *Manager) AgentDefinitions() []compozyconfig.AgentDef {
 	if m == nil {
 		return nil
 	}
@@ -178,7 +178,7 @@ func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var agents []aghconfig.AgentDef
+	var agents []compozyconfig.AgentDef
 	names := make([]string, 0, len(m.extensions))
 	for name := range m.extensions {
 		names = append(names, name)
@@ -190,7 +190,7 @@ func (m *Manager) AgentDefinitions() []aghconfig.AgentDef {
 			continue
 		}
 		for _, agent := range ext.agents {
-			agents = append(agents, aghconfig.CloneAgentDef(agent))
+			agents = append(agents, compozyconfig.CloneAgentDef(agent))
 		}
 	}
 	return agents

@@ -14,7 +14,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -32,7 +32,7 @@ type memoryStore struct {
 	activations   map[string]Activation
 	inventory     map[string][]InventoryItem
 	bundles       []resources.Record[BundleResourceSpec]
-	agents        []resources.Record[aghconfig.AgentDef]
+	agents        []resources.Record[compozyconfig.AgentDef]
 	applied       []BundleActivationResourcePlan
 	applyErr      error
 	applyAfterErr error
@@ -43,7 +43,7 @@ type memoryStore struct {
 	listBundleActivationsHook  func() ([]Activation, error)
 	listBundleInventoryHook    func(string) ([]InventoryItem, error)
 	listBundleResourcesHook    func() ([]resources.Record[BundleResourceSpec], error)
-	listAgentResourcesHook     func() ([]resources.Record[aghconfig.AgentDef], error)
+	listAgentResourcesHook     func() ([]resources.Record[compozyconfig.AgentDef], error)
 }
 
 func newMemoryStore() *memoryStore {
@@ -145,11 +145,11 @@ func (s *memoryStore) ListBundleResources(
 
 func (s *memoryStore) ListAgentResources(
 	_ context.Context,
-) ([]resources.Record[aghconfig.AgentDef], error) {
+) ([]resources.Record[compozyconfig.AgentDef], error) {
 	if s.listAgentResourcesHook != nil {
 		return s.listAgentResourcesHook()
 	}
-	return append([]resources.Record[aghconfig.AgentDef](nil), s.agents...), nil
+	return append([]resources.Record[compozyconfig.AgentDef](nil), s.agents...), nil
 }
 
 func (s *memoryStore) ApplyBundleActivationResources(
@@ -192,7 +192,7 @@ func (s *memoryStore) ApplyBundleActivationResources(
 		activationID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
 		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
 			ActivationID: activationID,
-			ResourceKind: string(aghconfig.AgentResourceKind),
+			ResourceKind: string(compozyconfig.AgentResourceKind),
 			ResourceID:   agent.ID,
 			ResourceName: agent.Spec.Name,
 		})
@@ -251,7 +251,7 @@ func (s *memoryStore) ApplyBundleActivationResources(
 }
 
 func (s *memoryStore) applyDesiredAgentRecords(plan BundleActivationResourcePlan) {
-	preserved := make([]resources.Record[aghconfig.AgentDef], 0, len(s.agents)+len(plan.desiredAgents))
+	preserved := make([]resources.Record[compozyconfig.AgentDef], 0, len(s.agents)+len(plan.desiredAgents))
 	for _, record := range s.agents {
 		if record.Owner.Kind.Normalize() == BundleActivationOwnerKind {
 			continue
@@ -260,12 +260,12 @@ func (s *memoryStore) applyDesiredAgentRecords(plan BundleActivationResourcePlan
 	}
 	for _, agent := range plan.desiredAgents {
 		activationID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
-		preserved = append(preserved, resources.Record[aghconfig.AgentDef]{
-			Kind:  aghconfig.AgentResourceKind,
+		preserved = append(preserved, resources.Record[compozyconfig.AgentDef]{
+			Kind:  compozyconfig.AgentResourceKind,
 			ID:    strings.TrimSpace(agent.ID),
 			Scope: agent.Scope.Normalize(),
 			Owner: ownerForActivation(activationID),
-			Spec:  aghconfig.CloneAgentDef(agent.Spec),
+			Spec:  compozyconfig.CloneAgentDef(agent.Spec),
 		})
 	}
 	s.agents = preserved
@@ -329,7 +329,7 @@ func newMarketingExtension() *extensionpkg.Extension {
 				}},
 				Agents: []extensionpkg.BundleAgent{{
 					Path: "agents/marketer",
-					Agent: aghconfig.AgentDef{
+					Agent: compozyconfig.AgentDef{
 						Name:   "marketer",
 						Prompt: "Run marketing workflows.",
 						Model:  "sonnet",
@@ -340,7 +340,7 @@ func newMarketingExtension() *extensionpkg.Extension {
 					},
 					Heartbeat: &extensionpkg.BundleAgentSidecar{
 						SourcePath: "agents/marketer/HEARTBEAT.md",
-						Body:       "Inspect campaign status and use AGH task APIs.",
+						Body:       "Inspect campaign status and use Compozy task APIs.",
 					},
 				}},
 				Jobs: []extensionpkg.BundleJob{{
@@ -401,7 +401,7 @@ func bundleTestLayoutResource(id string, displayName string) windowmanager.Layou
 func newMarketingService(store *memoryStore, opts ...Option) *Service {
 	ext := newMarketingExtension()
 	if len(store.agents) == 0 {
-		store.agents = []resources.Record[aghconfig.AgentDef]{plannerAgentRecord()}
+		store.agents = []resources.Record[compozyconfig.AgentDef]{plannerAgentRecord()}
 	}
 	return newServiceForExtensions(store, []*extensionpkg.Extension{ext}, opts...)
 }
@@ -461,12 +461,12 @@ func newServiceForExtensions(
 	)
 }
 
-func plannerAgentRecord() resources.Record[aghconfig.AgentDef] {
-	return resources.Record[aghconfig.AgentDef]{
-		Kind:  aghconfig.AgentResourceKind,
+func plannerAgentRecord() resources.Record[compozyconfig.AgentDef] {
+	return resources.Record[compozyconfig.AgentDef]{
+		Kind:  compozyconfig.AgentResourceKind,
 		ID:    "agent_planner",
 		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		Spec: aghconfig.AgentDef{
+		Spec: compozyconfig.AgentDef{
 			Name:   "planner",
 			Prompt: "Plan the work.",
 		},
@@ -477,12 +477,12 @@ func bundleAgentRecord(
 	id string,
 	name string,
 	scope resources.ResourceScope,
-) resources.Record[aghconfig.AgentDef] {
-	return resources.Record[aghconfig.AgentDef]{
-		Kind:  aghconfig.AgentResourceKind,
+) resources.Record[compozyconfig.AgentDef] {
+	return resources.Record[compozyconfig.AgentDef]{
+		Kind:  compozyconfig.AgentResourceKind,
 		ID:    id,
 		Scope: scope,
-		Spec: aghconfig.AgentDef{
+		Spec: compozyconfig.AgentDef{
 			Name:   name,
 			Prompt: "Existing agent.",
 		},
@@ -681,7 +681,7 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 		t.Parallel()
 
 		store := newMemoryStore()
-		store.agents = []resources.Record[aghconfig.AgentDef]{plannerAgentRecord()}
+		store.agents = []resources.Record[compozyconfig.AgentDef]{plannerAgentRecord()}
 		ext := newMarketingExtension()
 		service := newServiceForExtensions(
 			store,
@@ -781,7 +781,7 @@ func TestServiceAgentValidation(t *testing.T) {
 			ProfileName:   "default",
 			Scope:         ScopeGlobal,
 		})
-		if !errors.Is(err, aghconfig.ErrAgentNameReserved) {
+		if !errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 			t.Fatalf("Activate() error = %v, want ErrAgentNameReserved", err)
 		}
 		if !strings.Contains(err.Error(), "/agents/coordinator/AGENT.md") {
@@ -825,7 +825,7 @@ func TestServiceAgentValidation(t *testing.T) {
 		t.Parallel()
 
 		store := newMemoryStore()
-		store.agents = []resources.Record[aghconfig.AgentDef]{
+		store.agents = []resources.Record[compozyconfig.AgentDef]{
 			bundleAgentRecord("agent_existing_marketer", "marketer", resources.ResourceScope{
 				Kind: resources.ResourceScopeKindGlobal,
 			}),

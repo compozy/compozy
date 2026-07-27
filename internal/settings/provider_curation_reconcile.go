@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
@@ -72,9 +72,9 @@ func (s *service) reconcileProviderCuratedWrite(
 func (s *service) applyProviderModelCurationIntent(
 	ctx context.Context,
 	providerID string,
-	rows []aghconfig.ProviderModelConfig,
+	rows []compozyconfig.ProviderModelConfig,
 	request ProviderModelCurationRequest,
-) ([]aghconfig.ProviderModelConfig, error) {
+) ([]compozyconfig.ProviderModelConfig, error) {
 	request.ProviderID = strings.TrimSpace(providerID)
 	request.ModelID = strings.TrimSpace(request.ModelID)
 	if request.ModelID == "" {
@@ -121,10 +121,10 @@ func (s *service) currentCuratedProviderModelIDs(
 }
 
 func reconcileProviderCuratedRows(
-	raw []aghconfig.ProviderModelConfig,
+	raw []compozyconfig.ProviderModelConfig,
 	currentIDs []string,
-	desired []aghconfig.ProviderModelConfig,
-) []aghconfig.ProviderModelConfig {
+	desired []compozyconfig.ProviderModelConfig,
+) []compozyconfig.ProviderModelConfig {
 	rows := cloneProviderModelConfigs(raw)
 	rowIndex := make(map[string]int, len(rows))
 	for index := range rows {
@@ -160,7 +160,7 @@ func reconcileProviderCuratedRows(
 	return rows
 }
 
-func providerModelsWriteClearsConfig(models aghconfig.ProviderModelsConfig) bool {
+func providerModelsWriteClearsConfig(models compozyconfig.ProviderModelsConfig) bool {
 	return strings.TrimSpace(models.Default) == "" &&
 		models.Curated == nil &&
 		models.Discovery.Enabled == nil &&
@@ -210,14 +210,14 @@ func providerModelIDSet(ids []string) map[string]struct{} {
 }
 
 func ensureProviderCuratedRow(
-	rows *[]aghconfig.ProviderModelConfig,
+	rows *[]compozyconfig.ProviderModelConfig,
 	index map[string]int,
 	modelID string,
 ) int {
 	if existing, ok := index[modelID]; ok {
 		return existing
 	}
-	*rows = append(*rows, aghconfig.ProviderModelConfig{ID: modelID})
+	*rows = append(*rows, compozyconfig.ProviderModelConfig{ID: modelID})
 	created := len(*rows) - 1
 	index[modelID] = created
 	return created

@@ -15,7 +15,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -35,7 +35,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
 	}
-	artifactContent := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+	artifactContent := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
 	artifactRef, err := artifactStore.Put(t.Context(), "ws-1", artifactContent)
 	if err != nil {
 		t.Fatalf("artifactStore.Put() error = %v", err)
@@ -333,19 +333,19 @@ func expectedCLIToolsetPayload(
 
 func toolIntegrationDeps(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
-	cfg aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	cfg compozyconfig.Config,
 ) commandDeps {
 	t.Helper()
 
 	return commandDeps{
-		loadConfig: func() (aghconfig.Config, error) {
+		loadConfig: func() (compozyconfig.Config, error) {
 			return cfg, nil
 		},
-		resolveHome: func() (aghconfig.HomePaths, error) {
+		resolveHome: func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		},
-		ensureHome: func(aghconfig.HomePaths) error { return nil },
+		ensureHome: func(compozyconfig.HomePaths) error { return nil },
 		newClient:  NewClient,
 		getwd: func() (string, error) {
 			return "/workspace/project", nil

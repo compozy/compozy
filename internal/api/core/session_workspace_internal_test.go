@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -191,7 +191,7 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForSessionError(workspacepkg.ErrWorkspaceRootMissing); got != http.StatusGone {
 		t.Fatalf("statusForSessionError(root missing) = %d, want %d", got, http.StatusGone)
 	}
-	if got := statusForSessionError(aghconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
+	if got := statusForSessionError(compozyconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(provider unavailable) = %d, want %d", got, http.StatusBadRequest)
 	}
 	for _, tc := range []struct {
@@ -312,16 +312,16 @@ func TestSessionProviderOptionPayloads(t *testing.T) {
 func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := &aghconfig.Config{
-		Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
-		Providers: map[string]aghconfig.ProviderConfig{
+	cfg := &compozyconfig.Config{
+		Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
+		Providers: map[string]compozyconfig.ProviderConfig{
 			"alpha":  {Command: "alpha --acp"},
 			"claude": {Command: "claude-overlay --acp"},
 		},
 	}
 
-	expectedNames := make([]string, 0, len(aghconfig.BuiltinProviders())+len(cfg.Providers))
-	for name := range aghconfig.BuiltinProviders() {
+	expectedNames := make([]string, 0, len(compozyconfig.BuiltinProviders())+len(cfg.Providers))
+	for name := range compozyconfig.BuiltinProviders() {
 		if _, err := cfg.ResolveProvider(name); err == nil {
 			expectedNames = append(expectedNames, name)
 		}

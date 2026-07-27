@@ -89,7 +89,9 @@ test("operator can create a provider/model override session and attach without l
   }
 
   const ui = sessionLifecycleSelectors(appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-provider-override-workspace-"));
+  const workspaceRoot = await mkdtemp(
+    path.join(os.tmpdir(), "compozy-provider-override-workspace-")
+  );
   const overrideCommand = await readAgentCommand(runtime.paths.homeDir, browserLifecycleAgent);
 
   await writeWorkspaceConfig({
@@ -216,6 +218,8 @@ test("operator can create a provider/model override session and attach without l
     createdSession.session.id,
     overrideProvider
   );
+  await agentsWin.getByRole("button", { name: "Close window" }).click();
+  await expect(agentsWin).toBeHidden();
 
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,
@@ -394,7 +398,7 @@ async function writeWorkspaceConfig(input: {
   overrideCommand: string;
   includeOverride: boolean;
 }): Promise<void> {
-  const configDir = path.join(input.rootDir, ".agh");
+  const configDir = path.join(input.rootDir, ".compozy");
   const configPath = path.join(configDir, "config.toml");
 
   await mkdir(configDir, { recursive: true });

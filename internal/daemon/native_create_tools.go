@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -202,7 +202,7 @@ func (n *daemonNativeTools) agentCreate(
 
 func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
-	if err := aghconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
+	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
 		return fmt.Errorf("daemon: roll back created agent definition: %w", err)
 	}
 	agentSkills := n.deps.agentSkills()
@@ -257,9 +257,9 @@ func (n *daemonNativeTools) agentCreateRequest(
 
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 	switch {
-	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
 		return nativeReservedAgentNameToolError(id, err)
-	case errors.Is(err, aghconfig.ErrAgentDefinitionExists):
+	case errors.Is(err, compozyconfig.ErrAgentDefinitionExists):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,
 			id,
@@ -267,7 +267,7 @@ func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 			toolspkg.ReasonConflictedID,
 		)
-	case errors.Is(err, aghconfig.ErrInvalidAgentDefinition):
+	case errors.Is(err, compozyconfig.ErrInvalidAgentDefinition):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,

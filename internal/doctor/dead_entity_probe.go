@@ -138,7 +138,7 @@ func deadEntityDiagnosticItem(
 		spec.code,
 		spec.category,
 		spec.title,
-		"AGH is suppressing ordinary attempts and will admit a bounded recovery probe when the retry window opens.",
+		"Compozy is suppressing ordinary attempts and will admit a bounded recovery probe when the retry window opens.",
 		contract.SeverityError,
 		contract.FreshnessLive,
 		diagnostics.WithEvidence(map[string]any{

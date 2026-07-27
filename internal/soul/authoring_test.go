@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
@@ -52,7 +52,7 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 		fixture := newAuthoringFixture(t)
 		body := validSoulBody("coder", "Configuration failures must not become validation failures.")
 		target := fixture.target
-		target.Config = aghconfig.SoulConfig{
+		target.Config = compozyconfig.SoulConfig{
 			Enabled:                true,
 			MaxBodyBytes:           4096,
 			ContextProjectionBytes: 0,
@@ -171,7 +171,7 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 			{
 				name: "outside agents root", service: fixture.service, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder",
-				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+				sourcePath: filepath.Join(t.TempDir(), "coder", compozyconfig.AgentDefinitionFileName),
 				wantError:  "outside an agents root",
 			},
 		}
@@ -729,7 +729,7 @@ func newAuthoringFixtureWithDBPath(t *testing.T, dbPath string) authoringFixture
 		}
 	})
 	workspaceID := "ws-authoring"
-	if err := globalDB.InsertWorkspace(ctx, aghworkspace.Workspace{
+	if err := globalDB.InsertWorkspace(ctx, compozyworkspace.Workspace{
 		ID:      workspaceID,
 		RootDir: root,
 		Name:    "authoring",
@@ -749,7 +749,7 @@ func newAuthoringFixtureWithDBPath(t *testing.T, dbPath string) authoringFixture
 		WorkspaceRoot: root,
 		AgentName:     "coder",
 		AgentPath:     agentPath,
-		Config:        aghconfig.DefaultSoulConfig(),
+		Config:        compozyconfig.DefaultSoulConfig(),
 		ConfigSource:  "test",
 	}
 	return authoringFixture{
@@ -767,7 +767,7 @@ func newAuthoringFixtureWithDBPath(t *testing.T, dbPath string) authoringFixture
 func writeAgentDefinition(t *testing.T, root string, agentName string) string {
 	t.Helper()
 
-	agentDir := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, agentName)
+	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, agentName)
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(agent dir) error = %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -151,7 +151,7 @@ func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedRe
 			switch resources.ResourceKind(strings.TrimSpace(item.ResourceKind)) {
 			case windowmanager.WindowLayoutResourceKind:
 				owners.layouts[strings.TrimSpace(item.ResourceID)] = ownerID
-			case aghconfig.AgentResourceKind:
+			case compozyconfig.AgentResourceKind:
 				owners.agents[strings.TrimSpace(item.ResourceID)] = ownerID
 			case soul.ResourceKind:
 				owners.souls[strings.TrimSpace(item.ResourceID)] = ownerID
@@ -183,7 +183,7 @@ func (c *ownedResourceOwnerCounts) add(kind resources.ResourceKind) {
 	switch kind {
 	case windowmanager.WindowLayoutResourceKind:
 		c.layouts++
-	case aghconfig.AgentResourceKind:
+	case compozyconfig.AgentResourceKind:
 		c.agents++
 	case soul.ResourceKind:
 		c.souls++
@@ -395,7 +395,7 @@ func cloneOwnedAgentResources(values []ownedAgentResource) []ownedAgentResource 
 		cloned = append(cloned, ownedAgentResource{
 			ID:    strings.TrimSpace(value.ID),
 			Scope: value.Scope.Normalize(),
-			Spec:  aghconfig.CloneAgentDef(value.Spec),
+			Spec:  compozyconfig.CloneAgentDef(value.Spec),
 		})
 	}
 	return cloned

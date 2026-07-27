@@ -646,7 +646,7 @@ export const sessionTranscriptPermissionFixture: TranscriptMessage[] = [
     role: "assistant",
     parts: [
       {
-        type: "data-agh-permission",
+        type: "data-compozy-permission",
         data: {
           type: "permission.required",
           request_id: "perm_launch_001",

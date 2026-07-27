@@ -21,7 +21,7 @@ const (
 	CapabilityProvideWatchSource = "loop.watch_source"
 )
 
-// ExtensionServiceMethod identifies one AGH -> extension capability service request.
+// ExtensionServiceMethod identifies one Compozy -> extension capability service request.
 type ExtensionServiceMethod string
 
 const (
@@ -254,7 +254,7 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	},
 }
 
-// CapabilityServiceMethods returns the negotiated AGH -> extension service methods
+// CapabilityServiceMethods returns the negotiated Compozy -> extension service methods
 // enabled by the declared provide surfaces.
 func CapabilityServiceMethods(provides []string) []string {
 	if len(provides) == 0 {

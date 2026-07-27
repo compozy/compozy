@@ -7,15 +7,15 @@ import (
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
-// NetworkConversationSurface identifies one explicit AGH network conversation container.
+// NetworkConversationSurface identifies one explicit Compozy network conversation container.
 type NetworkConversationSurface string
 
 const (
-	// NetworkConversationSurfaceThread maps bridge ingress into a public AGH thread.
+	// NetworkConversationSurfaceThread maps bridge ingress into a public Compozy thread.
 	NetworkConversationSurfaceThread NetworkConversationSurface = NetworkConversationSurface(
 		bridgecontract.NetworkConversationSurfaceThread,
 	)
-	// NetworkConversationSurfaceDirect maps bridge ingress into a resolved AGH direct room.
+	// NetworkConversationSurfaceDirect maps bridge ingress into a resolved Compozy direct room.
 	NetworkConversationSurfaceDirect NetworkConversationSurface = NetworkConversationSurface(
 		bridgecontract.NetworkConversationSurfaceDirect,
 	)
@@ -26,7 +26,7 @@ func (s NetworkConversationSurface) Normalize() NetworkConversationSurface {
 	return NetworkConversationSurface(bridgecontract.NetworkConversationSurface(s).Normalize())
 }
 
-// NetworkConversationRef carries an explicit bridge-to-AGH conversation mapping.
+// NetworkConversationRef carries an explicit bridge-to-Compozy conversation mapping.
 type NetworkConversationRef struct {
 	Channel     string                     `json:"channel"`
 	Surface     NetworkConversationSurface `json:"surface"`
@@ -38,7 +38,7 @@ type NetworkConversationRef struct {
 	CausationID string                     `json:"causation_id,omitempty"`
 }
 
-// Validate reports whether the explicit bridge mapping selects one AGH conversation container.
+// Validate reports whether the explicit bridge mapping selects one Compozy conversation container.
 func (r NetworkConversationRef) Validate() error {
 	return networkConversationRefToContract(r).Validate()
 }
@@ -74,7 +74,7 @@ func (e InboundMessageEnvelope) Validate() error {
 	return inboundEnvelopeToContract(e).Validate()
 }
 
-// NetworkConversationRef returns only the explicit AGH conversation mapping.
+// NetworkConversationRef returns only the explicit Compozy conversation mapping.
 func (e InboundMessageEnvelope) NetworkConversationRef() (NetworkConversationRef, bool, error) {
 	reference, ok, err := inboundEnvelopeToContract(e).NetworkConversationRef()
 	if err != nil {

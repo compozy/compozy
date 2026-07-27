@@ -15,7 +15,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -97,7 +97,7 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
 	if _, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
-		Command: "definitely-not-an-agh-test-command",
+		Command: "definitely-not-an-compozy-test-command",
 		Cwd:     t.TempDir(),
 	}); err == nil {
 		t.Fatal("Launch(invalid command) error = nil, want non-nil")
@@ -151,7 +151,7 @@ func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 func TestLocalToolHostReadTextFile(t *testing.T) {
 	t.Parallel()
 
-	host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	target := filepath.Join(root, "notes.txt")
 	if err := os.WriteFile(target, []byte("from disk"), 0o644); err != nil {
 		t.Fatalf("os.WriteFile() error = %v", err)
@@ -173,7 +173,7 @@ func TestLocalToolHostReadTextFile(t *testing.T) {
 func TestLocalToolHostWriteTextFile(t *testing.T) {
 	t.Parallel()
 
-	host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	if err := host.WriteTextFile(testutil.Context(t), "nested/notes.txt", "saved"); err != nil {
 		t.Fatalf("WriteTextFile() error = %v", err)
 	}
@@ -226,7 +226,7 @@ func TestLocalToolHostRejectsNullBytePaths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+			host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 			err := tc.run(t, host)
 			if !errors.Is(err, ErrInvalidPath) {
 				t.Fatalf("null-byte path error = %v, want ErrInvalidPath", err)
@@ -245,7 +245,7 @@ func TestLocalToolHostRejectsNullBytePaths(t *testing.T) {
 func TestLocalToolHostResolvePath(t *testing.T) {
 	t.Parallel()
 
-	host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	resolved, err := host.ResolvePath("inside.txt")
 	if err != nil {
 		t.Fatalf("ResolvePath(relative) error = %v", err)
@@ -262,7 +262,7 @@ func TestLocalToolHostResolvePath(t *testing.T) {
 func TestLocalToolHostAuthorize(t *testing.T) {
 	t.Parallel()
 
-	approveAll, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	approveAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
@@ -274,7 +274,7 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 		}
 	}
 
-	denyAll, _ := newTestLocalToolHost(t, aghconfig.PermissionModeDenyAll)
+	denyAll, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeDenyAll)
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
@@ -299,7 +299,7 @@ func TestWithLocalAdditionalRootsAccumulatesAcrossOptions(t *testing.T) {
 		host, err := newLocalToolHost(
 			testutil.Context(t),
 			root,
-			aghconfig.PermissionModeApproveAll,
+			compozyconfig.PermissionModeApproveAll,
 			testDiscardLogger(),
 			WithLocalAdditionalRoots(first),
 			WithLocalAdditionalRoots(second),
@@ -322,7 +322,7 @@ func TestWithLocalAdditionalRootsAccumulatesAcrossOptions(t *testing.T) {
 func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	t.Parallel()
 
-	host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	host, root := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	cwd := filepath.Join(root, "work")
 	if err := os.MkdirAll(cwd, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", cwd, err)
@@ -358,7 +358,7 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 	host, err := newLocalToolHost(
 		ctx,
 		root,
-		aghconfig.PermissionModeApproveAll,
+		compozyconfig.PermissionModeApproveAll,
 		testDiscardLogger(),
 		WithLocalProcessRegistry(registry),
 	)
@@ -407,7 +407,7 @@ func TestLocalToolHostWaitForTerminalExitSignalOnlyFailure(t *testing.T) {
 	}
 
 	t.Run("Should return error for signal-only exit", func(t *testing.T) {
-		host, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+		host, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 		response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
@@ -447,7 +447,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 		host, err := newLocalToolHost(
 			ctx,
 			root,
-			aghconfig.PermissionModeApproveAll,
+			compozyconfig.PermissionModeApproveAll,
 			testDiscardLogger(),
 			WithLocalProcessRegistry(registry),
 		)
@@ -513,7 +513,7 @@ func TestDriverUsesInjectedLauncherAndToolHostOptions(t *testing.T) {
 	t.Parallel()
 
 	launcher := &recordingLauncher{delegate: newLocalLauncher(testDiscardLogger(), time.Second)}
-	toolHost, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+	toolHost, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
 	driver := New(WithLauncher(launcher), WithToolHost(toolHost))
 
 	if driver.launcher != launcher {
@@ -534,7 +534,7 @@ func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 		AgentName:   "helper",
 		Command:     "sh -c 'cat'",
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 	})
 	if err != nil {
 		t.Fatalf("launchAgentProcess() error = %v", err)
@@ -566,7 +566,7 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 		AgentName:   "helper",
 		Command:     "sh -c 'cat'",
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveAll,
+		Permissions: compozyconfig.PermissionModeApproveAll,
 	})
 	if err == nil {
 		t.Fatal("launchAgentProcess() error = nil, want non-nil")
@@ -684,7 +684,7 @@ func (noopWriteCloser) Close() error {
 
 func newTestLocalToolHost(
 	t *testing.T,
-	mode aghconfig.PermissionMode,
+	mode compozyconfig.PermissionMode,
 ) (*localToolHost, string) {
 	t.Helper()
 

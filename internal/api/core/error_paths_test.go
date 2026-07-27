@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -414,11 +414,11 @@ func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
 	)
 	testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 	testutil.WriteAgentDef(t, fixture.HomePaths, "broken")
-	fixture.Handlers.AgentLoader = func(name string, homePaths aghconfig.HomePaths) (aghconfig.AgentDef, error) {
+	fixture.Handlers.AgentLoader = func(name string, homePaths compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
 		if name == "broken" {
-			return aghconfig.AgentDef{}, errors.New("bad agent")
+			return compozyconfig.AgentDef{}, errors.New("bad agent")
 		}
-		return aghconfig.LoadAgentDef(name, homePaths)
+		return compozyconfig.LoadAgentDef(name, homePaths)
 	}
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
@@ -605,7 +605,7 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 				return workspace, nil
 			},
 			UpdateFn: func(context.Context, string, workspacepkg.UpdateOptions) error {
-				return aghconfig.ErrSandboxProfileNotFound
+				return compozyconfig.ErrSandboxProfileNotFound
 			},
 		}
 		fixture := newFixture(t, workspaces)

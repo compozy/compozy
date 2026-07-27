@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/vault"
@@ -184,10 +184,10 @@ func (s *service) mcpServerFromCatalog(
 	req MCPCatalogInstallRequest,
 	entry *marketplace.Entry,
 	detail *marketplace.MCPEntryDetails,
-) (aghconfig.MCPServer, MCPSecretValues, error) {
-	server := aghconfig.MCPServer{
+) (compozyconfig.MCPServer, MCPSecretValues, error) {
+	server := compozyconfig.MCPServer{
 		Name:           req.Name,
-		Transport:      aghconfig.MCPServerTransport(strings.TrimSpace(detail.Transport)),
+		Transport:      compozyconfig.MCPServerTransport(strings.TrimSpace(detail.Transport)),
 		Command:        strings.TrimSpace(detail.Command),
 		Args:           append([]string(nil), detail.Args...),
 		URL:            strings.TrimSpace(detail.URL),
@@ -195,8 +195,8 @@ func (s *service) mcpServerFromCatalog(
 		CatalogVersion: strings.TrimSpace(entry.Version),
 	}
 	if detail.OAuth != nil {
-		server.Auth = aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+		server.Auth = compozyconfig.MCPAuthConfig{
+			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 			IssuerURL:        strings.TrimSpace(detail.OAuth.IssuerURL),
 			AuthorizationURL: strings.TrimSpace(detail.OAuth.AuthorizationURL),
 			TokenURL:         strings.TrimSpace(detail.OAuth.TokenURL),
@@ -208,7 +208,7 @@ func (s *service) mcpServerFromCatalog(
 	secrets := MCPSecretValues{}
 	inputs, err := normalizeMCPEnvInputs(req.Values.Env)
 	if err != nil {
-		return aghconfig.MCPServer{}, MCPSecretValues{}, err
+		return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 	}
 	declared := make(map[string]struct{}, len(detail.Env))
 	for _, field := range detail.Env {
@@ -217,23 +217,23 @@ func (s *service) mcpServerFromCatalog(
 		input, supplied := inputs[name]
 		if field.Secret {
 			if err := s.applyCatalogSecretEnv(ctx, &server, &secrets, field, input, supplied); err != nil {
-				return aghconfig.MCPServer{}, MCPSecretValues{}, err
+				return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 			}
 			continue
 		}
 		if err := applyCatalogPlainEnv(&server, field, input, supplied); err != nil {
-			return aghconfig.MCPServer{}, MCPSecretValues{}, err
+			return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 		}
 	}
 	for name := range inputs {
 		if _, ok := declared[name]; !ok {
-			return aghconfig.MCPServer{}, MCPSecretValues{}, validationError(
+			return compozyconfig.MCPServer{}, MCPSecretValues{}, validationError(
 				fmt.Errorf("settings: values.env.%s is not declared by catalog entry %q", name, req.EntryID),
 			)
 		}
 	}
 	if err := s.applyCatalogOAuthSecret(ctx, &server, &secrets, req.Values.OAuthClientSecret); err != nil {
-		return aghconfig.MCPServer{}, MCPSecretValues{}, err
+		return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 	}
 	return server, secrets, nil
 }
@@ -254,7 +254,7 @@ func normalizeMCPEnvInputs(values map[string]MCPSecretInput) (map[string]MCPSecr
 }
 
 func applyCatalogPlainEnv(
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	field marketplace.MCPEnvFieldDetails,
 	input MCPSecretInput,
 	supplied bool,
@@ -286,7 +286,7 @@ func applyCatalogPlainEnv(
 
 func (s *service) applyCatalogSecretEnv(
 	ctx context.Context,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	secrets *MCPSecretValues,
 	field marketplace.MCPEnvFieldDetails,
 	input MCPSecretInput,
@@ -320,7 +320,7 @@ func (s *service) applyCatalogSecretEnv(
 
 func (s *service) applyCatalogOAuthSecret(
 	ctx context.Context,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	secrets *MCPSecretValues,
 	input *MCPSecretInput,
 ) error {

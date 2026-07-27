@@ -13,7 +13,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
 	storepkg "github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -100,7 +100,7 @@ func (s *Store) recallWorkspaceID(ctx context.Context, explicitWorkspaceID strin
 	if workspaceRoot == "" {
 		return "", nil
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return "", fmt.Errorf("memory: resolve workspace identity for recall: %w", err)
 	}

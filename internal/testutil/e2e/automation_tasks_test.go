@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	coreapi "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -24,8 +24,8 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 
 	now := time.Date(2026, 4, 16, 18, 0, 0, 0, time.UTC)
 
-	var seenJobRequest aghcontract.CreateJobRequest
-	var seenTriggerRequest aghcontract.CreateTriggerRequest
+	var seenJobRequest compozycontract.CreateJobRequest
+	var seenTriggerRequest compozycontract.CreateTriggerRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -34,8 +34,8 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 				t.Fatalf("Decode(job request) error = %v", err)
 			}
 			w.WriteHeader(http.StatusCreated)
-			writeJSON(w, aghcontract.JobResponse{
-				Job: aghcontract.JobPayload{
+			writeJSON(w, compozycontract.JobResponse{
+				Job: compozycontract.JobPayload{
 					ID:          "job-1",
 					Scope:       seenJobRequest.Scope,
 					Name:        seenJobRequest.Name,
@@ -56,8 +56,8 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 				t.Fatalf("Decode(trigger request) error = %v", err)
 			}
 			w.WriteHeader(http.StatusCreated)
-			writeJSON(w, aghcontract.TriggerResponse{
-				Trigger: aghcontract.TriggerPayload{
+			writeJSON(w, compozycontract.TriggerResponse{
+				Trigger: compozycontract.TriggerPayload{
 					ID:           "trg-1",
 					Scope:        seenTriggerRequest.Scope,
 					Name:         seenTriggerRequest.Name,
@@ -95,7 +95,7 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 	namedStrategy := participation.StrategyNamed
 	channelID := "ops-automation"
 	seed := AutomationFixtureSeed{
-		Jobs: []aghcontract.CreateJobRequest{{
+		Jobs: []compozycontract.CreateJobRequest{{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        "triage-deploy",
 			WorkspaceID: "ws-1",
@@ -115,7 +115,7 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 				},
 			},
 		}},
-		Triggers: []aghcontract.CreateTriggerRequest{{
+		Triggers: []compozycontract.CreateTriggerRequest{{
 			Scope:              automationpkg.AutomationScopeWorkspace,
 			WorkspaceID:        "ws-1",
 			Name:               "deploy-review",
@@ -188,16 +188,16 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
 
-	var claimRequest aghcontract.AgentTaskClaimNextRequest
-	var startRequest aghcontract.StartTaskRunRequest
-	var completeRequest aghcontract.AgentTaskCompleteRequest
+	var claimRequest compozycontract.AgentTaskClaimNextRequest
+	var startRequest compozycontract.StartTaskRunRequest
+	var completeRequest compozycontract.AgentTaskCompleteRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/automation/jobs/job-1/trigger":
 			w.WriteHeader(http.StatusCreated)
-			writeJSON(w, aghcontract.RunResponse{
-				Run: aghcontract.RunPayload{
+			writeJSON(w, compozycontract.RunResponse{
+				Run: compozycontract.RunPayload{
 					ID:        "run-1",
 					JobID:     "job-1",
 					TaskID:    "task-1",
@@ -209,16 +209,16 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.URL.RawQuery, "status=completed"; got != want {
 				t.Fatalf("automation runs query = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.RunsResponse{
-				Runs: []aghcontract.RunPayload{{
+			writeJSON(w, compozycontract.RunsResponse{
+				Runs: []compozycontract.RunPayload{{
 					ID:        "run-1",
 					SessionID: "sess-1",
 					Status:    automationpkg.RunCompleted,
 				}},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/automation/runs/run-1":
-			writeJSON(w, aghcontract.RunResponse{
-				Run: aghcontract.RunPayload{
+			writeJSON(w, compozycontract.RunResponse{
+				Run: compozycontract.RunPayload{
 					ID:        "run-1",
 					SessionID: "sess-1",
 					Status:    automationpkg.RunCompleted,
@@ -228,8 +228,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.URL.RawQuery, "workspace=ws-1"; got != want {
 				t.Fatalf("tasks query = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.TasksResponse{
-				Tasks: []aghcontract.TaskCatalogItemPayload{{
+			writeJSON(w, compozycontract.TasksResponse{
+				Tasks: []compozycontract.TaskCatalogItemPayload{{
 					ID:          "task-1",
 					Scope:       taskpkg.ScopeWorkspace,
 					WorkspaceID: "ws-1",
@@ -237,9 +237,9 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 				}},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/tasks/task-1":
-			writeJSON(w, aghcontract.TaskDetailResponse{
-				Task: aghcontract.TaskDetailPayload{
-					Task: aghcontract.TaskPayload{
+			writeJSON(w, compozycontract.TaskDetailResponse{
+				Task: compozycontract.TaskDetailPayload{
+					Task: compozycontract.TaskPayload{
 						ID:          "task-1",
 						Scope:       taskpkg.ScopeWorkspace,
 						WorkspaceID: "ws-1",
@@ -251,8 +251,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.URL.RawQuery, "status=queued"; got != want {
 				t.Fatalf("task runs query = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.TaskRunsResponse{
-				Runs: []aghcontract.TaskRunPayload{{
+			writeJSON(w, compozycontract.TaskRunsResponse{
+				Runs: []compozycontract.TaskRunPayload{{
 					ID:             "task-run-1",
 					TaskID:         "task-1",
 					Status:         taskpkg.TaskRunStatusQueued,
@@ -269,21 +269,21 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.Header.Get(agentidentity.HeaderAgent), "worker"; got != want {
 				t.Fatalf("claim agent header = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.AgentTaskClaimResponse{
-				Claim: aghcontract.AgentTaskClaimPayload{
-					Task: aghcontract.TaskReferencePayload{
+			writeJSON(w, compozycontract.AgentTaskClaimResponse{
+				Claim: compozycontract.AgentTaskClaimPayload{
+					Task: compozycontract.TaskReferencePayload{
 						ID:          "task-1",
 						Title:       "Deploy",
 						Status:      taskpkg.TaskStatusInProgress,
 						Scope:       taskpkg.ScopeWorkspace,
 						WorkspaceID: "ws-1",
 					},
-					Run: aghcontract.TaskRunPayload{
+					Run: compozycontract.TaskRunPayload{
 						ID:     "task-run-1",
 						TaskID: "task-1",
 						Status: taskpkg.TaskRunStatusClaimed,
 					},
-					Lease: aghcontract.TaskRunLeaseSummaryPayload{
+					Lease: compozycontract.TaskRunLeaseSummaryPayload{
 						TaskID:    "task-1",
 						RunID:     "task-run-1",
 						Status:    taskpkg.TaskRunStatusClaimed,
@@ -295,8 +295,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&startRequest); err != nil {
 				t.Fatalf("Decode(start request) error = %v", err)
 			}
-			writeJSON(w, aghcontract.TaskRunResponse{
-				Run: aghcontract.TaskRunPayload{
+			writeJSON(w, compozycontract.TaskRunResponse{
+				Run: compozycontract.TaskRunPayload{
 					ID:        "task-run-1",
 					TaskID:    "task-1",
 					Status:    taskpkg.TaskRunStatusRunning,
@@ -316,8 +316,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.Header.Get(agentidentity.HeaderWorkspaceID), "ws-1"; got != want {
 				t.Fatalf("complete workspace header = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.AgentTaskLeaseResponse{
-				Lease: aghcontract.TaskRunLeaseSummaryPayload{
+			writeJSON(w, compozycontract.AgentTaskLeaseResponse{
+				Lease: compozycontract.TaskRunLeaseSummaryPayload{
 					RunID:     "task-run-1",
 					TaskID:    "task-1",
 					Status:    taskpkg.TaskRunStatusCompleted,
@@ -348,10 +348,10 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := string(body), string(webhookPayload); got != want {
 				t.Fatalf("global webhook body = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.WebhookDeliveryResponse{
-				Result: aghcontract.WebhookDeliveryPayload{
+			writeJSON(w, compozycontract.WebhookDeliveryResponse{
+				Result: compozycontract.WebhookDeliveryPayload{
 					Matched: 1,
-					Runs: []aghcontract.RunPayload{{
+					Runs: []compozycontract.RunPayload{{
 						ID:        "run-1",
 						SessionID: "sess-1",
 						Status:    automationpkg.RunCompleted,
@@ -362,10 +362,10 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.Header.Get(coreapi.WebhookDeliveryIDHeader), "delivery-2"; got != want {
 				t.Fatalf("workspace webhook delivery id = %q, want %q", got, want)
 			}
-			writeJSON(w, aghcontract.WebhookDeliveryResponse{
-				Result: aghcontract.WebhookDeliveryPayload{
+			writeJSON(w, compozycontract.WebhookDeliveryResponse{
+				Result: compozycontract.WebhookDeliveryPayload{
 					Matched: 1,
-					Runs: []aghcontract.RunPayload{{
+					Runs: []compozycontract.RunPayload{{
 						ID:        "run-2",
 						SessionID: "sess-2",
 						Status:    automationpkg.RunCompleted,
@@ -433,11 +433,15 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("len(taskRuns) = %d, want %d", got, want)
 	}
 
-	claimed, err := harness.ClaimExactTaskRunForSession(context.Background(), "task-run-1", aghcontract.SessionPayload{
-		ID:          "sess-agent",
-		AgentName:   "worker",
-		WorkspaceID: "ws-1",
-	})
+	claimed, err := harness.ClaimExactTaskRunForSession(
+		context.Background(),
+		"task-run-1",
+		compozycontract.SessionPayload{
+			ID:          "sess-agent",
+			AgentName:   "worker",
+			WorkspaceID: "ws-1",
+		},
+	)
 	if err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession() error = %v", err)
 	}
@@ -445,7 +449,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("claimed.Status = %q, want %q", got, want)
 	}
 
-	started, err := harness.StartTaskRun(context.Background(), "task-run-1", aghcontract.StartTaskRunRequest{
+	started, err := harness.StartTaskRun(context.Background(), "task-run-1", compozycontract.StartTaskRunRequest{
 		IdempotencyKey: "start-1",
 	})
 	if err != nil {
@@ -458,8 +462,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 	completed, err := harness.CompleteClaimedTaskRunForSession(
 		context.Background(),
 		"task-run-1",
-		aghcontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
-		aghcontract.AgentTaskCompleteRequest{
+		compozycontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
+		compozycontract.AgentTaskCompleteRequest{
 			Result: json.RawMessage(`{"ok":true}`),
 		})
 	if err != nil {

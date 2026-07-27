@@ -40,7 +40,7 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 	return m.acceptPrepared(ctx, strings.TrimSpace(req.SessionID), prepared)
 }
 
-// SendFromRuntimePeer atomically accepts one AGH-runtime-originated envelope.
+// SendFromRuntimePeer atomically accepts one Compozy-runtime-originated envelope.
 func (m *Manager) SendFromRuntimePeer(ctx context.Context, req RuntimeSendRequest) (string, error) {
 	if ctx == nil {
 		return "", errors.New("network: runtime send context is required")

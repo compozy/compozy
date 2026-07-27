@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func (s *sessionStartSpec) applyResolvedReasoningEffort(resolved aghconfig.ResolvedAgent) error {
+func (s *sessionStartSpec) applyResolvedReasoningEffort(resolved compozyconfig.ResolvedAgent) error {
 	if s == nil || strings.TrimSpace(s.reasoningEffort) != "" {
 		return nil
 	}
@@ -22,7 +22,7 @@ func (s *sessionStartSpec) applyResolvedReasoningEffort(resolved aghconfig.Resol
 	return nil
 }
 
-func preferredACPModel(resolved aghconfig.ResolvedAgent, explicitOverride bool) string {
+func preferredACPModel(resolved compozyconfig.ResolvedAgent, explicitOverride bool) string {
 	model := strings.TrimSpace(resolved.Model)
 	if model == "" {
 		return ""
@@ -31,14 +31,14 @@ func preferredACPModel(resolved aghconfig.ResolvedAgent, explicitOverride bool) 
 	if runtimeProvider == "" {
 		runtimeProvider = strings.TrimSpace(resolved.Provider)
 	}
-	if resolved.Harness == aghconfig.ProviderHarnessACP {
+	if resolved.Harness == compozyconfig.ProviderHarnessACP {
 		if explicitOverride || runtimeProvider == runtimeProviderCodex || runtimeProvider == runtimeProviderClaude {
-			return aghconfig.ACPModelTransportValue(runtimeProvider, model)
+			return compozyconfig.ACPModelTransportValue(runtimeProvider, model)
 		}
 		return ""
 	}
-	if resolved.Harness != aghconfig.ProviderHarnessPiACP ||
-		(!explicitOverride && resolved.AuthMode != aghconfig.ProviderAuthModeNativeCLI) {
+	if resolved.Harness != compozyconfig.ProviderHarnessPiACP ||
+		(!explicitOverride && resolved.AuthMode != compozyconfig.ProviderAuthModeNativeCLI) {
 		return ""
 	}
 	if runtimeProvider == "" || strings.HasPrefix(model, runtimeProvider+"/") {

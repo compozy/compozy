@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/internal/clientstate"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/google/uuid"
@@ -72,8 +72,8 @@ func (r windowManagerWorkspaceConfigResolver) ResolveWindowManagerConfig(
 	if err != nil {
 		return windowmanager.Config{}, err
 	}
-	overlaid, err := aghconfig.ApplyWindowManagerOverlayFile(
-		filepath.Join(resolved.RootDir, aghconfig.DirName, aghconfig.ConfigName),
+	overlaid, err := compozyconfig.ApplyWindowManagerOverlayFile(
+		filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
 		active,
 	)
 	if err != nil {

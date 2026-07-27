@@ -62,7 +62,7 @@ export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelP
             </div>
             <CodeBlock
               className="mt-3"
-              code={"# same view from the CLI\nagh observe overview -o json"}
+              code={"# same view from the CLI\ncompozy observe overview -o json"}
               language="bash"
             />
           </div>

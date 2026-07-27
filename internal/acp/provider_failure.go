@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
@@ -111,7 +111,7 @@ func providerAuthFailureDiagnosticFromError(err error) (ProviderFailureDiagnosti
 		text = requestErrorDiagnosticText(reqErr)
 	}
 	classification := authproviders.ClassifyProbeResult(
-		aghconfig.ProviderConfig{AuthMode: aghconfig.ProviderAuthModeNativeCLI, Command: "provider"},
+		compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNativeCLI, Command: "provider"},
 		authproviders.ProbeOutcome{ExitCode: 1, Stderr: text},
 		&authproviders.ProbeEnv{
 			ProviderName: "provider",

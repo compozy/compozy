@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Project-local codex-loop pre-continuation review hook for AGH.
+"""Project-local codex-loop pre-continuation review hook for Compozy.
 
 The script is intentionally read-only for repository state. It prepares a
 review prompt, delegates the review to Claude through Compozy, and prints the
@@ -298,7 +298,7 @@ def generic_target_name(payload: dict[str, Any]) -> str:
 
 
 def review_preamble(mode: str, target: str) -> str:
-    return f"""You are Claude Code running as an independent AGH pre-continuation reviewer.
+    return f"""You are Claude Code running as an independent Compozy pre-continuation reviewer.
 
 Review mode: {mode}
 Review target: {target}
@@ -410,7 +410,7 @@ def run_compozy_review(target: ReviewTarget, workspace: Path) -> str:
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
-            prefix="agh-pre-loop-review-",
+            prefix="compozy-pre-loop-review-",
             suffix=".md",
             delete=False,
         ) as prompt_file:

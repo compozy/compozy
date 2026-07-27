@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providerenv"
 	"github.com/compozy/compozy/internal/vault"
@@ -32,7 +32,7 @@ func defaultEndpointPath(endpoint string) string {
 func (s *LiveProviderSource) discoveryEnv(ctx context.Context) ([]string, error) {
 	env := append([]string(nil), s.baseEnv...)
 	switch s.provider.EffectiveEnvPolicy() {
-	case aghconfig.ProviderEnvPolicyIsolated:
+	case compozyconfig.ProviderEnvPolicyIsolated:
 		env = procutil.IsolatedDaemonEnv(env)
 	default:
 		env = procutil.FilteredDaemonEnv(env)
@@ -47,14 +47,14 @@ func (s *LiveProviderSource) discoveryEnv(ctx context.Context) ([]string, error)
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: apply provider home policy for %q: %w", s.providerID, err)
 	}
-	if s.provider.EffectiveHarness() == aghconfig.ProviderHarnessPiACP &&
-		s.provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNativeCLI {
+	if s.provider.EffectiveHarness() == compozyconfig.ProviderHarnessPiACP &&
+		s.provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
 		env, err = providerenv.ApplyPiAgentDirPolicy(s.homePaths, s.providerID, s.provider.EffectiveHomePolicy(), env)
 		if err != nil {
 			return nil, fmt.Errorf("model catalog: apply pi discovery home policy for %q: %w", s.providerID, err)
 		}
 	}
-	if s.provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeBoundSecret {
+	if s.provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeBoundSecret {
 		return env, nil
 	}
 	for _, slot := range s.provider.EffectiveCredentialSlots() {
@@ -70,7 +70,7 @@ func (s *LiveProviderSource) discoveryEnv(ctx context.Context) ([]string, error)
 func (s *LiveProviderSource) injectProviderSecret(
 	ctx context.Context,
 	env []string,
-	slot aghconfig.ProviderCredentialSlot,
+	slot compozyconfig.ProviderCredentialSlot,
 ) ([]string, error) {
 	targetEnv := strings.TrimSpace(slot.TargetEnv)
 	secretRef := vault.NormalizeRef(slot.SecretRef)

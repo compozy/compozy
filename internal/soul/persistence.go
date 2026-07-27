@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -117,7 +117,7 @@ type RollbackLookup struct {
 }
 
 // NewConfigProvenance returns deterministic config provenance for a resolved Soul.
-func NewConfigProvenance(config aghconfig.SoulConfig, source string) (ConfigProvenance, error) {
+func NewConfigProvenance(config compozyconfig.SoulConfig, source string) (ConfigProvenance, error) {
 	canonical := struct {
 		Enabled                bool  `json:"enabled"`
 		MaxBodyBytes           int64 `json:"max_body_bytes"`

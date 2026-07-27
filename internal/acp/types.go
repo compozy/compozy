@@ -1,4 +1,4 @@
-// Package acp provides the AGH ACP client implementation.
+// Package acp provides the Compozy ACP client implementation.
 package acp
 
 import (
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox"
 )
@@ -37,9 +37,9 @@ const (
 	EventTypeUsage = "usage"
 	// EventTypeSystem is emitted for system-level ACP updates.
 	EventTypeSystem = "system"
-	// EventTypeRuntimeProgress is emitted by AGH while a prompt remains active.
+	// EventTypeRuntimeProgress is emitted by Compozy while a prompt remains active.
 	EventTypeRuntimeProgress = "runtime_progress"
-	// EventTypeRuntimeWarning is emitted by AGH when active prompt activity is stale.
+	// EventTypeRuntimeWarning is emitted by Compozy when active prompt activity is stale.
 	EventTypeRuntimeWarning = "runtime_warning"
 	// EventTypeDone is emitted when a prompt turn finishes.
 	EventTypeDone = "done"
@@ -56,8 +56,8 @@ type StartOpts struct {
 	Cwd                  string
 	AdditionalDirs       []string
 	Env                  []string
-	MCPServers           []aghconfig.MCPServer
-	Permissions          aghconfig.PermissionMode
+	MCPServers           []compozyconfig.MCPServer
+	Permissions          compozyconfig.PermissionMode
 	SystemPrompt         string
 	SystemPromptDelivery SystemPromptDeliveryMode
 	PreferredModel       string
@@ -67,16 +67,16 @@ type StartOpts struct {
 	ToolHost             sandbox.ToolHost
 	ToolGateway          ToolExecutionGateway
 	ProviderName         string
-	ProviderConfig       *aghconfig.ProviderConfig
+	ProviderConfig       *compozyconfig.ProviderConfig
 	ProviderAuthEnv      *authproviders.ProbeEnv
 }
 
-// SystemPromptDeliveryMode records how AGH delivered startup system guidance to
+// SystemPromptDeliveryMode records how Compozy delivered startup system guidance to
 // the provider harness.
 type SystemPromptDeliveryMode string
 
 const (
-	// SystemPromptDeliveryFirstTurnPrefix means AGH embedded startup system
+	// SystemPromptDeliveryFirstTurnPrefix means Compozy embedded startup system
 	// guidance in the first ACP prompt because generic ACP has no system role.
 	SystemPromptDeliveryFirstTurnPrefix SystemPromptDeliveryMode = "first_turn_prefix"
 	// SystemPromptDeliveryNative means the provider received startup system
@@ -106,7 +106,7 @@ func (o StartOpts) Validate() error {
 
 	mode := o.Permissions
 	if mode == "" {
-		mode = aghconfig.PermissionModeApproveReads
+		mode = compozyconfig.PermissionModeApproveReads
 	}
 	if err := mode.Validate("start.permissions"); err != nil {
 		return err
@@ -210,7 +210,7 @@ type TokenUsage struct {
 	Timestamp        time.Time
 }
 
-// RuntimeActivity is the structured activity payload attached to AGH runtime
+// RuntimeActivity is the structured activity payload attached to Compozy runtime
 // progress and warning events.
 type RuntimeActivity struct {
 	TurnID             string     `json:"turn_id,omitempty"`

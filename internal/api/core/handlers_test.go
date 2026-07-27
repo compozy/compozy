@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -1803,8 +1803,8 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusOK)
 		}
 
-		fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-			return aghconfig.AgentDef{}, errors.New("boom")
+		fixture.Handlers.AgentLoader = func(string, compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
+			return compozyconfig.AgentDef{}, errors.New("boom")
 		}
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
 		if missingResp.Code != http.StatusInternalServerError {
@@ -1862,7 +1862,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
 			"pricing_strategist",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
 		info, err := os.Stat(path)
 		if err != nil {
@@ -1871,7 +1871,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		if info.Mode().Perm() != 0o600 {
 			t.Fatalf("created AGENT.md mode = %v, want 0600", info.Mode().Perm())
 		}
-		loaded, err := aghconfig.LoadAgentDefFile(path)
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
@@ -1905,8 +1905,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 							RootDir: workspaceRoot,
 						},
 						WorkspaceID: "ws-alpha",
-						Config: aghconfig.Config{
-							Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
+						Config: compozyconfig.Config{
+							Defaults: compozyconfig.DefaultsConfig{Provider: "codex"},
 						},
 					}, nil
 				},
@@ -1934,12 +1934,12 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		path := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"qa_operator",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		loaded, err := aghconfig.LoadAgentDefFile(path)
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(workspace AGENT.md) error = %v", err)
 		}
@@ -2020,7 +2020,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
 			"coordinator-helper",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("os.Stat(prefixed agent) error = %v", err)
@@ -2038,7 +2038,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			nil,
 			nil,
 		)
-		fixture.Handlers.Config = aghconfig.Config{}
+		fixture.Handlers.Config = compozyconfig.Config{}
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
 			Agent: contract.CreateAgentPayload{
@@ -2067,15 +2067,15 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			nil,
 			nil,
 		)
-		fixture.Handlers.Config = aghconfig.Config{}
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		fixture.Handlers.Config = compozyconfig.Config{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Prompt: "Before.",
 		}, false)
 		if err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
@@ -2104,9 +2104,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			nil,
 			nil,
 		)
-		fixture.Handlers.Config = aghconfig.Config{}
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		if _, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		fixture.Handlers.Config = compozyconfig.Config{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Prompt: "Source.",
 		}, false); err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
@@ -2140,7 +2140,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
 			"rollback_agent",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
@@ -2336,14 +2336,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			nil,
 			nil,
 		)
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Before.",
 		}, false)
 		if err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
@@ -2379,7 +2379,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if syncer.calls != 1 {
 			t.Fatalf("Sync() calls = %d, want 1", syncer.calls)
 		}
-		loaded, err := aghconfig.LoadAgentDefFile(path)
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(updated) error = %v", err)
 		}
@@ -2405,9 +2405,9 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			"dev-cycle",
 			"agents",
 			"code_implementer",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name:         "code_implementer",
 			Provider:     "codex",
 			CategoryPath: []string{"Compozy"},
@@ -2416,12 +2416,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			get: map[string]aghconfig.AgentDef{"code_implementer": current},
+			get: map[string]compozyconfig.AgentDef{"code_implementer": current},
 		}
 
 		resp := performRequest(
@@ -2449,7 +2449,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			!slices.Equal(payload.Agent.CategoryPath, []string{"Compozy"}) {
 			t.Fatalf("updated catalog agent = %#v", payload.Agent)
 		}
-		loaded, err := aghconfig.LoadAgentDefFile(path)
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(effective source) error = %v", err)
 		}
@@ -2468,21 +2468,21 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			nil,
 			nil,
 		)
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		if _, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Before.",
 		}, false); err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		mcpPath := filepath.Join(filepath.Dir(path), aghconfig.MCPJSONName)
+		mcpPath := filepath.Join(filepath.Dir(path), compozyconfig.MCPJSONName)
 		if err := os.WriteFile(mcpPath, []byte(`{"mcpServers":{"github":{"command":"sidecar"}}}`), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(mcp.json) error = %v", err)
 		}
-		current, err := aghconfig.LoadAgentDefFile(path)
+		current, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
@@ -2504,14 +2504,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("os.ReadFile(AGENT.md) error = %v", err)
 		}
-		authored, err := aghconfig.ParseAgentDef(contents)
+		authored, err := compozyconfig.ParseAgentDef(contents)
 		if err != nil {
 			t.Fatalf("ParseAgentDef(AGENT.md) error = %v", err)
 		}
 		if len(authored.MCPServers) != 0 {
 			t.Fatalf("authored MCP servers = %#v, want sidecar-only ownership", authored.MCPServers)
 		}
-		loaded, err := aghconfig.LoadAgentDefFile(path)
+		loaded, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(updated) error = %v", err)
 		}
@@ -2530,14 +2530,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			nil,
 			nil,
 		)
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Before.",
 		}, false)
 		if err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
@@ -2602,14 +2602,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			nil,
 			nil,
 		)
-		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		current, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Original.",
 		}, false)
 		if err != nil {
 			t.Fatalf("CreateAgentDefFile() error = %v", err)
 		}
-		digest, err := aghconfig.AgentDefinitionDigest(current)
+		digest, err := compozyconfig.AgentDefinitionDigest(current)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
@@ -2634,11 +2634,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if updatePayload.Diagnostic == nil || updatePayload.Diagnostic.Code != contract.CodeAgentNameReserved {
 			t.Fatalf("reserved update payload = %#v, want agent_name_reserved", updatePayload)
 		}
-		unchanged, err := aghconfig.LoadAgentDefFile(path)
+		unchanged, err := compozyconfig.LoadAgentDefFile(path)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(original) error = %v", err)
 		}
-		unchangedDigest, err := aghconfig.AgentDefinitionDigest(unchanged)
+		unchangedDigest, err := compozyconfig.AgentDefinitionDigest(unchanged)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest(unchanged) error = %v", err)
 		}
@@ -2677,12 +2677,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		workspacePath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"coder",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+		workspaceAgent, err := compozyconfig.CreateAgentDefFile(workspacePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Workspace.",
 		}, false)
 		if err != nil {
@@ -2697,15 +2697,15 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
 						WorkspaceID: "ws-identity",
-						Agents:      []aghconfig.AgentDef{workspaceAgent},
+						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
 			nil,
 			nil,
 		)
-		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		if _, err := aghconfig.CreateAgentDefFile(globalPath, aghconfig.AgentDefinitionDraft{
+		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(globalPath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Global.",
 		}, false); err != nil {
 			t.Fatalf("CreateAgentDefFile(global) error = %v", err)
@@ -2753,12 +2753,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		workspacePath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"coder",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+		workspaceAgent, err := compozyconfig.CreateAgentDefFile(workspacePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Workspace.",
 		}, false)
 		if err != nil {
@@ -2772,7 +2772,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
-						Agents:    []aghconfig.AgentDef{workspaceAgent},
+						Agents:    []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
@@ -2802,12 +2802,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		workspacePath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"coder",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+		workspaceAgent, err := compozyconfig.CreateAgentDefFile(workspacePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Workspace.",
 		}, false)
 		if err != nil {
@@ -2822,7 +2822,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
 						WorkspaceID: "ws-identity",
-						Agents:      []aghconfig.AgentDef{workspaceAgent},
+						Agents:      []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
@@ -2848,12 +2848,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		workspacePath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"coder",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+		workspaceAgent, err := compozyconfig.CreateAgentDefFile(workspacePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Workspace.",
 		}, false)
 		if err != nil {
@@ -2867,14 +2867,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
-						Agents:    []aghconfig.AgentDef{workspaceAgent},
+						Agents:    []compozyconfig.AgentDef{workspaceAgent},
 					}, nil
 				},
 			},
 			nil,
 			nil,
 		)
-		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
 		if err := os.MkdirAll(filepath.Dir(globalPath), 0o700); err != nil {
 			t.Fatalf("os.MkdirAll(global) error = %v", err)
 		}
@@ -2910,8 +2910,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				nil,
 				nil,
 			)
-			sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-			if _, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+			sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+			if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
 				Name: "coder", Provider: "codex", Prompt: "Source.",
 			}, false); err != nil {
 				t.Fatalf("CreateAgentDefFile(source) error = %v", err)
@@ -2925,7 +2925,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			}
 			mcpBody := []byte(`{"mcpServers":{"github":{"command":"sidecar"}}}`)
 			if err := os.WriteFile(
-				filepath.Join(filepath.Dir(sourcePath), aghconfig.MCPJSONName),
+				filepath.Join(filepath.Dir(sourcePath), compozyconfig.MCPJSONName),
 				mcpBody,
 				0o600,
 			); err != nil {
@@ -2979,18 +2979,18 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			if string(soulBody) != "soul\n" {
 				t.Fatalf("duplicate SOUL.md = %q", soulBody)
 			}
-			duplicatedMCP, err := os.ReadFile(filepath.Join(targetDir, aghconfig.MCPJSONName))
+			duplicatedMCP, err := os.ReadFile(filepath.Join(targetDir, compozyconfig.MCPJSONName))
 			if err != nil {
 				t.Fatalf("ReadFile(duplicate mcp.json) error = %v", err)
 			}
 			if !bytes.Equal(duplicatedMCP, mcpBody) {
 				t.Fatalf("duplicate mcp.json = %q, want %q", duplicatedMCP, mcpBody)
 			}
-			definitionBody, err := os.ReadFile(filepath.Join(targetDir, aghconfig.AgentDefinitionFileName))
+			definitionBody, err := os.ReadFile(filepath.Join(targetDir, compozyconfig.AgentDefinitionFileName))
 			if err != nil {
 				t.Fatalf("ReadFile(duplicate AGENT.md) error = %v", err)
 			}
-			authored, err := aghconfig.ParseAgentDef(definitionBody)
+			authored, err := compozyconfig.ParseAgentDef(definitionBody)
 			if err != nil {
 				t.Fatalf("ParseAgentDef(duplicate AGENT.md) error = %v", err)
 			}
@@ -3020,12 +3020,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		sourcePath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"coder",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
-		source, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+		source, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Workspace source.",
 		}, false)
 		if err != nil {
@@ -3039,7 +3039,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
-						Agents:    []aghconfig.AgentDef{source},
+						Agents:    []compozyconfig.AgentDef{source},
 					}, nil
 				},
 			},
@@ -3063,10 +3063,10 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		targetPath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"reviewer",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
 		if _, err := os.Stat(targetPath); err != nil {
 			t.Fatalf("os.Stat(workspace duplicate) error = %v", err)
@@ -3097,10 +3097,10 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		explicitTargetPath := filepath.Join(
 			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
 			"operator",
-			aghconfig.AgentDefinitionFileName,
+			compozyconfig.AgentDefinitionFileName,
 		)
 		if _, err := os.Stat(explicitTargetPath); err != nil {
 			t.Fatalf("os.Stat(explicit workspace duplicate) error = %v", err)
@@ -3117,8 +3117,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			nil,
 			nil,
 		)
-		sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
-		if _, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+		sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(sourcePath, compozyconfig.AgentDefinitionDraft{
 			Name: "coder", Provider: "codex", Prompt: "Source.",
 		}, false); err != nil {
 			t.Fatalf("CreateAgentDefFile(source) error = %v", err)
@@ -3266,21 +3266,21 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			nil,
 		)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			agents: []aghconfig.AgentDef{
+			agents: []compozyconfig.AgentDef{
 				{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
 				{
 					Name:     "alpha",
 					Provider: "codex",
-					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
+					Skills:   compozyconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
 					Prompt:   "Alpha prompt",
 				},
 				{Name: "onboarding", Provider: "codex", Prompt: "Onboarding prompt"},
 			},
-			get: map[string]aghconfig.AgentDef{
+			get: map[string]compozyconfig.AgentDef{
 				"alpha": {
 					Name:     "alpha",
 					Provider: "codex",
-					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
+					Skills:   compozyconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
 					Prompt:   "Alpha prompt",
 				},
 				"onboarding": {
@@ -3369,7 +3369,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
-						Agents: []aghconfig.AgentDef{
+						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
 							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
 							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
@@ -3387,7 +3387,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			nil,
 		)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			agents: []aghconfig.AgentDef{
+			agents: []compozyconfig.AgentDef{
 				{Name: "extension-agent", Provider: "codex", Prompt: "Projected by extension."},
 				{Name: "onboarding", Provider: "codex", Prompt: "Projected onboarding."},
 			},
@@ -3520,7 +3520,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
-						Agents: []aghconfig.AgentDef{
+						Agents: []compozyconfig.AgentDef{
 							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
 							{Name: "beta", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
 							{Name: "gamma", Provider: "codex", CategoryPath: []string{"Operations"}},
@@ -3630,8 +3630,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 }
 
 type stubAgentCatalog struct {
-	agents  []aghconfig.AgentDef
-	get     map[string]aghconfig.AgentDef
+	agents  []compozyconfig.AgentDef
+	get     map[string]compozyconfig.AgentDef
 	listErr error
 	getErr  error
 }
@@ -3645,7 +3645,7 @@ func (s stubAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry,
 	entries := make([]core.AgentCatalogEntry, 0, len(s.agents))
 	for _, agent := range s.agents {
 		entries = append(entries, core.AgentCatalogEntry{
-			Def:    aghconfig.CloneAgentDef(agent),
+			Def:    compozyconfig.CloneAgentDef(agent),
 			Origin: contract.AgentOriginGlobal,
 		})
 	}
@@ -3661,7 +3661,7 @@ func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (core.AgentCa
 		return core.AgentCatalogEntry{}, os.ErrNotExist
 	}
 	return core.AgentCatalogEntry{
-		Def:    aghconfig.CloneAgentDef(agent),
+		Def:    compozyconfig.CloneAgentDef(agent),
 		Origin: contract.AgentOriginGlobal,
 	}, nil
 }

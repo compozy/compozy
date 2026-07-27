@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
@@ -20,8 +20,8 @@ func bridgePath(bridgeID string) (string, error) {
 }
 
 // ListExtensions fetches the installed extension projection through the daemon operator surface.
-func (h *RuntimeHarness) ListExtensions(ctx context.Context) ([]aghcontract.ExtensionPayload, error) {
-	var response aghcontract.ExtensionsResponse
+func (h *RuntimeHarness) ListExtensions(ctx context.Context) ([]compozycontract.ExtensionPayload, error) {
+	var response compozycontract.ExtensionsResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/extensions", nil, &response); err != nil {
 		return nil, err
 	}
@@ -32,8 +32,8 @@ func (h *RuntimeHarness) ListExtensions(ctx context.Context) ([]aghcontract.Exte
 func (h *RuntimeHarness) GetExtension(
 	ctx context.Context,
 	name string,
-) (aghcontract.ExtensionPayload, error) {
-	var response aghcontract.ExtensionResponse
+) (compozycontract.ExtensionPayload, error) {
+	var response compozycontract.ExtensionResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -41,7 +41,7 @@ func (h *RuntimeHarness) GetExtension(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.ExtensionPayload{}, err
+		return compozycontract.ExtensionPayload{}, err
 	}
 	return response.Extension, nil
 }
@@ -49,11 +49,11 @@ func (h *RuntimeHarness) GetExtension(
 // InstallExtension installs one local extension bundle through the daemon operator surface.
 func (h *RuntimeHarness) InstallExtension(
 	ctx context.Context,
-	request aghcontract.InstallExtensionRequest,
-) (aghcontract.ExtensionPayload, error) {
-	var response aghcontract.ExtensionResponse
+	request compozycontract.InstallExtensionRequest,
+) (compozycontract.ExtensionPayload, error) {
+	var response compozycontract.ExtensionResponse
 	if err := h.UDSJSON(ctx, http.MethodPost, "/api/extensions", request, &response); err != nil {
-		return aghcontract.ExtensionPayload{}, err
+		return compozycontract.ExtensionPayload{}, err
 	}
 	return response.Extension, nil
 }
@@ -62,8 +62,8 @@ func (h *RuntimeHarness) InstallExtension(
 func (h *RuntimeHarness) EnableExtension(
 	ctx context.Context,
 	name string,
-) (aghcontract.ExtensionPayload, error) {
-	var response aghcontract.ExtensionResponse
+) (compozycontract.ExtensionPayload, error) {
+	var response compozycontract.ExtensionResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
@@ -71,7 +71,7 @@ func (h *RuntimeHarness) EnableExtension(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.ExtensionPayload{}, err
+		return compozycontract.ExtensionPayload{}, err
 	}
 	return response.Extension, nil
 }
@@ -80,8 +80,8 @@ func (h *RuntimeHarness) EnableExtension(
 func (h *RuntimeHarness) DisableExtension(
 	ctx context.Context,
 	name string,
-) (aghcontract.ExtensionPayload, error) {
-	var response aghcontract.ExtensionResponse
+) (compozycontract.ExtensionPayload, error) {
+	var response compozycontract.ExtensionResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
@@ -89,7 +89,7 @@ func (h *RuntimeHarness) DisableExtension(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.ExtensionPayload{}, err
+		return compozycontract.ExtensionPayload{}, err
 	}
 	return response.Extension, nil
 }
@@ -97,11 +97,11 @@ func (h *RuntimeHarness) DisableExtension(
 // CreateBridge persists one bridge instance through the daemon operator surface.
 func (h *RuntimeHarness) CreateBridge(
 	ctx context.Context,
-	request aghcontract.CreateBridgeRequest,
-) (aghcontract.BridgeResponse, error) {
-	var response aghcontract.BridgeResponse
+	request compozycontract.CreateBridgeRequest,
+) (compozycontract.BridgeResponse, error) {
+	var response compozycontract.BridgeResponse
 	if err := h.UDSJSON(ctx, http.MethodPost, "/api/bridges", request, &response); err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 	return response, nil
 }
@@ -110,13 +110,13 @@ func (h *RuntimeHarness) CreateBridge(
 func (h *RuntimeHarness) GetBridge(
 	ctx context.Context,
 	bridgeID string,
-) (aghcontract.BridgeResponse, error) {
+) (compozycontract.BridgeResponse, error) {
 	path, err := bridgePath(bridgeID)
 	if err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 
-	var response aghcontract.BridgeResponse
+	var response compozycontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -124,7 +124,7 @@ func (h *RuntimeHarness) GetBridge(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 	return response, nil
 }
@@ -133,13 +133,13 @@ func (h *RuntimeHarness) GetBridge(
 func (h *RuntimeHarness) EnableBridge(
 	ctx context.Context,
 	bridgeID string,
-) (aghcontract.BridgeResponse, error) {
+) (compozycontract.BridgeResponse, error) {
 	path, err := bridgePath(bridgeID)
 	if err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 
-	var response aghcontract.BridgeResponse
+	var response compozycontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
@@ -147,7 +147,7 @@ func (h *RuntimeHarness) EnableBridge(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 	return response, nil
 }
@@ -156,13 +156,13 @@ func (h *RuntimeHarness) EnableBridge(
 func (h *RuntimeHarness) RestartBridge(
 	ctx context.Context,
 	bridgeID string,
-) (aghcontract.BridgeResponse, error) {
+) (compozycontract.BridgeResponse, error) {
 	path, err := bridgePath(bridgeID)
 	if err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 
-	var response aghcontract.BridgeResponse
+	var response compozycontract.BridgeResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
@@ -170,7 +170,7 @@ func (h *RuntimeHarness) RestartBridge(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.BridgeResponse{}, err
+		return compozycontract.BridgeResponse{}, err
 	}
 	return response, nil
 }
@@ -185,7 +185,7 @@ func (h *RuntimeHarness) ListBridgeRoutes(
 		return nil, err
 	}
 
-	var response aghcontract.BridgeRoutesResponse
+	var response compozycontract.BridgeRoutesResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -203,14 +203,14 @@ func (h *RuntimeHarness) PutBridgeSecretBinding(
 	ctx context.Context,
 	bridgeID string,
 	bindingName string,
-	request aghcontract.PutBridgeSecretBindingRequest,
+	request compozycontract.PutBridgeSecretBindingRequest,
 ) (bridgepkg.BridgeSecretBinding, error) {
 	path, err := bridgePath(bridgeID)
 	if err != nil {
 		return bridgepkg.BridgeSecretBinding{}, err
 	}
 
-	var response aghcontract.BridgeSecretBindingResponse
+	var response compozycontract.BridgeSecretBindingResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPut,
@@ -233,7 +233,7 @@ func (h *RuntimeHarness) ListBridgeSecretBindings(
 		return nil, err
 	}
 
-	var response aghcontract.BridgeSecretBindingsResponse
+	var response compozycontract.BridgeSecretBindingsResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,

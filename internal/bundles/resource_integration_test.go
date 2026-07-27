@@ -13,7 +13,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -35,7 +35,7 @@ type bundleResourceIntegrationHarness struct {
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
 	layouts        resources.Store[windowmanager.LayoutResource]
-	agents         resources.Store[aghconfig.AgentDef]
+	agents         resources.Store[compozyconfig.AgentDef]
 	souls          resources.Store[soul.ResourceSpec]
 	heartbeats     resources.Store[heartbeat.ResourceSpec]
 	jobs           resources.Store[automationpkg.Job]
@@ -97,7 +97,7 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 	}
 	for _, kind := range []resources.ResourceKind{
 		windowmanager.WindowLayoutResourceKind,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		soul.ResourceKind,
 		heartbeat.ResourceKind,
 		automationpkg.JobResourceKind,
@@ -242,7 +242,7 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 	if err != nil {
 		t.Fatalf("NewLayoutResourceCodec() error = %v", err)
 	}
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	agentCodec, err := compozyconfig.NewAgentResourceCodec()
 	if err != nil {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
 	}
@@ -448,11 +448,11 @@ func (h *bundleResourceIntegrationHarness) listOwnedLayouts(
 func (h *bundleResourceIntegrationHarness) listOwnedAgents(
 	t *testing.T,
 	owner resources.ResourceOwner,
-) []resources.Record[aghconfig.AgentDef] {
+) []resources.Record[compozyconfig.AgentDef] {
 	t.Helper()
 
 	records, err := h.agents.List(h.ctx, h.actor, resources.ResourceFilter{
-		Kind:  aghconfig.AgentResourceKind,
+		Kind:  compozyconfig.AgentResourceKind,
 		Owner: &owner,
 	})
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -30,7 +30,10 @@ func (d *Daemon) newAgentSkillPublisher(
 		return publisher, nil
 	}
 
-	agentCodec, err := resources.ResolveCodec[aghconfig.AgentDef](state.resourceCodecs, aghconfig.AgentResourceKind)
+	agentCodec, err := resources.ResolveCodec[compozyconfig.AgentDef](
+		state.resourceCodecs,
+		compozyconfig.AgentResourceKind,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve agent codec: %w", err)
 	}
@@ -49,7 +52,10 @@ func (d *Daemon) newAgentSkillPublisher(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create skill store: %w", err)
 	}
-	mcpCodec, err := resources.ResolveCodec[aghconfig.MCPServer](state.resourceCodecs, aghconfig.MCPServerResourceKind)
+	mcpCodec, err := resources.ResolveCodec[compozyconfig.MCPServer](
+		state.resourceCodecs,
+		compozyconfig.MCPServerResourceKind,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve mcp server codec for agent/skill sync: %w", err)
 	}
@@ -88,7 +94,7 @@ func (d *Daemon) newAgentSkillPublisher(
 }
 
 func daemonAgentSkillDeclarationProvider(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry Registry,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	skillsRegistry *skillspkg.Registry,
@@ -97,7 +103,7 @@ func daemonAgentSkillDeclarationProvider(
 	return func(ctx context.Context) (agentSkillDesiredResources, error) {
 		desired := agentSkillDesiredResources{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-		globalAgents, err := aghconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
+		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
 		if err != nil {
 			return agentSkillDesiredResources{}, fmt.Errorf("daemon: discover global agents: %w", err)
 		}

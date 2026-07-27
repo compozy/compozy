@@ -25,7 +25,7 @@ function parseCli(): CliOptions {
   const { values } = parseArgs({
     args: Bun.argv.slice(2),
     options: {
-      repo: { type: "string", default: "compozy/agh" },
+      repo: { type: "string", default: "compozy/compozy" },
       output: { type: "string", default: "docs/prs" },
       state: { type: "string", default: "closed" },
       limit: { type: "string", default: "50" },
@@ -312,7 +312,7 @@ async function main(): Promise<void> {
     console.error("No GitHub token. Set GITHUB_TOKEN or log in with `gh auth login`.");
     process.exit(1);
   }
-  let octokit = new Octokit({ auth: token, userAgent: "agh-pr-scraper" });
+  let octokit = new Octokit({ auth: token, userAgent: "compozy-pr-scraper" });
 
   try {
     await octokit.rest.users.getAuthenticated();
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
       if (fresh && fresh !== token) {
         console.warn("Initial token returned 401, retrying with `gh auth token`.");
         token = fresh;
-        octokit = new Octokit({ auth: token, userAgent: "agh-pr-scraper" });
+        octokit = new Octokit({ auth: token, userAgent: "compozy-pr-scraper" });
       } else {
         console.error("GitHub token is invalid (401). Refresh GITHUB_TOKEN or `gh auth login`.");
         process.exit(1);

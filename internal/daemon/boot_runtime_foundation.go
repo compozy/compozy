@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 
@@ -111,8 +111,8 @@ func (d *Daemon) bootRegistryState(
 		registry,
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithLogger(state.logger),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(d.homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(d.homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
 		}),
 		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
 			return syncWorkspaceDerivedResources(changeCtx, state)
@@ -177,7 +177,7 @@ func (d *Daemon) operatorHomeDir() (string, error) {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	return aghconfig.ResolveOperatorHomeDirWithLookup(d.homePaths, func(key string) (string, bool) {
+	return compozyconfig.ResolveOperatorHomeDirWithLookup(d.homePaths, func(key string) (string, bool) {
 		value := getenv(key)
 		return value, strings.TrimSpace(value) != ""
 	})

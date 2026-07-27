@@ -195,7 +195,7 @@ func (d *Daemon) findDaemonSandbox(
 	}
 
 	labels := map[string]string{
-		"agh_sandbox_id": strings.TrimSpace(envMeta.SandboxID),
+		"compozy_sandbox_id": strings.TrimSpace(envMeta.SandboxID),
 	}
 	found, err := finder.FindSandbox(ctx, sandbox.FindSandboxRequest{
 		SessionID:           strings.TrimSpace(meta.ID),

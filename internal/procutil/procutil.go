@@ -1,6 +1,6 @@
 //go:build !windows
 
-// Package procutil provides shared process helpers for AGH runtime components.
+// Package procutil provides shared process helpers for Compozy runtime components.
 package procutil
 
 import (

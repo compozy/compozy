@@ -125,7 +125,7 @@ export function InputsAndSearchSection() {
       <div className="grid gap-6 pt-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="showcase-name">Display name</FieldLabel>
-          <Input id="showcase-name" placeholder="e.g. agh-core" />
+          <Input id="showcase-name" placeholder="e.g. compozy-core" />
           <FieldDescription>Used across session headers and agent metadata.</FieldDescription>
         </Field>
         <Field>

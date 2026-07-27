@@ -18,7 +18,7 @@ const (
 const (
 	baseURL                        = "http://unix"
 	defaultUnixSocketClientTimeout = 30 * time.Second
-	defaultUserAgentName           = "agh-cli"
+	defaultUserAgentName           = "compozy-cli"
 )
 
 // DaemonClient is the CLI transport surface for talking to the Compozy daemon over UDS.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -118,22 +118,22 @@ func BenchmarkToolMCPSourceSyncerSyncNoop(b *testing.B) {
 	}
 }
 
-func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Record[aghconfig.AgentDef] {
-	records := make([]resources.Record[aghconfig.AgentDef], 0, count*2)
+func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Record[compozyconfig.AgentDef] {
+	records := make([]resources.Record[compozyconfig.AgentDef], 0, count*2)
 	for i := range count {
 		name := fmt.Sprintf("agent-%03d", i)
-		global := aghconfig.AgentDef{
+		global := compozyconfig.AgentDef{
 			Name:        name,
 			Prompt:      fmt.Sprintf("global prompt %d", i),
 			Tools:       []string{toolspkg.ToolIDToolInfo.String(), toolspkg.ToolIDToolList.String()},
-			Permissions: string(aghconfig.PermissionModeApproveAll),
-			MCPServers: []aghconfig.MCPServer{{
+			Permissions: string(compozyconfig.PermissionModeApproveAll),
+			MCPServers: []compozyconfig.MCPServer{{
 				Name:    fmt.Sprintf("global-mcp-%03d", i),
 				Command: "global-command",
 				Args:    []string{"--mode", "global"},
 			}},
 		}
-		records = append(records, resources.Record[aghconfig.AgentDef]{
+		records = append(records, resources.Record[compozyconfig.AgentDef]{
 			ID:      fmt.Sprintf("global:%s", name),
 			Version: int64(i + 1),
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -146,12 +146,12 @@ func daemonBenchmarkAgentRecords(count int, workspaceID string) []resources.Reco
 
 		workspace := global
 		workspace.Prompt = fmt.Sprintf("workspace prompt %d", i)
-		workspace.MCPServers = []aghconfig.MCPServer{{
+		workspace.MCPServers = []compozyconfig.MCPServer{{
 			Name:    fmt.Sprintf("workspace-mcp-%03d", i),
 			Command: "workspace-command",
 			Args:    []string{"--mode", "workspace"},
 		}}
-		records = append(records, resources.Record[aghconfig.AgentDef]{
+		records = append(records, resources.Record[compozyconfig.AgentDef]{
 			ID:      fmt.Sprintf("workspace:%s", name),
 			Version: int64(i + 1),
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspaceID},
@@ -176,11 +176,11 @@ func daemonBenchmarkAgentSkillDesiredResources(count int) agentSkillDesiredResou
 		desired.agents = append(desired.agents, agentPublicationInput{
 			sourceKey: fmt.Sprintf("bench/agent/%03d", i),
 			scope:     scope,
-			spec: aghconfig.AgentDef{
+			spec: compozyconfig.AgentDef{
 				Name:        fmt.Sprintf("agent-%03d", i),
 				Prompt:      fmt.Sprintf("Agent prompt %d", i),
 				Tools:       []string{toolspkg.ToolIDToolInfo.String()},
-				Permissions: string(aghconfig.PermissionModeApproveAll),
+				Permissions: string(compozyconfig.PermissionModeApproveAll),
 			},
 		})
 		desired.skills = append(desired.skills, skillPublicationInput{
@@ -196,7 +196,7 @@ func daemonBenchmarkAgentSkillDesiredResources(count int) agentSkillDesiredResou
 		desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 			sourceKey: fmt.Sprintf("bench/mcp/%03d", i),
 			scope:     scope,
-			spec: aghconfig.MCPServer{
+			spec: compozyconfig.MCPServer{
 				Name:    fmt.Sprintf("mcp-%03d", i),
 				Command: "bench-mcp",
 				Args:    []string{"--id", fmt.Sprintf("%03d", i)},
@@ -237,7 +237,7 @@ func daemonBenchmarkToolMCPDesiredResources(count int) toolMCPDesiredResources {
 		desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 			sourceKey: fmt.Sprintf("bench/mcp/%03d", i),
 			scope:     scope,
-			spec: aghconfig.MCPServer{
+			spec: compozyconfig.MCPServer{
 				Name:    fmt.Sprintf("tool-mcp-%03d", i),
 				Command: "bench-tool-mcp",
 				Args:    []string{"--id", fmt.Sprintf("%03d", i)},
@@ -251,19 +251,19 @@ func daemonBenchmarkAgentSkillStores(
 	b *testing.B,
 ) (
 	resources.RawStore,
-	resources.Store[aghconfig.AgentDef],
-	resources.KindCodec[aghconfig.AgentDef],
+	resources.Store[compozyconfig.AgentDef],
+	resources.KindCodec[compozyconfig.AgentDef],
 	resources.Store[skillspkg.SkillResourceSpec],
 	resources.KindCodec[skillspkg.SkillResourceSpec],
-	resources.Store[aghconfig.MCPServer],
-	resources.KindCodec[aghconfig.MCPServer],
+	resources.Store[compozyconfig.MCPServer],
+	resources.KindCodec[compozyconfig.MCPServer],
 ) {
 	b.Helper()
 
 	kernel := daemonBenchmarkKernel(b)
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	agentCodec, err := compozyconfig.NewAgentResourceCodec()
 	if err != nil {
-		b.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+		b.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 	}
 	agentStore, err := resources.NewStore(kernel, agentCodec)
 	if err != nil {
@@ -277,9 +277,9 @@ func daemonBenchmarkAgentSkillStores(
 	if err != nil {
 		b.Fatalf("resources.NewStore(skill) error = %v", err)
 	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
-		b.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		b.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 	}
 	mcpStore, err := resources.NewStore(kernel, mcpCodec)
 	if err != nil {
@@ -294,8 +294,8 @@ func daemonBenchmarkToolMCPStores(
 	resources.RawStore,
 	resources.Store[toolspkg.Tool],
 	resources.KindCodec[toolspkg.Tool],
-	resources.Store[aghconfig.MCPServer],
-	resources.KindCodec[aghconfig.MCPServer],
+	resources.Store[compozyconfig.MCPServer],
+	resources.KindCodec[compozyconfig.MCPServer],
 ) {
 	b.Helper()
 
@@ -308,9 +308,9 @@ func daemonBenchmarkToolMCPStores(
 	if err != nil {
 		b.Fatalf("resources.NewStore(tool) error = %v", err)
 	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
-		b.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		b.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 	}
 	mcpStore, err := resources.NewStore(kernel, mcpCodec)
 	if err != nil {

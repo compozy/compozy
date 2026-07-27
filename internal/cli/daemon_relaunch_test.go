@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
@@ -14,13 +14,13 @@ func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{})
 		deps.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 
-		var captured aghdaemon.RelaunchHelperConfig
-		deps.runRelaunchHelper = func(_ context.Context, cfg aghdaemon.RelaunchHelperConfig) error {
+		var captured compozydaemon.RelaunchHelperConfig
+		deps.runRelaunchHelper = func(_ context.Context, cfg compozydaemon.RelaunchHelperConfig) error {
 			captured = cfg
 			return nil
 		}
 
-		t.Setenv(aghdaemon.RestartOperationEnvKey, "restart-op-123")
+		t.Setenv(compozydaemon.RestartOperationEnvKey, "restart-op-123")
 
 		if _, _, err := executeRootCommand(t, deps, "daemon", "relaunch"); err != nil {
 			t.Fatalf("executeRootCommand() error = %v", err)

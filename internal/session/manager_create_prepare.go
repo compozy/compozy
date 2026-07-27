@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 )
@@ -31,7 +31,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		return sessionStartSpec{}, err
 	}
 
-	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
+	agentName, err := compozyconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
@@ -80,6 +80,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		creationIdentity:         cloneCreationIdentity(opts.CreationIdentity),
 		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
 		creationIdentityEnabled:  true,
+		discardStartFailure:      opts.DiscardStartFailure,
 		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
 		postEvent:                hookspkg.HookSessionPostCreate,
 		startAction:              sessionStartActionCreate,

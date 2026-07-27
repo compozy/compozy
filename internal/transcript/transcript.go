@@ -13,7 +13,7 @@ import (
 )
 
 // CanonicalSchema is the stored envelope schema for transcript-aware session events.
-const CanonicalSchema = "agh.session.event.v1"
+const CanonicalSchema = "compozy.session.event.v1"
 
 // Assembler assembles persisted session events into the canonical transcript shape.
 type Assembler interface {

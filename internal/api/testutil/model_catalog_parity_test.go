@@ -18,7 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	"github.com/compozy/compozy/internal/cli"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -83,8 +83,8 @@ func TestModelCatalogTransportParity(t *testing.T) {
 		nativeModel := cliRecord.Models[0]
 		if openAIModel.ID != nativeModel.ModelID ||
 			openAIModel.OwnedBy != nativeModel.ProviderID ||
-			openAIModel.AGH.ProviderID != nativeModel.ProviderID ||
-			openAIModel.AGH.ModelID != nativeModel.ModelID {
+			openAIModel.Compozy.ProviderID != nativeModel.ProviderID ||
+			openAIModel.Compozy.ModelID != nativeModel.ModelID {
 			t.Fatalf("OpenAI model = %#v, want native catalog identity %#v", openAIModel, nativeModel)
 		}
 	})
@@ -231,10 +231,10 @@ func performParityJSONRequest(
 	return recorder
 }
 
-func newShortParityHomePaths(t *testing.T) aghconfig.HomePaths {
+func newShortParityHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	root, err := os.MkdirTemp("", "agh-mp-*")
+	root, err := os.MkdirTemp("", "compozy-mp-*")
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}
@@ -243,7 +243,7 @@ func newShortParityHomePaths(t *testing.T) aghconfig.HomePaths {
 			t.Errorf("RemoveAll(%q) error = %v", root, err)
 		}
 	})
-	homePaths, err := aghconfig.ResolveHomePathsFrom(root)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(root)
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

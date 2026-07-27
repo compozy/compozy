@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -23,7 +23,7 @@ const defaultSettingsMCPProbeTimeout = 5 * time.Second
 func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	ctx context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{Configured: true}
 	key, tracked := settingsMCPDeadEntityKey(target, server.Name)
@@ -97,7 +97,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 
 func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (*mcppkg.CallExecutor, error) {
 	return mcppkg.NewMCPCallExecutor(
 		mcppkg.ServerResolverFunc(func(

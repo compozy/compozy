@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/store"
@@ -48,13 +48,13 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			t.Parallel()
 
 			manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
-			resolved := aghconfig.ResolvedAgent{
+			resolved := compozyconfig.ResolvedAgent{
 				Provider:   "claude",
 				Model:      "claude-sonnet-4-6",
-				Harness:    aghconfig.ProviderHarnessACP,
-				AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
-				EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
-				HomePolicy: aghconfig.ProviderHomePolicyOperator,
+				Harness:    compozyconfig.ProviderHarnessACP,
+				AuthMode:   compozyconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:  compozyconfig.ProviderEnvPolicyFiltered,
+				HomePolicy: compozyconfig.ProviderHomePolicyOperator,
 			}
 
 			opts, err := manager.prepareProviderForStart(
@@ -90,11 +90,11 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 	)
 
 	t.Run(
-		"Should set an AGH-owned provider home when isolated home policy is selected",
+		"Should set an Compozy-owned provider home when isolated home policy is selected",
 		func(t *testing.T) {
 			t.Parallel()
 
-			homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 			if err != nil {
 				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 			}
@@ -102,13 +102,13 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 				homePaths:       homePaths,
 				providerSecrets: fakeProviderSecretResolver{},
 			}
-			resolved := aghconfig.ResolvedAgent{
+			resolved := compozyconfig.ResolvedAgent{
 				Provider:   "codex",
 				Model:      "gpt-5.4",
-				Harness:    aghconfig.ProviderHarnessACP,
-				AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
-				EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
-				HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+				Harness:    compozyconfig.ProviderHarnessACP,
+				AuthMode:   compozyconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
+				HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 			}
 
 			opts, err := manager.prepareProviderForStart(
@@ -144,14 +144,14 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		t.Parallel()
 
 		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
-		resolved := aghconfig.ResolvedAgent{
+		resolved := compozyconfig.ResolvedAgent{
 			Name:       "coder",
 			Provider:   "codex",
 			Model:      "gpt-5.5",
-			Harness:    aghconfig.ProviderHarnessACP,
-			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
-			EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
-			HomePolicy: aghconfig.ProviderHomePolicyOperator,
+			Harness:    compozyconfig.ProviderHarnessACP,
+			AuthMode:   compozyconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:  compozyconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: compozyconfig.ProviderHomePolicyOperator,
 		}
 
 		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{
@@ -173,14 +173,14 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 
 		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
 		session := &Session{sessionDir: t.TempDir()}
-		resolved := aghconfig.ResolvedAgent{
+		resolved := compozyconfig.ResolvedAgent{
 			Provider:        "pi",
 			Model:           "claude-opus-4-7",
-			Harness:         aghconfig.ProviderHarnessPiACP,
+			Harness:         compozyconfig.ProviderHarnessPiACP,
 			RuntimeProvider: "anthropic",
-			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
-			EnvPolicy:       aghconfig.ProviderEnvPolicyFiltered,
-			HomePolicy:      aghconfig.ProviderHomePolicyOperator,
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:       compozyconfig.ProviderEnvPolicyFiltered,
+			HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
 		}
 
 		opts, err := manager.prepareProviderForStart(
@@ -208,7 +208,7 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		func(t *testing.T) {
 			t.Parallel()
 
-			homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 			if err != nil {
 				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 			}
@@ -217,14 +217,14 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 				providerSecrets: fakeProviderSecretResolver{},
 			}
 			session := &Session{sessionDir: t.TempDir()}
-			resolved := aghconfig.ResolvedAgent{
+			resolved := compozyconfig.ResolvedAgent{
 				Provider:        "pi",
 				Model:           "claude-opus-4-7",
-				Harness:         aghconfig.ProviderHarnessPiACP,
+				Harness:         compozyconfig.ProviderHarnessPiACP,
 				RuntimeProvider: "anthropic",
-				AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
-				EnvPolicy:       aghconfig.ProviderEnvPolicyIsolated,
-				HomePolicy:      aghconfig.ProviderHomePolicyIsolated,
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:       compozyconfig.ProviderEnvPolicyIsolated,
+				HomePolicy:      compozyconfig.ProviderHomePolicyIsolated,
 			}
 
 			opts, err := manager.prepareProviderForStart(
@@ -273,15 +273,15 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		session := &Session{sessionDir: t.TempDir()}
 		t.Cleanup(session.clearProviderSecretRedactions)
 
-		resolved := aghconfig.ResolvedAgent{
+		resolved := compozyconfig.ResolvedAgent{
 			Provider:        "openrouter",
 			Model:           "openai/gpt-5.4",
-			Harness:         aghconfig.ProviderHarnessPiACP,
+			Harness:         compozyconfig.ProviderHarnessPiACP,
 			RuntimeProvider: "openrouter",
 			BaseURL:         "https://openrouter.ai/api/v1",
 			Transport:       "openai",
-			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+			AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 				{
 					Name:      "secondary",
 					TargetEnv: "OPENROUTER_SECONDARY_TOKEN",
@@ -374,14 +374,14 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			}
 			session := &Session{sessionDir: sessionDir}
 			t.Cleanup(session.clearProviderSecretRedactions)
-			resolved := aghconfig.ResolvedAgent{
+			resolved := compozyconfig.ResolvedAgent{
 				Provider:        "openrouter",
 				Model:           "openai/gpt-5.4",
-				Harness:         aghconfig.ProviderHarnessPiACP,
+				Harness:         compozyconfig.ProviderHarnessPiACP,
 				RuntimeProvider: "openrouter",
 				Transport:       "openai",
-				AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
-				CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+				AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
 					Name:      "api_key",
 					TargetEnv: "OPENROUTER_API_KEY",
 					SecretRef: "vault:providers/openrouter/api-key",
@@ -424,13 +424,13 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			},
 		}
 		session := &Session{sessionDir: t.TempDir()}
-		resolved := aghconfig.ResolvedAgent{
+		resolved := compozyconfig.ResolvedAgent{
 			Provider:        "openrouter",
 			Model:           "openai/gpt-5.4",
-			Harness:         aghconfig.ProviderHarnessPiACP,
+			Harness:         compozyconfig.ProviderHarnessPiACP,
 			RuntimeProvider: "openrouter",
-			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+			AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 				{
 					Name:      "api_key",
 					TargetEnv: "OPENROUTER_API_KEY",
@@ -487,12 +487,12 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 					},
 				},
 			}
-			resolved := aghconfig.ResolvedAgent{
+			resolved := compozyconfig.ResolvedAgent{
 				Provider: "openrouter",
 				Model:    "openai/gpt-5.4",
-				Harness:  aghconfig.ProviderHarnessACP,
-				AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-				CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+				Harness:  compozyconfig.ProviderHarnessACP,
+				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
 					Name:      "api_key",
 					TargetEnv: "OPENROUTER_API_KEY",
 					SecretRef: "vault:providers/openrouter/api-key",
@@ -542,7 +542,7 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			if err != nil {
 				t.Fatalf("Resolve(workspace) error = %v", err)
 			}
-			resolved.Agents = []aghconfig.AgentDef{
+			resolved.Agents = []compozyconfig.AgentDef{
 				{
 					Name:     "coder",
 					Provider: "pi",
@@ -623,10 +623,10 @@ func TestPreferredACPModelUsesProviderTransportValue(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := preferredACPModel(aghconfig.ResolvedAgent{
+			got := preferredACPModel(compozyconfig.ResolvedAgent{
 				Provider:        test.provider,
 				RuntimeProvider: test.provider,
-				Harness:         aghconfig.ProviderHarnessACP,
+				Harness:         compozyconfig.ProviderHarnessACP,
 				Model:           test.model,
 			}, true)
 			if got != test.want {
@@ -641,49 +641,49 @@ func TestShouldSkipMissingProviderSecret(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		resolved aghconfig.ResolvedAgent
+		resolved compozyconfig.ResolvedAgent
 		ref      string
-		slot     aghconfig.ProviderCredentialSlot
+		slot     compozyconfig.ProviderCredentialSlot
 		err      error
 		want     bool
 	}{
 		{
 			name:     "Should skip optional missing pi vault secret",
-			resolved: aghconfig.ResolvedAgent{Harness: aghconfig.ProviderHarnessPiACP},
+			resolved: compozyconfig.ResolvedAgent{Harness: compozyconfig.ProviderHarnessPiACP},
 			ref:      "vault:providers/openrouter/api-key",
-			slot:     aghconfig.ProviderCredentialSlot{Required: false},
+			slot:     compozyconfig.ProviderCredentialSlot{Required: false},
 			err:      vault.ErrMissingSecret,
 			want:     true,
 		},
 		{
 			name:     "Should require missing pi vault secret when slot is required",
-			resolved: aghconfig.ResolvedAgent{Harness: aghconfig.ProviderHarnessPiACP},
+			resolved: compozyconfig.ResolvedAgent{Harness: compozyconfig.ProviderHarnessPiACP},
 			ref:      "vault:providers/openrouter/api-key",
-			slot:     aghconfig.ProviderCredentialSlot{Required: true},
+			slot:     compozyconfig.ProviderCredentialSlot{Required: true},
 			err:      vault.ErrMissingSecret,
 			want:     false,
 		},
 		{
 			name:     "Should require missing env refs for direct acp providers when slot is required",
-			resolved: aghconfig.ResolvedAgent{Harness: aghconfig.ProviderHarnessACP},
+			resolved: compozyconfig.ResolvedAgent{Harness: compozyconfig.ProviderHarnessACP},
 			ref:      "env:ANTHROPIC_API_KEY",
-			slot:     aghconfig.ProviderCredentialSlot{Required: true},
+			slot:     compozyconfig.ProviderCredentialSlot{Required: true},
 			err:      vault.ErrMissingSecret,
 			want:     false,
 		},
 		{
 			name:     "Should skip optional missing env refs for direct acp providers",
-			resolved: aghconfig.ResolvedAgent{Harness: aghconfig.ProviderHarnessACP},
+			resolved: compozyconfig.ResolvedAgent{Harness: compozyconfig.ProviderHarnessACP},
 			ref:      "env:ANTHROPIC_API_KEY",
-			slot:     aghconfig.ProviderCredentialSlot{Required: false},
+			slot:     compozyconfig.ProviderCredentialSlot{Required: false},
 			err:      vault.ErrMissingSecret,
 			want:     true,
 		},
 		{
 			name:     "Should skip optional missing secret refs for direct acp providers",
-			resolved: aghconfig.ResolvedAgent{Harness: aghconfig.ProviderHarnessACP},
+			resolved: compozyconfig.ResolvedAgent{Harness: compozyconfig.ProviderHarnessACP},
 			ref:      "vault:providers/custom/api-key",
-			slot:     aghconfig.ProviderCredentialSlot{Required: false},
+			slot:     compozyconfig.ProviderCredentialSlot{Required: false},
 			err:      vault.ErrSecretNotFound,
 			want:     true,
 		},

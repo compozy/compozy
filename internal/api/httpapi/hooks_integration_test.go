@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -455,7 +455,7 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 	}
 }
 
-func newHookIntegrationObserver(t *testing.T, homePaths aghconfig.HomePaths) *observe.Observer {
+func newHookIntegrationObserver(t *testing.T, homePaths compozyconfig.HomePaths) *observe.Observer {
 	t.Helper()
 
 	observer, err := observe.New(testutilpkg.Context(t),
@@ -504,7 +504,7 @@ func hookIntegrationResolver(overrides map[string]hookspkg.Executor) hookspkg.Ex
 	}
 }
 
-func openHookRunSessionDB(t *testing.T, homePaths aghconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
+func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
 	t.Helper()
 
 	db, err := sessiondb.OpenSessionDB(

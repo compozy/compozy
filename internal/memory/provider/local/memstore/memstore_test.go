@@ -21,7 +21,7 @@ func TestAdapter(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := baseDir + "/workspace"
 		store := memory.NewStore(
-			baseDir+"/agh-home/memory",
+			baseDir+"/compozy-home/memory",
 			memory.WithCatalogDatabasePath(baseDir+"/compozy.db"),
 		).ForWorkspace(workspaceRoot)
 		openAdapterTestCatalog(t, store)
@@ -171,7 +171,7 @@ func TestAdapterRejectsCanceledContext(t *testing.T) {
 
 		baseDir := t.TempDir()
 		adapter := memstore.New(memory.NewStore(
-			baseDir+"/agh-home/memory",
+			baseDir+"/compozy-home/memory",
 			memory.WithCatalogDatabasePath(baseDir+"/compozy.db"),
 		))
 		ctx, cancel := context.WithCancel(testutil.Context(t))

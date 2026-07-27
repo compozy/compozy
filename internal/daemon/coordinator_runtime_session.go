@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -15,7 +15,7 @@ import (
 func (r *coordinatorRuntime) startCoordinatorSession(
 	ctx context.Context,
 	decision coordinator.Decision,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	coordinatorParticipation participation.Spec,
 ) (*session.Info, error) {
 	policy := coordinator.PermissionPolicy(coordinatorParticipation)
@@ -61,6 +61,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			PromptOverlay:                promptOverlay,
 			Type:                         session.SessionTypeCoordinator,
 			Lineage:                      coordinator.Lineage(now, cfg, policy),
+			DiscardStartFailure:          true,
 		})
 		return spawned, spawned != nil, createErr
 	})
@@ -97,16 +98,16 @@ func (r *coordinatorRuntime) stopFailedCoordinatorSession(
 }
 
 func coordinatorInvocationRole(
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	events roleEventSummaryWriter,
 ) ResolvedRole {
 	return ResolvedRole{
-		Role:            aghconfig.RoleCoordinator,
+		Role:            compozyconfig.RoleCoordinator,
 		AgentName:       cfg.AgentName,
 		Provider:        cfg.Provider,
 		Model:           cfg.Model,
 		ReasoningEffort: cfg.ReasoningEffort,
-		Fallbacks:       append([]aghconfig.RoleFallback(nil), cfg.Fallbacks...),
+		Fallbacks:       append([]compozyconfig.RoleFallback(nil), cfg.Fallbacks...),
 		eventWriter:     events,
 	}
 }
@@ -142,8 +143,8 @@ func (r *coordinatorRuntime) activeCoordinator(ctx context.Context, workspaceID 
 	return nil, nil
 }
 
-func defaultEnabledCoordinatorRole() aghconfig.ResolvedCoordinatorRole {
-	cfg := aghconfig.DefaultResolvedCoordinatorRole()
+func defaultEnabledCoordinatorRole() compozyconfig.ResolvedCoordinatorRole {
+	cfg := compozyconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	return cfg
 }
@@ -151,7 +152,7 @@ func defaultEnabledCoordinatorRole() aghconfig.ResolvedCoordinatorRole {
 func coordinatorSessionName(workspaceID string) string {
 	trimmed := strings.TrimSpace(workspaceID)
 	if trimmed == "" {
-		return "AGH Coordinator"
+		return "Compozy Coordinator"
 	}
-	return "AGH Coordinator " + trimmed
+	return "Compozy Coordinator " + trimmed
 }

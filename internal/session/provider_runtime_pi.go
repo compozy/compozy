@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/vault"
 )
 
 func shouldSkipMissingProviderSecret(
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	secretRef string,
-	slot aghconfig.ProviderCredentialSlot,
+	slot compozyconfig.ProviderCredentialSlot,
 	err error,
 ) bool {
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP {
+	if resolved.Harness == compozyconfig.ProviderHarnessPiACP {
 		return !slot.Required &&
 			(errors.Is(err, vault.ErrMissingSecret) || errors.Is(err, vault.ErrSecretNotFound))
 	}
@@ -54,7 +54,7 @@ type piModelEntry struct {
 
 func (m *Manager) materializePiRuntime(
 	session *Session,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	injectedTargetEnvs map[string]struct{},
 ) (string, error) {
 	if session == nil {
@@ -69,7 +69,7 @@ func (m *Manager) materializePiRuntime(
 
 func materializePiRuntimeAt(
 	runtimeDir string,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	injectedTargetEnvs map[string]struct{},
 ) error {
 	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)

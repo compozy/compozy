@@ -12,7 +12,7 @@ import (
 
 	"strings"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -20,15 +20,15 @@ import (
 // CreateNetworkChannel creates one network channel through the public operator surface.
 func (h *RuntimeHarness) CreateNetworkChannel(
 	ctx context.Context,
-	request aghcontract.CreateNetworkChannelRequest,
-) (aghcontract.NetworkChannelDetailPayload, error) {
-	var response aghcontract.CreateNetworkChannelResponse
+	request compozycontract.CreateNetworkChannelRequest,
+) (compozycontract.NetworkChannelDetailPayload, error) {
+	var response compozycontract.CreateNetworkChannelResponse
 	path, err := h.networkScopedAPIPath(request.WorkspaceID, "/channels")
 	if err != nil {
-		return aghcontract.NetworkChannelDetailPayload{}, err
+		return compozycontract.NetworkChannelDetailPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
-		return aghcontract.NetworkChannelDetailPayload{}, err
+		return compozycontract.NetworkChannelDetailPayload{}, err
 	}
 	return response.Channel, nil
 }
@@ -36,10 +36,10 @@ func (h *RuntimeHarness) CreateNetworkChannel(
 // NetworkStatus fetches the current network runtime projection.
 func (h *RuntimeHarness) NetworkStatus(
 	ctx context.Context,
-) (aghcontract.NetworkStatusPayload, error) {
-	var response aghcontract.NetworkStatusResponse
+) (compozycontract.NetworkStatusPayload, error) {
+	var response compozycontract.NetworkStatusResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/network/status", nil, &response); err != nil {
-		return aghcontract.NetworkStatusPayload{}, err
+		return compozycontract.NetworkStatusPayload{}, err
 	}
 	return response.Network, nil
 }
@@ -48,7 +48,7 @@ func (h *RuntimeHarness) NetworkStatus(
 func (h *RuntimeHarness) NetworkPeers(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkPeerPayload, error) {
+) ([]compozycontract.NetworkPeerPayload, error) {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(channel); trimmed != "" {
 		values.Set("channel", trimmed)
@@ -58,7 +58,7 @@ func (h *RuntimeHarness) NetworkPeers(
 		return nil, err
 	}
 
-	var response aghcontract.NetworkPeersResponse
+	var response compozycontract.NetworkPeersResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -74,8 +74,8 @@ func (h *RuntimeHarness) NetworkPeers(
 // NetworkChannels fetches the current network channel projection.
 func (h *RuntimeHarness) NetworkChannels(
 	ctx context.Context,
-) ([]aghcontract.NetworkChannelPayload, error) {
-	var response aghcontract.NetworkChannelsResponse
+) ([]compozycontract.NetworkChannelPayload, error) {
+	var response compozycontract.NetworkChannelsResponse
 	path, err := h.networkScopedAPIPath("", "/channels")
 	if err != nil {
 		return nil, err
@@ -90,11 +90,11 @@ func (h *RuntimeHarness) NetworkChannels(
 func (h *RuntimeHarness) NetworkChannel(
 	ctx context.Context,
 	channel string,
-) (aghcontract.NetworkChannelDetailPayload, error) {
-	var response aghcontract.NetworkChannelResponse
+) (compozycontract.NetworkChannelDetailPayload, error) {
+	var response compozycontract.NetworkChannelResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel))
 	if err != nil {
-		return aghcontract.NetworkChannelDetailPayload{}, err
+		return compozycontract.NetworkChannelDetailPayload{}, err
 	}
 	if err := h.UDSJSON(
 		ctx,
@@ -103,7 +103,7 @@ func (h *RuntimeHarness) NetworkChannel(
 		nil,
 		&response,
 	); err != nil {
-		return aghcontract.NetworkChannelDetailPayload{}, err
+		return compozycontract.NetworkChannelDetailPayload{}, err
 	}
 	return response.Channel, nil
 }
@@ -112,8 +112,8 @@ func (h *RuntimeHarness) NetworkChannel(
 func (h *RuntimeHarness) NetworkThreads(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkThreadSummaryPayload, error) {
-	var response aghcontract.NetworkThreadsResponse
+) ([]compozycontract.NetworkThreadSummaryPayload, error) {
+	var response compozycontract.NetworkThreadsResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/threads")
 	if err != nil {
 		return nil, err
@@ -129,15 +129,15 @@ func (h *RuntimeHarness) NetworkThread(
 	ctx context.Context,
 	channel string,
 	threadID string,
-) (aghcontract.NetworkThreadSummaryPayload, error) {
-	var response aghcontract.NetworkThreadResponse
+) (compozycontract.NetworkThreadSummaryPayload, error) {
+	var response compozycontract.NetworkThreadResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
 		"/threads/"+url.PathEscape(threadID))
 	if err != nil {
-		return aghcontract.NetworkThreadSummaryPayload{}, err
+		return compozycontract.NetworkThreadSummaryPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.NetworkThreadSummaryPayload{}, err
+		return compozycontract.NetworkThreadSummaryPayload{}, err
 	}
 	return response.Thread, nil
 }
@@ -147,8 +147,8 @@ func (h *RuntimeHarness) NetworkThreadMessages(
 	ctx context.Context,
 	channel string,
 	threadID string,
-) ([]aghcontract.NetworkConversationMessagePayload, error) {
-	var response aghcontract.NetworkThreadMessagesResponse
+) ([]compozycontract.NetworkConversationMessagePayload, error) {
+	var response compozycontract.NetworkThreadMessagesResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
 		"/threads/"+url.PathEscape(threadID)+"/messages")
 	if err != nil {
@@ -164,8 +164,8 @@ func (h *RuntimeHarness) NetworkThreadMessages(
 func (h *RuntimeHarness) NetworkDirectRooms(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkDirectRoomPayload, error) {
-	var response aghcontract.NetworkDirectRoomsResponse
+) ([]compozycontract.NetworkDirectRoomPayload, error) {
+	var response compozycontract.NetworkDirectRoomsResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/directs")
 	if err != nil {
 		return nil, err
@@ -181,15 +181,15 @@ func (h *RuntimeHarness) NetworkDirectRoom(
 	ctx context.Context,
 	channel string,
 	directID string,
-) (aghcontract.NetworkDirectRoomPayload, error) {
-	var response aghcontract.NetworkDirectRoomResponse
+) (compozycontract.NetworkDirectRoomPayload, error) {
+	var response compozycontract.NetworkDirectRoomResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
 		"/directs/"+url.PathEscape(directID))
 	if err != nil {
-		return aghcontract.NetworkDirectRoomPayload{}, err
+		return compozycontract.NetworkDirectRoomPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.NetworkDirectRoomPayload{}, err
+		return compozycontract.NetworkDirectRoomPayload{}, err
 	}
 	return response.Direct, nil
 }
@@ -199,8 +199,8 @@ func (h *RuntimeHarness) NetworkDirectRoomMessages(
 	ctx context.Context,
 	channel string,
 	directID string,
-) ([]aghcontract.NetworkConversationMessagePayload, error) {
-	var response aghcontract.NetworkDirectRoomMessagesResponse
+) ([]compozycontract.NetworkConversationMessagePayload, error) {
+	var response compozycontract.NetworkDirectRoomMessagesResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
 		"/directs/"+url.PathEscape(directID)+"/messages")
 	if err != nil {
@@ -216,15 +216,15 @@ func (h *RuntimeHarness) NetworkDirectRoomMessages(
 func (h *RuntimeHarness) NetworkDirectResolve(
 	ctx context.Context,
 	channel string,
-	request aghcontract.NetworkDirectResolveRequest,
-) (aghcontract.NetworkDirectRoomPayload, error) {
-	var response aghcontract.NetworkDirectRoomResponse
+	request compozycontract.NetworkDirectResolveRequest,
+) (compozycontract.NetworkDirectRoomPayload, error) {
+	var response compozycontract.NetworkDirectRoomResponse
 	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/directs/resolve")
 	if err != nil {
-		return aghcontract.NetworkDirectRoomPayload{}, err
+		return compozycontract.NetworkDirectRoomPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
-		return aghcontract.NetworkDirectRoomPayload{}, err
+		return compozycontract.NetworkDirectRoomPayload{}, err
 	}
 	return response.Direct, nil
 }
@@ -233,14 +233,14 @@ func (h *RuntimeHarness) NetworkDirectResolve(
 func (h *RuntimeHarness) NetworkWork(
 	ctx context.Context,
 	workID string,
-) (aghcontract.NetworkWorkPayload, error) {
-	var response aghcontract.NetworkWorkResponse
+) (compozycontract.NetworkWorkPayload, error) {
+	var response compozycontract.NetworkWorkResponse
 	path, err := h.networkScopedAPIPath("", "/work/"+url.PathEscape(workID))
 	if err != nil {
-		return aghcontract.NetworkWorkPayload{}, err
+		return compozycontract.NetworkWorkPayload{}, err
 	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.NetworkWorkPayload{}, err
+		return compozycontract.NetworkWorkPayload{}, err
 	}
 	return response.Work, nil
 }
@@ -249,12 +249,12 @@ func (h *RuntimeHarness) NetworkWork(
 func (h *RuntimeHarness) NetworkChannelMessages(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkConversationMessagePayload, error) {
+) ([]compozycontract.NetworkConversationMessagePayload, error) {
 	threads, err := h.NetworkThreads(ctx, channel)
 	if err != nil {
 		return nil, err
 	}
-	messages := make([]aghcontract.NetworkConversationMessagePayload, 0)
+	messages := make([]compozycontract.NetworkConversationMessagePayload, 0)
 	for _, thread := range threads {
 		threadMessages, err := h.NetworkThreadMessages(ctx, channel, thread.ThreadID)
 		if err != nil {
@@ -269,7 +269,7 @@ func (h *RuntimeHarness) NetworkChannelMessages(
 func (h *RuntimeHarness) NetworkInbox(
 	ctx context.Context,
 	sessionID string,
-) ([]aghcontract.NetworkEnvelopePayload, error) {
+) ([]compozycontract.NetworkEnvelopePayload, error) {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
@@ -279,7 +279,7 @@ func (h *RuntimeHarness) NetworkInbox(
 		return nil, err
 	}
 
-	var response aghcontract.NetworkInboxResponse
+	var response compozycontract.NetworkInboxResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
@@ -295,18 +295,18 @@ func (h *RuntimeHarness) NetworkInbox(
 // NetworkSend sends one envelope through the public network operator surface.
 func (h *RuntimeHarness) NetworkSend(
 	ctx context.Context,
-	request aghcontract.NetworkSendRequest,
-) (aghcontract.NetworkSendPayload, error) {
-	var response aghcontract.NetworkSendResponse
+	request compozycontract.NetworkSendRequest,
+) (compozycontract.NetworkSendPayload, error) {
+	var response compozycontract.NetworkSendResponse
 	path, err := h.networkScopedAPIPath(request.WorkspaceID, "/send")
 	if err != nil {
-		return aghcontract.NetworkSendPayload{}, err
+		return compozycontract.NetworkSendPayload{}, err
 	}
 	if strings.TrimSpace(request.WorkspaceID) == "" {
 		request.WorkspaceID = strings.TrimSpace(h.WorkspaceID)
 	}
 	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
-		return aghcontract.NetworkSendPayload{}, err
+		return compozycontract.NetworkSendPayload{}, err
 	}
 	return response.Message, nil
 }

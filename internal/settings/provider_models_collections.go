@@ -3,31 +3,31 @@ package settings
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func providerModelsConfigFromSettings(models aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
-	return aghconfig.ProviderModelsConfig{
+func providerModelsConfigFromSettings(models compozyconfig.ProviderModelsConfig) compozyconfig.ProviderModelsConfig {
+	return compozyconfig.ProviderModelsConfig{
 		Default:   strings.TrimSpace(models.Default),
 		Curated:   providerModelConfigsFromSettings(models.Curated),
 		Discovery: providerModelsDiscoveryConfigFromSettings(models.Discovery),
-		Reasoning: aghconfig.ProviderReasoningConfig{Apply: models.Reasoning.Apply},
+		Reasoning: compozyconfig.ProviderReasoningConfig{Apply: models.Reasoning.Apply},
 	}
 }
 
 func providerModelConfigsFromSettings(
-	models []aghconfig.ProviderModelConfig,
-) []aghconfig.ProviderModelConfig {
+	models []compozyconfig.ProviderModelConfig,
+) []compozyconfig.ProviderModelConfig {
 	if models == nil {
 		return nil
 	}
-	values := make([]aghconfig.ProviderModelConfig, 0, len(models))
+	values := make([]compozyconfig.ProviderModelConfig, 0, len(models))
 	for _, model := range models {
 		id := strings.TrimSpace(model.ID)
 		if id == "" {
 			continue
 		}
-		values = append(values, aghconfig.ProviderModelConfig{
+		values = append(values, compozyconfig.ProviderModelConfig{
 			ID:                       id,
 			DisplayName:              strings.TrimSpace(model.DisplayName),
 			ContextWindow:            cloneInt64Ptr(model.ContextWindow),
@@ -52,9 +52,9 @@ func providerModelConfigsFromSettings(
 }
 
 func providerModelsDiscoveryConfigFromSettings(
-	discovery aghconfig.ProviderModelsDiscoveryConfig,
-) aghconfig.ProviderModelsDiscoveryConfig {
-	return aghconfig.ProviderModelsDiscoveryConfig{
+	discovery compozyconfig.ProviderModelsDiscoveryConfig,
+) compozyconfig.ProviderModelsDiscoveryConfig {
+	return compozyconfig.ProviderModelsDiscoveryConfig{
 		Enabled:  cloneBoolPtr(discovery.Enabled),
 		Command:  strings.TrimSpace(discovery.Command),
 		Endpoint: strings.TrimSpace(discovery.Endpoint),
@@ -62,7 +62,7 @@ func providerModelsDiscoveryConfigFromSettings(
 	}
 }
 
-func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string]any {
+func providerModelsSettingsMap(models compozyconfig.ProviderModelsConfig) map[string]any {
 	values := make(map[string]any)
 	if strings.TrimSpace(models.Default) != "" {
 		values["default"] = strings.TrimSpace(models.Default)
@@ -79,7 +79,7 @@ func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string
 	return values
 }
 
-func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[string]any {
+func providerModelConfigMaps(models []compozyconfig.ProviderModelConfig) []map[string]any {
 	values := make([]map[string]any, 0, len(models))
 	for _, model := range models {
 		id := strings.TrimSpace(model.ID)
@@ -144,7 +144,7 @@ func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[strin
 	return values
 }
 
-func providerModelsDiscoveryMap(discovery aghconfig.ProviderModelsDiscoveryConfig) map[string]any {
+func providerModelsDiscoveryMap(discovery compozyconfig.ProviderModelsDiscoveryConfig) map[string]any {
 	values := make(map[string]any)
 	if discovery.Enabled != nil {
 		values["enabled"] = *discovery.Enabled

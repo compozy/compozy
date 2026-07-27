@@ -44,7 +44,7 @@ export const Absent: Story = {
       <Frame>
         <SecretField
           badges={BADGES}
-          description="Stored write-only. AGH returns presence, never the value."
+          description="Stored write-only. Compozy returns presence, never the value."
           id="api-key"
           label="API key"
           onValueChange={setValue}

@@ -1,13 +1,13 @@
 package settings
 
-import aghconfig "github.com/compozy/compozy/internal/config"
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
 const (
 	sectionsDaemonKey         = "daemon"
 	sectionsReloadTimeoutsKey = "reload_timeouts"
 )
 
-func diffGeneralSettings(cfg *aghconfig.Config, desired GeneralSettings) []string {
+func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
 	var changed []string
 	if cfg.Defaults.Agent != desired.Defaults.Agent {
 		changed = append(changed, "defaults.agent")
@@ -54,7 +54,7 @@ func diffGeneralSettings(cfg *aghconfig.Config, desired GeneralSettings) []strin
 	return changed
 }
 
-func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSettings) error {
+func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralSettings) error {
 	updates := []struct {
 		path  []string
 		value any
@@ -90,9 +90,9 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 }
 
 func normalizeDaemonReloadTimeouts(
-	value aghconfig.DaemonReloadTimeoutsConfig,
-) aghconfig.DaemonReloadTimeoutsConfig {
-	defaults := aghconfig.DefaultDaemonReloadTimeoutsConfig()
+	value compozyconfig.DaemonReloadTimeoutsConfig,
+) compozyconfig.DaemonReloadTimeoutsConfig {
+	defaults := compozyconfig.DefaultDaemonReloadTimeoutsConfig()
 	if value.Providers == 0 {
 		value.Providers = defaults.Providers
 	}

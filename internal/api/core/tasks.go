@@ -16,7 +16,7 @@ const (
 	taskDesignationRollupCompleted   = "completed"
 	taskDesignationRollupCanceled    = "canceled"
 	// #nosec G101 -- This is an HTTP header name, not a credential value.
-	taskClaimTokenHeader       = "X-AGH-Claim-Token"
+	taskClaimTokenHeader       = "X-Compozy-Claim-Token"
 	taskActionCreate           = "create"
 	taskActionGet              = "get"
 	taskActionInspect          = "inspect"

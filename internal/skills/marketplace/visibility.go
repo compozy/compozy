@@ -11,7 +11,7 @@ import (
 )
 
 // VerifyInstallVisible verifies that a completed marketplace install is visible
-// through AGH skill discovery with the marketplace provenance that agents rely on.
+// through Compozy skill discovery with the marketplace provenance that agents rely on.
 func VerifyInstallVisible(resolver SkillResolver, result InstallResult) error {
 	if resolver == nil {
 		return classifiedf(

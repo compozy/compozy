@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
@@ -71,13 +71,18 @@ func (s *daemonLoopAPIService) PutLoopInputDefaults(
 	if err != nil {
 		return contract.LoopInputDefaultsResponse{}, err
 	}
-	path := []string{aghconfig.LoopsConfigKey, loopInputsKey, loopName}
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, root, target, func(editor *aghconfig.OverlayEditor) error {
-		if len(values) == 0 {
-			return editor.Delete(path)
-		}
-		return editor.SetTable(path, values)
-	}); err != nil {
+	path := []string{compozyconfig.LoopsConfigKey, loopInputsKey, loopName}
+	if _, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		root,
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			if len(values) == 0 {
+				return editor.Delete(path)
+			}
+			return editor.SetTable(path, values)
+		},
+	); err != nil {
 		return contract.LoopInputDefaultsResponse{}, fmt.Errorf("daemon: replace Loop input defaults: %w", err)
 	}
 	return s.GetLoopInputDefaults(ctx, workspaceID, loopName, req.Scope)
@@ -98,7 +103,7 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
-	value, err := aghconfig.NormalizeToolConfigValue(aghconfig.ConfigValueScalar, req.Value)
+	value, err := compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueScalar, req.Value)
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, fmt.Errorf(
 			"%w: input default %q must be a string, boolean, or number: %v",
@@ -111,10 +116,15 @@ func (s *daemonLoopAPIService) PutLoopInputDefault(
 	if err != nil {
 		return contract.LoopInputDefaultResponse{}, err
 	}
-	path := []string{aghconfig.LoopsConfigKey, loopInputsKey, loopName, inputKey}
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, root, target, func(editor *aghconfig.OverlayEditor) error {
-		return editor.SetValue(path, value)
-	}); err != nil {
+	path := []string{compozyconfig.LoopsConfigKey, loopInputsKey, loopName, inputKey}
+	if _, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		root,
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			return editor.SetValue(path, value)
+		},
+	); err != nil {
 		return contract.LoopInputDefaultResponse{}, fmt.Errorf("daemon: set Loop input default: %w", err)
 	}
 	return s.GetLoopInputDefault(ctx, workspaceID, loopName, inputKey, req.Scope)
@@ -139,12 +149,17 @@ func (s *daemonLoopAPIService) DeleteLoopInputDefault(
 	if err != nil {
 		return contract.DeleteLoopInputDefaultResponse{}, err
 	}
-	path := []string{aghconfig.LoopsConfigKey, loopInputsKey, loopName, inputKey}
+	path := []string{compozyconfig.LoopsConfigKey, loopInputsKey, loopName, inputKey}
 	deleted := false
-	if _, err := aghconfig.EditConfigOverlay(s.homePaths, root, target, func(editor *aghconfig.OverlayEditor) error {
-		deleted = editor.HasPath(path)
-		return editor.Delete(path)
-	}); err != nil {
+	if _, err := compozyconfig.EditConfigOverlay(
+		s.homePaths,
+		root,
+		target,
+		func(editor *compozyconfig.OverlayEditor) error {
+			deleted = editor.HasPath(path)
+			return editor.Delete(path)
+		},
+	); err != nil {
 		return contract.DeleteLoopInputDefaultResponse{}, fmt.Errorf("daemon: delete Loop input default: %w", err)
 	}
 	return contract.DeleteLoopInputDefaultResponse{
@@ -166,20 +181,20 @@ func (s *daemonLoopAPIService) loadLoopInputDefaults(
 		return nil, err
 	}
 	root := ""
-	options := []aghconfig.LoadOption{}
-	if writeScope == aghconfig.WriteScopeWorkspace {
+	options := []compozyconfig.LoadOption{}
+	if writeScope == compozyconfig.WriteScopeWorkspace {
 		root, err = s.loopInputDefaultsWorkspaceRoot(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
-		options = append(options, aghconfig.WithWorkspaceRoot(root))
+		options = append(options, compozyconfig.WithWorkspaceRoot(root))
 	}
-	cfg, err := aghconfig.LoadForHome(s.homePaths, options...)
+	cfg, err := compozyconfig.LoadForHome(s.homePaths, options...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: load Loop input defaults: %w", err)
 	}
 	global, workspace := cfg.Loops.InputDefaultLayers(loopName)
-	if writeScope == aghconfig.WriteScopeWorkspace {
+	if writeScope == compozyconfig.WriteScopeWorkspace {
 		return workspace, nil
 	}
 	return global, nil
@@ -189,21 +204,21 @@ func (s *daemonLoopAPIService) loopInputDefaultsWriteTarget(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 	scope contract.LoopInputDefaultsScope,
-) (string, aghconfig.WriteTarget, error) {
+) (string, compozyconfig.WriteTarget, error) {
 	writeScope, err := loopInputDefaultsWriteScope(scope)
 	if err != nil {
-		return "", aghconfig.WriteTarget{}, err
+		return "", compozyconfig.WriteTarget{}, err
 	}
 	root := ""
-	if writeScope == aghconfig.WriteScopeWorkspace {
+	if writeScope == compozyconfig.WriteScopeWorkspace {
 		root, err = s.loopInputDefaultsWorkspaceRoot(ctx, workspaceID)
 		if err != nil {
-			return "", aghconfig.WriteTarget{}, err
+			return "", compozyconfig.WriteTarget{}, err
 		}
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, root, writeScope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, root, writeScope)
 	if err != nil {
-		return "", aghconfig.WriteTarget{}, fmt.Errorf("daemon: resolve Loop input defaults target: %w", err)
+		return "", compozyconfig.WriteTarget{}, fmt.Errorf("daemon: resolve Loop input defaults target: %w", err)
 	}
 	return root, target, nil
 }
@@ -226,12 +241,12 @@ func (s *daemonLoopAPIService) loopInputDefaultsWorkspaceRoot(
 	return root, nil
 }
 
-func loopInputDefaultsWriteScope(scope contract.LoopInputDefaultsScope) (aghconfig.WriteScope, error) {
+func loopInputDefaultsWriteScope(scope contract.LoopInputDefaultsScope) (compozyconfig.WriteScope, error) {
 	switch scope {
 	case contract.LoopInputDefaultsScopeGlobal:
-		return aghconfig.WriteScopeGlobal, nil
+		return compozyconfig.WriteScopeGlobal, nil
 	case contract.LoopInputDefaultsScopeWorkspace:
-		return aghconfig.WriteScopeWorkspace, nil
+		return compozyconfig.WriteScopeWorkspace, nil
 	default:
 		return "", fmt.Errorf("%w: input-default scope must be global or workspace", looppkg.ErrValidation)
 	}
@@ -269,7 +284,7 @@ func normalizeLoopInputDefaultValues(values map[string]any) (map[string]any, err
 		if err != nil {
 			return nil, err
 		}
-		value, err := aghconfig.NormalizeToolConfigValue(aghconfig.ConfigValueScalar, values[rawKey])
+		value, err := compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueScalar, values[rawKey])
 		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: input default %q must be a string, boolean, or number: %v",

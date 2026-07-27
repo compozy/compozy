@@ -1,4 +1,4 @@
-export const DESIGN_MD_BASE = "https://github.com/compozy/agh/blob/main/DESIGN.md";
+export const DESIGN_MD_BASE = "https://github.com/compozy/compozy/blob/main/DESIGN.md";
 
 export interface ShowcaseSection {
   id: string;

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/store"
 
@@ -132,7 +132,7 @@ forceStop:
 
 func (s *promptActivitySupervisor) timeoutStopDeadline() time.Duration {
 	if s == nil || s.config.TimeoutCancelGrace <= 0 {
-		return aghconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
+		return compozyconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
 	}
 	if s.config.TimeoutCancelGrace < defaultLifecycleTimeout {
 		return defaultLifecycleTimeout

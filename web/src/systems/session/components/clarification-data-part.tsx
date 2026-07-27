@@ -20,7 +20,7 @@ export interface ClarificationDataPartProps {
 }
 
 /**
- * Timeline dispatch for a `clarify` data-agh-event. Parses the durable payload and branches by
+ * Timeline dispatch for a `clarify` data-compozy-event. Parses the durable payload and branches by
  * status: a pending event drives the live-gated interactive card; a terminal event renders a
  * historical receipt. This dispatcher owns no query hooks, so terminal rows never subscribe.
  */

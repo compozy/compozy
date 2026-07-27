@@ -4,31 +4,31 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-func providerModelsFromPayload(payload *contract.SettingsProviderModelsPayload) aghconfig.ProviderModelsConfig {
+func providerModelsFromPayload(payload *contract.SettingsProviderModelsPayload) compozyconfig.ProviderModelsConfig {
 	if payload == nil {
-		return aghconfig.ProviderModelsConfig{}
+		return compozyconfig.ProviderModelsConfig{}
 	}
-	models := aghconfig.ProviderModelsConfig{
+	models := compozyconfig.ProviderModelsConfig{
 		Default:   strings.TrimSpace(payload.Default),
 		Curated:   providerModelConfigsFromPayload(payload.Curated),
 		Discovery: providerModelsDiscoveryFromPayload(payload.Discovery),
 	}
 	if payload.Reasoning != nil {
-		models.Reasoning.Apply = aghconfig.ReasoningApplyStrategy(strings.TrimSpace(payload.Reasoning.Apply))
+		models.Reasoning.Apply = compozyconfig.ReasoningApplyStrategy(strings.TrimSpace(payload.Reasoning.Apply))
 	}
 	return models
 }
 
 func providerModelsDiscoveryFromPayload(
 	payload *contract.SettingsProviderModelsDiscoveryPayload,
-) aghconfig.ProviderModelsDiscoveryConfig {
+) compozyconfig.ProviderModelsDiscoveryConfig {
 	if payload == nil {
-		return aghconfig.ProviderModelsDiscoveryConfig{}
+		return compozyconfig.ProviderModelsDiscoveryConfig{}
 	}
-	return aghconfig.ProviderModelsDiscoveryConfig{
+	return compozyconfig.ProviderModelsDiscoveryConfig{
 		Enabled:  cloneBoolPtr(payload.Enabled),
 		Command:  strings.TrimSpace(payload.Command),
 		Endpoint: strings.TrimSpace(payload.Endpoint),
@@ -38,13 +38,13 @@ func providerModelsDiscoveryFromPayload(
 
 func providerModelConfigsFromPayload(
 	payloads []contract.SettingsProviderModelPayload,
-) []aghconfig.ProviderModelConfig {
+) []compozyconfig.ProviderModelConfig {
 	if payloads == nil {
 		return nil
 	}
-	models := make([]aghconfig.ProviderModelConfig, 0, len(payloads))
+	models := make([]compozyconfig.ProviderModelConfig, 0, len(payloads))
 	for _, payload := range payloads {
-		models = append(models, aghconfig.ProviderModelConfig{
+		models = append(models, compozyconfig.ProviderModelConfig{
 			ID:                       strings.TrimSpace(payload.ID),
 			DisplayName:              strings.TrimSpace(payload.DisplayName),
 			ContextWindow:            cloneInt64Ptr(payload.ContextWindow),

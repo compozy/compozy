@@ -270,7 +270,7 @@ describe("useActiveWorkspace", () => {
 
   it("uses the persisted selected workspace after rehydration", async () => {
     window.localStorage.setItem(
-      "agh:active-workspace",
+      "compozy:active-workspace",
       JSON.stringify({ state: { selectedWorkspaceId: "ws_beta" }, version: 0 })
     );
     await act(async () => {

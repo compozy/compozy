@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
@@ -18,7 +18,7 @@ const (
 
 func (e *CallExecutor) descriptorFromTool(
 	source toolspkg.SourceRef,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	tool mcpsdk.Tool,
 ) (toolspkg.MCPToolDescriptor, error) {
 	id, err := toolspkg.Canonicalize(server.Name, tool.Name)

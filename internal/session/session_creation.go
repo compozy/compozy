@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -194,7 +194,7 @@ func (m *Manager) ensureExistingSessionActive(ctx context.Context, sessionID str
 	return true, nil
 }
 
-func prepareStartCreationIdentity(spec *sessionStartSpec, resolved aghconfig.ResolvedAgent) error {
+func prepareStartCreationIdentity(spec *sessionStartSpec, resolved compozyconfig.ResolvedAgent) error {
 	if spec == nil {
 		return errors.New("session: start spec is required for creation identity")
 	}
@@ -233,7 +233,7 @@ func prepareStartCreationIdentity(spec *sessionStartSpec, resolved aghconfig.Res
 
 func prepareStartCreationIdentityIfEnabled(
 	spec *sessionStartSpec,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 ) error {
 	if spec.startAction != sessionStartActionCreate || !spec.creationIdentityEnabled {
 		return nil
@@ -280,7 +280,7 @@ func finalizeStartCreationIdentityIfEnabled(spec *sessionStartSpec, session *Ses
 
 func creationProfileFromStart(
 	spec *sessionStartSpec,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 ) store.SessionCreationProfile {
 	sandboxMode := store.SessionCreationSandboxRef
 	sandboxRef := strings.TrimSpace(spec.workspace.SandboxRef)

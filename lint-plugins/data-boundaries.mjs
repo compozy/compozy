@@ -1,5 +1,5 @@
 /**
- * OXC/ESLint Plugin: AGH Web data boundaries.
+ * OXC/ESLint Plugin: Compozy Web data boundaries.
  *
  * Server-query consumers reuse canonical option and key factories. Query
  * definitions belong in system `lib/query-options.ts`; query-key composition

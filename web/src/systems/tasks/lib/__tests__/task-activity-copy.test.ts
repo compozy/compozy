@@ -20,7 +20,7 @@ describe("humanizeTaskEvent", () => {
       buildTaskTimelineItemFixture({
         event_type: "task.updated",
         actor: { kind: "human", ref: "operator@example.com" },
-        origin: { kind: "cli", ref: "agh-cli" },
+        origin: { kind: "cli", ref: "compozy-cli" },
         payload: { message: "  Scope updated  " },
       })
     );

@@ -1,5 +1,5 @@
 name: "Setup Node.js Environment"
-description: "Sets up Node.js with npm registry authentication for AGH release publishing"
+description: "Sets up Node.js with npm registry authentication for Compozy release publishing"
 
 inputs:
   node-version:

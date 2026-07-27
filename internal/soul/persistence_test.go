@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestSoulPersistenceSnapshotHelpers(t *testing.T) {
@@ -17,7 +17,7 @@ func TestSoulPersistenceSnapshotHelpers(t *testing.T) {
 	t.Run("Should build a snapshot envelope from resolved Soul output", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultSoulConfig()
+		cfg := compozyconfig.DefaultSoulConfig()
 		resolved, err := Parse(context.Background(), ParseRequest{
 			SourcePath:    "/workspace/agents/coder/" + FileName,
 			WorkspaceRoot: "/workspace",

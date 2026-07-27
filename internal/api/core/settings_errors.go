@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -87,7 +87,7 @@ func StatusForSettingsError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, ErrSettingsConflict),
 		errors.Is(err, settingspkg.ErrConflict),
-		errors.Is(err, aghconfig.ErrUnsupportedTOMLMutation):
+		errors.Is(err, compozyconfig.ErrUnsupportedTOMLMutation):
 		return http.StatusConflict
 	case errors.Is(err, modelcatalog.ErrAllSourcesFailed):
 		return http.StatusServiceUnavailable

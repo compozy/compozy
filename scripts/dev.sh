@@ -183,7 +183,7 @@ fi
 {
   printf '%s\n' '<!doctype html>' '<meta charset="utf-8">'
   printf '<meta http-equiv="refresh" content="0;url=%s/">\n' "$web_url"
-  printf '%s\n' '<title>AGH development server</title>' '<script>'
+  printf '%s\n' '<title>Compozy development server</title>' '<script>'
   printf 'window.location.replace("%s" + window.location.pathname + window.location.search + window.location.hash);\n' "$web_url"
   printf '%s\n' '</script>'
   printf '<p>Open <a href="%s/">%s</a>.</p>\n' "$web_url" "$web_url"

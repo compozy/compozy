@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -51,7 +51,7 @@ func runCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {
 		t.Fatalf("Create count after first start = %d, want 1", got)
 	}
 	createdCoordinator := sessions.createCall(0)
-	if createdCoordinator.AgentName != aghconfig.BuiltinCoordinatorAgentName ||
+	if createdCoordinator.AgentName != compozyconfig.BuiltinCoordinatorAgentName ||
 		createdCoordinator.Type != session.SessionTypeCoordinator {
 		t.Fatalf("coordinator Create() opts = %#v, want bundled coordinator identity and type", createdCoordinator)
 	}

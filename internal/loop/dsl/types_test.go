@@ -35,7 +35,7 @@ func TestDefinitionShouldNormalizeAndValidateHeader(t *testing.T) {
 	t.Run("Should reject wrong apiVersion", func(t *testing.T) {
 		t.Parallel()
 
-		def := dsl.Definition{APIVersion: "agh.loop/v2", Kind: dsl.KindLoop}
+		def := dsl.Definition{APIVersion: "compozy.loop/v2", Kind: dsl.KindLoop}
 		err := def.ValidateHeader()
 		requireErrorContains(t, err, `apiVersion must be "compozy.loop/v1"`)
 	})
@@ -244,7 +244,7 @@ func TestParseSerializeShouldRejectInvalidDocuments(t *testing.T) {
 		{
 			name: "Should reject wrong apiVersion during parse",
 			run: func() error {
-				_, err := dsl.Parse([]byte("apiVersion: agh.loop/v2\nkind: Loop\n"))
+				_, err := dsl.Parse([]byte("apiVersion: compozy.loop/v2\nkind: Loop\n"))
 				return err
 			},
 			contains: `apiVersion must be "compozy.loop/v1"`,

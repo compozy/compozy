@@ -6,6 +6,23 @@
             "provider": "claude",
             "permissions": "approve-all",
             "prompt": "You exercise automatic title lifecycle behavior.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "primary-title-model",
+                    "values": [
+                        {
+                            "value": "primary-title-model",
+                            "label": "Primary title model"
+                        },
+                        {
+                            "value": "fallback-title-model",
+                            "label": "Fallback title model"
+                        }
+                    ]
+                }
+            ],
             "turns": [
                 {
                     "name": "parent-response",

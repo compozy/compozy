@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
 )
 
@@ -56,7 +56,7 @@ func WithCatalogDatabasePath(path string) StoreOption {
 }
 
 // WithRecallSignalRecorderConfig configures asynchronous recall-signal writes.
-func WithRecallSignalRecorderConfig(config aghconfig.MemoryRecallSignalsConfig) StoreOption {
+func WithRecallSignalRecorderConfig(config compozyconfig.MemoryRecallSignalsConfig) StoreOption {
 	return func(store *Store) {
 		if store == nil {
 			return
@@ -72,7 +72,7 @@ func WithRecallSignalRecorderConfig(config aghconfig.MemoryRecallSignalsConfig) 
 }
 
 // WithFileLimits configures both curated body limits and prompt-index caps.
-func WithFileLimits(config aghconfig.MemoryFileConfig) StoreOption {
+func WithFileLimits(config compozyconfig.MemoryFileConfig) StoreOption {
 	return func(store *Store) {
 		if store == nil {
 			return

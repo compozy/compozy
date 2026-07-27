@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -55,7 +55,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
-	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNone {
+	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNone {
 		classification := authproviders.Classification{
 			State:   authproviders.ProviderAuthStateNone,
 			Message: authproviders.ProviderAuthNoAuthRequiredMessage,
@@ -134,7 +134,7 @@ func (h *BaseHandlers) providerListResponse(ctx context.Context) (contract.Provi
 func (h *BaseHandlers) providerSummaryPayload(
 	ctx context.Context,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 ) (contract.ProviderSummaryPayload, error) {
 	env, err := h.providerProbeEnv(providerName, provider)
 	if err != nil {
@@ -147,14 +147,14 @@ func (h *BaseHandlers) providerSummaryPayload(
 	return contract.ProviderSummaryPayload{
 		Name:        providerName,
 		DisplayName: strings.TrimSpace(provider.DisplayName),
-		Default:     aghconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
+		Default:     compozyconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
 		AuthStatus:  providerAuthStatusPayload(provider, classification, timeZero()),
 	}, nil
 }
 
 func (h *BaseHandlers) providerProbeEnv(
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 ) (authproviders.ProbeEnv, error) {
 	commandEnv, err := providerauth.CommandEnv(h.HomePaths, providerName, provider, os.Environ())
 	if err != nil {
@@ -172,23 +172,23 @@ func (h *BaseHandlers) providerProbeEnv(
 
 func (h *BaseHandlers) resolveProvider(
 	providerRef string,
-) (string, aghconfig.ProviderConfig, error) {
-	providerName := aghconfig.CanonicalProviderName(providerRef)
+) (string, compozyconfig.ProviderConfig, error) {
+	providerName := compozyconfig.CanonicalProviderName(providerRef)
 	if providerName == "" {
-		return "", aghconfig.ProviderConfig{}, errProviderNotFound
+		return "", compozyconfig.ProviderConfig{}, errProviderNotFound
 	}
 	if !providerExists(&h.Config, providerName) {
-		return "", aghconfig.ProviderConfig{}, fmt.Errorf("%w: %q", errProviderNotFound, providerName)
+		return "", compozyconfig.ProviderConfig{}, fmt.Errorf("%w: %q", errProviderNotFound, providerName)
 	}
 	provider, err := h.Config.ResolveProvider(providerName)
 	if err != nil {
-		return "", aghconfig.ProviderConfig{}, err
+		return "", compozyconfig.ProviderConfig{}, err
 	}
 	return providerName, provider, nil
 }
 
-func providerExists(cfg *aghconfig.Config, providerName string) bool {
-	if _, ok := aghconfig.BuiltinProviders()[providerName]; ok {
+func providerExists(cfg *compozyconfig.Config, providerName string) bool {
+	if _, ok := compozyconfig.BuiltinProviders()[providerName]; ok {
 		return true
 	}
 	if cfg == nil {
@@ -225,14 +225,14 @@ func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName stri
 	})
 }
 
-func providerInventoryNames(cfg *aghconfig.Config) []string {
+func providerInventoryNames(cfg *compozyconfig.Config) []string {
 	seen := make(map[string]struct{})
-	for name := range aghconfig.BuiltinProviders() {
+	for name := range compozyconfig.BuiltinProviders() {
 		seen[name] = struct{}{}
 	}
 	if cfg != nil {
 		for name := range cfg.Providers {
-			canonical := aghconfig.CanonicalProviderName(name)
+			canonical := compozyconfig.CanonicalProviderName(name)
 			if canonical != "" {
 				seen[canonical] = struct{}{}
 			}
@@ -247,7 +247,7 @@ func providerInventoryNames(cfg *aghconfig.Config) []string {
 }
 
 func providerAuthStatusPayload(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	classification authproviders.Classification,
 	lastProbeAt time.Time,
 ) contract.ProviderAuthStatusPayload {

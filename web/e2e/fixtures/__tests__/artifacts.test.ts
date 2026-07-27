@@ -17,9 +17,9 @@ import {
 
 describe("artifact collector", () => {
   it("persists browser artifacts in stable manifest locations", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-artifact-test-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-artifact-test-"));
     const collector = await ArtifactCollector.create(rootDir);
-    const sourceDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-source-"));
+    const sourceDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-source-"));
 
     const tracePath = path.join(sourceDir, "trace.zip");
     const screenshotOne = path.join(sourceDir, "first.png");
@@ -31,7 +31,7 @@ describe("artifact collector", () => {
     const routeState: BrowserRouteState = {
       url: "http://127.0.0.1/session/sess_browser_01",
       pathname: "/session/sess_browser_01",
-      title: "AGH",
+      title: "Compozy",
       chat_view_visible: true,
       message_count: 2,
       network_channel_count: 0,
@@ -103,7 +103,7 @@ describe("artifact collector", () => {
   });
 
   it("rejects artifact paths that escape the artifact root", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-artifact-root-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-artifact-root-"));
     await mkdir(rootDir, { recursive: true });
 
     expect(() => resolveBrowserArtifactPath(rootDir, "../escape.json")).toThrow();
@@ -124,8 +124,8 @@ describe("artifact collector", () => {
   });
 
   it("mirrors named screenshots into the task QA artifact root", async () => {
-    const qaOutputRoot = await mkdtemp(path.join(os.tmpdir(), "agh-qa-output-root-"));
-    const sourceDir = await mkdtemp(path.join(os.tmpdir(), "agh-qa-source-"));
+    const qaOutputRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-qa-output-root-"));
+    const sourceDir = await mkdtemp(path.join(os.tmpdir(), "compozy-qa-source-"));
     const sourcePath = path.join(sourceDir, "dashboard-capture.png");
 
     await writeFile(sourcePath, "dashboard");
@@ -141,7 +141,7 @@ describe("artifact collector", () => {
   });
 
   it("records browser transport snapshots as first-class artifacts", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-transport-artifact-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-transport-artifact-"));
     const collector = await ArtifactCollector.create(rootDir);
     const snapshot = {
       scenarioID: "TC-HARNESS-001",

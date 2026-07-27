@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // WorkspaceRef identifies the workspace scope that owns managed authoring history.
@@ -52,16 +52,16 @@ func (s *ManagedHeartbeatAuthoringService) PurgeAgentHistory(
 
 func heartbeatRevisionSourcePath(agentDefinitionPath string) (string, error) {
 	cleaned := filepath.Clean(strings.TrimSpace(agentDefinitionPath))
-	if cleaned == "." || !strings.EqualFold(filepath.Base(cleaned), aghconfig.AgentDefinitionFileName) {
+	if cleaned == "." || !strings.EqualFold(filepath.Base(cleaned), compozyconfig.AgentDefinitionFileName) {
 		return "", fmt.Errorf("heartbeat: purge agent history requires an AGENT.md source path")
 	}
 	agentDir := filepath.Dir(cleaned)
 	agentsDir := filepath.Dir(agentDir)
-	if filepath.Base(agentsDir) != aghconfig.AgentsDirName {
+	if filepath.Base(agentsDir) != compozyconfig.AgentsDirName {
 		return "", fmt.Errorf("heartbeat: purge agent history source path is outside an agents root")
 	}
 	root := filepath.Dir(agentsDir)
-	if filepath.Base(root) == aghconfig.DirName {
+	if filepath.Base(root) == compozyconfig.DirName {
 		root = filepath.Dir(root)
 	}
 	relative, err := filepath.Rel(root, filepath.Join(agentDir, FileName))

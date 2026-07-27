@@ -111,8 +111,12 @@ describe("ToolCallRow", () => {
   it("Should toggle the inline body by click, Enter, and Space", async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <ToolCallRow toolName="Read" preview="agh.config.toml" status="success">
-        <ToolCallRow.Input source='{"file_path":"agh.config.toml"}' format="code" language="json" />
+      <ToolCallRow toolName="Read" preview="compozy.config.toml" status="success">
+        <ToolCallRow.Input
+          source='{"file_path":"compozy.config.toml"}'
+          format="code"
+          language="json"
+        />
         <ToolCallRow.Output source="[runtime]\nmode = local" format="code" language="toml" />
       </ToolCallRow>
     );

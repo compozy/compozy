@@ -8,7 +8,7 @@ import (
 
 	burnttoml "github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +28,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			homeWorkspace := ""
-			if scope == aghconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
+			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
 				homeWorkspace, err = resolveConfigWorkspaceRoot(deps, workspaceRoot)
 				if err != nil {
 					return err
@@ -43,11 +43,11 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			globalMCP, err := aghconfig.ResolveMCPSidecarWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+			globalMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 			if err != nil {
 				return err
 			}
-			selected, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+			selected, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 			if err != nil {
 				return err
 			}
@@ -60,20 +60,20 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				Manager:              detectManagedState(deps).Manager,
 				SelectedConfigTarget: selected.Path(),
 			}
-			if scope == aghconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
+			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
 				workspace := homeWorkspace
-				workspaceConfig, err := aghconfig.ResolveConfigWriteTarget(
+				workspaceConfig, err := compozyconfig.ResolveConfigWriteTarget(
 					homePaths,
 					workspace,
-					aghconfig.WriteScopeWorkspace,
+					compozyconfig.WriteScopeWorkspace,
 				)
 				if err != nil {
 					return err
 				}
-				workspaceMCP, err := aghconfig.ResolveMCPSidecarWriteTarget(
+				workspaceMCP, err := compozyconfig.ResolveMCPSidecarWriteTarget(
 					homePaths,
 					workspace,
-					aghconfig.WriteScopeWorkspace,
+					compozyconfig.WriteScopeWorkspace,
 				)
 				if err != nil {
 					return err
@@ -81,7 +81,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				record.WorkspaceRoot = workspace
 				record.WorkspaceConfig = workspaceConfig.Path()
 				record.WorkspaceMCPJSON = workspaceMCP.Path()
-				if scope == aghconfig.WriteScopeWorkspace {
+				if scope == compozyconfig.WriteScopeWorkspace {
 					record.SelectedConfigTarget = workspaceConfig.Path()
 				}
 			}
@@ -89,7 +89,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Path scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Path scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped paths")
 	return cmd
 }
@@ -127,7 +127,7 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			if err != nil {
 				return err
 			}
-			var dotenvReport *aghconfig.DotEnvRepairReport
+			var dotenvReport *compozyconfig.DotEnvRepairReport
 			if repairEnv {
 				if workspace == "" {
 					workspace, err = currentWorkingDirectory(deps)
@@ -135,17 +135,17 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 						return err
 					}
 				}
-				report, err := aghconfig.RepairDotEnvFile(aghconfig.WorkspaceDotEnvFile(workspace))
+				report, err := compozyconfig.RepairDotEnvFile(compozyconfig.WorkspaceDotEnvFile(workspace))
 				dotenvReport = &report
 				if err != nil {
 					return err
 				}
 			}
-			loadOptions := []aghconfig.LoadOption{}
+			loadOptions := []compozyconfig.LoadOption{}
 			if workspace != "" {
-				loadOptions = append(loadOptions, aghconfig.WithWorkspaceRoot(workspace))
+				loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
 			}
-			if _, err := aghconfig.LoadForHome(homePaths, loadOptions...); err != nil {
+			if _, err := compozyconfig.LoadForHome(homePaths, loadOptions...); err != nil {
 				record := configValidateRecord{
 					Status:        configInvalidKey,
 					Scope:         scopeForWorkspace(workspace),
@@ -180,7 +180,7 @@ func configValidationErrors(err error) []configValidationError {
 		Code:    "config.invalid",
 		Message: err.Error(),
 	}
-	if fileErr, ok := errors.AsType[aghconfig.FileError](err); ok {
+	if fileErr, ok := errors.AsType[compozyconfig.FileError](err); ok {
 		record.File = fileErr.Path
 		switch fileErr.Op {
 		case "decode":
@@ -197,7 +197,7 @@ func configValidationErrors(err error) []configValidationError {
 		record.Column = parseErr.Position.Col
 		record.Message = parseErr.Message
 	}
-	if validationErr, ok := errors.AsType[aghconfig.ValidationError](err); ok {
+	if validationErr, ok := errors.AsType[compozyconfig.ValidationError](err); ok {
 		record.Code = "config.validation"
 		record.Path = validationErr.Path
 		record.Message = validationErr.Error()
@@ -231,11 +231,11 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 			if err := runConfigEditor(cmd, deps, target.Path()); err != nil {
 				return err
 			}
-			loadOptions := []aghconfig.LoadOption{}
+			loadOptions := []compozyconfig.LoadOption{}
 			if workspace != "" {
-				loadOptions = append(loadOptions, aghconfig.WithWorkspaceRoot(workspace))
+				loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
 			}
-			if _, err := aghconfig.LoadForHome(homePaths, loadOptions...); err != nil {
+			if _, err := compozyconfig.LoadForHome(homePaths, loadOptions...); err != nil {
 				return fmt.Errorf("cli: edited config failed validation: %w", err)
 			}
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
@@ -251,7 +251,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Edit scope: global or workspace")
+		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Edit scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped edits")
 	return cmd
 }
@@ -273,7 +273,7 @@ func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
 				Path:             "config.toml",
 				Value:            configReloadCommandName,
-				Scope:            string(aghconfig.WriteScopeGlobal),
+				Scope:            string(compozyconfig.WriteScopeGlobal),
 				Target:           configDaemonKey,
 				Lifecycle:        string(result.Lifecycle),
 				ApplyRecordID:    result.ApplyRecordID,

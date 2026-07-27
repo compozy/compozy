@@ -905,8 +905,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				webhookOperation := operationFor(t, doc, "/api/webhooks/global/{endpoint}", "POST")
 				assertParameter(t, webhookOperation, "endpoint", openapi3.ParameterInPath, true)
-				assertParameter(t, webhookOperation, "X-AGH-Webhook-Timestamp", openapi3.ParameterInHeader, true)
-				assertParameter(t, webhookOperation, "X-AGH-Webhook-Signature", openapi3.ParameterInHeader, true)
+				assertParameter(t, webhookOperation, "X-Compozy-Webhook-Timestamp", openapi3.ParameterInHeader, true)
+				assertParameter(t, webhookOperation, "X-Compozy-Webhook-Signature", openapi3.ParameterInHeader, true)
 
 				runOperation := operationFor(t, doc, "/api/automation/runs/{id}", "GET")
 				runSchema := jsonResponseSchema(t, runOperation, 200)

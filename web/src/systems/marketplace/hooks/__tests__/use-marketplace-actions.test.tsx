@@ -227,8 +227,8 @@ describe("marketplace acquisition cache boundaries", () => {
         hash: "sha256:reviewer",
         name: "reviewer",
         path: "/skills/reviewer",
-        registry: "agh",
-        slug: "@agh/reviewer",
+        registry: "compozy",
+        slug: "@compozy/reviewer",
         status: "installed",
         version: "1.2.0",
       },
@@ -236,7 +236,7 @@ describe("marketplace acquisition cache boundaries", () => {
     const { invalidateQueries, wrapper } = setup();
     const { result } = renderHook(() => useInstallMarketplaceSkill(), { wrapper });
 
-    act(() => result.current.mutate({ slug: "@agh/reviewer", version: "1.2.0" }));
+    act(() => result.current.mutate({ slug: "@compozy/reviewer", version: "1.2.0" }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });

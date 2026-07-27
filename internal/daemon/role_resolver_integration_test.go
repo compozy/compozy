@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
 
@@ -22,27 +22,27 @@ func TestRoleResolverIntegration(t *testing.T) {
 		t.Parallel()
 
 		homePaths := e2etest.NewHomePaths(t)
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		resolver := newRoleResolver(&cfg, nil, nil)
-		defaults := aghconfig.DefaultRolesConfig()
+		defaults := compozyconfig.DefaultRolesConfig()
 
 		for _, testCase := range []struct {
-			role    aghconfig.RoleName
+			role    compozyconfig.RoleName
 			agent   string
 			enabled bool
 			builtin bool
 			inherit bool
 			model   string
 		}{
-			{role: aghconfig.RoleCoordinator, agent: aghconfig.BuiltinCoordinatorAgentName, builtin: true},
-			{role: aghconfig.RoleDream, agent: aghconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
-			{role: aghconfig.RoleCheckpointSummary, agent: aghconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
-			{role: aghconfig.RoleMemoryExtractor, enabled: true, inherit: true},
-			{role: aghconfig.RoleAutoTitle, enabled: true, inherit: true},
-			{role: aghconfig.RoleMemoryController, enabled: defaults.MemoryController.Enabled, model: defaults.MemoryController.Model},
+			{role: compozyconfig.RoleCoordinator, agent: compozyconfig.BuiltinCoordinatorAgentName, builtin: true},
+			{role: compozyconfig.RoleDream, agent: compozyconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
+			{role: compozyconfig.RoleCheckpointSummary, agent: compozyconfig.BuiltinDreamingCuratorAgentName, enabled: true, builtin: true},
+			{role: compozyconfig.RoleMemoryExtractor, enabled: true, inherit: true},
+			{role: compozyconfig.RoleAutoTitle, enabled: true, inherit: true},
+			{role: compozyconfig.RoleMemoryController, enabled: defaults.MemoryController.Enabled, model: defaults.MemoryController.Model},
 		} {
 			t.Run("Should resolve "+string(testCase.role), func(t *testing.T) {
 				t.Parallel()
@@ -73,10 +73,10 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		homePaths := e2etest.NewHomePaths(t)
 		e2etest.SeedConfig(t, homePaths, e2etest.ConfigSeedOptions{
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"mock": {Command: "mock-acp"},
 			},
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Roles.Dream.Provider = "mock"
 				cfg.Roles.Dream.Model = "global-model"
 			},
@@ -89,33 +89,33 @@ func TestRoleResolverIntegration(t *testing.T) {
 			".compozy/config.toml": "[roles.dream]\nmodel = \"global-model\"\n",
 		}})
 
-		global, err := aghconfig.LoadForHome(homePaths)
+		global, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(global) error = %v", err)
 		}
-		configA, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceA))
+		configA, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceA))
 		if err != nil {
 			t.Fatalf("LoadForHome(workspace A) error = %v", err)
 		}
-		configB, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceB))
+		configB, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceB))
 		if err != nil {
 			t.Fatalf("LoadForHome(workspace B) error = %v", err)
 		}
-		configC, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceC))
+		configC, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceC))
 		if err != nil {
 			t.Fatalf("LoadForHome(workspace C) error = %v", err)
 		}
-		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
+		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
 			"workspace-a": configA,
 			"workspace-b": configB,
 			"workspace-c": configC,
 		}}, nil)
 
-		resolvedA, err := resolver.Resolve(t.Context(), "workspace-a", aghconfig.RoleDream)
+		resolvedA, err := resolver.Resolve(t.Context(), "workspace-a", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(workspace A) error = %v", err)
 		}
-		resolvedB, err := resolver.Resolve(t.Context(), "workspace-b", aghconfig.RoleDream)
+		resolvedB, err := resolver.Resolve(t.Context(), "workspace-b", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(workspace B) error = %v", err)
 		}
@@ -125,7 +125,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		if resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != "global" {
 			t.Fatalf("Resolve(workspace B) = %#v, want global model provenance", resolvedB)
 		}
-		resolvedC, err := resolver.Resolve(t.Context(), "workspace-c", aghconfig.RoleDream)
+		resolvedC, err := resolver.Resolve(t.Context(), "workspace-c", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(workspace C) error = %v", err)
 		}
@@ -139,7 +139,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		homePaths := e2etest.NewHomePaths(t)
 		e2etest.SeedConfig(t, homePaths, e2etest.ConfigSeedOptions{
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				"mock": {Command: "mock-acp"},
 			},
 			AgentDefs: []e2etest.AgentSeed{{
@@ -148,19 +148,19 @@ func TestRoleResolverIntegration(t *testing.T) {
 				Model:    "agent-model",
 				Prompt:   "Curate durable memories.",
 			}},
-			Mutate: func(cfg *aghconfig.Config) {
+			Mutate: func(cfg *compozyconfig.Config) {
 				cfg.Roles.Dream.Agent = "my-curator"
 			},
 		})
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		agents, err := aghconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
+		agents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
 		if err != nil {
 			t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 		}
-		catalog := make(map[string]aghconfig.AgentDef, len(agents))
+		catalog := make(map[string]compozyconfig.AgentDef, len(agents))
 		for _, agent := range agents {
 			catalog[agent.Name] = agent
 		}
@@ -168,7 +168,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		resolved, err := newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: catalog}).Resolve(
 			t.Context(),
 			"",
-			aghconfig.RoleDream,
+			compozyconfig.RoleDream,
 		)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
@@ -182,7 +182,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		resolved, err = newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: catalog}).Resolve(
 			t.Context(),
 			"",
-			aghconfig.RoleDream,
+			compozyconfig.RoleDream,
 		)
 		if err != nil {
 			t.Fatalf("Resolve(dream role override) error = %v", err)
@@ -197,7 +197,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		homePaths := e2etest.NewHomePaths(t)
 		e2etest.WriteAgentDef(t, homePaths, e2etest.AgentSeed{
-			Name:     aghconfig.BuiltinCoordinatorAgentName,
+			Name:     compozyconfig.BuiltinCoordinatorAgentName,
 			Provider: "fake",
 			Model:    "shadow-model",
 			Prompt:   "Shadow the builtin coordinator.",
@@ -207,7 +207,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		defer cancel()
 
 		workspace := url.QueryEscape(harness.WorkspaceRoot)
-		var agents aghcontract.AgentsResponse
+		var agents compozycontract.AgentsResponse
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -219,7 +219,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		}
 		assertBuiltinIdentityAbsent(t, agents.Agents)
 
-		var catalog aghcontract.AgentCatalogResponse
+		var catalog compozycontract.AgentCatalogResponse
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -229,7 +229,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("list agent catalog after reserved definition boot error = %v", err)
 		}
-		catalogAgents := make([]aghcontract.AgentPayload, 0, len(catalog.Agents))
+		catalogAgents := make([]compozycontract.AgentPayload, 0, len(catalog.Agents))
 		for _, item := range catalog.Agents {
 			catalogAgents = append(catalogAgents, item.Agent)
 		}
@@ -250,11 +250,11 @@ agent = "missing-curator"
 		defer cancel()
 		path := "/api/roles?workspace=" + url.QueryEscape(harness.WorkspaceID)
 
-		var httpRoles aghcontract.RolesResponse
+		var httpRoles compozycontract.RolesResponse
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpRoles); err != nil {
 			t.Fatalf("HTTP GET roles error = %v", err)
 		}
-		var udsRoles aghcontract.RolesResponse
+		var udsRoles compozycontract.RolesResponse
 		if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &udsRoles); err != nil {
 			t.Fatalf("UDS GET roles error = %v", err)
 		}
@@ -270,21 +270,21 @@ agent = "missing-curator"
 			}
 		}
 
-		var dream aghcontract.RoleStatus
+		var dream compozycontract.RoleStatus
 		for _, role := range httpRoles.Roles {
-			if role.Role == string(aghconfig.RoleDream) {
+			if role.Role == string(compozyconfig.RoleDream) {
 				dream = role
 			}
-			if role.ResolutionMode == aghcontract.RoleResolutionModeInherit && role.Agent != nil {
+			if role.ResolutionMode == compozycontract.RoleResolutionModeInherit && role.Agent != nil {
 				t.Fatalf("inherit role fabricated an agent identity: %#v", role)
 			}
 		}
 		if dream.Role == "" || len(dream.Diagnostics) != 1 ||
-			dream.Diagnostics[0].Code != aghcontract.CodeRoleAgentNotFound {
+			dream.Diagnostics[0].Code != compozycontract.CodeRoleAgentNotFound {
 			t.Fatalf("dream role = %#v, want role_agent_not_found diagnostic", dream)
 		}
 
-		var cliDream aghcontract.RoleStatus
+		var cliDream compozycontract.RoleStatus
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -304,7 +304,7 @@ agent = "missing-curator"
 		}
 
 		workspace := url.QueryEscape(harness.WorkspaceRoot)
-		var agents aghcontract.AgentsResponse
+		var agents compozycontract.AgentsResponse
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -318,11 +318,11 @@ agent = "missing-curator"
 	})
 }
 
-func assertBuiltinIdentityAbsent(t *testing.T, agents []aghcontract.AgentPayload) {
+func assertBuiltinIdentityAbsent(t *testing.T, agents []compozycontract.AgentPayload) {
 	t.Helper()
 
 	for _, agent := range agents {
-		if aghconfig.IsReservedAgentName(agent.Name) {
+		if compozyconfig.IsReservedAgentName(agent.Name) {
 			t.Fatalf("agent catalog exposed reserved identity %q: %#v", agent.Name, agent)
 		}
 	}

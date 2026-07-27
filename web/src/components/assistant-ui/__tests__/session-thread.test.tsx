@@ -87,13 +87,13 @@ function fixtureWorkspaceId(): string {
   return workspaceId;
 }
 
-const TOOL_ARTIFACT_URI = `agh://tool-artifacts/art_${"c".repeat(64)}`;
+const TOOL_ARTIFACT_URI = `compozy://tool-artifacts/art_${"c".repeat(64)}`;
 
 function toolArtifactRef() {
   return {
     uri: TOOL_ARTIFACT_URI,
     name: "tool-result.json",
-    mime_type: "application/vnd.agh.tool-result+json",
+    mime_type: "application/vnd.compozy.tool-result+json",
     bytes: 4_096,
     sha256: "c".repeat(64),
   };
@@ -359,7 +359,7 @@ describe("SessionThread transcript states", () => {
           role: "assistant",
           parts: [
             {
-              type: "data-agh-event",
+              type: "data-compozy-event",
               data: {
                 type: "prompt_started",
                 goal: {
@@ -395,7 +395,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "session_started",
               turn_id: "turn-hook-started",
@@ -409,7 +409,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "prompt_started",
               turn_id: "turn-hook-prompt",
@@ -844,7 +844,7 @@ describe("SessionThread transcript states", () => {
             output: { type: "tool_result", title: "Read", raw: { content: "partial" } },
           },
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "session-stopped",
               turn_id: "turn-int",
@@ -936,7 +936,7 @@ describe("SessionThread transcript states", () => {
             turn_id: "turn-persisted-failure",
           },
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "error",
               failure: { kind: "process_exit", summary: "provider exited" },
@@ -949,7 +949,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: { type: "system", title: "CompozyOS Runtime Agent" },
           },
           {
@@ -964,7 +964,7 @@ describe("SessionThread transcript states", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: { type: "system", title: "CompozyOS Runtime Agent" },
           },
           {

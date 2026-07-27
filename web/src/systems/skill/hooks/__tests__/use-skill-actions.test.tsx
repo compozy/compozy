@@ -194,7 +194,7 @@ describe("useInstallSkillMarketplace", () => {
       slug: "@compozy/demo",
       status: "installed",
       hash: "sha256:demo",
-      path: "/opt/agh/skills/demo",
+      path: "/opt/compozy/skills/demo",
       registry: "clawhub",
       version: "1.0.0",
     });
@@ -281,7 +281,7 @@ describe("useRemoveSkillMarketplace", () => {
       name: "demo",
       slug: "@compozy/demo",
       status: "removed",
-      path: "/opt/agh/skills/demo",
+      path: "/opt/compozy/skills/demo",
     });
 
     const queryClient = new QueryClient({

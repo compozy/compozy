@@ -68,7 +68,9 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(payload.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("payload.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(payload.Bridge.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
+	if got, want := string(
+		payload.Bridge.DeliveryDefaults,
+	), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("payload.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -82,7 +84,9 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(stored.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("stored.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(stored.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
+	if got, want := string(
+		stored.DeliveryDefaults,
+	), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("stored.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -90,7 +94,9 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(detail.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("detail.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(detail.Bridge.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
+	if got, want := string(
+		detail.Bridge.DeliveryDefaults,
+	), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("detail.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 }
@@ -110,7 +116,7 @@ func TestHTTPBridgeProvidersExposeOperatorMetadata(t *testing.T) {
 			Required:    true,
 		}},
 		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  "agh.bridge.telegram",
+			Schema:  "compozy.bridge.telegram",
 			Version: "v1",
 		},
 		Enabled:       true,
@@ -140,7 +146,8 @@ func TestHTTPBridgeProvidersExposeOperatorMetadata(t *testing.T) {
 	if len(payload.Providers[0].SecretSlots) != 1 || payload.Providers[0].SecretSlots[0].Name != "bot_token" {
 		t.Fatalf("providers[0].SecretSlots = %#v", payload.Providers[0].SecretSlots)
 	}
-	if payload.Providers[0].ConfigSchema == nil || payload.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+	if payload.Providers[0].ConfigSchema == nil ||
+		payload.Providers[0].ConfigSchema.Schema != "compozy.bridge.telegram" {
 		t.Fatalf("providers[0].ConfigSchema = %#v", payload.Providers[0].ConfigSchema)
 	}
 	if payload.Providers[0].HealthMessage != "connected" {

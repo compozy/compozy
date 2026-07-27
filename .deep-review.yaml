@@ -34,7 +34,7 @@ path_filters:
   - "!.claude/**"
   - "!.vscode/**"
   - "!.agents/**"
-  # Competitor/reference corpora are research inputs, not shipped AGH source.
+  # Competitor/reference corpora are research inputs, not shipped Compozy source.
   - "!.resources/**"
   # Storybook fixtures + Playwright harness — verified by capture/e2e, not code review
   - "!**/*.stories.tsx"

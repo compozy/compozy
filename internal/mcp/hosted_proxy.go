@@ -373,8 +373,8 @@ func finishHostedToolResult(
 	}
 	converted.Content = append(converted.Content, sdkmcp.NewTextContent(string(encoded)))
 	converted.Meta = sdkmcp.NewMetaFromMap(map[string]any{
-		"agh/artifacts": payload.Artifacts,
-		"agh/readTool":  payload.ReadTool,
+		"compozy/artifacts": payload.Artifacts,
+		"compozy/readTool":  payload.ReadTool,
 	})
 	return converted, nil
 }

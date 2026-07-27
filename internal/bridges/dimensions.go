@@ -15,7 +15,7 @@ type RoutingDimensions struct {
 }
 
 // PlatformDimensionMapping documents how one adapter maps platform-native
-// identity concepts onto AGH's canonical routing dimensions.
+// identity concepts onto Compozy's canonical routing dimensions.
 //
 // Semantics:
 // - `peer_id` identifies the direct conversation peer or primary counterparty.

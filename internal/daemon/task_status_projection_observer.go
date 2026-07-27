@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/notifications"
 	storepkg "github.com/compozy/compozy/internal/store"
@@ -115,8 +115,8 @@ func newTaskStatusProjectionObserver(
 	}
 	options := taskStatusProjectionObserverOptions{
 		logger: slog.Default(), now: time.Now,
-		queueSize:  aghconfig.DefaultTaskNetworkStatusQueueSize,
-		timeout:    aghconfig.DefaultTaskNetworkStatusTimeout,
+		queueSize:  compozyconfig.DefaultTaskNetworkStatusQueueSize,
+		timeout:    compozyconfig.DefaultTaskNetworkStatusTimeout,
 		retryDelay: 100 * time.Millisecond,
 	}
 	for _, opt := range opts {
@@ -131,10 +131,10 @@ func newTaskStatusProjectionObserver(
 		options.now = time.Now
 	}
 	if options.queueSize <= 0 {
-		options.queueSize = aghconfig.DefaultTaskNetworkStatusQueueSize
+		options.queueSize = compozyconfig.DefaultTaskNetworkStatusQueueSize
 	}
 	if options.timeout <= 0 {
-		options.timeout = aghconfig.DefaultTaskNetworkStatusTimeout
+		options.timeout = compozyconfig.DefaultTaskNetworkStatusTimeout
 	}
 	if options.retryDelay <= 0 {
 		options.retryDelay = 100 * time.Millisecond

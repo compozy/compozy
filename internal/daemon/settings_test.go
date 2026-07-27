@@ -10,7 +10,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
@@ -18,7 +18,7 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
@@ -91,8 +91,8 @@ func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {
 			t.Parallel()
 
 			surface := &settingsRuntimeSurface{
-				config: aghconfig.Config{
-					HTTP: aghconfig.HTTPConfig{Host: tc.host},
+				config: compozyconfig.Config{
+					HTTP: compozyconfig.HTTPConfig{Host: tc.host},
 				},
 			}
 
@@ -128,10 +128,10 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 
 		expiresAt := time.Date(2126, 5, 1, 12, 0, 0, 0, time.UTC)
 		target := globalMCPTestTarget("remote-docs")
-		server := aghconfig.MCPServer{
-			Name: "remote-docs", Transport: aghconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
-			Auth: aghconfig.MCPAuthConfig{
-				Type: aghconfig.MCPAuthTypeOAuth2PKCE, ClientID: "agh-cli",
+		server := compozyconfig.MCPServer{
+			Name: "remote-docs", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+			Auth: compozyconfig.MCPAuthConfig{
+				Type: compozyconfig.MCPAuthTypeOAuth2PKCE, ClientID: "compozy-cli",
 				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
 				TokenURL:         "https://issuer.example.com/oauth/token",
 				Scopes:           []string{"mcp.read", "mcp.write"},
@@ -147,7 +147,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 		}
 		if err := first.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
 			Target: target, DefinitionFingerprint: fingerprint, Issuer: "https://issuer.example.com",
-			ClientID: "agh-cli", Scopes: []string{"mcp.read", "mcp.write"},
+			ClientID: "compozy-cli", Scopes: []string{"mcp.read", "mcp.write"},
 			AccessToken: "access-secret", RefreshToken: "refresh-secret", TokenType: "Bearer",
 			ExpiresAt: expiresAt, ObtainedAt: expiresAt.Add(-time.Hour),
 		}); err != nil {
@@ -204,13 +204,13 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 			},
 		}
 
-		status, err := surface.MCPAuthStatus(ctx, globalMCPTestTarget("remote-docs"), aghconfig.MCPServer{
+		status, err := surface.MCPAuthStatus(ctx, globalMCPTestTarget("remote-docs"), compozyconfig.MCPServer{
 			Name:      "remote-docs",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://mcp.example.com",
-			Auth: aghconfig.MCPAuthConfig{
-				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-				ClientID:         "agh-cli",
+			Auth: compozyconfig.MCPAuthConfig{
+				Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
+				ClientID:         "compozy-cli",
 				ClientSecretRef:  "vault:mcp/global/remote-docs/oauth/client-secret",
 				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
 				TokenURL:         "https://issuer.example.com/oauth/token",
@@ -242,8 +242,8 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Parallel()
 
 		surface := &settingsRuntimeSurface{
-			config: aghconfig.Config{
-				Observability: aghconfig.ObservabilityConfig{
+			config: compozyconfig.Config{
+				Observability: compozyconfig.ObservabilityConfig{
 					AgentProbeTimeout: 9 * time.Second,
 				},
 			},
@@ -261,9 +261,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		surface := &settingsRuntimeSurface{}
-		status, err := surface.MCPServerRuntimeStatus(ctx, globalMCPTestTarget("docs"), aghconfig.MCPServer{
+		status, err := surface.MCPServerRuntimeStatus(ctx, globalMCPTestTarget("docs"), compozyconfig.MCPServer{
 			Name:      "docs",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       server.URL,
 		})
 		if err != nil {
@@ -287,15 +287,15 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		status, err := surface.MCPServerRuntimeStatus(
 			context.Background(),
 			globalMCPTestTarget("linear"),
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:      "linear",
-				Transport: aghconfig.MCPServerTransportHTTP,
+				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.linear.example/mcp",
-				Auth: aghconfig.MCPAuthConfig{
-					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				Auth: compozyconfig.MCPAuthConfig{
+					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 					AuthorizationURL: "https://auth.linear.example/authorize",
 					TokenURL:         "https://auth.linear.example/token",
-					ClientID:         "agh-desktop",
+					ClientID:         "compozy-desktop",
 				},
 			},
 		)
@@ -320,9 +320,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		status, err := surface.MCPServerRuntimeStatus(
 			context.Background(),
 			globalMCPTestTarget("broken"),
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:      "broken",
-				Transport: aghconfig.MCPServerTransportHTTP,
+				Transport: compozyconfig.MCPServerTransportHTTP,
 			},
 		)
 		if err != nil {
@@ -369,7 +369,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			WorkspaceID: workspaceID,
 			ServerName:  "dead-docs",
 		}
-		invalidServer := aghconfig.MCPServer{Name: "dead-docs", Transport: "bogus"}
+		invalidServer := compozyconfig.MCPServer{Name: "dead-docs", Transport: "bogus"}
 
 		for attempt := 1; attempt < deadentity.DefaultPermanentFailureThreshold; attempt++ {
 			status, err := surface.MCPServerRuntimeStatus(ctx, target, invalidServer)
@@ -423,17 +423,17 @@ func newSettingsMCPTestServer() *mcpsrv.MCPServer {
 }
 
 type stubSettingsUpdateManager struct {
-	checkFn func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
+	checkFn func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
 }
 
 func (s stubSettingsUpdateManager) Check(
 	ctx context.Context,
-	opts aghupdate.CheckOptions,
-) (aghupdate.State, *aghupdate.Release, error) {
+	opts compozyupdate.CheckOptions,
+) (compozyupdate.State, *compozyupdate.Release, error) {
 	if s.checkFn != nil {
 		return s.checkFn(ctx, opts)
 	}
-	return aghupdate.State{}, nil, nil
+	return compozyupdate.State{}, nil, nil
 }
 
 func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
@@ -443,26 +443,26 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
 		controller := settingsUpdateController{
 			manager: stubSettingsUpdateManager{
-				checkFn: func(_ context.Context, opts aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+				checkFn: func(_ context.Context, opts compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
 					if opts.ForceRefresh {
 						t.Fatal("CheckOptions.ForceRefresh = true, want false")
 					}
 					if !opts.AllowCachedOnFailure {
 						t.Fatal("CheckOptions.AllowCachedOnFailure = false, want true")
 					}
-					return aghupdate.State{
+					return compozyupdate.State{
 						Supported:      true,
 						Managed:        false,
-						InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
 						CurrentVersion: "v1.0.0",
 						LatestVersion:  "v1.1.0",
 						Available:      true,
-						Status:         aghupdate.StatusAvailable,
+						Status:         compozyupdate.StatusAvailable,
 						Recommendation: "Run compozy update.",
-						ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+						ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
 						CheckedAt:      &checkedAt,
 						LastError:      "cached upstream failure",
-					}, &aghupdate.Release{Version: "v1.1.0"}, nil
+					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
 			},
 		}
@@ -475,13 +475,13 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		want := core.SettingsUpdateStatus{
 			Supported:      true,
 			Managed:        false,
-			InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+			InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
 			CurrentVersion: "v1.0.0",
 			LatestVersion:  "v1.1.0",
 			Available:      true,
-			Status:         string(aghupdate.StatusAvailable),
+			Status:         string(compozyupdate.StatusAvailable),
 			Recommendation: "Run compozy update.",
-			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+			ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
 			CheckedAt:      &checkedAt,
 			LastError:      "cached upstream failure",
 		}
@@ -505,8 +505,8 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		wantErr := errors.New("upstream unavailable")
 		controller := settingsUpdateController{
 			manager: stubSettingsUpdateManager{
-				checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-					return aghupdate.State{}, nil, wantErr
+				checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+					return compozyupdate.State{}, nil, wantErr
 				},
 			},
 		}

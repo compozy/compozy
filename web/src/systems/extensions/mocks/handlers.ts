@@ -71,8 +71,8 @@ export const handlers: HttpHandler[] = [
             current_version: extension.version,
             latest_version: extension.version,
             name,
-            path: `/var/lib/agh/extensions/${name}`,
-            registry: "agh",
+            path: `/var/lib/compozy/extensions/${name}`,
+            registry: "compozy",
             slug: extension.provenance?.slug ?? name,
             status: "current",
           },
@@ -86,7 +86,7 @@ export const handlers: HttpHandler[] = [
     }
     extensionsState = extensionsState.filter(extension => extension.name !== name);
     return HttpResponse.json({
-      extension: { name, path: `/var/lib/agh/extensions/${name}`, status: "removed" },
+      extension: { name, path: `/var/lib/compozy/extensions/${name}`, status: "removed" },
     });
   }),
   compozyApiMock.get("/api/bundles/activations", () =>

@@ -1443,7 +1443,7 @@ func linearInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "0.5.0",
+		CompozyVersion:           "0.5.0",
 		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "linear",

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -54,7 +54,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		addHarnessAgent(t, h, aghconfig.AgentDef{
+		addHarnessAgent(t, h, compozyconfig.AgentDef{
 			Name:     "tool-coder",
 			Provider: "claude",
 			Prompt:   "Use the available tools.",
@@ -101,7 +101,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		addHarnessAgent(t, h, aghconfig.AgentDef{
+		addHarnessAgent(t, h, compozyconfig.AgentDef{
 			Name:     "read-only-coder",
 			Provider: "claude",
 			Prompt:   "Use read-only tools.",
@@ -140,7 +140,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				t.Parallel()
 
 				h := newHarness(t)
-				addHarnessAgent(t, h, aghconfig.AgentDef{
+				addHarnessAgent(t, h, compozyconfig.AgentDef{
 					Name:     "unchanged-coder",
 					Provider: "claude",
 					Prompt:   "Use the default tool profile.",

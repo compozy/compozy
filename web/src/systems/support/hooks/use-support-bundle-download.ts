@@ -16,7 +16,7 @@ const SUPPORT_BUNDLE_POLL_TIMEOUT_MS = 120_000;
 function supportBundleFileName(operation: SupportBundleOperation): string {
   const fileName = operation.file_name?.trim();
   if (fileName) return fileName;
-  return `agh-support-bundle-${operation.operation_id}.tar.gz`;
+  return `compozy-support-bundle-${operation.operation_id}.tar.gz`;
 }
 
 function abortError(): DOMException {

@@ -91,7 +91,7 @@ function resolveState({
  *
  * Plaintext enters once and is never read back: create renders a single write
  * input, edit renders presence plus an explicit rotation, and cancelling a
- * rotation restores the existing binding untouched. No AGH secret read path
+ * rotation restores the existing binding untouched. No Compozy secret read path
  * returns a value, so this component never prefills from a GET.
  */
 function SecretField({

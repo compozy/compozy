@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	mcpclient "github.com/mark3labs/mcp-go/client"
@@ -62,7 +62,7 @@ func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
 	if createdTask.ID == "" {
 		t.Fatal("tasks/create returned an empty task ID")
 	}
-	var nativeTask aghcontract.TaskDetailResponse
+	var nativeTask compozycontract.TaskDetailResponse
 	if err := harness.HTTPJSON(ctx, http.MethodGet, "/api/tasks/"+createdTask.ID, nil, &nativeTask); err != nil {
 		t.Fatalf("native HTTP GetTask(%q) error = %v", createdTask.ID, err)
 	}

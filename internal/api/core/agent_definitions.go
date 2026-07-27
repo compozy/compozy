@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -35,9 +35,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		)
 		return
 	}
-	name := aghconfig.NormalizeAgentName(c.Param("name"))
-	requestedName := aghconfig.NormalizeAgentName(req.Agent.Name)
-	if err := aghconfig.ValidateAuthoredAgentName(requestedName); err != nil {
+	name := compozyconfig.NormalizeAgentName(c.Param("name"))
+	requestedName := compozyconfig.NormalizeAgentName(req.Agent.Name)
+	if err := compozyconfig.ValidateAuthoredAgentName(requestedName); err != nil {
 		wrapped := errors.Join(errAgentDefinitionInvalid, err)
 		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
 		return
@@ -65,7 +65,7 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	currentDigest, err := aghconfig.AgentDefinitionDigest(resolved.Entry.Def)
+	currentDigest, err := compozyconfig.AgentDefinitionDigest(resolved.Entry.Def)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -86,7 +86,7 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	agent, err := aghconfig.CreateAgentDefFile(resolved.Entry.Def.SourcePath, draft, true)
+	agent, err := compozyconfig.CreateAgentDefFile(resolved.Entry.Def.SourcePath, draft, true)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -113,7 +113,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
-	name := aghconfig.NormalizeAgentName(c.Param("name"))
+	name := compozyconfig.NormalizeAgentName(c.Param("name"))
 	resolved, err := h.resolveAgentDefinition(c.Request.Context(), c.Query("workspace"), name)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
@@ -139,7 +139,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if err := aghconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
+	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
@@ -184,7 +184,7 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
-	if err := aghconfig.ValidateAuthoredAgentName(aghconfig.NormalizeAgentName(req.Name)); err != nil {
+	if err := compozyconfig.ValidateAuthoredAgentName(compozyconfig.NormalizeAgentName(req.Name)); err != nil {
 		wrapped := errors.Join(errAgentDefinitionInvalid, err)
 		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
 		return
@@ -208,7 +208,7 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	agent, err := aghconfig.DuplicateAgentDefinition(source.Entry.Def, target.Path, draft)
+	agent, err := compozyconfig.DuplicateAgentDefinition(source.Entry.Def, target.Path, draft)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -230,15 +230,15 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 
 func updateAgentDraft(
 	payload contract.CreateAgentPayload,
-	current aghconfig.AgentDef,
-) (aghconfig.AgentDefinitionDraft, error) {
+	current compozyconfig.AgentDef,
+) (compozyconfig.AgentDefinitionDraft, error) {
 	draft, err := createAgentDraftFromRequest(contract.CreateAgentRequest{Agent: payload})
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, err
+		return compozyconfig.AgentDefinitionDraft{}, err
 	}
 	currentDraft, err := authoredAgentDraftFromDef(current)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, err
+		return compozyconfig.AgentDefinitionDraft{}, err
 	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks
@@ -246,14 +246,14 @@ func updateAgentDraft(
 }
 
 func duplicateAgentDraft(
-	source aghconfig.AgentDef,
+	source compozyconfig.AgentDef,
 	req contract.DuplicateAgentRequest,
-) (aghconfig.AgentDefinitionDraft, error) {
+) (compozyconfig.AgentDefinitionDraft, error) {
 	draft, err := authoredAgentDraftFromDef(source)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, err
+		return compozyconfig.AgentDefinitionDraft{}, err
 	}
-	draft.Name = aghconfig.NormalizeAgentName(req.Name)
+	draft.Name = compozyconfig.NormalizeAgentName(req.Name)
 	if req.Overrides == nil {
 		return draft, nil
 	}
@@ -294,24 +294,24 @@ func duplicateAgentDraft(
 	return draft, nil
 }
 
-func authoredAgentDraftFromDef(agent aghconfig.AgentDef) (aghconfig.AgentDefinitionDraft, error) {
+func authoredAgentDraftFromDef(agent compozyconfig.AgentDef) (compozyconfig.AgentDefinitionDraft, error) {
 	contents, err := os.ReadFile(agent.SourcePath)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, fmt.Errorf(
+		return compozyconfig.AgentDefinitionDraft{}, fmt.Errorf(
 			"api: read authored agent definition %q: %w",
 			agent.SourcePath,
 			err,
 		)
 	}
-	authored, err := aghconfig.ParseAgentDef(contents)
+	authored, err := compozyconfig.ParseAgentDef(contents)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, fmt.Errorf(
+		return compozyconfig.AgentDefinitionDraft{}, fmt.Errorf(
 			"api: parse authored agent definition %q: %w",
 			agent.SourcePath,
 			err,
 		)
 	}
-	return aghconfig.AgentDefinitionDraftFromDef(authored), nil
+	return compozyconfig.AgentDefinitionDraftFromDef(authored), nil
 }
 
 func (h *BaseHandlers) purgeAgentDefinitionHistory(
@@ -403,16 +403,16 @@ func (h *BaseHandlers) logAgentMutationFailure(
 
 func statusForAgentDefinitionError(err error) int {
 	switch {
-	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, errAgentDefinitionInvalid),
 		errors.Is(err, errCreateAgentRequestInvalid),
-		errors.Is(err, aghconfig.ErrInvalidAgentDefinition):
+		errors.Is(err, compozyconfig.ErrInvalidAgentDefinition):
 		return http.StatusBadRequest
 	case errors.Is(err, errAgentDefinitionConflict),
-		errors.Is(err, aghconfig.ErrAgentDefinitionExists):
+		errors.Is(err, compozyconfig.ErrAgentDefinitionExists):
 		return http.StatusConflict
-	case errors.Is(err, aghconfig.ErrAgentDefinitionNotFound),
+	case errors.Is(err, compozyconfig.ErrAgentDefinitionNotFound),
 		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
 		errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound

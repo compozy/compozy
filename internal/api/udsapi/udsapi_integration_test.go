@@ -23,7 +23,7 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
@@ -76,6 +76,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	if created.Session.WorkspaceID == "" {
 		t.Fatal("expected created session workspace id")
 	}
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
 	if listResp.StatusCode != http.StatusOK {
@@ -1358,7 +1359,7 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	socketPath := shortSocketPath(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 
 	entered := make(chan struct{}, 1)
@@ -1459,7 +1460,7 @@ func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		socketPath := shortSocketPath(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.Daemon.Socket = socketPath
 		events := make(chan session.CatalogEvent)
 		server, err := New(
@@ -1568,6 +1569,7 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	if created.Session.WorkspaceID == "" {
 		t.Fatal("expected created session workspace id")
 	}
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
 	if listResp.StatusCode != http.StatusOK {
@@ -2270,12 +2272,15 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	if len(records) == 0 {
 		t.Fatal("task stream records = 0, want at least one SSE event")
 	}
-	if records[0].Event == "" {
-		t.Fatalf("task stream first record = %#v, want named SSE event", records[0])
+	if records[0].Event != "" {
+		t.Fatalf("task stream first record = %#v, want payload-owned event identity", records[0])
 	}
 	var streamPayload contract.TaskStreamEventPayload
 	if err := json.Unmarshal(records[0].Data, &streamPayload); err != nil {
 		t.Fatalf("json.Unmarshal(task stream event) error = %v; record=%#v", err, records[0])
+	}
+	if streamPayload.Type != "task.created" {
+		t.Fatalf("task stream payload type = %q, want task.created", streamPayload.Type)
 	}
 	if streamPayload.Timeline.Task.ID != draft.ID {
 		t.Fatalf("task stream timeline task id = %q, want %q", streamPayload.Timeline.Task.ID, draft.ID)
@@ -3221,10 +3226,10 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	writeAgentDef(t, homePaths, "coder")
 
 	workspace := t.TempDir()
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 	cfg.Network.Enabled = false
-	cfg.Providers = map[string]aghconfig.ProviderConfig{
+	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
 
@@ -3298,7 +3303,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
 	)
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -3560,7 +3565,26 @@ func createIntegrationSessionPayloadFromRequest(
 	if created.Session.WorkspaceID == "" {
 		t.Fatal("expected created session workspace id")
 	}
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 	return created.Session
+}
+
+func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	var (
+		lastInfo *session.Info
+		lastErr  error
+	)
+	for time.Now().Before(deadline) {
+		lastInfo, lastErr = manager.Status(context.Background(), sessionID)
+		if lastErr == nil && lastInfo != nil && lastInfo.State == session.StateActive {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("session %q did not become active: info=%#v error=%v", sessionID, lastInfo, lastErr)
 }
 
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {

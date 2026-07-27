@@ -6,22 +6,22 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-type roleResolverFunc func(context.Context, string, aghconfig.RoleName) (ResolvedRole, error)
+type roleResolverFunc func(context.Context, string, compozyconfig.RoleName) (ResolvedRole, error)
 
 func (f roleResolverFunc) Resolve(
 	ctx context.Context,
 	workspaceID string,
-	role aghconfig.RoleName,
+	role compozyconfig.RoleName,
 ) (ResolvedRole, error) {
 	return f(ctx, workspaceID, role)
 }
 
 func resolvedRoleResolver(resolved ResolvedRole) RoleResolver {
-	return roleResolverFunc(func(context.Context, string, aghconfig.RoleName) (ResolvedRole, error) {
+	return roleResolverFunc(func(context.Context, string, compozyconfig.RoleName) (ResolvedRole, error) {
 		return resolved, nil
 	})
 }
@@ -35,29 +35,29 @@ func TestRoleResolver(t *testing.T) {
 		cfg := roleResolverConfig()
 		resolver := newRoleResolver(&cfg, nil, nil)
 
-		dream, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
+		dream, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
 		}
-		if !dream.Builtin || dream.AgentName != aghconfig.BuiltinDreamingCuratorAgentName ||
+		if !dream.Builtin || dream.AgentName != compozyconfig.BuiltinDreamingCuratorAgentName ||
 			strings.TrimSpace(dream.AgentDef.Prompt) == "" {
 			t.Fatalf("Resolve(dream) = %#v, want embedded dreaming-curator", dream)
 		}
-		if dream.Provenance["agent"] != aghconfig.RoleFieldSourceDefault ||
-			dream.Provenance["model"] != aghconfig.RoleFieldSourceDefault {
+		if dream.Provenance["agent"] != compozyconfig.RoleFieldSourceDefault ||
+			dream.Provenance["model"] != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf("Resolve(dream) provenance = %#v, want default fields", dream.Provenance)
 		}
 
-		coordinator, err := resolver.Resolve(t.Context(), "", aghconfig.RoleCoordinator)
+		coordinator, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
 		if err != nil {
 			t.Fatalf("Resolve(coordinator) error = %v", err)
 		}
 		if coordinator.Enabled || !coordinator.Builtin ||
-			coordinator.AgentName != aghconfig.BuiltinCoordinatorAgentName {
+			coordinator.AgentName != compozyconfig.BuiltinCoordinatorAgentName {
 			t.Fatalf("Resolve(coordinator) = %#v, want disabled builtin coordinator", coordinator)
 		}
 
-		for _, role := range []aghconfig.RoleName{aghconfig.RoleAutoTitle, aghconfig.RoleMemoryExtractor} {
+		for _, role := range []compozyconfig.RoleName{compozyconfig.RoleAutoTitle, compozyconfig.RoleMemoryExtractor} {
 			resolved, resolveErr := resolver.Resolve(t.Context(), "", role)
 			if resolveErr != nil {
 				t.Fatalf("Resolve(%s) error = %v", role, resolveErr)
@@ -74,12 +74,12 @@ func TestRoleResolver(t *testing.T) {
 
 		cfg := roleResolverConfig()
 		cfg.Roles.Dream.Agent = "my-curator"
-		agent := aghconfig.AgentDef{Name: "my-curator", Prompt: "curate exactly", Tools: []string{"read"}}
+		agent := compozyconfig.AgentDef{Name: "my-curator", Prompt: "curate exactly", Tools: []string{"read"}}
 		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
-			agents: map[string]aghconfig.AgentDef{"my-curator": agent},
+			agents: map[string]compozyconfig.AgentDef{"my-curator": agent},
 		})
 
-		resolved, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
 		}
@@ -93,8 +93,8 @@ func TestRoleResolver(t *testing.T) {
 
 		cfg.Roles.AutoTitle.Agent = "my-curator"
 		resolved, err = newRoleResolver(&cfg, nil, roleAgentResolverStub{
-			agents: map[string]aghconfig.AgentDef{"my-curator": agent},
-		}).Resolve(t.Context(), "", aghconfig.RoleAutoTitle)
+			agents: map[string]compozyconfig.AgentDef{"my-curator": agent},
+		}).Resolve(t.Context(), "", compozyconfig.RoleAutoTitle)
 		if err != nil {
 			t.Fatalf("Resolve(auto_title) error = %v", err)
 		}
@@ -108,19 +108,19 @@ func TestRoleResolver(t *testing.T) {
 
 		for _, testCase := range []struct {
 			name          string
-			role          aghconfig.RoleName
+			role          compozyconfig.RoleName
 			agentProvider string
 			wantProvider  string
 		}{
 			{
 				name:          "Should prefer the invoking agent provider",
-				role:          aghconfig.RoleAutoTitle,
+				role:          compozyconfig.RoleAutoTitle,
 				agentProvider: "agent-provider",
 				wantProvider:  "agent-provider",
 			},
 			{
 				name:         "Should use the default provider when the invoking agent inherits it",
-				role:         aghconfig.RoleMemoryExtractor,
+				role:         compozyconfig.RoleMemoryExtractor,
 				wantProvider: "default-provider",
 			},
 		} {
@@ -129,15 +129,15 @@ func TestRoleResolver(t *testing.T) {
 
 				cfg := roleResolverConfig()
 				cfg.Defaults.Provider = "default-provider"
-				cfg.Providers["agent-provider"] = aghconfig.ProviderConfig{Command: "agent-acp"}
-				cfg.Providers["default-provider"] = aghconfig.ProviderConfig{Command: "default-acp"}
+				cfg.Providers["agent-provider"] = compozyconfig.ProviderConfig{Command: "agent-acp"}
+				cfg.Providers["default-provider"] = compozyconfig.ProviderConfig{Command: "default-acp"}
 				switch testCase.role {
-				case aghconfig.RoleAutoTitle:
+				case compozyconfig.RoleAutoTitle:
 					cfg.Roles.AutoTitle.Model = "role-model"
-				case aghconfig.RoleMemoryExtractor:
+				case compozyconfig.RoleMemoryExtractor:
 					cfg.Roles.MemoryExtractor.Model = "role-model"
 				}
-				resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: map[string]aghconfig.AgentDef{
+				resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{agents: map[string]compozyconfig.AgentDef{
 					"invoking-agent": {
 						Name:     "invoking-agent",
 						Provider: testCase.agentProvider,
@@ -172,14 +172,14 @@ func TestRoleResolver(t *testing.T) {
 		cfg.Roles.Dream.Agent = "ghost"
 		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{})
 
-		_, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
+		_, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
 		var resolutionErr *RoleResolutionError
 		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorAgentNotFound ||
 			resolutionErr.Agent != "ghost" {
 			t.Fatalf("Resolve(ghost) error = %v, want role_agent_not_found naming ghost", err)
 		}
 
-		_, err = resolver.Resolve(t.Context(), "", aghconfig.RoleName("unknown"))
+		_, err = resolver.Resolve(t.Context(), "", compozyconfig.RoleName("unknown"))
 		resolutionErr = nil
 		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorUnknown {
 			t.Fatalf("Resolve(unknown) error = %v, want role_unknown", err)
@@ -204,21 +204,21 @@ func TestRoleResolver(t *testing.T) {
 				t.Parallel()
 
 				cfg := roleResolverConfig()
-				cfg.Providers["mock"] = aghconfig.ProviderConfig{
+				cfg.Providers["mock"] = compozyconfig.ProviderConfig{
 					Command: "mock-acp",
-					Models:  aghconfig.ProviderModelsConfig{Default: testCase.providerModel},
+					Models:  compozyconfig.ProviderModelsConfig{Default: testCase.providerModel},
 				}
 				cfg.Roles.Dream.Agent = "my-curator"
 				cfg.Roles.Dream.Model = testCase.roleModel
 				resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
-					agents: map[string]aghconfig.AgentDef{
+					agents: map[string]compozyconfig.AgentDef{
 						"my-curator": {
 							Name: "my-curator", Provider: "mock", Model: testCase.agentModel, Prompt: "Curate memory.",
 						},
 					},
 				})
 
-				resolved, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
+				resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
 				if err != nil {
 					t.Fatalf("Resolve(dream) error = %v", err)
 				}
@@ -234,14 +234,14 @@ func TestRoleResolver(t *testing.T) {
 
 		cfg := roleResolverConfig()
 		const providerName = "model-required"
-		cfg.Providers[providerName] = aghconfig.ProviderConfig{
-			Command: "pi-acp", Harness: aghconfig.ProviderHarnessPiACP,
+		cfg.Providers[providerName] = compozyconfig.ProviderConfig{
+			Command: "pi-acp", Harness: compozyconfig.ProviderHarnessPiACP,
 		}
 		cfg.Roles.Dream.Provider = providerName
 		resolver := newRoleResolver(&cfg, nil, nil)
 
-		_, err := resolver.Resolve(t.Context(), "", aghconfig.RoleDream)
-		if err == nil || !errors.Is(err, aghconfig.ErrRuntimeModelRequired) {
+		_, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
+		if err == nil || !errors.Is(err, compozyconfig.ErrRuntimeModelRequired) {
 			t.Fatalf("Resolve(dream) error = %v, want missing runtime model", err)
 		}
 	})
@@ -250,36 +250,36 @@ func TestRoleResolver(t *testing.T) {
 		t.Parallel()
 
 		global := roleResolverConfig()
-		global.Providers["mock"] = aghconfig.ProviderConfig{Command: "mock-acp"}
+		global.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
 		global.Roles.Dream.Provider = "mock"
 		global.Roles.Dream.Model = "global-model"
-		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldProvider] = aghconfig.RoleFieldSourceGlobal
-		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceGlobal
+		global.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldProvider] = compozyconfig.RoleFieldSourceGlobal
+		global.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceGlobal
 		workspaceA := global
 		workspaceA.Roles.Dream.Model = "workspace-model"
-		workspaceA.RoleSources = aghconfig.CloneRoleFieldSources(global.RoleSources)
-		workspaceA.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceWorkspace
+		workspaceA.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
+		workspaceA.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceWorkspace
 		workspaceB := global
-		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
+		resolver := newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
 			"ws-a": workspaceA,
 			"ws-b": workspaceB,
 		}}, nil)
 
-		resolvedA, err := resolver.Resolve(t.Context(), "ws-a", aghconfig.RoleDream)
+		resolvedA, err := resolver.Resolve(t.Context(), "ws-a", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(ws-a) error = %v", err)
 		}
-		resolvedB, err := resolver.Resolve(t.Context(), "ws-b", aghconfig.RoleDream)
+		resolvedB, err := resolver.Resolve(t.Context(), "ws-b", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(ws-b) error = %v", err)
 		}
 		if resolvedA.Model != "workspace-model" ||
-			resolvedA.Provenance["model"] != aghconfig.RoleFieldSourceWorkspace ||
-			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != aghconfig.RoleFieldSourceGlobal {
+			resolvedA.Provenance["model"] != compozyconfig.RoleFieldSourceWorkspace ||
+			resolvedB.Model != "global-model" || resolvedB.Provenance["model"] != compozyconfig.RoleFieldSourceGlobal {
 			t.Fatalf("workspace provenance = a:%#v b:%#v", resolvedA, resolvedB)
 		}
-		if resolvedA.Provenance["agent"] != aghconfig.RoleFieldSourceDefault ||
-			resolvedB.Provenance["agent"] != aghconfig.RoleFieldSourceDefault {
+		if resolvedA.Provenance["agent"] != compozyconfig.RoleFieldSourceDefault ||
+			resolvedB.Provenance["agent"] != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf(
 				"agent provenance = a:%q b:%q, want default",
 				resolvedA.Provenance["agent"],
@@ -295,10 +295,10 @@ func TestRoleResolver(t *testing.T) {
 		cfg.Roles.Dream.Enabled = false
 		cfg.Roles.Dream.Agent = "missing-curator"
 		cfg.Roles.Dream.Provider = "model-required"
-		cfg.Providers["model-required"] = aghconfig.ProviderConfig{
-			Command: "pi-acp", Harness: aghconfig.ProviderHarnessPiACP,
+		cfg.Providers["model-required"] = compozyconfig.ProviderConfig{
+			Command: "pi-acp", Harness: compozyconfig.ProviderHarnessPiACP,
 		}
-		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", aghconfig.RoleDream)
+		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
 		}
@@ -314,11 +314,11 @@ func TestRoleResolver(t *testing.T) {
 		t.Parallel()
 
 		cfg := roleResolverConfig()
-		cfg.Providers["direct-acp"] = aghconfig.ProviderConfig{
-			Command: "direct-agent acp", Harness: aghconfig.ProviderHarnessACP,
+		cfg.Providers["direct-acp"] = compozyconfig.ProviderConfig{
+			Command: "direct-agent acp", Harness: compozyconfig.ProviderHarnessACP,
 		}
 		cfg.Roles.Dream.Provider = "direct-acp"
-		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", aghconfig.RoleDream)
+		resolved, err := newRoleResolver(&cfg, nil, nil).Resolve(t.Context(), "", compozyconfig.RoleDream)
 		if err != nil {
 			t.Fatalf("Resolve(dream) error = %v", err)
 		}
@@ -329,22 +329,22 @@ func TestRoleResolver(t *testing.T) {
 }
 
 type roleAgentResolverStub struct {
-	agents map[string]aghconfig.AgentDef
+	agents map[string]compozyconfig.AgentDef
 }
 
 func (s roleAgentResolverStub) ResolveAgent(
 	name string,
 	_ *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	agent, ok := s.agents[name]
 	if !ok {
-		return aghconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+		return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 	}
-	return aghconfig.CloneAgentDef(agent), nil
+	return compozyconfig.CloneAgentDef(agent), nil
 }
 
 type roleWorkspaceResolverStub struct {
-	configs map[string]aghconfig.Config
+	configs map[string]compozyconfig.Config
 }
 
 func (s roleWorkspaceResolverStub) Resolve(
@@ -368,6 +368,6 @@ func (s roleWorkspaceResolverStub) ResolveOrRegister(
 	return s.Resolve(ctx, path)
 }
 
-func roleResolverConfig() aghconfig.Config {
-	return aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+func roleResolverConfig() compozyconfig.Config {
+	return compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 }

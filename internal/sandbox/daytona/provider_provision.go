@@ -35,7 +35,7 @@ func (p *daytonaProvider) createSandbox(
 ) (daytonaSandbox, error) {
 	daytona := req.Sandbox.Daytona
 	createReq := createSandboxRequest{
-		Name:               "agh-" + req.SandboxID,
+		Name:               "compozy-" + req.SandboxID,
 		Labels:             labels,
 		EnvVars:            remoteEnvMap(req.AgentEnv, req.Sandbox.Env),
 		Public:             req.Sandbox.Network.AllowPublicIngress,

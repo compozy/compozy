@@ -22,7 +22,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     agent_name: "codex",
     provider: "codex",
     workspace_id: "workspace-1",
-    workspace_path: "/workspace/agh",
+    workspace_path: "/workspace/compozy",
     state: "active",
     badge: "running",
     attachable: true,

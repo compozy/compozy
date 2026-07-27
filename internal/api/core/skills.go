@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -381,7 +381,7 @@ func (h *BaseHandlers) resolveSkillScope(
 		return nil, "", fmt.Errorf("%w: for_agent is required", ErrSkillValidation)
 	}
 	if agentName != "" {
-		if err := aghconfig.ValidateAgentName(agentName); err != nil {
+		if err := compozyconfig.ValidateAgentName(agentName); err != nil {
 			return nil, "", fmt.Errorf("%w: %v", ErrSkillValidation, err)
 		}
 	}

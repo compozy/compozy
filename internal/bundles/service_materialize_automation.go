@@ -12,7 +12,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -47,12 +47,12 @@ func materializeAgent(
 	bundle extensionpkg.BundleSpec,
 	profile extensionpkg.BundleProfile,
 	def extensionpkg.BundleAgent,
-) (aghconfig.AgentDef, string, error) {
-	agent := aghconfig.CloneAgentDef(def.Agent)
+) (compozyconfig.AgentDef, string, error) {
+	agent := compozyconfig.CloneAgentDef(def.Agent)
 	agent.Name = strings.TrimSpace(agent.Name)
 	agent.SourcePath = bundleAgentSyntheticSourcePath(activation.ID, agent.Name, "AGENT.md")
 	if err := agent.Validate(); err != nil {
-		return aghconfig.AgentDef{}, "", fmt.Errorf(
+		return compozyconfig.AgentDef{}, "", fmt.Errorf(
 			"bundles: materialize agent %s/%s/%s/%s: %w",
 			activation.ExtensionName,
 			bundle.Name,
@@ -66,7 +66,7 @@ func materializeAgent(
 
 func bundleAgentSyntheticSourcePath(activationID string, agentName string, filename string) string {
 	return filepath.ToSlash(filepath.Join(
-		aghconfig.DirName,
+		compozyconfig.DirName,
 		"bundles",
 		strings.TrimSpace(activationID),
 		"agents",

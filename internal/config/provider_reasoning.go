@@ -21,7 +21,7 @@ const (
 	codexModelsReleaseDate      = "2026-06-26"
 )
 
-// ReasoningApplyStrategy identifies how AGH applies a provider reasoning effort.
+// ReasoningApplyStrategy identifies how Compozy applies a provider reasoning effort.
 type ReasoningApplyStrategy string
 
 const (

@@ -1,4 +1,5 @@
 {
+    "name": "compozy",
     "version": "0.0.9",
     "private": true,
     "workspaces": [

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -74,8 +74,8 @@ func WithModelsDevHTTPClient(client *http.Client) ModelsDevSourceOption {
 
 // NewModelsDevSource creates a configured models.dev source.
 func NewModelsDevSource(
-	providers map[string]aghconfig.ProviderConfig,
-	cfg aghconfig.ModelsDevSourceConfig,
+	providers map[string]compozyconfig.ProviderConfig,
+	cfg compozyconfig.ModelsDevSourceConfig,
 	options ...ModelsDevSourceOption,
 ) (*ModelsDevSource, error) {
 	ttl, err := time.ParseDuration(cfg.EffectiveTTL())
@@ -372,9 +372,9 @@ func firstFloat64(values ...*float64) *float64 {
 	return nil
 }
 
-func knownProviderIDs(providers map[string]aghconfig.ProviderConfig) map[string]struct{} {
+func knownProviderIDs(providers map[string]compozyconfig.ProviderConfig) map[string]struct{} {
 	known := make(map[string]struct{})
-	for providerID := range aghconfig.BuiltinProviders() {
+	for providerID := range compozyconfig.BuiltinProviders() {
 		known[providerID] = struct{}{}
 	}
 	for providerID := range providers {

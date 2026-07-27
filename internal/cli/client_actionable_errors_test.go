@@ -20,7 +20,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 	t.Run("Should include daemon start guidance when socket is missing", func(t *testing.T) {
 		t.Parallel()
 
-		root, err := os.MkdirTemp("/tmp", "agh-sock-")
+		root, err := os.MkdirTemp("/tmp", "compozy-sock-")
 		if err != nil {
 			t.Fatalf("os.MkdirTemp() error = %v", err)
 		}
@@ -29,7 +29,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 				t.Errorf("os.RemoveAll(%q) error = %v", root, removeErr)
 			}
 		})
-		socketPath := filepath.Join(root, "agh.sock")
+		socketPath := filepath.Join(root, "compozy.sock")
 		client, err := NewClient(socketPath)
 		if err != nil {
 			t.Fatalf("NewClient() error = %v", err)
@@ -48,7 +48,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 	t.Run("Should include daemon start guidance when socket refuses connection", func(t *testing.T) {
 		t.Parallel()
 
-		socketPath := "/tmp/agh-stale.sock"
+		socketPath := "/tmp/compozy-stale.sock"
 		client := &unixSocketClient{
 			socketPath: socketPath,
 			httpClient: &http.Client{

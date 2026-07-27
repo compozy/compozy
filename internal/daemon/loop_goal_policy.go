@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func newGoalRunPolicyResolver(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) looppkg.GoalRunPolicyResolver {
 	return looppkg.GoalRunPolicyResolverFunc(func(

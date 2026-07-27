@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	harnessDetachedMetadataSchema  = "agh.harness.detached.v1"
+	harnessDetachedMetadataSchema  = "compozy.harness.detached.v1"
 	harnessDetachedTaskMetadataKey = "harness_detached_task"
 	harnessDetachedRunMetadataKey  = "harness_detached_run"
 	harnessDetachedActorRefPrefix  = "harness-detached"

@@ -3,7 +3,7 @@ package settings
 import (
 	"maps"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -12,7 +12,7 @@ import (
 
 func cloneProviderSettings(value ProviderSettings) ProviderSettings {
 	value.Models = cloneProviderModelsConfig(value.Models)
-	value.CredentialSlots = append([]aghconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
+	value.CredentialSlots = append([]compozyconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
 	return value
 }
 
@@ -46,21 +46,21 @@ func cloneProviderItem(value *ProviderItem) ProviderItem {
 }
 
 func cloneSandboxItem(value SandboxItem) SandboxItem {
-	value.Profile = aghconfig.SandboxProfile{
+	value.Profile = compozyconfig.SandboxProfile{
 		Backend:     value.Profile.Backend,
 		SyncMode:    value.Profile.SyncMode,
 		Persistence: value.Profile.Persistence,
 		RuntimeRoot: value.Profile.RuntimeRoot,
 		Env:         cloneStringMap(value.Profile.Env),
 		SecretEnv:   cloneStringMap(value.Profile.SecretEnv),
-		Network: aghconfig.NetworkProfile{
+		Network: compozyconfig.NetworkProfile{
 			AllowPublicIngress: value.Profile.Network.AllowPublicIngress,
 			AllowOutbound:      value.Profile.Network.AllowOutbound,
 			AllowList:          append([]string(nil), value.Profile.Network.AllowList...),
 			DenyList:           append([]string(nil), value.Profile.Network.DenyList...),
 			Required:           value.Profile.Network.Required,
 		},
-		Daytona: aghconfig.DaytonaProfile{
+		Daytona: compozyconfig.DaytonaProfile{
 			APIURL:      value.Profile.Daytona.APIURL,
 			Target:      value.Profile.Daytona.Target,
 			Image:       value.Profile.Daytona.Image,

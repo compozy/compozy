@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -69,8 +69,8 @@ func runBootWiredCoordinatorTerminalStatus(t *testing.T, status string) error {
 		nil,
 		runner,
 		schedulerBackstopGenerationFinalizer{},
-		aghconfig.TaskRecoveryConfig{},
-		aghconfig.SchedulerConfig{},
+		compozyconfig.TaskRecoveryConfig{},
+		compozyconfig.SchedulerConfig{},
 		0,
 		0,
 	)

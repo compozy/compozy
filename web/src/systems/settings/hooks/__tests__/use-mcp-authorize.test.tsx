@@ -23,7 +23,7 @@ const beginResponse = {
   callback_url: "http://127.0.0.1:2123/api/mcp/oauth/callback",
   expires_at: "2026-07-15T00:05:00Z",
   manual_supported: true,
-  state: "agh_mcp_x",
+  state: "compozy_mcp_x",
 };
 
 function authenticatedStatus() {
@@ -119,14 +119,14 @@ describe("useMCPAuthorize", () => {
     resolveSecond?.({
       ...beginResponse,
       authorization_url: "https://auth.linear.app/oauth/authorize?state=retry",
-      state: "agh_mcp_retry",
+      state: "compozy_mcp_retry",
     });
     await act(async () => {
       await secondAttempt;
     });
 
     expect(result.current.phase).toBe("waiting");
-    expect(result.current.begin?.state).toBe("agh_mcp_retry");
+    expect(result.current.begin?.state).toBe("compozy_mcp_retry");
   });
 
   it("completes manual exchange with a bare code only on a confirmed credential", async () => {

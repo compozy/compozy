@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
-	aghlogger "github.com/compozy/compozy/internal/logger"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/procutil"
 )
 
@@ -32,12 +32,12 @@ func defaultDetachedStart(ctx context.Context, req detachedStartRequest) (restar
 	return procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  req.binary,
 		Args:    append([]string(nil), req.args...),
-		Sandbox: aghlogger.WithMirrorToStderrEnv(append([]string(nil), req.sandbox...), false),
+		Sandbox: compozylogger.WithMirrorToStderrEnv(append([]string(nil), req.sandbox...), false),
 		LogPath: req.logPath,
 	})
 }
 
-func newRestartStore(homePaths aghconfig.HomePaths, now func() time.Time) *restartStore {
+func newRestartStore(homePaths compozyconfig.HomePaths, now func() time.Time) *restartStore {
 	if now == nil {
 		now = func() time.Time {
 			return time.Now().UTC()

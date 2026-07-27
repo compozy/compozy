@@ -9,7 +9,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -24,14 +24,14 @@ func parseCommandString(command string) (string, []string, error) {
 	return parts[0], parts[1:], nil
 }
 
-func toSDKMCPServers(servers []aghconfig.MCPServer) []acpsdk.McpServer {
+func toSDKMCPServers(servers []compozyconfig.MCPServer) []acpsdk.McpServer {
 	if len(servers) == 0 {
 		return []acpsdk.McpServer{}
 	}
 
 	converted := make([]acpsdk.McpServer, 0, len(servers))
 	for _, server := range servers {
-		if server.EffectiveTransport() != aghconfig.MCPServerTransportStdio {
+		if server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
 			continue
 		}
 		if strings.TrimSpace(server.Command) == "" {

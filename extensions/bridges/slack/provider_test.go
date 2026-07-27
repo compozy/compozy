@@ -3134,7 +3134,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 					"messages": []map[string]any{{
 						"ts": "1775866808.100000",
 						"metadata": map[string]any{
-							"event_type": "agh_bridge_delivery",
+							"event_type": "compozy_bridge_delivery",
 							"event_payload": map[string]any{
 								"bridge_instance_id": "brg-other",
 								"delivery_id":        "delivery-1",
@@ -3153,7 +3153,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 					"messages": []map[string]any{{
 						"ts": "1775866808.200000",
 						"metadata": map[string]any{
-							"event_type": "agh_bridge_delivery",
+							"event_type": "compozy_bridge_delivery",
 							"event_payload": map[string]any{
 								"bridge_instance_id": "brg-slack",
 								"delivery_id":        "delivery-1",
@@ -3531,7 +3531,7 @@ func testInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "0.5.0",
+		CompozyVersion:           "0.5.0",
 		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "slack",

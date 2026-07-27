@@ -127,7 +127,7 @@ worktree-bootstrap:
 # QA lab process hygiene
 #
 # Stops daemons and kills every process still tied to a QA lab (bootstrap labs,
-# $TMPDIR/aghqa-* runtime roots, agh-iso-* isolation envelopes). Run after any
+# $TMPDIR/compozyqa-* runtime roots, compozy-iso-* isolation envelopes). Run after any
 # QA pass; mandatory before claiming QA completion. Add PURGE=1 to also remove
 # lab runtime dirs after a clean sweep.
 .PHONY: qa-reap

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
@@ -92,7 +92,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if got, want := sandboxTurn.Steps[0].Kind, StepKindSandbox; got != want {
 			t.Fatalf("sandbox step kind = %q, want %q", got, want)
 		}
-		if got, want := sandboxTurn.Steps[0].Command, "agh"; got != want {
+		if got, want := sandboxTurn.Steps[0].Command, "compozy"; got != want {
 			t.Fatalf("sandbox step command = %q, want %q", got, want)
 		}
 	})
@@ -200,7 +200,7 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 		t.Fatalf("registration.AgentDefPath = %q, want %q", got, want)
 	}
 
-	loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
+	loaded, err := compozyconfig.LoadAgentDefFile(registration.AgentDefPath)
 	if err != nil {
 		t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
 	}
@@ -214,7 +214,7 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 		t.Fatalf("loaded.Command = %q, want %q", got, want)
 	}
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	resolved, err := cfg.ResolveAgent(loaded)
 	if err != nil {
 		t.Fatalf("ResolveAgent() error = %v", err)
@@ -230,30 +230,30 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should decode AGH session ownership alongside ACP diagnostics", func(t *testing.T) {
+	t.Run("Should decode Compozy session ownership alongside ACP diagnostics", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "diag.jsonl")
 		want := []DiagnosticsRecord{
 			{
-				AGHSessionID: "agh-session-a",
-				AgentName:    "alpha",
-				SessionID:    "acp-session-1",
-				PromptIndex:  1,
-				Prompt:       "hello",
-				PromptMeta:   acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-				TurnName:     "alpha-hello",
+				CompozySessionID: "compozy-session-a",
+				AgentName:        "alpha",
+				SessionID:        "acp-session-1",
+				PromptIndex:      1,
+				Prompt:           "hello",
+				PromptMeta:       acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+				TurnName:         "alpha-hello",
 				Match: TurnMatch{
 					TurnSource: acp.PromptTurnSourceUser,
 					UserText:   "hello",
 				},
 			},
 			{
-				AGHSessionID: "agh-session-b",
-				AgentName:    "beta",
-				SessionID:    "acp-session-1",
-				PromptIndex:  2,
-				Prompt:       "hello beta",
+				CompozySessionID: "compozy-session-b",
+				AgentName:        "beta",
+				SessionID:        "acp-session-1",
+				PromptIndex:      2,
+				Prompt:           "hello beta",
 				PromptMeta: acp.PromptMeta{
 					TurnSource: acp.PromptTurnSourceNetwork,
 					Network: &acp.PromptNetworkMeta{
@@ -285,7 +285,7 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 				},
 			},
 			{
-				AGHSessionID:      "agh-session-a",
+				CompozySessionID:  "compozy-session-a",
 				AgentName:         "gamma",
 				SessionID:         "acp-session-1",
 				ProtocolMethod:    "session/set_config_option",
@@ -316,27 +316,27 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 		}
 	})
 
-	t.Run("Should select one AGH session in append order before protocol projection", func(t *testing.T) {
+	t.Run("Should select one Compozy session in append order before protocol projection", func(t *testing.T) {
 		t.Parallel()
 
 		records := []DiagnosticsRecord{
-			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1", ProtocolMethod: "model"},
-			{AGHSessionID: "agh-session-b", SessionID: "acp-session-1", ProtocolMethod: "foreign"},
-			{AGHSessionID: " agh-session-a ", SessionID: "acp-session-1", ProtocolMethod: "prompt"},
-			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1", PromptIndex: 1},
+			{CompozySessionID: "compozy-session-a", SessionID: "acp-session-1", ProtocolMethod: "model"},
+			{CompozySessionID: "compozy-session-b", SessionID: "acp-session-1", ProtocolMethod: "foreign"},
+			{CompozySessionID: " compozy-session-a ", SessionID: "acp-session-1", ProtocolMethod: "prompt"},
+			{CompozySessionID: "compozy-session-a", SessionID: "acp-session-1", PromptIndex: 1},
 			{
-				AGHSessionID:   "agh-session-a",
-				SessionID:      "acp-session-1",
-				LifecycleEvent: "session_new",
-				PromptIndex:    1,
+				CompozySessionID: "compozy-session-a",
+				SessionID:        "acp-session-1",
+				LifecycleEvent:   "session_new",
+				PromptIndex:      1,
 			},
 		}
-		owned := DiagnosticsForAGHSession(records, " agh-session-a ")
+		owned := DiagnosticsForCompozySession(records, " compozy-session-a ")
 		if got, want := len(owned), 4; got != want {
-			t.Fatalf("DiagnosticsForAGHSession() = %#v, want four records", owned)
+			t.Fatalf("DiagnosticsForCompozySession() = %#v, want four records", owned)
 		}
 		if owned[0].ProtocolMethod != "model" || owned[1].ProtocolMethod != "prompt" {
-			t.Fatalf("DiagnosticsForAGHSession() = %#v, want model then prompt", owned)
+			t.Fatalf("DiagnosticsForCompozySession() = %#v, want model then prompt", owned)
 		}
 		protocol := ProtocolDiagnostics(owned)
 		if !reflect.DeepEqual(protocol, owned[:2]) {
@@ -348,12 +348,12 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail closed for empty or unknown AGH session owners", func(t *testing.T) {
+	t.Run("Should fail closed for empty or unknown Compozy session owners", func(t *testing.T) {
 		t.Parallel()
 
 		records := []DiagnosticsRecord{
-			{AGHSessionID: "", SessionID: "agh-session-a"},
-			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1"},
+			{CompozySessionID: "", SessionID: "compozy-session-a"},
+			{CompozySessionID: "compozy-session-a", SessionID: "acp-session-1"},
 		}
 		tests := []struct {
 			name  string
@@ -361,18 +361,18 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 		}{
 			{name: "Should return an allocated empty result for an empty owner"},
 			{name: "Should return an allocated empty result for a whitespace owner", owner: "   "},
-			{name: "Should return an allocated empty result for an unknown owner", owner: "agh-session-missing"},
+			{name: "Should return an allocated empty result for an unknown owner", owner: "compozy-session-missing"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				got := DiagnosticsForAGHSession(records, tt.owner)
+				got := DiagnosticsForCompozySession(records, tt.owner)
 				if got == nil {
-					t.Fatal("DiagnosticsForAGHSession() = nil, want allocated empty result")
+					t.Fatal("DiagnosticsForCompozySession() = nil, want allocated empty result")
 				}
 				if len(got) != 0 {
-					t.Fatalf("DiagnosticsForAGHSession() = %#v, want no records", got)
+					t.Fatalf("DiagnosticsForCompozySession() = %#v, want no records", got)
 				}
 			})
 		}
@@ -456,7 +456,7 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 		},
 		{
 			name: "Should reject sandbox cwd that is not absolute",
-			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"sandbox_exec","command":"agh","cwd":"relative"}]}]}]}`,
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"sandbox_exec","command":"compozy","cwd":"relative"}]}]}]}`,
 			want: "cwd must be absolute",
 		},
 		{
@@ -611,7 +611,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"</compozy-situation-context>",
 		"",
 		"<current-available-skills>",
-		`  <skill name="agh">Operate AGH runtime surfaces.</skill>`,
+		`  <skill name="compozy">Operate Compozy runtime surfaces.</skill>`,
 		"</current-available-skills>",
 		"",
 		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
@@ -654,7 +654,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"</compozy-situation-context>",
 		"",
 		"<current-available-skills>",
-		`  <skill name="agh">Operate AGH runtime surfaces.</skill>`,
+		`  <skill name="compozy">Operate Compozy runtime surfaces.</skill>`,
 		"</current-available-skills>",
 		"",
 		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
@@ -918,7 +918,7 @@ hello alpha
 			want: "hello alpha",
 		},
 		{
-			name: "Should stop at malformed AGH wrapper",
+			name: "Should stop at malformed Compozy wrapper",
 			prompt: strings.Join([]string{
 				"<current-available-skills>",
 				`<skill name="qa-marker">Marker.</skill>`,
@@ -1047,7 +1047,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 	t.Run("Should register requires agents dir", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := Register(aghconfig.HomePaths{}, RegisterOptions{}); err == nil ||
+		if _, err := Register(compozyconfig.HomePaths{}, RegisterOptions{}); err == nil ||
 			!strings.Contains(err.Error(), "agents directory is required") {
 			t.Fatalf("Register(empty home) error = %v, want agents-dir validation", err)
 		}
@@ -1254,14 +1254,14 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 	})
 }
 
-func mockHomePaths(t testing.TB) aghconfig.HomePaths {
+func mockHomePaths(t testing.TB) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths

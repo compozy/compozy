@@ -39,7 +39,7 @@ const (
 	maxResponseBodyBytes   = 1 << 20
 )
 
-var sshReadyMarker = []byte("__agh_daytona_ssh_ready__")
+var sshReadyMarker = []byte("__compozy_daytona_ssh_ready__")
 
 func TestDaytonaSSHNonPTYValidation(t *testing.T) {
 	apiKey := strings.TrimSpace(os.Getenv(daytonaAPIKeyEnv))

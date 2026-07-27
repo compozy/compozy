@@ -86,7 +86,7 @@ const directoryEntriesByPath = new Map<
   [
     "/Users/pedronauck/Dev/compozy",
     {
-      entries: [{ is_dir: true, name: "agh", path: "/Users/pedronauck/Dev/compozy/agh" }],
+      entries: [{ is_dir: true, name: "compozy", path: "/Users/pedronauck/Dev/compozy/compozy" }],
       home: directoryHome,
       parent: "/Users/pedronauck/Dev",
       path: "/Users/pedronauck/Dev/compozy",

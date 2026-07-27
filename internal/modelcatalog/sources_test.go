@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -15,11 +15,11 @@ func TestProviderConfigSources(t *testing.T) {
 	t.Run("Should expose manual default outside curated list", func(t *testing.T) {
 		t.Parallel()
 
-		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+		source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "manual-model",
-					Curated: []aghconfig.ProviderModelConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{ID: "curated-model", DisplayName: "Curated Model"},
 					},
 				},
@@ -47,9 +47,9 @@ func TestProviderConfigSources(t *testing.T) {
 	t.Run("Should preserve exact configured model ids without aliases", func(t *testing.T) {
 		t.Parallel()
 
-		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+		source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"claude": {
-				Models: aghconfig.ProviderModelsConfig{Default: "sonnet"},
+				Models: compozyconfig.ProviderModelsConfig{Default: "sonnet"},
 			},
 		})
 		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(0)})
@@ -64,11 +64,11 @@ func TestProviderConfigSources(t *testing.T) {
 	t.Run("Should preserve explicit curated ids before applying aliases", func(t *testing.T) {
 		t.Parallel()
 
-		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+		source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "gpt-5",
-					Curated: []aghconfig.ProviderModelConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{ID: "gpt-5", DisplayName: "GPT-5"},
 					},
 				},
@@ -92,11 +92,11 @@ func TestProviderConfigSources(t *testing.T) {
 		supportsTools := true
 		contextWindow := int64(128000)
 		defaultEffort := ReasoningEffortHigh
-		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+		source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "gpt-5.4",
-					Curated: []aghconfig.ProviderModelConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{
 							ID:                     "gpt-5.4",
 							DisplayName:            "GPT-5.4",
@@ -162,10 +162,10 @@ func TestProviderConfigSources(t *testing.T) {
 			t.Run("Should reject "+test.name, func(t *testing.T) {
 				t.Parallel()
 
-				source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+				source := NewConfigSource(map[string]compozyconfig.ProviderConfig{
 					"codex": {
-						Models: aghconfig.ProviderModelsConfig{
-							Curated: []aghconfig.ProviderModelConfig{
+						Models: compozyconfig.ProviderModelsConfig{
+							Curated: []compozyconfig.ProviderModelConfig{
 								{
 									ID:                     "configured-model",
 									ReasoningEfforts:       test.efforts,
@@ -204,10 +204,10 @@ func TestProviderConfigSources(t *testing.T) {
 		deprecated := false
 		hidden := false
 		featured := true
-		providers := map[string]aghconfig.ProviderConfig{
+		providers := map[string]compozyconfig.ProviderConfig{
 			"codex": {
-				Models: aghconfig.ProviderModelsConfig{
-					Curated: []aghconfig.ProviderModelConfig{
+				Models: compozyconfig.ProviderModelsConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{
 							ID:               "gpt-5.4",
 							DisplayName:      "GPT-5.4",

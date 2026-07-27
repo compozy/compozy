@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -37,21 +37,21 @@ func validateAndEncodeTool(
 
 func validateAndEncodeMCPServer(
 	ctx context.Context,
-	codec resources.KindCodec[aghconfig.MCPServer],
+	codec resources.KindCodec[compozyconfig.MCPServer],
 	scope resources.ResourceScope,
-	spec aghconfig.MCPServer,
-) (aghconfig.MCPServer, []byte, error) {
+	spec compozyconfig.MCPServer,
+) (compozyconfig.MCPServer, []byte, error) {
 	encoded, err := codec.Encode(spec)
 	if err != nil {
-		return aghconfig.MCPServer{}, nil, err
+		return compozyconfig.MCPServer{}, nil, err
 	}
 	validated, err := codec.DecodeAndValidate(ctx, scope.Normalize(), encoded)
 	if err != nil {
-		return aghconfig.MCPServer{}, nil, err
+		return compozyconfig.MCPServer{}, nil, err
 	}
 	canonical, err := codec.Encode(validated)
 	if err != nil {
-		return aghconfig.MCPServer{}, nil, err
+		return compozyconfig.MCPServer{}, nil, err
 	}
 	return validated, canonical, nil
 }
@@ -86,8 +86,8 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 	return record
 }
 
-func cloneDaemonMCPServer(src aghconfig.MCPServer) aghconfig.MCPServer {
-	return aghconfig.MCPServer{
+func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
+	return compozyconfig.MCPServer{
 		Name:      src.Name,
 		Transport: src.Transport,
 		Command:   src.Command,
@@ -95,7 +95,7 @@ func cloneDaemonMCPServer(src aghconfig.MCPServer) aghconfig.MCPServer {
 		Env:       cloneStringMap(src.Env),
 		SecretEnv: cloneStringMap(src.SecretEnv),
 		URL:       src.URL,
-		Auth: aghconfig.MCPAuthConfig{
+		Auth: compozyconfig.MCPAuthConfig{
 			Type:             src.Auth.Type,
 			IssuerURL:        src.Auth.IssuerURL,
 			MetadataURL:      src.Auth.MetadataURL,

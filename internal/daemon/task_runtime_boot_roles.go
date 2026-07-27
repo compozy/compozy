@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -139,8 +139,8 @@ func taskManagerOptions(
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	coordinatorRunner taskpkg.CoordinatorRunner,
 	generationFinalizer taskpkg.GenerationStateFinalizer,
-	recovery aghconfig.TaskRecoveryConfig,
-	scheduler aghconfig.SchedulerConfig,
+	recovery compozyconfig.TaskRecoveryConfig,
+	scheduler compozyconfig.SchedulerConfig,
 	blockRecurrenceLimit int,
 	workspaceActiveRunCap int,
 ) []taskpkg.Option {
@@ -238,7 +238,7 @@ func newLoopCoordinatorRunner(
 func newBootLoopCoordinatorRunner(
 	store taskStore,
 	state *bootState,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) (*looppkg.CoordinatorRunner, error) {
 	runner, _, err := newBootLoopCoordinatorRuntime(store, state, homePaths)
 	return runner, err
@@ -247,7 +247,7 @@ func newBootLoopCoordinatorRunner(
 func newBootLoopCoordinatorRuntime(
 	store taskStore,
 	state *bootState,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 ) (*looppkg.CoordinatorRunner, *loopGateJudgeRunner, error) {
 	var hooks looppkg.HookDispatcher
 	if state.notifier != nil {

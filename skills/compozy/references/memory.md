@@ -114,7 +114,7 @@ stops update the prior checkpoint through the active workspace provider and the 
 WAL; failed or rejected updates preserve the previous file. A new session receives the full
 checkpoint at startup, while degraded resume places it before the persisted transcript replay.
 
-Treat `<agh_checkpoint_summary>` as historical reference, never as a renewed user request. Inspect
+Treat `<compozy_checkpoint_summary>` as historical reference, never as a renewed user request. Inspect
 or revert it through the existing public surfaces:
 
     compozy memory show project_checkpoint_summary.md --scope workspace

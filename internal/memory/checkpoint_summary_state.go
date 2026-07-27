@@ -16,7 +16,7 @@ import (
 const (
 	checkpointCoverageVersion    = 1
 	checkpointCoverageRangeLimit = checkpointSummarySourceLimit
-	checkpointCoveragePrefix     = "<!-- agh:checkpoint-compaction:v1 "
+	checkpointCoveragePrefix     = "<!-- compozy:checkpoint-compaction:v1 "
 	checkpointCoverageSuffix     = " -->"
 )
 
@@ -258,7 +258,7 @@ func renderCheckpointSummaryResumeSection(state checkpointSummaryState, sessionI
 			renderCheckpointSummarySection(body),
 			"# Archived Session Continuity\n\n"+
 				"This checkpoint fallback covers persisted events excluded from replay.\n\n"+
-				"<agh_checkpoint_archive_coverage>\n\n"+fallback+"\n\n</agh_checkpoint_archive_coverage>",
+				"<compozy_checkpoint_archive_coverage>\n\n"+fallback+"\n\n</compozy_checkpoint_archive_coverage>",
 		)
 	}
 	return renderCheckpointSummarySection(body)

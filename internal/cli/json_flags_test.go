@@ -12,11 +12,11 @@ func TestParseRequiredJSONRawMessage(t *testing.T) {
 	t.Run("Should trim and preserve valid JSON", func(t *testing.T) {
 		t.Parallel()
 
-		payload, err := parseRequiredJSONRawMessage("  {\"schema\":\"agh.test\"}  ")
+		payload, err := parseRequiredJSONRawMessage("  {\"schema\":\"compozy.test\"}  ")
 		if err != nil {
 			t.Fatalf("parseRequiredJSONRawMessage() error = %v", err)
 		}
-		if got, want := string(payload), `{"schema":"agh.test"}`; got != want {
+		if got, want := string(payload), `{"schema":"compozy.test"}`; got != want {
 			t.Fatalf("parseRequiredJSONRawMessage() = %q, want %q", got, want)
 		}
 	})

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
@@ -17,19 +17,19 @@ import (
 func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		homePaths,
 		"",
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			if err := editor.SetValue([]string{"http", "host"}, "127.0.0.1"); err != nil {
 				return err
 			}
@@ -91,7 +91,7 @@ func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testin
 func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPresence(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

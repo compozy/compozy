@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/observe"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -726,7 +726,7 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		streamDone := make(chan struct{})
 		close(streamDone)
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.HTTP.Host = "127.0.0.1"
 		cfg.HTTP.Port = 2123
 		instances := []bridgepkg.BridgeInstance{
@@ -1912,7 +1912,7 @@ func TestBridgeHandlersListProviders(t *testing.T) {
 						Required:    true,
 					}},
 					ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-						Schema:  "agh.bridge.telegram",
+						Schema:  "compozy.bridge.telegram",
 						Version: "v1",
 					},
 					Enabled:       true,
@@ -1969,7 +1969,7 @@ func TestBridgeHandlersListProviders(t *testing.T) {
 				t.Fatalf("provider secret_slots = %#v", payload.Providers[0].SecretSlots)
 			}
 			if payload.Providers[0].ConfigSchema == nil ||
-				payload.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+				payload.Providers[0].ConfigSchema.Schema != "compozy.bridge.telegram" {
 				t.Fatalf("provider config_schema = %#v", payload.Providers[0].ConfigSchema)
 			}
 		})
@@ -1984,7 +1984,7 @@ func TestBridgeHandlersIncludeObservedHealthPayloads(t *testing.T) {
 
 		gin.SetMode(gin.TestMode)
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.HTTP.Host = "127.0.0.1"
 		cfg.HTTP.Port = 2123
 
@@ -2090,7 +2090,7 @@ func TestBridgeHandlersMutationReturnsBestEffortPayloadWhenHealthLookupFails(t *
 
 		gin.SetMode(gin.TestMode)
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.HTTP.Host = "127.0.0.1"
 		cfg.HTTP.Port = 2123
 
@@ -2178,7 +2178,7 @@ func newBridgeHandlerFixture(t *testing.T, bridges core.BridgeService) (*core.Ba
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 

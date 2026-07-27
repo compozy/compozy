@@ -82,7 +82,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-list-seeded", appPage);
 
   await tasksUI.openCreate.click();
-  await expect(appPage).toHaveURL(/\/tasks\/new$/);
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks/new");
   await expect(tasksUI.createEditorSurface).toBeVisible();
   await selectRecurringTaskTemplate(tasksUI);
   await expect(tasksUI.createSaveDraft).toContainText("Save draft");
@@ -241,7 +241,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-inbox-approval-approved", appPage);
 
   await tasksUI.openCreate.click();
-  await expect(appPage).toHaveURL(/\/tasks\/new$/);
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks/new");
   await expect(tasksUI.createEditorSurface).toBeVisible();
   await selectRecurringTaskTemplate(tasksUI);
   await expect(tasksUI.createSaveDraft).toContainText("Save draft");

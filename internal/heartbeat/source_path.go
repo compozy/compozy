@@ -11,7 +11,7 @@ import (
 
 	"unicode"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -100,7 +100,7 @@ func safePathWithoutRoot(path string) string {
 	slashed := filepath.ToSlash(filepath.Clean(path))
 	parts := strings.Split(slashed, "/")
 	for idx := 0; idx < len(parts)-2; idx++ {
-		if parts[idx] == aghconfig.DirName && parts[idx+1] == "agents" {
+		if parts[idx] == compozyconfig.DirName && parts[idx+1] == "agents" {
 			return strings.Join(parts[idx:], "/")
 		}
 	}
@@ -151,7 +151,7 @@ func forbiddenOwner(key string) string {
 		return "task lease heartbeat"
 	case "network", "greet", "presence", "peer_presence", "peers",
 		"channels", "channel":
-		return "AGH Network membership"
+		return "Compozy Network membership"
 	case "provider", "providers", "model", "command", "tools", "toolsets", "deny_tools",
 		"permissions", "capabilities", "capability", "hooks", "mcp_servers", "env", "config":
 		return "agent definition or runtime config"

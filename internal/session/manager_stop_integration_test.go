@@ -19,7 +19,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -99,7 +99,7 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
 			Command:  command,
@@ -159,7 +159,7 @@ func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.
 			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 		}
 		resolved.Config = h.cfg
-		resolved.Agents = []aghconfig.AgentDef{{
+		resolved.Agents = []compozyconfig.AgentDef{{
 			Name:     "acpmock-tools",
 			Provider: acpmock.ProviderName,
 			Command:  command,
@@ -244,7 +244,7 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 		t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 	}
 	resolved.Config = h.cfg
-	resolved.Agents = []aghconfig.AgentDef{{
+	resolved.Agents = []compozyconfig.AgentDef{{
 		Name:     "resume-replay",
 		Provider: acpmock.ProviderName,
 		Command:  command,
@@ -280,7 +280,7 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown(before manager restart) error = %v", err)
 	}
-	checkpoint := "<agh_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</agh_checkpoint_summary>"
+	checkpoint := "<compozy_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</compozy_checkpoint_summary>"
 	h.manager = newManagerWithHarness(
 		t,
 		h,
@@ -318,11 +318,11 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	if err != nil {
 		t.Fatalf("ReadDiagnostics() error = %v", err)
 	}
-	prompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForAGHSession(records, resumed.ID))
+	prompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForCompozySession(records, resumed.ID))
 	if got, want := len(prompts), 2; got != want {
 		t.Fatalf("resume replay prompt diagnostics = %#v, want %d prompt records", prompts, want)
 	}
-	checkpointIndex := strings.Index(prompts[1].Prompt, "<agh_checkpoint_summary>")
+	checkpointIndex := strings.Index(prompts[1].Prompt, "<compozy_checkpoint_summary>")
 	replayIndex := strings.Index(prompts[1].Prompt, resumeReplayOpenTag)
 	if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
 		t.Fatalf("resume replay checkpoint ordering invalid:\n%s", prompts[1].Prompt)
@@ -346,7 +346,7 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
 			Command:  command,
@@ -376,11 +376,11 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 }
 
 func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -402,14 +402,14 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		}
 	})
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 
 	resolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
 	)
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -561,8 +561,8 @@ func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
-			Name:     aghconfig.DefaultAgentName,
+		Agents: []compozyconfig.AgentDef{{
+			Name:     compozyconfig.DefaultAgentName,
 			Provider: acpmock.ProviderName,
 			Command:  sessionStopHelperCommand(t),
 			Prompt:   "You are a coding assistant.",
@@ -664,7 +664,7 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: acpmock.ProviderName,
 			Command:  command,
@@ -721,7 +721,7 @@ func sessionStopHelperCommand(t *testing.T) string {
 	)
 }
 
-func writeSessionIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string, command string) {
+func writeSessionIntegrationAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string, command string) {
 	t.Helper()
 
 	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")

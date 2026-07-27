@@ -13,19 +13,19 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 )
 
 type settingsRuntimeSurface struct {
-	config            aghconfig.Config
+	config            compozyconfig.Config
 	startedAt         time.Time
 	sessions          SessionManager
 	observer          Observer
@@ -420,7 +420,7 @@ type settingsUpdateController struct {
 var _ core.SettingsUpdateController = settingsUpdateController{}
 
 type settingsUpdateManager interface {
-	Check(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
+	Check(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
 }
 
 func (c settingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsUpdateStatus, error) {
@@ -428,7 +428,7 @@ func (c settingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsU
 		return core.SettingsUpdateStatus{}, errors.New("daemon: settings update manager is required")
 	}
 
-	state, _, err := c.manager.Check(ctx, aghupdate.CheckOptions{AllowCachedOnFailure: true})
+	state, _, err := c.manager.Check(ctx, compozyupdate.CheckOptions{AllowCachedOnFailure: true})
 	if err != nil && strings.TrimSpace(state.Message) == "" && strings.TrimSpace(state.LastError) == "" {
 		return core.SettingsUpdateStatus{}, err
 	}
@@ -448,12 +448,12 @@ func (c settingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsU
 	}, nil
 }
 
-func newSettingsUpdateManager(d *Daemon) (*aghupdate.Manager, error) {
+func newSettingsUpdateManager(d *Daemon) (*compozyupdate.Manager, error) {
 	if d == nil {
 		return nil, errors.New("daemon: settings update daemon is required")
 	}
 
-	return aghupdate.NewManager(aghupdate.Config{
+	return compozyupdate.NewManager(compozyupdate.Config{
 		HomePaths:      d.homePaths,
 		CurrentVersion: version.Current().Version,
 		ExecutablePath: d.executable,

@@ -11,7 +11,7 @@ import (
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	storepkg "github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 const observabilityGlobalKey = "global"
@@ -82,7 +82,7 @@ func workspaceObservabilityFilter(ctx context.Context, workspace string) (catalo
 	if workspaceRoot == "" {
 		return catalogFilter{}, false, nil
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return catalogFilter{}, false, fmt.Errorf(
 			"memory: resolve workspace identity for %q: %w",
@@ -113,7 +113,7 @@ func (s *Store) healthSources(ctx context.Context, workspaces []string) ([]obser
 		if workspaceRoot == "" {
 			continue
 		}
-		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+		identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 		if err != nil {
 			return nil, errors.Join(
 				fmt.Errorf("memory: resolve workspace identity for %q: %w", workspaceRoot, err),
@@ -150,7 +150,7 @@ func (s *Store) workspaceObservabilitySource(
 	if workspaceRoot == "" {
 		return observabilitySource{}, false, nil
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return observabilitySource{}, false, fmt.Errorf(
 			"memory: resolve workspace identity for %q: %w",

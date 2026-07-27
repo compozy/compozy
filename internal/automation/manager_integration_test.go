@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -619,13 +619,13 @@ func TestManagerIntegrationManualTriggerHonorsCallerDeadline(t *testing.T) {
 	})
 }
 
-func integrationAutomationConfig() aghconfig.AutomationConfig {
-	return aghconfig.AutomationConfig{
+func integrationAutomationConfig() compozyconfig.AutomationConfig {
+	return compozyconfig.AutomationConfig{
 		Enabled:           true,
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Suggestions: aghconfig.AutomationSuggestionsConfig{
+		Suggestions: compozyconfig.AutomationSuggestionsConfig{
 			PendingCap: DefaultSuggestionPendingCap,
 		},
 	}

@@ -7,7 +7,7 @@ isolation plus the no-new-native-IDs contract hold. Covers US-010 (ADR-008).
 
 ```mermaid
 flowchart TD
-    E1[Entry: third-party MCP client spawns compozy mcp serve --workspace A over stdio] --> L[Client lists advertised agh_host__* tools]
+    E1[Entry: third-party MCP client spawns compozy mcp serve --workspace A over stdio] --> L[Client lists advertised compozy_host__* tools]
     L --> DG[Contract check: zero new compozy__* native IDs — digest diff clean]
     L --> OP[Client lists sessions and creates one session + one task]
     OP --> V[Side effect: the same session/task visible via the native HTTP API]

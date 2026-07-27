@@ -8,7 +8,7 @@ import {
 
 export const useActiveWorkspaceStore = create<ActiveWorkspaceStore>()(
   persist(createActiveWorkspaceStore, {
-    name: "agh:active-workspace",
+    name: "compozy:active-workspace",
     partialize: state => ({ selectedWorkspaceId: state.selectedWorkspaceId }),
   })
 );

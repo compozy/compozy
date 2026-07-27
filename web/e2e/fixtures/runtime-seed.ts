@@ -630,14 +630,14 @@ async function seedBrowserSkills(homeDir: string, skills: BrowserSkillSeed[]): P
         installed_at: skill.marketplace.installedAt ?? "2026-05-09T00:00:00Z",
       };
       await writeFile(
-        path.join(skillDir, ".agh-meta.json"),
+        path.join(skillDir, ".compozy-meta.json"),
         `${JSON.stringify(sidecar, null, 2)}\n`,
         {
           encoding: "utf8",
           mode: 0o600,
         }
       );
-      await chmod(path.join(skillDir, ".agh-meta.json"), 0o600);
+      await chmod(path.join(skillDir, ".compozy-meta.json"), 0o600);
     }
   }
 }
@@ -732,7 +732,7 @@ async function collectSeedSkillFiles(rootDir: string, currentDir: string): Promi
   const entries = await readdir(currentDir, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
-    if (entry.name === ".agh-meta.json") {
+    if (entry.name === ".compozy-meta.json") {
       continue;
     }
     const absolutePath = path.join(currentDir, entry.name);
@@ -1211,8 +1211,8 @@ export async function seedBrowserTasksOperatorFlow(
   await runtime.requestJSON<{ claim: { run: TaskRun } }>("/api/agent/tasks/claim-next", {
     method: "POST",
     headers: {
-      "X-AGH-Session-ID": activeSession.id,
-      "X-AGH-Agent": sessionAgentName,
+      "X-Compozy-Session-ID": activeSession.id,
+      "X-Compozy-Agent": sessionAgentName,
     },
     body: JSON.stringify({
       run_id: runningRun.id,
@@ -2234,7 +2234,7 @@ async function computeDirectoryChecksum(rootDir: string): Promise<string> {
       '\t"os"',
       '\t"strings"',
       "",
-      '\textensionpkg "github.com/compozy/agh/internal/extension"',
+      '\textensionpkg "github.com/compozy/compozy/internal/extension"',
       ")",
       "",
       "func main() {",

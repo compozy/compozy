@@ -17,7 +17,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -57,7 +57,7 @@ var (
 type Option func(*Daemon)
 
 // ConfigLoader resolves the daemon-level runtime configuration.
-type ConfigLoader func() (aghconfig.Config, error)
+type ConfigLoader func() (compozyconfig.Config, error)
 
 // SessionManager is the shared transport-facing session surface consumed by daemon/.
 type SessionManager = core.SessionManager
@@ -143,17 +143,17 @@ type observerRetentionStopper interface {
 }
 
 type resourceReconcileDriverDeps struct {
-	Config              aghconfig.Config
+	Config              compozyconfig.Config
 	Logger              *slog.Logger
 	Registry            Registry
 	ResourceStore       resources.RawStore
 	CodecRegistry       *resources.CodecRegistry
 	Hooks               *hookspkg.Hooks
-	AgentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	AgentCatalog        *resourceCatalog[compozyconfig.AgentDef]
 	SoulCatalog         *resourceCatalog[soul.ResourceSpec]
 	HeartbeatCatalog    *resourceCatalog[heartbeat.ResourceSpec]
 	ToolCatalog         *resourceCatalog[toolspkg.Tool]
-	MCPServerCatalog    *resourceCatalog[aghconfig.MCPServer]
+	MCPServerCatalog    *resourceCatalog[compozyconfig.MCPServer]
 	LoopCatalog         *resourceCatalog[looppkg.ResourceSpec]
 	WindowLayoutCatalog *resourceCatalog[windowmanager.LayoutResource]
 	SkillsRegistry      *skills.Registry
@@ -172,7 +172,7 @@ type extensionRuntime interface {
 
 type extensionManagerDeps struct {
 	Registry               *extensionpkg.Registry
-	Extensions             aghconfig.ExtensionsConfig
+	Extensions             compozyconfig.ExtensionsConfig
 	Sessions               SessionManager
 	Clarify                toolspkg.ClarifyBroker
 	Automation             func() extensionpkg.HostAPIAutomationManager
@@ -206,11 +206,11 @@ type extensionManagerDeps struct {
 	CompozyExecutable      func() (string, error)
 }
 
-// Daemon is the sole AGH composition root.
+// Daemon is the sole Compozy composition root.
 type Daemon struct {
 	mu sync.Mutex
 
-	homePaths                    aghconfig.HomePaths
+	homePaths                    compozyconfig.HomePaths
 	loadConfig                   ConfigLoader
 	logger                       *slog.Logger
 	closeLogger                  func() error
@@ -242,7 +242,7 @@ type Daemon struct {
 	booting                      bool
 	orphanGraceWait              time.Duration
 	orphanPollWait               time.Duration
-	config                       aghconfig.Config
+	config                       compozyconfig.Config
 	startedAt                    time.Time
 	info                         Info
 	admission                    admission.Gate
@@ -268,11 +268,11 @@ type Daemon struct {
 	extensions                   extensionRuntime
 	observer                     Observer
 	resourceReconcile            resources.ReconcileDriver
-	agentCatalog                 *resourceCatalog[aghconfig.AgentDef]
+	agentCatalog                 *resourceCatalog[compozyconfig.AgentDef]
 	soulCatalog                  *resourceCatalog[soul.ResourceSpec]
 	heartbeatCatalog             *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog                  *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog             *resourceCatalog[aghconfig.MCPServer]
+	mcpServerCatalog             *resourceCatalog[compozyconfig.MCPServer]
 	loopCatalog                  *resourceCatalog[looppkg.ResourceSpec]
 	automation                   automationRuntime
 	bridges                      *bridgeRuntime

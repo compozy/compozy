@@ -14,7 +14,7 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestMemoryEventOpsUseCanonicalRegistry(t *testing.T) {
@@ -44,7 +44,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		globalStore := newOpenTestStore(t,
 			filepath.Join(baseDir, "global", "memory"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", storepkg.GlobalDatabaseName)),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy-home", storepkg.GlobalDatabaseName)),
 		)
 		workspaceCatalog, workspaceID := openWorkspaceObservabilityCatalog(ctx, t, workspaceRoot)
 
@@ -224,7 +224,7 @@ func TestStoreHealthStats(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		globalStore := newOpenTestStore(t,
 			filepath.Join(baseDir, "global", "memory"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", storepkg.GlobalDatabaseName)),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy-home", storepkg.GlobalDatabaseName)),
 		)
 		workspaceCatalog, workspaceID := openWorkspaceObservabilityCatalog(ctx, t, workspaceRoot)
 		operatedAt := time.Date(2026, 5, 5, 10, 30, 0, 0, time.UTC)
@@ -263,7 +263,7 @@ func openWorkspaceObservabilityCatalog(
 	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		t.Fatalf("EnsureIdentity() error = %v", err)
 	}
@@ -288,7 +288,7 @@ func seedWorkspaceObservabilityDatabase(t *testing.T, workspaceRoot string, stat
 	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 		t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
 	}
-	identity, err := aghworkspace.EnsureIdentity(testutil.Context(t), workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(testutil.Context(t), workspaceRoot)
 	if err != nil {
 		t.Fatalf("EnsureIdentity() error = %v", err)
 	}

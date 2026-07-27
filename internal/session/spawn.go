@@ -51,6 +51,8 @@ type SpawnOpts struct {
 	PermissionPolicy     store.SessionPermissionPolicy
 	IdempotencyKey       string
 	AllowStoppedParent   bool
+	// DiscardStartFailure is reserved for ephemeral internal role attempts.
+	DiscardStartFailure bool
 }
 
 type permissionCategory struct {
@@ -101,10 +103,11 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 			Enforced:   true,
 			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
 		},
-		PromptOverlay:    normalized.PromptOverlay,
-		Type:             SessionTypeSpawned,
-		Lineage:          lineage,
-		ParentSoulDigest: strings.TrimSpace(parent.SoulDigest),
+		PromptOverlay:       normalized.PromptOverlay,
+		Type:                SessionTypeSpawned,
+		Lineage:             lineage,
+		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),
+		DiscardStartFailure: normalized.DiscardStartFailure,
 	})
 	if err != nil {
 		return nil, err

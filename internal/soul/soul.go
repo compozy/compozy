@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -42,7 +42,7 @@ var (
 type ResolveRequest struct {
 	AgentPath     string
 	WorkspaceRoot string
-	Config        aghconfig.SoulConfig
+	Config        compozyconfig.SoulConfig
 }
 
 // ParseRequest describes in-memory SOUL.md content to validate and project.
@@ -50,7 +50,7 @@ type ParseRequest struct {
 	SourcePath    string
 	WorkspaceRoot string
 	Content       []byte
-	Config        aghconfig.SoulConfig
+	Config        compozyconfig.SoulConfig
 }
 
 // ResolvedSoul is the normalized result that later runtime surfaces can consume.
@@ -281,7 +281,7 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedSoul, error) {
 }
 
 // Empty returns a valid absent SOUL.md resolution for non-filesystem agent sources.
-func Empty(config aghconfig.SoulConfig, sourcePath string) (ResolvedSoul, error) {
+func Empty(config compozyconfig.SoulConfig, sourcePath string) (ResolvedSoul, error) {
 	if err := config.Validate(); err != nil {
 		return ResolvedSoul{}, err
 	}

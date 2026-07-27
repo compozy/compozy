@@ -21,7 +21,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -1535,7 +1535,7 @@ func TestResumeReplayFallback(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		checkpoint := "<agh_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</agh_checkpoint_summary>"
+		checkpoint := "<compozy_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</compozy_checkpoint_summary>"
 		h.manager = newManagerWithHarness(
 			t,
 			h,
@@ -1568,7 +1568,7 @@ func TestResumeReplayFallback(t *testing.T) {
 		}
 		collectEvents(t, events)
 		got := h.driver.promptCalls[0].Message
-		checkpointIndex := strings.Index(got, "<agh_checkpoint_summary>")
+		checkpointIndex := strings.Index(got, "<compozy_checkpoint_summary>")
 		replayIndex := strings.Index(got, resumeReplayOpenTag)
 		if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
 			t.Fatalf("resume prompt checkpoint/replay order invalid:\n%s", got)
@@ -1619,7 +1619,7 @@ func TestResumeReplayFallback(t *testing.T) {
 			t.Fatalf("Prompt(second resumed turn) error = %v", err)
 		}
 		collectEvents(t, secondPrompt)
-		if strings.Contains(h.driver.promptCalls[1].Message, "<agh_context_replay>") {
+		if strings.Contains(h.driver.promptCalls[1].Message, "<compozy_context_replay>") {
 			t.Fatalf("second resumed prompt contains replay block: %q", h.driver.promptCalls[1].Message)
 		}
 		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
@@ -1693,7 +1693,7 @@ func TestResumeReplayFallback(t *testing.T) {
 			t.Fatalf("Prompt(resumed) error = %v", err)
 		}
 		collectEvents(t, prompt)
-		if strings.Contains(h.driver.promptCalls[0].Message, "<agh_context_replay>") {
+		if strings.Contains(h.driver.promptCalls[0].Message, "<compozy_context_replay>") {
 			t.Fatalf("successful load prompt contains replay block: %q", h.driver.promptCalls[0].Message)
 		}
 		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 0)
@@ -1949,7 +1949,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		session,
 		proc,
 		false,
-		aghconfig.ResolvedAgent{Name: "coder"},
+		compozyconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
@@ -2052,7 +2052,7 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 		session,
 		proc,
 		false,
-		aghconfig.ResolvedAgent{Name: "coder"},
+		compozyconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
 		false,
@@ -2424,7 +2424,7 @@ func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+	h := newHarness(t, WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 		ActivityHeartbeatInterval: time.Hour,
 		ProgressNotifyInterval:    0,
 		InactivityWarningAfter:    0,
@@ -3768,7 +3768,7 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 	t.Run("Should bound cancel when interrupting agent waiting for synthetic prompt", func(t *testing.T) {
 		t.Parallel()
 
-		supervision := aghconfig.DefaultSessionSupervisionConfig()
+		supervision := compozyconfig.DefaultSessionSupervisionConfig()
 		supervision.TimeoutCancelGrace = 20 * time.Millisecond
 		h := newHarness(t, WithSessionSupervision(supervision))
 		session := createSession(t, h)
@@ -4391,12 +4391,12 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	logs := newCaptureLogHandler()
 	h := newHarness(t, WithLogger(slog.New(logs)))
 	skillRegistry := newFakeSkillRegistry()
-	h.cfg.MCPServers = []aghconfig.MCPServer{
+	h.cfg.MCPServers = []compozyconfig.MCPServer{
 		{Name: "global", Command: "global-command"},
 	}
-	h.cfg.Providers["claude"] = aghconfig.ProviderConfig{
+	h.cfg.Providers["claude"] = compozyconfig.ProviderConfig{
 		Command: "provider-command",
-		MCPServers: []aghconfig.MCPServer{
+		MCPServers: []compozyconfig.MCPServer{
 			{Name: "base", Command: "base-command", Args: []string{"--base"}},
 			{Name: "override", Command: "provider-override"},
 		},
@@ -4408,11 +4408,11 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are helpful.",
-			MCPServers: []aghconfig.MCPServer{
+			MCPServers: []compozyconfig.MCPServer{
 				{Name: "override", Command: "agent-override", Args: []string{"--agent"}},
 				{Name: "extra", Command: "extra-command"},
 			},
@@ -4433,7 +4433,7 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
 		WithLogger(slog.New(logs)),
 	)
 
@@ -4486,10 +4486,10 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.cfg.MCPServers = []aghconfig.MCPServer{
+	h.cfg.MCPServers = []compozyconfig.MCPServer{
 		{
 			Name:      "remote-http",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://example.test/mcp",
 		},
 		{
@@ -4504,19 +4504,19 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are helpful.",
-			MCPServers: []aghconfig.MCPServer{
+			MCPServers: []compozyconfig.MCPServer{
 				{Name: "agent-stdio", Command: "agent-command"},
 			},
 		}},
 	})
 	hosted := &recordingHostedMCPLauncher{
-		server: aghconfig.MCPServer{
+		server: compozyconfig.MCPServer{
 			Name:      "compozy-hosted-tools",
-			Transport: aghconfig.MCPServerTransportStdio,
+			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   "/bin/compozy",
 			Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
 		},
@@ -4532,7 +4532,7 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 		t.Fatalf("start MCPServers = %#v, want one hosted entry", got)
 	}
 	if got[0].Name != "compozy-hosted-tools" || got[0].Command != "/bin/compozy" {
-		t.Fatalf("hosted MCP server = %#v, want AGH hosted stdio entry", got[0])
+		t.Fatalf("hosted MCP server = %#v, want Compozy hosted stdio entry", got[0])
 	}
 
 	requests := hosted.launchRequests()
@@ -4560,9 +4560,9 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 
 		h := newHarness(t)
 		hosted := &recordingHostedMCPLauncher{
-			server: aghconfig.MCPServer{
+			server: compozyconfig.MCPServer{
 				Name:      "compozy-hosted-tools",
-				Transport: aghconfig.MCPServerTransportStdio,
+				Transport: compozyconfig.MCPServerTransportStdio,
 				Command:   "/bin/compozy",
 			},
 		}
@@ -4605,16 +4605,16 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "openclaw",
 			Prompt:   "You are helpful.",
 		}},
 	})
 	hosted := &recordingHostedMCPLauncher{
-		server: aghconfig.MCPServer{
+		server: compozyconfig.MCPServer{
 			Name:      "compozy-hosted-tools",
-			Transport: aghconfig.MCPServerTransportStdio,
+			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   "/bin/compozy",
 		},
 	}
@@ -4669,7 +4669,7 @@ func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
 	)
 
 	session := createSession(t, h)
@@ -4716,7 +4716,7 @@ func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
 		t,
 		h,
 		WithSkillRegistry(skillRegistry),
-		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+		WithMCPResolver(skillspkg.NewMCPResolver(compozyconfig.SkillsConfig{}, nil)),
 	)
 
 	session := createSession(t, h)
@@ -4745,7 +4745,7 @@ func TestCreateInvokesPromptAssemblerWhenConfigured(t *testing.T) {
 		h,
 		WithPromptAssembler(
 			promptAssemblerFunc(
-				func(_ context.Context, agent aghconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
+				func(_ context.Context, agent compozyconfig.AgentDef, workspace *workspacepkg.ResolvedWorkspace) (string, error) {
 					called = true
 					gotWorkspace = workspace.RootDir
 					gotAgentName = agent.Name
@@ -4856,7 +4856,7 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 				func(
 					_ context.Context,
 					startup StartupPromptContext,
-					agent aghconfig.AgentDef,
+					agent compozyconfig.AgentDef,
 					workspace *workspacepkg.ResolvedWorkspace,
 				) (string, error) {
 					if got, want := workspace.RootDir, h.workspace; got != want {
@@ -5106,7 +5106,7 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      h.workspaceID,
@@ -5114,9 +5114,9 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
-				Name:     aghconfig.DefaultAgentName,
+				Name:     compozyconfig.DefaultAgentName,
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
@@ -5141,8 +5141,8 @@ func TestCreateAppliesDreamPermissionsOverride(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeApproveAll {
-		t.Fatalf("start permissions = %q, want %q", got, aghconfig.PermissionModeApproveAll)
+	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
+		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
 	}
 }
 
@@ -5150,7 +5150,7 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	h.cfg.Permissions.Mode = aghconfig.PermissionModeDenyAll
+	h.cfg.Permissions.Mode = compozyconfig.PermissionModeDenyAll
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      h.workspaceID,
@@ -5158,9 +5158,9 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
-				Name:     aghconfig.DefaultAgentName,
+				Name:     compozyconfig.DefaultAgentName,
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
@@ -5185,8 +5185,8 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	if got := h.driver.startCalls[0].Permissions; got != aghconfig.PermissionModeDenyAll {
-		t.Fatalf("start permissions = %q, want %q", got, aghconfig.PermissionModeDenyAll)
+	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeDenyAll {
+		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeDenyAll)
 	}
 }
 
@@ -5208,8 +5208,8 @@ type harness struct {
 	notifier      *fakeNotifier
 	resolver      *fakeWorkspaceResolver
 	sandbox       *sandbox.Registry
-	cfg           aghconfig.Config
-	homePaths     aghconfig.HomePaths
+	cfg           compozyconfig.Config
+	homePaths     compozyconfig.HomePaths
 	workspace     string
 	workspaceID   string
 	workspaceName string
@@ -5227,11 +5227,11 @@ func (f modelCatalogFunc) ListModels(
 func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -5244,7 +5244,7 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 		driver:        newFakeDriver(),
 		notifier:      newFakeNotifier(),
 		sandbox:       newFakeSandboxRegistry(t),
-		cfg:           aghconfig.DefaultWithHome(homePaths),
+		cfg:           compozyconfig.DefaultWithHome(homePaths),
 		homePaths:     homePaths,
 		workspace:     workspace,
 		workspaceID:   "ws-primary",
@@ -5261,9 +5261,9 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 			Name:    h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
-				Name:     aghconfig.DefaultAgentName,
+				Name:     compozyconfig.DefaultAgentName,
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
 			},
@@ -5288,7 +5288,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithNotifier(h.notifier),
 		WithPromptAssembler(
 			startupPromptAssemblerFunc(
-				func(_ context.Context, startup StartupPromptContext, agent aghconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
+				func(_ context.Context, startup StartupPromptContext, agent compozyconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
 					prompt := strings.TrimSpace(agent.Prompt)
 					if startup.NetworkParticipation.Mode != participation.ModeLive {
 						return prompt, nil
@@ -5494,11 +5494,11 @@ func sequentialIDGenerator(prefix string) IDGenerator {
 	}
 }
 
-type promptAssemblerFunc func(context.Context, aghconfig.AgentDef, *workspacepkg.ResolvedWorkspace) (string, error)
+type promptAssemblerFunc func(context.Context, compozyconfig.AgentDef, *workspacepkg.ResolvedWorkspace) (string, error)
 
 func (fn promptAssemblerFunc) Assemble(
 	ctx context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, agent, workspace)
@@ -5510,7 +5510,7 @@ type resumeContextPromptAssembler struct {
 
 func (a *resumeContextPromptAssembler) Assemble(
 	_ context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	_ *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return agent.Prompt, nil
@@ -5531,13 +5531,13 @@ const (
 type startupPromptAssemblerFunc func(
 	context.Context,
 	StartupPromptContext,
-	aghconfig.AgentDef,
+	compozyconfig.AgentDef,
 	*workspacepkg.ResolvedWorkspace,
 ) (string, error)
 
 func (fn startupPromptAssemblerFunc) Assemble(
 	ctx context.Context,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, StartupPromptContext{
@@ -5549,7 +5549,7 @@ func (fn startupPromptAssemblerFunc) Assemble(
 func (fn startupPromptAssemblerFunc) AssembleStartup(
 	ctx context.Context,
 	startup StartupPromptContext,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	return fn(ctx, startup, agent, workspace)
@@ -5832,8 +5832,8 @@ type fakeWorkspaceResolver struct {
 	resolveOrRegisterErr   error
 	resolveHook            func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
 	resolveOrRegisterHook  func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
-	autoRegisterConfig     aghconfig.Config
-	autoRegisterAgents     []aghconfig.AgentDef
+	autoRegisterConfig     compozyconfig.Config
+	autoRegisterAgents     []compozyconfig.AgentDef
 	nextID                 int
 }
 
@@ -5849,7 +5849,7 @@ func newFakeWorkspaceResolver(resolved *workspacepkg.ResolvedWorkspace) *fakeWor
 		byRef:              make(map[string]workspacepkg.ResolvedWorkspace),
 		byPath:             make(map[string]workspacepkg.ResolvedWorkspace),
 		autoRegisterConfig: resolved.Config,
-		autoRegisterAgents: append([]aghconfig.AgentDef(nil), resolved.Agents...),
+		autoRegisterAgents: append([]compozyconfig.AgentDef(nil), resolved.Agents...),
 	}
 	r.upsert(resolved)
 	return r
@@ -5949,7 +5949,7 @@ func (r *fakeSkillRegistry) ForWorkspace(
 func (r *fakeSkillRegistry) ForAgentDef(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-	_ aghconfig.AgentDef,
+	_ compozyconfig.AgentDef,
 ) ([]*skillspkg.Skill, error) {
 	return r.ForWorkspace(ctx, resolved)
 }
@@ -6021,7 +6021,7 @@ func (r *fakeWorkspaceResolver) ResolveOrRegister(
 			Name:    filepath.Base(target),
 		},
 		Config: r.autoRegisterConfig,
-		Agents: append([]aghconfig.AgentDef(nil), r.autoRegisterAgents...),
+		Agents: append([]compozyconfig.AgentDef(nil), r.autoRegisterAgents...),
 	}
 	r.upsert(&resolved)
 	return cloneResolvedWorkspaceForTests(&resolved), nil
@@ -6060,14 +6060,14 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 	}
 	dst := *src
 	dst.AdditionalDirs = append([]string(nil), src.AdditionalDirs...)
-	dst.Agents = append([]aghconfig.AgentDef(nil), src.Agents...)
+	dst.Agents = append([]compozyconfig.AgentDef(nil), src.Agents...)
 	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
 	return dst
 }
 
 type recordingHostedMCPLauncher struct {
 	mu       sync.Mutex
-	server   aghconfig.MCPServer
+	server   compozyconfig.MCPServer
 	requests []HostedMCPLaunchRequest
 	cancels  []string
 	releases []string
@@ -6078,7 +6078,7 @@ var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
 func (l *recordingHostedMCPLauncher) Launch(
 	_ context.Context,
 	req HostedMCPLaunchRequest,
-) (aghconfig.MCPServer, error) {
+) (compozyconfig.MCPServer, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.requests = append(l.requests, req)
@@ -6122,7 +6122,7 @@ func (d *fakeDriver) Start(_ context.Context, opts acp.StartOpts) (*AgentProcess
 	copied := opts
 	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
 	copied.Env = append([]string(nil), opts.Env...)
-	copied.MCPServers = append([]aghconfig.MCPServer(nil), opts.MCPServers...)
+	copied.MCPServers = append([]compozyconfig.MCPServer(nil), opts.MCPServers...)
 	d.startCalls = append(d.startCalls, copied)
 
 	sequence := len(d.startCalls)
@@ -6433,11 +6433,11 @@ func assertResumeReplayEqualsPrunedEvents(
 func resumeReplayMessagesFromPrompt(t *testing.T, systemPrompt string) []transcript.Message {
 	t.Helper()
 
-	_, replayAndSuffix, ok := strings.Cut(systemPrompt, "<agh_context_replay>\n")
+	_, replayAndSuffix, ok := strings.Cut(systemPrompt, "<compozy_context_replay>\n")
 	if !ok {
 		t.Fatalf("system prompt is missing replay start marker: %q", systemPrompt)
 	}
-	replayJSON, _, ok := strings.Cut(replayAndSuffix, "\n</agh_context_replay>")
+	replayJSON, _, ok := strings.Cut(replayAndSuffix, "\n</compozy_context_replay>")
 	if !ok {
 		t.Fatalf("system prompt is missing replay end marker: %q", systemPrompt)
 	}

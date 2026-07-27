@@ -16,7 +16,7 @@ func TestDiscordIdentityChecksValidateTheConfiguredApplication(t *testing.T) {
 	t.Run("Should pass for the authenticated configured bot", func(t *testing.T) {
 		t.Parallel()
 
-		checks := discordIdentityChecks(&discordBotIdentity{ID: "app-1", Username: "agh"}, "app-1", nil)
+		checks := discordIdentityChecks(&discordBotIdentity{ID: "app-1", Username: "compozy"}, "app-1", nil)
 		if len(checks) != 1 || checks[0].Status != bridgepkg.BridgeCheckStatusPass {
 			t.Fatalf("discordIdentityChecks() = %#v, want one pass", checks)
 		}

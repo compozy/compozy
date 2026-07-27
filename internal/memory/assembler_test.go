@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -154,7 +154,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		got := env.promptSection(context.Background(), t)
 		for _, want := range []string{
 			memoryPromptIntro,
-			"AGH memory snapshot v1 blocks=2 hash=",
+			"Compozy memory snapshot v1 blocks=2 hash=",
 			"## Global MEMORY.md Index\n\n- [Global](global.md) - global note",
 			"## Workspace MEMORY.md Index\n\n- [Workspace](workspace.md) - workspace note",
 			memoryTaxonomySection,
@@ -232,11 +232,11 @@ func TestAssemblerCheckpointSummaryIsolation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PromptSection(workspace B) error = %v", err)
 		}
-		if !strings.Contains(sectionA, "<agh_checkpoint_summary>") ||
+		if !strings.Contains(sectionA, "<compozy_checkpoint_summary>") ||
 			!strings.Contains(sectionA, "cobalt decision") {
 			t.Fatalf("workspace A section missing checkpoint summary:\n%s", sectionA)
 		}
-		if strings.Contains(sectionB, "cobalt decision") || strings.Contains(sectionB, "<agh_checkpoint_summary>") {
+		if strings.Contains(sectionB, "cobalt decision") || strings.Contains(sectionB, "<compozy_checkpoint_summary>") {
 			t.Fatalf("workspace B section leaked workspace A checkpoint:\n%s", sectionB)
 		}
 	})
@@ -485,7 +485,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		snapshot, err := service.Capture(context.Background(), PromptSnapshotRequest{
 			SessionID:     "sess-provider",
 			WorkspaceID:   "ws-alpha",
-			WorkspaceRoot: "/work/agh",
+			WorkspaceRoot: "/work/compozy",
 			AgentName:     "reviewer",
 			SessionType:   session.SessionTypeUser,
 		})
@@ -507,7 +507,7 @@ type assemblerTestEnv struct {
 	store     *Store
 	assembler *Assembler
 	workspace string
-	agent     aghconfig.AgentDef
+	agent     compozyconfig.AgentDef
 }
 
 func newAssemblerTestEnv(t *testing.T) assemblerTestEnv {
@@ -528,7 +528,7 @@ func newAssemblerTestEnv(t *testing.T) assemblerTestEnv {
 		store:     store,
 		assembler: NewAssembler(store),
 		workspace: workspace,
-		agent: aghconfig.AgentDef{
+		agent: compozyconfig.AgentDef{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are a coding assistant.",

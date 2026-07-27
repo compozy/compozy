@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -16,7 +16,7 @@ import (
 type ScopeKind string
 
 const (
-	// ScopeGlobal selects the global AGH home scope.
+	// ScopeGlobal selects the global Compozy home scope.
 	ScopeGlobal ScopeKind = "global"
 	// ScopeWorkspace selects one workspace-local overlay scope.
 	ScopeWorkspace ScopeKind = "workspace"
@@ -34,25 +34,25 @@ func (s ScopeKind) Validate() error {
 	}
 }
 
-func (s ScopeKind) configWriteScope() aghconfig.WriteScope {
+func (s ScopeKind) configWriteScope() compozyconfig.WriteScope {
 	if s == ScopeWorkspace {
-		return aghconfig.WriteScopeWorkspace
+		return compozyconfig.WriteScopeWorkspace
 	}
-	return aghconfig.WriteScopeGlobal
+	return compozyconfig.WriteScopeGlobal
 }
 
 // WriteTargetKind identifies the semantic persistence target for one mutation.
-type WriteTargetKind = aghconfig.WriteTargetKind
+type WriteTargetKind = compozyconfig.WriteTargetKind
 
 const (
 	// WriteTargetGlobalConfig persists to `~/.compozy/config.toml`.
-	WriteTargetGlobalConfig = aghconfig.WriteTargetGlobalConfig
+	WriteTargetGlobalConfig = compozyconfig.WriteTargetGlobalConfig
 	// WriteTargetWorkspaceConfig persists to `<workspace>/.compozy/config.toml`.
-	WriteTargetWorkspaceConfig = aghconfig.WriteTargetWorkspaceConfig
+	WriteTargetWorkspaceConfig = compozyconfig.WriteTargetWorkspaceConfig
 	// WriteTargetGlobalMCPSidecar persists to `~/.compozy/mcp.json`.
-	WriteTargetGlobalMCPSidecar = aghconfig.WriteTargetGlobalMCPSidecar
+	WriteTargetGlobalMCPSidecar = compozyconfig.WriteTargetGlobalMCPSidecar
 	// WriteTargetWorkspaceMCPSidecar persists to `<workspace>/.compozy/mcp.json`.
-	WriteTargetWorkspaceMCPSidecar = aghconfig.WriteTargetWorkspaceMCPSidecar
+	WriteTargetWorkspaceMCPSidecar = compozyconfig.WriteTargetWorkspaceMCPSidecar
 	// WriteTargetGlobalAgentFile persists to `~/.compozy/agents/<name>/AGENT.md`.
 	WriteTargetGlobalAgentFile WriteTargetKind = "global-agent-file"
 	// WriteTargetWorkspaceAgentFile persists to `<root>/.compozy/agents/<name>/AGENT.md`.
@@ -173,14 +173,14 @@ type SectionRequest struct {
 type SectionUpdateRequest struct {
 	SectionRequest
 	General         *GeneralSettings
-	Memory          *aghconfig.MemoryConfig
-	Roles           *aghconfig.RolesConfig
-	Skills          *aghconfig.SkillsConfig
+	Memory          *compozyconfig.MemoryConfig
+	Roles           *compozyconfig.RolesConfig
+	Skills          *compozyconfig.SkillsConfig
 	Automation      *AutomationSettings
-	Network         *aghconfig.NetworkConfig
-	WindowManager   *aghconfig.WindowManagerConfig
-	Observability   *aghconfig.ObservabilityConfig
-	HooksExtensions *aghconfig.ExtensionsConfig
+	Network         *compozyconfig.NetworkConfig
+	WindowManager   *compozyconfig.WindowManagerConfig
+	Observability   *compozyconfig.ObservabilityConfig
+	HooksExtensions *compozyconfig.ExtensionsConfig
 }
 
 // CollectionRequest identifies one collection read.
@@ -198,11 +198,11 @@ type CollectionItemPutRequest struct {
 	Provider              *ProviderSettings
 	ProviderModelCuration *ProviderModelCurationRequest
 	ProviderSecrets       []ProviderSecretWrite
-	MCPServer             *aghconfig.MCPServer
+	MCPServer             *compozyconfig.MCPServer
 	MCPSecrets            MCPSecretValues
 	MCPSecretPreservation MCPSecretPreservation
 	MCPEnvPreservation    []string
-	Sandbox               *aghconfig.SandboxProfile
+	Sandbox               *compozyconfig.SandboxProfile
 	Hook                  *hookspkg.HookDecl
 }
 

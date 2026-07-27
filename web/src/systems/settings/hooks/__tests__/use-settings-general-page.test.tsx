@@ -53,7 +53,7 @@ const envelope: SettingsGeneralSection = {
     daemon: {
       memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
-      socket: "/tmp/agh.sock",
+      socket: "/tmp/compozy.sock",
     },
     defaults: { agent: "general", provider: "claude" },
     http: { host: "127.0.0.1", port: 2123 },
@@ -64,10 +64,10 @@ const envelope: SettingsGeneralSection = {
   },
   config_paths: {
     daemon_info: "/tmp/daemon.json",
-    global_config: "~/.agh/config.toml",
-    global_mcp_sidecar: "~/.agh/mcp.json",
-    home_dir: "~/.agh",
-    log_file: "~/.agh/agh.log",
+    global_config: "~/.compozy/config.toml",
+    global_mcp_sidecar: "~/.compozy/mcp.json",
+    home_dir: "~/.compozy",
+    log_file: "~/.compozy/compozy.log",
   },
   runtime: {
     active_agents: 1,
@@ -116,8 +116,8 @@ beforeEach(() => {
     latest_version: "v1.1.0",
     available: true,
     status: "available",
-    recommendation: "Run `agh update`.",
-    release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+    recommendation: "Run `compozy update`.",
+    release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
     checked_at: "2026-05-03T19:00:00Z",
   });
 });

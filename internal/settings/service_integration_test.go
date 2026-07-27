@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -89,7 +89,7 @@ func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *t
 			WorkspaceID: "ws-1",
 		},
 		Name: "workspace-alpha",
-		MCPServer: &aghconfig.MCPServer{
+		MCPServer: &compozyconfig.MCPServer{
 			Command: "workspace-command",
 		},
 	})
@@ -100,7 +100,7 @@ func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *t
 		t.Fatalf("workspace mcp write target = %q, want %q", got, want)
 	}
 
-	sidecarPath := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName)
+	sidecarPath := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName)
 	payload := readFile(t, sidecarPath)
 	if !strings.Contains(payload, `"workspace-alpha"`) || !strings.Contains(payload, `"workspace-command"`) {
 		t.Fatalf("workspace sidecar missing persisted MCP server:\n%s", payload)
@@ -155,7 +155,9 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		if strings.Contains(record.EncryptedValue, "executor-secret") {
 			t.Fatalf("vault record contains plaintext: %#v", record)
 		}
-		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		servers, err := compozyconfig.LoadMCPServersJSONFile(
+			filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		)
 		if err != nil {
 			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
 		}

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -36,7 +36,7 @@ type SessionSandboxPolicy struct {
 
 type SessionRuntimePolicy struct {
 	Mode        SessionRuntimeMode
-	Permissions aghconfig.PermissionMode
+	Permissions compozyconfig.PermissionMode
 }
 
 func sessionPolicyFromTaskExecutionProfile(profile *taskpkg.ExecutionProfile) SessionPolicy {
@@ -83,9 +83,9 @@ func applySessionPermissionPolicy(opts *session.CreateOpts, p SessionPolicy) {
 	guidance := "Runtime evidence mode is enabled for this task. You may boot local app runtimes, " +
 		"run browser or simulator validation, and capture runtime evidence artifacts required by the task."
 	if sessionRuntimeEvidenceCanAutoApprove(p) {
-		opts.Permissions = aghconfig.PermissionModeApproveAll
+		opts.Permissions = compozyconfig.PermissionModeApproveAll
 	} else {
-		guidance += " AGH keeps the configured permission mode because the task profile did not select a sandbox."
+		guidance += " Compozy keeps the configured permission mode because the task profile did not select a sandbox."
 	}
 	opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, guidance)
 }
@@ -115,8 +115,8 @@ func normalizeSessionRuntimeMode(mode SessionRuntimeMode) SessionRuntimeMode {
 	return SessionRuntimeMode(strings.ToLower(strings.TrimSpace(string(mode))))
 }
 
-func normalizeSessionPermissionMode(mode aghconfig.PermissionMode) aghconfig.PermissionMode {
-	return aghconfig.PermissionMode(strings.ToLower(strings.TrimSpace(string(mode))))
+func normalizeSessionPermissionMode(mode compozyconfig.PermissionMode) compozyconfig.PermissionMode {
+	return compozyconfig.PermissionMode(strings.ToLower(strings.TrimSpace(string(mode))))
 }
 
 func normalizeAllowedToolsForSessionGate(requested []string) ([]string, error) {

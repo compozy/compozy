@@ -34,7 +34,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     daemon: {
       memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
-      socket: "/tmp/agh.sock",
+      socket: "/tmp/compozy.sock",
     },
     defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
@@ -45,10 +45,10 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   },
   config_paths: {
     daemon_info: "/tmp/daemon.json",
-    global_config: "~/.agh/config.toml",
-    global_mcp_sidecar: "~/.agh/mcp.json",
-    home_dir: "~/.agh",
-    log_file: "~/.agh/agh.log",
+    global_config: "~/.compozy/config.toml",
+    global_mcp_sidecar: "~/.compozy/mcp.json",
+    home_dir: "~/.compozy",
+    log_file: "~/.compozy/compozy.log",
   },
   runtime: {
     active_agents: 7,
@@ -56,7 +56,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     available: true,
     http_host: "127.0.0.1",
     http_port: 2123,
-    socket: "~/.agh/daemon.sock",
+    socket: "~/.compozy/daemon.sock",
     total_sessions: 12,
     uptime_seconds: 3600,
   },
@@ -243,8 +243,8 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
   enabled: true,
   extractor: {
     deadline: "60s",
-    dlq_path: "~/.agh/memory/_system/extractor/failures",
-    inbox_path: "~/.agh/memory/_inbox",
+    dlq_path: "~/.compozy/memory/_system/extractor/failures",
+    inbox_path: "~/.compozy/memory/_inbox",
     mode: "post_message",
     queue: {
       capacity: 1,
@@ -257,7 +257,7 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
     max_bytes: 25600,
     max_lines: 200,
   },
-  global_dir: "~/.agh/memory",
+  global_dir: "~/.compozy/memory",
   provider: {
     cooldown: "30s",
     failure_threshold: 5,
@@ -290,13 +290,13 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
     events_purge_grace: "24h",
     hard_delete_days: 0,
     ledger_format: "jsonl",
-    ledger_root: "~/.agh/sessions",
+    ledger_root: "~/.compozy/sessions",
     max_archive_bytes: 10737418240,
     unbound_partition: "_unbound",
   },
   workspace: {
     auto_create: true,
-    toml_path: "<workspace>/.agh/workspace.toml",
+    toml_path: "<workspace>/.compozy/workspace.toml",
   },
 };
 
@@ -361,7 +361,7 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     disabled_skills: ["alpha", "beta"],
     poll_interval: "5m",
     marketplace: {
-      registry: "agh",
+      registry: "compozy",
       base_url: storyCompany.registryBaseUrl,
     },
     allowed_marketplace_mcp: ["merchant-docs"],
@@ -812,7 +812,7 @@ export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
       persistence: "reuse",
       runtime_root: "/workspace",
       daytona: {
-        image: "agh/daytona:latest",
+        image: "compozy/daytona:latest",
         target: "eu-central",
         auto_stop: "30",
         auto_archive: "120",
@@ -939,7 +939,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.linear.app/mcp",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-linear-public",
+      client_id: "compozy-linear-public",
       client_secret_configured: true,
       issuer_url: "https://auth.linear.app",
     },
@@ -970,7 +970,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.sentry.dev/sse",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-sentry-public",
+      client_id: "compozy-sentry-public",
       client_secret_configured: false,
       issuer_url: "https://auth.sentry.io",
     },
@@ -1001,7 +1001,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.notion.com/mcp",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-notion-public",
+      client_id: "compozy-notion-public",
       client_secret_configured: false,
       issuer_url: "https://auth.notion.com",
     },
@@ -1030,7 +1030,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.figma.com/sse",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-figma-public",
+      client_id: "compozy-figma-public",
       client_secret_configured: false,
       issuer_url: "https://auth.figma.com",
     },
@@ -1058,7 +1058,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://api.githubcopilot.com/mcp",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-github-public",
+      client_id: "compozy-github-public",
       client_secret_configured: false,
       issuer_url: "https://github.com/login/oauth",
     },
@@ -1102,7 +1102,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.pagerduty.com/mcp",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-pagerduty-public",
+      client_id: "compozy-pagerduty-public",
       client_secret_configured: false,
       issuer_url: "https://auth.pagerduty.com",
     },
@@ -1131,7 +1131,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     url: "https://mcp.buildkite.com/sse",
     auth: {
       type: "oauth2_pkce",
-      client_id: "agh-buildkite-public",
+      client_id: "compozy-buildkite-public",
       client_secret_configured: false,
       issuer_url: "https://auth.buildkite.com",
     },
@@ -1165,11 +1165,11 @@ export const mcpManagementCollectionFixture = {
 
 export const mcpAuthBeginFixture = {
   authorization_url:
-    "https://auth.linear.app/oauth/authorize?client_id=agh-linear-public&code_challenge=J6lRkq8l9lZ3tZpQf7uYx2AqY7M3xv2b9R6n0ZsVn4A&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A2123%2Fapi%2Fmcp%2Foauth%2Fcallback&state=agh_mcp_7m3p9q",
+    "https://auth.linear.app/oauth/authorize?client_id=compozy-linear-public&code_challenge=J6lRkq8l9lZ3tZpQf7uYx2AqY7M3xv2b9R6n0ZsVn4A&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A2123%2Fapi%2Fmcp%2Foauth%2Fcallback&state=compozy_mcp_7m3p9q",
   callback_url: "http://127.0.0.1:2123/api/mcp/oauth/callback",
   expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
   manual_supported: true,
-  state: "agh_mcp_7m3p9q",
+  state: "compozy_mcp_7m3p9q",
 };
 
 export const mcpAuthStatusAuthenticatedFixture = {
@@ -1194,7 +1194,7 @@ export const settingsRestartStatusFixture: SettingsRestartStatus = {
   status: "ready",
   active_session_count: 0,
   old_pid: 1000,
-  old_socket_path: "/tmp/agh.sock",
+  old_socket_path: "/tmp/compozy.sock",
   old_started_at: "2026-04-17T10:00:00Z",
   started_at: "2026-04-17T10:05:00Z",
   updated_at: "2026-04-17T10:05:05Z",
@@ -1274,7 +1274,7 @@ export const settingsApplyRecordsFixture: ConfigApplyRecordsResponse = {
           severity: "warning",
           category: "configuration",
           data_freshness: "current",
-          suggested_command: "agh config reload",
+          suggested_command: "compozy config reload",
         },
       ],
       created_at: "2026-05-20T13:10:00Z",
@@ -1313,7 +1313,7 @@ export const settingsApplyRecordsFixture: ConfigApplyRecordsResponse = {
           severity: "error",
           category: "configuration",
           data_freshness: "current",
-          suggested_command: "agh config validate",
+          suggested_command: "compozy config validate",
         },
       ],
       created_at: "2026-05-20T13:24:00Z",

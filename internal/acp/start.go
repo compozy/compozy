@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
@@ -89,7 +89,7 @@ func runProviderPreStart(ctx context.Context, opts StartOpts) error {
 	if strings.TrimSpace(opts.ProviderName) == "" {
 		return nil
 	}
-	provider := aghconfig.ProviderConfig{}
+	provider := compozyconfig.ProviderConfig{}
 	if opts.ProviderConfig != nil {
 		provider = *opts.ProviderConfig
 	}

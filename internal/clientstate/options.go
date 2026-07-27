@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	// StateDirName is the AGH-home directory that owns client-state data.
+	// StateDirName is the Compozy-home directory that owns client-state data.
 	StateDirName = "state"
 	// DatabaseName is the client-state bbolt filename.
 	DatabaseName = "clientstate.db"
@@ -44,7 +44,7 @@ func (l Limits) validate() error {
 	return nil
 }
 
-// DatabasePath returns the canonical client-state path for an AGH home.
+// DatabasePath returns the canonical client-state path for an Compozy home.
 func DatabasePath(homeDir string) string {
 	return filepath.Join(homeDir, StateDirName, DatabaseName)
 }

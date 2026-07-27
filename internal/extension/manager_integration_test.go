@@ -12,7 +12,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -128,8 +128,8 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 		actions:      []string{"sessions/list"},
 		security:     []string{"session.read"},
 	}), map[string]string{
-		"skills/review.md": managerSkillFile("resource-skill", "Loaded from extension"),
-		"agents/agent.md":  managerAgentFile("resource-agent"),
+		"skills/review/SKILL.md": managerSkillFile("resource-skill", "Loaded from extension"),
+		"agents/agent.md":        managerAgentFile("resource-agent"),
 	})
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -369,7 +369,7 @@ func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
 
 	env := newRegistryTestEnv(t)
 	checker := &CapabilityChecker{}
-	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+	checker.SetResourcePolicy(compozyconfig.ExtensionsResourcesConfig{
 		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 		MaxScope:     resources.ResourceScopeKindWorkspace,
 	})
@@ -419,7 +419,7 @@ func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *te
 	env := newRegistryTestEnv(t)
 	markerPath := filepath.Join(t.TempDir(), "resource-init.jsonl")
 	checker := &CapabilityChecker{}
-	checker.SetResourcePolicy(aghconfig.ExtensionsResourcesConfig{
+	checker.SetResourcePolicy(compozyconfig.ExtensionsResourcesConfig{
 		AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 		MaxScope:     resources.ResourceScopeKindWorkspace,
 	})

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 )
@@ -40,7 +40,7 @@ var (
 
 // NewManager constructs a session manager with sensible defaults.
 func NewManager(opts ...Option) (*Manager, error) {
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve home paths: %w", err)
 	}
@@ -67,11 +67,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
-		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
-		busyInput:                    aghconfig.DefaultSessionBusyInputConfig(),
-		compaction:                   aghconfig.DefaultSessionCompactionConfig(),
-		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
-		sessionHealthHookMinInterval: aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
+		supervision:                  compozyconfig.DefaultSessionSupervisionConfig(),
+		busyInput:                    compozyconfig.DefaultSessionBusyInputConfig(),
+		compaction:                   compozyconfig.DefaultSessionCompactionConfig(),
+		sessionHealthStaleAfter:      compozyconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
+		sessionHealthHookMinInterval: compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -99,7 +99,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if err := manager.applyRuntimeDefaults(); err != nil {
 		return nil, err
 	}
-	if err := aghconfig.EnsureHomeLayout(manager.homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(manager.homePaths); err != nil {
 		return nil, fmt.Errorf("session: ensure home layout: %w", err)
 	}
 	manager.cleanupDeleteTombstones()

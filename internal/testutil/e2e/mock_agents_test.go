@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
@@ -38,7 +38,7 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 			AgentName:    "mock-alpha",
 		})
 
-		loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
+		loaded, err := compozyconfig.LoadAgentDefFile(registration.AgentDefPath)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
 		}
@@ -74,11 +74,11 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 			AgentName:    "mock-codex",
 			ProviderName: "codex",
 		})
-		loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
+		loaded, err := compozyconfig.LoadAgentDefFile(registration.AgentDefPath)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
 		}
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		resolved, err := cfg.ResolveAgent(loaded)
 		if err != nil {
 			t.Fatalf("ResolveAgent(mock-codex) error = %v", err)
@@ -89,7 +89,7 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 		if got, want := resolved.Command, registration.Command; got != want {
 			t.Fatalf("resolved.Command = %q, want fixture command %q", got, want)
 		}
-		if got, want := resolved.Reasoning.Apply, aghconfig.ReasoningApplyACPOption; got != want {
+		if got, want := resolved.Reasoning.Apply, compozyconfig.ReasoningApplyACPOption; got != want {
 			t.Fatalf("resolved.Reasoning.Apply = %q, want %q", got, want)
 		}
 	})
@@ -114,11 +114,11 @@ func TestRuntimeHarnessMockAgentProviderConfig(t *testing.T) {
 			}},
 		})
 
-		loadedConfig, err := aghconfig.LoadForHome(homePaths)
+		loadedConfig, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		agent, err := aghconfig.LoadAgentDef("mock-alpha", homePaths)
+		agent, err := compozyconfig.LoadAgentDef("mock-alpha", homePaths)
 		if err != nil {
 			t.Fatalf("LoadAgentDef(mock-alpha) error = %v", err)
 		}
@@ -134,10 +134,10 @@ func TestRuntimeHarnessMockAgentProviderConfig(t *testing.T) {
 		if got, want := resolved.Provider, acpmock.ProviderName; got != want {
 			t.Fatalf("resolved.Provider = %q, want %q", got, want)
 		}
-		if got, want := resolved.AuthMode, aghconfig.ProviderAuthModeNone; got != want {
+		if got, want := resolved.AuthMode, compozyconfig.ProviderAuthModeNone; got != want {
 			t.Fatalf("resolved.AuthMode = %q, want %q", got, want)
 		}
-		if got, want := resolved.NoneSecurity, aghconfig.ProviderNoneSecurityLocalTransport; got != want {
+		if got, want := resolved.NoneSecurity, compozyconfig.ProviderNoneSecurityLocalTransport; got != want {
 			t.Fatalf("resolved.NoneSecurity = %q, want %q", got, want)
 		}
 		if got, want := loadedConfig.Providers[acpmock.ProviderName].Command, registration.DriverPath; got != want {
@@ -281,7 +281,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 	if err := harness.ApproveSessionPermission(
 		context.Background(),
 		"sess-1",
-		aghcontract.ApproveSessionRequest{},
+		compozycontract.ApproveSessionRequest{},
 	); err != nil {
 		t.Fatalf("ApproveSessionPermission() error = %v", err)
 	}
@@ -332,7 +332,7 @@ func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
 	if err := harness.ApproveSessionPermission(
 		context.Background(),
 		sessionID,
-		aghcontract.ApproveSessionRequest{},
+		compozycontract.ApproveSessionRequest{},
 	); err != nil {
 		t.Fatalf("ApproveSessionPermission() error = %v", err)
 	}
@@ -370,7 +370,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionReportFailures(t *te
 	if err := harness.ApproveSessionPermission(
 		context.Background(),
 		"sess-1",
-		aghcontract.ApproveSessionRequest{},
+		compozycontract.ApproveSessionRequest{},
 	); err == nil ||
 		!strings.Contains(err.Error(), "HTTP approve session status 400") {
 		t.Fatalf("ApproveSessionPermission() error = %v, want 400 failure", err)

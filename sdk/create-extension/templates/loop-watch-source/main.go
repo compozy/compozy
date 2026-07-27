@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 type ReviewWatchSpec struct {
@@ -15,27 +15,27 @@ type ReviewWatchSpec struct {
 }
 
 func main() {
-	extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 		Name:    "__EXTENSION_NAME__",
 		Version: "0.1.0",
-		Capabilities: aghsdk.CapabilitiesConfig{
+		Capabilities: compozysdk.CapabilitiesConfig{
 			Provides: []string{"loop.watch_source"},
 		},
 	})
 
-	if err := aghsdk.WatchSource[ReviewWatchSpec](
+	if err := compozysdk.WatchSource[ReviewWatchSpec](
 		extension,
 		"reviews",
-		aghsdk.WatchSourceOptions{},
-		func(_ context.Context, req aghsdk.WatchSourceRequest[ReviewWatchSpec]) (aghsdk.WatchPollResponse, error) {
+		compozysdk.WatchSourceOptions{},
+		func(_ context.Context, req compozysdk.WatchSourceRequest[ReviewWatchSpec]) (compozysdk.WatchPollResponse, error) {
 			payload, err := json.Marshal(map[string]string{
 				"kind":  req.Spec.Kind,
 				"query": req.Spec.Query,
 			})
 			if err != nil {
-				return aghsdk.WatchPollResponse{}, fmt.Errorf("encode watch payload: %w", err)
+				return compozysdk.WatchPollResponse{}, fmt.Errorf("encode watch payload: %w", err)
 			}
-			return aghsdk.WatchPollResponse{
+			return compozysdk.WatchPollResponse{
 				Ready:       false,
 				StateDigest: "manual:" + req.Spec.Query,
 				Payload:     payload,

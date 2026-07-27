@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	plantedRedactionSecret = "sk-ant-api03-aghredactionfixture1234567890"
+	plantedRedactionSecret = "sk-ant-api03-compozyredactionfixture1234567890"
 	wantClaimTokenHash     = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	wantEnvelopeSessionID  = "550e8400-e29b-41d4-a716-446655440000"
 	wantEnvelopeRunID      = "62f82910-18ca-4f2e-aa4a-54dcde9fe761"

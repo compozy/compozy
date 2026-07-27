@@ -8,7 +8,7 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -39,7 +39,7 @@ func newAutomationLoopStarter(
 	storeCandidate any,
 	catalog *resourceCatalog[looppkg.ResourceSpec],
 	toolRegistry toolspkg.Registry,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	participationResolver participation.Resolver,
 ) (automationpkg.LoopStarter, error) {

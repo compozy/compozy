@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	providerAghSandboxIDKey = "agh_sandbox_id"
+	providerCompozySandboxIDKey = "compozy_sandbox_id"
 )
 
 const (
@@ -274,7 +274,7 @@ func newFindSandboxConfig(req sandbox.FindSandboxRequest) (findSandboxConfig, er
 }
 
 func findSandboxLabels(req sandbox.FindSandboxRequest, sandboxID string) map[string]string {
-	labels := map[string]string{providerAghSandboxIDKey: sandboxID}
+	labels := map[string]string{providerCompozySandboxIDKey: sandboxID}
 	if len(req.Labels) > 0 {
 		labels = cloneStringMap(req.Labels)
 	}

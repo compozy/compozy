@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
 
@@ -69,11 +69,11 @@ func buildProviderAuthStatus(
 func populateProviderNativeCLIStatus(
 	record *providerAuthStatusRecord,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	deps commandDeps,
 	probeEnv *authproviders.ProbeEnv,
 ) (bool, error) {
-	if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+	if provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return true, nil
 	}
 	nativeCLI, err := providerNativeCLIStatus(provider, deps.lookPath)
@@ -97,7 +97,7 @@ func populateProviderNativeCLIStatus(
 func populateProviderAuthProbe(
 	ctx context.Context,
 	record *providerAuthStatusRecord,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	deps commandDeps,
 	probeEnv *authproviders.ProbeEnv,
 ) error {
@@ -111,7 +111,7 @@ func populateProviderAuthProbe(
 		return err
 	}
 	record.Probe = &result
-	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNativeCLI {
+	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
 		classification := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
 			ExitCode: result.ExitCode,
 			Stdout:   result.Stdout,
@@ -125,26 +125,26 @@ func populateProviderAuthProbe(
 }
 
 func resolveProviderAuthTarget(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	providerRef string,
-) (string, aghconfig.ProviderConfig, error) {
-	providerName := aghconfig.CanonicalProviderName(providerRef)
+) (string, compozyconfig.ProviderConfig, error) {
+	providerName := compozyconfig.CanonicalProviderName(providerRef)
 	if providerName == "" {
-		return "", aghconfig.ProviderConfig{}, errors.New("cli: provider is required")
+		return "", compozyconfig.ProviderConfig{}, errors.New("cli: provider is required")
 	}
-	var effective aghconfig.Config
+	var effective compozyconfig.Config
 	if cfg != nil {
 		effective = *cfg
 	}
 	provider, err := effective.ResolveProvider(providerName)
 	if err != nil {
-		return "", aghconfig.ProviderConfig{}, fmt.Errorf("cli: resolve provider %q: %w", providerName, err)
+		return "", compozyconfig.ProviderConfig{}, fmt.Errorf("cli: resolve provider %q: %w", providerName, err)
 	}
 	return providerName, provider, nil
 }
 
 func providerNativeCLIStatus(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	lookPath func(string) (string, error),
 ) (*providerNativeCLIStatusRecord, error) {
 	return providerauth.NativeCLIStatusForProvider(provider, lookPath)
@@ -158,8 +158,8 @@ func providerNativeCLIStatusForCommand(
 	return providerauth.NativeCLIStatusForCommand(command, source, lookPath)
 }
 
-func providerMissingAuthLoginCommandError(providerName string, provider aghconfig.ProviderConfig) error {
-	if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+func providerMissingAuthLoginCommandError(providerName string, provider compozyconfig.ProviderConfig) error {
+	if provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return fmt.Errorf("cli: provider %q does not define auth_login_command", providerName)
 	}
 	return fmt.Errorf(
@@ -172,7 +172,7 @@ func providerMissingAuthLoginCommandError(providerName string, provider aghconfi
 
 func providerNativeCLIMissingMessage(
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	nativeCLI *providerNativeCLIStatusRecord,
 ) string {
 	return providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
@@ -191,9 +191,9 @@ func rejectPrintCommandOutputFormat(cmd *cobra.Command) error {
 }
 
 func providerNativeCLILoginEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 ) ([]string, error) {
 	return providerauth.NativeCLILoginEnv(homePaths, providerName, provider, os.Environ())
 }

@@ -24,7 +24,7 @@ export const Default: Story = {
   args: {
     rows: [
       { label: "Platform", value: "slack" },
-      { label: "Extension", value: "agh-slack" },
+      { label: "Extension", value: "compozy-slack" },
       { label: "Scope", value: "workspace" },
     ],
   },

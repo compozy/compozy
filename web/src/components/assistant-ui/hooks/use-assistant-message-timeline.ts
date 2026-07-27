@@ -64,7 +64,7 @@ function deriveWorkingPart(
 
 // The runtime signals an operator stop through a data-event `stop_reason`; map it
 // to the message's turn so the fold labels the interruption and stays expanded.
-// The runtime normalizes agh-event parts to `{ type: "data", name: "agh-event" }`.
+// The runtime normalizes Compozy event parts to `{ type: "data", name: "compozy-event" }`.
 const INTERRUPT_STOP_REASONS = new Set([
   "cancelled",
   "canceled",
@@ -73,10 +73,10 @@ const INTERRUPT_STOP_REASONS = new Set([
   "stopped",
 ]);
 
-function isAghEventPart(part: Record<string, unknown>): boolean {
+function isCompozyEventPart(part: Record<string, unknown>): boolean {
   const type = stringField(part, "type");
-  if (type === "data-agh-event") return true;
-  return type === "data" && stringField(part, "name") === "agh-event";
+  if (type === "data-compozy-event") return true;
+  return type === "data" && stringField(part, "name") === "compozy-event";
 }
 
 function interruptedTurnIds(
@@ -86,7 +86,7 @@ function interruptedTurnIds(
   if (!Array.isArray(content)) return undefined;
   const ids = new Set<string>();
   for (const part of content) {
-    if (!isRecord(part) || !isAghEventPart(part)) continue;
+    if (!isRecord(part) || !isCompozyEventPart(part)) continue;
     const data = part.data;
     if (!isRecord(data)) continue;
     const stopReason = stringField(data, "stop_reason")?.toLowerCase();
@@ -100,7 +100,7 @@ function interruptedTurnIds(
 function goalPromptMeta(content: unknown): GoalPromptMeta | null {
   if (!Array.isArray(content)) return null;
   for (const part of content) {
-    if (!isRecord(part) || !isAghEventPart(part) || !isRecord(part.data)) continue;
+    if (!isRecord(part) || !isCompozyEventPart(part) || !isRecord(part.data)) continue;
     const goal = part.data.goal;
     if (!isRecord(goal)) continue;
     const kind = stringField(goal, "kind");

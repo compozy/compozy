@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -26,13 +26,13 @@ type managedInstallRegistry interface {
 	Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error
 }
 
-// ManagedInstallRoot returns the AGH-managed root directory for installed extensions.
-func ManagedInstallRoot(homePaths aghconfig.HomePaths) string {
+// ManagedInstallRoot returns the Compozy-managed root directory for installed extensions.
+func ManagedInstallRoot(homePaths compozyconfig.HomePaths) string {
 	return filepath.Join(strings.TrimSpace(homePaths.HomeDir), managedInstallDirName)
 }
 
-// ManagedInstallPath returns the AGH-managed directory for one installed extension.
-func ManagedInstallPath(homePaths aghconfig.HomePaths, name string) string {
+// ManagedInstallPath returns the Compozy-managed directory for one installed extension.
+func ManagedInstallPath(homePaths compozyconfig.HomePaths, name string) string {
 	path, err := ManagedInstallPathChecked(homePaths, name)
 	if err != nil {
 		return filepath.Join(ManagedInstallRoot(homePaths), invalidManagedInstallName)
@@ -41,7 +41,7 @@ func ManagedInstallPath(homePaths aghconfig.HomePaths, name string) string {
 }
 
 // ManagedInstallPathChecked returns the contained managed directory for one installed extension.
-func ManagedInstallPathChecked(homePaths aghconfig.HomePaths, name string) (string, error) {
+func ManagedInstallPathChecked(homePaths compozyconfig.HomePaths, name string) (string, error) {
 	root := filepath.Clean(ManagedInstallRoot(homePaths))
 	if strings.TrimSpace(root) == "" || root == managedInstallDirName {
 		return "", errors.New("extension: managed install home path is required")
@@ -64,7 +64,7 @@ func ManagedInstallPathChecked(homePaths aghconfig.HomePaths, name string) (stri
 }
 
 // NewManagedInstallStagingDir creates an empty staging directory under the managed extension root.
-func NewManagedInstallStagingDir(homePaths aghconfig.HomePaths) (string, error) {
+func NewManagedInstallStagingDir(homePaths compozyconfig.HomePaths) (string, error) {
 	root := ManagedInstallRoot(homePaths)
 	if strings.TrimSpace(root) == "" || root == managedInstallDirName {
 		return "", errors.New("extension: managed install home path is required")
@@ -77,7 +77,7 @@ func NewManagedInstallStagingDir(homePaths aghconfig.HomePaths) (string, error) 
 
 // InstallLocalManaged copies one local extension into the managed install root and persists the registry record there.
 func InstallLocalManaged(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry managedInstallRegistry,
 	manifest *Manifest,
 	sourceDir string,

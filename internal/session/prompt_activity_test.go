@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/store"
@@ -109,7 +109,7 @@ func TestPromptActivitySupervisorWaitingHeartbeatDoesNotPreventTimeout(t *testin
 
 func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing.T) {
 	h := newHarness(t,
-		WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+		WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 			ActivityHeartbeatInterval: time.Millisecond,
 			ProgressNotifyInterval:    time.Millisecond,
 			InactivityWarningAfter:    0,
@@ -609,7 +609,7 @@ func TestPromptActivitySupervisorPromptDeadlineStopsWithDeadlineDetail(t *testin
 func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 	t.Parallel()
 
-	defaultGrace := aghconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
+	defaultGrace := compozyconfig.DefaultSessionSupervisionConfig().TimeoutCancelGrace
 	testCases := []struct {
 		name       string
 		supervisor *promptActivitySupervisor
@@ -623,14 +623,14 @@ func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 		{
 			name: "Should use default timeout cancel grace for zero configured grace",
 			supervisor: &promptActivitySupervisor{
-				config: aghconfig.SessionSupervisionConfig{},
+				config: compozyconfig.SessionSupervisionConfig{},
 			},
 			want: defaultGrace,
 		},
 		{
 			name: "Should use default timeout cancel grace for negative configured grace",
 			supervisor: &promptActivitySupervisor{
-				config: aghconfig.SessionSupervisionConfig{
+				config: compozyconfig.SessionSupervisionConfig{
 					TimeoutCancelGrace: -time.Millisecond,
 				},
 			},
@@ -639,7 +639,7 @@ func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 		{
 			name: "Should use lifecycle minimum for short configured grace",
 			supervisor: &promptActivitySupervisor{
-				config: aghconfig.SessionSupervisionConfig{
+				config: compozyconfig.SessionSupervisionConfig{
 					TimeoutCancelGrace: 42 * time.Millisecond,
 				},
 			},
@@ -648,7 +648,7 @@ func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 		{
 			name: "Should use configured timeout cancel grace above lifecycle minimum",
 			supervisor: &promptActivitySupervisor{
-				config: aghconfig.SessionSupervisionConfig{
+				config: compozyconfig.SessionSupervisionConfig{
 					TimeoutCancelGrace: defaultLifecycleTimeout + time.Second,
 				},
 			},
@@ -667,8 +667,8 @@ func TestPromptActivitySupervisorTimeoutStopDeadline(t *testing.T) {
 	}
 }
 
-func testSupervisionConfig() aghconfig.SessionSupervisionConfig {
-	return aghconfig.SessionSupervisionConfig{
+func testSupervisionConfig() compozyconfig.SessionSupervisionConfig {
+	return compozyconfig.SessionSupervisionConfig{
 		ActivityHeartbeatInterval: time.Hour,
 		ProgressNotifyInterval:    0,
 		InactivityWarningAfter:    0,

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/workspace"
 )
@@ -161,7 +161,7 @@ func TestResolvedWorkspaceZeroValue(t *testing.T) {
 	if !reflect.DeepEqual(resolved.Workspace, workspace.Workspace{}) {
 		t.Fatalf("ResolvedWorkspace.Workspace = %#v, want zero Workspace", resolved.Workspace)
 	}
-	if !reflect.DeepEqual(resolved.Config, aghconfig.Config{}) {
+	if !reflect.DeepEqual(resolved.Config, compozyconfig.Config{}) {
 		t.Fatalf("ResolvedWorkspace.Config = %#v, want zero Config", resolved.Config)
 	}
 	if resolved.Agents != nil {
@@ -213,8 +213,8 @@ func TestWorkspaceStructSurface(t *testing.T) {
 			fields: []fieldSpec{
 				{name: "Workspace", fieldType: reflect.TypeFor[workspace.Workspace](), embedded: true},
 				{name: "WorkspaceID", fieldType: reflect.TypeFor[string]()},
-				{name: "Config", fieldType: reflect.TypeFor[aghconfig.Config]()},
-				{name: "Agents", fieldType: reflect.TypeFor[[]aghconfig.AgentDef]()},
+				{name: "Config", fieldType: reflect.TypeFor[compozyconfig.Config]()},
+				{name: "Agents", fieldType: reflect.TypeFor[[]compozyconfig.AgentDef]()},
 				{name: "AgentDiagnostics", fieldType: reflect.TypeFor[[]workspace.AgentDiagnostic]()},
 				{name: "Skills", fieldType: reflect.TypeFor[[]workspace.SkillPath]()},
 				{name: "Sandbox", fieldType: reflect.TypeFor[sandbox.Resolved]()},

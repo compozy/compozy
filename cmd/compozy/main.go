@@ -1,4 +1,4 @@
-// Package main is the AGH CLI entrypoint.
+// Package main is the Compozy CLI entrypoint.
 package main
 
 import (

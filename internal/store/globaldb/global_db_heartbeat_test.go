@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -845,7 +845,7 @@ preferences:
 ---
 Inspect context, then send at most one synthetic wake prompt.
 `),
-		Config: aghconfig.DefaultHeartbeatConfig(),
+		Config: compozyconfig.DefaultHeartbeatConfig(),
 	})
 	if err != nil {
 		t.Fatalf("heartbeat.Parse() error = %v", err)

@@ -6,7 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
@@ -19,8 +19,8 @@ import (
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
-	Config              aghconfig.Config
-	HomePaths           aghconfig.HomePaths
+	Config              compozyconfig.Config
+	HomePaths           compozyconfig.HomePaths
 	Logger              *slog.Logger
 	Sessions            SessionManager
 	DrainController     core.DaemonDrainController

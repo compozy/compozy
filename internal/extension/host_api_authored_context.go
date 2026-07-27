@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
@@ -75,8 +75,8 @@ type hostAPIAuthoredAgentTarget struct {
 	workspaceRoot   string
 	agentName       string
 	agentPath       string
-	soulConfig      aghconfig.SoulConfig
-	heartbeatConfig aghconfig.HeartbeatConfig
+	soulConfig      compozyconfig.SoulConfig
+	heartbeatConfig compozyconfig.HeartbeatConfig
 }
 
 func (h *HostAPIHandler) handleAgentsSoulGet(ctx context.Context, raw json.RawMessage) (any, error) {

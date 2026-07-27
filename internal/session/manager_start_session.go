@@ -4,13 +4,13 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
 func (s *sessionStartSpec) newStartingSession(
-	resolved aghconfig.ResolvedAgent,
-	agentDef aghconfig.AgentDef,
+	resolved compozyconfig.ResolvedAgent,
+	agentDef compozyconfig.AgentDef,
 	storage sessionStartStorage,
 	now time.Time,
 ) *Session {
@@ -35,7 +35,7 @@ func (s *sessionStartSpec) newStartingSession(
 		creationOptions:  cloneCreationOptions(s.creationOptions),
 		creationIdentity: cloneCreationIdentity(s.creationIdentity), sessionDir: storage.sessionDir,
 		metaPath: storage.metaPath, dbPath: storage.dbPath, recorder: storage.recorder,
-		agentDef:             aghconfig.CloneAgentDef(agentDef),
+		agentDef:             compozyconfig.CloneAgentDef(agentDef),
 		sandboxDestroyOnStop: !s.sandboxDisabled && s.workspace.Sandbox.DestroyOnStop,
 	}
 }

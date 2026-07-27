@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -18,20 +18,20 @@ import (
 func (h *BaseHandlers) createAgentDraftAndPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-) (aghconfig.AgentDefinitionDraft, string, string, aghconfig.Config, error) {
+) (compozyconfig.AgentDefinitionDraft, string, string, compozyconfig.Config, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", "", aghconfig.Config{}, err
+		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
 	}
 
 	target, err := createAgentDefinitionTargetFor(
 		ctx, req, h.HomePaths, &h.Config, h.Workspaces, h.transportName(),
 	)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", "", aghconfig.Config{}, err
+		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
 	}
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", "", aghconfig.Config{}, err
+		return compozyconfig.AgentDefinitionDraft{}, "", "", compozyconfig.Config{}, err
 	}
 	return draft, target.Path, target.WorkspaceID, target.Config, nil
 }
@@ -46,18 +46,18 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	ctx context.Context,
 	workspaceRef string,
-) ([]AgentCatalogEntry, string, aghconfig.Config, []workspacepkg.AgentDiagnostic, error) {
+) ([]AgentCatalogEntry, string, compozyconfig.Config, []workspacepkg.AgentDiagnostic, error) {
 	if h.Workspaces == nil {
-		return nil, "", aghconfig.Config{}, nil,
+		return nil, "", compozyconfig.Config{}, nil,
 			fmt.Errorf("api: %w", workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {
-		return nil, "", aghconfig.Config{}, nil, err
+		return nil, "", compozyconfig.Config{}, nil, err
 	}
 	entries, err := h.workspaceDetailAgentEntries(ctx, &resolved)
 	if err != nil {
-		return nil, "", aghconfig.Config{}, nil, err
+		return nil, "", compozyconfig.Config{}, nil, err
 	}
 	return entries,
 		strings.TrimSpace(resolved.ID),
@@ -69,7 +69,7 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 func publicAgentDiagnostics(diagnostics []workspacepkg.AgentDiagnostic) []workspacepkg.AgentDiagnostic {
 	visible := make([]workspacepkg.AgentDiagnostic, 0, len(diagnostics))
 	for _, diagnostic := range diagnostics {
-		if aghconfig.IsReservedAgentName(diagnostic.Name) {
+		if compozyconfig.IsReservedAgentName(diagnostic.Name) {
 			continue
 		}
 		visible = append(visible, diagnostic)
@@ -81,16 +81,16 @@ func (h *BaseHandlers) workspaceAgentDef(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
-) (AgentCatalogEntry, aghconfig.Config, error) {
+) (AgentCatalogEntry, compozyconfig.Config, error) {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
-		return AgentCatalogEntry{}, aghconfig.Config{},
+		return AgentCatalogEntry{}, compozyconfig.Config{},
 			fmt.Errorf("api: agent name is required: %w", os.ErrNotExist)
 	}
 
 	entries, workspaceID, cfg, _, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
 	if err != nil {
-		return AgentCatalogEntry{}, aghconfig.Config{}, err
+		return AgentCatalogEntry{}, compozyconfig.Config{}, err
 	}
 	for _, entry := range entries {
 		if strings.TrimSpace(entry.Def.Name) == trimmedName {
@@ -100,7 +100,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 			return entry, cfg, nil
 		}
 	}
-	return AgentCatalogEntry{}, aghconfig.Config{}, fmt.Errorf(
+	return AgentCatalogEntry{}, compozyconfig.Config{}, fmt.Errorf(
 		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
 		strings.TrimSpace(workspaceRef),
@@ -110,8 +110,8 @@ func (h *BaseHandlers) workspaceAgentDef(
 
 func (h *BaseHandlers) respondAgentDefs(
 	c *gin.Context,
-	agentDefs []aghconfig.AgentDef,
-	cfg *aghconfig.Config,
+	agentDefs []compozyconfig.AgentDef,
+	cfg *compozyconfig.Config,
 	workspaceID string,
 	diagnostics ...[]workspacepkg.AgentDiagnostic,
 ) {
@@ -125,7 +125,7 @@ func (h *BaseHandlers) respondAgentDefs(
 func (h *BaseHandlers) respondAgentEntries(
 	c *gin.Context,
 	entries []AgentCatalogEntry,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	diagnosticWorkspaceID string,
 	diagnostics ...[]workspacepkg.AgentDiagnostic,
 ) {
@@ -149,7 +149,7 @@ func (h *BaseHandlers) respondAgentEntries(
 }
 
 func (h *BaseHandlers) agentCatalogEntryFromDef(
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	workspaceID string,
 ) AgentCatalogEntry {
 	return AgentCatalogEntryFromDef(h.HomePaths, agent, strings.TrimSpace(workspaceID))
@@ -166,12 +166,12 @@ func statusForAgentWorkspaceError(err error) int {
 
 func statusForCreateAgentError(err error) int {
 	switch {
-	case errors.Is(err, aghconfig.ErrAgentNameReserved):
+	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, errCreateAgentRequestInvalid),
-		errors.Is(err, aghconfig.ErrInvalidAgentDefinition):
+		errors.Is(err, compozyconfig.ErrInvalidAgentDefinition):
 		return http.StatusBadRequest
-	case errors.Is(err, aghconfig.ErrAgentDefinitionExists):
+	case errors.Is(err, compozyconfig.ErrAgentDefinitionExists):
 		return http.StatusConflict
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),

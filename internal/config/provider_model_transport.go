@@ -9,7 +9,7 @@ const (
 )
 
 // ACPModelTransportValue returns the provider-owned config-option value for a
-// canonical AGH model ID. Unknown and custom IDs remain exact so the live ACP
+// canonical Compozy model ID. Unknown and custom IDs remain exact so the live ACP
 // option remains the final authority.
 func ACPModelTransportValue(provider string, canonicalModel string) string {
 	model := strings.TrimSpace(canonicalModel)

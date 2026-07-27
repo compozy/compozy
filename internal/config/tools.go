@@ -67,7 +67,7 @@ type ToolsConfig struct {
 	Policy                ToolsPolicyConfig    `toml:"policy"`
 }
 
-// ToolsHostedMCPConfig controls AGH-hosted MCP launch binding values.
+// ToolsHostedMCPConfig controls Compozy-hosted MCP launch binding values.
 type ToolsHostedMCPConfig struct {
 	BindNonceTTLSeconds int `toml:"bind_nonce_ttl_seconds"`
 }

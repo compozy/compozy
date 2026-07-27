@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
@@ -23,31 +23,31 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	t.Parallel()
 
 	catalog := newResourceCatalog(cloneAgentDef)
-	catalog.Replace(5, []resources.Record[aghconfig.AgentDef]{
+	catalog.Replace(5, []resources.Record[compozyconfig.AgentDef]{
 		{
 			ID:    "global:alpha",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  aghconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
+			Spec:  compozyconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
 		},
 		{
 			ID:    "global:onboarding",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  aghconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
+			Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
 		},
 		{
 			ID:    "global:coder",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  aghconfig.AgentDef{Name: "coder", Prompt: "global coder"},
+			Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "global coder"},
 		},
 		{
 			ID:    "workspace:coder",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  aghconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"compozy__lookup"}},
+			Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"compozy__lookup"}},
 		},
 		{
 			ID:    "workspace:onboarding",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  aghconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
+			Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
 		},
 	})
 
@@ -153,7 +153,7 @@ func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) 
 	t.Parallel()
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Agents: []aghconfig.AgentDef{
+		Agents: []compozyconfig.AgentDef{
 			{
 				Name:   "fallback",
 				Prompt: "resolved snapshot",
@@ -190,12 +190,12 @@ func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgen
 	t.Parallel()
 
 	catalog := newResourceCatalog(cloneAgentDef)
-	catalog.Replace(1, []resources.Record[aghconfig.AgentDef]{{
+	catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
 		ID:      "global:other",
 		Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 		Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
 		Version: 1,
-		Spec: aghconfig.AgentDef{
+		Spec: compozyconfig.AgentDef{
 			Name:   "other",
 			Prompt: "global other",
 		},
@@ -203,7 +203,7 @@ func TestResourceAgentCatalogResolveAgentFallsBackWhenCatalogMissesWorkspaceAgen
 
 	resolved := &workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{ID: "ws-fallback"},
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:   "fallback",
 			Prompt: "resolved workspace agent",
 		}},
@@ -222,13 +222,13 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 	t.Parallel()
 
 	catalog := newResourceCatalog(cloneAgentDef)
-	catalog.Replace(3, []resources.Record[aghconfig.AgentDef]{
+	catalog.Replace(3, []resources.Record[compozyconfig.AgentDef]{
 		{
 			ID:      "global:coder:a",
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "alpha"},
 			Version: 1,
-			Spec: aghconfig.AgentDef{
+			Spec: compozyconfig.AgentDef{
 				Name:   "coder",
 				Prompt: "older global coder",
 			},
@@ -238,7 +238,7 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "omega"},
 			Version: 1,
-			Spec: aghconfig.AgentDef{
+			Spec: compozyconfig.AgentDef{
 				Name:   "coder",
 				Prompt: "latest global coder",
 			},
@@ -248,7 +248,7 @@ func TestResourceAgentCatalogResolveAgentUsesCatalogMatches(t *testing.T) {
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Source:  resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bench"},
 			Version: 1,
-			Spec: aghconfig.AgentDef{
+			Spec: compozyconfig.AgentDef{
 				Name:   "other",
 				Prompt: "other global agent",
 			},
@@ -297,17 +297,17 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 		ID:   "act-marketing",
 	}
 	agentCatalog := newResourceCatalog(cloneAgentDef)
-	agentCatalog.Replace(1, []resources.Record[aghconfig.AgentDef]{
+	agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
 		{
 			ID:    "agt-global",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  aghconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
+			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
 		},
 		{
 			ID:    "agt-marketer",
 			Scope: scope,
 			Owner: owner,
-			Spec:  aghconfig.AgentDef{Name: "marketer", Prompt: "bundled marketer"},
+			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "bundled marketer"},
 		},
 	})
 	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
@@ -344,7 +344,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			AgentName:       "marketer",
 			AgentResourceID: "agt-marketer",
 			SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/HEARTBEAT.md",
-			Body:            "Inspect campaign status and use AGH task APIs.",
+			Body:            "Inspect campaign status and use Compozy task APIs.",
 		},
 	}})
 
@@ -366,7 +366,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 	if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
 		t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
 	}
-	if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use AGH task APIs."; got != want {
+	if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use Compozy task APIs."; got != want {
 		t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
 	}
 
@@ -453,7 +453,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		agents: []agentPublicationInput{{
 			sourceKey: "test/agent/coder",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			spec: aghconfig.AgentDef{
+			spec: compozyconfig.AgentDef{
 				Name:       "coder",
 				Prompt:     "Use canonical tools.",
 				Tools:      []string{"compozy__lookup"},
@@ -473,7 +473,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		mcpServers: []mcpServerPublicationInput{{
 			sourceKey: "test/mcp/review",
 			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			spec: aghconfig.MCPServer{
+			spec: compozyconfig.MCPServer{
 				Name:    "review-mcp",
 				Command: "review-command",
 			},
@@ -515,18 +515,18 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		}
 	})
 	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 1, 1, 1)
-	if triggered[aghconfig.AgentResourceKind] != 1 ||
+	if triggered[compozyconfig.AgentResourceKind] != 1 ||
 		triggered[skillspkg.SkillResourceKind] != 1 ||
-		triggered[aghconfig.MCPServerResourceKind] != 1 {
+		triggered[compozyconfig.MCPServerResourceKind] != 1 {
 		t.Fatalf("triggered = %#v, want one trigger per migrated kind", triggered)
 	}
 
 	if err := syncer.Sync(context.Background()); err != nil {
 		t.Fatalf("second Sync() error = %v", err)
 	}
-	if triggered[aghconfig.AgentResourceKind] != 1 ||
+	if triggered[compozyconfig.AgentResourceKind] != 1 ||
 		triggered[skillspkg.SkillResourceKind] != 1 ||
-		triggered[aghconfig.MCPServerResourceKind] != 1 {
+		triggered[compozyconfig.MCPServerResourceKind] != 1 {
 		t.Fatalf("triggered after no-op = %#v, want no additional triggers", triggered)
 	}
 
@@ -537,9 +537,9 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		t.Fatalf("third Sync() error = %v", err)
 	}
 	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 1, 0)
-	if triggered[aghconfig.AgentResourceKind] != 2 ||
+	if triggered[compozyconfig.AgentResourceKind] != 2 ||
 		triggered[skillspkg.SkillResourceKind] != 2 ||
-		triggered[aghconfig.MCPServerResourceKind] != 2 {
+		triggered[compozyconfig.MCPServerResourceKind] != 2 {
 		t.Fatalf("triggered after replacement = %#v, want stale-delete/update triggers", triggered)
 	}
 }
@@ -570,7 +570,7 @@ func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {
 				return agentSkillDesiredResources{agents: []agentPublicationInput{{
 					sourceKey: "test/agent/coder",
 					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-					spec:      aghconfig.AgentDef{Name: "coder", Provider: "codex", Prompt: "Code."},
+					spec:      compozyconfig.AgentDef{Name: "coder", Provider: "codex", Prompt: "Code."},
 				}}}, nil
 			},
 		)
@@ -598,7 +598,7 @@ type retryingAgentProjector struct {
 }
 
 func (p *retryingAgentProjector) Kind() resources.ResourceKind {
-	return aghconfig.AgentResourceKind
+	return compozyconfig.AgentResourceKind
 }
 
 func (p *retryingAgentProjector) DependsOn() []resources.ResourceKind {
@@ -607,7 +607,7 @@ func (p *retryingAgentProjector) DependsOn() []resources.ResourceKind {
 
 func (p *retryingAgentProjector) Build(
 	context.Context,
-	[]resources.Record[aghconfig.AgentDef],
+	[]resources.Record[compozyconfig.AgentDef],
 ) (resources.ProjectionPlan, error) {
 	p.buildCalls++
 	if p.buildCalls <= len(p.buildErrors) && p.buildErrors[p.buildCalls-1] != nil {
@@ -623,7 +623,7 @@ func (p *retryingAgentProjector) Apply(context.Context, resources.ProjectionPlan
 
 type retryAgentProjectionPlan struct{}
 
-func (retryAgentProjectionPlan) Kind() resources.ResourceKind { return aghconfig.AgentResourceKind }
+func (retryAgentProjectionPlan) Kind() resources.ResourceKind { return compozyconfig.AgentResourceKind }
 func (retryAgentProjectionPlan) Revision() int64              { return 0 }
 func (retryAgentProjectionPlan) OperationCount() int          { return 0 }
 
@@ -699,7 +699,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 		context.Background(),
 		agentSkillSyncActor(),
 		resources.RawDraft{
-			Kind:  aghconfig.AgentResourceKind,
+			Kind:  compozyconfig.AgentResourceKind,
 			ID:    "daemon.sync.agent.legacy",
 			Scope: legacyScope,
 			SpecJSON: []byte(`{
@@ -730,7 +730,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 				agents: []agentPublicationInput{{
 					sourceKey: "daemon/general",
 					scope:     legacyScope,
-					spec: aghconfig.AgentDef{
+					spec: compozyconfig.AgentDef{
 						Name:   "general",
 						Prompt: "Canonical managed general agent",
 					},
@@ -747,7 +747,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 
 	source := agentSkillSyncActor().Source
 	rawAgents, err := rawStore.ListRaw(context.Background(), agentSkillSyncActor(), resources.ResourceFilter{
-		Kind:   aghconfig.AgentResourceKind,
+		Kind:   compozyconfig.AgentResourceKind,
 		Source: &source,
 	})
 	if err != nil {
@@ -789,10 +789,10 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 		Args:    []string{"ok"},
 	}
 	desired := agentSkillDesiredResources{}
-	appendAgentResources(&desired, scope, "append", []aghconfig.AgentDef{{
+	appendAgentResources(&desired, scope, "append", []compozyconfig.AgentDef{{
 		Name:   "coder",
 		Prompt: "Prompt",
-		MCPServers: []aghconfig.MCPServer{{
+		MCPServers: []compozyconfig.MCPServer{{
 			Name:    "agent-mcp",
 			Command: "agent-command",
 		}},
@@ -855,12 +855,12 @@ func agentSkillSyncStores(
 	t *testing.T,
 ) (
 	resources.RawStore,
-	resources.Store[aghconfig.AgentDef],
-	resources.KindCodec[aghconfig.AgentDef],
+	resources.Store[compozyconfig.AgentDef],
+	resources.KindCodec[compozyconfig.AgentDef],
 	resources.Store[skillspkg.SkillResourceSpec],
 	resources.KindCodec[skillspkg.SkillResourceSpec],
-	resources.Store[aghconfig.MCPServer],
-	resources.KindCodec[aghconfig.MCPServer],
+	resources.Store[compozyconfig.MCPServer],
+	resources.KindCodec[compozyconfig.MCPServer],
 ) {
 	t.Helper()
 
@@ -869,9 +869,9 @@ func agentSkillSyncStores(
 	if err != nil {
 		t.Fatalf("resources.NewKernel() error = %v", err)
 	}
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	agentCodec, err := compozyconfig.NewAgentResourceCodec()
 	if err != nil {
-		t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+		t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
 	}
 	agentStore, err := resources.NewStore(kernel, agentCodec)
 	if err != nil {
@@ -885,9 +885,9 @@ func agentSkillSyncStores(
 	if err != nil {
 		t.Fatalf("resources.NewStore(skill) error = %v", err)
 	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 	}
 	mcpStore, err := resources.NewStore(kernel, mcpCodec)
 	if err != nil {
@@ -898,9 +898,9 @@ func agentSkillSyncStores(
 
 func assertAgentSkillStoreCounts(
 	t *testing.T,
-	agentStore resources.Store[aghconfig.AgentDef],
+	agentStore resources.Store[compozyconfig.AgentDef],
 	skillStore resources.Store[skillspkg.SkillResourceSpec],
-	mcpStore resources.Store[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
 	wantAgents int,
 	wantSkills int,
 	wantMCP int,

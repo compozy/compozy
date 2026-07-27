@@ -14,7 +14,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method == http.MethodGet {
 					if got, want := req.URL.Query().Get("scope"), "workspace"; got != want {
@@ -140,7 +140,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				t.Fatalf("unexpected marketplace request: %s %s", req.Method, req.URL.String())
 				return nil, nil

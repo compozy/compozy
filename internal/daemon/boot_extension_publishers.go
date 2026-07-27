@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
@@ -111,9 +111,9 @@ func (d *Daemon) bootSupportBundles(state *bootState) error {
 	}
 	configSnapshot := support.ConfigSnapshotFunc(nil)
 	if activeSettings, ok := state.deps.Settings.(interface {
-		ActiveConfig(context.Context) (aghconfig.Config, error)
+		ActiveConfig(context.Context) (compozyconfig.Config, error)
 	}); ok {
-		configSnapshot = func(ctx context.Context) (aghconfig.Config, error) {
+		configSnapshot = func(ctx context.Context) (compozyconfig.Config, error) {
 			return activeSettings.ActiveConfig(ctx)
 		}
 	}

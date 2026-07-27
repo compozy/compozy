@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
@@ -29,8 +29,8 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		engine := gin.New()
 		startedAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 		now := func() time.Time { return startedAt.Add(time.Second) }
-		customLoader := func(name string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-			return aghconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
+		customLoader := func(name string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
+			return compozyconfig.AgentDef{Name: name, Provider: "fake", Prompt: "hello"}, nil
 		}
 		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
 		dream := &stubDreamTrigger{}

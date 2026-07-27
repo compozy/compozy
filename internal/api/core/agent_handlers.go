@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -64,7 +64,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		return
 	}
 
-	agentDefs := make([]aghconfig.AgentDef, 0, len(entries))
+	agentDefs := make([]compozyconfig.AgentDef, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -115,7 +115,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	agent, err := aghconfig.CreateAgentDefFile(path, draft, false)
+	agent, err := compozyconfig.CreateAgentDefFile(path, draft, false)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
@@ -139,7 +139,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 
 func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) error {
 	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
-	if err := aghconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
+	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
 		return fmt.Errorf("api: roll back created agent definition: %w", err)
 	}
 	if err := h.AgentDefinitionSync.Sync(ctx); err != nil {

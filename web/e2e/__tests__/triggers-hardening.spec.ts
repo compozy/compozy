@@ -183,7 +183,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await expect(ui.editorDialog).toBeVisible();
   await expect(ui.submitTriggerForm).toBeDisabled();
   await ui.triggerNameInput.fill(initialName);
-  await ui.triggerAgentInput.fill(automationAgentName);
+  await ui.triggerAgentInput.click();
+  await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
   await ui.triggerEventOption("webhook").click();
   await expect(ui.triggerEndpointSlugInput).toBeVisible();
   await ui.triggerPromptInput.fill(prompt);
@@ -881,9 +882,9 @@ async function deliverWebhook(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-agh-webhook-delivery-id": input.deliveryID,
-        "x-agh-webhook-signature": signWebhook(input.secret, timestamp, body),
-        "x-agh-webhook-timestamp": timestamp.toISOString(),
+        "x-compozy-webhook-delivery-id": input.deliveryID,
+        "x-compozy-webhook-signature": signWebhook(input.secret, timestamp, body),
+        "x-compozy-webhook-timestamp": timestamp.toISOString(),
       },
       body,
     }

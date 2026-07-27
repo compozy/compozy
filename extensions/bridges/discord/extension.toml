@@ -22,7 +22,7 @@ description = "Discord Ed25519 public key for webhook verification"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.discord"
+schema = "compozy.bridge.discord"
 version = "1"
 
 [actions]

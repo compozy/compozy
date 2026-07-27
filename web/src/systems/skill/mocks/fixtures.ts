@@ -34,7 +34,7 @@ export const skillFixtures: SkillPayload[] = [
       shadowed_by: [
         {
           detected_at: "2026-04-17T16:41:00Z",
-          path: "/opt/agh/skills/executive-brief-synth/SKILL.md",
+          path: "/opt/compozy/skills/executive-brief-synth/SKILL.md",
           resolved_to_winner: false,
           tier: "marketplace",
         },
@@ -111,7 +111,7 @@ export const skillFixtures: SkillPayload[] = [
     source: "marketplace",
     enabled: false,
     activation: { active: true },
-    dir: "/opt/agh/skills/merchant-escalation-handoff",
+    dir: "/opt/compozy/skills/merchant-escalation-handoff",
     version: "0.8.2",
     metadata: {
       tags: ["support", "risk", "merchant"],
@@ -170,7 +170,7 @@ export const skillMarketplaceInstallFixture: SkillMarketplaceInstallPayload = {
   slug: "@community/merchant-escalation-handoff",
   status: "installed",
   hash: "sha256:fixture",
-  path: "/opt/agh/skills/merchant-escalation-handoff",
+  path: "/opt/compozy/skills/merchant-escalation-handoff",
   registry: "clawhub",
   version: "0.9.0",
 };
@@ -180,7 +180,7 @@ export const skillMarketplaceUpdateFixtures: SkillMarketplaceUpdatePayload[] = [
     name: "merchant-escalation-handoff",
     slug: "@community/merchant-escalation-handoff",
     status: "updated",
-    path: "/opt/agh/skills/merchant-escalation-handoff",
+    path: "/opt/compozy/skills/merchant-escalation-handoff",
     current_version: "0.8.2",
     latest_version: "0.9.0",
   },
@@ -190,5 +190,5 @@ export const skillMarketplaceRemoveFixture: SkillMarketplaceRemovePayload = {
   name: "merchant-escalation-handoff",
   slug: "@community/merchant-escalation-handoff",
   status: "removed",
-  path: "/opt/agh/skills/merchant-escalation-handoff",
+  path: "/opt/compozy/skills/merchant-escalation-handoff",
 };

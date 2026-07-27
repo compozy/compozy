@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type resolvedAuthoringTarget struct {
@@ -19,7 +19,7 @@ type resolvedAuthoringTarget struct {
 	agentPath     string
 	soulPath      string
 	sourcePath    string
-	config        aghconfig.SoulConfig
+	config        compozyconfig.SoulConfig
 	configSource  string
 }
 
@@ -28,7 +28,7 @@ type normalizedAuthoringTarget struct {
 	workspaceRoot string
 	agentName     string
 	agentPath     string
-	config        aghconfig.SoulConfig
+	config        compozyconfig.SoulConfig
 	configSource  string
 }
 
@@ -100,7 +100,13 @@ func normalizeAuthoringTarget(target AuthoringTarget) (normalizedAuthoringTarget
 
 	agentPath := strings.TrimSpace(target.AgentPath)
 	if agentPath == "" {
-		agentPath = filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, agentName, "AGENT.md")
+		agentPath = filepath.Join(
+			workspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
+			agentName,
+			"AGENT.md",
+		)
 	}
 	return normalizedAuthoringTarget{
 		workspaceID:   workspaceID,
@@ -113,7 +119,7 @@ func normalizeAuthoringTarget(target AuthoringTarget) (normalizedAuthoringTarget
 }
 
 func ensureAuthoringAgent(agentPath string, agentName string) error {
-	agent, err := aghconfig.LoadAgentDefFile(agentPath)
+	agent, err := compozyconfig.LoadAgentDefFile(agentPath)
 	if err == nil && agent.Name == agentName {
 		return nil
 	}

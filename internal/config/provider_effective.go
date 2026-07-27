@@ -17,7 +17,7 @@ func (p ProviderConfig) EffectiveHarness() ProviderHarness {
 	return ProviderHarnessACP
 }
 
-// RequiresRuntimeModel reports whether AGH must provide a model to start this provider.
+// RequiresRuntimeModel reports whether Compozy must provide a model to start this provider.
 func (p ProviderConfig) RequiresRuntimeModel() bool {
 	return p.EffectiveHarness() == ProviderHarnessPiACP
 }
@@ -73,7 +73,7 @@ func (p ProviderConfig) EffectiveCredentialSlots() []ProviderCredentialSlot {
 	return nil
 }
 
-// SessionMCPEnabled reports whether AGH should pass per-session MCP servers to the provider.
+// SessionMCPEnabled reports whether Compozy should pass per-session MCP servers to the provider.
 func (p ProviderConfig) SessionMCPEnabled() bool {
 	if p.SessionMCP == nil {
 		return true

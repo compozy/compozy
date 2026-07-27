@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/ginutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
@@ -34,8 +34,8 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths          aghconfig.HomePaths
-	config             aghconfig.Config
+	homePaths          compozyconfig.HomePaths
+	config             compozyconfig.Config
 	configSet          bool
 	host               string
 	port               int
@@ -324,7 +324,7 @@ func WithEngine(engine *gin.Engine) Option {
 
 // New constructs an HTTP API server.
 func New(opts ...Option) (*Server, error) {
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return nil, fmt.Errorf("httpapi: resolve home paths: %w", err)
 	}

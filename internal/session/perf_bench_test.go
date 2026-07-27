@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	envpkg "github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -70,7 +70,7 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 	sessionsDir := b.TempDir()
 	manager := &Manager{
 		logger: slog.Default(),
-		homePaths: aghconfig.HomePaths{
+		homePaths: compozyconfig.HomePaths{
 			SessionsDir: sessionsDir,
 		},
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (s *service) putMCPServer(
@@ -15,7 +15,7 @@ func (s *service) putMCPServer(
 	workspaceID string,
 	name string,
 	selector TargetSelector,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	secrets MCPSecretValues,
 	preservation MCPSecretPreservation,
 	envPreservation []string,
@@ -99,29 +99,29 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	preservation MCPSecretPreservation,
 	envPreservation []string,
-) (aghconfig.MCPServer, error) {
+) (compozyconfig.MCPServer, error) {
 	server.Name = strings.TrimSpace(server.Name)
 	if server.Name == "" {
 		server.Name = name
 	}
 	if server.Name != name {
-		return aghconfig.MCPServer{}, validationError(fmt.Errorf(
+		return compozyconfig.MCPServer{}, validationError(fmt.Errorf(
 			"settings: MCP server payload name %q does not match request name %q",
 			server.Name,
 			name,
 		))
 	}
 	if err := preserveMCPEnvValues(name, target, sources, &server, envPreservation); err != nil {
-		return aghconfig.MCPServer{}, err
+		return compozyconfig.MCPServer{}, err
 	}
 	if err := preserveMCPSecretBindings(name, target, sources, &server, preservation); err != nil {
-		return aghconfig.MCPServer{}, err
+		return compozyconfig.MCPServer{}, err
 	}
 	if err := s.validateMCPServerWrite(ctx, scope, workspaceID, name, target, sources, server); err != nil {
-		return aghconfig.MCPServer{}, fmt.Errorf("settings: write MCP server %q: %w", name, err)
+		return compozyconfig.MCPServer{}, fmt.Errorf("settings: write MCP server %q: %w", name, err)
 	}
 	return server, nil
 }
@@ -129,8 +129,8 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 func (s *service) writeMCPServer(
 	root string,
 	name string,
-	target aghconfig.WriteTarget,
-	server aghconfig.MCPServer,
+	target compozyconfig.WriteTarget,
+	server compozyconfig.MCPServer,
 ) error {
 	if err := s.mcpDefinitionWriter(s.homePaths, root, name, target, server); err != nil {
 		return fmt.Errorf("settings: write MCP server %q: %w", name, err)
@@ -139,23 +139,23 @@ func (s *service) writeMCPServer(
 }
 
 func writeMCPDefinition(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	root string,
 	name string,
-	target aghconfig.WriteTarget,
-	server aghconfig.MCPServer,
+	target compozyconfig.WriteTarget,
+	server compozyconfig.MCPServer,
 ) error {
 	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
-		if _, err := aghconfig.PutMCPSidecarServer(homePaths, root, target, server); err != nil {
+		if _, err := compozyconfig.PutMCPSidecarServer(homePaths, root, target, server); err != nil {
 			return err
 		}
 		return nil
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		homePaths,
 		root,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem([]string{"mcp_servers"}, "name", name, mcpServerMap(server))
 		},
 	); err != nil {
@@ -171,7 +171,7 @@ func (s *service) validateMCPServerWrite(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) error {
 	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
 	if err != nil {
@@ -187,8 +187,8 @@ func projectedMCPServerForValidation(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	server aghconfig.MCPServer,
-) (aghconfig.MCPServer, bool) {
+	server compozyconfig.MCPServer,
+) (compozyconfig.MCPServer, bool) {
 	entries := sources[strings.TrimSpace(name)]
 	if len(entries) == 0 {
 		return server, true
@@ -196,12 +196,12 @@ func projectedMCPServerForValidation(
 	effective := entries[len(entries)-1]
 	if (target == WriteTargetGlobalConfig && effective.Target == WriteTargetGlobalMCPSidecar) ||
 		(target == WriteTargetWorkspaceConfig && effective.Target == WriteTargetWorkspaceMCPSidecar) {
-		return aghconfig.MCPServer{}, false
+		return compozyconfig.MCPServer{}, false
 	}
 	return server, true
 }
 
-func upsertMCPServer(servers []aghconfig.MCPServer, server aghconfig.MCPServer) []aghconfig.MCPServer {
+func upsertMCPServer(servers []compozyconfig.MCPServer, server compozyconfig.MCPServer) []compozyconfig.MCPServer {
 	name := strings.TrimSpace(server.Name)
 	for idx := range servers {
 		if strings.TrimSpace(servers[idx].Name) != name {
@@ -278,8 +278,8 @@ func (s *service) finishMCPServerDeletion(
 	workspaceID string,
 	name string,
 	root string,
-	target aghconfig.WriteTarget,
-	deletedServer aghconfig.MCPServer,
+	target compozyconfig.WriteTarget,
+	deletedServer compozyconfig.MCPServer,
 	ownedSecrets []ownedMCPSecretSnapshot,
 ) (MutationResult, error) {
 	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
@@ -317,9 +317,9 @@ func (s *service) finishMCPServerDeletion(
 	return MutationResult{}, errors.Join(cleanupFailure, invalidateErr)
 }
 
-func (s *service) deleteMCPServerDefinition(root string, name string, target aghconfig.WriteTarget) error {
+func (s *service) deleteMCPServerDefinition(root string, name string, target compozyconfig.WriteTarget) error {
 	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
-		_, deleted, err := aghconfig.DeleteMCPSidecarServer(s.homePaths, root, target, name)
+		_, deleted, err := compozyconfig.DeleteMCPSidecarServer(s.homePaths, root, target, name)
 		if err != nil {
 			return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
 		}
@@ -328,11 +328,11 @@ func (s *service) deleteMCPServerDefinition(root string, name string, target agh
 		}
 		return nil
 	}
-	if _, err := aghconfig.EditConfigOverlay(
+	if _, err := compozyconfig.EditConfigOverlay(
 		s.homePaths,
 		root,
 		target,
-		func(editor *aghconfig.OverlayEditor) error {
+		func(editor *compozyconfig.OverlayEditor) error {
 			deleted, deleteErr := editor.DeleteArrayTableItem([]string{"mcp_servers"}, "name", name)
 			if deleteErr != nil {
 				return deleteErr

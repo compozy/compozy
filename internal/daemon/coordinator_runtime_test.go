@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -122,7 +122,7 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 		prompt.opts.Metadata.CoordinatorSessionID != info.ID {
 		t.Fatalf("PromptSynthetic metadata = %#v, want task/run/coordinator ids", prompt.opts.Metadata)
 	}
-	if !contains(prompt.opts.Message, "Claim the run through the AGH task claim path") {
+	if !contains(prompt.opts.Message, "Claim the run through the Compozy task claim path") {
 		t.Fatalf("PromptSynthetic message = %q, want claim instruction", prompt.opts.Message)
 	}
 	if hooks.preSpawnCount() != 1 || hooks.spawnedCount() != 1 {
@@ -158,7 +158,7 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 			t.Fatalf("newCoordinatorRuntime() error = %v", err)
 		}
 		cfg := coordinatorRuntimeConfig()
-		cfg.Fallbacks = []aghconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}}
+		cfg.Fallbacks = []compozyconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}}
 		info, err := runtime.startCoordinatorSession(
 			t.Context(),
 			coordinator.Decision{WorkspaceID: "ws-1"},
@@ -183,7 +183,7 @@ func TestCoordinatorRuntimeEmitsRoleFallbackEvents(t *testing.T) {
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(fallback event) error = %v", err)
 		}
-		if payload.Role != string(aghconfig.RoleCoordinator) || payload.Attempt != 1 ||
+		if payload.Role != string(compozyconfig.RoleCoordinator) || payload.Attempt != 1 ||
 			payload.Provider != "claude" || payload.Model != "sonnet" {
 			t.Fatalf("coordinator fallback payload = %#v", payload)
 		}
@@ -348,14 +348,14 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 		name       string
 		task       taskpkg.Task
 		run        taskpkg.Run
-		cfg        aghconfig.ResolvedCoordinatorRole
+		cfg        compozyconfig.ResolvedCoordinatorRole
 		wantReason string
 	}{
 		{
 			name:       "disabled config",
 			task:       coordinatorRuntimeTask(),
 			run:        coordinatorRuntimeRun(),
-			cfg:        aghconfig.DefaultResolvedCoordinatorRole(),
+			cfg:        compozyconfig.DefaultResolvedCoordinatorRole(),
 			wantReason: coordinator.DecisionDisabled,
 		},
 		{
@@ -801,7 +801,7 @@ func newCoordinatorRuntimeForTest(
 	store *coordinatorRuntimeStore,
 	sessions *coordinatorRuntimeSessions,
 	hooks *recordingCoordinatorHooks,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	now time.Time,
 ) *coordinatorRuntime {
 	t.Helper()
@@ -820,8 +820,8 @@ func newCoordinatorRuntimeForTest(
 	return runtime
 }
 
-func coordinatorRuntimeConfig() aghconfig.ResolvedCoordinatorRole {
-	cfg := aghconfig.DefaultResolvedCoordinatorRole()
+func coordinatorRuntimeConfig() compozyconfig.ResolvedCoordinatorRole {
+	cfg := compozyconfig.DefaultResolvedCoordinatorRole()
 	cfg.Enabled = true
 	cfg.AgentName = "coordinator"
 	cfg.Provider = "codex"
@@ -854,7 +854,7 @@ func coordinatorRuntimeRun() taskpkg.Run {
 }
 
 type staticCoordinatorRoleResolver struct {
-	cfg aghconfig.ResolvedCoordinatorRole
+	cfg compozyconfig.ResolvedCoordinatorRole
 	err error
 	mu  sync.Mutex
 	got []string
@@ -863,12 +863,12 @@ type staticCoordinatorRoleResolver struct {
 func (r *staticCoordinatorRoleResolver) ResolveCoordinatorRole(
 	_ context.Context,
 	workspaceID string,
-) (aghconfig.ResolvedCoordinatorRole, error) {
+) (compozyconfig.ResolvedCoordinatorRole, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.got = append(r.got, workspaceID)
 	if r.err != nil {
-		return aghconfig.ResolvedCoordinatorRole{}, r.err
+		return compozyconfig.ResolvedCoordinatorRole{}, r.err
 	}
 	return r.cfg, nil
 }

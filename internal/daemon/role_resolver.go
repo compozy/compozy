@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -20,7 +20,7 @@ const (
 // RoleResolutionError is a deterministic role-resolution failure.
 type RoleResolutionError struct {
 	Code  string
-	Role  aghconfig.RoleName
+	Role  compozyconfig.RoleName
 	Agent string
 	Err   error
 }
@@ -56,26 +56,26 @@ func (e *RoleResolutionError) DiagnosticCode() string {
 
 // ResolvedRole is one invocation-time role routing decision.
 type ResolvedRole struct {
-	Role            aghconfig.RoleName
+	Role            compozyconfig.RoleName
 	Enabled         bool
 	AgentName       string
 	Builtin         bool
 	Inherit         bool
-	AgentDef        aghconfig.AgentDef
+	AgentDef        compozyconfig.AgentDef
 	Provider        string
 	Model           string
 	ReasoningEffort string
-	Fallbacks       []aghconfig.RoleFallback
+	Fallbacks       []compozyconfig.RoleFallback
 	Provenance      map[string]string
 	eventWriter     roleEventSummaryWriter
 }
 
 type RoleResolver interface {
-	Resolve(ctx context.Context, workspaceID string, role aghconfig.RoleName) (ResolvedRole, error)
+	Resolve(ctx context.Context, workspaceID string, role compozyconfig.RoleName) (ResolvedRole, error)
 }
 
 type roleResolver struct {
-	config            *aghconfig.Config
+	config            *compozyconfig.Config
 	workspaceResolver workspacepkg.RuntimeResolver
 	agents            coordinatorAgentResolver
 	events            roleEventSummaryWriter
@@ -84,7 +84,7 @@ type roleResolver struct {
 var _ RoleResolver = (*roleResolver)(nil)
 
 func newRoleResolver(
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	agents coordinatorAgentResolver,
 	eventWriters ...roleEventSummaryWriter,
@@ -99,7 +99,7 @@ func newRoleResolver(
 func (r *roleResolver) Resolve(
 	ctx context.Context,
 	workspaceID string,
-	role aghconfig.RoleName,
+	role compozyconfig.RoleName,
 ) (ResolvedRole, error) {
 	resolved, _, err := r.resolveEffective(ctx, workspaceID, role)
 	if err != nil {
@@ -112,8 +112,8 @@ func (r *roleResolver) Resolve(
 func (r *roleResolver) resolveEffective(
 	ctx context.Context,
 	workspaceID string,
-	role aghconfig.RoleName,
-) (ResolvedRole, *aghconfig.Config, error) {
+	role compozyconfig.RoleName,
+) (ResolvedRole, *compozyconfig.Config, error) {
 	effectiveConfig, resolvedWorkspace, err := r.effectiveRoleConfig(ctx, workspaceID)
 	if err != nil {
 		return ResolvedRole{}, nil, err
@@ -126,7 +126,7 @@ func (r *roleResolver) resolveEffective(
 	resolved := ResolvedRole{
 		Role:            role,
 		Enabled:         common.Enabled,
-		Fallbacks:       append([]aghconfig.RoleFallback(nil), common.FallbackChain...),
+		Fallbacks:       append([]compozyconfig.RoleFallback(nil), common.FallbackChain...),
 		Provenance:      roleProvenance(role, effectiveConfig),
 		Provider:        strings.TrimSpace(common.Provider),
 		Model:           strings.TrimSpace(common.Model),
@@ -158,7 +158,7 @@ func (r *roleResolver) resolveEffective(
 		resolved.Builtin = builtin
 	}
 
-	if role == aghconfig.RoleMemoryController {
+	if role == compozyconfig.RoleMemoryController {
 		return resolved, effectiveConfig, nil
 	}
 	if err := resolveRoleRuntime(effectiveConfig, common, &resolved); err != nil {
@@ -168,8 +168,8 @@ func (r *roleResolver) resolveEffective(
 }
 
 func populateDisabledRoleIdentity(
-	role aghconfig.RoleName,
-	common aghconfig.RoleConfig,
+	role compozyconfig.RoleName,
+	common compozyconfig.RoleConfig,
 	resolved *ResolvedRole,
 ) {
 	if resolved == nil {
@@ -179,7 +179,7 @@ func populateDisabledRoleIdentity(
 	if agentName == "" {
 		agentName, resolved.Inherit = defaultRoleIdentity(role)
 	}
-	if builtin, ok := aghconfig.BuiltinAgentDef(agentName); ok {
+	if builtin, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 		resolved.AgentName = agentName
 		resolved.AgentDef = builtin
 		resolved.Builtin = true
@@ -189,7 +189,7 @@ func populateDisabledRoleIdentity(
 func (r *roleResolver) effectiveRoleConfig(
 	ctx context.Context,
 	workspaceID string,
-) (*aghconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
+) (*compozyconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
 	if ctx == nil {
 		return nil, nil, errors.New("daemon: role resolver context is required")
 	}
@@ -211,35 +211,35 @@ func (r *roleResolver) effectiveRoleConfig(
 }
 
 func (r *roleResolver) resolveRoleAgent(
-	role aghconfig.RoleName,
+	role compozyconfig.RoleName,
 	name string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, bool, error) {
-	if builtin, ok := aghconfig.BuiltinAgentDef(name); ok {
+) (compozyconfig.AgentDef, bool, error) {
+	if builtin, ok := compozyconfig.BuiltinAgentDef(name); ok {
 		return builtin, true, nil
 	}
 	if r.agents == nil {
-		return aghconfig.AgentDef{}, false, &RoleResolutionError{
+		return compozyconfig.AgentDef{}, false, &RoleResolutionError{
 			Code: roleErrorAgentNotFound, Role: role, Agent: name, Err: workspacepkg.ErrAgentNotAvailable,
 		}
 	}
 	agent, err := r.agents.ResolveAgent(name, resolvedWorkspace)
 	if err != nil {
 		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return aghconfig.AgentDef{}, false, &RoleResolutionError{
+			return compozyconfig.AgentDef{}, false, &RoleResolutionError{
 				Code: roleErrorAgentNotFound, Role: role, Agent: name, Err: err,
 			}
 		}
-		return aghconfig.AgentDef{}, false, fmt.Errorf("daemon: resolve role agent %q: %w", name, err)
+		return compozyconfig.AgentDef{}, false, fmt.Errorf("daemon: resolve role agent %q: %w", name, err)
 	}
 	return agent, false, nil
 }
 
-func resolveRoleRuntime(cfg *aghconfig.Config, common aghconfig.RoleConfig, resolved *ResolvedRole) error {
+func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConfig, resolved *ResolvedRole) error {
 	if resolved == nil {
 		return errors.New("resolved role is required")
 	}
-	route := aghconfig.CloneAgentDef(resolved.AgentDef)
+	route := compozyconfig.CloneAgentDef(resolved.AgentDef)
 	route.Provider = firstRoleValue(common.Provider, route.Provider)
 	route.Model = firstRoleValue(common.Model, route.Model)
 	route.ReasoningEffort = firstRoleValue(common.ReasoningEffort, route.ReasoningEffort)
@@ -266,23 +266,23 @@ func resolveRoleRuntime(cfg *aghconfig.Config, common aghconfig.RoleConfig, reso
 	return nil
 }
 
-func roleConfig(roles *aghconfig.RolesConfig, role aghconfig.RoleName) (aghconfig.RoleConfig, error) {
+func roleConfig(roles *compozyconfig.RolesConfig, role compozyconfig.RoleName) (compozyconfig.RoleConfig, error) {
 	if roles == nil {
-		return aghconfig.RoleConfig{}, errors.New("roles config is required")
+		return compozyconfig.RoleConfig{}, errors.New("roles config is required")
 	}
 	switch role {
-	case aghconfig.RoleCoordinator:
+	case compozyconfig.RoleCoordinator:
 		return roles.Coordinator.RoleConfig, nil
-	case aghconfig.RoleDream:
+	case compozyconfig.RoleDream:
 		return roles.Dream, nil
-	case aghconfig.RoleCheckpointSummary:
+	case compozyconfig.RoleCheckpointSummary:
 		return roles.CheckpointSummary, nil
-	case aghconfig.RoleMemoryExtractor:
+	case compozyconfig.RoleMemoryExtractor:
 		return roles.MemoryExtractor, nil
-	case aghconfig.RoleAutoTitle:
+	case compozyconfig.RoleAutoTitle:
 		return roles.AutoTitle, nil
-	case aghconfig.RoleMemoryController:
-		return aghconfig.RoleConfig{
+	case compozyconfig.RoleMemoryController:
+		return compozyconfig.RoleConfig{
 			Enabled:         roles.MemoryController.Enabled,
 			Provider:        roles.MemoryController.Provider,
 			Model:           roles.MemoryController.Model,
@@ -290,19 +290,19 @@ func roleConfig(roles *aghconfig.RolesConfig, role aghconfig.RoleName) (aghconfi
 			FallbackChain:   roles.MemoryController.FallbackChain,
 		}, nil
 	default:
-		return aghconfig.RoleConfig{}, &RoleResolutionError{Code: roleErrorUnknown, Role: role}
+		return compozyconfig.RoleConfig{}, &RoleResolutionError{Code: roleErrorUnknown, Role: role}
 	}
 }
 
-func defaultRoleIdentity(role aghconfig.RoleName) (string, bool) {
+func defaultRoleIdentity(role compozyconfig.RoleName) (string, bool) {
 	switch role {
-	case aghconfig.RoleCoordinator:
-		return aghconfig.BuiltinCoordinatorAgentName, false
-	case aghconfig.RoleDream, aghconfig.RoleCheckpointSummary:
-		return aghconfig.BuiltinDreamingCuratorAgentName, false
-	case aghconfig.RoleMemoryExtractor, aghconfig.RoleAutoTitle:
+	case compozyconfig.RoleCoordinator:
+		return compozyconfig.BuiltinCoordinatorAgentName, false
+	case compozyconfig.RoleDream, compozyconfig.RoleCheckpointSummary:
+		return compozyconfig.BuiltinDreamingCuratorAgentName, false
+	case compozyconfig.RoleMemoryExtractor, compozyconfig.RoleAutoTitle:
 		return "", true
-	case aghconfig.RoleMemoryController:
+	case compozyconfig.RoleMemoryController:
 		return "", false
 	default:
 		return "", false
@@ -310,40 +310,40 @@ func defaultRoleIdentity(role aghconfig.RoleName) (string, bool) {
 }
 
 func roleProvenance(
-	role aghconfig.RoleName,
-	effective *aghconfig.Config,
+	role compozyconfig.RoleName,
+	effective *compozyconfig.Config,
 ) map[string]string {
 	effectiveFields := roleFields(role, &effective.Roles)
 	provenance := make(map[string]string, len(effectiveFields))
 	for field := range effectiveFields {
 		source := effective.RoleFieldSource(role, field)
 		if source == "" {
-			source = aghconfig.RoleFieldSourceDefault
+			source = compozyconfig.RoleFieldSourceDefault
 		}
 		provenance[field] = source
 	}
 	return provenance
 }
 
-func roleFields(role aghconfig.RoleName, roles *aghconfig.RolesConfig) map[string]any {
+func roleFields(role compozyconfig.RoleName, roles *compozyconfig.RolesConfig) map[string]any {
 	common, err := roleConfig(roles, role)
 	if err != nil {
 		return nil
 	}
 	fields := map[string]any{
-		aghconfig.RoleFieldEnabled:   common.Enabled,
-		daemonAgentField:             common.Agent,
-		aghconfig.RoleFieldProvider:  common.Provider,
-		aghconfig.RoleFieldModel:     common.Model,
-		aghconfig.RoleFieldReasoning: common.ReasoningEffort,
-		aghconfig.RoleFieldFallbacks: common.FallbackChain,
+		compozyconfig.RoleFieldEnabled:   common.Enabled,
+		daemonAgentField:                 common.Agent,
+		compozyconfig.RoleFieldProvider:  common.Provider,
+		compozyconfig.RoleFieldModel:     common.Model,
+		compozyconfig.RoleFieldReasoning: common.ReasoningEffort,
+		compozyconfig.RoleFieldFallbacks: common.FallbackChain,
 	}
-	if role == aghconfig.RoleCoordinator {
+	if role == compozyconfig.RoleCoordinator {
 		fields["ttl"] = roles.Coordinator.TTL
 		fields["max_children"] = roles.Coordinator.MaxChildren
 		fields["max_active_sessions_per_workspace"] = roles.Coordinator.MaxActiveSessionsPerWorkspace
 	}
-	if role == aghconfig.RoleMemoryController {
+	if role == compozyconfig.RoleMemoryController {
 		fields[roleFieldTimeout] = roles.MemoryController.Timeout
 		fields["top_k"] = roles.MemoryController.TopK
 		fields["prompt_version"] = roles.MemoryController.PromptVersion

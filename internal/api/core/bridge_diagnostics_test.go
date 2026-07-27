@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/gin-gonic/gin"
 )
@@ -48,7 +48,7 @@ func TestBridgeHandlersExposeDiagnostics(t *testing.T) {
 			},
 		}
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "api-core-test",
 			MaskInternalErrors:           false,
@@ -147,7 +147,7 @@ func TestBridgeHandlersExposeDiagnostics(t *testing.T) {
 			},
 		}
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "api-core-test",
 			MaskInternalErrors:           false,
@@ -214,7 +214,7 @@ func TestBridgeHandlersExposeDiagnostics(t *testing.T) {
 			},
 		}
 		homePaths := testutil.NewTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "api-core-test",
 			MaskInternalErrors:           false,

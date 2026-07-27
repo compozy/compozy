@@ -20,7 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const paragraph =
-  "AGH streams every agent turn through the daemon. Events are persisted in SQLite and replayed on reconnect.";
+  "Compozy streams every agent turn through the daemon. Events are persisted in SQLite and replayed on reconnect.";
 
 export const LeftToRight: Story = {
   args: {},

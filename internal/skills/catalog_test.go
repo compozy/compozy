@@ -445,8 +445,8 @@ func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 		got := BuildCatalog([]*Skill{
 			{
 				Meta: SkillMeta{
-					Name:        "agh",
-					Description: "AGH guidance",
+					Name:        "compozy",
+					Description: "Compozy guidance",
 				},
 				Enabled: true,
 			},

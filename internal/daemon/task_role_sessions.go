@@ -303,13 +303,13 @@ func taskRolePromptOverlay(activation taskRoleActivation) string {
 		activation.NetworkParticipation.Mode == participation.ModeLive {
 		channelLine = fmt.Sprintf("Coordination channel: %s", activation.NetworkParticipation.ChannelID)
 	}
-	return fmt.Sprintf(`A queued AGH task run is assigned to this agent.
+	return fmt.Sprintf(`A queued Compozy task run is assigned to this agent.
 
 Task: %s
 Run: %s
 %s
 %s
-Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.`,
+Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the Compozy task lease commands from this same session.`,
 		title,
 		activation.RunID,
 		channelLine,

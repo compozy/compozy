@@ -14,7 +14,7 @@ import (
 
 // DiagnosticsRecord captures one protocol, lifecycle, or prompt event emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
-	AGHSessionID      string             `json:"agh_session_id,omitempty"`
+	CompozySessionID  string             `json:"compozy_session_id,omitempty"`
 	AgentName         string             `json:"agent_name"`
 	SessionID         string             `json:"session_id"`
 	ProtocolMethod    string             `json:"protocol_method,omitempty"`
@@ -31,15 +31,15 @@ type DiagnosticsRecord struct {
 	Steps             []DiagnosticsStep  `json:"steps"`
 }
 
-// DiagnosticsForAGHSession returns records owned by one daemon session in append order.
-func DiagnosticsForAGHSession(records []DiagnosticsRecord, aghSessionID string) []DiagnosticsRecord {
-	owner := strings.TrimSpace(aghSessionID)
+// DiagnosticsForCompozySession returns records owned by one daemon session in append order.
+func DiagnosticsForCompozySession(records []DiagnosticsRecord, compozySessionID string) []DiagnosticsRecord {
+	owner := strings.TrimSpace(compozySessionID)
 	filtered := make([]DiagnosticsRecord, 0, len(records))
 	if owner == "" {
 		return filtered
 	}
 	for _, record := range records {
-		if strings.TrimSpace(record.AGHSessionID) != owner {
+		if strings.TrimSpace(record.CompozySessionID) != owner {
 			continue
 		}
 		filtered = append(filtered, record)

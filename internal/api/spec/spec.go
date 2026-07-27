@@ -228,7 +228,7 @@ func Document() (*openapi3.T, error) {
 	doc := &openapi3.T{
 		OpenAPI: "3.0.3",
 		Info: &openapi3.Info{
-			Title:   "AGH API",
+			Title:   "Compozy API",
 			Version: "1.0.0",
 		},
 		Components: &openapi3.Components{

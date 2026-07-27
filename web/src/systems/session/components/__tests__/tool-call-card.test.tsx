@@ -9,8 +9,8 @@ import { SessionToolCallRow } from "../tool-call-card";
 
 const ARTIFACT_ID_A = `art_${"a".repeat(64)}`;
 const ARTIFACT_ID_B = `art_${"b".repeat(64)}`;
-const ARTIFACT_URI_A = `agh://tool-artifacts/${ARTIFACT_ID_A}`;
-const ARTIFACT_URI_B = `agh://tool-artifacts/${ARTIFACT_ID_B}`;
+const ARTIFACT_URI_A = `compozy://tool-artifacts/${ARTIFACT_ID_A}`;
+const ARTIFACT_URI_B = `compozy://tool-artifacts/${ARTIFACT_ID_B}`;
 
 function createQueryClient() {
   return new QueryClient({
@@ -39,7 +39,7 @@ function truncatedMessage(uri = ARTIFACT_URI_A, preview = "bounded preview"): UI
         {
           uri,
           name: "tool-result.json",
-          mime_type: "application/vnd.agh.tool-result+json",
+          mime_type: "application/vnd.compozy.tool-result+json",
           bytes: 256,
           sha256: uri.slice(-64),
         },
@@ -120,7 +120,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
 
   it("Should map Bash command summaries to the row preview slot", () => {
     const longCommand =
-      "agh tool invoke compozy__tool_info --input " + '{"tool_id":"compozy__skill_view"}';
+      "compozy tool invoke compozy__tool_info --input " + '{"tool_id":"compozy__skill_view"}';
     render(
       <SessionToolCallRow
         message={makeToolMessage({
@@ -132,7 +132,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryToolName()).toHaveTextContent("Running...");
     const preview = queryPreview();
     expect(preview).not.toBeNull();
-    expect(preview?.textContent).toContain("agh tool invoke");
+    expect(preview?.textContent).toContain("compozy tool invoke");
     expect(preview?.className).toContain("truncate");
   });
 

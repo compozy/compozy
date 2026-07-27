@@ -163,7 +163,7 @@ describe("Topbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("heading", { level: 1, name: "Run #128" })).toBeInTheDocument();
-    expect(screen.queryByText("agh")).toBeNull();
+    expect(screen.queryByText("compozy")).toBeNull();
   });
 
   it("Should keep edge parents visible and expose collapsed middle parents as menu items", () => {

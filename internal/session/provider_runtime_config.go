@@ -1,9 +1,9 @@
 package session
 
-import aghconfig "github.com/compozy/compozy/internal/config"
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
-func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
+func providerConfigFromResolvedAgent(resolved compozyconfig.ResolvedAgent) compozyconfig.ProviderConfig {
+	return compozyconfig.ProviderConfig{
 		Command:         resolved.Command,
 		DisplayName:     resolved.DisplayName,
 		Harness:         resolved.Harness,
@@ -16,11 +16,11 @@ func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig
 		NoneSecurity:    resolved.NoneSecurity,
 		AuthStatusCmd:   resolved.AuthStatusCmd,
 		AuthLoginCmd:    resolved.AuthLoginCmd,
-		Models: aghconfig.ProviderModelsConfig{
+		Models: compozyconfig.ProviderModelsConfig{
 			Reasoning: resolved.Reasoning,
 		},
 		CredentialSlots: append(
-			[]aghconfig.ProviderCredentialSlot(nil),
+			[]compozyconfig.ProviderCredentialSlot(nil),
 			resolved.CredentialSlots...),
 	}
 }

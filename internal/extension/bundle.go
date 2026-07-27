@@ -8,7 +8,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
@@ -38,10 +38,10 @@ type BundleProfile struct {
 
 // BundleAgent declares one activation-scoped agent packaged by a bundle profile.
 type BundleAgent struct {
-	Path      string              `toml:"path,omitempty" json:"path,omitempty"`
-	Agent     aghconfig.AgentDef  `toml:"-"              json:"agent"`
-	Soul      *BundleAgentSidecar `toml:"-"              json:"soul,omitempty"`
-	Heartbeat *BundleAgentSidecar `toml:"-"              json:"heartbeat,omitempty"`
+	Path      string                 `toml:"path,omitempty" json:"path,omitempty"`
+	Agent     compozyconfig.AgentDef `toml:"-"              json:"agent"`
+	Soul      *BundleAgentSidecar    `toml:"-"              json:"soul,omitempty"`
+	Heartbeat *BundleAgentSidecar    `toml:"-"              json:"heartbeat,omitempty"`
 }
 
 // BundleAgentSidecar stores immutable packaged authored-context content.

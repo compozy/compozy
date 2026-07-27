@@ -35,7 +35,7 @@ func TestManagerTranscriptPageDelegatesToProjection(t *testing.T) {
 			TurnID:    "turn-1",
 			Type:      acp.EventTypeUserMessage,
 			AgentName: session.Info().AgentName,
-			Content:   `{"schema":"agh.session.event.v1","type":"user_message","text":"hello"}`,
+			Content:   `{"schema":"compozy.session.event.v1","type":"user_message","text":"hello"}`,
 			Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		},
 		{
@@ -43,7 +43,7 @@ func TestManagerTranscriptPageDelegatesToProjection(t *testing.T) {
 			TurnID:    "turn-1",
 			Type:      acp.EventTypeAgentMessage,
 			AgentName: session.Info().AgentName,
-			Content:   `{"schema":"agh.session.event.v1","type":"agent_message","text":"hi"}`,
+			Content:   `{"schema":"compozy.session.event.v1","type":"agent_message","text":"hi"}`,
 			Timestamp: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 		},
 	}
@@ -87,7 +87,7 @@ func TestManagerTranscriptPageIncludesSyntheticOriginMessages(t *testing.T) {
 			TurnID:    "turn-user",
 			Type:      acp.EventTypeUserMessage,
 			AgentName: session.Info().AgentName,
-			Content:   `{"schema":"agh.session.event.v1","type":"user_message","text":"hello"}`,
+			Content:   `{"schema":"compozy.session.event.v1","type":"user_message","text":"hello"}`,
 			Timestamp: time.Date(2026, 4, 18, 13, 0, 0, 0, time.UTC),
 		},
 		{
@@ -95,7 +95,7 @@ func TestManagerTranscriptPageIncludesSyntheticOriginMessages(t *testing.T) {
 			TurnID:    "turn-synth",
 			Type:      acp.EventTypeSyntheticReentry,
 			AgentName: session.Info().AgentName,
-			Content:   `{"schema":"agh.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
+			Content:   `{"schema":"compozy.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
 			Timestamp: time.Date(2026, 4, 18, 13, 0, 1, 0, time.UTC),
 		},
 		{
@@ -103,7 +103,7 @@ func TestManagerTranscriptPageIncludesSyntheticOriginMessages(t *testing.T) {
 			TurnID:    "turn-synth",
 			Type:      acp.EventTypeAgentMessage,
 			AgentName: session.Info().AgentName,
-			Content:   `{"schema":"agh.session.event.v1","type":"agent_message","text":"resuming work"}`,
+			Content:   `{"schema":"compozy.session.event.v1","type":"agent_message","text":"resuming work"}`,
 			Timestamp: time.Date(2026, 4, 18, 13, 0, 2, 0, time.UTC),
 		},
 	}
@@ -164,7 +164,7 @@ func TestManagerTranscriptPageLogsCleanupErrorsWithoutFailingSuccessfulRead(t *t
 				TurnID:    "turn-synth",
 				Type:      acp.EventTypeSyntheticReentry,
 				AgentName: "coder",
-				Content:   `{"schema":"agh.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
+				Content:   `{"schema":"compozy.session.event.v1","type":"synthetic_reentry","text":"daemon wake-up"}`,
 				Timestamp: time.Date(2026, 4, 18, 13, 30, 0, 0, time.UTC),
 			}},
 		},
@@ -632,7 +632,7 @@ func transcriptProjectionEvent(
 	t.Helper()
 	timestamp := time.Date(2026, 7, 7, 12, 0, 0, int(sequence), time.UTC)
 	payload, err := json.Marshal(map[string]string{
-		"schema":     "agh.session.event.v1",
+		"schema":     "compozy.session.event.v1",
 		"type":       eventType,
 		"session_id": sessionID,
 		"turn_id":    turnID,

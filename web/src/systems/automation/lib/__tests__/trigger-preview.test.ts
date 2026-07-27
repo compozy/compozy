@@ -219,8 +219,8 @@ describe("buildTriggerPreview", () => {
         .flat()
         .map(segment => segment.text)
         .join("") ?? "";
-    expect(curlText).toContain("X-AGH-Webhook-Signature: sha256=…");
-    expect(curlText).toContain("X-AGH-Webhook-Timestamp: …");
+    expect(curlText).toContain("X-Compozy-Webhook-Signature: sha256=…");
+    expect(curlText).toContain("X-Compozy-Webhook-Timestamp: …");
     // summary uses "globally" for webhooks, never a workspace.
     expect(preview.summary.map(segment => segment.text).join("")).toContain("globally");
   });

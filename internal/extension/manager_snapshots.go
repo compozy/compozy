@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 
@@ -36,7 +36,7 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.Hooks = append(clone.Hooks, cloneHookDecl(decl))
 	}
 	for _, agent := range ext.agents {
-		clone.Agents = append(clone.Agents, aghconfig.CloneAgentDef(agent))
+		clone.Agents = append(clone.Agents, compozyconfig.CloneAgentDef(agent))
 	}
 	clone.Bundles = cloneBundleSpecs(ext.bundles)
 	if len(ext.skills) > 0 {
@@ -100,7 +100,7 @@ func cloneBundleAgents(values []BundleAgent) []BundleAgent {
 	for _, value := range values {
 		next := BundleAgent{
 			Path:  strings.TrimSpace(value.Path),
-			Agent: aghconfig.CloneAgentDef(value.Agent),
+			Agent: compozyconfig.CloneAgentDef(value.Agent),
 		}
 		if value.Soul != nil {
 			soul := *value.Soul

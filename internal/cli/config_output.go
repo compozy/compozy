@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func configShowBundle(record configShowRecord, entries []configEntry) outputBundle {
@@ -281,7 +281,7 @@ func configValidateBundle(record configValidateRecord) outputBundle {
 	}
 }
 
-func dotEnvDiagnosticSummaries(diagnostics []aghconfig.DotEnvDiagnostic) []string {
+func dotEnvDiagnosticSummaries(diagnostics []compozyconfig.DotEnvDiagnostic) []string {
 	summaries := make([]string, 0, len(diagnostics))
 	for _, diagnostic := range diagnostics {
 		location := ""

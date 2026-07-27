@@ -17,7 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -856,7 +856,7 @@ func registerSchedulerWorkspace(t *testing.T, db *globaldb.GlobalDB, name string
 	if err := os.MkdirAll(rootDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", rootDir, err)
 	}
-	workspace := aghworkspace.Workspace{
+	workspace := compozyworkspace.Workspace{
 		ID:        "ws-" + strings.ReplaceAll(name, " ", "-"),
 		RootDir:   rootDir,
 		Name:      name,

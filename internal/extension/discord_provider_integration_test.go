@@ -519,7 +519,7 @@ func newDiscordProviderAPIServer(t *testing.T) *discordProviderAPIServer {
 		case r.Method == http.MethodGet && r.URL.Path == "/users/@me":
 			writeDiscordProviderJSON(t, w, http.StatusOK, map[string]any{
 				"id":       "app-1",
-				"username": "agh",
+				"username": "compozy",
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/messages":
 			writeDiscordProviderJSON(t, w, http.StatusOK, map[string]any{

@@ -19,7 +19,7 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.Path != "/api/bridges/brg-1/verify" {
 					t.Fatalf("request = %s %s, want POST verify route", req.Method, req.URL.Path)
@@ -44,7 +44,7 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.Path != "/api/bridges/brg-1/send-test" {
 					t.Fatalf("request = %s %s, want POST send-test route", req.Method, req.URL.Path)
@@ -99,7 +99,7 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 		t.Parallel()
 
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 				return newHTTPResponse(http.StatusOK, `{
   "status": "maybe_delivered",

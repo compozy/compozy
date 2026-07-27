@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 )
 
-func settingsExtensionsConfigPayload(value aghconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {
+func settingsExtensionsConfigPayload(value compozyconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {
 	return contract.SettingsExtensionsConfigPayload{
 		Marketplace: contract.SettingsExtensionMarketplacePayload{
 			Registry:        strings.TrimSpace(value.Marketplace.Registry),
@@ -27,7 +27,7 @@ func settingsExtensionsConfigPayload(value aghconfig.ExtensionsConfig) contract.
 }
 
 func settingsExtensionRateLimitPayload(
-	value aghconfig.ExtensionsResourceRateLimitConfig,
+	value compozyconfig.ExtensionsResourceRateLimitConfig,
 ) contract.SettingsExtensionRateLimitPayload {
 	return contract.SettingsExtensionRateLimitPayload{
 		Requests: value.Requests,
@@ -38,20 +38,20 @@ func settingsExtensionRateLimitPayload(
 
 func extensionsConfigFromPayload(
 	payload contract.SettingsExtensionsConfigPayload,
-) (aghconfig.ExtensionsConfig, error) {
+) (compozyconfig.ExtensionsConfig, error) {
 	snapshotRateLimit, err := extensionRateLimitConfigFromPayload(
 		payload.Resources.SnapshotRateLimit,
 		"hooks-extensions.config.resources.snapshot_rate_limit",
 	)
 	if err != nil {
-		return aghconfig.ExtensionsConfig{}, err
+		return compozyconfig.ExtensionsConfig{}, err
 	}
 	operatorWriteRateLimit, err := extensionRateLimitConfigFromPayload(
 		payload.Resources.OperatorWriteRateLimit,
 		"hooks-extensions.config.resources.operator_write_rate_limit",
 	)
 	if err != nil {
-		return aghconfig.ExtensionsConfig{}, err
+		return compozyconfig.ExtensionsConfig{}, err
 	}
 
 	var allowedKinds []resources.ResourceKind
@@ -61,13 +61,13 @@ func extensionsConfigFromPayload(
 		}
 	}
 
-	value := aghconfig.ExtensionsConfig{
-		Marketplace: aghconfig.ExtensionsMarketplaceConfig{
+	value := compozyconfig.ExtensionsConfig{
+		Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
 			Registry:        strings.TrimSpace(payload.Marketplace.Registry),
 			BaseURL:         strings.TrimSpace(payload.Marketplace.BaseURL),
 			AllowUnverified: payload.Marketplace.AllowUnverified,
 		},
-		Resources: aghconfig.ExtensionsResourcesConfig{
+		Resources: compozyconfig.ExtensionsResourcesConfig{
 			AllowedKinds:           allowedKinds,
 			MaxScope:               payload.Resources.MaxScope,
 			SnapshotRateLimit:      snapshotRateLimit,
@@ -75,7 +75,7 @@ func extensionsConfigFromPayload(
 		},
 	}
 	if err := value.Validate(); err != nil {
-		return aghconfig.ExtensionsConfig{}, NewSettingsValidationError(err)
+		return compozyconfig.ExtensionsConfig{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }
@@ -83,14 +83,14 @@ func extensionsConfigFromPayload(
 func extensionRateLimitConfigFromPayload(
 	payload contract.SettingsExtensionRateLimitPayload,
 	path string,
-) (aghconfig.ExtensionsResourceRateLimitConfig, error) {
+) (compozyconfig.ExtensionsResourceRateLimitConfig, error) {
 	window, err := time.ParseDuration(strings.TrimSpace(payload.Window))
 	if err != nil && strings.TrimSpace(payload.Window) != "" {
-		return aghconfig.ExtensionsResourceRateLimitConfig{}, NewSettingsValidationError(
+		return compozyconfig.ExtensionsResourceRateLimitConfig{}, NewSettingsValidationError(
 			fmt.Errorf("%s.window: %w", path, err),
 		)
 	}
-	return aghconfig.ExtensionsResourceRateLimitConfig{
+	return compozyconfig.ExtensionsResourceRateLimitConfig{
 		Requests: payload.Requests,
 		Window:   window,
 		Queue:    payload.Queue,

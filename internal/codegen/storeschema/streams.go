@@ -1,4 +1,4 @@
-// Package storeschema owns deterministic sqlc and Atlas generation for AGH stores.
+// Package storeschema owns deterministic sqlc and Atlas generation for Compozy stores.
 package storeschema
 
 import "path/filepath"

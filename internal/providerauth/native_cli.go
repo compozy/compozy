@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providerenv"
@@ -35,7 +35,7 @@ type NativeCLIStatus struct {
 
 // NativeCLIStatusForProvider resolves the native CLI command used for auth diagnostics.
 func NativeCLIStatusForProvider(
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	lookPath func(string) (string, error),
 ) (*NativeCLIStatus, error) {
 	command, source := NativeCLICommand(provider)
@@ -43,7 +43,7 @@ func NativeCLIStatusForProvider(
 }
 
 // NativeCLICommand returns the command string and source used for native CLI auth diagnostics.
-func NativeCLICommand(provider aghconfig.ProviderConfig) (string, string) {
+func NativeCLICommand(provider compozyconfig.ProviderConfig) (string, string) {
 	if command := strings.TrimSpace(provider.AuthStatusCmd); command != "" {
 		return command, NativeCLISourceAuthStatus
 	}
@@ -93,7 +93,7 @@ func NativeCLIStatusForCommand(
 // NativeCLIMissingMessage explains how to recover when the configured native CLI is unavailable.
 func NativeCLIMissingMessage(
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	nativeCLI *NativeCLIStatus,
 ) string {
 	if nativeCLI == nil || nativeCLI.Command == "" {
@@ -116,7 +116,7 @@ func NativeCLIMissingMessage(
 // NativeCLIReadyMessage explains the provider-owned login boundary when the CLI is present.
 func NativeCLIReadyMessage(
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	nativeCLI *NativeCLIStatus,
 ) string {
 	if nativeCLI == nil || nativeCLI.Command == "" {
@@ -124,13 +124,13 @@ func NativeCLIReadyMessage(
 	}
 	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
 		return fmt.Sprintf(
-			"Native CLI %q is present; AGH does not manage this login state. Run %q if authentication is required.",
+			"Native CLI %q is present; Compozy does not manage this login state. Run %q if authentication is required.",
 			nativeCLI.Command,
 			loginCommand,
 		)
 	}
 	return fmt.Sprintf(
-		"Native CLI %q is present; AGH does not manage this login state. "+
+		"Native CLI %q is present; Compozy does not manage this login state. "+
 			"Use the provider's own login command if authentication is required, "+
 			"or set providers.%s.auth_login_command.",
 		nativeCLI.Command,
@@ -139,7 +139,7 @@ func NativeCLIReadyMessage(
 }
 
 // NativeCLIAuthProblemMessage explains how to recover from a failed native auth status probe.
-func NativeCLIAuthProblemMessage(provider aghconfig.ProviderConfig) string {
+func NativeCLIAuthProblemMessage(provider compozyconfig.ProviderConfig) string {
 	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
 		return fmt.Sprintf("Provider status command reported an auth problem; run %q.", loginCommand)
 	}
@@ -147,16 +147,16 @@ func NativeCLIAuthProblemMessage(provider aghconfig.ProviderConfig) string {
 		"use the provider's native login command or set auth_login_command."
 }
 
-// NativeCLILoginCommandMessage explains that AGH prints native login commands instead of running them.
+// NativeCLILoginCommandMessage explains that Compozy prints native login commands instead of running them.
 func NativeCLILoginCommandMessage(providerName string, operatorCommand string) string {
 	if operatorCommand != "" {
 		return fmt.Sprintf(
-			"AGH does not execute native provider login flows. Run %q in an interactive terminal.",
+			"Compozy does not execute native provider login flows. Run %q in an interactive terminal.",
 			operatorCommand,
 		)
 	}
 	return fmt.Sprintf(
-		"AGH does not manage provider %q login state. Use the provider's native login command, "+
+		"Compozy does not manage provider %q login state. Use the provider's native login command, "+
 			"or set providers.%s.auth_login_command.",
 		providerName,
 		providerName,
@@ -165,13 +165,13 @@ func NativeCLILoginCommandMessage(providerName string, operatorCommand string) s
 
 // CommandEnv returns the provider-auth command environment used by CLI probes and settings diagnostics.
 func CommandEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	environ []string,
 ) ([]string, error) {
 	env := procutil.FilteredDaemonEnv(environ)
-	if provider.EffectiveEnvPolicy() == aghconfig.ProviderEnvPolicyIsolated {
+	if provider.EffectiveEnvPolicy() == compozyconfig.ProviderEnvPolicyIsolated {
 		env = procutil.IsolatedDaemonEnv(environ)
 	}
 	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER", strings.TrimSpace(providerName))
@@ -184,8 +184,8 @@ func CommandEnv(
 	if err != nil {
 		return nil, err
 	}
-	if provider.EffectiveHarness() != aghconfig.ProviderHarnessPiACP ||
-		provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+	if provider.EffectiveHarness() != compozyconfig.ProviderHarnessPiACP ||
+		provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return env, nil
 	}
 	return providerenv.ApplyPiAgentDirPolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
@@ -193,12 +193,12 @@ func CommandEnv(
 
 // NativeCLILoginEnv returns only the env assignments operators need for native CLI login commands.
 func NativeCLILoginEnv(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	_ []string,
 ) ([]string, error) {
-	if provider.EffectiveHomePolicy() != aghconfig.ProviderHomePolicyIsolated {
+	if provider.EffectiveHomePolicy() != compozyconfig.ProviderHomePolicyIsolated {
 		return nil, nil
 	}
 	env, err := providerenv.ResolveHomeEnv(
@@ -210,8 +210,8 @@ func NativeCLILoginEnv(
 	if err != nil {
 		return nil, err
 	}
-	if provider.EffectiveHarness() == aghconfig.ProviderHarnessPiACP &&
-		provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNativeCLI {
+	if provider.EffectiveHarness() == compozyconfig.ProviderHarnessPiACP &&
+		provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
 		env, err = providerenv.ResolvePiAgentDirEnv(
 			homePaths,
 			providerName,

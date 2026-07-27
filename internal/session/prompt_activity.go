@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/store"
 
@@ -35,7 +35,7 @@ type promptActivitySupervisor struct {
 	turnSource TurnSource
 	startedAt  time.Time
 	deadlineAt *time.Time
-	config     aghconfig.SessionSupervisionConfig
+	config     compozyconfig.SessionSupervisionConfig
 	events     chan acp.AgentEvent
 
 	mu                    sync.Mutex
@@ -56,7 +56,7 @@ func newPromptActivitySupervisor(
 	manager *Manager,
 	session *Session,
 	turnState *promptTurnDispatchState,
-	config aghconfig.SessionSupervisionConfig,
+	config compozyconfig.SessionSupervisionConfig,
 ) *promptActivitySupervisor {
 	supervisorBase := context.Background()
 	if ctx != nil {
@@ -200,7 +200,7 @@ func (s *promptActivitySupervisor) run() {
 
 	interval := s.config.ActivityHeartbeatInterval
 	if interval <= 0 {
-		interval = aghconfig.DefaultSessionSupervisionConfig().ActivityHeartbeatInterval
+		interval = compozyconfig.DefaultSessionSupervisionConfig().ActivityHeartbeatInterval
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

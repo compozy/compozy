@@ -68,7 +68,7 @@ export function recordSessionDebugEvent(
   publishDebugState();
 
   if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
-    console.debug("[agh:session]", entry);
+    console.debug("[compozy:session]", entry);
   }
 
   return entry;

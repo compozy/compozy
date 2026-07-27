@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (m *Manager) resolveSessionStartRuntime(
@@ -19,7 +19,7 @@ func (m *Manager) resolveSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
 	agentDef := artifacts.Agent
-	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, aghconfig.RuntimeOverrides{
+	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort,
 	})
 	if err != nil {
@@ -39,7 +39,7 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	return sessionStartRuntime{
 		agent:               resolved,
-		agentDef:            aghconfig.CloneAgentDef(agentDef),
+		agentDef:            compozyconfig.CloneAgentDef(agentDef),
 		networkCapabilities: networkPeerCapabilities(agentDef.Capabilities),
 	}, nil
 }
@@ -61,7 +61,7 @@ func (m *Manager) prepareAcceptedSessionRuntime(
 		return fmt.Errorf("session: prepare soul for %q: %w", spec.sessionID, err)
 	}
 
-	agentDef := aghconfig.CloneAgentDef(runtime.agentDef)
+	agentDef := compozyconfig.CloneAgentDef(runtime.agentDef)
 	startupCtx := spec.startupPromptContext(updatedAt)
 	if strings.TrimSpace(startupCtx.AgentName) == "" {
 		startupCtx.AgentName = strings.TrimSpace(agentDef.Name)
@@ -93,7 +93,7 @@ func (m *Manager) prepareAcceptedSessionRuntime(
 			agentDef.Prompt = strings.TrimSpace(agentDef.Prompt) + "\n\n" + overlay
 		}
 	}
-	runtime.agentDef = aghconfig.CloneAgentDef(agentDef)
+	runtime.agentDef = compozyconfig.CloneAgentDef(agentDef)
 	runtime.agent.Prompt = agentDef.Prompt
 
 	runtime.mcpServers, err = m.sessionMCPServers(ctx, spec, runtime.agent, agentDef)

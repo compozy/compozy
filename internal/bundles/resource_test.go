@@ -9,7 +9,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -24,7 +24,7 @@ func TestBundleActivationOwnedKindAllowlist(t *testing.T) {
 
 	for _, kind := range []resources.ResourceKind{
 		windowmanager.WindowLayoutResourceKind,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		soul.ResourceKind,
 		heartbeat.ResourceKind,
 		automationpkg.JobResourceKind,

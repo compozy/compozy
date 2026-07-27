@@ -71,7 +71,7 @@ function variableDeclarator(name, initType) {
 }
 
 async function runOxlint({ filename, source }) {
-  const root = await mkdtemp(join(tmpdir(), "agh-ui-reuse-"));
+  const root = await mkdtemp(join(tmpdir(), "compozy-ui-reuse-"));
   tempRoots.push(root);
 
   const sourcePath = join(root, filename);
@@ -143,7 +143,7 @@ describe("compozy-ui-reuse lint plugin", () => {
           'export type { CardProps, CardSize } from "./components/card";',
           'export {\n  Timeline,\n  type TimelineProps,\n} from "./components/custom/timeline";',
           'export { useDirection, DirectionProvider } from "./components/direction";',
-          'export { COMPOZY_CODE_THEMES, normalizeAghCodeLanguage } from "./lib/code-theme";',
+          'export { COMPOZY_CODE_THEMES, normalizeCompozyCodeLanguage } from "./lib/code-theme";',
           'export { StatusDot as RenamedDot } from "./components/custom/status-dot";',
         ].join("\n")
       );
@@ -157,16 +157,16 @@ describe("compozy-ui-reuse lint plugin", () => {
       ]);
     });
 
-    it("Should ban the real @agh/ui surface contract component names", () => {
+    it("Should ban the real @compozy/ui surface contract component names", () => {
       const reports = runRule("/repo/web/src/systems/settings/components/panel.tsx", visitor => {
         for (const name of [
-          "Section",
+          "KindChip",
           "Timeline",
           "ToolCallRow",
           "ActionResultBanner",
           "OperationalLinksRow",
           "FieldLabel",
-          "Empty",
+          "RightRail",
         ]) {
           visitor.FunctionDeclaration(functionDeclaration(name));
         }
@@ -185,10 +185,10 @@ describe("compozy-ui-reuse lint plugin", () => {
         visitor.FunctionDeclaration(functionDeclaration("ActionResultBanner"));
         visitor.ClassDeclaration({
           type: "ClassDeclaration",
-          id: { type: "Identifier", name: "Empty" },
+          id: { type: "Identifier", name: "KindChip" },
         });
         visitor.VariableDeclarator(variableDeclarator("ToolCallRow", "CallExpression"));
-        visitor.VariableDeclarator(variableDeclarator("Section", "ArrowFunctionExpression"));
+        visitor.VariableDeclarator(variableDeclarator("Timeline", "ArrowFunctionExpression"));
       });
       expect(reports).toHaveLength(4);
       expect(reports[0].data).toEqual({ name: "ActionResultBanner" });
@@ -228,10 +228,10 @@ describe("compozy-ui-reuse lint plugin", () => {
     it("Should fail a web consumer redefining a primitive as a function declaration", async () => {
       const result = await runOxlint({
         filename: "web/src/systems/settings/components/panel.tsx",
-        source: "function Section() {\n  return null;\n}\nexport { Section };\n",
+        source: "function RightRail() {\n  return null;\n}\nexport { RightRail };\n",
       });
       expect(result.exitCode).not.toBe(0);
-      expect(result.messages.join("\n")).toContain('"Section" is an @agh/ui primitive');
+      expect(result.messages.join("\n")).toContain('"RightRail" is an @compozy/ui primitive');
     });
 
     it("Should fail a site consumer redefining a primitive through a wrapper call", async () => {
@@ -241,7 +241,7 @@ describe("compozy-ui-reuse lint plugin", () => {
           'import { memo } from "react";\nexport const KindChip = memo(function Chip() {\n  return null;\n});\n',
       });
       expect(result.exitCode).not.toBe(0);
-      expect(result.messages.join("\n")).toContain('"KindChip" is an @agh/ui primitive');
+      expect(result.messages.join("\n")).toContain('"KindChip" is an @compozy/ui primitive');
     });
 
     it("Should allow stories, domain-prefixed names, and non-consumer paths", async () => {

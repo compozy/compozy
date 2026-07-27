@@ -106,7 +106,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  },
 			  "proof": null,
 			  "ext": {
-			    "agh.workflow": {"ticket": "NET-42"}
+			    "compozy.workflow": {"ticket": "NET-42"}
 			  }
 			}`),
 		},

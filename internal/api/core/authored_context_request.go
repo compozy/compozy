@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -85,7 +85,7 @@ func authoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentName stri
 		}
 	}
 	if root := strings.TrimSpace(workspace.RootDir); root != "" && name != "" {
-		return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name, "AGENT.md")
+		return filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, name, "AGENT.md")
 	}
 	return ""
 }

@@ -520,7 +520,7 @@ Prompt.
 			name: "ShouldRejectDottedToolID",
 			content: `---
 name: coder
-tools: ["agh.skill_view"]
+tools: ["compozy.skill_view"]
 ---
 
 Prompt.
@@ -542,7 +542,7 @@ Prompt.
 			name: "ShouldRejectDottedToolsetID",
 			content: `---
 name: coder
-toolsets: ["agh.core"]
+toolsets: ["compozy.core"]
 ---
 
 Prompt.

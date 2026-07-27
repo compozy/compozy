@@ -22,7 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
@@ -163,7 +163,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					Kind:        "say",
 					Body:        json.RawMessage(`{"text":"ok"}`),
 					Ext: map[string]json.RawMessage{
-						"agh.metadata": json.RawMessage(`{"claim_token":"compozy_claim_secret"}`),
+						"compozy.metadata": json.RawMessage(`{"claim_token":"compozy_claim_secret"}`),
 					},
 				},
 			},
@@ -638,7 +638,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
 					WorkspaceID: "ws-workspace",
-					Agents:      []aghconfig.AgentDef{{Name: "coder"}},
+					Agents:      []compozyconfig.AgentDef{{Name: "coder"}},
 				}, nil
 			},
 		}
@@ -721,7 +721,7 @@ func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
 				}},
 				Agents: []extensionpkg.BundleAgent{{
 					Path: "agents/planner",
-					Agent: aghconfig.AgentDef{
+					Agent: compozyconfig.AgentDef{
 						Name:   "planner",
 						Model:  "sonnet",
 						Prompt: "Plan campaign work.",
@@ -2280,7 +2280,7 @@ func TestBaseHandlersCreateNetworkChannelRollsBackPartialProvisioning(t *testing
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
-					Agents: []aghconfig.AgentDef{
+					Agents: []compozyconfig.AgentDef{
 						{Name: "coder"},
 						{Name: "reviewer"},
 					},
@@ -2374,7 +2374,7 @@ func TestBaseHandlersCreateNetworkChannelRollsBackPartialProvisioning(t *testing
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
-					Agents: []aghconfig.AgentDef{
+					Agents: []compozyconfig.AgentDef{
 						{Name: "coder"},
 						{Name: "reviewer"},
 					},
@@ -2469,7 +2469,7 @@ func TestBaseHandlersCreateNetworkChannelRollsBackPartialProvisioning(t *testing
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
-					Agents:    []aghconfig.AgentDef{{Name: "coder"}},
+					Agents:    []compozyconfig.AgentDef{{Name: "coder"}},
 				}, nil
 			},
 		}
@@ -2556,7 +2556,7 @@ func TestBaseHandlersCreateNetworkChannelRollsBackPartialProvisioning(t *testing
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				return workspacepkg.ResolvedWorkspace{
 					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
-					Agents: []aghconfig.AgentDef{
+					Agents: []compozyconfig.AgentDef{
 						{Name: "coder"},
 						{Name: "reviewer"},
 					},
@@ -5730,7 +5730,7 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
 						WorkspaceID: "ws-stable",
-						Agents: []aghconfig.AgentDef{
+						Agents: []compozyconfig.AgentDef{
 							{Name: "coder"},
 							{Name: "reviewer"},
 						},

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -28,7 +28,7 @@ type promptSkillsRegistry interface {
 	ForAgentDefSession(
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
-		agent aghconfig.AgentDef,
+		agent compozyconfig.AgentDef,
 		sessionID string,
 	) ([]*skillspkg.Skill, error)
 }
@@ -111,7 +111,7 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 func (a *skillsCatalogAugmenter) skillsForSessionAgent(
 	ctx context.Context,
 	workspace *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skillspkg.Skill, error) {
 	if strings.TrimSpace(agent.SourcePath) == "" {

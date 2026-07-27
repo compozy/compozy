@@ -4,20 +4,20 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 // MCPServerItem is one MCP server collection row.
 type MCPServerItem struct {
 	Name                   string
-	Transport              aghconfig.MCPServerTransport
+	Transport              compozyconfig.MCPServerTransport
 	Command                string
 	Args                   []string
 	EnvKeys                []string
 	SecretEnvKeys          []string
 	URL                    string
-	Auth                   aghconfig.MCPAuthConfig
+	Auth                   compozyconfig.MCPAuthConfig
 	ClientSecretConfigured bool
 	AuthStatus             *mcpauth.Status
 	RuntimeStatus          *MCPServerRuntimeStatus
@@ -118,7 +118,7 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 }
 
 func committedMCPServerItem(
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	scope ScopeKind,
 	workspaceID string,
 	target WriteTargetKind,

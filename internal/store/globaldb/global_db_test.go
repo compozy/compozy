@@ -30,7 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/pressly/goose/v3"
 )
 
@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 }
 
 func runGlobalDBTests(m *testing.M) (code int) {
-	dir, err := os.MkdirTemp("", "agh-globaldb-current-schema-*")
+	dir, err := os.MkdirTemp("", "compozy-globaldb-current-schema-*")
 	if err != nil {
 		reportTestMainError("MkdirTemp(globaldb seed) error = %v", err)
 		return 1
@@ -310,7 +310,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			t.Fatalf("Status(first) error = %v", err)
 		}
 		root := t.TempDir()
-		workspace := aghworkspace.Workspace{
+		workspace := compozyworkspace.Workspace{
 			ID:        "ws-reopen",
 			RootDir:   root,
 			Name:      "reopen",
@@ -478,7 +478,7 @@ func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, 
 			sql: `INSERT INTO workspaces (
 				id, root_dir, name, created_at, updated_at
 			) VALUES (
-				'ws-precut', '/tmp/agh-precut', 'precut',
+				'ws-precut', '/tmp/compozy-precut', 'precut',
 				'2026-07-13T10:00:00Z', '2026-07-13T10:00:00Z'
 			)`,
 		},
@@ -1342,7 +1342,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	}
 
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	ws := aghworkspace.Workspace{
+	ws := compozyworkspace.Workspace{
 		ID:             "ws-primary",
 		RootDir:        canonicalRoot,
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
@@ -1360,7 +1360,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWorkspace() error = %v", err)
 	}
-	assertWorkspaceEqual(t, byID, aghworkspace.Workspace{
+	assertWorkspaceEqual(t, byID, compozyworkspace.Workspace{
 		ID:             ws.ID,
 		RootDir:        canonicalRoot,
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
@@ -1401,11 +1401,11 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 
 	t.Run("Should persist revisioned network coordination with availability fencing", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		ref := aghworkspace.CoordinationRef{
+		ref := compozyworkspace.CoordinationRef{
 			WorkspaceID: updated.ID,
-			ScopeKind:   aghworkspace.InvitationScopeWorkspace,
+			ScopeKind:   compozyworkspace.InvitationScopeWorkspace,
 		}
-		commands := aghworkspace.NewCoordinationService(globalDB)
+		commands := compozyworkspace.NewCoordinationService(globalDB)
 		initialView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
 		if getErr != nil {
 			t.Fatalf("Get(initial coordination) error = %v", getErr)
@@ -1420,7 +1420,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 
 		firstTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 		globalDB.now = func() time.Time { return firstTime }
-		firstView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+		firstView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
 			Ref: ref, Enabled: true, ExpectedRevision: 0,
 		}, operatorActorContextForTest("operator:first"))
 		if setErr != nil {
@@ -1431,7 +1431,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			t.Fatalf("Set(first coordination) = %#v, want enabled revision one", first)
 		}
 
-		secondView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+		secondView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
 			Ref: ref, Enabled: false, ExpectedRevision: 1,
 		}, operatorActorContextForTest("operator:second"))
 		if setErr != nil {
@@ -1448,7 +1448,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		if _, disableErr := globalDB.SetNetworkAvailability(ctx, false, "operator:disable"); disableErr != nil {
 			t.Fatalf("SetNetworkAvailability(false) error = %v", disableErr)
 		}
-		if _, setErr = commands.Set(ctx, aghworkspace.SetCoordination{
+		if _, setErr = commands.Set(ctx, compozyworkspace.SetCoordination{
 			Ref: ref, Enabled: true, ExpectedRevision: 2,
 		}, operatorActorContextForTest("operator:blocked")); !errors.Is(
 			setErr,
@@ -1467,7 +1467,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		if _, enableErr := globalDB.SetNetworkAvailability(ctx, true, "operator:enable"); enableErr != nil {
 			t.Fatalf("SetNetworkAvailability(true) error = %v", enableErr)
 		}
-		thirdView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+		thirdView, setErr := commands.Set(ctx, compozyworkspace.SetCoordination{
 			Ref: ref, Enabled: true, ExpectedRevision: 2,
 		}, operatorActorContextForTest("operator:third"))
 		if setErr != nil || thirdView.Setting.Revision != 3 {
@@ -1486,7 +1486,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			return firstTime.Add(time.Duration(call) * time.Minute)
 		}
 		type setResult struct {
-			view aghworkspace.CoordinationView
+			view compozyworkspace.CoordinationView
 			err  error
 		}
 		firstResult := make(chan setResult, 1)
@@ -1502,7 +1502,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			}
 		}
 		go func() {
-			view, callErr := commands.Set(ctx, aghworkspace.SetCoordination{
+			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
 				Ref: ref, Enabled: true, ExpectedRevision: 3,
 			}, operatorActorContextForTest("operator:concurrent-first"))
 			firstResult <- setResult{view: view, err: callErr}
@@ -1515,7 +1515,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			t.Fatal("timed out waiting for first coordination writer to hold the write lock")
 		}
 		go func() {
-			view, callErr := commands.Set(ctx, aghworkspace.SetCoordination{
+			view, callErr := commands.Set(ctx, compozyworkspace.SetCoordination{
 				Ref: ref, Enabled: false, ExpectedRevision: 3,
 			}, operatorActorContextForTest("operator:concurrent-second"))
 			secondResult <- setResult{view: view, err: callErr}
@@ -1526,7 +1526,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			t.Fatalf("Set(concurrent first) error = %v", firstConcurrent.err)
 		}
 		secondConcurrent := waitForSetResult("second", secondResult)
-		if !errors.Is(secondConcurrent.err, aghworkspace.ErrCoordinationConflict) {
+		if !errors.Is(secondConcurrent.err, compozyworkspace.ErrCoordinationConflict) {
 			t.Fatalf("Set(concurrent second) error = %v, want revision conflict", secondConcurrent.err)
 		}
 		winnerView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
@@ -1561,7 +1561,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		updated.ID,
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
 	}
@@ -1622,7 +1622,7 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}
 		if _, err := globalDB.GetWorkspace(testutil.Context(t), workspaceID); !errors.Is(
 			err,
-			aghworkspace.ErrWorkspaceNotFound,
+			compozyworkspace.ErrWorkspaceNotFound,
 		) {
 			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
 		}
@@ -1790,7 +1790,7 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 	}
 
 	err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID)
-	if !errors.Is(err, aghworkspace.ErrWorkspaceHasActiveSessions) {
+	if !errors.Is(err, compozyworkspace.ErrWorkspaceHasActiveSessions) {
 		t.Fatalf("DeleteWorkspace() error = %v, want ErrWorkspaceHasActiveSessions", err)
 	}
 }
@@ -1808,7 +1808,7 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 		t.Fatalf("MkdirAll(rootB) error = %v", err)
 	}
 
-	base := aghworkspace.Workspace{
+	base := compozyworkspace.Workspace{
 		ID:        "ws-base",
 		RootDir:   rootA,
 		Name:      "alpha",
@@ -1821,30 +1821,30 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 
 	tests := []struct {
 		name string
-		ws   aghworkspace.Workspace
+		ws   compozyworkspace.Workspace
 		want error
 	}{
 		{
 			name: "Should reject a duplicate root directory",
-			ws: aghworkspace.Workspace{
+			ws: compozyworkspace.Workspace{
 				ID:        "ws-duplicate-root",
 				RootDir:   rootA,
 				Name:      "beta",
 				CreatedAt: base.CreatedAt,
 				UpdatedAt: base.UpdatedAt,
 			},
-			want: aghworkspace.ErrWorkspacePathTaken,
+			want: compozyworkspace.ErrWorkspacePathTaken,
 		},
 		{
 			name: "Should reject a duplicate name",
-			ws: aghworkspace.Workspace{
+			ws: compozyworkspace.Workspace{
 				ID:        "ws-duplicate-name",
 				RootDir:   rootB,
 				Name:      "alpha",
 				CreatedAt: base.CreatedAt,
 				UpdatedAt: base.UpdatedAt,
 			},
-			want: aghworkspace.ErrWorkspaceNameTaken,
+			want: compozyworkspace.ErrWorkspaceNameTaken,
 		},
 	}
 
@@ -1885,7 +1885,7 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 		}
 		if mapped := mapWorkspaceDeleteConstraintError(err); !errors.Is(
 			mapped,
-			aghworkspace.ErrWorkspaceHasSessions,
+			compozyworkspace.ErrWorkspaceHasSessions,
 		) {
 			t.Fatalf("mapWorkspaceDeleteConstraintError() error = %v, want ErrWorkspaceHasSessions", mapped)
 		}
@@ -1902,7 +1902,7 @@ func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
 		"ws-missing",
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("GetWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
 	}
@@ -1911,7 +1911,7 @@ func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
 		filepath.Join(t.TempDir(), "missing"),
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("GetWorkspaceByPath(missing) error = %v, want ErrWorkspaceNotFound", err)
 	}
@@ -1920,16 +1920,16 @@ func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
 		"missing",
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("GetWorkspaceByName(missing) error = %v, want ErrWorkspaceNotFound", err)
 	}
-	if err := globalDB.UpdateWorkspace(testutil.Context(t), aghworkspace.Workspace{
+	if err := globalDB.UpdateWorkspace(testutil.Context(t), compozyworkspace.Workspace{
 		ID:        "ws-missing",
 		RootDir:   filepath.Join(t.TempDir(), "missing"),
 		Name:      "missing",
 		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-	}); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+	}); !errors.Is(err, compozyworkspace.ErrWorkspaceNotFound) {
 		t.Fatalf("UpdateWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
 	}
 	if err := globalDB.DeleteWorkspace(
@@ -1937,7 +1937,7 @@ func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
 		"ws-missing",
 	); !errors.Is(
 		err,
-		aghworkspace.ErrWorkspaceNotFound,
+		compozyworkspace.ErrWorkspaceNotFound,
 	) {
 		t.Fatalf("DeleteWorkspace(missing) error = %v, want ErrWorkspaceNotFound", err)
 	}
@@ -1962,7 +1962,7 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 
-	if err := globalDB.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{
+	if err := globalDB.InsertWorkspace(testutil.Context(t), compozyworkspace.Workspace{
 		RootDir: rootDir,
 		Name:    "defaulted",
 	}); err != nil {
@@ -1976,7 +1976,7 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 	if got, want := len(workspaces), 1; got != want {
 		t.Fatalf("len(workspaces) = %d, want %d", got, want)
 	}
-	if !aghworkspace.IsWorkspaceID(workspaces[0].ID) {
+	if !compozyworkspace.IsWorkspaceID(workspaces[0].ID) {
 		t.Fatalf("workspaces[0].ID = %q, want workspace_id ULID", workspaces[0].ID)
 	}
 	if workspaces[0].CreatedAt.IsZero() || workspaces[0].UpdatedAt.IsZero() {
@@ -1990,13 +1990,13 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 		{
 			name: "insert missing root",
 			run: func() error {
-				return globalDB.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{Name: "missing-root"})
+				return globalDB.InsertWorkspace(testutil.Context(t), compozyworkspace.Workspace{Name: "missing-root"})
 			},
 		},
 		{
 			name: "insert missing name",
 			run: func() error {
-				return globalDB.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{RootDir: rootDir})
+				return globalDB.InsertWorkspace(testutil.Context(t), compozyworkspace.Workspace{RootDir: rootDir})
 			},
 		},
 		{
@@ -2004,7 +2004,7 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 			run: func() error {
 				return globalDB.UpdateWorkspace(
 					testutil.Context(t),
-					aghworkspace.Workspace{RootDir: rootDir, Name: "missing-id"},
+					compozyworkspace.Workspace{RootDir: rootDir, Name: "missing-id"},
 				)
 			},
 		},
@@ -2058,14 +2058,14 @@ func TestGlobalDBListWorkspacesStableOrder(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	first := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+	first := insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 		ID:        "ws-zeta",
 		RootDir:   filepath.Join(t.TempDir(), "workspace-zeta"),
 		Name:      "zeta",
 		CreatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
 	})
-	second := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+	second := insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 		ID:        "ws-alpha",
 		RootDir:   filepath.Join(t.TempDir(), "workspace-alpha"),
 		Name:      "alpha",
@@ -3086,7 +3086,11 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 	return workspaceID
 }
 
-func insertWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, ws aghworkspace.Workspace) aghworkspace.Workspace {
+func insertWorkspaceForGlobalTests(
+	t *testing.T,
+	globalDB *GlobalDB,
+	ws compozyworkspace.Workspace,
+) compozyworkspace.Workspace {
 	t.Helper()
 
 	if strings.TrimSpace(ws.RootDir) == "" {
@@ -3110,7 +3114,7 @@ func insertWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, ws aghworks
 func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name string, rootDir string) string {
 	t.Helper()
 
-	workspace := insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+	workspace := insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 		ID:        "ws-" + strings.ReplaceAll(name, " ", "-"),
 		RootDir:   rootDir,
 		Name:      name,
@@ -3174,7 +3178,7 @@ func assertPermissionLogIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	}
 }
 
-func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghworkspace.Workspace) {
+func assertWorkspaceEqual(t *testing.T, got compozyworkspace.Workspace, want compozyworkspace.Workspace) {
 	t.Helper()
 
 	if got.ID != want.ID ||

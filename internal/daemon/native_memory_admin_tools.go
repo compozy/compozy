@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
@@ -214,7 +214,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 	}
 	dreamAgent := strings.TrimSpace(n.deps.Config.Roles.Dream.Agent)
 	if dreamAgent == "" {
-		dreamAgent = aghconfig.BuiltinDreamingCuratorAgentName
+		dreamAgent = compozyconfig.BuiltinDreamingCuratorAgentName
 	}
 	payload := contract.MemoryHealthPayload{
 		Status:             "ok",

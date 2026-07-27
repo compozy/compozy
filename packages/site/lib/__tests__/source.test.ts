@@ -110,7 +110,7 @@ const runtimePageTree: Root = {
         {
           type: "page",
           $id: "cli-reference/compozy.mdx",
-          name: "Agh",
+          name: "Compozy",
           url: "/runtime/cli-reference/compozy",
         },
       ],

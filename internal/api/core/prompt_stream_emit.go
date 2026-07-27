@@ -36,7 +36,7 @@ func (e *PromptStreamEncoder) emitToolCall(writer FlushWriter, event acp.AgentEv
 		return err
 	}
 	return WriteSSE(writer, SSEMessage{
-		Data: promptDataEventEnvelope{Type: "data-agh-event", Data: promptAgentEventPayloadFromEvent(event)},
+		Data: promptDataEventEnvelope{Type: "data-compozy-event", Data: promptAgentEventPayloadFromEvent(event)},
 	})
 }
 
@@ -66,7 +66,7 @@ func (e *PromptStreamEncoder) emitPermission(writer FlushWriter, event acp.Agent
 	}
 	return WriteSSE(writer, SSEMessage{
 		Data: promptDataEventEnvelope{
-			Type: "data-agh-permission",
+			Type: "data-compozy-permission",
 			ID:   promptPermissionDataPartID(event),
 			Data: promptAgentEventPayloadFromEvent(event),
 		},
@@ -90,7 +90,7 @@ func (e *PromptStreamEncoder) emitGenericEvent(writer FlushWriter, event acp.Age
 		return err
 	}
 	return WriteSSE(writer, SSEMessage{
-		Data: promptDataEventEnvelope{Type: "data-agh-event", Data: promptAgentEventPayloadFromEvent(event)},
+		Data: promptDataEventEnvelope{Type: "data-compozy-event", Data: promptAgentEventPayloadFromEvent(event)},
 	})
 }
 

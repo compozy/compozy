@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 )
 
 const (
-	// RuntimePeerID is the reserved first-party AGH runtime network peer.
+	// RuntimePeerID is the reserved first-party Compozy runtime network peer.
 	RuntimePeerID        = "compozy.runtime"
 	runtimePeerSessionID = "runtime:compozy.runtime"
 )
@@ -83,7 +83,7 @@ type managedSession struct {
 
 // Manager owns live membership and durable-commit-then-notify dispatch.
 type Manager struct {
-	config       aghconfig.NetworkConfig
+	config       compozyconfig.NetworkConfig
 	logger       *slog.Logger
 	now          func() time.Time
 	lifecycleCtx context.Context
@@ -141,7 +141,7 @@ func WithManagerWakeNotifier(notifier WakeNotifier) ManagerOption {
 // owned by the daemon NetworkWakeRunner.
 func NewManager(
 	ctx context.Context,
-	cfg aghconfig.NetworkConfig,
+	cfg compozyconfig.NetworkConfig,
 	auditPath string,
 	auditStore AuditStore,
 	opts ...ManagerOption,
@@ -190,7 +190,7 @@ func resolveManagerOptions(opts ...ManagerOption) managerOptions {
 	return options
 }
 
-func (m *Manager) initialize(cfg aghconfig.NetworkConfig, auditPath string, auditStore AuditStore) error {
+func (m *Manager) initialize(cfg compozyconfig.NetworkConfig, auditPath string, auditStore AuditStore) error {
 	peers, err := NewPeerRegistry(WithPeerRegistryClock(m.now))
 	if err != nil {
 		return err

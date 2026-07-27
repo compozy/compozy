@@ -6,7 +6,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/network"
 
@@ -103,7 +103,7 @@ func cloneExtensionMap(src network.ExtensionMap) network.ExtensionMap {
 	return dst
 }
 
-func nativeToolPolicyInputs(cfg *aghconfig.Config) (toolspkg.PolicyInputs, error) {
+func nativeToolPolicyInputs(cfg *compozyconfig.Config) (toolspkg.PolicyInputs, error) {
 	if cfg == nil {
 		return toolspkg.PolicyInputs{}, errors.New("daemon: native tool config is required")
 	}
@@ -123,24 +123,24 @@ func nativeToolPolicyInputs(cfg *aghconfig.Config) (toolspkg.PolicyInputs, error
 	}, nil
 }
 
-func nativeToolPermissionMode(mode aghconfig.PermissionMode) toolspkg.PermissionMode {
+func nativeToolPermissionMode(mode compozyconfig.PermissionMode) toolspkg.PermissionMode {
 	switch mode {
-	case aghconfig.PermissionModeDenyAll:
+	case compozyconfig.PermissionModeDenyAll:
 		return toolspkg.PermissionModeDenyAll
-	case aghconfig.PermissionModeApproveReads:
+	case compozyconfig.PermissionModeApproveReads:
 		return toolspkg.PermissionModeApproveReads
-	case aghconfig.PermissionModeApproveAll:
+	case compozyconfig.PermissionModeApproveAll:
 		return toolspkg.PermissionModeApproveAll
 	default:
 		return ""
 	}
 }
 
-func nativeToolExternalDefault(value aghconfig.ToolsExternalDefault) toolspkg.ExternalDefault {
+func nativeToolExternalDefault(value compozyconfig.ToolsExternalDefault) toolspkg.ExternalDefault {
 	switch value {
-	case aghconfig.ToolsExternalDefaultAsk:
+	case compozyconfig.ToolsExternalDefaultAsk:
 		return toolspkg.ExternalDefaultAsk
-	case aghconfig.ToolsExternalDefaultEnabled:
+	case compozyconfig.ToolsExternalDefaultEnabled:
 		return toolspkg.ExternalDefaultEnabled
 	default:
 		return toolspkg.ExternalDefaultDisabled

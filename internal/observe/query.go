@@ -10,7 +10,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 // QueryEvents returns cross-session event summaries ordered for CLI/API consumption.
@@ -139,7 +139,7 @@ func memoryEventQueryForWorkspaces(
 	if workspaceRoot == "" {
 		return query, nil
 	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return store.EventSummaryQuery{}, fmt.Errorf(
 			"observe: resolve memory event workspace identity %q: %w",

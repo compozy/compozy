@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -136,13 +136,13 @@ func newToolProjector(catalog *resourceCatalog[toolspkg.Tool]) resources.TypedPr
 }
 
 func newMCPServerProjector(
-	catalog *resourceCatalog[aghconfig.MCPServer],
-) resources.TypedProjector[aghconfig.MCPServer] {
+	catalog *resourceCatalog[compozyconfig.MCPServer],
+) resources.TypedProjector[compozyconfig.MCPServer] {
 	if catalog == nil {
 		return nil
 	}
-	return &resourceCatalogProjector[aghconfig.MCPServer]{
-		kind:      aghconfig.MCPServerResourceKind,
+	return &resourceCatalogProjector[compozyconfig.MCPServer]{
+		kind:      compozyconfig.MCPServerResourceKind,
 		catalog:   catalog,
 		cloneSpec: cloneDaemonMCPServer,
 	}

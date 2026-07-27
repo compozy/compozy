@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -68,8 +68,8 @@ func TestExtensionInstallOfflineRequiresSideLoadPolicy(t *testing.T) {
 		t.Parallel()
 
 		deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			return aghconfig.DefaultWithHome(homePaths), nil
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			return compozyconfig.DefaultWithHome(homePaths), nil
 		}
 		dir := writeExtensionFixture(t, "blocked-offline-ext", extensionFixtureOptions{})
 
@@ -306,8 +306,8 @@ func TestExtensionStatusOnlineUsesDaemonClient(t *testing.T) {
 			return expected, nil
 		},
 	})
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
 
@@ -355,8 +355,8 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 	})
 	installExtensionFixture(t, homePaths, dir)
 
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
 	statusClient := &stubClient{
@@ -421,8 +421,8 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 			}, nil
 		},
 	})
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
 
@@ -508,7 +508,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	}
 }
 
-func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, aghconfig.HomePaths) {
+func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, compozyconfig.HomePaths) {
 	t.Helper()
 
 	deps := newTestDeps(t, client)
@@ -519,9 +519,9 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, aghc
 	if err := cliTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
 		t.Fatalf("cli store seed Clone() error = %v", err)
 	}
-	deps.ensureHome = aghconfig.EnsureHomeLayout
-	deps.loadConfig = func() (aghconfig.Config, error) {
-		cfg := aghconfig.DefaultWithHome(homePaths)
+	deps.ensureHome = compozyconfig.EnsureHomeLayout
+	deps.loadConfig = func() (compozyconfig.Config, error) {
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.Extensions.Marketplace.AllowUnverified = true
 		return cfg, nil
 	}
@@ -588,7 +588,7 @@ func writeExtensionManifest(t *testing.T, path string, content string) {
 	}
 }
 
-func installExtensionFixture(t *testing.T, homePaths aghconfig.HomePaths, dir string) {
+func installExtensionFixture(t *testing.T, homePaths compozyconfig.HomePaths, dir string) {
 	t.Helper()
 
 	registry, cleanup := openExtensionRegistry(t, homePaths)
@@ -607,10 +607,10 @@ func installExtensionFixture(t *testing.T, homePaths aghconfig.HomePaths, dir st
 	}
 }
 
-func openExtensionRegistry(t *testing.T, homePaths aghconfig.HomePaths) (*extensionpkg.Registry, func()) {
+func openExtensionRegistry(t *testing.T, homePaths compozyconfig.HomePaths) (*extensionpkg.Registry, func()) {
 	t.Helper()
 
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
@@ -624,7 +624,7 @@ func openExtensionRegistry(t *testing.T, homePaths aghconfig.HomePaths) (*extens
 	}
 }
 
-func getInstalledExtension(t *testing.T, homePaths aghconfig.HomePaths, name string) *extensionpkg.ExtensionInfo {
+func getInstalledExtension(t *testing.T, homePaths compozyconfig.HomePaths, name string) *extensionpkg.ExtensionInfo {
 	t.Helper()
 
 	registry, cleanup := openExtensionRegistry(t, homePaths)

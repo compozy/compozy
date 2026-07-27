@@ -5,19 +5,19 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func automationSettingsFromPayload(
 	payload contract.SettingsAutomationConfigPayload,
 ) (settingspkg.AutomationSettings, error) {
-	config := aghconfig.AutomationConfig{
+	config := compozyconfig.AutomationConfig{
 		Enabled:           payload.Enabled,
 		Timezone:          strings.TrimSpace(payload.Timezone),
 		MaxConcurrentJobs: payload.MaxConcurrentJobs,
 		DefaultFireLimit:  payload.DefaultFireLimit,
-		Suggestions: aghconfig.AutomationSuggestionsConfig{
+		Suggestions: compozyconfig.AutomationSuggestionsConfig{
 			PendingCap: automationmodel.DefaultSuggestionPendingCap,
 		},
 	}

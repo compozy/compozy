@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // MCPResolver collects and resolves MCP server declarations from enabled skills.
@@ -15,7 +15,7 @@ type MCPResolver struct {
 }
 
 // NewMCPResolver constructs an MCPResolver from skills config and logger settings.
-func NewMCPResolver(cfg aghconfig.SkillsConfig, logger *slog.Logger) *MCPResolver {
+func NewMCPResolver(cfg compozyconfig.SkillsConfig, logger *slog.Logger) *MCPResolver {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -29,11 +29,11 @@ func NewMCPResolver(cfg aghconfig.SkillsConfig, logger *slog.Logger) *MCPResolve
 // Resolve returns MCP servers from enabled skills after trust-tier filtering.
 // When multiple declarations share the same trimmed server name, the later
 // skill in source-precedence order replaces the earlier one ("last wins").
-// The caller then passes the result through aghconfig.MergeMCPServers, which
+// The caller then passes the result through compozyconfig.MergeMCPServers, which
 // keeps the first server at each final position. Combined together, skill-local
 // duplicates are resolved last-wins before config-vs-skill merge applies its
 // first-wins behavior.
-func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
+func (mr *MCPResolver) Resolve(skills []*Skill) []compozyconfig.MCPServer {
 	if len(skills) == 0 {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
 	ordered := orderSkillsBySource(skills)
 	allowedMarketplace := marketplaceAllowlist(mr.allowedMarketplace)
 
-	resolved := make([]aghconfig.MCPServer, 0)
+	resolved := make([]compozyconfig.MCPServer, 0)
 	index := make(map[string]int)
 	origins := make([]mcpOrigin, 0)
 
@@ -170,8 +170,8 @@ func marketplaceConsentKeys(skill *Skill) []string {
 	return keys
 }
 
-func toConfigMCPServer(decl MCPServerDecl) aghconfig.MCPServer {
-	return aghconfig.MCPServer{
+func toConfigMCPServer(decl MCPServerDecl) compozyconfig.MCPServer {
+	return compozyconfig.MCPServer{
 		Name:      decl.Name,
 		Command:   decl.Command,
 		Args:      append([]string(nil), decl.Args...),

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -52,7 +52,7 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 			deps,
 			resolved,
 			driver,
-			session.WithSessionCompactionConfig(aghconfig.DefaultSessionCompactionConfig()),
+			session.WithSessionCompactionConfig(compozyconfig.DefaultSessionCompactionConfig()),
 			session.WithCompactionHandler(runtime),
 		)
 		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
@@ -93,7 +93,7 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 		}
 		checkpoint := readCompactionCheckpoint(t, workspaceRoot)
 		if !strings.Contains(checkpoint, compactionIntegrationFact) ||
-			!strings.Contains(checkpoint, "agh:checkpoint-compaction:v1") {
+			!strings.Contains(checkpoint, "compozy:checkpoint-compaction:v1") {
 			t.Fatalf("checkpoint = %q, want fact and durable coverage", checkpoint)
 		}
 
@@ -158,7 +158,7 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 			deps,
 			resolved,
 			driver,
-			session.WithSessionCompactionConfig(aghconfig.DefaultSessionCompactionConfig()),
+			session.WithSessionCompactionConfig(compozyconfig.DefaultSessionCompactionConfig()),
 			session.WithCompactionHandler(runtime),
 			session.WithStore(func(
 				ctx context.Context,
@@ -185,7 +185,7 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 
 		checkpoint := readCompactionCheckpoint(t, workspaceRoot)
 		if !strings.Contains(checkpoint, compactionIntegrationFact) ||
-			!strings.Contains(checkpoint, "agh:checkpoint-compaction:v1") {
+			!strings.Contains(checkpoint, "compozy:checkpoint-compaction:v1") {
 			t.Fatalf("checkpoint = %q, want coverage committed before archive failure", checkpoint)
 		}
 		archived, err := manager.Events(
@@ -373,7 +373,7 @@ func historyContains(history []store.TurnHistory, needle string) bool {
 
 func readCompactionCheckpoint(t *testing.T, workspaceRoot string) string {
 	t.Helper()
-	path := filepath.Join(workspaceRoot, aghconfig.DirName, "memory", memory.CheckpointSummaryFilename)
+	path := filepath.Join(workspaceRoot, compozyconfig.DirName, "memory", memory.CheckpointSummaryFilename)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
@@ -383,8 +383,8 @@ func readCompactionCheckpoint(t *testing.T, workspaceRoot string) string {
 
 func compactionReplayPayload(t *testing.T, prompt string) string {
 	t.Helper()
-	start := strings.Index(prompt, "<agh_context_replay>")
-	end := strings.Index(prompt, "</agh_context_replay>")
+	start := strings.Index(prompt, "<compozy_context_replay>")
+	end := strings.Index(prompt, "</compozy_context_replay>")
 	if start < 0 || end <= start {
 		t.Fatalf("prompt missing replay block: %q", prompt)
 	}

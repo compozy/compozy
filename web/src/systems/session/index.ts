@@ -2,7 +2,7 @@
 export type {
   ACPCaps,
   AgentEventPayload,
-  AghPermissionData,
+  CompozyPermissionData,
   AnswerClarificationBody,
   AnswerClarificationResult,
   ApproveSessionParams,

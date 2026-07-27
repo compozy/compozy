@@ -181,7 +181,7 @@ func TestClearConversationResetsStoreOpenedWithStaleRows(t *testing.T) {
 						TurnID:    "turn-stale-reset",
 						Type:      acp.EventTypeUserMessage,
 						AgentName: "coder",
-						Content:   "{\"schema\":\"agh.session.event.v1\",\"type\":\"user_message\",\"text\":\"stale reset row\"}",
+						Content:   "{\"schema\":\"compozy.session.event.v1\",\"type\":\"user_message\",\"text\":\"stale reset row\"}",
 					}); err != nil {
 						closeCtx := testutil.Context(t)
 						return nil, errors.Join(err, recorder.Close(closeCtx))

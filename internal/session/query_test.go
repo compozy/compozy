@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -148,7 +148,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(workspace) error = %v", err)
 		}
-		resolved.Agents = append(resolved.Agents, aghconfig.AgentDef{
+		resolved.Agents = append(resolved.Agents, compozyconfig.AgentDef{
 			Name:     "onboarding",
 			Provider: "claude",
 			Prompt:   "Internal onboarding.",

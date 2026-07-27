@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -15,13 +15,13 @@ func TestManagerContractWebhookReplay(t *testing.T) {
 		h := newManagerHarness(t)
 		t.Setenv("COMPOZY_TEST_WEBHOOK_SECRET", "super-secret")
 		current := time.Date(2026, 4, 12, 11, 0, 0, 0, time.UTC)
-		cfg := aghconfig.AutomationConfig{
+		cfg := compozyconfig.AutomationConfig{
 			Enabled:           true,
 			Timezone:          DefaultTimezone,
 			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  DefaultFireLimitConfig(),
-			Triggers: []aghconfig.AutomationTrigger{
-				func() aghconfig.AutomationTrigger {
+			Triggers: []compozyconfig.AutomationTrigger{
+				func() compozyconfig.AutomationTrigger {
 					trigger := managerConfigTrigger(
 						AutomationScopeWorkspace,
 						"webhook-replay-restart",

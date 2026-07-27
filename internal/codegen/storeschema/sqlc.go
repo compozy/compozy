@@ -49,7 +49,7 @@ func runSQLC(ctx context.Context, toolRoot, configPath, outputPath string) error
 
 // CheckSQLC regenerates into a temporary tree and rejects generated-code or import-ownership drift.
 func CheckSQLC(ctx context.Context, root string) (err error) {
-	tempRoot, err := os.MkdirTemp("", "agh-sqlc-check-")
+	tempRoot, err := os.MkdirTemp("", "compozy-sqlc-check-")
 	if err != nil {
 		return fmt.Errorf("codegen: create sqlc check directory: %w", err)
 	}

@@ -3,30 +3,30 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestCloneDaemonMCPServer(t *testing.T) {
 	t.Run("Should Preserve Remote Metadata And Deep Copy", func(t *testing.T) {
 		t.Parallel()
 
-		original := aghconfig.MCPServer{
+		original := compozyconfig.MCPServer{
 			Name:      "github",
-			Transport: aghconfig.MCPServerTransportSSE,
+			Transport: compozyconfig.MCPServerTransportSSE,
 			Command:   "ignored",
 			Args:      []string{"--stdio"},
 			Env: map[string]string{
 				"TOKEN_ENV": "GITHUB_TOKEN",
 			},
 			URL: "https://mcp.example.test/sse",
-			Auth: aghconfig.MCPAuthConfig{
-				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+			Auth: compozyconfig.MCPAuthConfig{
+				Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 				IssuerURL:        "https://issuer.example.test",
 				MetadataURL:      "https://issuer.example.test/.well-known/oauth-authorization-server",
 				AuthorizationURL: "https://issuer.example.test/authorize",
 				TokenURL:         "https://issuer.example.test/token",
 				RevocationURL:    "https://issuer.example.test/revoke",
-				ClientID:         "agh-client",
+				ClientID:         "compozy-client",
 				ClientSecretRef:  "env:GITHUB_MCP_CLIENT_SECRET",
 				Scopes:           []string{"tools.read", "issues.write"},
 			},
@@ -37,13 +37,13 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 		original.Env["TOKEN_ENV"] = "mutated"
 		original.Auth.Scopes[0] = "mutated"
 
-		if got, want := cloned.Transport, aghconfig.MCPServerTransportSSE; got != want {
+		if got, want := cloned.Transport, compozyconfig.MCPServerTransportSSE; got != want {
 			t.Fatalf("cloned.Transport = %q, want %q", got, want)
 		}
 		if got, want := cloned.URL, "https://mcp.example.test/sse"; got != want {
 			t.Fatalf("cloned.URL = %q, want %q", got, want)
 		}
-		if got, want := cloned.Auth.Type, aghconfig.MCPAuthTypeOAuth2PKCE; got != want {
+		if got, want := cloned.Auth.Type, compozyconfig.MCPAuthTypeOAuth2PKCE; got != want {
 			t.Fatalf("cloned.Auth.Type = %q, want %q", got, want)
 		}
 		if got, want := cloned.Auth.ClientSecretRef, "env:GITHUB_MCP_CLIENT_SECRET"; got != want {

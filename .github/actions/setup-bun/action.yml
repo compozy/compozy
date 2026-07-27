@@ -1,5 +1,5 @@
 name: "Setup Bun Environment"
-description: "Sets up Bun with caching, dependency installation, and optional Playwright browsers for AGH web/"
+description: "Sets up Bun with caching, dependency installation, and optional Playwright browsers for Compozy web/"
 
 inputs:
   cache-key-suffix:

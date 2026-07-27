@@ -11,7 +11,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/network"
 
@@ -22,7 +22,7 @@ import (
 
 func daemonNetworkInfo(
 	ctx context.Context,
-	cfg aghconfig.NetworkConfig,
+	cfg compozyconfig.NetworkConfig,
 	service core.NetworkService,
 ) (*NetworkInfo, error) {
 	if !cfg.Enabled {
@@ -76,7 +76,7 @@ func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 	return nil
 }
 
-func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) skills.RegistryConfig {
+func (d *Daemon) skillsRegistryConfig(cfg *compozyconfig.Config) skills.RegistryConfig {
 	if cfg == nil {
 		return skills.RegistryConfig{
 			BundledFS:     skillbundled.FS(),
@@ -116,7 +116,7 @@ func startSkillsWatcher(
 }
 
 func workspaceSkillWatcherRoots(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry Registry,
 ) func(context.Context) ([]string, error) {
 	if registry == nil {
@@ -131,12 +131,12 @@ func workspaceSkillWatcherRoots(
 
 		roots := make([]string, 0, len(workspaces)*2)
 		for _, workspace := range workspaces {
-			for _, root := range aghconfig.WorkspaceDiscoveryRoots(
+			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 				workspace.RootDir,
 				workspace.AdditionalDirs,
 				homePaths,
 			) {
-				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
+				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
 				}
 				roots = append(roots, root.SkillsDir(), root.AgentsDir())

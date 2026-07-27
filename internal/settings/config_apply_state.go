@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -54,10 +54,10 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 type activeSnapshot struct {
 	hash       string
 	generation int64
-	config     aghconfig.Config
+	config     compozyconfig.Config
 }
 
-func (s *service) advanceActiveConfig(cfg *aghconfig.Config, hash string, generation int64) {
+func (s *service) advanceActiveConfig(cfg *compozyconfig.Config, hash string, generation int64) {
 	s.activeConfig.mu.Lock()
 	defer s.activeConfig.mu.Unlock()
 	s.activeConfig.initialized = true
@@ -66,19 +66,19 @@ func (s *service) advanceActiveConfig(cfg *aghconfig.Config, hash string, genera
 	s.activeConfig.generation = generation
 }
 
-func (s *service) currentDesiredConfigHash() (string, aghconfig.Config, error) {
-	cfg, err := aghconfig.LoadForHome(s.homePaths)
+func (s *service) currentDesiredConfigHash() (string, compozyconfig.Config, error) {
+	cfg, err := compozyconfig.LoadForHome(s.homePaths)
 	if err != nil {
-		return "", aghconfig.Config{}, fmt.Errorf("settings: load desired config: %w", err)
+		return "", compozyconfig.Config{}, fmt.Errorf("settings: load desired config: %w", err)
 	}
 	hash, err := hashConfigSnapshot(&cfg)
 	if err != nil {
-		return "", aghconfig.Config{}, err
+		return "", compozyconfig.Config{}, err
 	}
 	return hash, cfg, nil
 }
 
-func hashConfigSnapshot(cfg *aghconfig.Config) (string, error) {
+func hashConfigSnapshot(cfg *compozyconfig.Config) (string, error) {
 	bytes, err := json.Marshal(cfg)
 	if err != nil {
 		return "", fmt.Errorf("settings: marshal config snapshot: %w", err)

@@ -4,12 +4,12 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // CoordinatorConfigPayloadFromConfig converts resolved coordinator config into a safe read model.
 func CoordinatorConfigPayloadFromConfig(
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	source contract.CoordinatorConfigSource,
 	workspaceID string,
 ) contract.CoordinatorConfigPayload {

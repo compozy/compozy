@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -64,7 +64,7 @@ func TestCreateWithInvalidProviderFailsBeforePersistenceAndLogs(t *testing.T) {
 	if err == nil {
 		t.Fatal("Create() error = nil, want invalid provider failure")
 	}
-	if !errors.Is(err, aghconfig.ErrProviderUnavailable) {
+	if !errors.Is(err, compozyconfig.ErrProviderUnavailable) {
 		t.Fatalf("Create() error = %v, want ErrProviderUnavailable", err)
 	}
 	if !strings.Contains(err.Error(), "missing-provider") {
@@ -212,7 +212,7 @@ func TestResumeFailsWhenPersistedProviderUnavailable(t *testing.T) {
 	if err == nil {
 		t.Fatal("Resume() error = nil, want unavailable provider failure")
 	}
-	if !errors.Is(err, aghconfig.ErrProviderUnavailable) {
+	if !errors.Is(err, compozyconfig.ErrProviderUnavailable) {
 		t.Fatalf("Resume() error = %v, want ErrProviderUnavailable", err)
 	}
 	if !strings.Contains(err.Error(), session.ID) {

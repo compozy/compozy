@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -89,8 +89,8 @@ type BaseHandlerConfig struct {
 	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
-	HomePaths                    aghconfig.HomePaths
-	Config                       aghconfig.Config
+	HomePaths                    compozyconfig.HomePaths
+	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
 	StartedAt                    time.Time
 	Now                          func() time.Time
@@ -167,8 +167,8 @@ type BaseHandlers struct {
 	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
-	HomePaths                    aghconfig.HomePaths
-	Config                       aghconfig.Config
+	HomePaths                    compozyconfig.HomePaths
+	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
 	StartedAt                    time.Time
 	Now                          func() time.Time
@@ -285,7 +285,7 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	agentLoader := cfg.AgentLoader
 	if agentLoader == nil {
-		agentLoader = aghconfig.LoadAgentDef
+		agentLoader = compozyconfig.LoadAgentDef
 	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultPollInterval

@@ -17,7 +17,7 @@ describe("useGithubStarsController", () => {
     vi.mocked(loadGithubStars).mockResolvedValue(42);
     const initialProps: { username?: string; repo?: string } = {
       username: "compozy",
-      repo: "agh",
+      repo: "compozy",
     };
     const { result, rerender } = renderHook(
       ({ username, repo }: { username?: string; repo?: string }) =>

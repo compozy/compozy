@@ -135,7 +135,7 @@ execution_outline = ["inspect", "plan"]
 requirements = ["workspace-write"]
 `)
 	writeFile(t, filepath.Join(agentDir, "SOUL.md"), "Lead with campaign context.")
-	writeFile(t, filepath.Join(agentDir, "HEARTBEAT.md"), "Inspect campaigns and use AGH task APIs.")
+	writeFile(t, filepath.Join(agentDir, "HEARTBEAT.md"), "Inspect campaigns and use Compozy task APIs.")
 
 	bundles, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
 		Name: "bundle-loader",

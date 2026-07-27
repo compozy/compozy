@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -15,7 +15,7 @@ import (
 func TestMCPServerResourceCodecRejectsInvalidSpec(t *testing.T) {
 	t.Parallel()
 
-	codec, err := aghconfig.NewMCPServerResourceCodec()
+	codec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
 		t.Fatalf("NewMCPServerResourceCodec() error = %v", err)
 	}
@@ -64,7 +64,7 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resources.NewKernel() error = %v", err)
 	}
-	codec, err := aghconfig.NewMCPServerResourceCodec()
+	codec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
 		t.Fatalf("NewMCPServerResourceCodec() error = %v", err)
 	}
@@ -83,10 +83,10 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 
-	record, err := store.Put(testutil.Context(t), actor, resources.Draft[aghconfig.MCPServer]{
+	record, err := store.Put(testutil.Context(t), actor, resources.Draft[compozyconfig.MCPServer]{
 		ID:    "git",
 		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		Spec: aghconfig.MCPServer{
+		Spec: compozyconfig.MCPServer{
 			Name:    " git ",
 			Command: " npx ",
 			Args:    []string{" --stdio "},
@@ -130,7 +130,7 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 func TestMCPServerResourceCodecCanonicalizesCollidingEnvKeysDeterministically(t *testing.T) {
 	t.Parallel()
 
-	codec, err := aghconfig.NewMCPServerResourceCodec()
+	codec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
 		t.Fatalf("NewMCPServerResourceCodec() error = %v", err)
 	}

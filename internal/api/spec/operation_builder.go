@@ -11,7 +11,7 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	operation.OperationID = spec.OperationID
 	operation.Summary = spec.Summary
 	operation.Tags = append([]string(nil), spec.Tags...)
-	operation.Extensions = map[string]any{"x-agh-transports": spec.Transports}
+	operation.Extensions = map[string]any{"x-compozy-transports": spec.Transports}
 
 	for _, param := range spec.Parameters {
 		operation.AddParameter(buildParameter(param))

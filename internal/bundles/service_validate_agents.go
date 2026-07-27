@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 )
 
@@ -25,7 +25,7 @@ func (s *Service) validateActivationAgentBindings(
 		if name == "" {
 			continue
 		}
-		if err := aghconfig.ValidateAuthoredAgentName(name); err != nil {
+		if err := compozyconfig.ValidateAuthoredAgentName(name); err != nil {
 			return fmt.Errorf(
 				"bundles: validate activation agent %q at %q: %w",
 				name,
@@ -91,7 +91,7 @@ func (s *Service) visibleAgentNames(ctx context.Context, activation Activation) 
 	return names, nil
 }
 
-func agentRecordVisibleToActivation(record resources.Record[aghconfig.AgentDef], activation Activation) bool {
+func agentRecordVisibleToActivation(record resources.Record[compozyconfig.AgentDef], activation Activation) bool {
 	scope := record.Scope.Normalize()
 	switch activation.Scope.Normalize() {
 	case ScopeWorkspace:

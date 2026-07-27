@@ -12,7 +12,7 @@ vi.mock("../../adapters/session-api", () => ({
 import { toast } from "sonner";
 
 import { approveSession } from "../../adapters/session-api";
-import type { AghPermissionData, PermissionRequest } from "../../types";
+import type { CompozyPermissionData, PermissionRequest } from "../../types";
 import { PermissionDataPart, PermissionPrompt } from "../permission-prompt";
 
 const mockPermission: PermissionRequest = {
@@ -23,7 +23,7 @@ const mockPermission: PermissionRequest = {
   toolInput: { command: "rm -rf /tmp/test" },
 };
 
-const mockPermissionData: AghPermissionData = {
+const mockPermissionData: CompozyPermissionData = {
   type: "permission",
   session_id: "sess-001",
   turn_id: "turn-001",

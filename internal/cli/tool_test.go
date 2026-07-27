@@ -140,7 +140,7 @@ func TestToolArtifactReadCommand(t *testing.T) {
 	t.Parallel()
 
 	artifactURI := toolspkg.ToolArtifactURIPrefix + "art_" + strings.Repeat("a", 64)
-	content := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+	content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
 	page := ToolArtifactPageRecord{
 		Artifact: toolspkg.ArtifactRef{
 			URI:      artifactURI,

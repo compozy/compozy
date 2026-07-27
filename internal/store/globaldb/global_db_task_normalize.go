@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func (g *TaskRepo) normalizeTaskForCreate(record taskpkg.Task) (taskpkg.Task, error) {
@@ -201,7 +201,7 @@ func (g *TaskRepo) ensureWorkspaceExists(ctx context.Context, workspaceID string
 
 	if _, err := g.queries.GetWorkspaceID(ctx, trimmedID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return aghworkspace.ErrWorkspaceNotFound
+			return compozyworkspace.ErrWorkspaceNotFound
 		}
 		return fmt.Errorf("store: lookup workspace %q: %w", trimmedID, err)
 	}

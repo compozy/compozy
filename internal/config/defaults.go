@@ -6,7 +6,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
-// DefaultWithHome returns the built-in default configuration for the supplied AGH home.
+// DefaultWithHome returns the built-in default configuration for the supplied Compozy home.
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon: defaultDaemonConfig(homePaths),

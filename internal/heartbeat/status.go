@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -237,8 +237,8 @@ func resolveStatusTarget(ctx context.Context, target AuthoringTarget) (resolvedA
 }
 
 func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarget, error) {
-	if target.Config == (aghconfig.HeartbeatConfig{}) {
-		target.Config = aghconfig.DefaultHeartbeatConfig()
+	if target.Config == (compozyconfig.HeartbeatConfig{}) {
+		target.Config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	normalized, err := normalizeAuthoringTarget(target)
 	if err != nil {

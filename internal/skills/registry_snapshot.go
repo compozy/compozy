@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
@@ -20,7 +20,7 @@ func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapsh
 	for _, skillPath := range paths {
 		for _, sidecarPath := range []string{
 			filepath.Join(filepath.Dir(skillPath), sidecarFileName),
-			filepath.Join(filepath.Dir(skillPath), aghconfig.MCPJSONName),
+			filepath.Join(filepath.Dir(skillPath), compozyconfig.MCPJSONName),
 		} {
 			snapshot, err := filesnap.FromPath(sidecarPath)
 			if err != nil {

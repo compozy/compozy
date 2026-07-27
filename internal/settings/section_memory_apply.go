@@ -1,12 +1,12 @@
 package settings
 
-import aghconfig "github.com/compozy/compozy/internal/config"
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
-func applyMemorySettings(editor *aghconfig.OverlayEditor, settings *aghconfig.MemoryConfig) error {
+func applyMemorySettings(editor *compozyconfig.OverlayEditor, settings *compozyconfig.MemoryConfig) error {
 	return applyValueUpdates(editor, memorySettingsUpdates(settings))
 }
 
-func memorySettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memorySettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -28,7 +28,7 @@ func memorySettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 	return append(updates, memoryProviderSettingsUpdates(settings)...)
 }
 
-func memoryControllerSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryControllerSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -63,7 +63,7 @@ func memoryControllerSettingsUpdates(settings *aghconfig.MemoryConfig) []struct 
 	}
 }
 
-func memoryRecallSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryRecallSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -132,7 +132,7 @@ func memoryRecallSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 	}
 }
 
-func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryExtractorSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -169,7 +169,7 @@ func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 	}
 }
 
-func memoryDreamSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryDreamSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -241,7 +241,7 @@ func memoryDreamSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 	}
 }
 
-func memoryRetentionSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryRetentionSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {
@@ -300,7 +300,7 @@ func memoryRetentionSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 	}
 }
 
-func memoryProviderSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+func memoryProviderSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct {
 	path  []string
 	value any
 } {

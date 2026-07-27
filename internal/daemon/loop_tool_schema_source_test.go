@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -172,7 +172,7 @@ func (r *devCycleLoopSchemaRuntime) CallTool(
 func newBundledDevCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
@@ -257,7 +257,7 @@ func (s *loopSourceSyncer) sameLoop(
 }
 
 func daemonLoopDeclarationProvider(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry Registry,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
@@ -282,12 +282,12 @@ func daemonLoopDeclarationProvider(
 				Kind: resources.ResourceScopeKindWorkspace,
 				ID:   strings.TrimSpace(resolved.ID),
 			}
-			for _, root := range aghconfig.WorkspaceDiscoveryRoots(
+			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 				resolved.RootDir,
 				resolved.AdditionalDirs,
 				homePaths,
 			) {
-				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
+				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
 				}
 				source := loopSourceForDiscoveryRoot(root.Source)

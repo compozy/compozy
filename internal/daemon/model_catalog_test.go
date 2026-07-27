@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -48,14 +48,14 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 
 		_, httpDeps, _ := bootModelCatalogTestDaemonWithSetup(
 			t,
-			func(cfg *aghconfig.Config) {
+			func(cfg *compozyconfig.Config) {
 				provider := cfg.Providers["codex"]
-				provider.Models = aghconfig.ProviderModelsConfig{
+				provider.Models = compozyconfig.ProviderModelsConfig{
 					Default: "operator-default-only",
-					Curated: []aghconfig.ProviderModelConfig{{ID: "gpt-5.6-sol"}},
+					Curated: []compozyconfig.ProviderModelConfig{{ID: "gpt-5.6-sol"}},
 				}
 				if cfg.Providers == nil {
-					cfg.Providers = make(map[string]aghconfig.ProviderConfig)
+					cfg.Providers = make(map[string]compozyconfig.ProviderConfig)
 				}
 				cfg.Providers["codex"] = provider
 			},
@@ -412,7 +412,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 
 func bootModelCatalogTestDaemon(
 	t *testing.T,
-	mutate func(*aghconfig.Config),
+	mutate func(*compozyconfig.Config),
 ) (*Daemon, RuntimeDeps, RuntimeDeps) {
 	t.Helper()
 
@@ -421,8 +421,8 @@ func bootModelCatalogTestDaemon(
 
 func bootModelCatalogTestDaemonWithSetup(
 	t *testing.T,
-	mutate func(*aghconfig.Config),
-	setup func(*testing.T, aghconfig.HomePaths),
+	mutate func(*compozyconfig.Config),
+	setup func(*testing.T, compozyconfig.HomePaths),
 ) (*Daemon, RuntimeDeps, RuntimeDeps) {
 	t.Helper()
 
@@ -479,7 +479,7 @@ func bootModelCatalogTestDaemonWithSetup(
 	return daemonInstance, httpDeps, udsDeps
 }
 
-func seedPreExplicitCurationRows(t *testing.T, homePaths aghconfig.HomePaths) {
+func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths) {
 	t.Helper()
 
 	ctx := testutil.Context(t)

@@ -32,21 +32,23 @@ describe("MessageMarkdown", () => {
 
   it("renders fenced code without a language as a plain shared CodeBlock", () => {
     const { container } = render(
-      <MessageMarkdown content={["```", "agh start", "```"].join("\n")} />
+      <MessageMarkdown content={["```", "compozy start", "```"].join("\n")} />
     );
 
     const codeBlock = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     expect(codeBlock).toBeInTheDocument();
     expect(codeBlock).toHaveAttribute("data-highlight-state", "plain");
     expect(codeBlock).not.toHaveAttribute("data-language");
-    expect(codeBlock?.textContent).toContain("agh start");
+    expect(codeBlock?.textContent).toContain("compozy start");
   });
 
   it("keeps inline code as compact inline prose", () => {
-    const { container } = render(<MessageMarkdown content={"Use `agh start` from the shell."} />);
+    const { container } = render(
+      <MessageMarkdown content={"Use `compozy start` from the shell."} />
+    );
 
     expect(container.querySelector('[data-slot="code-block"]')).toBeNull();
-    expect(container.querySelector("code")?.textContent).toBe("agh start");
+    expect(container.querySelector("code")?.textContent).toBe("compozy start");
   });
 
   it("renders incomplete fenced code while streaming", async () => {

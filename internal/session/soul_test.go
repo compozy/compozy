@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -82,8 +82,8 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 		}
-		resolved.Config = aghconfig.Config{
-			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
+		resolved.Config = compozyconfig.Config{
+			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
 		}
 		h.resolver.upsert(&resolved)
 		writeSessionSoul(t, h.workspace, "coder", validSessionSoul("Reviewer", "Defaulted body."))
@@ -131,7 +131,7 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 		); err != nil {
 			t.Fatalf("WriteFile(global soul) error = %v", err)
 		}
-		resolved.Agents = []aghconfig.AgentDef{{
+		resolved.Agents = []compozyconfig.AgentDef{{
 			Name:       "coder",
 			Provider:   "claude",
 			Prompt:     "Global prompt.",
@@ -329,7 +329,7 @@ func TestManagerSpawnSoulLineage(t *testing.T) {
 
 		h := newHarness(t, WithSoulSnapshotStore(newFakeSoulSnapshotStore()))
 		writeSessionSoul(t, h.workspace, "coder", validSessionSoul("Reviewer", "Parent body."))
-		addHarnessAgent(t, h, aghconfig.AgentDef{
+		addHarnessAgent(t, h, compozyconfig.AgentDef{
 			Name:     "reviewer",
 			Provider: "claude",
 			Prompt:   "Review code.",
@@ -462,7 +462,7 @@ func (f fakeSoulRunActivityChecker) HasActiveRunForSession(context.Context, stri
 func writeSessionSoul(t *testing.T, workspaceRoot string, agentName string, content string) {
 	t.Helper()
 
-	soulDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, agentName)
+	soulDir := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.AgentsDirName, agentName)
 	if err := os.MkdirAll(soulDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", soulDir, err)
 	}
@@ -480,7 +480,7 @@ func invalidSessionSoul() string {
 	return "---\nprovider: claude\n---\nThis invalid file must fail closed.\n"
 }
 
-func addHarnessAgent(t *testing.T, h *harness, agent aghconfig.AgentDef) {
+func addHarnessAgent(t *testing.T, h *harness, agent compozyconfig.AgentDef) {
 	t.Helper()
 
 	resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)

@@ -36,7 +36,7 @@ func layeredEnvLookup(primary envLookup, fallback envLookup) envLookup {
 type LoadOption func(*loadOptions)
 
 // WithWorkspaceRoot loads the optional workspace overlay from `<root>/.compozy/config.toml`.
-// When omitted, Load applies only the built-in defaults and the global AGH home config.
+// When omitted, Load applies only the built-in defaults and the global Compozy home config.
 func WithWorkspaceRoot(root string) LoadOption {
 	return func(opts *loadOptions) {
 		opts.workspaceRoot = root
@@ -88,7 +88,7 @@ func Load(opts ...LoadOption) (Config, error) {
 }
 
 // LoadForHome reads the default config, the optional global config, and the optional workspace
-// overlay using the supplied AGH home layout instead of the ambient process home.
+// overlay using the supplied Compozy home layout instead of the ambient process home.
 func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 	options := loadOptions{}
 	for _, opt := range opts {

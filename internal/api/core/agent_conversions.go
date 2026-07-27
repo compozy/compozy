@@ -2,12 +2,12 @@ package core
 
 import (
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // AgentPayloadFromDef converts an agent definition into the shared payload.
-func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
+func AgentPayloadFromDef(agent compozyconfig.AgentDef) contract.AgentPayload {
 	return AgentPayloadFromEntry(AgentCatalogEntry{
 		Def:    agent,
 		Origin: contract.AgentOriginGlobal,
@@ -16,13 +16,13 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 
 // AgentCatalogEntryFromDef attaches origin truth to one disk-loaded definition.
 func AgentCatalogEntryFromDef(
-	home aghconfig.HomePaths,
-	agent aghconfig.AgentDef,
+	home compozyconfig.HomePaths,
+	agent compozyconfig.AgentDef,
 	workspaceID string,
 ) AgentCatalogEntry {
-	origin, _ := aghconfig.AgentOriginFor(home, agent.SourcePath)
-	entry := AgentCatalogEntry{Def: aghconfig.CloneAgentDef(agent)}
-	if origin == aghconfig.AgentOriginWorkspace || (origin == "" && workspaceID != "") {
+	origin, _ := compozyconfig.AgentOriginFor(home, agent.SourcePath)
+	entry := AgentCatalogEntry{Def: compozyconfig.CloneAgentDef(agent)}
+	if origin == compozyconfig.AgentOriginWorkspace || (origin == "" && workspaceID != "") {
 		entry.Origin = contract.AgentOriginWorkspace
 		entry.WorkspaceID = workspaceID
 		return entry
@@ -36,7 +36,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 	agent := entry.Def
 	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
-		redacted := aghconfig.RedactedMCPServer(server)
+		redacted := compozyconfig.RedactedMCPServer(server)
 		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
 			Name:      redacted.Name,
 			Transport: string(redacted.Transport),
@@ -48,7 +48,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 			Auth:      agentMCPAuthPayload(redacted.Auth),
 		})
 	}
-	digest, digestErr := aghconfig.AgentDefinitionDigest(agent)
+	digest, digestErr := compozyconfig.AgentDefinitionDigest(agent)
 	diagnostics := make([]contract.AgentDiagnosticPayload, 0, 1)
 	if digestErr != nil {
 		diagnostics = append(diagnostics, contract.AgentDiagnosticPayload{
@@ -83,7 +83,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 // the requested workspace/global config without mutating authored fields.
 func AgentPayloadFromEntryWithConfig(
 	entry AgentCatalogEntry,
-	cfg *aghconfig.Config,
+	cfg *compozyconfig.Config,
 ) contract.AgentPayload {
 	payload := AgentPayloadFromEntry(entry)
 	if cfg == nil || len(payload.Diagnostics) > 0 {

@@ -8,14 +8,14 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (m *Manager) dispatchAgentPreStart(
 	ctx context.Context,
 	session *Session,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, error) {
 	if m == nil {
@@ -50,24 +50,24 @@ func (m *Manager) dispatchAgentSpawned(
 	ctx context.Context,
 	session *Session,
 	proc *AgentProcess,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 ) {
 	m.dispatchAgentObservation(ctx, session, proc, resolved, nil, hookspkg.HookAgentSpawned)
 }
 
 func (m *Manager) dispatchAgentCrashed(ctx context.Context, session *Session, proc *AgentProcess, waitErr error) {
-	m.dispatchAgentObservation(ctx, session, proc, aghconfig.ResolvedAgent{}, waitErr, hookspkg.HookAgentCrashed)
+	m.dispatchAgentObservation(ctx, session, proc, compozyconfig.ResolvedAgent{}, waitErr, hookspkg.HookAgentCrashed)
 }
 
 func (m *Manager) dispatchAgentStopped(ctx context.Context, session *Session, proc *AgentProcess, waitErr error) {
-	m.dispatchAgentObservation(ctx, session, proc, aghconfig.ResolvedAgent{}, waitErr, hookspkg.HookAgentStopped)
+	m.dispatchAgentObservation(ctx, session, proc, compozyconfig.ResolvedAgent{}, waitErr, hookspkg.HookAgentStopped)
 }
 
 func (m *Manager) dispatchAgentObservation(
 	ctx context.Context,
 	session *Session,
 	proc *AgentProcess,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	waitErr error,
 	event hookspkg.HookEvent,
 ) {

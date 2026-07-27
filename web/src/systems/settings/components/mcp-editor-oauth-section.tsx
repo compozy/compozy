@@ -57,7 +57,7 @@ export function MCPEditorOAuthSection({
               id="mcp-oauth-client-id"
               className="font-mono"
               value={oauth.clientId}
-              placeholder="agh-linear-public"
+              placeholder="compozy-linear-public"
               aria-invalid={errors.clientId ? true : undefined}
               onChange={event => onChange({ ...oauth, clientId: event.target.value })}
               data-testid="settings-mcp-editor-oauth-client-id"

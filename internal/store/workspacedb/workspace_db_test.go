@@ -10,7 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestOpen(t *testing.T) {
@@ -28,7 +28,7 @@ func TestOpen(t *testing.T) {
 		if got, want := db.Path(), filepath.Join(realWorkspaceRoot, ".compozy", store.GlobalDatabaseName); got != want {
 			t.Fatalf("Path() = %q, want %q", got, want)
 		}
-		if !aghworkspace.IsWorkspaceID(db.WorkspaceID()) {
+		if !compozyworkspace.IsWorkspaceID(db.WorkspaceID()) {
 			t.Fatalf("WorkspaceID() = %q, want canonical ULID", db.WorkspaceID())
 		}
 		firstStatus, err := store.Status(ctx, db.DB(), MigrationStream())

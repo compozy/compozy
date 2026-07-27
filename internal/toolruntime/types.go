@@ -35,7 +35,7 @@ const (
 	ProcessStateStale        ProcessState = "stale"
 )
 
-// ProcessSource identifies the AGH subsystem that launched a process.
+// ProcessSource identifies the Compozy subsystem that launched a process.
 type ProcessSource string
 
 const (

@@ -1,8 +1,8 @@
 package settings
 
-import aghconfig "github.com/compozy/compozy/internal/config"
+import compozyconfig "github.com/compozy/compozy/internal/config"
 
-func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.NetworkConfig) []string {
+func diffNetworkSettings(current compozyconfig.NetworkConfig, desired compozyconfig.NetworkConfig) []string {
 	changed := make([]string, 0, 20)
 	appendNetworkChange := func(path string, differs bool) {
 		if differs {
@@ -75,7 +75,7 @@ func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.Netw
 	return changed
 }
 
-func applyNetworkSettings(editor *aghconfig.OverlayEditor, settings aghconfig.NetworkConfig) error {
+func applyNetworkSettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.NetworkConfig) error {
 	networkPath := func(parts ...string) []string {
 		return append([]string{string(SectionNetwork)}, parts...)
 	}

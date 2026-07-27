@@ -69,7 +69,7 @@ type DaytonaProfile struct {
 	AutoArchive string `toml:"auto_archive,omitempty"`
 }
 
-// Config is the fully merged AGH configuration.
+// Config is the fully merged Compozy configuration.
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`

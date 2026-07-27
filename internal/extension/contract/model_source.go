@@ -6,7 +6,7 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 )
 
-// ModelSourceListParams is sent by AGH to extension model sources.
+// ModelSourceListParams is sent by Compozy to extension model sources.
 type ModelSourceListParams struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	Refresh      bool   `json:"refresh,omitempty"`

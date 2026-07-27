@@ -257,7 +257,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			{
 				name: "extension metadata",
 				mutate: func(req *store.AcceptNetworkMessageRequest, token string) {
-					req.Message.ExtJSON = json.RawMessage(`{"agh.metadata":{"claim_token":"` + token + `"}}`)
+					req.Message.ExtJSON = json.RawMessage(`{"compozy.metadata":{"claim_token":"` + token + `"}}`)
 				},
 			},
 		}

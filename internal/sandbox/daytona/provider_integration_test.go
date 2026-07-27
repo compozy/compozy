@@ -51,7 +51,7 @@ func TestDaytonaProviderIntegrationFullLifecycle(t *testing.T) {
 			Backend:        sandbox.BackendDaytona,
 			SyncMode:       sandbox.SyncModeSessionBidirectional,
 			Persistence:    sandbox.PersistenceTransient,
-			RuntimeRootDir: "/home/daytona/agh-integration",
+			RuntimeRootDir: "/home/daytona/compozy-integration",
 			Daytona: &sandbox.DaytonaConfig{
 				APIURL:        os.Getenv("DAYTONA_API_URL"),
 				Image:         image,

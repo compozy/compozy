@@ -248,7 +248,7 @@ export const slackBridgeManifestFixture: SlackBridgeManifestResponse = {
       },
       slash_commands: [
         {
-          command: "/agh",
+          command: "/compozy",
           description: "Send a command to CompozyOS",
           should_escape: false,
           url: "https://bridge.example.test/slack/launch-room",

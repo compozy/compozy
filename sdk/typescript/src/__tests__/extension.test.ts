@@ -28,7 +28,7 @@ function initializeFor(extension: Extension): InitializeRequest {
   return {
     protocol_version: "1",
     supported_protocol_versions: ["1"],
-    agh_version: "0.5.0",
+    compozy_version: "0.5.0",
     session_nonce: "session-nonce-test",
     extension: {
       name: extension.definition.name,

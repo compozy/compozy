@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -59,7 +59,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 
 		taskRecord := createTaskViaUDS(t, ctx, harness, "Local default task")
 		taskRun := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
-		var claimResponse aghcontract.AgentTaskClaimResponse
+		var claimResponse compozycontract.AgentTaskClaimResponse
 		agentUDSJSON(
 			t,
 			ctx,
@@ -67,7 +67,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 			localSession,
 			http.MethodPost,
 			"/api/agent/tasks/claim-next",
-			aghcontract.AgentTaskClaimNextRequest{
+			compozycontract.AgentTaskClaimNextRequest{
 				RunID:        taskRun.ID,
 				WorkspaceID:  harness.WorkspaceID,
 				LeaseSeconds: 30,
@@ -78,7 +78,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 		if claimedRun.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
 			t.Fatalf("claimed task run status = %q, want claimed", claimedRun.Status)
 		}
-		startedRun, err := harness.StartTaskRun(ctx, taskRun.ID, aghcontract.StartTaskRunRequest{})
+		startedRun, err := harness.StartTaskRun(ctx, taskRun.ID, compozycontract.StartTaskRunRequest{})
 		if err != nil {
 			t.Fatalf("StartTaskRun(%q) error = %v", taskRun.ID, err)
 		}
@@ -91,7 +91,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 			t.Fatalf("GetSession(Local task run) error = %v", err)
 		}
 		assertLocalSessionHasNoNetworkTools(t, ctx, harness, taskSession.ID)
-		var completedLease aghcontract.AgentTaskLeaseResponse
+		var completedLease compozycontract.AgentTaskLeaseResponse
 		agentUDSJSON(
 			t,
 			ctx,
@@ -99,7 +99,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 			taskSession,
 			http.MethodPost,
 			"/api/agent/tasks/"+url.PathEscape(taskRun.ID)+"/complete",
-			aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"status":"local-complete"}`)},
+			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"status":"local-complete"}`)},
 			&completedLease,
 		)
 		if completedLease.Lease.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
@@ -109,7 +109,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 		loopDefinition := localDefaultLoopDefinition()
 		createLoopViaHTTP(t, ctx, harness, loopDefinition)
 		loopRun := runLoopViaHTTP(t, ctx, harness, loopDefinition.Meta.Name)
-		waitForLoopRunStatus(t, ctx, harness, loopRun.ID, aghcontract.LoopRunStatusDone)
+		waitForLoopRunStatus(t, ctx, harness, loopRun.ID, compozycontract.LoopRunStatusDone)
 
 		registration, ok := harness.MockAgentRegistration("local-default")
 		if !ok {
@@ -123,7 +123,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 	})
 }
 
-func localDefaultLoopDefinition() aghcontract.LoopDefinitionDocument {
+func localDefaultLoopDefinition() compozycontract.LoopDefinitionDocument {
 	definition := loopEventsDefinition()
 	definition.Meta.Name = "local-default-probe"
 	definition.Meta.Description = "Runtime E2E probe for Local default execution."
@@ -141,7 +141,7 @@ func assertLocalSessionHasNoNetworkTools(
 	sessionID string,
 ) {
 	t.Helper()
-	var response aghcontract.ToolsResponse
+	var response compozycontract.ToolsResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 		"/sessions/" + url.PathEscape(sessionID) + "/tools"
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -173,8 +173,8 @@ func assertLocalACPDiagnosticsHaveNoNetworkContext(
 		}
 		seenTurns[record.TurnName] = true
 		for _, fragment := range []string{
-			"# AGH Network",
-			"# AGH Network Response Register",
+			"# Compozy Network",
+			"# Compozy Network Response Register",
 			"COMPOZY_SESSION_CHANNEL",
 			"COMPOZY_PEER_ID",
 		} {

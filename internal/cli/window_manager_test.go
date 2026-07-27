@@ -94,7 +94,7 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 			}
 		})
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh-window-manager-test.sock",
+			socketPath: "/tmp/compozy-window-manager-test.sock",
 			httpClient: &http.Client{Transport: transport},
 		}
 
@@ -166,7 +166,7 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 	t.Run("Should send the bound watch query and enforce the initial fence over a Unix socket", func(t *testing.T) {
 		t.Parallel()
 
-		socketDir, err := os.MkdirTemp("/tmp", "agh-wm-cli-")
+		socketDir, err := os.MkdirTemp("/tmp", "compozy-wm-cli-")
 		if err != nil {
 			t.Fatalf("os.MkdirTemp() error = %v", err)
 		}

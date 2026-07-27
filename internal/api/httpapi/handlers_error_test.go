@@ -14,7 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -395,7 +395,7 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 	}
 	if !contains(partTypes, "reasoning-start") || !contains(partTypes, "reasoning-delta") ||
 		!contains(partTypes, "reasoning-end") ||
-		!contains(partTypes, "data-agh-permission") ||
+		!contains(partTypes, "data-compozy-permission") ||
 		!contains(partTypes, "error") ||
 		!contains(partTypes, "finish") {
 		t.Fatalf("part types = %#v", partTypes)
@@ -412,8 +412,8 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 			return observe.Health{}, errors.New("health failed")
 		},
 	}, homePaths)
-	handlers.AgentLoader = func(_ string, _ aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-		return aghconfig.AgentDef{}, os.ErrNotExist
+	handlers.AgentLoader = func(_ string, _ compozyconfig.HomePaths) (compozyconfig.AgentDef, error) {
+		return compozyconfig.AgentDef{}, os.ErrNotExist
 	}
 	engine := newTestRouter(t, handlers)
 

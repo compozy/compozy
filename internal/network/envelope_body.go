@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type bodyDecoder func(json.RawMessage) (Body, error)
@@ -195,7 +195,7 @@ func normalizeAndValidateCapabilityBody(body *CapabilityBody) error {
 	if err := validateCapabilityRequirements(body.Capability.Requirements, "capability.requirements"); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBody, err)
 	}
-	expectedDigest, err := aghconfig.CanonicalCapabilityDigest(aghconfig.CapabilityDef{
+	expectedDigest, err := compozyconfig.CanonicalCapabilityDigest(compozyconfig.CapabilityDef{
 		ID: body.Capability.ID, Summary: body.Capability.Summary, Outcome: body.Capability.Outcome,
 		Version: body.Capability.Version, ContextNeeded: slices.Clone(body.Capability.ContextNeeded),
 		ArtifactsExpected: slices.Clone(body.Capability.ArtifactsExpected),

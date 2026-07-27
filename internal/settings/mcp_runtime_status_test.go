@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -32,7 +32,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			"type = \"oauth2_pkce\"",
 			"authorization_url = \"https://auth.linear.example/authorize\"",
 			"token_url = \"https://auth.linear.example/token\"",
-			"client_id = \"agh-desktop\"",
+			"client_id = \"compozy-desktop\"",
 		}, "\n"))
 		runtime := &fakeMCPRuntimeProvider{
 			statuses: map[string]MCPServerRuntimeStatus{
@@ -93,7 +93,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			Args:          []string{"serve"},
 			EnvKeys:       []string{"PROJECT"},
 			SecretEnvKeys: []string{"TOKEN"},
-			Auth: aghconfig.MCPAuthConfig{
+			Auth: compozyconfig.MCPAuthConfig{
 				Scopes: []string{"read"},
 			},
 			AuthStatus: &mcpauth.Status{
@@ -141,7 +141,7 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		workspaceRoot := t.TempDir()
-		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
 [[mcp_servers]]
 name = "workspace-docs"
 command = "docs-mcp"
@@ -208,7 +208,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			"token_url = \"https://global.linear.example/token\"",
 			"client_id = \"global-client\"",
 		}, "\n"))
-		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "linear": {
 	  "transport": "http",
@@ -307,14 +307,14 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 
 type recordingMCPAuthRuntime struct {
 	beginTarget    mcpauth.Target
-	beginServer    aghconfig.MCPServer
+	beginServer    compozyconfig.MCPServer
 	exchangeTarget mcpauth.Target
-	exchangeServer aghconfig.MCPServer
+	exchangeServer compozyconfig.MCPServer
 	exchangeInput  mcpauth.ExchangeInput
 	logoutTarget   mcpauth.Target
-	logoutServer   aghconfig.MCPServer
+	logoutServer   compozyconfig.MCPServer
 	callbackTarget mcpauth.Target
-	callbackServer aghconfig.MCPServer
+	callbackServer compozyconfig.MCPServer
 	callbackURL    string
 	invalidated    []mcpauth.Target
 	invalidateErrs map[int]error
@@ -323,7 +323,7 @@ type recordingMCPAuthRuntime struct {
 func (r *recordingMCPAuthRuntime) MCPAuthStatus(
 	context.Context,
 	mcpauth.Target,
-	aghconfig.MCPServer,
+	compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
 	return mcpauth.Status{}, nil
 }
@@ -331,7 +331,7 @@ func (r *recordingMCPAuthRuntime) MCPAuthStatus(
 func (r *recordingMCPAuthRuntime) MCPAuthBegin(
 	_ context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.BeginResult, error) {
 	r.beginTarget = target
@@ -348,7 +348,7 @@ func (r *recordingMCPAuthRuntime) MCPAuthBegin(
 func (r *recordingMCPAuthRuntime) MCPAuthExchange(
 	_ context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	input mcpauth.ExchangeInput,
 ) (mcpauth.Status, error) {
 	r.exchangeTarget = target
@@ -366,7 +366,7 @@ func (r *recordingMCPAuthRuntime) MCPAuthCallbackTarget(string) (mcpauth.Target,
 func (r *recordingMCPAuthRuntime) MCPAuthCompleteCallback(
 	_ context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.Status, error) {
 	r.callbackTarget = target
@@ -386,7 +386,7 @@ func (r *recordingMCPAuthRuntime) MCPAuthInvalidate(target mcpauth.Target) error
 func (r *recordingMCPAuthRuntime) MCPAuthLogout(
 	_ context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
 	r.logoutTarget = target
 	r.logoutServer = server
@@ -414,7 +414,7 @@ type fakeMCPRuntimeProvider struct {
 func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
 	_ context.Context,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) (MCPServerRuntimeStatus, error) {
 	if f.targets != nil {
 		f.targets[strings.TrimSpace(server.Name)] = target

@@ -33,16 +33,16 @@ describe("CodeBlock", () => {
   });
 
   it("Should render the provided code inside a <pre><code> wrapper", () => {
-    const { container } = render(<CodeBlock code="agh start" />);
+    const { container } = render(<CodeBlock code="compozy start" />);
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
     const code = container.querySelector<HTMLElement>('[data-slot="code-block-code"]');
     expect(pre?.tagName).toBe("PRE");
     expect(code?.tagName).toBe("CODE");
-    expect(code?.textContent).toContain("agh start");
+    expect(code?.textContent).toContain("compozy start");
   });
 
   it("Should render the `$ ` prompt when showPrompt is true", () => {
-    const { container } = render(<CodeBlock code="agh start" />);
+    const { container } = render(<CodeBlock code="compozy start" />);
     const prompt = container.querySelector<HTMLElement>('[data-slot="code-block-prompt"]');
     expect(prompt).not.toBeNull();
     expect(prompt?.textContent).toBe("$ ");
@@ -50,7 +50,9 @@ describe("CodeBlock", () => {
   });
 
   it("Should suppress the prompt on continuation and comment lines", () => {
-    const code = ["# comment", "agh network status", '    --body \'{"task":"go"}\'', ""].join("\n");
+    const code = ["# comment", "compozy network status", '    --body \'{"task":"go"}\'', ""].join(
+      "\n"
+    );
     const { container } = render(<CodeBlock code={code} />);
     const prompts = container.querySelectorAll('[data-slot="code-block-prompt"]');
     expect(prompts.length).toBe(1);
@@ -64,19 +66,19 @@ describe("CodeBlock", () => {
   });
 
   it("Should render the language eyebrow only when the language prop is provided", () => {
-    const { container, rerender } = render(<CodeBlock code="agh start" />);
+    const { container, rerender } = render(<CodeBlock code="compozy start" />);
     expect(container.querySelector('[data-slot="code-block-language"]')).toBeNull();
-    rerender(<CodeBlock code="agh start" language="not-a-language" />);
+    rerender(<CodeBlock code="compozy start" language="not-a-language" />);
     const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
     expect(eyebrow?.textContent).toBe("not-a-language");
   });
 
   it("Should render a caption when it differs from the syntax language", () => {
     const { container } = render(
-      <CodeBlock code="agh start" language="not-a-language" caption="agh shell" />
+      <CodeBlock code="compozy start" language="not-a-language" caption="compozy shell" />
     );
     const eyebrow = container.querySelector<HTMLElement>('[data-slot="code-block-language"]');
-    expect(eyebrow?.textContent).toBe("agh shell");
+    expect(eyebrow?.textContent).toBe("compozy shell");
   });
 
   it("Should highlight supported languages with the Vitesse dark theme", async () => {
@@ -130,22 +132,22 @@ describe("CodeBlock", () => {
   });
 
   it("Should hide the copy button when copyable is false", () => {
-    const { container } = render(<CodeBlock code="agh start" copyable={false} />);
+    const { container } = render(<CodeBlock code="compozy start" copyable={false} />);
     expect(container.querySelector('[data-slot="code-block-copy"]')).toBeNull();
   });
 
   it("Should call navigator.clipboard.writeText with the code when copy is clicked", async () => {
-    const { container } = render(<CodeBlock code="agh network status" />);
+    const { container } = render(<CodeBlock code="compozy network status" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
     fireEvent.click(button);
     await waitFor(() => {
-      expect(clipboard.writeText).toHaveBeenCalledWith("agh network status");
+      expect(clipboard.writeText).toHaveBeenCalledWith("compozy network status");
     });
   });
 
   it("Should expose copy failure state when clipboard access fails", async () => {
     clipboard.writeText.mockRejectedValueOnce(new Error("blocked"));
-    const { container } = render(<CodeBlock code="agh start" />);
+    const { container } = render(<CodeBlock code="compozy start" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
     fireEvent.click(button);
     await waitFor(() => {
@@ -157,7 +159,7 @@ describe("CodeBlock", () => {
 
   it("Should swap to the check icon for 1.5s on copy success, then revert", async () => {
     vi.useFakeTimers();
-    const { container } = render(<CodeBlock code="agh start" />);
+    const { container } = render(<CodeBlock code="compozy start" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
     expect(button.querySelector("svg.lucide-copy")).not.toBeNull();
     expect(button.querySelector("svg.lucide-check")).toBeNull();
@@ -178,7 +180,7 @@ describe("CodeBlock", () => {
 
   it("Should restart the copy feedback timer when copy is clicked repeatedly", async () => {
     vi.useFakeTimers();
-    const { container } = render(<CodeBlock code="agh start" />);
+    const { container } = render(<CodeBlock code="compozy start" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
 
     await act(async () => {

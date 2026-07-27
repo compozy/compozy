@@ -475,7 +475,7 @@ func reviewStoreActorContext() taskpkg.ActorContext {
 		},
 		Origin: taskpkg.Origin{
 			Kind: taskpkg.OriginKindCLI,
-			Ref:  "agh",
+			Ref:  "compozy",
 		},
 		Scope:     taskpkg.CallerScope{Operator: true},
 		Authority: taskpkg.Authority{Read: true, Write: true},

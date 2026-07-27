@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
@@ -750,7 +750,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		if err := os.MkdirAll(otherWorkspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(other workspace) error = %v", err)
 		}
-		if err := h.registry.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{
+		if err := h.registry.InsertWorkspace(testutil.Context(t), compozyworkspace.Workspace{
 			ID:        otherWorkspaceID,
 			RootDir:   otherWorkspaceRoot,
 			Name:      "observe-other",

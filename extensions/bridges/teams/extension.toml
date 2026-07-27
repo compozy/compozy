@@ -27,7 +27,7 @@ description = "Optional Microsoft Entra tenant ID for single-tenant pinning"
 required = false
 
 [bridge.config_schema]
-schema = "agh.bridge.teams"
+schema = "compozy.bridge.teams"
 version = "1"
 
 [actions]

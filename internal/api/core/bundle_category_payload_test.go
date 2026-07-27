@@ -6,7 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -31,7 +31,7 @@ func TestBundleActivationPayloadCategoryPath(t *testing.T) {
 				Name: "default",
 				Agents: []extensionpkg.BundleAgent{{
 					Path: "agents/planner",
-					Agent: aghconfig.AgentDef{
+					Agent: compozyconfig.AgentDef{
 						Name:         "planner",
 						Model:        "sonnet",
 						CategoryPath: []string{"Marketing", "Planning"},

@@ -23,7 +23,7 @@ describe("MCP auth adapter", () => {
       callback_url: "http://127.0.0.1:2123/api/mcp/oauth/callback",
       expires_at: "2026-07-15T00:05:00Z",
       manual_supported: true,
-      state: "agh_mcp_x",
+      state: "compozy_mcp_x",
     });
 
     await beginSettingsMCPAuth(

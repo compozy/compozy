@@ -45,7 +45,7 @@ func TestClientSearchParsesListingsAndLimit(t *testing.T) {
 			writer.Header().Set("Content-Type", "application/json")
 			if _, err := writer.Write(
 				[]byte(
-					`{"results":[{"slug":"review","displayName":"Review","summary":"Review code","ownerHandle":"agh","tags":{"latest":"1.2.0"},"stats":{"downloads":42}}]}`,
+					`{"results":[{"slug":"review","displayName":"Review","summary":"Review code","ownerHandle":"compozy","tags":{"latest":"1.2.0"},"stats":{"downloads":42}}]}`,
 				),
 			); err != nil {
 				t.Fatalf("write response: %v", err)
@@ -64,7 +64,7 @@ func TestClientSearchParsesListingsAndLimit(t *testing.T) {
 		}
 
 		got := listings[0]
-		if got.Slug != "review" || got.Name != "review" || got.Author != "agh" ||
+		if got.Slug != "review" || got.Name != "review" || got.Author != "compozy" ||
 			got.Description != "Review code" || got.Version != "1.2.0" || got.Downloads != 42 {
 			t.Fatalf("Search() listing = %#v", got)
 		}
@@ -160,19 +160,19 @@ func TestClientInfoParsesSkillDetail(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			if request.URL.Path != "/api/v1/skills/@agh/review" {
+			if request.URL.Path != "/api/v1/skills/@compozy/review" {
 				t.Fatalf("request.URL.Path = %q, want decoded scoped slug path", request.URL.Path)
 			}
-			if request.URL.RawPath != "/api/v1/skills/@agh%2Freview" {
+			if request.URL.RawPath != "/api/v1/skills/@compozy%2Freview" {
 				t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug segment", request.URL.RawPath)
 			}
 
 			writer.Header().Set("Content-Type", "application/json")
 			if _, err := writer.Write([]byte(`{
-				"slug":"@agh/review",
+				"slug":"@compozy/review",
 				"name":"Review",
 				"description":"Review code",
-				"author":"agh",
+				"author":"compozy",
 				"version":"1.2.0",
 				"downloads":42,
 				"readme":"# Review",
@@ -186,14 +186,14 @@ func TestClientInfoParsesSkillDetail(t *testing.T) {
 
 		client := NewClient(server.URL)
 
-		detail, err := client.Info(context.Background(), "@agh/review")
+		detail, err := client.Info(context.Background(), "@compozy/review")
 		if err != nil {
 			t.Fatalf("Info() error = %v", err)
 		}
 		if detail == nil {
 			t.Fatal("Info() = nil, want detail")
 		}
-		if detail.Slug != "@agh/review" || detail.Name != "Review" || detail.Readme != "# Review" ||
+		if detail.Slug != "@compozy/review" || detail.Name != "Review" || detail.Readme != "# Review" ||
 			!slices.Equal(detail.MCPServers, []string{"github"}) ||
 			!slices.Equal(detail.Tags, []string{"quality", "code"}) {
 			t.Fatalf("Info() detail = %#v", detail)
@@ -371,10 +371,10 @@ func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {
 	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/skills/@agh/review/download" {
+		if request.URL.Path != "/api/v1/skills/@compozy/review/download" {
 			t.Fatalf("request.URL.Path = %q, want decoded scoped slug download path", request.URL.Path)
 		}
-		if request.URL.RawPath != "/api/v1/skills/@agh%2Freview/download" {
+		if request.URL.RawPath != "/api/v1/skills/@compozy%2Freview/download" {
 			t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug download path", request.URL.RawPath)
 		}
 
@@ -386,7 +386,7 @@ func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {
 
 	client := NewClient(server.URL)
 
-	result, err := client.Download(context.Background(), "@agh/review", registry.DownloadOpts{})
+	result, err := client.Download(context.Background(), "@compozy/review", registry.DownloadOpts{})
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
@@ -396,7 +396,7 @@ func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {
 		}
 	})
 
-	if result.Slug != "@agh/review" || result.Version != "1.2.0" {
+	if result.Slug != "@compozy/review" || result.Version != "1.2.0" {
 		t.Fatalf("Download() result = %#v, want slug/version", result)
 	}
 	if result.ContentType != "application/gzip" {
@@ -413,14 +413,14 @@ func TestClientDownloadUsesVersionedEndpointWhenVersionSpecified(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/skills/@agh/review/versions/1.2.3/archive" {
+		if request.URL.Path != "/api/v1/skills/@compozy/review/versions/1.2.3/archive" {
 			t.Fatalf(
 				"request.URL.Path = %q, want decoded scoped slug version path %q",
 				request.URL.Path,
-				"/api/v1/skills/@agh/review/versions/1.2.3/archive",
+				"/api/v1/skills/@compozy/review/versions/1.2.3/archive",
 			)
 		}
-		if request.URL.RawPath != "/api/v1/skills/@agh%2Freview/versions/1.2.3/archive" {
+		if request.URL.RawPath != "/api/v1/skills/@compozy%2Freview/versions/1.2.3/archive" {
 			t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug version path", request.URL.RawPath)
 		}
 
@@ -432,7 +432,7 @@ func TestClientDownloadUsesVersionedEndpointWhenVersionSpecified(t *testing.T) {
 
 	client := NewClient(server.URL)
 
-	result, err := client.Download(context.Background(), "@agh/review", registry.DownloadOpts{
+	result, err := client.Download(context.Background(), "@compozy/review", registry.DownloadOpts{
 		Version: "1.2.3",
 		Asset:   "ignored.tar.gz",
 	})
@@ -492,7 +492,7 @@ func TestClientRetriesHTTP500WithBackoff(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write(
 			[]byte(
-				`{"skills":[{"slug":"@agh/review","name":"Review","description":"Review code","author":"agh","version":"1.2.0","downloads":42}]}`,
+				`{"skills":[{"slug":"@compozy/review","name":"Review","description":"Review code","author":"compozy","version":"1.2.0","downloads":42}]}`,
 			),
 		)
 	}))
@@ -563,13 +563,13 @@ func TestDecodeListingsSupportsDirectArray(t *testing.T) {
 
 	listings, err := decodeListings(
 		strings.NewReader(
-			`[{"slug":"@agh/review","name":"Review","description":"Review code","author":"agh","version":"1.0.0","downloads":1}]`,
+			`[{"slug":"@compozy/review","name":"Review","description":"Review code","author":"compozy","version":"1.0.0","downloads":1}]`,
 		),
 	)
 	if err != nil {
 		t.Fatalf("decodeListings() error = %v", err)
 	}
-	if len(listings) != 1 || listings[0].Slug != "@agh/review" {
+	if len(listings) != 1 || listings[0].Slug != "@compozy/review" {
 		t.Fatalf("decodeListings() = %#v, want one direct-array listing", listings)
 	}
 }
@@ -577,11 +577,11 @@ func TestDecodeListingsSupportsDirectArray(t *testing.T) {
 func TestDecodeListingsSupportsResultsEnvelope(t *testing.T) {
 	t.Parallel()
 
-	listings, err := decodeListings(strings.NewReader(`{"results":[{"slug":"@agh/review"}]}`))
+	listings, err := decodeListings(strings.NewReader(`{"results":[{"slug":"@compozy/review"}]}`))
 	if err != nil {
 		t.Fatalf("decodeListings() error = %v", err)
 	}
-	if len(listings) != 1 || listings[0].Slug != "@agh/review" {
+	if len(listings) != 1 || listings[0].Slug != "@compozy/review" {
 		t.Fatalf("decodeListings() = %#v, want one results-envelope listing", listings)
 	}
 }
@@ -702,7 +702,7 @@ func TestDecodeListingsRejectsInvalidJSON(t *testing.T) {
 func TestResponseErrorUsesJSONAndPlainTextMessages(t *testing.T) {
 	t.Parallel()
 
-	notFound := responseErrorForTest(http.StatusNotFound, `{"error":"missing skill"}`, "info", "@agh/missing")
+	notFound := responseErrorForTest(http.StatusNotFound, `{"error":"missing skill"}`, "info", "@compozy/missing")
 	if !strings.Contains(notFound.Error(), "skill not found") || !strings.Contains(notFound.Error(), "missing skill") {
 		t.Fatalf("responseError(notFound) = %v, want not-found message", notFound)
 	}

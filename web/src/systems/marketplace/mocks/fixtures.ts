@@ -14,7 +14,7 @@ const warningUnsigned = {
   id: "extension_unverified",
   message: "The publisher is not on the trusted registry tier.",
   severity: "warning",
-  suggested_command: "agh extensions verify slack-notify",
+  suggested_command: "compozy extensions verify slack-notify",
   title: "Unsigned package",
 };
 
@@ -31,11 +31,11 @@ const warningNetwork = {
 export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> = {
   skill: [
     {
-      author: "@agh",
+      author: "@compozy",
       description: "Branch, review, and land PRs with the project's own checks as the gate.",
       downloads: 3400,
       entry_id: "git-flow",
-      install_slug: "agh/git-flow",
+      install_slug: "compozy/git-flow",
       installed: true,
       installed_name: "git-flow",
       installed_version: "1.4.2",
@@ -47,12 +47,12 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       version: "1.4.2",
     },
     {
-      author: "@agh",
+      author: "@compozy",
       description:
         "Keep packages/site docs aligned with OpenAPI and CLI help after contract changes.",
       downloads: 840,
       entry_id: "docs-sync",
-      install_slug: "agh/docs-sync",
+      install_slug: "compozy/docs-sync",
       installed: false,
       kind: "skill",
       name: "docs-sync",
@@ -61,12 +61,12 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       version: "0.9.1",
     },
     {
-      author: "@agh",
+      author: "@compozy",
       description:
         "Spin an isolated COMPOZY_HOME lab with ports, provider homes, and a bootstrap manifest.",
       downloads: 2100,
       entry_id: "qa-bootstrap",
-      install_slug: "agh/qa-bootstrap",
+      install_slug: "compozy/qa-bootstrap",
       installed: true,
       installed_name: "qa-bootstrap",
       installed_version: "2.0.0",
@@ -94,11 +94,11 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
   ],
   extension: [
     {
-      author: "@agh",
+      author: "@compozy",
       description: "Export session and tool spans to an OpenTelemetry collector.",
       downloads: 1200,
       entry_id: "otel-bridge",
-      install_slug: "agh/otel-bridge",
+      install_slug: "compozy/otel-bridge",
       installed: false,
       kind: "extension",
       name: "otel-bridge",
@@ -159,7 +159,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
   ],
   bundle: [
     {
-      author: "@agh",
+      author: "@compozy",
       description:
         "Skills and extensions for dependency review, lockfile hygiene, and release notes.",
       entry_id: "dep-kit",
@@ -171,7 +171,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       version: "1.2.0",
     },
     {
-      author: "@agh",
+      author: "@compozy",
       description: "MCP servers and skills for incident triage and status page updates.",
       entry_id: "ops-starter",
       installed: true,
@@ -238,10 +238,10 @@ const skillDetail: MarketplaceEntryResponse = {
   entry: marketplaceListings.skill[0]!,
   skill: {
     display_name: "Git flow",
-    install_slug: "agh/git-flow",
+    install_slug: "compozy/git-flow",
     license: "MIT",
     readme:
-      "## What it does\n\ngit-flow drives the full branch lifecycle from inside a session. It reads the repository's own checks and treats a non-zero exit as a hard stop.\n\n## Usage\n\n```sh\nagh skill run git-flow --branch feat/session-cache\n```",
+      "## What it does\n\ngit-flow drives the full branch lifecycle from inside a session. It reads the repository's own checks and treats a non-zero exit as a hard stop.\n\n## Usage\n\n```sh\ncompozy skill run git-flow --branch feat/session-cache\n```",
     repository: "https://github.com/compozy/skill-git-flow",
     tags: ["git", "review"],
     versions: ["1.4.2", "1.4.1", "1.3.0"],
@@ -270,7 +270,7 @@ const blockedExtensionDetail: MarketplaceEntryResponse = {
 
 const bundleDetail: MarketplaceEntryResponse = {
   bundle: {
-    extension_name: "agh-foundations",
+    extension_name: "compozy-foundations",
     profiles: [
       {
         agents: 1,
@@ -320,7 +320,7 @@ const mcpRemoteDetail: MarketplaceEntryResponse = {
   mcp: {
     default_scope: "workspace",
     oauth: {
-      client_id: "agh-marketplace",
+      client_id: "compozy-marketplace",
       issuer_url: "https://linear.app",
       scopes: ["read", "issues:create"],
     },
@@ -345,7 +345,7 @@ export const marketplaceBundlePreviewFixture: BundlePreviewResponse = {
     bundle_name: "dep-kit",
     channels: [{ name: "dependency-review", primary: true }],
     created_at: "2026-07-14T12:00:00Z",
-    extension_name: "agh-foundations",
+    extension_name: "compozy-foundations",
     id: "bundle-preview-dep-kit",
     inventory: [
       { resource_id: "dep-audit", resource_kind: "skill", resource_name: "dep-audit" },

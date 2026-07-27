@@ -13,8 +13,8 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/procutil"
 )
 
@@ -80,7 +80,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 					Status:    "running",
 					PID:       10,
 					StartedAt: fixedTestNow.Add(-time.Minute),
-					Socket:    "/tmp/agh.sock",
+					Socket:    "/tmp/compozy.sock",
 					HTTPHost:  "localhost",
 					HTTPPort:  2123,
 				},
@@ -589,8 +589,8 @@ func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 			return DaemonStatus{}, os.ErrNotExist
 		},
 	})
-	info := aghdaemon.Info{PID: 42, StartedAt: fixedTestNow}
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) { return info, nil }
+	info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) { return info, nil }
 	deps.processAlive = func(pid int) bool { return pid == 42 }
 
 	runtime, err := loadRuntimeContext(deps)
@@ -638,7 +638,7 @@ func TestDaemonStartRejectsNilDetachedProcess(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
-	deps.spawnDetached = func(context.Context, aghconfig.HomePaths) (daemonProcess, error) {
+	deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
 		return nil, nil
 	}
 

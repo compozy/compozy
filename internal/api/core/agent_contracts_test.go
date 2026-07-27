@@ -8,28 +8,28 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
 	t.Run("Should project MCP bindings as redacted presence without Vault refs", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
+		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{
 			Name:     "reviewer",
 			Provider: "codex",
-			MCPServers: []aghconfig.MCPServer{{
+			MCPServers: []compozyconfig.MCPServer{{
 				Name:      "github",
 				Command:   "npx",
 				SecretEnv: map[string]string{"GITHUB_TOKEN": "vault:mcp/global/github/env/GITHUB_TOKEN"},
-				Auth: aghconfig.MCPAuthConfig{
-					Type:            aghconfig.MCPAuthTypeOAuth2PKCE,
+				Auth: compozyconfig.MCPAuthConfig{
+					Type:            compozyconfig.MCPAuthTypeOAuth2PKCE,
 					ClientSecretRef: "vault:mcp/global/github/oauth/client-secret",
 				},
 			}},
 		})
 
-		if got, want := payload.MCPServers[0].SecretEnv["GITHUB_TOKEN"], aghconfig.RedactedValue(); got != want {
+		if got, want := payload.MCPServers[0].SecretEnv["GITHUB_TOKEN"], compozyconfig.RedactedValue(); got != want {
 			t.Fatalf("MCP secret env projection = %q, want %q", got, want)
 		}
 		if !payload.MCPServers[0].Auth.ClientSecretConfigured {
@@ -55,10 +55,10 @@ func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) 
 
 func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	t.Helper()
-	agent := aghconfig.AgentDef{Name: "reviewer", Prompt: "Review changes."}
+	agent := compozyconfig.AgentDef{Name: "reviewer", Prompt: "Review changes."}
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
-	codexConfig := aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}}
-	claudeConfig := aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "claude"}}
+	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
+	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}
 
 	codexPayload := core.AgentPayloadFromEntryWithConfig(entry, &codexConfig)
 	claudePayload := core.AgentPayloadFromEntryWithConfig(entry, &claudeConfig)
@@ -80,7 +80,7 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	}
 	for name, projection := range map[string]struct {
 		payload *contract.AgentEffectiveRuntimePayload
-		config  *aghconfig.Config
+		config  *compozyconfig.Config
 	}{
 		"codex":  {payload: codexPayload.EffectiveRuntime, config: &codexConfig},
 		"claude": {payload: claudePayload.EffectiveRuntime, config: &claudeConfig},
@@ -113,7 +113,7 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 	t.Parallel()
 
-	baseConfig := aghconfig.ResolvedCoordinatorRole{
+	baseConfig := compozyconfig.ResolvedCoordinatorRole{
 		Enabled:                       true,
 		AgentName:                     " coordinator ",
 		Provider:                      " codex ",
@@ -125,7 +125,7 @@ func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cfg         aghconfig.ResolvedCoordinatorRole
+		cfg         compozyconfig.ResolvedCoordinatorRole
 		source      contract.CoordinatorConfigSource
 		workspaceID string
 		assert      func(*testing.T, contract.CoordinatorConfigPayload)
@@ -172,7 +172,7 @@ func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 		},
 		{
 			name:        "Should preserve disabled configs",
-			cfg:         aghconfig.ResolvedCoordinatorRole{Enabled: false},
+			cfg:         compozyconfig.ResolvedCoordinatorRole{Enabled: false},
 			source:      contract.CoordinatorConfigSourceDefault,
 			workspaceID: "",
 			assert: func(t *testing.T, payload contract.CoordinatorConfigPayload) {

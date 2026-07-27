@@ -7,11 +7,11 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
-func promptContribution(cfg aghconfig.HeartbeatConfig, policy *ResolvedPolicy) PromptContribution {
+func promptContribution(cfg compozyconfig.HeartbeatConfig, policy *ResolvedPolicy) PromptContribution {
 	contribution := PromptContribution{
 		Active:           policy.Active,
 		Digest:           policy.Digest,
@@ -57,7 +57,7 @@ func projectionWithinBudget(contribution PromptContribution, maxBytes int64) boo
 	return int64(len(data)) <= maxBytes
 }
 
-func statusData(cfg aghconfig.HeartbeatConfig, policy *ResolvedPolicy) StatusData {
+func statusData(cfg compozyconfig.HeartbeatConfig, policy *ResolvedPolicy) StatusData {
 	return StatusData{
 		Enabled:                      cfg.Enabled,
 		Present:                      policy.Present,
@@ -100,7 +100,7 @@ func resultWithDiagnostics(result *ResolvedPolicy, list []Diagnostic) (ResolvedP
 	return *result, &DiagnosticError{Diagnostics: cloneDiagnostics(result.Diagnostics), cause: ErrInvalid}
 }
 
-func emptyResult(cfg aghconfig.HeartbeatConfig, provenance ConfigProvenance, sourcePath string) ResolvedPolicy {
+func emptyResult(cfg compozyconfig.HeartbeatConfig, provenance ConfigProvenance, sourcePath string) ResolvedPolicy {
 	preferences := Preferences{MinInterval: cfg.DefaultInterval}
 	prompt := PromptContribution{
 		Active:       false,

@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
@@ -64,7 +64,7 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
 	cfg.Daemon.Socket = "/tmp/skills-test.sock"
@@ -440,11 +440,11 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			Meta: skills.SkillMeta{
 				Name: "review",
 			},
-			Dir:     "/tmp/agh/skills/review",
+			Dir:     "/tmp/compozy/skills/review",
 			Source:  skills.SourceMarketplace,
 			Enabled: true,
 			Provenance: &skills.Provenance{
-				Slug:     "@agh/review",
+				Slug:     "@compozy/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
 				Hash:     "sha256:abc",
@@ -464,18 +464,18 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		}
 		marketplace := &stubSkillMarketplaceService{
 			InstallFn: func(_ context.Context, slug string, version string) (skillmarketplace.InstallResult, error) {
-				if slug != "@agh/review" {
-					t.Errorf("Install slug = %q, want @agh/review", slug)
+				if slug != "@compozy/review" {
+					t.Errorf("Install slug = %q, want @compozy/review", slug)
 				}
 				if version != "1.2.0" {
 					t.Errorf("Install version = %q, want 1.2.0", version)
 				}
 				return skillmarketplace.InstallResult{
 					Name:     "review",
-					Slug:     "@agh/review",
+					Slug:     "@compozy/review",
 					Version:  "1.2.0",
 					Registry: "clawhub",
-					Path:     "/tmp/agh/skills/review",
+					Path:     "/tmp/compozy/skills/review",
 					Hash:     "sha256:abc",
 					Status:   "installed",
 				}, nil
@@ -493,7 +493,7 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			http.MethodPost,
 			"/api/skills/marketplace/install",
 			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
-				Slug:    "@agh/review",
+				Slug:    "@compozy/review",
 				Version: "1.2.0",
 			}),
 		)
@@ -520,11 +520,11 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			Meta: skills.SkillMeta{
 				Name: "review",
 			},
-			Dir:     "/tmp/agh/skills/review",
+			Dir:     "/tmp/compozy/skills/review",
 			Source:  skills.SourceMarketplace,
 			Enabled: true,
 			Provenance: &skills.Provenance{
-				Slug:     "@agh/review",
+				Slug:     "@compozy/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
 				Hash:     "sha256:abc",
@@ -546,10 +546,10 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			InstallFn: func(context.Context, string, string) (skillmarketplace.InstallResult, error) {
 				return skillmarketplace.InstallResult{
 					Name:     "review",
-					Slug:     "@agh/review",
+					Slug:     "@compozy/review",
 					Version:  "1.2.0",
 					Registry: "clawhub",
-					Path:     "/tmp/agh/skills/review",
+					Path:     "/tmp/compozy/skills/review",
 					Hash:     "sha256:abc",
 					Status:   "installed",
 				}, nil
@@ -574,7 +574,7 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			http.MethodPost,
 			"/api/skills/marketplace/install",
 			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
-				Slug: "@agh/review",
+				Slug: "@compozy/review",
 			}),
 		)
 
@@ -601,10 +601,10 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			InstallFn: func(context.Context, string, string) (skillmarketplace.InstallResult, error) {
 				return skillmarketplace.InstallResult{
 					Name:     "review",
-					Slug:     "@agh/review",
+					Slug:     "@compozy/review",
 					Version:  "1.2.0",
 					Registry: "clawhub",
-					Path:     "/tmp/agh/skills/review",
+					Path:     "/tmp/compozy/skills/review",
 					Hash:     "sha256:abc",
 					Status:   "installed",
 				}, nil
@@ -622,7 +622,7 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			http.MethodPost,
 			"/api/skills/marketplace/install",
 			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
-				Slug: "@agh/review",
+				Slug: "@compozy/review",
 			}),
 		)
 
@@ -659,10 +659,10 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 				}
 				return []skillmarketplace.UpdateResult{{
 					Name:           "review",
-					Slug:           "@agh/review",
+					Slug:           "@compozy/review",
 					CurrentVersion: "1.1.0",
 					LatestVersion:  "1.2.0",
-					Path:           "/tmp/agh/skills/review",
+					Path:           "/tmp/compozy/skills/review",
 					Status:         skillmarketplace.UpdateStatusAvailable,
 				}}, nil
 			},
@@ -709,8 +709,8 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 				}
 				return skillmarketplace.RemoveResult{
 					Name:   "review",
-					Slug:   "@agh/review",
-					Path:   "/tmp/agh/skills/review",
+					Slug:   "@compozy/review",
+					Path:   "/tmp/compozy/skills/review",
 					Status: "removed",
 				}, nil
 			},
@@ -1027,7 +1027,7 @@ func TestGetSkillShadows(t *testing.T) {
 		skill.FilePath = "/workspace/.compozy/skills/test-skill/SKILL.md"
 		skill.Diagnostics.ShadowedDefinitions = []skills.SkillDefinitionRef{{
 			Source:     "marketplace",
-			Path:       "/home/agh/skills/test-skill/SKILL.md",
+			Path:       "/home/compozy/skills/test-skill/SKILL.md",
 			DetectedAt: time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC),
 		}}
 		registry := &stubSkillsRegistry{ForWorkspaceFn: globalSkillProjection(t, skill)}

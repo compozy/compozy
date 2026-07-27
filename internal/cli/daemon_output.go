@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {
@@ -99,7 +99,10 @@ func daemonNetworkStatusFields(info *contract.NetworkStatusPayload) ([]keyValue,
 		}
 }
 
-func daemonNetworkStatusFromInfo(cfg *aghconfig.Config, info *aghdaemon.NetworkInfo) *contract.NetworkStatusPayload {
+func daemonNetworkStatusFromInfo(
+	cfg *compozyconfig.Config,
+	info *compozydaemon.NetworkInfo,
+) *contract.NetworkStatusPayload {
 	if info != nil {
 		return &contract.NetworkStatusPayload{
 			Enabled: info.Enabled,

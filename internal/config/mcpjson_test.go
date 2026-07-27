@@ -303,7 +303,7 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 				Type:             MCPAuthTypeOAuth2PKCE,
 				AuthorizationURL: "https://linear.app/oauth/authorize",
 				TokenURL:         "https://api.linear.app/oauth/token",
-				ClientID:         "agh-client",
+				ClientID:         "compozy-client",
 				ClientSecretRef:  "vault:mcp/linear/oauth/client-secret",
 			},
 		})

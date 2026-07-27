@@ -208,7 +208,6 @@ test.describe("seeded agent detail", () => {
     await appPage.getByTestId("agents-topbar-create").click();
     await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
     await appPage.getByTestId("agent-create-name").fill("reasoning-default-agent");
-    await appPage.getByTestId("agent-create-next").click();
     await expect(appPage.getByTestId("agent-create-runtime")).toBeVisible();
 
     const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
@@ -225,10 +224,7 @@ test.describe("seeded agent detail", () => {
     await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
     await expect(runtimeTrigger).toContainText("High");
 
-    await appPage.getByTestId("agent-create-next").click();
     await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
-    await appPage.getByTestId("agent-create-next").click();
-    await expect(appPage.getByTestId("agent-create-access")).toBeVisible();
 
     const createRequestPromise = appPage.waitForRequest(
       request => request.method() === "POST" && request.url().endsWith("/api/agents")

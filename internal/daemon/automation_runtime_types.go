@@ -6,7 +6,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -33,7 +33,7 @@ type automationManagerDeps struct {
 	Sessions              SessionManager
 	Tasks                 taskpkg.Manager
 	WorkspaceResolver     workspacepkg.RuntimeResolver
-	Config                aghconfig.AutomationConfig
+	Config                compozyconfig.AutomationConfig
 	Hooks                 automationpkg.HookDispatcher
 	WebhookSecrets        automationpkg.WebhookSecretStore
 	Logger                *slog.Logger

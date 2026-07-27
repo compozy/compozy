@@ -10,7 +10,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
@@ -67,7 +67,7 @@ func (n *daemonNativeTools) skillsFor(
 func (n *daemonNativeTools) skillsForSessionAgent(
 	ctx context.Context,
 	workspace *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
+	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skills.Skill, error) {
 	if strings.TrimSpace(agent.SourcePath) == "" {
@@ -77,23 +77,23 @@ func (n *daemonNativeTools) skillsForSessionAgent(
 }
 
 type sessionAgentDefinitionReader interface {
-	SessionAgentDefinition(id string) (aghconfig.AgentDef, bool)
+	SessionAgentDefinition(id string) (compozyconfig.AgentDef, bool)
 }
 
-func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (aghconfig.AgentDef, bool, error) {
+func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (compozyconfig.AgentDef, bool, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
-		return aghconfig.AgentDef{}, false, nil
+		return compozyconfig.AgentDef{}, false, nil
 	}
 	reader, ok := n.deps.Sessions.(sessionAgentDefinitionReader)
 	if !ok || reader == nil {
-		return aghconfig.AgentDef{}, false, errors.New(
+		return compozyconfig.AgentDef{}, false, errors.New(
 			"daemon: concrete session agent definition is unavailable",
 		)
 	}
 	agent, ok := reader.SessionAgentDefinition(trimmedID)
 	if !ok {
-		return aghconfig.AgentDef{}, false, fmt.Errorf(
+		return compozyconfig.AgentDef{}, false, fmt.Errorf(
 			"daemon: session %q agent definition is unavailable",
 			trimmedID,
 		)
@@ -145,7 +145,7 @@ type nativeAuthoredAgentTarget struct {
 	workspaceRoot   string
 	agentName       string
 	agentPath       string
-	heartbeatConfig aghconfig.HeartbeatConfig
+	heartbeatConfig compozyconfig.HeartbeatConfig
 }
 
 func (n *daemonNativeTools) authoredAgentTarget(
@@ -215,11 +215,11 @@ func nativeTrustedRootFromAgentSourcePath(agentPath string) string {
 	}
 	agentDir := filepath.Dir(cleaned)
 	agentsDir := filepath.Dir(agentDir)
-	if filepath.Base(agentsDir) != aghconfig.AgentsDirName {
+	if filepath.Base(agentsDir) != compozyconfig.AgentsDirName {
 		return ""
 	}
 	root := filepath.Dir(agentsDir)
-	if filepath.Base(root) == aghconfig.DirName {
+	if filepath.Base(root) == compozyconfig.DirName {
 		return filepath.Dir(root)
 	}
 	return root
@@ -261,7 +261,7 @@ func nativeAuthoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentNam
 		}
 	}
 	if root := strings.TrimSpace(workspace.RootDir); root != "" && name != "" {
-		return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name, "AGENT.md")
+		return filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, name, "AGENT.md")
 	}
 	return ""
 }

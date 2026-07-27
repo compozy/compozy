@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -22,13 +22,13 @@ func TestCoordinatorRoleResolverReturnsBundledDefaultIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveCoordinatorRole() error = %v", err)
 		}
-		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+		if got, want := resolved.AgentName, compozyconfig.BuiltinCoordinatorAgentName; got != want {
 			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
 		}
 		if resolved.Enabled {
 			t.Fatal("ResolveCoordinatorRole() Enabled = true, want bundled default false")
 		}
-		if got, want := resolved.TTL, aghconfig.DefaultCoordinatorTTL; got != want {
+		if got, want := resolved.TTL, compozyconfig.DefaultCoordinatorTTL; got != want {
 			t.Fatalf("ResolveCoordinatorRole() TTL = %s, want %s", got, want)
 		}
 	})
@@ -41,7 +41,7 @@ func TestCoordinatorRoleResolverPrefersGlobalConfigOverBundledDefault(t *testing
 
 		cfg := defaultCoordinatorResolverConfig(t)
 		cfg.Roles.Coordinator.Enabled = true
-		cfg.Roles.Coordinator.Agent = aghconfig.BuiltinCoordinatorAgentName
+		cfg.Roles.Coordinator.Agent = compozyconfig.BuiltinCoordinatorAgentName
 		cfg.Roles.Coordinator.Provider = "codex"
 		cfg.Roles.Coordinator.Model = "global-model"
 		cfg.Roles.Coordinator.TTL = 4 * time.Hour
@@ -55,7 +55,7 @@ func TestCoordinatorRoleResolverPrefersGlobalConfigOverBundledDefault(t *testing
 		if !resolved.Enabled {
 			t.Fatal("ResolveCoordinatorRole() Enabled = false, want global true")
 		}
-		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+		if got, want := resolved.AgentName, compozyconfig.BuiltinCoordinatorAgentName; got != want {
 			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
 		}
 		if got, want := resolved.Provider, "codex"; got != want {
@@ -87,7 +87,7 @@ func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 
 		workspaceCfg := defaultCoordinatorResolverConfig(t)
 		workspaceCfg.Roles.Coordinator.Enabled = false
-		workspaceCfg.Roles.Coordinator.Agent = aghconfig.BuiltinCoordinatorAgentName
+		workspaceCfg.Roles.Coordinator.Agent = compozyconfig.BuiltinCoordinatorAgentName
 		workspaceCfg.Roles.Coordinator.Provider = "codex"
 		workspaceCfg.Roles.Coordinator.Model = "workspace-model"
 		workspaceCfg.Roles.Coordinator.TTL = 3 * time.Hour
@@ -111,7 +111,7 @@ func TestCoordinatorRoleResolverPrefersWorkspaceConfig(t *testing.T) {
 		if resolved.Enabled {
 			t.Fatal("ResolveCoordinatorRole() Enabled = true, want workspace false")
 		}
-		if got, want := resolved.AgentName, aghconfig.BuiltinCoordinatorAgentName; got != want {
+		if got, want := resolved.AgentName, compozyconfig.BuiltinCoordinatorAgentName; got != want {
 			t.Fatalf("ResolveCoordinatorRole() AgentName = %q, want %q", got, want)
 		}
 		if got, want := resolved.Provider, "codex"; got != want {
@@ -142,7 +142,7 @@ func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) 
 			&cfg,
 			nil,
 			coordinatorAgentResolverStub{
-				agent: aghconfig.AgentDef{
+				agent: compozyconfig.AgentDef{
 					Name:     "custom-coordinator",
 					Provider: "claude",
 					Model:    "agent-model",
@@ -190,26 +190,26 @@ func (s *coordinatorWorkspaceResolverStub) ResolveOrRegister(
 }
 
 type coordinatorAgentResolverStub struct {
-	agent aghconfig.AgentDef
+	agent compozyconfig.AgentDef
 	err   error
 }
 
 func (s coordinatorAgentResolverStub) ResolveAgent(
 	string,
 	*workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if s.err != nil {
-		return aghconfig.AgentDef{}, s.err
+		return compozyconfig.AgentDef{}, s.err
 	}
 	return s.agent, nil
 }
 
-func defaultCoordinatorResolverConfig(t *testing.T) aghconfig.Config {
+func defaultCoordinatorResolverConfig(t *testing.T) compozyconfig.Config {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	return aghconfig.DefaultWithHome(homePaths)
+	return compozyconfig.DefaultWithHome(homePaths)
 }

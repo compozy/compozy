@@ -7,12 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func applySkillsSettings(editor *aghconfig.OverlayEditor, settings aghconfig.SkillsConfig) error {
+func applySkillsSettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.SkillsConfig) error {
 	updates := []struct {
 		path  []string
 		value any
@@ -43,7 +43,7 @@ func applySkillsSettings(editor *aghconfig.OverlayEditor, settings aghconfig.Ski
 	return applyValueUpdates(editor, updates)
 }
 
-func applyAutomationSettings(editor *aghconfig.OverlayEditor, settings AutomationSettings) error {
+func applyAutomationSettings(editor *compozyconfig.OverlayEditor, settings AutomationSettings) error {
 	updates := []struct {
 		path  []string
 		value any
@@ -63,7 +63,7 @@ func applyAutomationSettings(editor *aghconfig.OverlayEditor, settings Automatio
 	return applyValueUpdates(editor, updates)
 }
 
-func applyObservabilitySettings(editor *aghconfig.OverlayEditor, settings aghconfig.ObservabilityConfig) error {
+func applyObservabilitySettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.ObservabilityConfig) error {
 	updates := []struct {
 		path  []string
 		value any
@@ -87,7 +87,7 @@ func applyObservabilitySettings(editor *aghconfig.OverlayEditor, settings aghcon
 	return applyValueUpdates(editor, updates)
 }
 
-func applyValueUpdates(editor *aghconfig.OverlayEditor, updates []struct {
+func applyValueUpdates(editor *compozyconfig.OverlayEditor, updates []struct {
 	path  []string
 	value any
 }) error {

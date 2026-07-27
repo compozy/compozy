@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -64,7 +64,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				t.Errorf("scheduler waker shutdown error = %v", err)
 			}
 		})
-		if err := waker.configureHeartbeatWake(db, sessions, aghconfig.DefaultHeartbeatConfig()); err != nil {
+		if err := waker.configureHeartbeatWake(db, sessions, compozyconfig.DefaultHeartbeatConfig()); err != nil {
 			t.Fatalf("configureHeartbeatWake() error = %v", err)
 		}
 
@@ -109,7 +109,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			sessions := &fakeSessionManager{
 				infos: []*session.Info{{
 					ID:          "sess-coordinator-wake",
-					AgentName:   aghconfig.BuiltinCoordinatorAgentName,
+					AgentName:   compozyconfig.BuiltinCoordinatorAgentName,
 					WorkspaceID: "ws-coordinator-wake",
 					Type:        session.SessionTypeCoordinator,
 					State:       session.StateActive,
@@ -137,7 +137,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				},
 				Session: schedulerpkg.SessionSnapshot{
 					ID:          "sess-coordinator-wake",
-					AgentName:   aghconfig.BuiltinCoordinatorAgentName,
+					AgentName:   compozyconfig.BuiltinCoordinatorAgentName,
 					WorkspaceID: "ws-coordinator-wake",
 					Type:        string(session.SessionTypeCoordinator),
 					State:       string(session.StateActive),
@@ -173,7 +173,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 		workspaceID := "ws-heartbeat-scheduler-batch"
 		agentName := "coder"
 		base := time.Date(2026, 5, 2, 12, 30, 0, 0, time.UTC)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.MaxWakesPerCycle = 1
 		seedDaemonHeartbeatWakePolicyWithConfig(ctx, t, db, workspaceID, "sess-batch-a", agentName, base, cfg)
 		registerDaemonHeartbeatSession(ctx, t, db, workspaceID, "sess-batch-b", agentName, base)
@@ -272,7 +272,7 @@ func TestHarnessHeartbeatWakeIntegration(t *testing.T) {
 			db,
 			sessions,
 			discardLogger(),
-			withHarnessHeartbeatWake(db, sessions, aghconfig.DefaultHeartbeatConfig()),
+			withHarnessHeartbeatWake(db, sessions, compozyconfig.DefaultHeartbeatConfig()),
 		)
 		if err != nil {
 			t.Fatalf("newHarnessReentryBridge() error = %v", err)
@@ -395,7 +395,7 @@ func TestHarnessHeartbeatWakeIntegration(t *testing.T) {
 					db,
 					sessions,
 					discardLogger(),
-					withHarnessHeartbeatWake(db, sessions, aghconfig.DefaultHeartbeatConfig()),
+					withHarnessHeartbeatWake(db, sessions, compozyconfig.DefaultHeartbeatConfig()),
 				)
 				if err != nil {
 					t.Fatalf("newHarnessReentryBridge() error = %v", err)
@@ -499,7 +499,7 @@ func seedDaemonHeartbeatWakePolicy(
 		sessionID,
 		agentName,
 		createdAt,
-		aghconfig.DefaultHeartbeatConfig(),
+		compozyconfig.DefaultHeartbeatConfig(),
 	)
 }
 
@@ -511,7 +511,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 	sessionID string,
 	agentName string,
 	createdAt time.Time,
-	cfg aghconfig.HeartbeatConfig,
+	cfg compozyconfig.HeartbeatConfig,
 ) heartbeat.Snapshot {
 	t.Helper()
 

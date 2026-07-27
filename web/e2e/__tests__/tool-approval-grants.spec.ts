@@ -168,6 +168,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     expect((await stopResponse).ok()).toBe(true);
     await sessionUI.topbarOverflow.click();
     await expect(sessionUI.composerClearButton).toBeEnabled({ timeout: 60_000 });
+    await appPage.keyboard.press("Escape");
 
     // Daemon truth: exactly one remembered decision, exact agent + exact sha256 input.
     const seeded = await runtime.requestJSON<ToolApprovalGrantList>(grantsPath(workspace.id));
@@ -177,6 +178,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     expect(grant.decision).toBe("allow");
     expect(grant.agent_name).toBe(MOCK_AGENT);
     expect(grant.input_digest?.startsWith("sha256:")).toBe(true);
+    await sessionWin.getByRole("button", { name: "Close window" }).click();
+    await expect(sessionWin).toBeHidden();
 
     // The exact grant appears in General Settings for the active workspace.
     await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });

@@ -216,7 +216,7 @@ describe("useSandboxPage", () => {
       result.current.openEdit(daytonaEnv);
     });
     act(() => {
-      result.current.updateDraft(draft => ({ ...draft, runtime_root: "/home/agh" }));
+      result.current.updateDraft(draft => ({ ...draft, runtime_root: "/home/compozy" }));
     });
     act(() => {
       result.current.saveEditor();
@@ -229,7 +229,7 @@ describe("useSandboxPage", () => {
         backend: "daytona",
         sync_mode: "session-bidirectional",
         persistence: "reuse",
-        runtime_root: "/home/agh",
+        runtime_root: "/home/compozy",
         network: { allow_public_ingress: true },
         daytona: { api_url: "https://daytona.dev", target: "staging" },
       }),

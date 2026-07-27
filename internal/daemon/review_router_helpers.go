@@ -99,9 +99,9 @@ func reviewRouterPeerID(info *session.Info) string {
 func reviewSessionName(taskID string) string {
 	trimmed := strings.TrimSpace(taskID)
 	if trimmed == "" {
-		return "AGH Task Reviewer"
+		return "Compozy Task Reviewer"
 	}
-	return "AGH Task Reviewer " + trimmed
+	return "Compozy Task Reviewer " + trimmed
 }
 
 func reviewRouterPromptOverlay(taskID string, runID string) string {

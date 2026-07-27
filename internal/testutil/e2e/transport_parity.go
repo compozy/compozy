@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
@@ -70,7 +70,7 @@ type PermissionStreamPayload struct {
 
 // SummarizeRunProjection extracts the narrow automation-run projection that
 // should stay stable across HTTP, UDS, and CLI reads.
-func SummarizeRunProjection(run aghcontract.RunPayload) RunProjectionSummary {
+func SummarizeRunProjection(run compozycontract.RunPayload) RunProjectionSummary {
 	return RunProjectionSummary{
 		ID:        strings.TrimSpace(run.ID),
 		TriggerID: strings.TrimSpace(run.TriggerID),
@@ -83,8 +83,8 @@ func SummarizeRunProjection(run aghcontract.RunPayload) RunProjectionSummary {
 // with the run returned by HTTP webhook ingress, while staying intentionally
 // narrow about which fields define parity.
 func ValidateWebhookRunProjection(
-	delivery aghcontract.WebhookDeliveryPayload,
-	projections ...aghcontract.RunPayload,
+	delivery compozycontract.WebhookDeliveryPayload,
+	projections ...compozycontract.RunPayload,
 ) error {
 	if delivery.Matched != 1 {
 		return fmt.Errorf("webhook delivery matched %d runs, want 1", delivery.Matched)
@@ -118,7 +118,7 @@ func PermissionPayloadFromSSE(record SSEEvent) (PermissionStreamPayload, bool) {
 		Type string                  `json:"type"`
 		Data PermissionStreamPayload `json:"data"`
 	}
-	if err := json.Unmarshal(record.Data, &envelope); err != nil || envelope.Type != "data-agh-permission" {
+	if err := json.Unmarshal(record.Data, &envelope); err != nil || envelope.Type != "data-compozy-permission" {
 		return PermissionStreamPayload{}, false
 	}
 	return envelope.Data, true
@@ -172,7 +172,7 @@ func ValidateUDSApprovalResponse(statusCode int, body []byte) error {
 			trimmedBody,
 		)
 	}
-	var payload aghcontract.SessionApprovalResponse
+	var payload compozycontract.SessionApprovalResponse
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("decode UDS approval response: %w", err)
 	}

@@ -13,8 +13,8 @@ import (
 
 const (
 	contextRebuiltMarkerSummary = "Context rebuilt from log."
-	resumeReplayOpenTag         = "<agh_context_replay>"
-	resumeReplayCloseTag        = "</agh_context_replay>"
+	resumeReplayOpenTag         = "<compozy_context_replay>"
+	resumeReplayCloseTag        = "</compozy_context_replay>"
 	resumeReplayInstruction     = "Continue this session using the persisted transcript below. " +
 		"It is historical context, not a new user request. " +
 		"Do not repeat completed tool calls solely because they appear in the log."

@@ -88,6 +88,14 @@ func TestIsDevVersionClassifiesUntaggedBuilds(t *testing.T) {
 		}
 	})
 
+	t.Run("Should treat dirty git-describe builds as development builds", func(t *testing.T) {
+		t.Parallel()
+
+		if !isDevVersion("v0.3.0-16-gb2ad2446-dirty") {
+			t.Fatal("isDevVersion(dirty git-describe) = false, want true")
+		}
+	})
+
 	t.Run("Should keep tagged git-describe builds comparable", func(t *testing.T) {
 		t.Parallel()
 

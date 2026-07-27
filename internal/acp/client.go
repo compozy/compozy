@@ -26,7 +26,7 @@ const (
 	defaultPromptDrain          = 50 * time.Millisecond
 	defaultPermissionWait       = 5 * time.Minute
 	defaultProcessRecordTimeout = time.Second
-	defaultClientName           = "agh"
+	defaultClientName           = "compozy"
 	defaultClientVersion        = "dev"
 )
 

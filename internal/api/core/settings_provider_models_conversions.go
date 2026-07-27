@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func settingsProviderModelsPayload(
-	value aghconfig.ProviderModelsConfig,
+	value compozyconfig.ProviderModelsConfig,
 ) *contract.SettingsProviderModelsPayload {
 	if providerModelsConfigIsEmpty(value) {
 		return nil
@@ -25,7 +25,7 @@ func settingsProviderModelsPayload(
 }
 
 func settingsProviderModelsDiscoveryPayload(
-	value aghconfig.ProviderModelsDiscoveryConfig,
+	value compozyconfig.ProviderModelsDiscoveryConfig,
 ) *contract.SettingsProviderModelsDiscoveryPayload {
 	if value.Enabled == nil &&
 		strings.TrimSpace(value.Command) == "" &&
@@ -42,7 +42,7 @@ func settingsProviderModelsDiscoveryPayload(
 }
 
 func settingsProviderModelPayloads(
-	values []aghconfig.ProviderModelConfig,
+	values []compozyconfig.ProviderModelConfig,
 ) []contract.SettingsProviderModelPayload {
 	if values == nil {
 		return nil
@@ -73,7 +73,7 @@ func settingsProviderModelPayloads(
 	return payloads
 }
 
-func providerModelsConfigIsEmpty(value aghconfig.ProviderModelsConfig) bool {
+func providerModelsConfigIsEmpty(value compozyconfig.ProviderModelsConfig) bool {
 	return strings.TrimSpace(value.Default) == "" &&
 		value.Curated == nil &&
 		value.Discovery.Enabled == nil &&

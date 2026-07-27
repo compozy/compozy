@@ -71,7 +71,7 @@ export interface DesktopShellProps {
   dockClassName?: string;
   /** Extra classes on the menubar (first-run dimming). */
   menubarClassName?: string;
-  /** Menubar workspace slot; omit for the bound `agh` workspace. */
+  /** Menubar workspace slot; omit for the bound `compozy` workspace. */
   workspace?: { name: string; monogram: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
@@ -92,7 +92,7 @@ export function DesktopShell({
   dockItems = DESK_ITEMS,
   dockClassName,
   menubarClassName,
-  workspace = { name: "agh", monogram: "AG" },
+  workspace = { name: "compozy", monogram: "CO" },
   notifications = 2,
   deskHint = false,
 }: DesktopShellProps) {

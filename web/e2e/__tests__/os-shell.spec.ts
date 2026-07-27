@@ -13,7 +13,7 @@ import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
-const windowManagerClientStorageKey = "agh.window-manager.client-id";
+const windowManagerClientStorageKey = "compozy.window-manager.client-id";
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -273,7 +273,7 @@ test("E2E-005: a direct task detail deep link returns to the catalog with Back",
   await expect(windowPath.getByRole("button", { name: "Tasks", exact: true })).toBeVisible();
   await expect(tasksWindow.getByTestId("tasks-detail-title")).toContainText(task.title);
   await expect(tasksWindow.locator('[data-slot="topbar-title"]')).toContainText(task.title);
-  await expect(windowPath).not.toContainText(/^agh\b/);
+  await expect(windowPath).not.toContainText(/^compozy\b/);
 
   await appPage.goBack({ waitUntil: "domcontentloaded" });
   await expect(appPage).toHaveURL(/\/tasks$/);
@@ -976,7 +976,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.keyboard.press("Escape");
   await expect(shortcuts).toHaveCount(0);
 
-  await openMenu(appPage, "AGH");
+  await openMenu(appPage, "CompozyOS");
   await appPage.getByTestId("os-menu-about").click();
   const about = appPage.getByTestId("os-about-dialog");
   await expect(about).toBeVisible();
@@ -1435,7 +1435,7 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
   const workspace = await prepareShell(appPage, runtime);
   await openDockApp(appPage, "Tasks", "tasks");
 
-  await openMenu(appPage, "AGH");
+  await openMenu(appPage, "CompozyOS");
   await appPage.getByTestId("os-menu-appearance").click();
   await expect(appPage.getByTestId("os-appearance-pane")).toBeVisible();
   const revisionBeforePreferences = (await windowManagerSnapshot(runtime, workspace.id)).revision;
@@ -2278,10 +2278,11 @@ async function addSecondWorkspace(runtime: BrowserRuntime): Promise<WorkspacePay
   return await runtime.resolveWorkspace(rootDir);
 }
 
-type MenubarMenu = "AGH" | "Session" | "Go" | "Window" | "Help";
+type MenubarMenu = "CompozyOS" | "Session" | "Go" | "Window" | "Help";
 
 /** Menubar triggers are `role="menuitem"` inside the shell's single menubar. */
 async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
   await page.getByRole("menuitem", { name, exact: true }).click();
-  await expect(page.getByTestId(`os-menu-${name.toLowerCase()}`)).toBeVisible();
+  const menuTestID = name === "CompozyOS" ? "os-menu-compozy" : `os-menu-${name.toLowerCase()}`;
+  await expect(page.getByTestId(menuTestID)).toBeVisible();
 }

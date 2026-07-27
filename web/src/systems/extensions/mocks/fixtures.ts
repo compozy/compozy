@@ -21,7 +21,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     installed_from: "marketplace_registry",
     permissions: ["sessions.read", "telemetry.write"],
     registry_tier: "verified",
-    slug: "agh/otel-bridge",
+    slug: "compozy/otel-bridge",
     source_url: "https://compozy.com/registry/compozy/otel-bridge",
   },
   "slack-notify": {
@@ -87,7 +87,7 @@ export const extensionFixtures: ExtensionEntry[] = [
         id: "diag_slack_token_missing",
         message: "SLACK_BOT_TOKEN is required before this extension can start.",
         severity: "error",
-        suggested_command: "agh config set extensions.slack-notify.env.SLACK_BOT_TOKEN",
+        suggested_command: "compozy config set extensions.slack-notify.env.SLACK_BOT_TOKEN",
         title: "Required environment is missing",
       },
     ],

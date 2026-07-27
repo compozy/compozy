@@ -14,7 +14,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
@@ -24,7 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 
 	"github.com/compozy/compozy/internal/subprocess"
-	aghtestutil "github.com/compozy/compozy/internal/testutil"
+	compozytestutil "github.com/compozy/compozy/internal/testutil"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -59,7 +59,7 @@ type HarnessConfig struct {
 // Harness wires the manager, host API, session manager, observer, and marker
 // contract used to validate bridge adapters end to end.
 type Harness struct {
-	HomePaths aghconfig.HomePaths
+	HomePaths compozyconfig.HomePaths
 	Markers   MarkerPaths
 	Observer  *observepkg.Observer
 	Bridges   *bridgepkg.Service
@@ -130,7 +130,7 @@ func NewHarness(t testing.TB, cfg HarnessConfig) *Harness {
 	t.Cleanup(func() {
 		harness.stopSessions(t)
 		harness.Broker.Close()
-		if err := harness.Manager.Stop(aghtestutil.Context(t)); err != nil {
+		if err := harness.Manager.Stop(compozytestutil.Context(t)); err != nil {
 			t.Fatalf("manager.Stop() error = %v", err)
 		}
 	})
@@ -146,14 +146,14 @@ func resolveHarnessStartTime(startTime time.Time) time.Time {
 	return now
 }
 
-func newHarnessHomePaths(t testing.TB) aghconfig.HomePaths {
+func newHarnessHomePaths(t testing.TB) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	return homePaths
@@ -178,22 +178,22 @@ func configureHarnessMarkers(t testing.TB, markers MarkerPaths, cfg HarnessConfi
 
 func openHarnessGlobalDB(
 	t testing.TB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) *globaldb.GlobalDB {
 	t.Helper()
 
 	resolvedWorkspace := mustHarnessWorkspace(t, workspace)
-	globalDB, err := globaldb.OpenGlobalDB(aghtestutil.Context(t), homePaths.DatabaseFile)
+	globalDB, err := globaldb.OpenGlobalDB(compozytestutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := globalDB.Close(aghtestutil.Context(t)); err != nil {
+		if err := globalDB.Close(compozytestutil.Context(t)); err != nil {
 			t.Fatalf("globaldb.Close() error = %v", err)
 		}
 	})
-	if err := globalDB.InsertWorkspace(aghtestutil.Context(t), resolvedWorkspace.Workspace); err != nil {
+	if err := globalDB.InsertWorkspace(compozytestutil.Context(t), resolvedWorkspace.Workspace); err != nil {
 		t.Fatalf("globalDB.InsertWorkspace() error = %v", err)
 	}
 	return globalDB
@@ -278,7 +278,7 @@ func createHarnessManagedInstances(
 		if err != nil {
 			t.Fatalf("harnessCreateInstanceRequest(%q) error = %v", managedCfg.ID, err)
 		}
-		instance, err := bridgeRegistry.CreateInstance(aghtestutil.Context(t), createReq)
+		instance, err := bridgeRegistry.CreateInstance(compozytestutil.Context(t), createReq)
 		if err != nil {
 			t.Fatalf("bridgeRegistry.CreateInstance(%q) error = %v", createReq.ID, err)
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -65,11 +65,11 @@ func (s *service) recordNetworkMutationApply(
 }
 
 func projectNetworkActiveConfig(
-	active *aghconfig.Config,
-	desired *aghconfig.Config,
-) (aghconfig.Config, error) {
+	active *compozyconfig.Config,
+	desired *compozyconfig.Config,
+) (compozyconfig.Config, error) {
 	if active == nil || desired == nil {
-		return aghconfig.Config{}, errors.New("settings: active and desired Network configs are required")
+		return compozyconfig.Config{}, errors.New("settings: active and desired Network configs are required")
 	}
 	projected := cloneActiveConfig(active)
 	projected.Network.Enabled = desired.Network.Enabled

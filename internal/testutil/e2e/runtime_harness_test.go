@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
@@ -49,7 +49,7 @@ func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable
 			name: "ShouldAllowExplicitDisableFromConfigSeed",
 			opts: RuntimeHarnessOptions{
 				ConfigSeed: ConfigSeedOptions{
-					Mutate: func(cfg *aghconfig.Config) {
+					Mutate: func(cfg *compozyconfig.Config) {
 						cfg.Network.Enabled = false
 					},
 				},
@@ -61,7 +61,7 @@ func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable
 			opts: RuntimeHarnessOptions{
 				EnableNetwork: true,
 				ConfigSeed: ConfigSeedOptions{
-					Mutate: func(cfg *aghconfig.Config) {
+					Mutate: func(cfg *compozyconfig.Config) {
 						cfg.Network.Enabled = false
 					},
 				},
@@ -84,7 +84,7 @@ func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable
 
 func TestPrepareRuntimeLayoutOverridesCallerHomeState(t *testing.T) {
 	t.Setenv("HOME", "/tmp/caller-home")
-	t.Setenv("COMPOZY_HOME", "/tmp/caller-agh-home")
+	t.Setenv("COMPOZY_HOME", "/tmp/caller-compozy-home")
 
 	layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 

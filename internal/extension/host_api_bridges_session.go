@@ -9,7 +9,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -32,7 +32,7 @@ func (h *HostAPIHandler) createBridgeSession(
 		return nil, unavailableRPCError(fmt.Errorf("resolve workspace %q: %w", instance.WorkspaceID, err))
 	}
 
-	agentName, err := aghconfig.ResolveAgentName("", resolved.Config.Defaults)
+	agentName, err := compozyconfig.ResolveAgentName("", resolved.Config.Defaults)
 	if err != nil {
 		return nil, unavailableRPCError(
 			fmt.Errorf("resolve default agent for workspace %q: %w", resolved.WorkspaceID, err),

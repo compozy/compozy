@@ -6,7 +6,7 @@ import (
 	"maps"
 	"reflect"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -30,7 +30,7 @@ func (s *service) classifyProviderWrite(
 	}
 	currentProvider, currentErr := currentConfig.ResolveProvider(name)
 	nextConfig := currentConfig
-	nextConfig.Providers = make(map[string]aghconfig.ProviderConfig, len(currentConfig.Providers)+1)
+	nextConfig.Providers = make(map[string]compozyconfig.ProviderConfig, len(currentConfig.Providers)+1)
 	maps.Copy(nextConfig.Providers, currentConfig.Providers)
 	nextConfig.Providers[name] = providerConfigFromSettings(settings)
 	if err := nextConfig.Validate(); err != nil {
@@ -52,8 +52,8 @@ func (s *service) classifyProviderWrite(
 	nextNormalized := providerConfigFromSettings(providerSettingsBaseFromConfig(name, nextProvider))
 	currentModels := currentNormalized.Models
 	nextModels := nextNormalized.Models
-	currentNormalized.Models = aghconfig.ProviderModelsConfig{}
-	nextNormalized.Models = aghconfig.ProviderModelsConfig{}
+	currentNormalized.Models = compozyconfig.ProviderModelsConfig{}
+	nextNormalized.Models = compozyconfig.ProviderModelsConfig{}
 	classification := providerWriteClassification{
 		modelOnly: reflect.DeepEqual(currentNormalized, nextNormalized),
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -23,7 +23,7 @@ func TestManagerStatusReportsAvailabilityAndParticipation(t *testing.T) {
 
 		manager, err := NewManager(
 			t.Context(),
-			aghconfig.DefaultNetworkConfig(),
+			compozyconfig.DefaultNetworkConfig(),
 			"",
 			nil,
 			WithManagerLogger(discardManagerLogger()),
@@ -73,7 +73,7 @@ func TestManagerMembershipDispatchesLifecycleHooks(t *testing.T) {
 	hooks := &managerHookDispatcherSpy{}
 	manager, err := NewManager(
 		t.Context(),
-		aghconfig.DefaultNetworkConfig(),
+		compozyconfig.DefaultNetworkConfig(),
 		"",
 		nil,
 		WithManagerLogger(discardManagerLogger()),

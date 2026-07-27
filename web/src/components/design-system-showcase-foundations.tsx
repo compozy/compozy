@@ -126,7 +126,7 @@ export function TypographySection() {
             </p>
             <div className="flex items-center gap-3">
               <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">
-                agh
+                compozy
               </span>
               <Pill tone="neutral" size="sm" className="border-line">
                 Alpha

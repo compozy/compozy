@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
@@ -16,7 +16,13 @@ func TestManagedSoulAuthoringServiceVerifyUnchangedSoul(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		agentPath := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, "coder", "AGENT.md")
+		agentPath := filepath.Join(
+			workspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.AgentsDirName,
+			"coder",
+			"AGENT.md",
+		)
 		writeTestFile(t, agentPath, "---\nname: coder\nprovider: codex\n---\nYou are coder.\n")
 
 		soulPath := filepath.Join(filepath.Dir(agentPath), FileName)

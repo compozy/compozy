@@ -677,7 +677,7 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
     const prompt =
-      '/goal Reply in exactly one sentence: "AGH keeps agent work local-first and durable."';
+      '/goal Reply in exactly one sentence: "Compozy keeps agent work local-first and durable."';
     const promptResponse = createDeferred<Response>();
     const onCancelPrompt = vi.fn();
     const sources: FakeSessionEventSource[] = [];
@@ -686,12 +686,12 @@ describe("SessionChatRuntimeProvider", () => {
       {
         id: "session-create-hook-start",
         role: "assistant",
-        parts: [{ type: "data-agh-event", data: { type: "hook.dispatch.start" } }],
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.start" } }],
       },
       {
         id: "session-create-hook-complete",
         role: "assistant",
-        parts: [{ type: "data-agh-event", data: { type: "hook.dispatch.complete" } }],
+        parts: [{ type: "data-compozy-event", data: { type: "hook.dispatch.complete" } }],
       },
     ];
     transcriptEpoch = 0;
@@ -1130,7 +1130,7 @@ describe("SessionChatRuntimeProvider", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "runtime_progress",
               text: "Still working",
@@ -1170,7 +1170,7 @@ describe("SessionChatRuntimeProvider", () => {
             state: "done",
           },
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "error",
               error:
@@ -1211,7 +1211,7 @@ describe("SessionChatRuntimeProvider", () => {
         },
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "error",
             },
@@ -1240,7 +1240,7 @@ describe("SessionChatRuntimeProvider", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-permission",
+            type: "data-compozy-permission",
             data: {
               type: "permission",
               request_id: "turn_001:perm_pending",
@@ -1251,7 +1251,7 @@ describe("SessionChatRuntimeProvider", () => {
             },
           },
           {
-            type: "data-agh-permission",
+            type: "data-compozy-permission",
             data: {
               type: "permission",
               request_id: "turn_001:perm_resolved",
@@ -1284,7 +1284,7 @@ describe("SessionChatRuntimeProvider", () => {
         role: "assistant",
         parts: [
           {
-            type: "data-agh-event",
+            type: "data-compozy-event",
             data: {
               type: "clarify",
               session_id: primarySessionFixture.id,

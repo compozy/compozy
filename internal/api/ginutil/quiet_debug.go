@@ -1,4 +1,4 @@
-// Package ginutil owns process-wide Gin runtime coordination shared by AGH transports.
+// Package ginutil owns process-wide Gin runtime coordination shared by Compozy transports.
 package ginutil
 
 import (

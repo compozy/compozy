@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -286,9 +286,9 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 	})
 }
 
-func testHomePaths(t *testing.T) aghconfig.HomePaths {
+func testHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

@@ -1,4 +1,4 @@
-// Package fileutil provides shared filesystem helpers for AGH components.
+// Package fileutil provides shared filesystem helpers for Compozy components.
 package fileutil
 
 import (
@@ -14,7 +14,7 @@ var ErrInvalidPath = errors.New("fileutil: invalid path")
 
 var replaceFile = os.Rename
 
-// AtomicWrite writes content with the default AGH file permissions via temp-file-and-rename.
+// AtomicWrite writes content with the default Compozy file permissions via temp-file-and-rename.
 func AtomicWrite(path string, content []byte) error {
 	return AtomicWriteFile(path, content, 0o644)
 }

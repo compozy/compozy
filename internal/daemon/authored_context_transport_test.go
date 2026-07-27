@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
@@ -305,14 +305,14 @@ func newAuthoredContextFixture(t *testing.T) *authoredContextFixture {
 	if err := os.WriteFile(agentPath, []byte("name: coder\nprovider: test\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(AGENT.md) error = %v", err)
 	}
-	cfg := aghconfig.Config{}
-	cfg.Agents.Soul = aghconfig.DefaultSoulConfig()
-	cfg.Agents.Heartbeat = aghconfig.DefaultHeartbeatConfig()
+	cfg := compozyconfig.Config{}
+	cfg.Agents.Soul = compozyconfig.DefaultSoulConfig()
+	cfg.Agents.Heartbeat = compozyconfig.DefaultHeartbeatConfig()
 	workspace := workspacepkg.ResolvedWorkspace{
 		Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: root, Name: "workspace"},
 		WorkspaceID: "ws-1",
 		Config:      cfg,
-		Agents:      []aghconfig.AgentDef{{Name: "coder", Provider: "test", SourcePath: agentPath}},
+		Agents:      []compozyconfig.AgentDef{{Name: "coder", Provider: "test", SourcePath: agentPath}},
 	}
 	resolvedSoul := parseTestSoul(t, root, filepath.Join(agentDir, soul.FileName), cfg.Agents.Soul)
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
@@ -355,7 +355,7 @@ func parseTestSoul(
 	t *testing.T,
 	workspaceRoot string,
 	sourcePath string,
-	cfg aghconfig.SoulConfig,
+	cfg compozyconfig.SoulConfig,
 ) soul.ResolvedSoul {
 	t.Helper()
 
@@ -409,7 +409,7 @@ func newUDSAuthoredContextEngine(t *testing.T, fixture *authoredContextFixture) 
 	engine := gin.New()
 	socketPath := filepath.Join(
 		os.TempDir(),
-		fmt.Sprintf("agh-%d-%d.sock", os.Getpid(), time.Now().UnixNano()),
+		fmt.Sprintf("compozy-%d-%d.sock", os.Getpid(), time.Now().UnixNano()),
 	)
 	t.Cleanup(func() {
 		if err := os.Remove(socketPath); err != nil && !errors.Is(err, os.ErrNotExist) {

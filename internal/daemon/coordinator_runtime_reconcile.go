@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/coordinator"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -22,7 +22,7 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 	ctx context.Context,
 	info *session.Info,
 	decision coordinator.Decision,
-	createdCfg aghconfig.ResolvedCoordinatorRole,
+	createdCfg compozyconfig.ResolvedCoordinatorRole,
 	reason string,
 ) (*session.Info, bool, error) {
 	r.mu.Lock()
@@ -110,9 +110,9 @@ func (r *coordinatorRuntime) cleanupCreatedCoordinatorSession(
 func (r *coordinatorRuntime) createCoordinatorSession(
 	ctx context.Context,
 	decision coordinator.Decision,
-	cfg aghconfig.ResolvedCoordinatorRole,
+	cfg compozyconfig.ResolvedCoordinatorRole,
 	reason string,
-) (*session.Info, aghconfig.ResolvedCoordinatorRole, bool, error) {
+) (*session.Info, compozyconfig.ResolvedCoordinatorRole, bool, error) {
 	coordinatorParticipation, err := bindCoordinatorParticipation(decision)
 	if err != nil {
 		r.dispatchFailed(ctx, decision, nil, reason, err)

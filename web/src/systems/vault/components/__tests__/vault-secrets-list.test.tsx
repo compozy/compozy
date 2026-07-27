@@ -135,7 +135,7 @@ describe("VaultSecretSheet", () => {
     expect(screen.getByTestId("vault-secret-sheet-ref")).toHaveTextContent(secret.ref);
     expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("write-only");
     expect(screen.getByTestId("vault-secret-sheet-foot")).toHaveTextContent(
-      `agh vault put ${secret.ref} --value-stdin`
+      `compozy vault put ${secret.ref} --value-stdin`
     );
     expect(container.textContent).not.toContain("plaintext-secret");
   });

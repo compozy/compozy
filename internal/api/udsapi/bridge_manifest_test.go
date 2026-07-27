@@ -37,7 +37,7 @@ func TestSlackBridgeManifestHandlerReturnsRequestedPayload(t *testing.T) {
 					Platform:      "slack",
 					ExtensionName: "slack-reference",
 					DisplayName:   "Slack",
-					Description:   "Connect Slack messages, commands, actions, and reactions to AGH.",
+					Description:   "Connect Slack messages, commands, actions, and reactions to Compozy.",
 				}}, nil
 			},
 		}

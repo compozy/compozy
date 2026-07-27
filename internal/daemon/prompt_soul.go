@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -23,7 +23,7 @@ func (soulPromptSectionProvider) PromptSection(
 func (soulPromptSectionProvider) PromptStartupSection(
 	_ context.Context,
 	startup session.StartupPromptContext,
-	_ aghconfig.AgentDef,
+	_ compozyconfig.AgentDef,
 	_ *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	if startup.SoulSnapshot == nil {
@@ -48,7 +48,7 @@ func renderSoulPromptSection(snapshot *soul.Snapshot, profile *soul.SnapshotProf
 		return ""
 	}
 	var builder strings.Builder
-	builder.WriteString("<agh-agent-soul>\n")
+	builder.WriteString("<compozy-agent-soul>\n")
 	builder.WriteString("# Agent Soul\n\n")
 	writeSoulPromptLine(&builder, "Snapshot ID", snapshot.ID)
 	writeSoulPromptLine(&builder, "Digest", snapshot.Digest)
@@ -68,7 +68,7 @@ func renderSoulPromptSection(snapshot *soul.Snapshot, profile *soul.SnapshotProf
 	if snapshot.Truncated || profile.Profile.Truncated || profile.ReadModel.Truncated {
 		builder.WriteString("\nTruncated: true\n")
 	}
-	builder.WriteString("</agh-agent-soul>")
+	builder.WriteString("</compozy-agent-soul>")
 	return strings.TrimSpace(builder.String())
 }
 

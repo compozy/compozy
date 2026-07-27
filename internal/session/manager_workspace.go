@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -126,13 +126,13 @@ func (m *Manager) requireWorkspaceResolver() (workspacepkg.RuntimeResolver, erro
 func resolveWorkspaceAgent(
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	target := strings.TrimSpace(agentName)
 	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("session: agent name is required")
+		return compozyconfig.AgentDef{}, errors.New("session: agent name is required")
 	}
 	if resolvedWorkspace == nil {
-		return aghconfig.AgentDef{}, errors.New("session: resolved workspace is required")
+		return compozyconfig.AgentDef{}, errors.New("session: resolved workspace is required")
 	}
 
 	for _, agent := range resolvedWorkspace.Agents {
@@ -142,7 +142,7 @@ func resolveWorkspaceAgent(
 		return agent, nil
 	}
 
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
 func (m *Manager) resolveWorkspaceAgentArtifacts(
@@ -192,13 +192,13 @@ func resolveWorkspaceSessionAgentForType(
 	sessionType Type,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	agentResolver AgentResolver,
-) (aghconfig.ResolvedAgent, error) {
+) (compozyconfig.ResolvedAgent, error) {
 	if resolvedWorkspace == nil {
-		return aghconfig.ResolvedAgent{}, errors.New("session: resolved workspace is required")
+		return compozyconfig.ResolvedAgent{}, errors.New("session: resolved workspace is required")
 	}
 
 	var (
-		agentDef aghconfig.AgentDef
+		agentDef compozyconfig.AgentDef
 		err      error
 	)
 	if agentResolver != nil {
@@ -208,35 +208,35 @@ func resolveWorkspaceSessionAgentForType(
 	}
 	if err != nil {
 		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return aghconfig.ResolvedAgent{}, err
+			return compozyconfig.ResolvedAgent{}, err
 		}
 		fallback, ok := builtinSessionAgentDef(agentName, sessionType)
 		if !ok {
-			return aghconfig.ResolvedAgent{}, err
+			return compozyconfig.ResolvedAgent{}, err
 		}
 		agentDef = fallback
 	}
 
 	resolved, err := resolvedWorkspace.Config.ResolveSessionAgent(agentDef, provider)
 	if err != nil {
-		return aghconfig.ResolvedAgent{}, err
+		return compozyconfig.ResolvedAgent{}, err
 	}
 	return resolved, nil
 }
 
-func builtinSessionAgentDef(agentName string, sessionType Type) (aghconfig.AgentDef, bool) {
+func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.AgentDef, bool) {
 	expectedName := ""
 	switch normalizeSessionType(sessionType) {
 	case SessionTypeCoordinator:
-		expectedName = aghconfig.BuiltinCoordinatorAgentName
+		expectedName = compozyconfig.BuiltinCoordinatorAgentName
 	case SessionTypeDream:
-		expectedName = aghconfig.BuiltinDreamingCuratorAgentName
+		expectedName = compozyconfig.BuiltinDreamingCuratorAgentName
 	default:
-		return aghconfig.AgentDef{}, false
+		return compozyconfig.AgentDef{}, false
 	}
-	def, ok := aghconfig.BuiltinAgentDef(agentName)
+	def, ok := compozyconfig.BuiltinAgentDef(agentName)
 	if !ok || def.Name != expectedName {
-		return aghconfig.AgentDef{}, false
+		return compozyconfig.AgentDef{}, false
 	}
 	return def, true
 }

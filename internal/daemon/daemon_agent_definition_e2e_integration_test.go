@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -45,7 +45,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		defer cancel()
 
 		const agentName = "code_implementer"
-		var before aghcontract.AgentResponse
+		var before compozycontract.AgentResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -64,8 +64,8 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		selectedProvider := before.Agent.EffectiveRuntime.Provider
 		selectedModel := before.Agent.EffectiveRuntime.Model
 
-		update := aghcontract.UpdateAgentRequest{
-			Agent: aghcontract.CreateAgentPayload{
+		update := compozycontract.UpdateAgentRequest{
+			Agent: compozycontract.CreateAgentPayload{
 				Name:            before.Agent.Name,
 				Provider:        selectedProvider,
 				Command:         before.Agent.Command,
@@ -74,14 +74,14 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 				Tools:           append([]string(nil), before.Agent.Tools...),
 				Toolsets:        append([]string(nil), before.Agent.Toolsets...),
 				DenyTools:       append([]string(nil), before.Agent.DenyTools...),
-				Permissions:     aghcontract.SettingsPermissionMode(before.Agent.Permissions),
+				Permissions:     compozycontract.SettingsPermissionMode(before.Agent.Permissions),
 				CategoryPath:    append([]string(nil), before.Agent.CategoryPath...),
 				Skills:          before.Agent.Skills,
 				Prompt:          before.Agent.Prompt,
 			},
 			ExpectedDigest: before.Agent.DefinitionDigest,
 		}
-		var updated aghcontract.AgentResponse
+		var updated compozycontract.AgentResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPut,
@@ -96,10 +96,13 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			t.Fatalf("updated extension agent = %#v, want selected runtime in Compozy", updated.Agent)
 		}
 		if updated.Agent.DefinitionDigest == before.Agent.DefinitionDigest {
-			t.Fatalf("updated extension agent digest = %q, want a persisted runtime change", updated.Agent.DefinitionDigest)
+			t.Fatalf(
+				"updated extension agent digest = %q, want a persisted runtime change",
+				updated.Agent.DefinitionDigest,
+			)
 		}
 
-		var fresh aghcontract.AgentResponse
+		var fresh compozycontract.AgentResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -127,7 +130,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			ConfigSeed: configSeed,
 			Workspace:  e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot},
 		})
-		var afterRestart aghcontract.AgentResponse
+		var afterRestart compozycontract.AgentResponse
 		if err := restarted.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -174,7 +177,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var before []aghcontract.AgentPayload
+	var before []compozycontract.AgentPayload
 	if err := harness.CLI.RunJSONInDir(
 		ctx,
 		harness.WorkspaceRoot,
@@ -210,9 +213,9 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		harness.HTTPClient,
 		harness.HTTPURL("/api/agents"),
 		http.MethodPost,
-		aghcontract.CreateAgentRequest{
-			Scope: aghcontract.AgentCreateScopeGlobal,
-			Agent: aghcontract.CreateAgentPayload{
+		compozycontract.CreateAgentRequest{
+			Scope: compozycontract.AgentCreateScopeGlobal,
+			Agent: compozycontract.CreateAgentPayload{
 				Name: "dreaming-curator", Provider: acpmock.ProviderName, Prompt: "Reserved HTTP create.",
 			},
 		},
@@ -225,7 +228,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		harness.UDSClient,
 		harness.UDSURL("/api/agents/reserved-sweep-source/duplicate"),
 		http.MethodPost,
-		aghcontract.DuplicateAgentRequest{Name: "coordinator"},
+		compozycontract.DuplicateAgentRequest{Name: "coordinator"},
 	)
 	assertReservedAgentHTTPError(t, duplicate)
 	input, err := json.Marshal(map[string]string{
@@ -242,7 +245,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		ctx,
 		harness.HTTPClient,
 		harness.HTTPURL("/api/tools/compozy__agent_create/invoke"),
-		aghcontract.ToolInvokeRequest{
+		compozycontract.ToolInvokeRequest{
 			WorkspaceID: harness.WorkspaceID,
 			Input:       input,
 		},
@@ -252,7 +255,7 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 		t.Fatalf("native reserved create = %#v, want 422 agent_name_reserved", native)
 	}
 
-	for _, name := range aghconfig.BuiltinAgentNames() {
+	for _, name := range compozyconfig.BuiltinAgentNames() {
 		path := filepath.Join(harness.HomePaths.AgentsDir, name)
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", path, err)
@@ -260,14 +263,14 @@ func runDaemonE2EReservedAgentNameSweep(t *testing.T) {
 	}
 	workspaceReservedPath := filepath.Join(
 		harness.WorkspaceRoot,
-		aghconfig.DirName,
-		aghconfig.AgentsDirName,
+		compozyconfig.DirName,
+		compozyconfig.AgentsDirName,
 		"coordinator",
 	)
 	if _, err := os.Stat(workspaceReservedPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", workspaceReservedPath, err)
 	}
-	var after []aghcontract.AgentPayload
+	var after []compozycontract.AgentPayload
 	if err := harness.CLI.RunJSONInDir(
 		ctx,
 		harness.WorkspaceRoot,
@@ -302,7 +305,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	defer cancel()
 
 	const sourceName = "parity-coder"
-	var cliCreated aghcontract.AgentPayload
+	var cliCreated compozycontract.AgentPayload
 	if err := harness.CLI.RunJSONInDir(
 		ctx,
 		harness.WorkspaceRoot,
@@ -328,7 +331,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 
 	t.Run("Should expose a CLI create through HTTP", func(t *testing.T) {
 		// not parallel: lifecycle steps share one ordered runtime state.
-		var response aghcontract.AgentResponse
+		var response compozycontract.AgentResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -343,15 +346,15 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		}
 	})
 
-	updateRequest := aghcontract.UpdateAgentRequest{
+	updateRequest := compozycontract.UpdateAgentRequest{
 		Workspace: harness.WorkspaceRoot,
-		Agent: aghcontract.CreateAgentPayload{
+		Agent: compozycontract.CreateAgentPayload{
 			Name: sourceName, Provider: acpmock.ProviderName, Model: "model-v2",
 			Tools: []string{"builtin__shell"}, Prompt: "Review code.",
 		},
 		ExpectedDigest: cliCreated.DefinitionDigest,
 	}
-	var httpUpdated aghcontract.AgentResponse
+	var httpUpdated compozycontract.AgentResponse
 	if err := harness.HTTPJSON(
 		ctx,
 		http.MethodPut,
@@ -364,7 +367,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 
 	t.Run("Should expose an HTTP update through CLI info", func(t *testing.T) {
 		// not parallel: lifecycle steps share one ordered runtime state.
-		var cliInfo aghcontract.AgentPayload
+		var cliInfo compozycontract.AgentPayload
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -385,12 +388,12 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	})
 
 	const duplicateName = "parity-reviewer"
-	duplicateRequest := aghcontract.DuplicateAgentRequest{
+	duplicateRequest := compozycontract.DuplicateAgentRequest{
 		Name:      duplicateName,
 		Workspace: harness.WorkspaceRoot,
-		Overrides: &aghcontract.DuplicateAgentOverrides{Model: "model-review"},
+		Overrides: &compozycontract.DuplicateAgentOverrides{Model: "model-review"},
 	}
-	var udsDuplicated aghcontract.AgentResponse
+	var udsDuplicated compozycontract.AgentResponse
 	if err := harness.UDSJSON(
 		ctx,
 		http.MethodPost,
@@ -403,7 +406,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 
 	t.Run("Should expose an identical UDS duplicate through every read surface", func(t *testing.T) {
 		// not parallel: lifecycle steps share one ordered runtime state.
-		var httpInfo aghcontract.AgentResponse
+		var httpInfo compozycontract.AgentResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
@@ -413,7 +416,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		); err != nil {
 			t.Fatalf("HTTP duplicated agent info error = %v", err)
 		}
-		var udsInfo aghcontract.AgentResponse
+		var udsInfo compozycontract.AgentResponse
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -423,7 +426,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		); err != nil {
 			t.Fatalf("UDS duplicated agent info error = %v", err)
 		}
-		var cliInfo aghcontract.AgentPayload
+		var cliInfo compozycontract.AgentPayload
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -491,7 +494,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		httpConflict.Payload.Error,
 	)
 
-	var deleted aghcontract.DeleteAgentResponse
+	var deleted compozycontract.DeleteAgentResponse
 	if err := harness.CLI.RunJSONInDir(
 		ctx,
 		harness.WorkspaceRoot,
@@ -507,7 +510,7 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	); err != nil {
 		t.Fatalf("CLI agent delete error = %v", err)
 	}
-	if deleted.Name != duplicateName || deleted.Origin != aghcontract.AgentOriginWorkspace {
+	if deleted.Name != duplicateName || deleted.Origin != compozycontract.AgentOriginWorkspace {
 		t.Fatalf("CLI delete = %#v, want workspace duplicate", deleted)
 	}
 
@@ -576,7 +579,7 @@ func agentDefinitionE2EConfigSeed(t *testing.T) e2etest.ConfigSeedOptions {
 
 	return e2etest.ConfigSeedOptions{
 		DefaultProvider: acpmock.ProviderName,
-		Providers: map[string]aghconfig.ProviderConfig{
+		Providers: map[string]compozyconfig.ProviderConfig{
 			acpmock.ProviderName: acpmock.ProviderConfig(driverPath),
 		},
 	}
@@ -587,13 +590,13 @@ type agentDefinitionE2EView struct {
 	Provider         string
 	Model            string
 	Prompt           string
-	Origin           aghcontract.AgentOrigin
+	Origin           compozycontract.AgentOrigin
 	WorkspaceID      string
 	DefinitionDigest string
 	Tools            []string
 }
 
-func agentDefinitionE2EProjection(agent aghcontract.AgentPayload) agentDefinitionE2EView {
+func agentDefinitionE2EProjection(agent compozycontract.AgentPayload) agentDefinitionE2EView {
 	return agentDefinitionE2EView{
 		Name:             agent.Name,
 		Provider:         agent.Provider,
@@ -611,12 +614,12 @@ func agentDefinitionE2EPath(name string, workspace string) string {
 
 type agentDefinitionE2EError struct {
 	Status  int
-	Payload aghcontract.ErrorPayload
+	Payload compozycontract.ErrorPayload
 }
 
 type agentDefinitionE2EToolError struct {
 	Status  int
-	Payload aghcontract.ToolErrorResponse
+	Payload compozycontract.ToolErrorResponse
 }
 
 func agentDefinitionE2ERequestError(
@@ -656,7 +659,7 @@ func agentDefinitionE2ERequestError(
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		t.Fatalf("%s %s status = %d, want error; body=%s", method, target, response.StatusCode, payload)
 	}
-	var errorPayload aghcontract.ErrorPayload
+	var errorPayload compozycontract.ErrorPayload
 	if err := json.Unmarshal(payload, &errorPayload); err != nil {
 		t.Fatalf("json.Unmarshal(%s %s error) = %v; body=%s", method, target, err, payload)
 	}
@@ -668,7 +671,7 @@ func agentDefinitionE2EToolRequestError(
 	ctx context.Context,
 	client *http.Client,
 	target string,
-	body aghcontract.ToolInvokeRequest,
+	body compozycontract.ToolInvokeRequest,
 ) agentDefinitionE2EToolError {
 	t.Helper()
 
@@ -693,7 +696,7 @@ func agentDefinitionE2EToolRequestError(
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		t.Fatalf("native tool status = %d, want error; body=%s", response.StatusCode, responsePayload)
 	}
-	var errorPayload aghcontract.ToolErrorResponse
+	var errorPayload compozycontract.ToolErrorResponse
 	if err := json.Unmarshal(responsePayload, &errorPayload); err != nil {
 		t.Fatalf("json.Unmarshal(native tool error) = %v; body=%s", err, responsePayload)
 	}
@@ -704,7 +707,7 @@ func assertReservedAgentHTTPError(t *testing.T, got agentDefinitionE2EError) {
 	t.Helper()
 
 	if got.Status != http.StatusUnprocessableEntity || got.Payload.Diagnostic == nil ||
-		got.Payload.Diagnostic.Code != aghcontract.CodeAgentNameReserved {
+		got.Payload.Diagnostic.Code != compozycontract.CodeAgentNameReserved {
 		t.Fatalf("reserved agent mutation = %#v, want 422 agent_name_reserved", got)
 	}
 }
@@ -716,11 +719,11 @@ func assertReservedAgentCLIError(t *testing.T, err error, stderr string) {
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("reserved CLI error = %T %[1]v, want *exec.ExitError", err)
 	}
-	var payload aghcontract.ErrorPayload
+	var payload compozycontract.ErrorPayload
 	if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(reserved CLI stderr) = %v; stderr=%s", err, stderr)
 	}
-	if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeAgentNameReserved {
+	if payload.Diagnostic == nil || payload.Diagnostic.Code != compozycontract.CodeAgentNameReserved {
 		t.Fatalf("reserved CLI payload = %#v, want agent_name_reserved", payload)
 	}
 }
@@ -741,7 +744,7 @@ func assertAgentDefinitionE2ECLIError(
 	if exitErr.ExitCode() != wantExit {
 		t.Fatalf("CLI exit code = %d, want %d; stderr=%s", exitErr.ExitCode(), wantExit, stderr)
 	}
-	var payload aghcontract.ErrorPayload
+	var payload compozycontract.ErrorPayload
 	if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(CLI stderr) = %v; stderr=%s", err, stderr)
 	}

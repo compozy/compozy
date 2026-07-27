@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 const daemonRunningStatus = "running"
@@ -39,7 +39,7 @@ func daemonClientIfRunning(ctx context.Context, deps commandDeps) (DaemonClient,
 		}
 		return client, true, nil
 	}
-	if info == (aghdaemon.Info{}) {
+	if info == (compozydaemon.Info{}) {
 		return nil, false, nil
 	}
 

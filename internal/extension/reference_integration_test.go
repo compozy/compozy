@@ -27,10 +27,11 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/cli"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	daemonpkg "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -74,7 +75,7 @@ type referenceHarness struct {
 	client       cli.DaemonClient
 	daemonCancel context.CancelFunc
 	daemonErrCh  chan error
-	homePaths    aghconfig.HomePaths
+	homePaths    compozyconfig.HomePaths
 	httpBaseURL  string
 	logBuffer    *lockedBuffer
 	repoRoot     string
@@ -308,7 +309,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	t.Helper()
 
 	homePaths := referenceHomePaths(t)
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -387,7 +388,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	return harness
 }
 
-func referenceDisableBundledDevCycle(t *testing.T, homePaths aghconfig.HomePaths) {
+func referenceDisableBundledDevCycle(t *testing.T, homePaths compozyconfig.HomePaths) {
 	t.Helper()
 
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
@@ -514,6 +515,17 @@ func (h *referenceHarness) createSession(t *testing.T) cli.SessionRecord {
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
+	waitForCondition(t, 10*time.Second, "reference session active", func() bool {
+		current, getErr := h.client.GetSession(ctx, session.ID)
+		if getErr != nil {
+			return false
+		}
+		session = current
+		return current.State == sessionpkg.StateActive || current.State == sessionpkg.StateStopped
+	})
+	if session.State != sessionpkg.StateActive {
+		t.Fatalf("CreateSession() startup = %#v, want active", session)
+	}
 	return session
 }
 
@@ -530,7 +542,11 @@ func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cl
 		t.Fatalf("GetTool(clarify) error = %v", err)
 	}
 	if !view.Tool.Decision.Callable {
-		t.Fatalf("clarify interactive=%t reasons=%v", view.Tool.Descriptor.RequiresInteraction, view.Tool.Decision.ReasonCodes)
+		t.Fatalf(
+			"clarify interactive=%t reasons=%v",
+			view.Tool.Descriptor.RequiresInteraction,
+			view.Tool.Decision.ReasonCodes,
+		)
 	}
 
 	choice := 1
@@ -970,7 +986,7 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 		"./sdk/examples/clarify-tool",
 	)
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/extension-sdk")
-	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/example-prompt-enhancer")
+	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/example-prompt-enhancer")
 }
 
 func referencePromptEnhancerInstallSource(t *testing.T, repoRoot string) string {
@@ -984,7 +1000,7 @@ func referencePromptEnhancerInstallSource(t *testing.T, repoRoot string) string 
 	copyReferenceDir(t, filepath.Join(sourceDir, "dist"), filepath.Join(targetDir, "dist"))
 
 	sdkSource := filepath.Join(repoRoot, "sdk", "typescript")
-	sdkTarget := filepath.Join(targetDir, "node_modules", "@agh", "extension-sdk")
+	sdkTarget := filepath.Join(targetDir, "node_modules", "@compozy", "extension-sdk")
 	copyReferenceFile(t, filepath.Join(sdkSource, "package.json"), filepath.Join(sdkTarget, "package.json"))
 	copyReferenceDir(t, filepath.Join(sdkSource, "dist"), filepath.Join(sdkTarget, "dist"))
 
@@ -1068,14 +1084,14 @@ func referenceRepoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
-func referenceHomePaths(t *testing.T) aghconfig.HomePaths {
+func referenceHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
 	homeDir := t.TempDir()
 	t.Setenv("COMPOZY_HOME", homeDir)
 	t.Setenv("HOME", homeDir)
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(homeDir)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(homeDir)
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -1083,10 +1099,10 @@ func referenceHomePaths(t *testing.T) aghconfig.HomePaths {
 	return homePaths
 }
 
-func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths, command string) aghconfig.Config {
+func referenceConfig(t *testing.T, homePaths compozyconfig.HomePaths, command string) compozyconfig.Config {
 	t.Helper()
 
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = referenceFreeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
@@ -1101,8 +1117,8 @@ func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths, command string
 
 func referenceSeedWorkspace(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
-	cfg aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	cfg compozyconfig.Config,
 	root string,
 ) workspacepkg.ResolvedWorkspace {
 	t.Helper()
@@ -1125,7 +1141,7 @@ func referenceSeedWorkspace(
 		db,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) {
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) {
 			return cfg, nil
 		}),
 	)
@@ -1161,7 +1177,7 @@ func referenceACPHelperCommand(t *testing.T) string {
 	)
 }
 
-func referenceWriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string, command string) {
+func referenceWriteAgentDef(t *testing.T, homePaths compozyconfig.HomePaths, name string, command string) {
 	t.Helper()
 
 	path := filepath.Join(homePaths.AgentsDir, name, "AGENT.md")
@@ -1186,7 +1202,7 @@ func referenceWriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name st
 
 func referenceWriteProviderConfig(
 	t *testing.T,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
 	command string,
 ) {

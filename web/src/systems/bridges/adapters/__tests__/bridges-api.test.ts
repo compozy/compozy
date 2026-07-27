@@ -672,15 +672,15 @@ describe("getSlackBridgeManifest", () => {
         _metadata: { major_version: 1, minor_version: 1 },
         display_information: {
           background_color: "#E8572A",
-          description: "AGH Slack bridge",
-          name: "AGH",
+          description: "Compozy Slack bridge",
+          name: "Compozy",
         },
         features: {
-          bot_user: { always_online: false, display_name: "AGH" },
+          bot_user: { always_online: false, display_name: "Compozy" },
           slash_commands: [
             {
-              command: "/agh",
-              description: "Message AGH",
+              command: "/compozy",
+              description: "Message Compozy",
               should_escape: false,
               url: "https://bridge.example.test/slack",
               usage_hint: "<message>",
@@ -707,7 +707,7 @@ describe("getSlackBridgeManifest", () => {
 
     const result = await getSlackBridgeManifest(" brg_slack ", controller.signal);
 
-    expect(result.manifest.display_information.name).toBe("AGH");
+    expect(result.manifest.display_information.name).toBe("Compozy");
     await expectFetchRequest({
       path: "/api/bridges/providers/slack/manifest?instance=brg_slack",
       signal: controller.signal,

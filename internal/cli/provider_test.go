@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -48,11 +48,11 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["local"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = compozyconfig.ProviderConfig{
 				Command:  "local-agent acp",
-				AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+				AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 			}
 			return cfg, nil
 		}
@@ -84,12 +84,12 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["custom"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["custom"] = compozyconfig.ProviderConfig{
 				Command:  "custom-agent --acp",
-				AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-				CredentialSlots: []aghconfig.ProviderCredentialSlot{
+				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 					{
 						Name:      "api_key",
 						TargetEnv: "CUSTOM_API_KEY",
@@ -123,9 +123,9 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["claude"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["claude"] = compozyconfig.ProviderConfig{
 				AuthStatusCmd: "claude auth status",
 			}
 			return cfg, nil
@@ -173,11 +173,11 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["local"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = compozyconfig.ProviderConfig{
 				Command:       "missing-agent acp",
-				AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+				AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
 				AuthStatusCmd: "missing-agent auth status",
 				AuthLoginCmd:  "missing-agent auth login",
 			}
@@ -224,11 +224,11 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["local"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = compozyconfig.ProviderConfig{
 				Command:       "claude acp",
-				AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+				AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
 				AuthStatusCmd: "claude auth status",
 				AuthLoginCmd:  "claude auth login",
 			}
@@ -356,12 +356,12 @@ func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
 
 		deps := newTestDeps(t, nil)
 		deps.getenv = os.Getenv
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["custom"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["custom"] = compozyconfig.ProviderConfig{
 				Command:  "custom-agent --acp",
-				AuthMode: aghconfig.ProviderAuthModeBoundSecret,
-				CredentialSlots: []aghconfig.ProviderCredentialSlot{
+				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 					{
 						Name:      "api_key",
 						TargetEnv: "CUSTOM_API_KEY",
@@ -402,9 +402,9 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["codex"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
 				AuthLoginCmd: "codex login",
 			}
 			return cfg, nil
@@ -452,9 +452,9 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["codex"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
 				AuthLoginCmd: "codex login",
 			}
 			return cfg, nil
@@ -487,14 +487,14 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		deps := newTestDeps(t, nil)
-		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(homePaths)
-			cfg.Providers["pi"] = aghconfig.ProviderConfig{
-				EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
-				HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(homePaths)
+			cfg.Providers["pi"] = compozyconfig.ProviderConfig{
+				EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
+				HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 			}
 			return cfg, nil
 		}
@@ -557,11 +557,11 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["local"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = compozyconfig.ProviderConfig{
 				Command:      "local-agent acp",
-				AuthMode:     aghconfig.ProviderAuthModeNativeCLI,
+				AuthMode:     compozyconfig.ProviderAuthModeNativeCLI,
 				AuthLoginCmd: "missing-agent auth login",
 			}
 			return cfg, nil
@@ -593,11 +593,11 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["local"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = compozyconfig.ProviderConfig{
 				Command:  "local-agent acp",
-				AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+				AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 			}
 			return cfg, nil
 		}
@@ -644,14 +644,14 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		deps := newTestDeps(t, nil)
-		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(homePaths)
-			cfg.Providers["pi"] = aghconfig.ProviderConfig{
-				EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
-				HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(homePaths)
+			cfg.Providers["pi"] = compozyconfig.ProviderConfig{
+				EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
+				HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 			}
 			return cfg, nil
 		}
@@ -688,9 +688,9 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
-		deps.loadConfig = func() (aghconfig.Config, error) {
-			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
-			cfg.Providers["codex"] = aghconfig.ProviderConfig{
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["codex"] = compozyconfig.ProviderConfig{
 				AuthLoginCmd: "codex login",
 			}
 			return cfg, nil
@@ -719,10 +719,10 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 	})
 }
 
-func mustTestHomePaths(t *testing.T) aghconfig.HomePaths {
+func mustTestHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

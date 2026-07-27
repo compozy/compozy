@@ -71,7 +71,7 @@ func newBenchmarkBundleService(bundleCount int, activationCount int) (*Service, 
 					Workspace: workspacepkg.Workspace{
 						ID:      idOrPath,
 						Name:    idOrPath,
-						RootDir: fmt.Sprintf("/tmp/agh-benchmark/%s", idOrPath),
+						RootDir: fmt.Sprintf("/tmp/compozy-benchmark/%s", idOrPath),
 					},
 				}, nil
 			},

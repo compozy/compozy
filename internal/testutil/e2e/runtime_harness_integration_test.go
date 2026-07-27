@@ -18,8 +18,8 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -72,7 +72,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if databaseInfo.IsDir() {
 		t.Fatalf("database path %q is a directory, want file", harness.HomePaths.DatabaseFile)
 	}
-	if got, want := filepath.Base(harness.HomePaths.DatabaseFile), aghconfig.DatabaseName; got != want {
+	if got, want := filepath.Base(harness.HomePaths.DatabaseFile), compozyconfig.DatabaseName; got != want {
 		t.Fatalf("database filename = %q, want %q", got, want)
 	}
 
@@ -87,7 +87,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 		t.Fatalf("socket filename = %q, want compozy-e2e-*", socketName)
 	}
 
-	var httpStatus aghcontract.StatusPayload
+	var httpStatus compozycontract.StatusPayload
 	if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
 		t.Fatalf("HTTP runtime status error = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	}
 	assertSchemaStreamStatuses(t, httpStatus.Daemon.SchemaStreams)
 
-	var udsStatus aghcontract.StatusPayload
+	var udsStatus compozycontract.StatusPayload
 	if err := harness.UDSJSON(ctx, "GET", "/api/status", nil, &udsStatus); err != nil {
 		t.Fatalf("UDS runtime status error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 		)
 	}
 
-	var cliStatus aghcontract.StatusPayload
+	var cliStatus compozycontract.StatusPayload
 	if err := harness.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
 		t.Fatalf("CLI runtime status error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 		)
 	}
 
-	var loopTool aghcontract.ToolResponse
+	var loopTool compozycontract.ToolResponse
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&loopTool,
@@ -160,7 +160,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	}
 }
 
-func assertSchemaStreamStatuses(t *testing.T, statuses []aghcontract.SchemaStreamStatus) {
+func assertSchemaStreamStatuses(t *testing.T, statuses []compozycontract.SchemaStreamStatus) {
 	t.Helper()
 	expectations := runtimeMigrationExpectations()
 	if len(statuses) != len(expectations) {
@@ -349,7 +349,7 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var status aghcontract.StatusPayload
+	var status compozycontract.StatusPayload
 	if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &status); err != nil {
 		t.Fatalf("HTTP runtime status after retry error = %v", err)
 	}
@@ -397,14 +397,14 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 			e2eACPHelperEnvKey: "1",
 		},
 		ConfigSeed: ConfigSeedOptions{
-			Providers: map[string]aghconfig.ProviderConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
 				acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
 			},
 			AgentDefs: []AgentSeed{{
 				Name:        "coder",
 				Provider:    acpmock.ProviderName,
 				Command:     helperCommand,
-				Permissions: string(aghconfig.PermissionModeApproveReads),
+				Permissions: string(compozyconfig.PermissionModeApproveReads),
 				Prompt:      "You are a deterministic E2E helper.",
 			}},
 		},
@@ -413,7 +413,7 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	created, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
 		AgentName:     "coder",
 		Name:          "artifact-demo",
 		WorkspacePath: harness.WorkspaceRoot,
@@ -480,7 +480,7 @@ func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing
 		harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-		var httpStatus aghcontract.StatusPayload
+		var httpStatus compozycontract.StatusPayload
 		if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
 			cancel()
 			t.Fatalf("cycle %d HTTP runtime status error = %v", cycle, err)
@@ -511,7 +511,7 @@ func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T
 		t.Fatalf("CLI.Run(runtime status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
 	}
 
-	var cliStatus aghcontract.StatusPayload
+	var cliStatus compozycontract.StatusPayload
 	if err := json.Unmarshal([]byte(stdout), &cliStatus); err != nil {
 		t.Fatalf("json.Unmarshal(cli status) error = %v; stdout=%s", err, strings.TrimSpace(stdout))
 	}

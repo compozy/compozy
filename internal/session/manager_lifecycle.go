@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -170,12 +170,12 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 func (m *Manager) resolveStartMCPServers(
 	ctx context.Context,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-	agent aghconfig.AgentDef,
-	base []aghconfig.MCPServer,
-) ([]aghconfig.MCPServer, error) {
+	agent compozyconfig.AgentDef,
+	base []compozyconfig.MCPServer,
+) ([]compozyconfig.MCPServer, error) {
 	switch {
 	case m.skillRegistry == nil && m.mcpResolver == nil:
-		return append([]aghconfig.MCPServer(nil), base...), nil
+		return append([]compozyconfig.MCPServer(nil), base...), nil
 	case m.skillRegistry == nil || m.mcpResolver == nil:
 		return nil, errors.New("session: skill registry and MCP resolver must be configured together")
 	}
@@ -195,7 +195,7 @@ func (m *Manager) resolveStartMCPServers(
 		return nil, fmt.Errorf("session: resolve active skills for workspace %q: %w", workspaceID, err)
 	}
 
-	return aghconfig.MergeMCPServers(base, m.mcpResolver.Resolve(activeSkills)), nil
+	return compozyconfig.MergeMCPServers(base, m.mcpResolver.Resolve(activeSkills)), nil
 }
 
 func appendLifecycleErr(errs []error, err error) []error {

@@ -10,7 +10,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -29,8 +29,8 @@ type ResourceStore struct {
 	activationCodec resources.KindCodec[ActivationResourceSpec]
 	layouts         resources.Store[windowmanager.LayoutResource]
 	layoutCodec     resources.KindCodec[windowmanager.LayoutResource]
-	agents          resources.Store[aghconfig.AgentDef]
-	agentCodec      resources.KindCodec[aghconfig.AgentDef]
+	agents          resources.Store[compozyconfig.AgentDef]
+	agentCodec      resources.KindCodec[compozyconfig.AgentDef]
 	souls           resources.Store[soul.ResourceSpec]
 	soulCodec       resources.KindCodec[soul.ResourceSpec]
 	heartbeats      resources.Store[heartbeat.ResourceSpec]
@@ -54,8 +54,8 @@ type ResourceStoreConfig struct {
 	ActivationCodec resources.KindCodec[ActivationResourceSpec]
 	Layouts         resources.Store[windowmanager.LayoutResource]
 	LayoutCodec     resources.KindCodec[windowmanager.LayoutResource]
-	Agents          resources.Store[aghconfig.AgentDef]
-	AgentCodec      resources.KindCodec[aghconfig.AgentDef]
+	Agents          resources.Store[compozyconfig.AgentDef]
+	AgentCodec      resources.KindCodec[compozyconfig.AgentDef]
 	Souls           resources.Store[soul.ResourceSpec]
 	SoulCodec       resources.KindCodec[soul.ResourceSpec]
 	Heartbeats      resources.Store[heartbeat.ResourceSpec]
@@ -75,7 +75,7 @@ var _ Store = (*ResourceStore)(nil)
 
 var bundleActivationOwnedKindAllowlist = map[resources.ResourceKind]struct{}{
 	windowmanager.WindowLayoutResourceKind: {},
-	aghconfig.AgentResourceKind:            {},
+	compozyconfig.AgentResourceKind:        {},
 	soul.ResourceKind:                      {},
 	heartbeat.ResourceKind:                 {},
 	automationpkg.JobResourceKind:          {},
@@ -198,8 +198,8 @@ func (s *ResourceStore) ListBundleResources(
 
 func (s *ResourceStore) ListAgentResources(
 	ctx context.Context,
-) ([]resources.Record[aghconfig.AgentDef], error) {
-	records, err := s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: aghconfig.AgentResourceKind})
+) ([]resources.Record[compozyconfig.AgentDef], error) {
+	records, err := s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: compozyconfig.AgentResourceKind})
 	if err != nil {
 		return nil, fmt.Errorf("bundles: list agent resources: %w", err)
 	}
@@ -244,9 +244,9 @@ func (s *ResourceStore) listOwnedAgentInventory(
 		s.agents,
 		s.actor,
 		owner,
-		aghconfig.AgentResourceKind,
+		compozyconfig.AgentResourceKind,
 		"agents",
-		func(spec aghconfig.AgentDef) string { return spec.Name },
+		func(spec compozyconfig.AgentDef) string { return spec.Name },
 	)
 }
 

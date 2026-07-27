@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -17,14 +17,14 @@ type resolvedAgentDefinition struct {
 	Entry              AgentCatalogEntry
 	OperationWorkspace string
 	WorkspaceRoot      string
-	Config             aghconfig.Config
+	Config             compozyconfig.Config
 }
 
 type agentDefinitionMutationTarget struct {
 	Path        string
 	Origin      contract.AgentOrigin
 	WorkspaceID string
-	Config      aghconfig.Config
+	Config      compozyconfig.Config
 }
 
 func (h *BaseHandlers) resolveAgentDefinition(
@@ -32,7 +32,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 	workspaceRef string,
 	name string,
 ) (resolvedAgentDefinition, error) {
-	target := aghconfig.NormalizeAgentName(name)
+	target := compozyconfig.NormalizeAgentName(name)
 	if target == "" {
 		return resolvedAgentDefinition{}, errors.Join(
 			errAgentDefinitionInvalid,
@@ -53,7 +53,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			return resolvedAgentDefinition{}, err
 		}
 		for _, agent := range resolved.Agents {
-			if aghconfig.NormalizeAgentName(agent.Name) != target {
+			if compozyconfig.NormalizeAgentName(agent.Name) != target {
 				continue
 			}
 			entry := h.agentCatalogEntryFromDef(agent, resolved.ID)
@@ -102,7 +102,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	if scope == "" {
 		scope = contract.AgentCreateScope(source.Entry.Origin)
 	}
-	targetName := aghconfig.NormalizeAgentName(req.Name)
+	targetName := compozyconfig.NormalizeAgentName(req.Name)
 	switch scope {
 	case contract.AgentCreateScopeGlobal:
 		return agentDefinitionMutationTarget{
@@ -122,8 +122,8 @@ func (h *BaseHandlers) duplicateAgentTarget(
 			return agentDefinitionMutationTarget{
 				Path: filepath.Join(
 					source.WorkspaceRoot,
-					aghconfig.DirName,
-					aghconfig.AgentsDirName,
+					compozyconfig.DirName,
+					compozyconfig.AgentsDirName,
 					targetName,
 				),
 				Origin:      contract.AgentOriginWorkspace,
@@ -150,8 +150,8 @@ func (h *BaseHandlers) duplicateAgentTarget(
 		return agentDefinitionMutationTarget{
 			Path: filepath.Join(
 				resolved.RootDir,
-				aghconfig.DirName,
-				aghconfig.AgentsDirName,
+				compozyconfig.DirName,
+				compozyconfig.AgentsDirName,
 				targetName,
 			),
 			Origin:      contract.AgentOriginWorkspace,
@@ -177,7 +177,7 @@ func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved *resolvedAgentDefiniti
 				errors.New("source workspace root is unavailable"),
 			)
 		}
-		return filepath.Join(resolved.WorkspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName), nil
+		return filepath.Join(resolved.WorkspaceRoot, compozyconfig.DirName, compozyconfig.AgentsDirName), nil
 	default:
 		return "", errors.Join(
 			errAgentDefinitionInvalid,
@@ -189,8 +189,8 @@ func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved *resolvedAgentDefiniti
 func (h *BaseHandlers) globalAgentTwinExists(name string, effectiveSourcePath string) bool {
 	path := filepath.Join(
 		h.HomePaths.AgentsDir,
-		aghconfig.NormalizeAgentName(name),
-		aghconfig.AgentDefinitionFileName,
+		compozyconfig.NormalizeAgentName(name),
+		compozyconfig.AgentDefinitionFileName,
 	)
 	if filepath.Clean(path) == filepath.Clean(effectiveSourcePath) {
 		return false
@@ -206,10 +206,10 @@ func (h *BaseHandlers) globalAgentTwinExists(name string, effectiveSourcePath st
 	if !info.Mode().IsRegular() {
 		return false
 	}
-	agent, err := aghconfig.LoadAgentDefFile(path)
+	agent, err := compozyconfig.LoadAgentDefFile(path)
 	if err != nil {
 		h.Logger.Debug("api: global agent twin is invalid for disclosure", "path", path, "error", err)
 		return false
 	}
-	return aghconfig.NormalizeAgentName(agent.Name) == aghconfig.NormalizeAgentName(name)
+	return compozyconfig.NormalizeAgentName(agent.Name) == compozyconfig.NormalizeAgentName(name)
 }

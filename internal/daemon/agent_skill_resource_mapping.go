@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -19,7 +19,7 @@ func appendAgentResources(
 	desired *agentSkillDesiredResources,
 	scope resources.ResourceScope,
 	sourcePrefix string,
-	agents []aghconfig.AgentDef,
+	agents []compozyconfig.AgentDef,
 ) {
 	if desired == nil {
 		return
@@ -84,8 +84,8 @@ func appendSkillResources(
 	}
 }
 
-func mcpServerFromSkillDecl(decl skillspkg.MCPServerDecl) aghconfig.MCPServer {
-	return aghconfig.MCPServer{
+func mcpServerFromSkillDecl(decl skillspkg.MCPServerDecl) compozyconfig.MCPServer {
+	return compozyconfig.MCPServer{
 		Name:    strings.TrimSpace(decl.Name),
 		Command: strings.TrimSpace(decl.Command),
 		Args:    slices.Clone(decl.Args),
@@ -95,21 +95,21 @@ func mcpServerFromSkillDecl(decl skillspkg.MCPServerDecl) aghconfig.MCPServer {
 
 func validateAndEncodeAgent(
 	ctx context.Context,
-	codec resources.KindCodec[aghconfig.AgentDef],
+	codec resources.KindCodec[compozyconfig.AgentDef],
 	scope resources.ResourceScope,
-	spec aghconfig.AgentDef,
-) (aghconfig.AgentDef, []byte, error) {
+	spec compozyconfig.AgentDef,
+) (compozyconfig.AgentDef, []byte, error) {
 	encoded, err := codec.Encode(spec)
 	if err != nil {
-		return aghconfig.AgentDef{}, nil, err
+		return compozyconfig.AgentDef{}, nil, err
 	}
 	validated, err := codec.DecodeAndValidate(ctx, scope.Normalize(), encoded)
 	if err != nil {
-		return aghconfig.AgentDef{}, nil, err
+		return compozyconfig.AgentDef{}, nil, err
 	}
 	canonical, err := codec.Encode(validated)
 	if err != nil {
-		return aghconfig.AgentDef{}, nil, err
+		return compozyconfig.AgentDef{}, nil, err
 	}
 	return validated, canonical, nil
 }
@@ -135,8 +135,8 @@ func validateAndEncodeSkill(
 	return validated, canonical, nil
 }
 
-func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
-	return aghconfig.CloneAgentDef(agent)
+func cloneAgentDef(agent compozyconfig.AgentDef) compozyconfig.AgentDef {
+	return compozyconfig.CloneAgentDef(agent)
 }
 
 func cloneSoulResourceSpec(spec soul.ResourceSpec) soul.ResourceSpec {
@@ -165,7 +165,7 @@ func cloneSkillResourceSpec(src skillspkg.SkillResourceSpec) skillspkg.SkillReso
 	return skillspkg.SkillToResourceSpec(skill)
 }
 
-func agentRecordSortKey(record resources.Record[aghconfig.AgentDef]) string {
+func agentRecordSortKey(record resources.Record[compozyconfig.AgentDef]) string {
 	return string(record.Scope.Kind.Normalize()) + "\x00" +
 		strings.TrimSpace(record.Scope.ID) + "\x00" +
 		string(record.Source.Kind.Normalize()) + "\x00" +

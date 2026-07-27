@@ -271,7 +271,7 @@ func (c *githubClient) newRequest(
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "agh-bridge-github/0.1.0")
+	req.Header.Set("User-Agent", "compozy-bridge-github/0.1.0")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -339,7 +339,7 @@ func (c *githubClient) installationAccessToken(ctx context.Context, installation
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("User-Agent", "agh-bridge-github/0.1.0")
+	req.Header.Set("User-Agent", "compozy-bridge-github/0.1.0")
 
 	response := githubAccessTokenResponse{}
 	if err := c.doJSON(req, &response, bridgesdk.HTTPResponseNoCommit); err != nil {

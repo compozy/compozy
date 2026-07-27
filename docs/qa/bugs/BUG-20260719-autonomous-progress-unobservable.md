@@ -57,6 +57,15 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 - Attempt-2 journey/public-surface evidence:
   `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/journey-log.jsonl`;
   `/Users/pedronauck/dev/qa-labs/compozy-hermes-comparison-consumer-saas-growth-r2-20260719-202601-971723-lab/qa-artifacts/qa/web-task-catalog.png`.
+- Compozy migration beta reproduction (2026-07-27):
+  `/Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/observation-summary.json`;
+  the observer reported all eleven seeded runs as lacking completion while independent CLI, HTTP,
+  Web, Task, session, and Network reads proved seven Tasks completed, three documentation artifacts
+  were authored and approved, and the benchmark Task was blocked on a confirmed regression.
+- Migration-beta independent/runtime evidence:
+  `/Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/task-list-progress-2.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/network-observation/`;
+  `/Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/cross-surface/`.
 
 ## Fix
 
@@ -77,3 +86,9 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   five required surfaces, but the observer still raised `stall_detected=true` and derived stale
   task state because runtime-owned lifecycle events were absent. No second provider prompt was sent
   to conceal the observer stall.
+- **Retested:** 2026-07-27 in fresh isolated migration-beta lab
+  `compozy-migration-beta-20260727-135201-116083`.
+- **Result:** Reproduced again. `observe-runtime.py` ran the full 1,800-second window, set
+  `stall_detected=true` at 2026-07-27T14:14:28Z, and listed every seeded run under
+  `tasks_in_progress_no_completion`, despite independently persisted Task and Network progress.
+  Exactly one provider kickoff was sent; no operator follow-up masked the stall.

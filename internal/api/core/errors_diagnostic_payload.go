@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -15,7 +15,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload := contract.ErrorPayload{Error: message}
 	if item, ok := diagnosticspkg.ItemFromError(err); ok {
 		payload.Diagnostic = &item
-	} else if errors.Is(err, aghconfig.ErrAgentNameReserved) {
+	} else if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 		item := diagnosticspkg.NewItem(
 			"agent.name.reserved",
 			contract.CodeAgentNameReserved,

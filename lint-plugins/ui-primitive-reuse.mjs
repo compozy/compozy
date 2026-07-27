@@ -1,5 +1,5 @@
 /**
- * OXC/ESLint Plugin: @agh/ui primitive reuse.
+ * OXC/ESLint Plugin: @compozy/ui primitive reuse.
  *
  * `packages/ui/src/index.ts` is the surface contract for every generic UI
  * primitive. Consumer surfaces (`web/src`, `packages/site`) import those
@@ -33,7 +33,7 @@ let cachedPrimitiveNames = null;
 
 /**
  * Collect the PascalCase value exports (components, compound parts) from the
- * `@agh/ui` index source. Type-only exports, hooks, helpers, and ALL_CAPS
+ * `@compozy/ui` index source. Type-only exports, hooks, helpers, and ALL_CAPS
  * constants are intentionally excluded — the shadow hazard is component names.
  */
 export function parsePrimitiveNames(source) {
@@ -60,7 +60,7 @@ function primitiveNames() {
     source = readFileSync(UI_INDEX_PATH, "utf8");
   } catch (error) {
     throw new Error(
-      `compozy-ui-reuse: cannot read the @agh/ui surface contract at ${UI_INDEX_PATH}. ` +
+      `compozy-ui-reuse: cannot read the @compozy/ui surface contract at ${UI_INDEX_PATH}. ` +
         "If the file moved, update lint-plugins/ui-primitive-reuse.mjs in the same change.",
       { cause: error }
     );
@@ -103,12 +103,12 @@ const noShadowUiPrimitive = {
     type: "problem",
     docs: {
       description:
-        "Forbid consumer components that redefine an identifier exported by @agh/ui. Import the primitive; domain variants take a domain-prefixed name.",
+        "Forbid consumer components that redefine an identifier exported by @compozy/ui. Import the primitive; domain variants take a domain-prefixed name.",
       recommended: true,
     },
     messages: {
       shadowedPrimitive:
-        '"{{name}}" is an @agh/ui primitive — import it from "@agh/ui" instead of redefining it. A genuinely domain-specific variant must use a domain-prefixed name. Inventory: packages/ui/src/index.ts.',
+        '"{{name}}" is an @compozy/ui primitive — import it from "@compozy/ui" instead of redefining it. A genuinely domain-specific variant must use a domain-prefixed name. Inventory: packages/ui/src/index.ts.',
     },
     schema: [],
   },

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func openLoopTestGlobalDB(t *testing.T, workspaceIDs ...string) *GlobalDB {
@@ -32,7 +32,7 @@ func seedLoopTestWorkspaces(t *testing.T, globalDB *GlobalDB, workspaceIDs ...st
 			continue
 		}
 		seen[trimmedID] = struct{}{}
-		insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+		insertWorkspaceForGlobalTests(t, globalDB, compozyworkspace.Workspace{
 			ID:      trimmedID,
 			RootDir: filepath.Join(t.TempDir(), trimmedID),
 			Name:    trimmedID,

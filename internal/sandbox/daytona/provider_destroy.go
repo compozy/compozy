@@ -86,10 +86,10 @@ func (p *daytonaProvider) withSDKTimeout(ctx context.Context, fn func(context.Co
 	return nil
 }
 
-func aghLabels(req sandbox.PrepareRequest) map[string]string {
+func compozyLabels(req sandbox.PrepareRequest) map[string]string {
 	return map[string]string{
-		"agh_session_id":        req.SessionID,
-		providerAghSandboxIDKey: req.SandboxID,
+		"compozy_session_id":        req.SessionID,
+		providerCompozySandboxIDKey: req.SandboxID,
 	}
 }
 

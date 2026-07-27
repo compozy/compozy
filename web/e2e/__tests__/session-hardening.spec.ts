@@ -135,7 +135,7 @@ test("first document navigation to a canonical session route loads the app shell
   await page.addInitScript(
     ({ workspaceId }) => {
       localStorage.setItem(
-        "agh:active-workspace",
+        "compozy:active-workspace",
         JSON.stringify({
           state: { selectedWorkspaceId: workspaceId },
           version: 0,
@@ -542,7 +542,9 @@ test.describe("E2E-010 truthful session cost provenance by auth mode", () => {
       throw new Error("cost provenance E2E requires launch-mode runtime paths.");
     }
     const ui = sessionLifecycleSelectors(appPage);
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-cost-provenance-workspace-"));
+    const workspaceRoot = await mkdtemp(
+      path.join(os.tmpdir(), "compozy-cost-provenance-workspace-")
+    );
     const driverCommand = await readSeededAgentCommand(runtime.paths.homeDir, costProvenanceAgent);
 
     // The model catalog is daemon-global: workspace config never reconciles it, so cost
@@ -717,7 +719,7 @@ async function seedToolArtifact(runtime: BrowserRuntime, workspaceRoot: string):
   );
   const digest = createHash("sha256").update(content).digest("hex");
   expect(digest).toBe(toolArtifactDigest);
-  const identity = await readFile(path.join(workspaceRoot, ".agh", "workspace.toml"), "utf8");
+  const identity = await readFile(path.join(workspaceRoot, ".compozy", "workspace.toml"), "utf8");
   const workspaceID = /^workspace_id\s*=\s*"([^"]+)"$/m.exec(identity)?.[1];
   if (!workspaceID) {
     throw new Error(`workspace identity is missing from ${workspaceRoot}`);

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/providers"
@@ -31,9 +31,9 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 				return "", exec.ErrNotFound
 			},
 		}
-		provider := aghconfig.ProviderConfig{
+		provider := compozyconfig.ProviderConfig{
 			Command:  "config-apply-cache acp",
-			AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}
 		assertMissingCLIReport(t, "first", providers.PreStart(t.Context(), provider, env))
 		assertMissingCLIReport(t, "cached", providers.PreStart(t.Context(), provider, env))
@@ -41,7 +41,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			t.Fatalf("PreStart LookPath calls before apply = %d, want 1", calls)
 		}
 
-		cfg := aghconfig.Config{}
+		cfg := compozyconfig.Config{}
 		failures := daemonSettingsRuntimeApplier{
 			daemon: &Daemon{},
 			state:  &bootState{cfg: cfg},
@@ -59,16 +59,16 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	t.Run("Should rollback MCP after runtime apply failure", func(t *testing.T) {
 		t.Parallel()
 
-		previous := aghconfig.Config{
-			Network: aghconfig.DefaultNetworkConfig(),
-			Providers: map[string]aghconfig.ProviderConfig{
-				"codex": {Command: "codex acp", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+		previous := compozyconfig.Config{
+			Network: compozyconfig.DefaultNetworkConfig(),
+			Providers: map[string]compozyconfig.ProviderConfig{
+				"codex": {Command: "codex acp", AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
 			},
 		}
 		next := previous
 		next.Network.Enabled = false
-		next.Providers = map[string]aghconfig.ProviderConfig{
-			"codex": {Command: "codex acp --next", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+		next.Providers = map[string]compozyconfig.ProviderConfig{
+			"codex": {Command: "codex acp --next", AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
 		}
 		publisher := &recordingToolMCPPublisher{errors: []error{errors.New("mcp sync boom"), nil}}
 		daemonInstance := &Daemon{config: previous}
@@ -110,9 +110,9 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 
 	t.Run("Should hot-apply and rollback window-manager defaults with the active config", func(t *testing.T) {
 		t.Parallel()
-		previous := aghconfig.Config{
-			Network:       aghconfig.DefaultNetworkConfig(),
-			WindowManager: aghconfig.DefaultWindowManagerConfig(),
+		previous := compozyconfig.Config{
+			Network:       compozyconfig.DefaultNetworkConfig(),
+			WindowManager: compozyconfig.DefaultWindowManagerConfig(),
 		}
 		next := previous
 		next.WindowManager.HistoryLimit = 1
@@ -184,7 +184,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	t.Run("Should persist a network availability transition before advancing config", func(t *testing.T) {
 		t.Parallel()
 
-		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		previous := compozyconfig.Config{Network: compozyconfig.DefaultNetworkConfig()}
 		next := previous
 		next.Network.Enabled = false
 		daemonInstance := &Daemon{config: previous}
@@ -219,7 +219,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	t.Run("Should keep previous config when availability persistence fails", func(t *testing.T) {
 		t.Parallel()
 
-		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		previous := compozyconfig.Config{Network: compozyconfig.DefaultNetworkConfig()}
 		next := previous
 		next.Network.Enabled = false
 		daemonInstance := &Daemon{config: previous}
@@ -241,7 +241,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	t.Run("Should rollback applied dependencies when availability persistence fails", func(t *testing.T) {
 		t.Parallel()
 
-		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		previous := compozyconfig.Config{Network: compozyconfig.DefaultNetworkConfig()}
 		next := previous
 		next.Network.Enabled = false
 		daemonInstance := &Daemon{config: previous}
@@ -289,7 +289,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if !ok {
 			t.Fatal("newDaemonExtensionService() did not return daemon service")
 		}
-		previous := aghconfig.Config{}
+		previous := compozyconfig.Config{}
 		next := previous
 		next.Extensions.Marketplace.AllowUnverified = true
 		syncCalls := 0
@@ -325,10 +325,10 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	t.Run("Should record mcp_rollback when MCP rollback sync fails", func(t *testing.T) {
 		t.Parallel()
 
-		previous := aghconfig.Config{}
-		next := aghconfig.Config{
-			Providers: map[string]aghconfig.ProviderConfig{
-				"codex": {Command: "codex acp", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+		previous := compozyconfig.Config{}
+		next := compozyconfig.Config{
+			Providers: map[string]compozyconfig.ProviderConfig{
+				"codex": {Command: "codex acp", AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
 			},
 		}
 		syncCalls := 0
@@ -362,7 +362,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		firstServer := newMarketplaceFeedServer(t, "rollback-first")
 		secondServer := newMarketplaceFeedServer(t, "rollback-second")
 		homePaths := testHomePaths(t)
-		previous := aghconfig.DefaultWithHome(homePaths)
+		previous := compozyconfig.DefaultWithHome(homePaths)
 		previous.Marketplace.Catalog.BaseURL = firstServer.URL
 		previous.Marketplace.Catalog.Timeout = "1s"
 		next := previous
@@ -422,7 +422,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 }
 
 type recordingToolMCPPublisher struct {
-	configs []aghconfig.Config
+	configs []compozyconfig.Config
 	errors  []error
 }
 
@@ -430,9 +430,9 @@ func (p *recordingToolMCPPublisher) Sync(ctx context.Context) error {
 	return p.SyncConfig(ctx, nil)
 }
 
-func (p *recordingToolMCPPublisher) SyncConfig(_ context.Context, cfg *aghconfig.Config) error {
+func (p *recordingToolMCPPublisher) SyncConfig(_ context.Context, cfg *compozyconfig.Config) error {
 	if cfg == nil {
-		p.configs = append(p.configs, aghconfig.Config{})
+		p.configs = append(p.configs, compozyconfig.Config{})
 	} else {
 		p.configs = append(p.configs, *cfg)
 	}

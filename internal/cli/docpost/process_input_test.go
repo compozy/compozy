@@ -16,8 +16,8 @@ func TestProcessInputValidation(t *testing.T) {
 
 		srcDir := t.TempDir()
 		dstDir := filepath.Join(t.TempDir(), "output")
-		sourcePath := filepath.Join(srcDir, "aghost.md")
-		if err := os.WriteFile(sourcePath, []byte("## aghost\n\nBad input\n"), 0o600); err != nil {
+		sourcePath := filepath.Join(srcDir, "compozyost.md")
+		if err := os.WriteFile(sourcePath, []byte("## compozyost\n\nBad input\n"), 0o600); err != nil {
 			t.Fatalf("write ambiguous source file: %v", err)
 		}
 
@@ -36,8 +36,8 @@ func TestProcessInputValidation(t *testing.T) {
 		srcDir := t.TempDir()
 		dstDir := t.TempDir()
 		if err := os.WriteFile(
-			filepath.Join(srcDir, "aghost.md"),
-			[]byte("## aghost\n\nBad input\n"),
+			filepath.Join(srcDir, "compozyost.md"),
+			[]byte("## compozyost\n\nBad input\n"),
 			0o600,
 		); err != nil {
 			t.Fatalf("write ambiguous source file: %v", err)
@@ -89,7 +89,7 @@ func TestProcessInputValidation(t *testing.T) {
 
 		inputs := []input{
 			{fileName: "compozy.md", baseName: "compozy"},
-			{fileName: "aghost.md", baseName: "aghost"},
+			{fileName: "compozyost.md", baseName: "compozyost"},
 		}
 
 		err := validateOutputPaths(inputs, map[string]bool{})

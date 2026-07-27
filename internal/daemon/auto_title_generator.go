@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -79,7 +79,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 		AgentName:   strings.TrimSpace(request.AgentName),
 	}
 	roleCtx := withRoleInvocationCorrelation(ctx, correlation)
-	role, err := g.roles.Resolve(roleCtx, request.WorkspaceID, aghconfig.RoleAutoTitle)
+	role, err := g.roles.Resolve(roleCtx, request.WorkspaceID, compozyconfig.RoleAutoTitle)
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve automatic title role: %w", err)
 	}
@@ -97,16 +97,17 @@ func (g *forkedAutoTitleGenerator) Generate(
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
 		spawned, spawnErr := g.sessions.Spawn(attemptCtx, session.SpawnOpts{
-			ParentSessionID:  strings.TrimSpace(request.SessionID),
-			AgentName:        route.AgentName,
-			Provider:         route.Provider,
-			Model:            route.Model,
-			ReasoningEffort:  route.ReasoningEffort,
-			Name:             autoTitleSessionName,
-			PromptOverlay:    autoTitlePromptOverlay(),
-			SpawnRole:        session.SpawnRoleAutoTitle,
-			TTL:              g.childTTL(),
-			AutoStopOnParent: true,
+			ParentSessionID:     strings.TrimSpace(request.SessionID),
+			AgentName:           route.AgentName,
+			Provider:            route.Provider,
+			Model:               route.Model,
+			ReasoningEffort:     route.ReasoningEffort,
+			Name:                autoTitleSessionName,
+			PromptOverlay:       autoTitlePromptOverlay(),
+			SpawnRole:           session.SpawnRoleAutoTitle,
+			TTL:                 g.childTTL(),
+			AutoStopOnParent:    true,
+			DiscardStartFailure: true,
 		})
 		return spawned, spawned != nil, spawnErr
 	})
@@ -121,7 +122,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 		Message: prompt,
 		Metadata: acp.PromptSyntheticMeta{
 			TaskID:  autoTitleSyntheticTaskID,
-			Reason:  string(aghconfig.RoleAutoTitle),
+			Reason:  string(compozyconfig.RoleAutoTitle),
 			Summary: "generate a concise session title",
 		},
 	})
@@ -194,7 +195,7 @@ func boundAutoTitlePromptPart(value string) string {
 
 func autoTitlePromptOverlay() string {
 	return strings.TrimSpace(`
-You are an AGH internal session-title generator.
+You are an Compozy internal session-title generator.
 Return only one concise title of at most eight words.
 Do not modify files, run commands, or include markdown or commentary.
 `)

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -67,8 +67,8 @@ type SessionRoute struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
-	Fallbacks       []aghconfig.RoleFallback
-	BeforeFallback  func(context.Context, int, aghconfig.RoleFallback) error
+	Fallbacks       []compozyconfig.RoleFallback
+	BeforeFallback  func(context.Context, int, compozyconfig.RoleFallback) error
 }
 
 // SessionRouteResolver resolves the dream route for one effective workspace config.
@@ -375,7 +375,7 @@ func resolveWorkspaceRef(
 		err      error
 	)
 	if isPathLikeWorkspaceRef(trimmedRef) {
-		normalizedPath, normalizeErr := aghconfig.ResolvePath(trimmedRef)
+		normalizedPath, normalizeErr := compozyconfig.ResolvePath(trimmedRef)
 		if normalizeErr != nil {
 			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, normalizeErr)
 		}

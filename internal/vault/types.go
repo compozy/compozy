@@ -92,7 +92,7 @@ func NormalizeRef(ref string) string {
 	return strings.TrimSpace(ref)
 }
 
-// IsSecretRef reports whether a ref points at AGH-managed encrypted storage.
+// IsSecretRef reports whether a ref points at Compozy-managed encrypted storage.
 func IsSecretRef(ref string) bool {
 	return strings.HasPrefix(NormalizeRef(ref), "vault:")
 }
@@ -116,7 +116,7 @@ func EnvNameFromRef(ref string) (string, error) {
 	return envName, nil
 }
 
-// ValidateSecretRef reports whether ref belongs to one of AGH's durable vault namespaces.
+// ValidateSecretRef reports whether ref belongs to one of Compozy's durable vault namespaces.
 func ValidateSecretRef(ref string) error {
 	normalized := NormalizeRef(ref)
 	if !vaultRefPattern.MatchString(normalized) {
@@ -125,7 +125,7 @@ func ValidateSecretRef(ref string) error {
 	return nil
 }
 
-// ValidateSecretRefPrefix reports whether prefix can safely filter AGH vault refs.
+// ValidateSecretRefPrefix reports whether prefix can safely filter Compozy vault refs.
 func ValidateSecretRefPrefix(prefix string) error {
 	normalized := NormalizeRef(prefix)
 	if normalized == "" {
@@ -153,7 +153,7 @@ func RefMatchesPrefix(ref string, prefix string) bool {
 	return strings.HasPrefix(normalizedRef, normalizedPrefix)
 }
 
-// ValidateNamespace reports whether namespace is one of AGH's durable vault namespaces.
+// ValidateNamespace reports whether namespace is one of Compozy's durable vault namespaces.
 func ValidateNamespace(namespace string) error {
 	normalized := strings.Trim(strings.TrimSpace(namespace), "/")
 	if normalized == "" {
@@ -217,7 +217,7 @@ func ValidateSecretRefNamespace(ref string, namespace string) error {
 	return nil
 }
 
-// ValidateRef reports whether ref uses AGH's supported env: or vault: grammar.
+// ValidateRef reports whether ref uses Compozy's supported env: or vault: grammar.
 func ValidateRef(ref string) error {
 	normalized := NormalizeRef(ref)
 	switch {

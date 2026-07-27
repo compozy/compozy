@@ -581,7 +581,7 @@ func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
 			`"entry_id":"remote","name":"Remote","description":"OAuth remote",` +
 			`"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z",` +
 			`"transport":"http","url":"https://mcp.example.test/v1",` +
-			`"oauth":{"issuer_url":"https://auth.example.test","client_id":"agh-desktop","scopes":["mcp.read"]},` +
+			`"oauth":{"issuer_url":"https://auth.example.test","client_id":"compozy-desktop","scopes":["mcp.read"]},` +
 			`"default_scope":"workspace"}]}`
 		document, err := DecodeDocument(KindMCP, []byte(raw))
 		if err != nil {
@@ -618,7 +618,7 @@ func validMCPDocumentJSON() string {
 
 func validExtensionDocumentJSON() string {
 	return `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to AGH",` +
+		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 		`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 		`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
 		`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
@@ -627,8 +627,8 @@ func validExtensionDocumentJSON() string {
 
 func validSkillDocumentJSON() string {
 	return `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-		`"entry_id":"agh","name":"AGH","display_name":"AGH operator",` +
-		`"description":"Operate AGH through its structured surfaces","version":"1.0.0",` +
-		`"install_slug":"compozy/agh","author":"Compozy","tags":["agh","operations"]` +
+		`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
+		`"description":"Operate Compozy through its structured surfaces","version":"1.0.0",` +
+		`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]` +
 		`}]}`
 }

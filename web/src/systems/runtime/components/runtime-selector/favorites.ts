@@ -6,8 +6,8 @@
  * favorite/recent is unambiguous when two providers publish the same model id.
  * The `useRuntimeFavorites` hook (in `use-runtime-favorites.ts`) wraps this.
  */
-export const FAVORITES_STORAGE_KEY = "agh:runtime-selector:fav";
-export const RECENTS_STORAGE_KEY = "agh:runtime-selector:recent";
+export const FAVORITES_STORAGE_KEY = "compozy:runtime-selector:fav";
+export const RECENTS_STORAGE_KEY = "compozy:runtime-selector:recent";
 export const RECENTS_LIMIT = 6;
 
 export function readFavoritesList(key: string): string[] {

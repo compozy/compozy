@@ -24,7 +24,7 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -134,6 +134,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	if created.Session.ID == "" {
 		t.Fatal("expected created session id")
 	}
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 
 	listResp := mustHTTPRequest(
 		t,
@@ -944,6 +945,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 	apitestutil.AssertResolvedParticipationChannel(
 		t,
 		created.Session.ResolvedNetworkParticipation,
@@ -1802,7 +1804,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 
 func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 
@@ -1904,7 +1906,7 @@ func TestHTTPShutdownCancelsPersistentStreams(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
 		cfg.HTTP.Host = "127.0.0.1"
 		cfg.HTTP.Port = freeTCPPort(t)
 		events := make(chan session.CatalogEvent)
@@ -2499,12 +2501,15 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	if len(records) == 0 {
 		t.Fatal("task stream records = 0, want at least one SSE event")
 	}
-	if records[0].Event == "" {
-		t.Fatalf("task stream first record = %#v, want named SSE event", records[0])
+	if records[0].Event != "" {
+		t.Fatalf("task stream first record = %#v, want payload-owned event identity", records[0])
 	}
 	var streamPayload contract.TaskStreamEventPayload
 	if err := json.Unmarshal(records[0].Data, &streamPayload); err != nil {
 		t.Fatalf("json.Unmarshal(task stream event) error = %v; record=%#v", err, records[0])
+	}
+	if streamPayload.Type != "task.created" {
+		t.Fatalf("task stream payload type = %q, want task.created", streamPayload.Type)
 	}
 	if streamPayload.Timeline.Task.ID != draft.ID {
 		t.Fatalf("task stream timeline task id = %q, want %q", streamPayload.Timeline.Task.ID, draft.ID)
@@ -3412,11 +3417,11 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	writeAgentDef(t, homePaths, "coder")
 
 	workspace := t.TempDir()
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	cfg.Network.Enabled = false
-	cfg.Providers = map[string]aghconfig.ProviderConfig{
+	cfg.Providers = map[string]compozyconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
 
@@ -3435,7 +3440,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
 		workspacepkg.WithLogger(discardLogger()),
-		workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return cfg, nil }),
+		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
 	)
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
@@ -3687,7 +3692,7 @@ func extractPermissionPayloadFromRecord(record sseRecord) (permissionStreamPaylo
 		Type string                  `json:"type"`
 		Data permissionStreamPayload `json:"data"`
 	}
-	if err := json.Unmarshal(record.Data, &envelope); err != nil || envelope.Type != "data-agh-permission" {
+	if err := json.Unmarshal(record.Data, &envelope); err != nil || envelope.Type != "data-compozy-permission" {
 		return permissionStreamPayload{}, false
 	}
 	return envelope.Data, true
@@ -3786,7 +3791,26 @@ func createIntegrationSessionFromRequest(
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, resp, &created)
+	waitForIntegrationSessionActive(t, runtime.manager, created.Session.ID)
 	return created.Session.ID
+}
+
+func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	var (
+		lastInfo *session.Info
+		lastErr  error
+	)
+	for time.Now().Before(deadline) {
+		lastInfo, lastErr = manager.Status(context.Background(), sessionID)
+		if lastErr == nil && lastInfo != nil && lastInfo.State == session.StateActive {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("session %q did not become active: info=%#v error=%v", sessionID, lastInfo, lastErr)
 }
 
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {

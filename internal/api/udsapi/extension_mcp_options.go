@@ -9,7 +9,7 @@ func WithExtensionService(service ExtensionService) Option {
 	}
 }
 
-// WithHostedMCP injects the hosted AGH MCP session exposure service.
+// WithHostedMCP injects the hosted Compozy MCP session exposure service.
 func WithHostedMCP(service *mcppkg.HostedService) Option {
 	return func(server *Server) {
 		server.hostedMCP = service

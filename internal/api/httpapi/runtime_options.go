@@ -6,21 +6,21 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-// WithHomePaths overrides the resolved AGH home layout.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
+// WithHomePaths overrides the resolved Compozy home layout.
+func WithHomePaths(homePaths compozyconfig.HomePaths) Option {
 	return func(server *Server) {
 		server.homePaths = homePaths
 		if !server.configSet {
-			server.config = aghconfig.DefaultWithHome(homePaths)
+			server.config = compozyconfig.DefaultWithHome(homePaths)
 		}
 	}
 }
 
 // WithConfig overrides the runtime configuration used by the server.
-func WithConfig(cfg *aghconfig.Config) Option {
+func WithConfig(cfg *compozyconfig.Config) Option {
 	return func(server *Server) {
 		if cfg != nil {
 			server.config = *cfg

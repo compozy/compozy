@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const driverBinaryEnvVar = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
@@ -91,7 +91,7 @@ func resolveDriverPath(override string) (string, error) {
 }
 
 func resolveExplicitDriverPath(path string) (string, error) {
-	resolved, err := aghconfig.ResolvePath(path)
+	resolved, err := compozyconfig.ResolvePath(path)
 	if err != nil {
 		return "", err
 	}

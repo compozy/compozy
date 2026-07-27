@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
@@ -403,7 +403,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got, want := call.Model, "grok-4.5[effort=high,fast=true]"; got != want {
 			t.Fatalf("CreateOpts.Model = %q, want %q", got, want)
 		}
-		if got, want := call.Permissions, aghconfig.PermissionModeApproveAll; got != want {
+		if got, want := call.Permissions, compozyconfig.PermissionModeApproveAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
 		if got, want := call.SandboxRef, "evidence-lab"; got != want {
@@ -596,7 +596,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 			spawner := starvationSpawner{
 				workspaces: &fakeSpawnWorkspaceResolver{
-					resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+					resolved: workspacepkg.ResolvedWorkspace{Agents: []compozyconfig.AgentDef{
 						spawnAgentDef("frontend-engineer-agent", "typescript"),
 						spawnAgentDef("storage-agent", "sqlite"),
 					}},
@@ -632,7 +632,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 			runtime := newTaskRoleRuntimeForTest(t, store, sessions)
 			spawner := starvationSpawner{
 				workspaces: &fakeSpawnWorkspaceResolver{
-					resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+					resolved: workspacepkg.ResolvedWorkspace{Agents: []compozyconfig.AgentDef{
 						spawnAgentDef("zeta-agent"),
 						spawnAgentDef("alpha-agent"),
 					}},
@@ -668,7 +668,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		spawner := starvationSpawner{
 			workspaces: &fakeSpawnWorkspaceResolver{
 				resolved: workspacepkg.ResolvedWorkspace{
-					Agents: []aghconfig.AgentDef{spawnAgentDef("docs-agent", "docs")},
+					Agents: []compozyconfig.AgentDef{spawnAgentDef("docs-agent", "docs")},
 				},
 			},
 			agents: reviewRouterAgentResolverStub{"docs-agent": spawnAgentDef("docs-agent", "docs")},

@@ -12,7 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -91,11 +91,11 @@ func TestAgentCoordinatorRoleRouteReturnsResolvedPayload(t *testing.T) {
 		manager := activeAgentSessionManager(t)
 		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
 		handlers.CoordinatorRole = agentCoordinatorRoleResolverFunc(
-			func(_ context.Context, workspaceID string) (aghconfig.ResolvedCoordinatorRole, error) {
+			func(_ context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error) {
 				if workspaceID != "ws-1" {
 					t.Fatalf("ResolveCoordinatorRole() workspaceID = %q, want ws-1", workspaceID)
 				}
-				return aghconfig.ResolvedCoordinatorRole{
+				return compozyconfig.ResolvedCoordinatorRole{
 					Enabled:                       true,
 					AgentName:                     "coordinator",
 					Provider:                      "codex",
@@ -440,12 +440,12 @@ func (f agentContextServiceFunc) ContextForSession(
 	return f(ctx, info)
 }
 
-type agentCoordinatorRoleResolverFunc func(context.Context, string) (aghconfig.ResolvedCoordinatorRole, error)
+type agentCoordinatorRoleResolverFunc func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error)
 
 func (f agentCoordinatorRoleResolverFunc) ResolveCoordinatorRole(
 	ctx context.Context,
 	workspaceID string,
-) (aghconfig.ResolvedCoordinatorRole, error) {
+) (compozyconfig.ResolvedCoordinatorRole, error) {
 	return f(ctx, workspaceID)
 }
 

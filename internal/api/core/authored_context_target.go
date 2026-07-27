@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
@@ -124,11 +124,11 @@ func trustedRootFromAgentSourcePath(agentPath string) string {
 	}
 	agentDir := filepath.Dir(cleaned)
 	agentsDir := filepath.Dir(agentDir)
-	if filepath.Base(agentsDir) != aghconfig.AgentsDirName {
+	if filepath.Base(agentsDir) != compozyconfig.AgentsDirName {
 		return ""
 	}
 	root := filepath.Dir(agentsDir)
-	if filepath.Base(root) == aghconfig.DirName {
+	if filepath.Base(root) == compozyconfig.DirName {
 		return filepath.Dir(root)
 	}
 	return root

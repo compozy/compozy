@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestParseMarkdownOnlySoul(t *testing.T) {
@@ -232,7 +232,7 @@ func TestParseRejectsForbiddenOwnerCategories(t *testing.T) {
 		{name: "Should reject capability authority", field: "capabilities", owner: "capabilities"},
 		{name: "Should reject claim token authority", field: "claim_token", owner: "task runtime"},
 		{name: "Should reject session liveness authority", field: "session_liveness", owner: "runtime state"},
-		{name: "Should reject network presence authority", field: "presence", owner: "AGH Network presence"},
+		{name: "Should reject network presence authority", field: "presence", owner: "Compozy Network presence"},
 		{name: "Should reject spawn overlay authority", field: "spawn", owner: "session spawn overlays"},
 		{name: "Should reject config authority", field: "settings", owner: "config"},
 		{name: "Should reject memory runtime authority", field: "memory_scope", owner: "memory runtime"},
@@ -381,7 +381,7 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := aghconfig.SoulConfig{
+			cfg := compozyconfig.SoulConfig{
 				Enabled:                true,
 				MaxBodyBytes:           256,
 				ContextProjectionBytes: 256,
@@ -404,7 +404,7 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 func TestResolveMissingAndDisabledSoul(t *testing.T) {
 	tests := []struct {
 		name       string
-		config     aghconfig.SoulConfig
+		config     compozyconfig.SoulConfig
 		writeSoul  bool
 		wantActive bool
 		wantDigest bool
@@ -417,7 +417,7 @@ func TestResolveMissingAndDisabledSoul(t *testing.T) {
 		},
 		{
 			name: "Should resolve present file as inactive when soul config is disabled",
-			config: aghconfig.SoulConfig{
+			config: compozyconfig.SoulConfig{
 				Enabled:                false,
 				MaxBodyBytes:           32768,
 				ContextProjectionBytes: 2048,
@@ -537,7 +537,7 @@ func TestCompactProjection(t *testing.T) {
 		_, err := Parse(context.Background(), ParseRequest{
 			SourcePath: "agents/coder/SOUL.md",
 			Content:    []byte("Keep the projection bounded."),
-			Config: aghconfig.SoulConfig{
+			Config: compozyconfig.SoulConfig{
 				Enabled:                true,
 				MaxBodyBytes:           4096,
 				ContextProjectionBytes: 8,
@@ -567,7 +567,7 @@ func TestCompactProjection(t *testing.T) {
 				"---",
 				"FULL BODY MUST STAY OUT OF COMPACT CONTEXT",
 			}, "\n")),
-			Config: aghconfig.SoulConfig{
+			Config: compozyconfig.SoulConfig{
 				Enabled:                true,
 				MaxBodyBytes:           4096,
 				ContextProjectionBytes: 256,
@@ -656,7 +656,7 @@ func TestResolveAfterAgentLoad(t *testing.T) {
 		writeTestFile(t, agentPath, "---\nname: reviewer\nprovider: codex\n---\nReview code")
 		writeTestFile(t, filepath.Join(agentDir, FileName), "---\nrole: Reviewer\n---\nStay precise.")
 
-		agent, err := aghconfig.LoadAgentDefFile(agentPath)
+		agent, err := compozyconfig.LoadAgentDefFile(agentPath)
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile() error = %v", err)
 		}
@@ -684,8 +684,8 @@ func TestResolveAfterAgentLoad(t *testing.T) {
 	})
 }
 
-func testSoulConfig() aghconfig.SoulConfig {
-	return aghconfig.SoulConfig{
+func testSoulConfig() compozyconfig.SoulConfig {
+	return compozyconfig.SoulConfig{
 		Enabled:                true,
 		MaxBodyBytes:           32768,
 		ContextProjectionBytes: 2048,

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -18,7 +18,7 @@ func WithToolsetCatalog(catalog toolspkg.ToolsetCatalog) Option {
 }
 
 func (s *sessionStartSpec) applyAllowedToolsOverride(
-	resolved *aghconfig.ResolvedAgent,
+	resolved *compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,
 ) error {
 	override, hasOverride, err := normalizeAllowedToolsOverride(s.allowedToolsOverride)
@@ -80,7 +80,7 @@ func normalizeAllowedToolsOverride(values []string) ([]string, bool, error) {
 }
 
 func validateAllowedToolsOverrideSubset(
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	requested []string,
 	catalog toolspkg.ToolsetCatalog,
 ) error {

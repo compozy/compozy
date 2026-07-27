@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (time.Duration, error) {
@@ -19,32 +19,32 @@ func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (tim
 	return time.ParseDuration(trimmed)
 }
 
-func memoryConfigFromPayload(payload *contract.SettingsMemoryConfigPayload) (aghconfig.MemoryConfig, error) {
+func memoryConfigFromPayload(payload *contract.SettingsMemoryConfigPayload) (compozyconfig.MemoryConfig, error) {
 	if payload == nil {
-		return aghconfig.MemoryConfig{}, NewSettingsValidationError(errors.New("memory.config is required"))
+		return compozyconfig.MemoryConfig{}, NewSettingsValidationError(errors.New("memory.config is required"))
 	}
 	controller, err := memoryControllerConfigFromPayload(payload.Controller)
 	if err != nil {
-		return aghconfig.MemoryConfig{}, err
+		return compozyconfig.MemoryConfig{}, err
 	}
 	extractor, err := memoryExtractorConfigFromPayload(payload.Extractor)
 	if err != nil {
-		return aghconfig.MemoryConfig{}, err
+		return compozyconfig.MemoryConfig{}, err
 	}
 	dream, err := memoryDreamConfigFromPayload(payload.Dream)
 	if err != nil {
-		return aghconfig.MemoryConfig{}, err
+		return compozyconfig.MemoryConfig{}, err
 	}
 	session, err := memorySessionConfigFromPayload(payload.Session)
 	if err != nil {
-		return aghconfig.MemoryConfig{}, err
+		return compozyconfig.MemoryConfig{}, err
 	}
 	provider, err := memoryProviderConfigFromPayload(payload.Provider)
 	if err != nil {
-		return aghconfig.MemoryConfig{}, err
+		return compozyconfig.MemoryConfig{}, err
 	}
 
-	value := aghconfig.MemoryConfig{
+	value := compozyconfig.MemoryConfig{
 		Enabled:    payload.Enabled,
 		GlobalDir:  strings.TrimSpace(payload.GlobalDir),
 		Controller: controller,
@@ -54,34 +54,34 @@ func memoryConfigFromPayload(payload *contract.SettingsMemoryConfigPayload) (agh
 		Dream:      dream,
 		Session:    session,
 		Daily:      memoryDailyConfigFromPayload(payload.Daily),
-		File: aghconfig.MemoryFileConfig{
+		File: compozyconfig.MemoryFileConfig{
 			MaxLines: payload.File.MaxLines,
 			MaxBytes: payload.File.MaxBytes,
 		},
 		Provider: provider,
-		Workspace: aghconfig.MemoryWorkspaceConfig{
+		Workspace: compozyconfig.MemoryWorkspaceConfig{
 			TOMLPath:   strings.TrimSpace(payload.Workspace.TOMLPath),
 			AutoCreate: payload.Workspace.AutoCreate,
 		},
 	}
 	if err := value.Validate(); err != nil {
-		return aghconfig.MemoryConfig{}, NewSettingsValidationError(err)
+		return compozyconfig.MemoryConfig{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }
 
 func memoryControllerConfigFromPayload(
 	payload contract.SettingsMemoryControllerPayload,
-) (aghconfig.MemoryControllerConfig, error) {
+) (compozyconfig.MemoryControllerConfig, error) {
 	maxLatency, err := parseSettingsDuration("memory.config.controller.max_latency", payload.MaxLatency)
 	if err != nil {
-		return aghconfig.MemoryControllerConfig{}, err
+		return compozyconfig.MemoryControllerConfig{}, err
 	}
-	return aghconfig.MemoryControllerConfig{
+	return compozyconfig.MemoryControllerConfig{
 		Mode:            strings.TrimSpace(payload.Mode),
 		MaxLatency:      maxLatency,
 		DefaultOpOnFail: strings.TrimSpace(payload.DefaultOpOnFail),
-		Policy: aghconfig.MemoryControllerPolicyConfig{
+		Policy: compozyconfig.MemoryControllerPolicyConfig{
 			MaxContentChars: payload.Policy.MaxContentChars,
 			MaxWritesPerMin: payload.Policy.MaxWritesPerMin,
 			AllowOrigins:    cloneStrings(payload.Policy.AllowOrigins),
@@ -89,23 +89,23 @@ func memoryControllerConfigFromPayload(
 	}, nil
 }
 
-func memoryRecallConfigFromPayload(payload contract.SettingsMemoryRecallPayload) aghconfig.MemoryRecallConfig {
-	return aghconfig.MemoryRecallConfig{
+func memoryRecallConfigFromPayload(payload contract.SettingsMemoryRecallPayload) compozyconfig.MemoryRecallConfig {
+	return compozyconfig.MemoryRecallConfig{
 		TopK:                   payload.TopK,
 		RawCandidates:          payload.RawCandidates,
 		Fusion:                 strings.TrimSpace(payload.Fusion),
 		IncludeAlreadySurfaced: payload.IncludeAlreadySurfaced,
 		IncludeSystem:          payload.IncludeSystem,
-		Weights: aghconfig.MemoryRecallWeightsConfig{
+		Weights: compozyconfig.MemoryRecallWeightsConfig{
 			BM25Unicode:  payload.Weights.BM25Unicode,
 			BM25Trigram:  payload.Weights.BM25Trigram,
 			Recency:      payload.Weights.Recency,
 			RecallSignal: payload.Weights.RecallSignal,
 		},
-		Freshness: aghconfig.MemoryRecallFreshnessConfig{
+		Freshness: compozyconfig.MemoryRecallFreshnessConfig{
 			BannerAfterDays: payload.Freshness.BannerAfterDays,
 		},
-		Signals: aghconfig.MemoryRecallSignalsConfig{
+		Signals: compozyconfig.MemoryRecallSignalsConfig{
 			QueueCapacity:  payload.Signals.QueueCapacity,
 			WorkerRetryMax: payload.Signals.WorkerRetryMax,
 			MetricsEnabled: payload.Signals.MetricsEnabled,
@@ -113,8 +113,10 @@ func memoryRecallConfigFromPayload(payload contract.SettingsMemoryRecallPayload)
 	}
 }
 
-func memoryDecisionsConfigFromPayload(payload contract.SettingsMemoryDecisionsPayload) aghconfig.MemoryDecisionsConfig {
-	return aghconfig.MemoryDecisionsConfig{
+func memoryDecisionsConfigFromPayload(
+	payload contract.SettingsMemoryDecisionsPayload,
+) compozyconfig.MemoryDecisionsConfig {
+	return compozyconfig.MemoryDecisionsConfig{
 		PruneAfterAppliedDays: payload.PruneAfterAppliedDays,
 		KeepAuditSummary:      payload.KeepAuditSummary,
 		MaxPostContentBytes:   payload.MaxPostContentBytes,
@@ -123,41 +125,41 @@ func memoryDecisionsConfigFromPayload(payload contract.SettingsMemoryDecisionsPa
 
 func memoryExtractorConfigFromPayload(
 	payload contract.SettingsMemoryExtractorPayload,
-) (aghconfig.MemoryExtractorConfig, error) {
+) (compozyconfig.MemoryExtractorConfig, error) {
 	deadline, err := parseSettingsDuration("memory.config.extractor.deadline", payload.Deadline)
 	if err != nil {
-		return aghconfig.MemoryExtractorConfig{}, err
+		return compozyconfig.MemoryExtractorConfig{}, err
 	}
-	return aghconfig.MemoryExtractorConfig{
+	return compozyconfig.MemoryExtractorConfig{
 		Mode:             strings.TrimSpace(payload.Mode),
 		ThrottleTurns:    payload.ThrottleTurns,
 		Deadline:         deadline,
 		SandboxInboxOnly: payload.SandboxInboxOnly,
 		InboxPath:        strings.TrimSpace(payload.InboxPath),
 		DLQPath:          strings.TrimSpace(payload.DLQPath),
-		Queue: aghconfig.MemoryExtractorQueueConfig{
+		Queue: compozyconfig.MemoryExtractorQueueConfig{
 			Capacity:    payload.Queue.Capacity,
 			CoalesceMax: payload.Queue.CoalesceMax,
 		},
 	}, nil
 }
 
-func memoryDreamConfigFromPayload(payload contract.SettingsMemoryDreamPayload) (aghconfig.DreamConfig, error) {
+func memoryDreamConfigFromPayload(payload contract.SettingsMemoryDreamPayload) (compozyconfig.DreamConfig, error) {
 	debounce, err := parseSettingsDuration("memory.config.dream.debounce", payload.Debounce)
 	if err != nil {
-		return aghconfig.DreamConfig{}, err
+		return compozyconfig.DreamConfig{}, err
 	}
 	checkInterval, err := parseSettingsDuration("memory.config.dream.check_interval", payload.CheckInterval)
 	if err != nil {
-		return aghconfig.DreamConfig{}, err
+		return compozyconfig.DreamConfig{}, err
 	}
-	return aghconfig.DreamConfig{
+	return compozyconfig.DreamConfig{
 		MinHours:      payload.MinHours,
 		MinSessions:   payload.MinSessions,
 		Debounce:      debounce,
 		PromptVersion: strings.TrimSpace(payload.PromptVersion),
 		CheckInterval: checkInterval,
-		Gates: aghconfig.MemoryDreamGatesConfig{
+		Gates: compozyconfig.MemoryDreamGatesConfig{
 			MinUnpromoted:  payload.Gates.MinUnpromoted,
 			MinRecallCount: payload.Gates.MinRecallCount,
 			MinScore:       payload.Gates.MinScore,
@@ -168,10 +170,10 @@ func memoryDreamConfigFromPayload(payload contract.SettingsMemoryDreamPayload) (
 
 func memoryDreamScoringConfigFromPayload(
 	payload contract.SettingsMemoryDreamScoringPayload,
-) aghconfig.MemoryDreamScoringConfig {
-	return aghconfig.MemoryDreamScoringConfig{
+) compozyconfig.MemoryDreamScoringConfig {
+	return compozyconfig.MemoryDreamScoringConfig{
 		RecencyHalfLifeDays: payload.RecencyHalfLifeDays,
-		Weights: aghconfig.MemoryDreamScoringWeightsConfig{
+		Weights: compozyconfig.MemoryDreamScoringWeightsConfig{
 			Frequency: payload.Weights.Frequency,
 			Relevance: payload.Weights.Relevance,
 			Recency:   payload.Weights.Recency,
@@ -182,15 +184,15 @@ func memoryDreamScoringConfigFromPayload(
 
 func memorySessionConfigFromPayload(
 	payload contract.SettingsMemorySessionPayload,
-) (aghconfig.MemorySessionConfig, error) {
+) (compozyconfig.MemorySessionConfig, error) {
 	eventsPurgeGrace, err := parseSettingsDuration(
 		"memory.config.session.events_purge_grace",
 		payload.EventsPurgeGrace,
 	)
 	if err != nil {
-		return aghconfig.MemorySessionConfig{}, err
+		return compozyconfig.MemorySessionConfig{}, err
 	}
-	return aghconfig.MemorySessionConfig{
+	return compozyconfig.MemorySessionConfig{
 		LedgerFormat:     strings.TrimSpace(payload.LedgerFormat),
 		LedgerRoot:       strings.TrimSpace(payload.LedgerRoot),
 		EventsPurgeGrace: eventsPurgeGrace,
@@ -201,8 +203,8 @@ func memorySessionConfigFromPayload(
 	}, nil
 }
 
-func memoryDailyConfigFromPayload(payload contract.SettingsMemoryDailyPayload) aghconfig.MemoryDailyConfig {
-	return aghconfig.MemoryDailyConfig{
+func memoryDailyConfigFromPayload(payload contract.SettingsMemoryDailyPayload) compozyconfig.MemoryDailyConfig {
+	return compozyconfig.MemoryDailyConfig{
 		MaxBytes:        payload.MaxBytes,
 		MaxLines:        payload.MaxLines,
 		RotateFormat:    strings.TrimSpace(payload.RotateFormat),
@@ -217,16 +219,16 @@ func memoryDailyConfigFromPayload(payload contract.SettingsMemoryDailyPayload) a
 
 func memoryProviderConfigFromPayload(
 	payload contract.SettingsMemoryProviderPayload,
-) (aghconfig.MemoryProviderConfig, error) {
+) (compozyconfig.MemoryProviderConfig, error) {
 	timeout, err := parseSettingsDuration("memory.config.provider.timeout", payload.Timeout)
 	if err != nil {
-		return aghconfig.MemoryProviderConfig{}, err
+		return compozyconfig.MemoryProviderConfig{}, err
 	}
 	cooldown, err := parseSettingsDuration("memory.config.provider.cooldown", payload.Cooldown)
 	if err != nil {
-		return aghconfig.MemoryProviderConfig{}, err
+		return compozyconfig.MemoryProviderConfig{}, err
 	}
-	return aghconfig.MemoryProviderConfig{
+	return compozyconfig.MemoryProviderConfig{
 		Name:             strings.TrimSpace(payload.Name),
 		Timeout:          timeout,
 		FailureThreshold: payload.FailureThreshold,

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -67,17 +67,17 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 			t.Fatalf("bootstrap revoke %q result = %#v, want not-found tool result", missingID, result)
 		}
 	}
-	httpSet := setApprovalGrantHTTP(t, ctx, first, workspaceID, aghcontract.ToolApprovalGrantSetRequest{
+	httpSet := setApprovalGrantHTTP(t, ctx, first, workspaceID, compozycontract.ToolApprovalGrantSetRequest{
 		ToolID:   toolspkg.ToolIDWorkspaceList,
 		Decision: toolspkg.ApprovalGrantReject,
 		Scope:    toolspkg.ApprovalGrantScopeTool,
 	})
-	udsSet := setApprovalGrantUDS(t, ctx, first, workspaceID, aghcontract.ToolApprovalGrantSetRequest{
+	udsSet := setApprovalGrantUDS(t, ctx, first, workspaceID, compozycontract.ToolApprovalGrantSetRequest{
 		ToolID:   toolspkg.ToolIDMemoryList,
 		Decision: toolspkg.ApprovalGrantAllow,
 		Scope:    toolspkg.ApprovalGrantScopeTool,
 	})
-	cliSet := setApprovalGrantCLI(t, ctx, first, workspaceID, aghcontract.ToolApprovalGrantSetRequest{
+	cliSet := setApprovalGrantCLI(t, ctx, first, workspaceID, compozycontract.ToolApprovalGrantSetRequest{
 		ToolID:    toolspkg.ToolIDTaskList,
 		Decision:  toolspkg.ApprovalGrantAllow,
 		Scope:     toolspkg.ApprovalGrantScopeAgent,
@@ -272,7 +272,7 @@ func callApprovalToolWithDecision(
 		outcomeCh <- callOutcome{result: result, err: err}
 	}()
 	waitForRuntimeCondition(t, "native tool approval prompt", 5*time.Second, func() bool {
-		err := harness.ApproveSessionPermission(ctx, sessionID, aghcontract.ApproveSessionRequest{
+		err := harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
 			RequestID: toolCallID,
 			Decision:  decision,
 		})
@@ -324,7 +324,7 @@ func approvalToolCall(
 func decodeNativeApprovalGrantSet(
 	t testing.TB,
 	result *sdkmcp.CallToolResult,
-) aghcontract.ToolApprovalGrantPayload {
+) compozycontract.ToolApprovalGrantPayload {
 	t.Helper()
 	if result == nil || result.IsError {
 		t.Fatalf("native approval set result = %#v, want success", result)
@@ -333,7 +333,7 @@ func decodeNativeApprovalGrantSet(
 	if err != nil {
 		t.Fatalf("Marshal(native approval set) error = %v", err)
 	}
-	var response aghcontract.ToolApprovalGrantResponse
+	var response compozycontract.ToolApprovalGrantResponse
 	if err := json.Unmarshal(payload, &response); err != nil {
 		t.Fatalf("Unmarshal(native approval set) error = %v; payload=%s", err, payload)
 	}
@@ -353,10 +353,10 @@ func setApprovalGrantHTTP(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-	request aghcontract.ToolApprovalGrantSetRequest,
-) aghcontract.ToolApprovalGrantPayload {
+	request compozycontract.ToolApprovalGrantSetRequest,
+) compozycontract.ToolApprovalGrantPayload {
 	t.Helper()
-	var response aghcontract.ToolApprovalGrantResponse
+	var response compozycontract.ToolApprovalGrantResponse
 	if err := harness.HTTPJSON(ctx, http.MethodPut, approvalGrantPath(workspaceID), request, &response); err != nil {
 		t.Fatalf("HTTP set tool approval grant error = %v", err)
 	}
@@ -368,10 +368,10 @@ func setApprovalGrantUDS(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-	request aghcontract.ToolApprovalGrantSetRequest,
-) aghcontract.ToolApprovalGrantPayload {
+	request compozycontract.ToolApprovalGrantSetRequest,
+) compozycontract.ToolApprovalGrantPayload {
 	t.Helper()
-	var response aghcontract.ToolApprovalGrantResponse
+	var response compozycontract.ToolApprovalGrantResponse
 	if err := harness.UDSJSON(ctx, http.MethodPut, approvalGrantPath(workspaceID), request, &response); err != nil {
 		t.Fatalf("UDS set tool approval grant error = %v", err)
 	}
@@ -383,8 +383,8 @@ func setApprovalGrantCLI(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-	request aghcontract.ToolApprovalGrantSetRequest,
-) aghcontract.ToolApprovalGrantPayload {
+	request compozycontract.ToolApprovalGrantSetRequest,
+) compozycontract.ToolApprovalGrantPayload {
 	t.Helper()
 	args := []string{
 		"tool", "approvals", "set", request.ToolID.String(),
@@ -396,7 +396,7 @@ func setApprovalGrantCLI(
 	if request.AgentName != "" {
 		args = append(args, "--agent", request.AgentName)
 	}
-	var response aghcontract.ToolApprovalGrantPayload
+	var response compozycontract.ToolApprovalGrantPayload
 	if err := harness.CLI.RunJSON(ctx, &response, args...); err != nil {
 		t.Fatalf("CLI set tool approval grant error = %v", err)
 	}
@@ -408,10 +408,10 @@ func listApprovalGrantsHTTP(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-) aghcontract.ToolApprovalGrantListResponse {
+) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
-	var response aghcontract.ToolApprovalGrantListResponse
+	var response compozycontract.ToolApprovalGrantListResponse
 	if err := harness.HTTPJSON(ctx, http.MethodGet, approvalGrantPath(workspaceID), nil, &response); err != nil {
 		t.Fatalf("HTTP list tool approval grants error = %v", err)
 	}
@@ -423,10 +423,10 @@ func listApprovalGrantsUDS(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-) aghcontract.ToolApprovalGrantListResponse {
+) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
-	var response aghcontract.ToolApprovalGrantListResponse
+	var response compozycontract.ToolApprovalGrantListResponse
 	if err := harness.UDSJSON(ctx, http.MethodGet, approvalGrantPath(workspaceID), nil, &response); err != nil {
 		t.Fatalf("UDS list tool approval grants error = %v", err)
 	}
@@ -438,10 +438,10 @@ func listApprovalGrantsCLI(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspaceID string,
-) aghcontract.ToolApprovalGrantListResponse {
+) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
-	var response aghcontract.ToolApprovalGrantListResponse
+	var response compozycontract.ToolApprovalGrantListResponse
 	if err := harness.CLI.RunJSON(
 		ctx,
 		&response,
@@ -463,7 +463,7 @@ func listApprovalGrantsNative(
 	ctx context.Context,
 	client *mcpclient.Client,
 	workspaceID string,
-) aghcontract.ToolApprovalGrantListResponse {
+) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
 	var call sdkmcp.CallToolRequest
@@ -480,9 +480,14 @@ func listApprovalGrantsNative(
 	if err != nil {
 		t.Fatalf("Marshal(%s structured content) error = %v", toolspkg.ToolIDToolApprovalsList, err)
 	}
-	var response aghcontract.ToolApprovalGrantListResponse
+	var response compozycontract.ToolApprovalGrantListResponse
 	if err := json.Unmarshal(payload, &response); err != nil {
-		t.Fatalf("Unmarshal(%s structured content) error = %v; payload=%s", toolspkg.ToolIDToolApprovalsList, err, payload)
+		t.Fatalf(
+			"Unmarshal(%s structured content) error = %v; payload=%s",
+			toolspkg.ToolIDToolApprovalsList,
+			err,
+			payload,
+		)
 	}
 	return response
 }
@@ -527,8 +532,8 @@ func deleteApprovalGrantUDS(
 
 func assertApprovalGrantListsEqual(
 	t testing.TB,
-	want aghcontract.ToolApprovalGrantListResponse,
-	others ...aghcontract.ToolApprovalGrantListResponse,
+	want compozycontract.ToolApprovalGrantListResponse,
+	others ...compozycontract.ToolApprovalGrantListResponse,
 ) {
 	t.Helper()
 	for index, got := range others {
@@ -540,8 +545,8 @@ func assertApprovalGrantListsEqual(
 
 func assertApprovalGrantSurvivedRestart(
 	t testing.TB,
-	list aghcontract.ToolApprovalGrantListResponse,
-	want aghcontract.ToolApprovalGrantPayload,
+	list compozycontract.ToolApprovalGrantListResponse,
+	want compozycontract.ToolApprovalGrantPayload,
 ) {
 	t.Helper()
 	for _, got := range list.Grants {

@@ -63,7 +63,7 @@ func notificationText(preset Preset, event Event) string {
 	if summary == "" {
 		summary = event.Type
 	}
-	return fmt.Sprintf("AGH %s: %s", preset.Name, summary)
+	return fmt.Sprintf("Compozy %s: %s", preset.Name, summary)
 }
 
 func notificationPresetLifecycleSummary(eventType string, name string) string {

@@ -17,7 +17,7 @@ vi.mock("../../adapters/window-manager-api", () => ({
   unregisterWindowManagerClient: vi.fn(),
 }));
 
-const STORAGE_KEY = "agh.window-manager.client-id";
+const STORAGE_KEY = "compozy.window-manager.client-id";
 
 function client(presentationRevision = 1): WindowManagerClientView {
   return {

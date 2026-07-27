@@ -31,7 +31,7 @@ export const WithLabelAndHelper: Story = {
           <NativeSelectOption value="staging">Staging</NativeSelectOption>
           <NativeSelectOption value="prod">Production</NativeSelectOption>
         </NativeSelect>
-        <FieldDescription>Picks which daemon config AGH should boot with.</FieldDescription>
+        <FieldDescription>Picks which daemon config Compozy should boot with.</FieldDescription>
       </Field>
     </div>
   ),

@@ -6,17 +6,17 @@ type OpenAIModelListResponse struct {
 	Data   []OpenAIModelPayload `json:"data"`
 }
 
-// OpenAIModelPayload is one OpenAI-compatible model object with AGH metadata.
+// OpenAIModelPayload is one OpenAI-compatible model object with Compozy metadata.
 type OpenAIModelPayload struct {
-	ID      string                `json:"id"`
-	Object  string                `json:"object"`
-	Created int64                 `json:"created"`
-	OwnedBy string                `json:"owned_by"`
-	AGH     OpenAIModelAGHPayload `json:"agh"`
+	ID      string                    `json:"id"`
+	Object  string                    `json:"object"`
+	Created int64                     `json:"created"`
+	OwnedBy string                    `json:"owned_by"`
+	Compozy OpenAIModelCompozyPayload `json:"compozy"`
 }
 
-// OpenAIModelAGHPayload carries AGH-specific model metadata under the `agh` key.
-type OpenAIModelAGHPayload struct {
+// OpenAIModelCompozyPayload carries Compozy-specific model metadata under the `compozy` key.
+type OpenAIModelCompozyPayload struct {
 	ProviderID             string                   `json:"provider_id"`
 	ModelID                string                   `json:"model_id"`
 	DisplayName            string                   `json:"display_name,omitempty"`

@@ -92,7 +92,7 @@ func validateDiscoveredProviderManifest(provider discoveredBridgeProvider) (prov
 		return providerSchemaContract{}, fmt.Errorf("provider %q omits bridge.config_schema", provider.Name)
 	}
 	contract := providerSchemaContract{
-		Schema:  "agh.bridge." + provider.Name,
+		Schema:  "compozy.bridge." + provider.Name,
 		Version: strings.TrimSpace(provider.Manifest.Bridge.ConfigSchema.Version),
 	}
 	for _, slot := range provider.Manifest.Bridge.SecretSlots {
@@ -298,7 +298,7 @@ func discoveredProviderInitializeRequest(
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "test",
+		CompozyVersion:           "test",
 		SessionNonce:             "provider-conformance-" + name,
 		Extension: subprocess.InitializeExtension{
 			Name:       name,
@@ -438,7 +438,7 @@ description = "Synthetic provider token"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.synthetic"
+schema = "compozy.bridge.synthetic"
 version = "1"
 
 [actions]

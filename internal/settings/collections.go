@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/providerauth"
 	authproviders "github.com/compozy/compozy/internal/providers"
@@ -180,8 +180,8 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 	}
 }
 
-func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config) ([]ProviderItem, error) {
-	builtins := aghconfig.BuiltinProviders()
+func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Config) ([]ProviderItem, error) {
+	builtins := compozyconfig.BuiltinProviders()
 	names := make([]string, 0, len(builtins)+len(cfg.Providers))
 	seen := make(map[string]struct{}, len(builtins)+len(cfg.Providers))
 	for name := range builtins {
@@ -249,9 +249,9 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 }
 
 func providerAuthStatus(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	providerName string,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 	credentials []ProviderCredentialStatus,
 	lookPath func(string) (string, error),
 ) (ProviderAuthStatus, error) {
@@ -274,9 +274,9 @@ func providerAuthStatus(
 	status.Code = classification.Code
 	status.Message = classification.Message
 	switch status.Mode {
-	case aghconfig.ProviderAuthModeBoundSecret:
+	case compozyconfig.ProviderAuthModeBoundSecret:
 		return status, nil
-	case aghconfig.ProviderAuthModeNone:
+	case compozyconfig.ProviderAuthModeNone:
 		return status, nil
 	default:
 		nativeCLI, err := providerauth.NativeCLIStatusForProvider(provider, lookPath)
@@ -335,7 +335,7 @@ func (v providerAuthStatusCredentialVault) GetMetadata(_ context.Context, ref st
 
 func (s *service) providerCredentialStatuses(
 	ctx context.Context,
-	provider aghconfig.ProviderConfig,
+	provider compozyconfig.ProviderConfig,
 ) ([]ProviderCredentialStatus, error) {
 	slots := provider.EffectiveCredentialSlots()
 	if len(slots) == 0 {
@@ -354,7 +354,7 @@ func (s *service) providerCredentialStatuses(
 
 func (s *service) providerCredentialStatus(
 	ctx context.Context,
-	slot aghconfig.ProviderCredentialSlot,
+	slot compozyconfig.ProviderCredentialSlot,
 ) (ProviderCredentialStatus, error) {
 	secretRef := vault.NormalizeRef(slot.SecretRef)
 	status := ProviderCredentialStatus{

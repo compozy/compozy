@@ -92,7 +92,7 @@ func defaultStartupPromptSectionDescriptors(
 		Name:      string(HarnessPromptSectionRuntimeIdentity),
 		Position:  PromptSectionPositionPrepend,
 		Order:     startupRuntimeIdentitySectionOrder,
-		Provider:  aghRuntimePromptProvider{},
+		Provider:  compozyRuntimePromptProvider{},
 		Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
 	})
 

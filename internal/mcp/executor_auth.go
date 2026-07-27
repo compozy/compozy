@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -20,7 +20,7 @@ const (
 
 func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedServer) error {
 	server := resolved.Server
-	if server.EffectiveTransport() == aghconfig.MCPServerTransportStdio || !server.Auth.Enabled() {
+	if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio || !server.Auth.Enabled() {
 		return nil
 	}
 	status, err := e.authStatus(ctx, resolved)

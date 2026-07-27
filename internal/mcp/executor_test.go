@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
@@ -38,9 +38,9 @@ func TestMCPCallExecutor(t *testing.T) {
 
 		testServer := mcpsrv.NewTestStreamableHTTPServer(newFakeSDKServer(nil))
 		t.Cleanup(testServer.Close)
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "GitHub",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       testServer.URL,
 		})
 
@@ -57,9 +57,9 @@ func TestMCPCallExecutor(t *testing.T) {
 
 		testServer := mcpsrv.NewTestServer(newFakeSDKServer(nil))
 		t.Cleanup(testServer.Close)
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "Linear",
-			Transport: aghconfig.MCPServerTransportSSE,
+			Transport: compozyconfig.MCPServerTransportSSE,
 			URL:       testServer.URL + "/sse",
 		})
 
@@ -73,9 +73,9 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should List And Call Stdio Server", func(t *testing.T) {
 		t.Parallel()
 
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "Local",
-			Transport: aghconfig.MCPServerTransportStdio,
+			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   os.Args[0],
 			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
 			Env: map[string]string{
@@ -109,7 +109,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}))
 		t.Cleanup(testServer.Close)
 
-		configuredServer := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, testServer.URL)
+		configuredServer := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, testServer.URL)
 		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
@@ -144,12 +144,12 @@ func TestMCPCallExecutor(t *testing.T) {
 		target := globalMCPExecutorTarget("secure")
 		original := authEnabledServer(
 			"secure",
-			aghconfig.MCPServerTransportHTTP,
+			compozyconfig.MCPServerTransportHTTP,
 			"https://original.example/mcp",
 		)
 		replacement := authEnabledServer(
 			"secure",
-			aghconfig.MCPServerTransportHTTP,
+			compozyconfig.MCPServerTransportHTTP,
 			"https://replacement.example/mcp",
 		)
 		store := newMemoryTokenStore()
@@ -185,21 +185,21 @@ func TestMCPCallExecutor(t *testing.T) {
 		store := newMemoryTokenStore()
 		for _, fixture := range []struct {
 			record mcpauth.TokenRecord
-			server aghconfig.MCPServer
+			server compozyconfig.MCPServer
 		}{
 			{
 				record: mcpauth.TokenRecord{
 					Target: workspaceA, AccessToken: "workspace-a-token", TokenType: "Bearer",
 					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
 				},
-				server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverA.URL),
+				server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverA.URL),
 			},
 			{
 				record: mcpauth.TokenRecord{
 					Target: workspaceB, AccessToken: "workspace-b-token", TokenType: "Bearer",
 					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
 				},
-				server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverB.URL),
+				server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverB.URL),
 			},
 		} {
 			fixture.record.DefinitionFingerprint = definitionFingerprint(t, fixture.record.Target, fixture.server)
@@ -214,12 +214,12 @@ func TestMCPCallExecutor(t *testing.T) {
 			switch source.ResourceID {
 			case "mcp-workspace-a":
 				return ResolvedServer{
-					Server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverA.URL),
+					Server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverA.URL),
 					Target: workspaceA,
 				}, nil
 			case "mcp-workspace-b":
 				return ResolvedServer{
-					Server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverB.URL),
+					Server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverB.URL),
 					Target: workspaceB,
 				}, nil
 			default:
@@ -271,7 +271,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		store := newMemoryTokenStore()
 		executor := newTestMCPExecutor(
 			t,
-			authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp"),
+			authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp"),
 			WithTokenStore(store),
 		)
 
@@ -289,7 +289,7 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should Return Invalid Auth For Token Missing Access Token", func(t *testing.T) {
 		t.Parallel()
 
-		server := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp")
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp")
 		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
@@ -320,7 +320,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -329,7 +329,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(
 			t,
-			authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp"),
+			authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp"),
 			withAuthService(fakeAuth),
 		)
 
@@ -350,9 +350,9 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should Normalize Cancellation And Timeout", func(t *testing.T) {
 		t.Parallel()
 
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "github",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "http://127.0.0.1:1/mcp",
 		})
 		ctx, cancel := context.WithCancel(context.Background())
@@ -375,9 +375,9 @@ func TestMCPCallExecutor(t *testing.T) {
 		t.Cleanup(blockingServer.Close)
 		timeoutExecutor := newTestMCPExecutor(
 			t,
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:      "slow",
-				Transport: aghconfig.MCPServerTransportHTTP,
+				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       blockingServer.URL,
 			},
 			WithTimeout(20*time.Millisecond),
@@ -394,9 +394,9 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should Classify A Terminated Stdio Sidecar As Unreachable", func(t *testing.T) {
 		t.Parallel()
 
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "terminated",
-			Transport: aghconfig.MCPServerTransportStdio,
+			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   os.Args[0],
 			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
 			Env: map[string]string{
@@ -463,7 +463,7 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		executor := &CallExecutor{}
 		descriptor, err := executor.descriptorFromTool(
 			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "github"},
-			aghconfig.MCPServer{Name: "github"},
+			compozyconfig.MCPServer{Name: "github"},
 			mcpsdk.Tool{
 				Name:        "lookup",
 				Description: "Look up an issue",
@@ -505,9 +505,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	t.Run("Should exclude ambient daemon secrets from stdio MCP processes", func(t *testing.T) {
 		setMCPTestEnv(t, stdioParentSecretEnv, "ambient-secret")
 
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "Local",
-			Transport: aghconfig.MCPServerTransportStdio,
+			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   os.Args[0],
 			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
 			Env: map[string]string{
@@ -532,9 +532,9 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 
 		executor := newTestMCPExecutor(
 			t,
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:      "Local",
-				Transport: aghconfig.MCPServerTransportStdio,
+				Transport: compozyconfig.MCPServerTransportStdio,
 				Command:   os.Args[0],
 				Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
 				Env: map[string]string{
@@ -626,7 +626,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusAuthenticated,
-				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
 				Scopes:       []string{" tools.read ", "issues.write"},
 				ExpiresAt:    &expiresAt,
@@ -634,7 +634,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 				Refreshable:  true,
 			},
 		}
-		server := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
 		server.Auth.ClientSecretRef = "env:MCP_CLIENT_SECRET"
 		executor := newTestMCPExecutor(
 			t,
@@ -672,9 +672,9 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}
 		assertJSONDoesNotContain(t, "status", status, "client-secret")
 
-		unconfigured := newTestMCPExecutor(t, aghconfig.MCPServer{
+		unconfigured := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "plain",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://mcp.example.test/mcp",
 		})
 		plainStatus, err := unconfigured.Status(testContext(t), toolspkg.SourceRef{
@@ -696,9 +696,9 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		if _, err := NewMCPCallExecutor(nil); err == nil {
 			t.Fatal("NewMCPCallExecutor(nil) error = nil, want error")
 		}
-		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "github",
-			Transport: aghconfig.MCPServerTransportHTTP,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "http://127.0.0.1:1/mcp",
 		})
 		var nilContext context.Context
@@ -713,9 +713,9 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		_, err = executor.ListTools(testContext(t), toolspkg.SourceRef{RawServerName: "missing"})
 		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
 
-		unsupported := newTestMCPExecutor(t, aghconfig.MCPServer{
+		unsupported := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "github",
-			Transport: aghconfig.MCPServerTransport("websocket"),
+			Transport: compozyconfig.MCPServerTransport("websocket"),
 			URL:       "https://mcp.example.test/ws",
 		})
 		_, err = unsupported.ListTools(testContext(t), toolspkg.SourceRef{RawServerName: "github"})
@@ -832,12 +832,12 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 	t.Run("Should Handle Expired Auth Refresh Outcomes", func(t *testing.T) {
 		t.Parallel()
 
-		server := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
 		fakeAuth := &fakeAuthService{
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -845,7 +845,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			refresh: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusAuthenticated,
-				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -864,7 +864,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -892,15 +892,15 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(
 			t,
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:      "github",
-				Transport: aghconfig.MCPServerTransportHTTP,
+				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.example.test/mcp",
 			},
 			WithTokenStore(store),
 		)
 		resolved := ResolvedServer{
-			Server: aghconfig.MCPServer{Name: "github"},
+			Server: compozyconfig.MCPServer{Name: "github"},
 			Target: globalMCPExecutorTarget("github"),
 		}
 		if got := executor.authorizationHeader(testContext(t), resolved); got != "" {
@@ -912,10 +912,10 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		); got != "" {
 			t.Fatalf("authorizationHeader(nil store) = %q, want empty", got)
 		}
-		if !mcpServerMatches(aghconfig.MCPServer{Name: "GitHub"}, "github") {
+		if !mcpServerMatches(compozyconfig.MCPServer{Name: "GitHub"}, "github") {
 			t.Fatal("mcpServerMatches() = false, want true for canonical owner")
 		}
-		if mcpServerMatches(aghconfig.MCPServer{Name: "9bad"}, "bad") {
+		if mcpServerMatches(compozyconfig.MCPServer{Name: "9bad"}, "bad") {
 			t.Fatal("mcpServerMatches(invalid canonical name) = true, want false")
 		}
 	})
@@ -964,7 +964,7 @@ func newAuthorizedMCPExecutorServer(t *testing.T, token string) *httptest.Server
 
 func newTestMCPExecutor(
 	t *testing.T,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 	options ...CallExecutorOption,
 ) *CallExecutor {
 	t.Helper()
@@ -1052,13 +1052,13 @@ func testContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func authEnabledServer(name string, transport aghconfig.MCPServerTransport, url string) aghconfig.MCPServer {
-	return aghconfig.MCPServer{
+func authEnabledServer(name string, transport compozyconfig.MCPServerTransport, url string) compozyconfig.MCPServer {
+	return compozyconfig.MCPServer{
 		Name:      name,
 		Transport: transport,
 		URL:       url,
-		Auth: aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+		Auth: compozyconfig.MCPAuthConfig{
+			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 			AuthorizationURL: "https://issuer.example.test/authorize",
 			TokenURL:         "https://issuer.example.test/token",
 			ClientID:         "client-id",
@@ -1070,7 +1070,7 @@ func authEnabledServer(name string, transport aghconfig.MCPServerTransport, url 
 func definitionFingerprint(
 	t *testing.T,
 	target mcpauth.Target,
-	server aghconfig.MCPServer,
+	server compozyconfig.MCPServer,
 ) string {
 	t.Helper()
 	cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)

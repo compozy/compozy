@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -78,7 +78,7 @@ func prepareLocalExtensionInstallIfPresent(path string) (preparedExtensionInstal
 }
 
 func installPreparedExtension(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry localExtensionRegistry,
 	prepared preparedExtensionInstall,
 	installedAt time.Time,

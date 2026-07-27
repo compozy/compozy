@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestNewMCPResolverClonesAllowedMarketplaceConfig(t *testing.T) {
@@ -15,7 +15,7 @@ func TestNewMCPResolverClonesAllowedMarketplaceConfig(t *testing.T) {
 	t.Run("Should clone allowed marketplace config", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.SkillsConfig{
+		cfg := compozyconfig.SkillsConfig{
 			AllowedMarketplaceMCP: []string{"marketplace-skill"},
 		}
 
@@ -320,7 +320,7 @@ func TestMCPResolverResolveReturnsNilForEmptySkillList(t *testing.T) {
 func newResolverForTest(allowed []string) (*MCPResolver, *bytes.Buffer) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	resolver := NewMCPResolver(aghconfig.SkillsConfig{
+	resolver := NewMCPResolver(compozyconfig.SkillsConfig{
 		AllowedMarketplaceMCP: allowed,
 	}, logger)
 	return resolver, &logs

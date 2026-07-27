@@ -6,21 +6,21 @@ import (
 	"fmt"
 	"os"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	aghlogger "github.com/compozy/compozy/internal/logger"
+	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/procutil"
 )
 
 func spawnDetachedDaemonProcess(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	executable func() (string, error),
 ) (daemonProcess, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		return nil, err
 	}
 
@@ -32,7 +32,7 @@ func spawnDetachedDaemonProcess(
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  binary,
 		Args:    []string{daemonDaemonKey, daemonStartKey, "--foreground", "--" + internalChildFlagName},
-		Sandbox: aghlogger.WithMirrorToStderrEnv(os.Environ(), false),
+		Sandbox: compozylogger.WithMirrorToStderrEnv(os.Environ(), false),
 		LogPath: homePaths.LogFile,
 	})
 	if err != nil {

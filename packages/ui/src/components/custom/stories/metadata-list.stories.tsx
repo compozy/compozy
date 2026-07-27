@@ -43,7 +43,7 @@ export const LongValues: Story = {
       <MetadataList.Row className="items-baseline justify-between">
         <MetadataList.Term>path</MetadataList.Term>
         <MetadataList.Value className="break-all text-right font-mono">
-          /Users/operator/projects/agh/.agh/sessions/sess_123/ledger.json
+          /Users/operator/projects/compozy/.compozy/sessions/sess_123/ledger.json
         </MetadataList.Value>
       </MetadataList.Row>
       <MetadataList.Row className="items-baseline justify-between">

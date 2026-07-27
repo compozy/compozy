@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/procutil"
 
@@ -101,9 +101,9 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			return deps.runRelaunchHelper(cmd.Context(), aghdaemon.RelaunchHelperConfig{
+			return deps.runRelaunchHelper(cmd.Context(), compozydaemon.RelaunchHelperConfig{
 				HomePaths:   homePaths,
-				OperationID: strings.TrimSpace(os.Getenv(aghdaemon.RestartOperationEnvKey)),
+				OperationID: strings.TrimSpace(os.Getenv(compozydaemon.RestartOperationEnvKey)),
 				Executable:  deps.executable,
 				Sandbox:     os.Environ(),
 			})

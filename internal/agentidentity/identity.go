@@ -19,11 +19,11 @@ const (
 	EnvAgent = "COMPOZY_AGENT"
 
 	// HeaderSessionID carries EnvSessionID over the local UDS HTTP transport.
-	HeaderSessionID = "X-AGH-Session-ID"
+	HeaderSessionID = "X-Compozy-Session-ID"
 	// HeaderAgent carries EnvAgent over the local UDS HTTP transport.
-	HeaderAgent = "X-AGH-Agent"
+	HeaderAgent = "X-Compozy-Agent"
 	// HeaderWorkspaceID optionally narrows an agent request to the caller workspace.
-	HeaderWorkspaceID = "X-AGH-Workspace-ID"
+	HeaderWorkspaceID = "X-Compozy-Workspace-ID"
 )
 
 // ResolveOptions configures agent caller resolution.
@@ -81,7 +81,7 @@ func validateResolveInputs(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityRequired,
 			"identity_required",
 			EnvSessionID+" is required for agent commands",
-			"run this command from an AGH-managed agent session",
+			"run this command from a Compozy-managed agent session",
 		)
 	}
 	if creds.AgentName == "" {
@@ -89,7 +89,7 @@ func validateResolveInputs(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityRequired,
 			"identity_required",
 			EnvAgent+" is required for agent commands",
-			"run this command from an AGH-managed agent session",
+			"run this command from a Compozy-managed agent session",
 		)
 	}
 	if lookup == nil {
@@ -128,7 +128,7 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityStale,
 			"identity_stale",
 			"agent session identity is not known to the daemon",
-			"start or resume the AGH session, then retry",
+			"start or resume the Compozy session, then retry",
 		)
 	}
 	snapshot = normalizeSessionSnapshot(snapshot)
@@ -137,7 +137,7 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityStale,
 			"identity_stale",
 			"agent session identity is not active",
-			"start or resume the AGH session, then retry",
+			"start or resume the Compozy session, then retry",
 		)
 	}
 	if snapshot.ID != creds.SessionID {
@@ -145,7 +145,7 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityMismatch,
 			"identity_mismatch",
 			"agent session lookup returned a different session",
-			"clear stale AGH identity environment variables and retry",
+			"clear stale Compozy identity environment variables and retry",
 		)
 	}
 	if snapshot.AgentName != creds.AgentName {
@@ -153,7 +153,7 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 			ErrIdentityMismatch,
 			"identity_mismatch",
 			EnvAgent+" does not match the daemon session agent",
-			"clear stale AGH identity environment variables and retry",
+			"clear stale Compozy identity environment variables and retry",
 		)
 	}
 	return snapshot, nil

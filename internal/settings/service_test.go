@@ -15,7 +15,7 @@ import (
 	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -162,14 +162,14 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				}
 				envelope.Roles.Config.AutoTitle.FallbackChain = append(
 					envelope.Roles.Config.AutoTitle.FallbackChain,
-					aghconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
+					compozyconfig.RoleFallback{Provider: "mutated", Model: "mutated"},
 				)
 				reloaded, err := service.GetSection(ctx, SectionRequest{Section: SectionRoles})
 				if err != nil {
 					t.Fatalf("GetSection(roles after mutation) error = %v", err)
 				}
 				if slices.ContainsFunc(reloaded.Roles.Config.AutoTitle.FallbackChain, func(
-					fallback aghconfig.RoleFallback,
+					fallback compozyconfig.RoleFallback,
 				) bool {
 					return fallback.Provider == "mutated"
 				}) {
@@ -356,7 +356,7 @@ func TestListMCPServersIncludesPrecedenceMetadata(t *testing.T) {
 name = "alpha"
 command = "global-config"
 `)
-	writeFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName), `{
+	writeFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": {
       "command": "global-sidecar",
@@ -366,12 +366,12 @@ command = "global-config"
     "beta": { "command": "beta-sidecar" }
   }
 }`)
-	writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
+	writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
 [[mcp_servers]]
 name = "alpha"
 command = "workspace-config"
 `)
-	writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
+	writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": { "command": "workspace-sidecar" }
   }
@@ -454,7 +454,7 @@ command = "before"
 		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 		Name:              "alpha",
 		Target:            TargetAuto,
-		MCPServer: &aghconfig.MCPServer{
+		MCPServer: &compozyconfig.MCPServer{
 			Command: "after",
 		},
 	})
@@ -473,7 +473,7 @@ command = "before"
 		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 		Name:              "beta",
 		Target:            TargetAuto,
-		MCPServer: &aghconfig.MCPServer{
+		MCPServer: &compozyconfig.MCPServer{
 			Command: "beta-command",
 		},
 	})
@@ -483,7 +483,7 @@ command = "before"
 	if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
 		t.Fatalf("new beta write target = %q, want %q", got, want)
 	}
-	sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+	sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 	if !strings.Contains(sidecarPayload, `"beta"`) || !strings.Contains(sidecarPayload, `"beta-command"`) {
 		t.Fatalf("sidecar payload missing beta server:\n%s", sidecarPayload)
 	}
@@ -500,22 +500,22 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
-			Defaults: aghconfig.DefaultsConfig{
+			Defaults: compozyconfig.DefaultsConfig{
 				Agent:    "editor",
 				Provider: "codex",
 				Sandbox:  "dev",
 			},
-			Limits: aghconfig.LimitsConfig{
+			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
 			},
-			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
+			Permissions:    compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveReads},
 			SessionTimeout: 45 * time.Minute,
-			HTTP:           aghconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
-			Daemon: aghconfig.DaemonConfig{
-				Socket:               "/tmp/agh.sock",
-				MemoryReportInterval: aghconfig.DefaultDaemonMemoryReportInterval,
+			HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
+			Daemon: compozyconfig.DaemonConfig{
+				Socket:               "/tmp/compozy.sock",
+				MemoryReportInterval: compozyconfig.DefaultDaemonMemoryReportInterval,
 			},
-			Redact: aghconfig.RedactConfig{Enabled: false},
+			Redact: compozyconfig.RedactConfig{Enabled: false},
 		},
 	})
 	if err != nil {
@@ -565,7 +565,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			t.Fatalf("window-manager write target = %q, want %q", got, want)
 		}
 
-		loaded, err := aghconfig.LoadForHome(homePaths)
+		loaded, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(updated window-manager) error = %v", err)
 		}
@@ -592,7 +592,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		if err == nil {
 			t.Fatal("UpdateSection(invalid window-manager) error = nil, want validation error")
 		}
-		var validationError aghconfig.ValidationError
+		var validationError compozyconfig.ValidationError
 		if !errors.As(err, &validationError) {
 			t.Fatalf("UpdateSection(invalid window-manager) error = %T %v, want config.ValidationError", err, err)
 		}
@@ -653,13 +653,13 @@ func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: SectionRequest{Section: SectionSkills},
-		Skills: &aghconfig.SkillsConfig{
+		Skills: &compozyconfig.SkillsConfig{
 			Enabled:                 true,
 			DisabledSkills:          []string{"beta"},
 			PollInterval:            30 * time.Minute,
 			AllowedMarketplaceMCP:   []string{"ctx"},
 			AllowedMarketplaceHooks: []string{"market"},
-			Marketplace: aghconfig.MarketplaceConfig{
+			Marketplace: compozyconfig.MarketplaceConfig{
 				Registry: "clawhub",
 				BaseURL:  "https://skills.example",
 			},
@@ -699,13 +699,13 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionSkills},
-			Skills: &aghconfig.SkillsConfig{
+			Skills: &compozyconfig.SkillsConfig{
 				Enabled:                 true,
 				DisabledSkills:          []string{"beta"},
 				PollInterval:            30 * time.Minute,
 				AllowedMarketplaceMCP:   []string{"ctx"},
 				AllowedMarketplaceHooks: []string{"market"},
-				Marketplace: aghconfig.MarketplaceConfig{
+				Marketplace: compozyconfig.MarketplaceConfig{
 					Registry: "clawhub",
 					BaseURL:  "https://skills.example",
 				},
@@ -1043,9 +1043,9 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
+			Models: compozyconfig.ProviderModelsConfig{
 				Default: "custom-model",
-				Curated: []aghconfig.ProviderModelConfig{
+				Curated: []compozyconfig.ProviderModelConfig{
 					{
 						ID:                     "custom-model",
 						DisplayName:            "Custom Model",
@@ -1057,7 +1057,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 					{ID: "custom-fast", DisplayName: "Custom Fast"},
 				},
 			},
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 				{
 					Name:      "api_key",
 					TargetEnv: "CUSTOM_API_KEY",
@@ -1091,8 +1091,8 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		Name:              "codex",
 		Provider: &ProviderSettings{
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
-				Curated: []aghconfig.ProviderModelConfig{},
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{},
 			},
 		},
 	})
@@ -1102,7 +1102,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := emptyCuratedResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("empty curated write target = %q, want %q", got, want)
 	}
-	loadedConfig, err := aghconfig.LoadForHome(homePaths)
+	loadedConfig, err := compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome(after empty curated) error = %v", err)
 	}
@@ -1121,8 +1121,8 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
-				Curated: []aghconfig.ProviderModelConfig{
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{
 					{
 						ID:               "custom-model",
 						ReasoningEfforts: []string{},
@@ -1137,7 +1137,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := emptyEffortsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("empty reasoning efforts write target = %q, want %q", got, want)
 	}
-	loadedConfig, err = aghconfig.LoadForHome(homePaths)
+	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome(after empty reasoning efforts) error = %v", err)
 	}
@@ -1160,8 +1160,8 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		Provider: &ProviderSettings{
 			Command:   "custom-acp --stdio",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
-				Curated: []aghconfig.ProviderModelConfig{
+			Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{
 					{ID: "   ", DisplayName: "Ignored Blank"},
 					{ID: "custom-valid", DisplayName: "Custom Valid"},
 				},
@@ -1174,7 +1174,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := blankIDResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("blank curated id write target = %q, want %q", got, want)
 	}
-	loadedConfig, err = aghconfig.LoadForHome(homePaths)
+	loadedConfig, err = compozyconfig.LoadForHome(homePaths)
 	if err != nil {
 		t.Fatalf("LoadForHome(after blank curated id) error = %v", err)
 	}
@@ -1225,7 +1225,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	sandboxResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
 		Name:              "staging",
-		Sandbox: &aghconfig.SandboxProfile{
+		Sandbox: &compozyconfig.SandboxProfile{
 			Backend:     "local",
 			SyncMode:    "session-bidirectional",
 			Persistence: "transient",
@@ -1233,7 +1233,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 			Env: map[string]string{
 				"QA_VISIBLE": "yes",
 			},
-			Network: aghconfig.NetworkProfile{
+			Network: compozyconfig.NetworkProfile{
 				AllowOutbound: true,
 			},
 		},
@@ -1256,7 +1256,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
 		Name:              "staging",
-		Sandbox: &aghconfig.SandboxProfile{
+		Sandbox: &compozyconfig.SandboxProfile{
 			Backend: "local",
 		},
 	})
@@ -1427,7 +1427,7 @@ display_name = "Raw config row"
 		if model.Featured == nil || !*model.Featured || model.ReleaseDate != releaseDate {
 			t.Fatalf("merged model metadata = %#v, want featured release metadata", model)
 		}
-		if got, want := custom.Settings.Models.Reasoning.Apply, aghconfig.ReasoningApplyACPOption; got != want {
+		if got, want := custom.Settings.Models.Reasoning.Apply, compozyconfig.ReasoningApplyACPOption; got != want {
 			t.Fatalf("reasoning apply = %q, want %q", got, want)
 		}
 		if !catalog.sawCuratedView("custom") {
@@ -1443,7 +1443,7 @@ display_name = "Raw config row"
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(unchanged merged projection) error = %v", err)
 		}
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after unchanged merged projection) error = %v", err)
 		}
@@ -1470,7 +1470,7 @@ display_name = "Raw config row"
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(explicit default effort intent) error = %v", err)
 		}
-		cfg, err = aghconfig.LoadForHome(homePaths)
+		cfg, err = compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after explicit default effort intent) error = %v", err)
 		}
@@ -1544,7 +1544,7 @@ id = "raw-model"
 display_name = "Raw model"
 featured = true
 `)
-		beforeConfig, err := aghconfig.LoadForHome(homePaths)
+		beforeConfig, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(before partial provider PUT) error = %v", err)
 		}
@@ -1558,7 +1558,7 @@ featured = true
 			t.Fatalf("PutCollectionItem(partial provider PUT) error = %v", err)
 		}
 
-		afterConfig, err := aghconfig.LoadForHome(homePaths)
+		afterConfig, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after partial provider PUT) error = %v", err)
 		}
@@ -1610,7 +1610,7 @@ command = "custom-acp"
 			t.Fatalf("PutCollectionItem(first explicit membership edit) error = %v", err)
 		}
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after first explicit membership edit) error = %v", err)
 		}
@@ -1659,7 +1659,7 @@ deprecated = true
 		settings.ModelsSet = true
 		settings.Models.Curated = append(
 			settings.Models.Curated,
-			aghconfig.ProviderModelConfig{ID: "excluded"},
+			compozyconfig.ProviderModelConfig{ID: "excluded"},
 		)
 		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -1669,7 +1669,7 @@ deprecated = true
 			t.Fatalf("PutCollectionItem(add excluded model) error = %v", err)
 		}
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after adding excluded model) error = %v", err)
 		}
@@ -1693,8 +1693,8 @@ deprecated = true
 			Provider: &ProviderSettings{
 				Command:   "missing-acp",
 				ModelsSet: true,
-				Models: aghconfig.ProviderModelsConfig{
-					Curated: []aghconfig.ProviderModelConfig{{ID: "missing-model"}},
+				Models: compozyconfig.ProviderModelsConfig{
+					Curated: []compozyconfig.ProviderModelConfig{{ID: "missing-model"}},
 				},
 			},
 			ProviderModelCuration: &ProviderModelCurationRequest{
@@ -1735,7 +1735,7 @@ id = "custom-model"
 		settings := ProviderSettings{
 			Command:   "custom-acp",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
+			Models: compozyconfig.ProviderModelsConfig{
 				Default: "custom-model",
 			},
 		}
@@ -1823,7 +1823,7 @@ featured = true
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(degraded catalog round trip) error = %v", err)
 		}
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(after degraded round trip) error = %v", err)
 		}
@@ -1861,9 +1861,9 @@ id = "raw-model"
 		settings := ProviderSettings{
 			Command:   "custom-acp",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
+			Models: compozyconfig.ProviderModelsConfig{
 				Default: "raw-model",
-				Curated: []aghconfig.ProviderModelConfig{},
+				Curated: []compozyconfig.ProviderModelConfig{},
 			},
 		}
 		before := readFile(t, homePaths.ConfigFile)
@@ -1899,9 +1899,9 @@ id = "raw-model"
 		settings := ProviderSettings{
 			Command:   "custom-acp",
 			ModelsSet: true,
-			Models: aghconfig.ProviderModelsConfig{
+			Models: compozyconfig.ProviderModelsConfig{
 				Default: "raw-model",
-				Curated: []aghconfig.ProviderModelConfig{},
+				Curated: []compozyconfig.ProviderModelConfig{},
 			},
 		}
 		before := readFile(t, homePaths.ConfigFile)
@@ -1962,15 +1962,15 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 			Provider: &ProviderSettings{
 				Command:         "npx -y @agentclientprotocol/codex-acp@latest",
 				DisplayName:     "Codex",
-				Harness:         aghconfig.ProviderHarnessACP,
+				Harness:         compozyconfig.ProviderHarnessACP,
 				RuntimeProvider: "codex",
-				AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
-				EnvPolicy:       aghconfig.ProviderEnvPolicyFiltered,
-				HomePolicy:      aghconfig.ProviderHomePolicyOperator,
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:       compozyconfig.ProviderEnvPolicyFiltered,
+				HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
 				AuthLoginCmd:    "codex login",
-				Models: aghconfig.ProviderModelsConfig{
+				Models: compozyconfig.ProviderModelsConfig{
 					Default: "gpt-5.5",
-					Curated: []aghconfig.ProviderModelConfig{
+					Curated: []compozyconfig.ProviderModelConfig{
 						{
 							ID:                     "gpt-5.4",
 							DisplayName:            "GPT-5.4",
@@ -2087,8 +2087,8 @@ func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets
 				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 				Name:              "openrouter",
 				Provider: &ProviderSettings{
-					AuthMode: aghconfig.ProviderAuthModeNone,
-					CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+					AuthMode: compozyconfig.ProviderAuthModeNone,
+					CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
 						Name:      "api_key",
 						TargetEnv: "OPENROUTER_API_KEY",
 						SecretRef: "vault:providers/openrouter/api-key",
@@ -2133,7 +2133,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "github",
 			Target:            TargetAuto,
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 			},
 			MCPSecrets: MCPSecretValues{
@@ -2149,7 +2149,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := secretStore.plaintext["vault:mcp/global/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
 			t.Fatalf("stored MCP secret_env = %q, want %q", got, want)
 		}
-		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecarPayload, "vault:mcp/global/github/env/GITHUB_TOKEN") {
 			t.Fatalf("sidecar payload missing secret ref:\n%s", sidecarPayload)
 		}
@@ -2169,7 +2169,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "github",
 			Target:            TargetAuto,
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx-updated",
 			},
 			MCPSecretPreservation: MCPSecretPreservation{
@@ -2215,7 +2215,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			request := CollectionItemPutRequest{
 				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 				Name:              "github",
-				MCPServer:         &aghconfig.MCPServer{Command: "old-command"},
+				MCPServer:         &compozyconfig.MCPServer{Command: "old-command"},
 				MCPSecrets: MCPSecretValues{
 					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
 				},
@@ -2230,7 +2230,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				MCPAuth:         runtime,
 				ProviderSecrets: secretStore,
 			})
-			request.MCPServer = &aghconfig.MCPServer{Command: "new-command"}
+			request.MCPServer = &compozyconfig.MCPServer{Command: "new-command"}
 			request.MCPSecrets.SecretEnv["GITHUB_TOKEN"] = "new-secret"
 
 			_, err := service.PutCollectionItem(t.Context(), request)
@@ -2270,7 +2270,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			request := CollectionItemPutRequest{
 				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 				Name:              "github",
-				MCPServer:         &aghconfig.MCPServer{Command: "old-command"},
+				MCPServer:         &compozyconfig.MCPServer{Command: "old-command"},
 				MCPSecrets: MCPSecretValues{
 					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
 				},
@@ -2284,11 +2284,11 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
 			writeCalls := 0
 			writer := func(
-				home aghconfig.HomePaths,
+				home compozyconfig.HomePaths,
 				root string,
 				name string,
-				target aghconfig.WriteTarget,
-				server aghconfig.MCPServer,
+				target compozyconfig.WriteTarget,
+				server compozyconfig.MCPServer,
 			) error {
 				writeCalls++
 				if writeCalls == 2 {
@@ -2301,7 +2301,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				ProviderSecrets:     secretStore,
 				MCPDefinitionWriter: writer,
 			})
-			request.MCPServer = &aghconfig.MCPServer{Command: "new-command"}
+			request.MCPServer = &compozyconfig.MCPServer{Command: "new-command"}
 			request.MCPSecrets.SecretEnv["GITHUB_TOKEN"] = "new-secret"
 
 			_, err := service.PutCollectionItem(t.Context(), request)
@@ -2334,7 +2334,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "shared",
 			Target:            TargetConfig,
-			MCPServer:         &aghconfig.MCPServer{Command: "config-command"},
+			MCPServer:         &compozyconfig.MCPServer{Command: "config-command"},
 			MCPSecrets: MCPSecretValues{
 				SecretEnv: map[string]string{"TOKEN": "shared-secret"},
 			},
@@ -2345,7 +2345,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "shared",
 			Target:            TargetSidecar,
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command:   "sidecar-command",
 				SecretEnv: map[string]string{"TOKEN": canonicalRef},
 			},
@@ -2381,9 +2381,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "plain-env",
 			Target:            TargetSidecar,
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "old-command",
-				Env:     map[string]string{"PROJECT": "agh"},
+				Env:     map[string]string{"PROJECT": "compozy"},
 			},
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(initial plain env) error = %v", err)
@@ -2393,23 +2393,25 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
 			Name:               "plain-env",
 			Target:             TargetSidecar,
-			MCPServer:          &aghconfig.MCPServer{Command: "new-command"},
+			MCPServer:          &compozyconfig.MCPServer{Command: "new-command"},
 			MCPEnvPreservation: []string{"PROJECT"},
 		}); err != nil {
 			t.Fatalf("PutCollectionItem(preserve plain env) error = %v", err)
 		}
-		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		servers, err := compozyconfig.LoadMCPServersJSONFile(
+			filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		)
 		if err != nil {
 			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
 		}
-		var persisted aghconfig.MCPServer
+		var persisted compozyconfig.MCPServer
 		for _, candidate := range servers {
 			if candidate.Name == "plain-env" {
 				persisted = candidate
 				break
 			}
 		}
-		if got, want := persisted.Env["PROJECT"], "agh"; got != want {
+		if got, want := persisted.Env["PROJECT"], "compozy"; got != want {
 			t.Fatalf("preserved PROJECT = %q, want %q", got, want)
 		}
 
@@ -2417,7 +2419,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
 			Name:               "plain-env",
 			Target:             TargetConfig,
-			MCPServer:          &aghconfig.MCPServer{Command: "config-command"},
+			MCPServer:          &compozyconfig.MCPServer{Command: "config-command"},
 			MCPEnvPreservation: []string{"PROJECT"},
 		})
 		if err == nil || !strings.Contains(err.Error(), "has no existing env values") {
@@ -2439,14 +2441,14 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "linear",
 			Target:            TargetAuto,
-			MCPServer: &aghconfig.MCPServer{
-				Transport: aghconfig.MCPServerTransportSSE,
+			MCPServer: &compozyconfig.MCPServer{
+				Transport: compozyconfig.MCPServerTransportSSE,
 				URL:       "https://mcp.linear.app/sse",
-				Auth: aghconfig.MCPAuthConfig{
-					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				Auth: compozyconfig.MCPAuthConfig{
+					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 					AuthorizationURL: "https://linear.app/oauth/authorize",
 					TokenURL:         "https://api.linear.app/oauth/token",
-					ClientID:         "agh-client",
+					ClientID:         "compozy-client",
 				},
 			},
 			MCPSecrets: MCPSecretValues{OAuthClientSecret: &clientSecret},
@@ -2457,7 +2459,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := secretStore.plaintext["vault:mcp/global/linear/oauth/client-secret"], clientSecret; got != want {
 			t.Fatalf("stored MCP OAuth secret = %q, want %q", got, want)
 		}
-		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecarPayload, "vault:mcp/global/linear/oauth/client-secret") {
 			t.Fatalf("sidecar payload missing client secret ref:\n%s", sidecarPayload)
 		}
@@ -2468,14 +2470,14 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "linear",
 			Target:            TargetAuto,
-			MCPServer: &aghconfig.MCPServer{
-				Transport: aghconfig.MCPServerTransportSSE,
+			MCPServer: &compozyconfig.MCPServer{
+				Transport: compozyconfig.MCPServerTransportSSE,
 				URL:       "https://mcp.linear.app/sse-v2",
-				Auth: aghconfig.MCPAuthConfig{
-					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				Auth: compozyconfig.MCPAuthConfig{
+					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 					AuthorizationURL: "https://linear.app/oauth/authorize",
 					TokenURL:         "https://api.linear.app/oauth/token",
-					ClientID:         "agh-client",
+					ClientID:         "compozy-client",
 				},
 			},
 			MCPSecretPreservation: MCPSecretPreservation{OAuthClientSecret: true},
@@ -2512,7 +2514,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "github",
 			Target:            TargetConfig,
-			MCPServer:         &aghconfig.MCPServer{Command: "npx"},
+			MCPServer:         &compozyconfig.MCPServer{Command: "npx"},
 			MCPSecretPreservation: MCPSecretPreservation{
 				SecretEnv: []string{"GITHUB_TOKEN"},
 			},
@@ -2531,14 +2533,14 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		secretStore := newFakeProviderSecretStore()
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 		clientSecret := "full-oauth-client-secret"
-		wantAuth := aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+		wantAuth := compozyconfig.MCPAuthConfig{
+			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 			IssuerURL:        "https://auth.example.com",
 			MetadataURL:      "https://auth.example.com/.well-known/oauth-authorization-server",
 			AuthorizationURL: "https://auth.example.com/authorize",
 			TokenURL:         "https://auth.example.com/token",
 			RevocationURL:    "https://auth.example.com/revoke",
-			ClientID:         "agh-client",
+			ClientID:         "compozy-client",
 			Scopes:           []string{"read", "write"},
 		}
 
@@ -2546,8 +2548,8 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "full-oauth",
 			Target:            TargetConfig,
-			MCPServer: &aghconfig.MCPServer{
-				Transport: aghconfig.MCPServerTransportHTTP,
+			MCPServer: &compozyconfig.MCPServer{
+				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.example.com",
 				Auth:      wantAuth,
 			},
@@ -2593,7 +2595,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "github",
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 				SecretEnv: map[string]string{
 					"GITHUB_TOKEN": "env:GITHUB_TOKEN",
@@ -2610,7 +2612,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if got, want := secretStore.plaintext[canonicalRef], "ghp-secret"; got != want {
 			t.Fatalf("stored MCP secret_env = %q, want %q", got, want)
 		}
-		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecarPayload, canonicalRef) || strings.Contains(sidecarPayload, "env:GITHUB_TOKEN") {
 			t.Fatalf("sidecar payload did not replace the declared ref with %q:\n%s", canonicalRef, sidecarPayload)
 		}
@@ -2629,16 +2631,16 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              "github",
 			Target:            TargetAuto,
-			MCPServer: &aghconfig.MCPServer{
+			MCPServer: &compozyconfig.MCPServer{
 				Command: "npx",
 				SecretEnv: map[string]string{
 					"GITHUB_TOKEN": "vault:mcp/github/env/GITHUB_TOKEN",
 				},
-				Auth: aghconfig.MCPAuthConfig{
-					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				Auth: compozyconfig.MCPAuthConfig{
+					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
 					AuthorizationURL: "https://example.com/oauth/authorize",
 					TokenURL:         "https://example.com/oauth/token",
-					ClientID:         "agh-client",
+					ClientID:         "compozy-client",
 					ClientSecretRef:  "vault:mcp/github/oauth/client-secret",
 				},
 			},
@@ -2652,7 +2654,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if len(secretStore.plaintext) != 0 {
 			t.Fatalf("secret store writes = %#v, want none after MCP validation failure", secretStore.plaintext)
 		}
-		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		sidecarPath := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 		if _, statErr := os.Stat(sidecarPath); !os.IsNotExist(statErr) {
 			t.Fatalf("sidecar created after MCP validation failure: stat error = %v", statErr)
 		}
@@ -2665,7 +2667,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		tests := []struct {
 			name          string
 			serverName    string
-			server        aghconfig.MCPServer
+			server        compozyconfig.MCPServer
 			secrets       MCPSecretValues
 			withoutStore  bool
 			wantErrorPart string
@@ -2673,7 +2675,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			{
 				name:          "Should require the Vault service",
 				serverName:    "github",
-				server:        aghconfig.MCPServer{Command: "npx"},
+				server:        compozyconfig.MCPServer{Command: "npx"},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "secret"}},
 				withoutStore:  true,
 				wantErrorPart: "secret store is not available",
@@ -2681,8 +2683,8 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			{
 				name:       "Should reject secret env for remote transport",
 				serverName: "remote",
-				server: aghconfig.MCPServer{
-					Transport: aghconfig.MCPServerTransportHTTP,
+				server: compozyconfig.MCPServer{
+					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://mcp.example.com",
 				},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "secret"}},
@@ -2691,34 +2693,34 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			{
 				name:          "Should reject an invalid secret env key",
 				serverName:    "github",
-				server:        aghconfig.MCPServer{Command: "npx"},
+				server:        compozyconfig.MCPServer{Command: "npx"},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"NOT-VALID": "secret"}},
 				wantErrorPart: "secret_env key",
 			},
 			{
 				name:          "Should reject an empty secret env value",
 				serverName:    "github",
-				server:        aghconfig.MCPServer{Command: "npx"},
+				server:        compozyconfig.MCPServer{Command: "npx"},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"TOKEN": ""}},
 				wantErrorPart: "secret_env value",
 			},
 			{
 				name:          "Should reject an invalid canonical owner",
 				serverName:    "github/unsafe",
-				server:        aghconfig.MCPServer{Command: "npx"},
+				server:        compozyconfig.MCPServer{Command: "npx"},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "secret"}},
 				wantErrorPart: "server name cannot contain a slash",
 			},
 			{
 				name:       "Should reject an empty OAuth client secret",
 				serverName: "oauth",
-				server: aghconfig.MCPServer{
-					Transport: aghconfig.MCPServerTransportHTTP,
+				server: compozyconfig.MCPServer{
+					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://mcp.example.com",
-					Auth: aghconfig.MCPAuthConfig{
-						Type:      aghconfig.MCPAuthTypeOAuth2PKCE,
+					Auth: compozyconfig.MCPAuthConfig{
+						Type:      compozyconfig.MCPAuthTypeOAuth2PKCE,
 						IssuerURL: "https://auth.example.com",
-						ClientID:  "agh-client",
+						ClientID:  "compozy-client",
 					},
 				},
 				secrets:       MCPSecretValues{OAuthClientSecret: &emptyOAuthSecret},
@@ -2755,7 +2757,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				if len(secretStore.plaintext) != 0 {
 					t.Fatalf("secret writes = %#v, want none", secretStore.plaintext)
 				}
-				sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+				sidecarPath := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 				if _, statErr := os.Stat(sidecarPath); !os.IsNotExist(statErr) {
 					t.Fatalf("MCP sidecar exists after rejected secret shape: %v", statErr)
 				}
@@ -2895,7 +2897,9 @@ func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 		if got, want := len(generations), installCount; got != want {
 			t.Fatalf("unique active generations = %d, want %d", got, want)
 		}
-		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		servers, err := compozyconfig.LoadMCPServersJSONFile(
+			filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+		)
 		if err != nil {
 			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
 		}
@@ -2957,7 +2961,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if got, want := secretStore.plaintext[canonicalRef], "ghp-secret"; got != want {
 			t.Fatalf("stored secret = %q, want %q", got, want)
 		}
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if strings.Contains(sidecar, "ghp-secret") || !strings.Contains(sidecar, canonicalRef) {
 			t.Fatalf("sidecar must contain only the bound ref:\n%s", sidecar)
 		}
@@ -3013,7 +3017,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if result.Item.Name != "GitHub" {
 			t.Fatalf("InstallMCPCatalog() item = %#v, want committed GitHub server", result.Item)
 		}
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecar, `"GitHub"`) {
 			t.Fatalf("committed sidecar missing GitHub server:\n%s", sidecar)
 		}
@@ -3036,13 +3040,13 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			Name:    "team/server",
 			Scope:   ScopeGlobal,
 			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"PROJECT": {Value: "agh"},
+				"PROJECT": {Value: "compozy"},
 			}},
 		})
 		if err == nil || !strings.Contains(err.Error(), "server name cannot contain a slash") {
 			t.Fatalf("InstallMCPCatalog(unaddressable name) error = %v, want canonical-name rejection", err)
 		}
-		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		sidecarPath := filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)
 		if _, statErr := os.Stat(sidecarPath); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("catalog install created sidecar before name validation: %v", statErr)
 		}
@@ -3061,7 +3065,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			EntryID: "plain-env",
 			Scope:   ScopeGlobal,
 			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"PROJECT": {Value: "agh"},
+				"PROJECT": {Value: "compozy"},
 			}},
 		})
 		if err != nil {
@@ -3070,8 +3074,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if got, want := result.Item.EnvKeys, []string{"PROJECT", "REGION"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("plain env response keys = %#v, want %#v", got, want)
 		}
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
-		if !strings.Contains(sidecar, `"PROJECT": "agh"`) ||
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
+		if !strings.Contains(sidecar, `"PROJECT": "compozy"`) ||
 			!strings.Contains(sidecar, `"REGION": "us-east-1"`) {
 			t.Fatalf("plain env sidecar did not preserve supplied/default values:\n%s", sidecar)
 		}
@@ -3220,7 +3224,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		}
 		item := findMCPItem(t, envelope.MCPServers, initial.Item.Name)
 		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecar, ownedRef) || strings.Contains(sidecar, sharedRef) {
 			t.Fatalf("restored sidecar binding is incorrect:\n%s", sidecar)
 		}
@@ -3364,7 +3368,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				if retained != tc.wantRetained {
 					t.Fatalf("owned ref retained = %t, want %t", retained, tc.wantRetained)
 				}
-				sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+				sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 				serverRetained := strings.Contains(sidecar, `"GitHub"`)
 				wantServerRetained := tc.wantErrorPart != ""
 				if serverRetained != wantServerRetained {
@@ -3419,7 +3423,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if got := secretStore.plaintext[canonicalRef]; got != "oauth-client-secret" {
 			t.Fatalf("stored OAuth client secret = %q, want typed value", got)
 		}
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if !strings.Contains(sidecar, canonicalRef) {
 			t.Fatalf("OAuth sidecar missing configured client secret ref:\n%s", sidecar)
 		}
@@ -3686,7 +3690,11 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			if len(secretStore.plaintext) != 0 {
 				t.Fatalf("secret writes = %#v, want none", secretStore.plaintext)
 			}
-			if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)); !os.IsNotExist(statErr) {
+			if _, statErr := os.Stat(
+				filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName),
+			); !os.IsNotExist(
+				statErr,
+			) {
 				t.Fatalf("MCP sidecar exists after validation failure: %v", statErr)
 			}
 		})
@@ -3762,8 +3770,8 @@ func TestInstallMCPCatalogKeepsWorkspaceCanonicalRefsIsolated(t *testing.T) {
 				t.Fatalf("workspace ref[%d] = %q, want %q", index, refs[index], want)
 			}
 		}
-		firstSidecar := readFile(t, filepath.Join(firstRoot, aghconfig.DirName, aghconfig.MCPJSONName))
-		secondSidecar := readFile(t, filepath.Join(secondRoot, aghconfig.DirName, aghconfig.MCPJSONName))
+		firstSidecar := readFile(t, filepath.Join(firstRoot, compozyconfig.DirName, compozyconfig.MCPJSONName))
+		secondSidecar := readFile(t, filepath.Join(secondRoot, compozyconfig.DirName, compozyconfig.MCPJSONName))
 		if !strings.Contains(firstSidecar, refs[0]) || strings.Contains(firstSidecar, refs[1]) {
 			t.Fatalf("first workspace sidecar crossed refs:\n%s", firstSidecar)
 		}
@@ -3777,11 +3785,11 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 	cleanupFailure := errors.New("forced cleanup failure")
 	writeFailure := errors.New("forced MCP definition write failure")
 	failingWriter := func(
-		aghconfig.HomePaths,
+		compozyconfig.HomePaths,
 		string,
 		string,
-		aghconfig.WriteTarget,
-		aghconfig.MCPServer,
+		compozyconfig.WriteTarget,
+		compozyconfig.MCPServer,
 	) error {
 		return writeFailure
 	}
@@ -3960,7 +3968,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			"vault:mcp/global/MultiSecret/env/TOKEN_A",
 			secondRef,
 		)
-		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)); !os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)); !os.IsNotExist(statErr) {
 			t.Fatalf("MCP sidecar exists after metadata failure: %v", statErr)
 		}
 	})
@@ -3995,7 +4003,7 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			"vault:mcp/global/MultiSecret/env/TOKEN_A",
 			secondRef,
 		)
-		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)); !os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName)); !os.IsNotExist(statErr) {
 			t.Fatalf("MCP sidecar exists after store failure: %v", statErr)
 		}
 	})
@@ -4032,18 +4040,18 @@ func TestDeleteMCPServerAutoUsesHighestPrecedenceSourceInScope(t *testing.T) {
 name = "alpha"
 command = "global-config"
 `)
-		writeFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName), `{
+		writeFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": { "command": "global-sidecar" },
     "beta": { "command": "beta-sidecar" }
   }
 }`)
-		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName), `
 [[mcp_servers]]
 name = "alpha"
 command = "workspace-config"
 `)
-		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
+		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": { "command": "workspace-sidecar" }
   }
@@ -4070,7 +4078,7 @@ command = "workspace-config"
 		if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
 			t.Fatalf("global alpha first delete target = %q, want %q", got, want)
 		}
-		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
 		if strings.Contains(sidecarPayload, `"alpha"`) {
 			t.Fatalf("global sidecar alpha still present after delete:\n%s", sidecarPayload)
 		}
@@ -4106,7 +4114,10 @@ command = "workspace-config"
 		if got, want := result.WriteTarget, WriteTargetWorkspaceMCPSidecar; got != want {
 			t.Fatalf("workspace alpha first delete target = %q, want %q", got, want)
 		}
-		workspaceSidecarPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName))
+		workspaceSidecarPayload := readFile(
+			t,
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+		)
 		if strings.Contains(workspaceSidecarPayload, `"alpha"`) {
 			t.Fatalf("workspace sidecar alpha still present after delete:\n%s", workspaceSidecarPayload)
 		}
@@ -4126,7 +4137,10 @@ command = "workspace-config"
 		if got, want := result.WriteTarget, WriteTargetWorkspaceConfig; got != want {
 			t.Fatalf("workspace alpha second delete target = %q, want %q", got, want)
 		}
-		workspaceConfigPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName))
+		workspaceConfigPayload := readFile(
+			t,
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
+		)
 		if strings.Contains(workspaceConfigPayload, `name = "alpha"`) {
 			t.Fatalf("workspace config alpha still present after delete:\n%s", workspaceConfigPayload)
 		}
@@ -4137,11 +4151,11 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	memoryHomePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-settings-home"))
+	memoryHomePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-settings-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	memoryConfig := aghconfig.DefaultWithHome(memoryHomePaths).Memory
+	memoryConfig := compozyconfig.DefaultWithHome(memoryHomePaths).Memory
 	memoryConfig.GlobalDir = "/tmp/updated-memory"
 	memoryConfig.Dream.MinHours = 12
 	memoryConfig.Dream.MinSessions = 3
@@ -4163,13 +4177,13 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "skills restart required",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionSkills},
-				Skills: &aghconfig.SkillsConfig{
+				Skills: &compozyconfig.SkillsConfig{
 					Enabled:                 true,
 					DisabledSkills:          []string{"alpha", "beta"},
 					PollInterval:            45 * time.Minute,
 					AllowedMarketplaceMCP:   []string{"ctx"},
 					AllowedMarketplaceHooks: []string{"market"},
-					Marketplace: aghconfig.MarketplaceConfig{
+					Marketplace: compozyconfig.MarketplaceConfig{
 						Registry: "clawhub",
 						BaseURL:  "https://skills-updated.example",
 					},
@@ -4204,11 +4218,11 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "observability",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionObservability},
-				Observability: &aghconfig.ObservabilityConfig{
+				Observability: &compozyconfig.ObservabilityConfig{
 					Enabled:        true,
 					RetentionDays:  21,
 					MaxGlobalBytes: 4096,
-					Transcripts: aghconfig.ObservabilityTranscriptConfig{
+					Transcripts: compozyconfig.ObservabilityTranscriptConfig{
 						Enabled:            true,
 						SegmentBytes:       1024,
 						MaxBytesPerSession: 2048,
@@ -4221,24 +4235,24 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "hooks extensions",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionHooksExtensions},
-				HooksExtensions: &aghconfig.ExtensionsConfig{
-					Marketplace: aghconfig.ExtensionsMarketplaceConfig{
+				HooksExtensions: &compozyconfig.ExtensionsConfig{
+					Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
 						Registry:        "github",
 						BaseURL:         "https://extensions-updated.example",
 						AllowUnverified: true,
 					},
-					Resources: aghconfig.ExtensionsResourcesConfig{
+					Resources: compozyconfig.ExtensionsResourcesConfig{
 						AllowedKinds: []resources.ResourceKind{
 							resources.ResourceKind("tool"),
 							resources.ResourceKind("mcp_server"),
 						},
 						MaxScope: resources.ResourceScopeKindWorkspace,
-						SnapshotRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+						SnapshotRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 							Requests: 7,
 							Window:   time.Minute,
 							Queue:    3,
 						},
-						OperatorWriteRateLimit: aghconfig.ExtensionsResourceRateLimitConfig{
+						OperatorWriteRateLimit: compozyconfig.ExtensionsResourceRateLimitConfig{
 							Requests: 9,
 							Window:   2 * time.Minute,
 							Queue:    4,
@@ -4261,7 +4275,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			})
 			request := tt.request
 			if request.Section == SectionNetwork {
-				current, err := aghconfig.LoadForHome(homePaths)
+				current, err := compozyconfig.LoadForHome(homePaths)
 				if err != nil {
 					t.Fatalf("LoadForHome(network fixture) error = %v", err)
 				}
@@ -4288,7 +4302,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 				t.Fatalf("config payload missing %q:\n%s", tt.want, payload)
 			}
 			if request.Section == SectionNetwork {
-				reloaded, err := aghconfig.LoadForHome(homePaths)
+				reloaded, err := compozyconfig.LoadForHome(homePaths)
 				if err != nil {
 					t.Fatalf("LoadForHome(updated network) error = %v", err)
 				}
@@ -4303,21 +4317,21 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 	t.Parallel()
 
-	profileValues := sandboxProfileMap(aghconfig.SandboxProfile{
+	profileValues := sandboxProfileMap(compozyconfig.SandboxProfile{
 		Backend:  "daytona",
 		SyncMode: "mirror",
 		Env:      map[string]string{"TOKEN": "value"},
-		Network: aghconfig.NetworkProfile{
+		Network: compozyconfig.NetworkProfile{
 			AllowPublicIngress: true,
 			AllowOutbound:      true,
 			AllowList:          []string{"api.example"},
 			DenyList:           []string{"blocked.example"},
 			Required:           true,
 		},
-		Daytona: aghconfig.DaytonaProfile{
+		Daytona: compozyconfig.DaytonaProfile{
 			APIURL:      "https://daytona.example",
 			Target:      "prod",
-			Image:       "agh:latest",
+			Image:       "compozy:latest",
 			Snapshot:    "snap-1",
 			Class:       "large",
 			AutoStop:    "15m",
@@ -4452,22 +4466,22 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 	result, err := service.UpdateSection(ctx, SectionUpdateRequest{
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
-			Defaults: aghconfig.DefaultsConfig{
+			Defaults: compozyconfig.DefaultsConfig{
 				Agent:    "writer",
 				Provider: "codex",
 				Sandbox:  "dev",
 			},
-			Limits: aghconfig.LimitsConfig{
+			Limits: compozyconfig.LimitsConfig{
 				MaxConcurrentAgents: 11,
 			},
-			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
+			Permissions:    compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveReads},
 			SessionTimeout: 45 * time.Minute,
-			HTTP:           aghconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
-			Daemon: aghconfig.DaemonConfig{
-				Socket:               "/tmp/agh.sock",
-				MemoryReportInterval: aghconfig.DefaultDaemonMemoryReportInterval,
+			HTTP:           compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
+			Daemon: compozyconfig.DaemonConfig{
+				Socket:               "/tmp/compozy.sock",
+				MemoryReportInterval: compozyconfig.DefaultDaemonMemoryReportInterval,
 			},
-			Redact: aghconfig.RedactConfig{Enabled: true},
+			Redact: compozyconfig.RedactConfig{Enabled: true},
 		},
 	})
 	if err != nil {
@@ -4692,7 +4706,7 @@ func (f *fakeSkillsRuntime) ForAgent(
 	_ *workspacepkg.ResolvedWorkspace,
 	agentName string,
 ) ([]*skillspkg.Skill, error) {
-	key := aghconfig.NormalizeAgentName(agentName)
+	key := compozyconfig.NormalizeAgentName(agentName)
 	out := make([]*skillspkg.Skill, 0, len(f.skills))
 	for _, skill := range f.skills {
 		if skill == nil {
@@ -4716,7 +4730,7 @@ func (f *fakeSkillsRuntime) SetEnabledForAgent(
 	agentName string,
 	enabled bool,
 ) error {
-	key := aghconfig.NormalizeAgentName(agentName)
+	key := compozyconfig.NormalizeAgentName(agentName)
 	if _, ok := f.agentEnabled[key]; !ok {
 		f.agentEnabled[key] = make(map[string]bool)
 	}
@@ -4767,7 +4781,7 @@ type panicMCPRuntimeProvider struct{}
 func (panicMCPRuntimeProvider) MCPServerRuntimeStatus(
 	context.Context,
 	mcpauth.Target,
-	aghconfig.MCPServer,
+	compozyconfig.MCPServer,
 ) (MCPServerRuntimeStatus, error) {
 	panic("MCP runtime probe must not run during catalog install")
 }
@@ -4858,7 +4872,7 @@ func oauthMCPCatalogEntry() *marketplace.Entry {
 			"oauth":{
 				"authorization_url":"https://auth.linear.example/authorize",
 				"token_url":"https://auth.linear.example/token",
-				"client_id":"agh-desktop",
+				"client_id":"compozy-desktop",
 				"scopes":["read"]
 			},
 			"default_scope":"global"
@@ -4991,7 +5005,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 
-		cfg, err := aghconfig.LoadForHome(homePaths)
+		cfg, err := compozyconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
@@ -5008,7 +5022,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 			},
 			General: &GeneralSettings{
 				Defaults: cfg.Defaults,
-				Limits: aghconfig.LimitsConfig{
+				Limits: compozyconfig.LimitsConfig{
 					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents + 1,
 				},
 				Permissions:    cfg.Permissions,
@@ -5048,7 +5062,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 	})
 }
 
-func testService(t *testing.T, homePaths aghconfig.HomePaths, deps Dependencies) Service {
+func testService(t *testing.T, homePaths compozyconfig.HomePaths, deps Dependencies) Service {
 	t.Helper()
 
 	if deps.MCPCatalog != nil && deps.ApplyRecords == nil {
@@ -5130,9 +5144,9 @@ func (s *settingsModelCatalogStub) sawCuratedView(providerID string) bool {
 
 func requireConfiguredProviderModel(
 	t *testing.T,
-	models []aghconfig.ProviderModelConfig,
+	models []compozyconfig.ProviderModelConfig,
 	modelID string,
-) aghconfig.ProviderModelConfig {
+) compozyconfig.ProviderModelConfig {
 	t.Helper()
 	for _, model := range models {
 		if model.ID == modelID {
@@ -5140,13 +5154,13 @@ func requireConfiguredProviderModel(
 		}
 	}
 	t.Fatalf("configured provider model %q not found in %#v", modelID, models)
-	return aghconfig.ProviderModelConfig{}
+	return compozyconfig.ProviderModelConfig{}
 }
 
-func testHomePaths(t *testing.T) aghconfig.HomePaths {
+func testHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -5174,33 +5188,33 @@ func readFile(t *testing.T, path string) string {
 	return string(payload)
 }
 
-func testWindowManagerConfig() aghconfig.WindowManagerConfig {
-	return aghconfig.WindowManagerConfig{
-		NewWindowPolicy:     aghconfig.WindowNewPolicyBesideFocus,
-		SmallViewportPolicy: aghconfig.WindowSmallViewportReject,
-		FocusPolicy:         aghconfig.WindowFocusDirectional,
+func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
+	return compozyconfig.WindowManagerConfig{
+		NewWindowPolicy:     compozyconfig.WindowNewPolicyBesideFocus,
+		SmallViewportPolicy: compozyconfig.WindowSmallViewportReject,
+		FocusPolicy:         compozyconfig.WindowFocusDirectional,
 		FocusWrap:           true,
 		FocusFollowsPointer: true,
 		RaiseOnFocus:        false,
-		DragAwayPolicy:      aghconfig.WindowDragAwayGroup,
+		DragAwayPolicy:      compozyconfig.WindowDragAwayGroup,
 		GroupMoveModifier:   "control",
 		SwapModifier:        "meta",
 		HistoryLimit:        77,
-		DesktopTransition:   aghconfig.WindowDesktopTransitionCrossfade,
-		Gaps: aghconfig.WindowManagerGapsConfig{
+		DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
+		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner:  12,
 			Top:    18,
 			Right:  14,
 			Bottom: 16,
 			Left:   20,
 		},
-		Snap: aghconfig.WindowManagerSnapConfig{
+		Snap: compozyconfig.WindowManagerSnapConfig{
 			EdgeBand:     40,
 			CornerReach:  180,
 			ExitSlack:    20,
 			RepeatRatios: []float64{0.4, 0.7, 0.3},
 		},
-		Bindings: aghconfig.WindowManagerBindingConfig{
+		Bindings: compozyconfig.WindowManagerBindingConfig{
 			TopCenter:    "none",
 			BottomCenter: "zoom",
 		},
@@ -5232,7 +5246,7 @@ host = "127.0.0.1"
 port = 9001
 
 [daemon]
-socket = "/tmp/agh.sock"
+socket = "/tmp/compozy.sock"
 
 [memory]
 enabled = true

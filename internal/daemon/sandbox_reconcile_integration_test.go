@@ -77,8 +77,8 @@ func TestDaemonSandboxReconcileIntegrationPartialCreateFoundBySandboxID(t *testi
 
 	daemon.reconcileDaemonSandboxes(testutil.Context(t), state)
 
-	if got := provider.findRequests[0].Labels["agh_sandbox_id"]; got != "env-timeout" {
-		t.Fatalf("agh_sandbox_id lookup = %q, want env-timeout", got)
+	if got := provider.findRequests[0].Labels["compozy_sandbox_id"]; got != "env-timeout" {
+		t.Fatalf("compozy_sandbox_id lookup = %q, want env-timeout", got)
 	}
 	if got := provider.prepareRequests[0].InstanceID; got != "sandbox-timeout" {
 		t.Fatalf("PrepareRequest.InstanceID = %q, want sandbox-timeout", got)

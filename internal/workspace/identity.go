@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/oklog/ulid"
 )
@@ -90,7 +90,7 @@ func ensureIdentity(
 }
 
 func identityPath(rootDir string) string {
-	return filepath.Join(rootDir, aghconfig.DirName, workspaceIdentityFileName)
+	return filepath.Join(rootDir, compozyconfig.DirName, workspaceIdentityFileName)
 }
 
 func loadIdentityFile(path string) (Identity, error) {

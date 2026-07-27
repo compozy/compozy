@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	coreapi "github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 )
@@ -20,14 +20,14 @@ import (
 // AutomationFixtureSeed describes one batch of automation definitions seeded
 // through the live daemon operator surface.
 type AutomationFixtureSeed struct {
-	Jobs     []aghcontract.CreateJobRequest
-	Triggers []aghcontract.CreateTriggerRequest
+	Jobs     []compozycontract.CreateJobRequest
+	Triggers []compozycontract.CreateTriggerRequest
 }
 
 // AutomationFixtureState reports the created automation resources for one seed batch.
 type AutomationFixtureState struct {
-	Jobs     []aghcontract.JobPayload
-	Triggers []aghcontract.TriggerPayload
+	Jobs     []compozycontract.JobPayload
+	Triggers []compozycontract.TriggerPayload
 }
 
 // SeedAutomationFixtures creates the requested automation jobs and triggers
@@ -38,8 +38,8 @@ func (h *RuntimeHarness) SeedAutomationFixtures(
 	seed AutomationFixtureSeed,
 ) (AutomationFixtureState, error) {
 	state := AutomationFixtureState{
-		Jobs:     make([]aghcontract.JobPayload, 0, len(seed.Jobs)),
-		Triggers: make([]aghcontract.TriggerPayload, 0, len(seed.Triggers)),
+		Jobs:     make([]compozycontract.JobPayload, 0, len(seed.Jobs)),
+		Triggers: make([]compozycontract.TriggerPayload, 0, len(seed.Triggers)),
 	}
 
 	for _, request := range seed.Jobs {
@@ -64,11 +64,11 @@ func (h *RuntimeHarness) SeedAutomationFixtures(
 // CreateAutomationJob creates one automation job through the public UDS surface.
 func (h *RuntimeHarness) CreateAutomationJob(
 	ctx context.Context,
-	request aghcontract.CreateJobRequest,
-) (aghcontract.JobPayload, error) {
-	var response aghcontract.JobResponse
+	request compozycontract.CreateJobRequest,
+) (compozycontract.JobPayload, error) {
+	var response compozycontract.JobResponse
 	if err := h.UDSJSON(ctx, http.MethodPost, "/api/automation/jobs", request, &response); err != nil {
-		return aghcontract.JobPayload{}, err
+		return compozycontract.JobPayload{}, err
 	}
 	return response.Job, nil
 }
@@ -76,11 +76,11 @@ func (h *RuntimeHarness) CreateAutomationJob(
 // CreateAutomationTrigger creates one automation trigger through the public UDS surface.
 func (h *RuntimeHarness) CreateAutomationTrigger(
 	ctx context.Context,
-	request aghcontract.CreateTriggerRequest,
-) (aghcontract.TriggerPayload, error) {
-	var response aghcontract.TriggerResponse
+	request compozycontract.CreateTriggerRequest,
+) (compozycontract.TriggerPayload, error) {
+	var response compozycontract.TriggerResponse
 	if err := h.UDSJSON(ctx, http.MethodPost, "/api/automation/triggers", request, &response); err != nil {
-		return aghcontract.TriggerPayload{}, err
+		return compozycontract.TriggerPayload{}, err
 	}
 	return response.Trigger, nil
 }
@@ -89,11 +89,11 @@ func (h *RuntimeHarness) CreateAutomationTrigger(
 func (h *RuntimeHarness) TriggerAutomationJob(
 	ctx context.Context,
 	jobID string,
-) (aghcontract.RunPayload, error) {
-	var response aghcontract.RunResponse
+) (compozycontract.RunPayload, error) {
+	var response compozycontract.RunResponse
 	path := "/api/automation/jobs/" + url.PathEscape(strings.TrimSpace(jobID)) + "/trigger"
 	if err := h.UDSJSON(ctx, http.MethodPost, path, nil, &response); err != nil {
-		return aghcontract.RunPayload{}, err
+		return compozycontract.RunPayload{}, err
 	}
 	return response.Run, nil
 }
@@ -102,8 +102,8 @@ func (h *RuntimeHarness) TriggerAutomationJob(
 func (h *RuntimeHarness) ListAutomationRuns(
 	ctx context.Context,
 	query url.Values,
-) ([]aghcontract.RunPayload, error) {
-	var response aghcontract.RunsResponse
+) ([]compozycontract.RunPayload, error) {
+	var response compozycontract.RunsResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/automation/runs"+encodeQuery(query), nil, &response); err != nil {
 		return nil, err
 	}
@@ -114,11 +114,11 @@ func (h *RuntimeHarness) ListAutomationRuns(
 func (h *RuntimeHarness) GetAutomationRun(
 	ctx context.Context,
 	runID string,
-) (aghcontract.RunPayload, error) {
-	var response aghcontract.RunResponse
+) (compozycontract.RunPayload, error) {
+	var response compozycontract.RunResponse
 	path := "/api/automation/runs/" + url.PathEscape(strings.TrimSpace(runID))
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.RunPayload{}, err
+		return compozycontract.RunPayload{}, err
 	}
 	return response.Run, nil
 }
@@ -127,8 +127,8 @@ func (h *RuntimeHarness) GetAutomationRun(
 func (h *RuntimeHarness) ListTasks(
 	ctx context.Context,
 	query url.Values,
-) ([]aghcontract.TaskCatalogItemPayload, error) {
-	var response aghcontract.TasksResponse
+) ([]compozycontract.TaskCatalogItemPayload, error) {
+	var response compozycontract.TasksResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/tasks"+encodeQuery(query), nil, &response); err != nil {
 		return nil, err
 	}
@@ -139,11 +139,11 @@ func (h *RuntimeHarness) ListTasks(
 func (h *RuntimeHarness) GetTask(
 	ctx context.Context,
 	taskID string,
-) (aghcontract.TaskDetailPayload, error) {
-	var response aghcontract.TaskDetailResponse
+) (compozycontract.TaskDetailPayload, error) {
+	var response compozycontract.TaskDetailResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID))
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return aghcontract.TaskDetailPayload{}, err
+		return compozycontract.TaskDetailPayload{}, err
 	}
 	return response.Task, nil
 }
@@ -153,8 +153,8 @@ func (h *RuntimeHarness) ListTaskRuns(
 	ctx context.Context,
 	taskID string,
 	query url.Values,
-) ([]aghcontract.TaskRunPayload, error) {
-	var response aghcontract.TaskRunsResponse
+) ([]compozycontract.TaskRunPayload, error) {
+	var response compozycontract.TaskRunsResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/runs" + encodeQuery(query)
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
@@ -166,14 +166,14 @@ func (h *RuntimeHarness) ListTaskRuns(
 func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	session aghcontract.SessionPayload,
-) (aghcontract.TaskRunPayload, error) {
-	requestBody, err := json.Marshal(aghcontract.AgentTaskClaimNextRequest{
+	session compozycontract.SessionPayload,
+) (compozycontract.TaskRunPayload, error) {
+	requestBody, err := json.Marshal(compozycontract.AgentTaskClaimNextRequest{
 		RunID:       strings.TrimSpace(runID),
 		WorkspaceID: strings.TrimSpace(session.WorkspaceID),
 	})
 	if err != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("marshal exact task-run claim: %w", err)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("marshal exact task-run claim: %w", err)
 	}
 	request, err := http.NewRequestWithContext(
 		ctx,
@@ -182,7 +182,7 @@ func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 		strings.NewReader(string(requestBody)),
 	)
 	if err != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("create exact task-run claim request: %w", err)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("create exact task-run claim request: %w", err)
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
@@ -192,26 +192,26 @@ func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 
 	response, err := h.UDSClient.Do(request)
 	if err != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("execute exact task-run claim request: %w", err)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("execute exact task-run claim request: %w", err)
 	}
 	payload, readErr := io.ReadAll(response.Body)
 	closeErr := response.Body.Close()
 	if readErr != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("read exact task-run claim response: %w", readErr)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("read exact task-run claim response: %w", readErr)
 	}
 	if closeErr != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("close exact task-run claim response: %w", closeErr)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("close exact task-run claim response: %w", closeErr)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf(
+		return compozycontract.TaskRunPayload{}, fmt.Errorf(
 			"exact task-run claim status %d: %s",
 			response.StatusCode,
 			strings.TrimSpace(string(payload)),
 		)
 	}
-	var claimed aghcontract.AgentTaskClaimResponse
+	var claimed compozycontract.AgentTaskClaimResponse
 	if err := json.Unmarshal(payload, &claimed); err != nil {
-		return aghcontract.TaskRunPayload{}, fmt.Errorf("decode exact task-run claim response: %w", err)
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("decode exact task-run claim response: %w", err)
 	}
 	return claimed.Claim.Run, nil
 }
@@ -220,8 +220,8 @@ func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 func (h *RuntimeHarness) StartTaskRun(
 	ctx context.Context,
 	runID string,
-	request aghcontract.StartTaskRunRequest,
-) (aghcontract.TaskRunPayload, error) {
+	request compozycontract.StartTaskRunRequest,
+) (compozycontract.TaskRunPayload, error) {
 	return h.updateTaskRun(ctx, runID, "/start", request)
 }
 
@@ -229,8 +229,8 @@ func (h *RuntimeHarness) StartTaskRun(
 func (h *RuntimeHarness) CompleteTaskRun(
 	ctx context.Context,
 	runID string,
-	request aghcontract.CompleteTaskRunRequest,
-) (aghcontract.TaskRunPayload, error) {
+	request compozycontract.CompleteTaskRunRequest,
+) (compozycontract.TaskRunPayload, error) {
 	return h.updateTaskRun(ctx, runID, "/complete", request)
 }
 
@@ -239,9 +239,9 @@ func (h *RuntimeHarness) CompleteTaskRun(
 func (h *RuntimeHarness) CompleteClaimedTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	session aghcontract.SessionPayload,
-	request aghcontract.AgentTaskCompleteRequest,
-) (aghcontract.TaskRunLeaseSummaryPayload, error) {
+	session compozycontract.SessionPayload,
+	request compozycontract.AgentTaskCompleteRequest,
+) (compozycontract.TaskRunLeaseSummaryPayload, error) {
 	path := "/api/agent/tasks/" + url.PathEscape(strings.TrimSpace(runID)) + "/complete"
 	response, err := doRequestWithHeaders(
 		ctx,
@@ -256,33 +256,33 @@ func (h *RuntimeHarness) CompleteClaimedTaskRunForSession(
 		},
 	)
 	if err != nil {
-		return aghcontract.TaskRunLeaseSummaryPayload{}, err
+		return compozycontract.TaskRunLeaseSummaryPayload{}, err
 	}
 	payload, readErr := io.ReadAll(response.Body)
 	closeErr := response.Body.Close()
 	if readErr != nil {
-		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+		return compozycontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
 			"read claimed task-run completion response: %w",
 			readErr,
 		)
 	}
 	if closeErr != nil {
-		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+		return compozycontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
 			"close claimed task-run completion response: %w",
 			closeErr,
 		)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+		return compozycontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
 			"POST %s status %d: %s",
 			h.UDSURL(path),
 			response.StatusCode,
 			strings.TrimSpace(string(payload)),
 		)
 	}
-	var completed aghcontract.AgentTaskLeaseResponse
+	var completed compozycontract.AgentTaskLeaseResponse
 	if err := json.Unmarshal(payload, &completed); err != nil {
-		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+		return compozycontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
 			"decode claimed task-run completion response: %w",
 			err,
 		)
@@ -298,7 +298,7 @@ func (h *RuntimeHarness) DeliverGlobalWebhook(
 	payload []byte,
 	deliveryID string,
 	timestamp time.Time,
-) (aghcontract.WebhookDeliveryPayload, error) {
+) (compozycontract.WebhookDeliveryPayload, error) {
 	path := "/api/webhooks/global/" + url.PathEscape(strings.TrimSpace(endpoint))
 	return h.deliverWebhook(ctx, path, secret, payload, deliveryID, timestamp)
 }
@@ -312,7 +312,7 @@ func (h *RuntimeHarness) DeliverWorkspaceWebhook(
 	payload []byte,
 	deliveryID string,
 	timestamp time.Time,
-) (aghcontract.WebhookDeliveryPayload, error) {
+) (compozycontract.WebhookDeliveryPayload, error) {
 	workspaceRef := url.PathEscape(strings.TrimSpace(workspaceID))
 	endpointRef := url.PathEscape(strings.TrimSpace(endpoint))
 	path := "/api/webhooks/workspaces/" + workspaceRef + "/" + endpointRef
@@ -324,11 +324,11 @@ func (h *RuntimeHarness) updateTaskRun(
 	runID string,
 	actionPath string,
 	request any,
-) (aghcontract.TaskRunPayload, error) {
-	var response aghcontract.TaskRunResponse
+) (compozycontract.TaskRunPayload, error) {
+	var response compozycontract.TaskRunResponse
 	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + actionPath
 	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
-		return aghcontract.TaskRunPayload{}, err
+		return compozycontract.TaskRunPayload{}, err
 	}
 	return response.Run, nil
 }
@@ -340,24 +340,24 @@ func (h *RuntimeHarness) deliverWebhook(
 	payload []byte,
 	deliveryID string,
 	timestamp time.Time,
-) (aghcontract.WebhookDeliveryPayload, error) {
+) (compozycontract.WebhookDeliveryPayload, error) {
 	trimmedSecret := strings.TrimSpace(secret)
 	if trimmedSecret == "" {
-		return aghcontract.WebhookDeliveryPayload{}, errors.New("webhook secret is required")
+		return compozycontract.WebhookDeliveryPayload{}, errors.New("webhook secret is required")
 	}
 	if len(payload) == 0 {
-		return aghcontract.WebhookDeliveryPayload{}, errors.New("webhook payload is required")
+		return compozycontract.WebhookDeliveryPayload{}, errors.New("webhook payload is required")
 	}
 	if strings.TrimSpace(deliveryID) == "" {
-		return aghcontract.WebhookDeliveryPayload{}, errors.New("webhook delivery id is required")
+		return compozycontract.WebhookDeliveryPayload{}, errors.New("webhook delivery id is required")
 	}
 	if timestamp.IsZero() {
-		return aghcontract.WebhookDeliveryPayload{}, errors.New("webhook timestamp is required")
+		return compozycontract.WebhookDeliveryPayload{}, errors.New("webhook timestamp is required")
 	}
 
 	signature, err := automationpkg.SignWebhookPayload(trimmedSecret, timestamp, payload)
 	if err != nil {
-		return aghcontract.WebhookDeliveryPayload{}, fmt.Errorf("sign webhook payload: %w", err)
+		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf("sign webhook payload: %w", err)
 	}
 
 	response, err := doRequestWithHeaders(
@@ -373,16 +373,16 @@ func (h *RuntimeHarness) deliverWebhook(
 		},
 	)
 	if err != nil {
-		return aghcontract.WebhookDeliveryPayload{}, err
+		return compozycontract.WebhookDeliveryPayload{}, err
 	}
 	defer func() { _ = response.Body.Close() }()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return aghcontract.WebhookDeliveryPayload{}, fmt.Errorf("read webhook response: %w", err)
+		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf("read webhook response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return aghcontract.WebhookDeliveryPayload{}, fmt.Errorf(
+		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf(
 			"POST %s status %d: %s",
 			h.HTTPURL(path),
 			response.StatusCode,
@@ -390,9 +390,9 @@ func (h *RuntimeHarness) deliverWebhook(
 		)
 	}
 
-	var delivery aghcontract.WebhookDeliveryResponse
+	var delivery compozycontract.WebhookDeliveryResponse
 	if err := json.Unmarshal(body, &delivery); err != nil {
-		return aghcontract.WebhookDeliveryPayload{}, fmt.Errorf(
+		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf(
 			"decode webhook response: %w; body=%s",
 			err,
 			strings.TrimSpace(string(body)),

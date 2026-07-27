@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -359,7 +359,7 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, resources.ErrConflict):
 		return http.StatusConflict
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound),
-		errors.Is(err, aghconfig.ErrAgentNameReserved):
+		errors.Is(err, compozyconfig.ErrAgentNameReserved):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
 		errors.Is(err, resources.ErrValidation),

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/procutil"
 )
@@ -13,8 +13,8 @@ import (
 func (m *Manager) sessionStartOpts(
 	s *sessionStartSpec,
 	session *Session,
-	resolved aghconfig.ResolvedAgent,
-	mcpServers []aghconfig.MCPServer,
+	resolved compozyconfig.ResolvedAgent,
+	mcpServers []compozyconfig.MCPServer,
 ) acp.StartOpts {
 	return acp.StartOpts{
 		AgentName:       resolved.Name,
@@ -40,16 +40,16 @@ func startSpecPermissions(s *sessionStartSpec, fallback string) string {
 }
 
 func sessionStartEnv(base []string, session *Session) []string {
-	return sessionStartEnvForProvider(base, session, aghconfig.ProviderEnvPolicyFiltered)
+	return sessionStartEnvForProvider(base, session, compozyconfig.ProviderEnvPolicyFiltered)
 }
 
 func sessionStartEnvForProvider(
 	base []string,
 	session *Session,
-	envPolicy aghconfig.ProviderEnvPolicy,
+	envPolicy compozyconfig.ProviderEnvPolicy,
 ) []string {
 	env := procutil.FilteredDaemonEnv(base)
-	if envPolicy == aghconfig.ProviderEnvPolicyIsolated {
+	if envPolicy == compozyconfig.ProviderEnvPolicyIsolated {
 		env = procutil.IsolatedDaemonEnv(base)
 	}
 	if session == nil {

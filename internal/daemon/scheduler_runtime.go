@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/situation"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -194,7 +194,7 @@ func newSchedulerRuntime(
 	return &schedulerRuntime{scheduler: scheduler, waker: waker}, nil
 }
 
-func starvationThresholdsFromConfig(cfg aghconfig.SchedulerConfig) schedulerpkg.StarvationThresholds {
+func starvationThresholdsFromConfig(cfg compozyconfig.SchedulerConfig) schedulerpkg.StarvationThresholds {
 	return schedulerpkg.StarvationThresholds{
 		FanOutAfter:         cfg.FanOutAfter,
 		SpawnAfter:          cfg.SpawnAfter,

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestRoleStatusProjection(t *testing.T) {
@@ -49,7 +49,7 @@ func TestRoleStatusProjection(t *testing.T) {
 		status, err := newRoleResolver(&cfg, nil, roleAgentResolverStub{}).RoleStatus(
 			t.Context(),
 			"",
-			string(aghconfig.RoleDream),
+			string(compozyconfig.RoleDream),
 		)
 		if err != nil {
 			t.Fatalf("RoleStatus(dream) error = %v", err)
@@ -69,32 +69,32 @@ func TestRoleStatusProjection(t *testing.T) {
 
 		global := roleResolverConfig()
 		global.Roles.Dream.Model = "global-model"
-		global.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceGlobal
+		global.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceGlobal
 		resolver := newRoleResolver(&global, nil, nil)
-		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(aghconfig.RoleDream))
+		globalStatus, err := resolver.RoleStatus(t.Context(), "", string(compozyconfig.RoleDream))
 		if err != nil {
 			t.Fatalf("RoleStatus(global dream) error = %v", err)
 		}
-		if got := globalStatus.Provenance[aghconfig.RoleFieldModel]; got != aghconfig.RoleFieldSourceGlobal {
+		if got := globalStatus.Provenance[compozyconfig.RoleFieldModel]; got != compozyconfig.RoleFieldSourceGlobal {
 			t.Fatalf("RoleStatus(global dream) model source = %q, want global", got)
 		}
 
 		workspace := global
-		workspace.RoleSources = aghconfig.CloneRoleFieldSources(global.RoleSources)
+		workspace.RoleSources = compozyconfig.CloneRoleFieldSources(global.RoleSources)
 		workspace.Roles.Dream.Model = "workspace-model"
-		workspace.RoleSources[aghconfig.RoleDream][aghconfig.RoleFieldModel] = aghconfig.RoleFieldSourceWorkspace
-		resolver = newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]aghconfig.Config{
+		workspace.RoleSources[compozyconfig.RoleDream][compozyconfig.RoleFieldModel] = compozyconfig.RoleFieldSourceWorkspace
+		resolver = newRoleResolver(&global, roleWorkspaceResolverStub{configs: map[string]compozyconfig.Config{
 			"ws-role-status": workspace,
 		}}, nil)
 		workspaceStatus, err := resolver.RoleStatus(
 			t.Context(),
 			"ws-role-status",
-			string(aghconfig.RoleDream),
+			string(compozyconfig.RoleDream),
 		)
 		if err != nil {
 			t.Fatalf("RoleStatus(workspace dream) error = %v", err)
 		}
-		if got := workspaceStatus.Provenance[aghconfig.RoleFieldModel]; got != aghconfig.RoleFieldSourceWorkspace {
+		if got := workspaceStatus.Provenance[compozyconfig.RoleFieldModel]; got != compozyconfig.RoleFieldSourceWorkspace {
 			t.Fatalf("RoleStatus(workspace dream) model source = %q, want workspace", got)
 		}
 	})
@@ -117,12 +117,12 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 		name    string
 		present bool
 	}{
-		{name: aghconfig.RoleFieldEnabled, present: true},
-		{name: aghconfig.RoleFieldFallbacks, present: true},
+		{name: compozyconfig.RoleFieldEnabled, present: true},
+		{name: compozyconfig.RoleFieldFallbacks, present: true},
 		{name: daemonAgentField, present: status.Agent != nil},
-		{name: aghconfig.RoleFieldProvider, present: status.Provider != nil},
-		{name: aghconfig.RoleFieldModel, present: status.Model != nil},
-		{name: aghconfig.RoleFieldReasoning, present: status.ReasoningEffort != nil},
+		{name: compozyconfig.RoleFieldProvider, present: status.Provider != nil},
+		{name: compozyconfig.RoleFieldModel, present: status.Model != nil},
+		{name: compozyconfig.RoleFieldReasoning, present: status.ReasoningEffort != nil},
 		{name: roleFieldTimeout, present: status.Timeout != nil},
 	} {
 		source, exists := status.Provenance[field.name]
@@ -136,13 +136,13 @@ func assertRoleStatusProvenance(t *testing.T, status contract.RoleStatus) {
 				status.Provenance,
 			)
 		}
-		if exists && source != aghconfig.RoleFieldSourceDefault {
+		if exists && source != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf(
 				"RoleStatus(%s).Provenance[%s] = %q, want %q: %#v",
 				status.Role,
 				field.name,
 				source,
-				aghconfig.RoleFieldSourceDefault,
+				compozyconfig.RoleFieldSourceDefault,
 				status.Provenance,
 			)
 		}

@@ -11,7 +11,7 @@ import (
 
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -196,7 +196,7 @@ func workspaceMemoryDir(workspaceRoot string) string {
 		return ""
 	}
 
-	return filepath.Join(filepath.Clean(trimmed), aghconfig.DirName, memoryDirName)
+	return filepath.Join(filepath.Clean(trimmed), compozyconfig.DirName, memoryDirName)
 }
 
 func parseFrontmatter(content []byte, dest any) (string, error) {

@@ -179,7 +179,7 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
 		}
-		content := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+		content := []byte(`{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`)
 		ref, err := store.Put(t.Context(), "workspace-durable", content)
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
@@ -827,7 +827,7 @@ func newAPITestToolRegistry(
 ) *apiTestToolRegistry {
 	t.Helper()
 	ids := []toolspkg.ToolID{toolspkg.ToolIDSkillView}
-	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "agh"}
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"}
 	descriptors := []toolspkg.Descriptor{
 		testToolDescriptor(toolspkg.ToolIDSkillView, source, toolspkg.VisibilityModel),
 		testToolDescriptor("compozy__operator_diag", source, toolspkg.VisibilityOperator),

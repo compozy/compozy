@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
@@ -33,9 +33,9 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(tool) error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 		mcpStore, err := resources.NewStore(kernel, mcpCodec)
 		if err != nil {
@@ -85,8 +85,8 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 				},
 			},
 		}
-		publishedConfig := aghconfig.Config{
-			MCPServers: []aghconfig.MCPServer{{
+		publishedConfig := compozyconfig.Config{
+			MCPServers: []compozyconfig.MCPServer{{
 				Name:    "git",
 				Command: "npx",
 				Args:    []string{"@modelcontextprotocol/server-git"},
@@ -142,8 +142,8 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
 		}
 
-		candidateConfig := aghconfig.Config{
-			MCPServers: []aghconfig.MCPServer{{Name: "github", Command: "mcp-github"}},
+		candidateConfig := compozyconfig.Config{
+			MCPServers: []compozyconfig.MCPServer{{Name: "github", Command: "mcp-github"}},
 		}
 		if err := syncer.SyncConfig(testutil.Context(t), &candidateConfig); err != nil {
 			t.Fatalf("syncer.SyncConfig(candidate) error = %v", err)
@@ -162,7 +162,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if got := publishedConfig.MCPServers[0].Name; got != "git" {
 			t.Fatalf("published config MCP name = %q, want unchanged git", got)
 		}
-		if err := syncer.SyncConfig(testutil.Context(t), &aghconfig.Config{}); err != nil {
+		if err := syncer.SyncConfig(testutil.Context(t), &compozyconfig.Config{}); err != nil {
 			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 1)
@@ -202,9 +202,9 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resources.NewStore(tool) error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 		mcpStore, err := resources.NewStore(kernel, mcpCodec)
 		if err != nil {
@@ -313,9 +313,9 @@ func newToolMCPIntegrationDriver(
 	t *testing.T,
 	kernel resources.RawStore,
 	toolCodec resources.KindCodec[toolspkg.Tool],
-	mcpCodec resources.KindCodec[aghconfig.MCPServer],
+	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
 	toolCatalog *resourceCatalog[toolspkg.Tool],
-	mcpCatalog *resourceCatalog[aghconfig.MCPServer],
+	mcpCatalog *resourceCatalog[compozyconfig.MCPServer],
 ) resources.ReconcileDriver {
 	t.Helper()
 
@@ -386,7 +386,7 @@ func syncAndAssertToolMCPStoreCounts(
 	t *testing.T,
 	syncer toolMCPPublisher,
 	toolStore resources.Store[toolspkg.Tool],
-	mcpStore resources.Store[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
 	wantTools int,
 	wantMCPServers int,
 ) {
@@ -398,7 +398,7 @@ func syncAndAssertToolMCPStoreCounts(
 	assertToolMCPStoreCounts(t, toolStore, mcpStore, wantTools, wantMCPServers)
 }
 
-func mcpServerNames(records []resources.Record[aghconfig.MCPServer]) []string {
+func mcpServerNames(records []resources.Record[compozyconfig.MCPServer]) []string {
 	names := make([]string, 0, len(records))
 	for _, record := range records {
 		names = append(names, record.Spec.Name)

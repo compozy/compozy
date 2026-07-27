@@ -29,7 +29,7 @@ const clarifyRequestSchema = z.object({
   deadline: z.string().optional(),
 });
 
-/** Canonical `ClarifyEvent` wire shape carried by the `data-agh-event` clarify payload. */
+/** Canonical `ClarifyEvent` wire shape carried by the `data-compozy-event` clarify payload. */
 const clarifyEventSchema = z.object({
   status: clarifyStatusSchema,
   request: clarifyRequestSchema,
@@ -41,7 +41,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** A `data-agh-event` payload is a clarification lifecycle event. */
+/** A `data-compozy-event` payload is a clarification lifecycle event. */
 export function isClarifyEventData(value: unknown): value is AgentEventPayload {
   return isRecord(value) && value.type === CLARIFY_EVENT_TYPE;
 }
@@ -61,7 +61,7 @@ function normalizeAnswer(
 }
 
 /**
- * Parse the canonical clarify payload from a `data-agh-event` part. The backend preserves the
+ * Parse the canonical clarify payload from a `data-compozy-event` part. The backend preserves the
  * `ClarifyEvent` under `data.raw`; we tolerate a top-level shape too. Returns `null` when the payload
  * is not (yet) a parseable clarify event so an unrenderable event degrades to nothing, never a crash.
  * Pending answer controls still read question/choices from the live GET; the durable question is

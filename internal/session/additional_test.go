@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -112,7 +112,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		t.Cleanup(func() {
 			_ = h.manager.Stop(testutil.Context(t), session.ID)
 		})
-		if got, want := session.Info().AgentName, aghconfig.DefaultAgentName; got != want {
+		if got, want := session.Info().AgentName, compozyconfig.DefaultAgentName; got != want {
 			t.Fatalf("Create(blank agent) AgentName = %q, want %q", got, want)
 		}
 	})
@@ -129,7 +129,7 @@ func TestCreateErrorBranches(t *testing.T) {
 				Name:    h.workspaceName,
 			},
 			Config: h.cfg,
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
@@ -244,7 +244,7 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 			Name:           h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are a coding assistant.",
@@ -293,7 +293,7 @@ func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 			Name:           h.workspaceName,
 		},
 		Config: h.cfg,
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "You are a coding assistant.",
@@ -391,13 +391,13 @@ func TestResumeReturnsExistingActiveSession(t *testing.T) {
 func TestNewManagerOptionsAndValidation(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	resolver := newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      "ws-options",
@@ -405,8 +405,8 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 			Name:    "workspace",
 		},
 		Config: cfg,
-		Agents: []aghconfig.AgentDef{{
-			Name:     aghconfig.DefaultAgentName,
+		Agents: []compozyconfig.AgentDef{{
+			Name:     compozyconfig.DefaultAgentName,
 			Provider: "claude",
 			Prompt:   "hi",
 		}},
@@ -503,7 +503,7 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 			WithHomePaths(homePaths),
 			WithDriver(newFakeDriver()),
 			WithWorkspaceResolver(resolver),
-			WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+			WithSessionSupervision(compozyconfig.SessionSupervisionConfig{
 				ActivityHeartbeatInterval: -time.Second,
 				ProgressNotifyInterval:    time.Minute,
 				InactivityWarningAfter:    time.Minute,
@@ -524,7 +524,7 @@ func TestHelperFunctionsAndUtilities(t *testing.T) {
 	t.Parallel()
 
 	resolved := workspacepkg.ResolvedWorkspace{
-		Agents: []aghconfig.AgentDef{{
+		Agents: []compozyconfig.AgentDef{{
 			Name:     "coder",
 			Provider: "claude",
 			Prompt:   "hi",
@@ -586,7 +586,7 @@ func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
 func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

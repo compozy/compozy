@@ -215,7 +215,7 @@ describe("session timeline derivation", () => {
         {
           kind: "data",
           id: "permission-rejected",
-          name: "data-agh-permission",
+          name: "data-compozy-permission",
           data: {
             type: "permission",
             request_id: "turn-permission:permission-rejected",
@@ -236,7 +236,7 @@ describe("session timeline derivation", () => {
       throw new Error("expected a fold followed by a persistent permission row");
     }
     expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
-    expect(permissionRow.part.name).toBe("data-agh-permission");
+    expect(permissionRow.part.name).toBe("data-compozy-permission");
   });
 
   it("Should keep the live turn inline instead of folding it", () => {

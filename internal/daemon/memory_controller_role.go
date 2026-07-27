@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // memoryControllerCallOptions is the invocation contract for the in-process
@@ -16,7 +16,7 @@ type memoryControllerCallOptions struct {
 	TopK          int
 	PromptVersion string
 	MaxTokensOut  int
-	Config        aghconfig.Config
+	Config        compozyconfig.Config
 	resolvedRole  ResolvedRole
 }
 
@@ -29,7 +29,7 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 	if r == nil || r.config == nil {
 		return memoryControllerCallOptions{}, errors.New("daemon: memory controller role resolver is required")
 	}
-	resolved, effectiveConfig, err := r.resolveEffective(ctx, workspaceID, aghconfig.RoleMemoryController)
+	resolved, effectiveConfig, err := r.resolveEffective(ctx, workspaceID, compozyconfig.RoleMemoryController)
 	if err != nil {
 		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller role: %w", err)
 	}
@@ -44,12 +44,12 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 			resolvedRole:  resolved,
 		}, nil
 	}
-	runtime, err := effectiveConfig.ResolveAgent(aghconfig.AgentDef{
+	runtime, err := effectiveConfig.ResolveAgent(compozyconfig.AgentDef{
 		Name:            memoryControllerTransientAgentName,
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
-		Prompt:          "AGH memory controller transient runtime.",
+		Prompt:          "Compozy memory controller transient runtime.",
 	})
 	if err != nil {
 		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller runtime: %w", err)

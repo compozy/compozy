@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
@@ -47,7 +47,7 @@ func (s *service) recordProjectedMutationApply(
 	state *activeSnapshot,
 	desiredHash string,
 	nextActiveHash string,
-	nextActiveConfig *aghconfig.Config,
+	nextActiveConfig *compozyconfig.Config,
 ) (ApplyResult, error) {
 	configLifecycle := mutationLifecycle(result)
 	noChanges := mutationResultHasNoChanges(result)
@@ -83,20 +83,20 @@ func (s *service) recordProjectedMutationApply(
 }
 
 func projectProviderModelsActiveConfig(
-	active *aghconfig.Config,
-	desired *aghconfig.Config,
+	active *compozyconfig.Config,
+	desired *compozyconfig.Config,
 	providerID string,
-) (aghconfig.Config, error) {
+) (compozyconfig.Config, error) {
 	if active == nil || desired == nil {
-		return aghconfig.Config{}, errors.New("settings: active and desired provider configs are required")
+		return compozyconfig.Config{}, errors.New("settings: active and desired provider configs are required")
 	}
 	normalizedProviderID := strings.TrimSpace(providerID)
 	if normalizedProviderID == "" {
-		return aghconfig.Config{}, errors.New("settings: provider id is required for live model apply")
+		return compozyconfig.Config{}, errors.New("settings: provider id is required for live model apply")
 	}
 	desiredProvider, ok := desired.Providers[normalizedProviderID]
 	if !ok {
-		return aghconfig.Config{}, fmt.Errorf(
+		return compozyconfig.Config{}, fmt.Errorf(
 			"settings: desired provider %q is required for live model apply",
 			normalizedProviderID,
 		)
@@ -106,7 +106,7 @@ func projectProviderModelsActiveConfig(
 	if !ok {
 		resolvedActiveProvider, err := active.ResolveProvider(normalizedProviderID)
 		if err != nil {
-			return aghconfig.Config{}, fmt.Errorf(
+			return compozyconfig.Config{}, fmt.Errorf(
 				"settings: resolve active provider %q for live model apply: %w",
 				normalizedProviderID,
 				err,
@@ -116,7 +116,7 @@ func projectProviderModelsActiveConfig(
 	}
 	activeProvider.Models = cloneProviderModelsConfig(desiredProvider.Models)
 	if projected.Providers == nil {
-		projected.Providers = make(map[string]aghconfig.ProviderConfig)
+		projected.Providers = make(map[string]compozyconfig.ProviderConfig)
 	}
 	projected.Providers[normalizedProviderID] = activeProvider
 	return projected, nil

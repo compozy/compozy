@@ -13,7 +13,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 
 	"github.com/google/uuid"
@@ -85,7 +85,7 @@ type ManifestArtifact struct {
 
 type SnapshotFunc func(context.Context) (any, error)
 
-type ConfigSnapshotFunc func(context.Context) (aghconfig.Config, error)
+type ConfigSnapshotFunc func(context.Context) (compozyconfig.Config, error)
 
 type Sources struct {
 	Status             SnapshotFunc
@@ -97,8 +97,8 @@ type Sources struct {
 }
 
 type Builder struct {
-	HomePaths            aghconfig.HomePaths
-	Config               aghconfig.Config
+	HomePaths            compozyconfig.HomePaths
+	Config               compozyconfig.Config
 	ConfigSnapshot       ConfigSnapshotFunc
 	Sources              Sources
 	Now                  func() time.Time
@@ -132,7 +132,7 @@ func NewService(builder *Builder) *Service {
 	}
 }
 
-func BundlesDir(paths aghconfig.HomePaths) string {
+func BundlesDir(paths compozyconfig.HomePaths) string {
 	return filepath.Join(paths.HomeDir, bundlesDirName)
 }
 

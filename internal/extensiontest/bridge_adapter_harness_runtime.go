@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
@@ -21,7 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
-	aghtestutil "github.com/compozy/compozy/internal/testutil"
+	compozytestutil "github.com/compozy/compozy/internal/testutil"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -29,7 +29,7 @@ import (
 func buildHarnessRuntime(
 	t testing.TB,
 	cfg HarnessConfig,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	globalDB *globaldb.GlobalDB,
 	workspaces workspacepkg.RuntimeResolver,
 	bridgeRegistry *bridgepkg.Service,
@@ -101,7 +101,7 @@ func buildHarnessRuntime(
 		extensionpkg.WithHostAPIRateLimit(1000, 1000),
 	)
 
-	if err := manager.Start(aghtestutil.Context(t)); err != nil {
+	if err := manager.Start(compozytestutil.Context(t)); err != nil {
 		t.Fatalf("manager.Start() error = %v", err)
 	}
 	return hostHandler, manager, broker, observer, sessions
@@ -132,7 +132,7 @@ func newHarnessHostForwarder(
 func newHarnessObserver(
 	t testing.TB,
 	globalDB *globaldb.GlobalDB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	workspaces workspacepkg.RuntimeResolver,
 	bridgeRegistry *bridgepkg.Service,
 	broker *bridgepkg.Broker,
@@ -141,7 +141,7 @@ func newHarnessObserver(
 	t.Helper()
 
 	observer, err := observepkg.New(
-		aghtestutil.Context(t),
+		compozytestutil.Context(t),
 		observepkg.WithRegistry(globalDB),
 		observepkg.WithHomePaths(homePaths),
 		observepkg.WithWorkspaceResolver(workspaces),
@@ -167,7 +167,7 @@ func harnessDriver(cfg HarnessConfig, now time.Time) session.AgentDriver {
 
 func newHarnessSessions(
 	t testing.TB,
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	driver session.AgentDriver,
 	notifier session.Notifier,
 	workspaces workspacepkg.RuntimeResolver,

@@ -139,7 +139,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 }) => {
   const tasksWin = appPage.getByTestId("os-window-app:tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-tasks-handoff-workspace-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-handoff-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
   await ensureGlobalWorkspace(runtime);

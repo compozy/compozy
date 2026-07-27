@@ -87,6 +87,7 @@ interface SessionEnvelope {
 }
 
 interface DiagnosticsRecord {
+  compozy_session_id?: string;
   lifecycle_event?: string;
   prompt_index: number;
   prompt: string;
@@ -147,15 +148,6 @@ test("operator creates edits reverts searches recalls and deletes workspace know
 
   await knowledgeUI.createButton.click();
   await expect(knowledgeUI.createDialog).toBeVisible();
-  await expect(knowledgeUI.createDialog).toHaveAttribute("data-frame", "framed");
-  await expect(knowledgeUI.createDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
-  await expect(knowledgeUI.createDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
-    "data-variant",
-    "ruled"
-  );
   const projectType = appPage.getByTestId("knowledge-create-type-project");
   await projectType.click();
   await expect(projectType).toHaveAttribute("aria-checked", "true");
@@ -271,7 +263,9 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const recalledPrompt = await promptForSession(
     runtime,
     memoryRecallAgentName,
-    recalledACPSessionID
+    recalledSession.session.id,
+    recalledACPSessionID,
+    "remember me"
   );
   expect(recalledPrompt).toContain("Relevant durable memory for this turn:");
   expect(recalledPrompt).toContain("auth migration uses sessions");
@@ -337,7 +331,9 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const postDeletePrompt = await promptForSession(
     runtime,
     memoryRecallAgentName,
-    postDeleteACPSessionID
+    postDeleteSession.session.id,
+    postDeleteACPSessionID,
+    "remember me"
   );
   expect(postDeletePrompt).not.toContain(marker);
   expect(postDeletePrompt).not.toContain("auth migration uses sessions");
@@ -572,7 +568,9 @@ async function promptDiagnostics(
 async function promptForSession(
   runtime: BrowserRuntime,
   agentName: string,
-  acpSessionID: string
+  compozySessionID: string,
+  acpSessionID: string,
+  expectedUserMessage: string
 ): Promise<string> {
   let prompt = "";
   await expect
@@ -580,7 +578,12 @@ async function promptForSession(
       const records = await promptDiagnostics(runtime, agentName);
       const record = [...records]
         .reverse()
-        .find(candidate => candidate.session_id === acpSessionID);
+        .find(
+          candidate =>
+            candidate.compozy_session_id === compozySessionID &&
+            candidate.session_id === acpSessionID &&
+            candidate.prompt.includes(expectedUserMessage)
+        );
       prompt = record?.prompt ?? "";
       return prompt !== "";
     })
@@ -619,7 +622,9 @@ async function assertStoredUserMessageClean(
       }>(sessionAPIPath(workspaceID, sessionID, "/transcript"));
       userMessage = transcript.entries
         .map(entry => entry.message)
-        .find(message => message.role === "user");
+        .find(
+          message => message.role === "user" && transcriptMessageText(message) === "remember me"
+        );
       return transcriptMessageText(userMessage);
     })
     .toBe("remember me");

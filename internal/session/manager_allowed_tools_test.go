@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -22,7 +22,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should accept unrestricted agent profiles", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{}, []string{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{}, []string{
 			toolspkg.ToolIDTaskRead.String(),
 		}, catalog)
 		if err != nil {
@@ -33,7 +33,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should accept wildcard agent profile matches", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{
 			Tools: []string{"compozy__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
@@ -46,7 +46,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should reject tools denied by the agent profile", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{
 			DenyTools: []string{"compozy__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
@@ -62,7 +62,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should accept members of toolset-only profiles", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{
 			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
@@ -75,7 +75,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should reject nonmembers of toolset-only profiles", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{
 			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
 		}, []string{
 			toolspkg.ToolIDSessionList.String(),
@@ -88,7 +88,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Run("Should reject invalid agent toolsets", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+		err := validateAllowedToolsOverrideSubset(compozyconfig.ResolvedAgent{
 			Toolsets: []string{"Bad"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),

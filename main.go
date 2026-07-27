@@ -1,4 +1,4 @@
-// Package main is the root AGH CLI entrypoint for go install github.com/compozy/compozy.
+// Package main is the root Compozy CLI entrypoint for go install github.com/compozy/compozy.
 package main
 
 import (

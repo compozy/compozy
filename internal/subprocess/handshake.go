@@ -33,11 +33,11 @@ func cloneInitializeCapabilities(src InitializeCapabilities) InitializeCapabilit
 	return cloned
 }
 
-// InitializeRequest is the AGH -> extension session contract request.
+// InitializeRequest is the Compozy -> extension session contract request.
 type InitializeRequest struct {
 	ProtocolVersion          string                 `json:"protocol_version"`
 	SupportedProtocolVersion []string               `json:"supported_protocol_versions"`
-	AGHVersion               string                 `json:"agh_version"`
+	CompozyVersion           string                 `json:"compozy_version"`
 	SessionNonce             string                 `json:"session_nonce"`
 	Extension                InitializeExtension    `json:"extension"`
 	Capabilities             InitializeCapabilities `json:"capabilities"`
@@ -113,14 +113,14 @@ type InitializeBridgeManagedInstance struct {
 	BoundSecrets []InitializeBridgeBoundSecret `json:"bound_secrets,omitempty"`
 }
 
-// InitializeBridgeBoundSecret is one launch-time bridge secret resolved by AGH.
+// InitializeBridgeBoundSecret is one launch-time bridge secret resolved by Compozy.
 type InitializeBridgeBoundSecret struct {
 	BindingName string `json:"binding_name"`
 	Kind        string `json:"kind"`
 	Value       string `json:"value"`
 }
 
-// InitializeResponse is the extension -> AGH initialize acknowledgment.
+// InitializeResponse is the extension -> Compozy initialize acknowledgment.
 type InitializeResponse struct {
 	ProtocolVersion      string                  `json:"protocol_version"`
 	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`

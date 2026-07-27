@@ -57,7 +57,7 @@ const (
 	WorkspaceDiscoverySourceWorkspace WorkspaceDiscoverySource = "workspace"
 	// WorkspaceDiscoverySourceAdditional marks an additional workspace root.
 	WorkspaceDiscoverySourceAdditional WorkspaceDiscoverySource = "additional"
-	// WorkspaceDiscoverySourceGlobal marks the global AGH home root.
+	// WorkspaceDiscoverySourceGlobal marks the global Compozy home root.
 	WorkspaceDiscoverySourceGlobal WorkspaceDiscoverySource = "global"
 )
 
@@ -78,7 +78,7 @@ var (
 	ErrInvalidAgentFrontmatterKey = errors.New("config: invalid YAML frontmatter key")
 )
 
-// LoadAgentDef loads an AGENT.md file from the configured AGH home directory.
+// LoadAgentDef loads an AGENT.md file from the configured Compozy home directory.
 func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
 	target := NormalizeAgentName(name)
 	if target == "" {
@@ -128,7 +128,7 @@ func LoadAgentDefFile(path string) (AgentDef, error) {
 }
 
 // WorkspaceDiscoveryRoots returns ordered discovery roots for workspace-scoped resources.
-// Precedence is left to right: workspace root, additional roots, then the global AGH home.
+// Precedence is left to right: workspace root, additional roots, then the global Compozy home.
 func WorkspaceDiscoveryRoots(rootDir string, additionalDirs []string, homePaths HomePaths) []WorkspaceDiscoveryRoot {
 	roots := make([]WorkspaceDiscoveryRoot, 0, len(additionalDirs)+2)
 

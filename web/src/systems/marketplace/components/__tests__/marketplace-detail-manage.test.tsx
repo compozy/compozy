@@ -217,7 +217,7 @@ vi.mock("@/systems/extensions", () => ({
                 checksum_verified: true,
                 installed_from: "marketplace",
                 registry_tier: "verified",
-                slug: "agh/ops-extension",
+                slug: "compozy/ops-extension",
               },
               requires_env: ["PAGER_TOKEN", "REGION"],
               source: "marketplace",

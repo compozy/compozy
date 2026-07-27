@@ -3,7 +3,7 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -17,11 +17,11 @@ func TestResourceAgentCatalogLookupReturnsDefensiveCopy(t *testing.T) {
 
 		workspaceID := "ws-refac"
 		catalog := newResourceCatalog(cloneAgentDef)
-		catalog.Replace(1, []resources.Record[aghconfig.AgentDef]{{
+		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
 			ID:      "workspace:coder",
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspaceID},
 			Version: 1,
-			Spec: aghconfig.AgentDef{
+			Spec: compozyconfig.AgentDef{
 				Name:   "coder",
 				Prompt: "workspace prompt",
 				Tools:  []string{toolspkg.ToolIDToolInfo.String()},

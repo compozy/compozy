@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -12,7 +12,7 @@ func preserveMCPSecretBindings(
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
-	server *aghconfig.MCPServer,
+	server *compozyconfig.MCPServer,
 	preservation MCPSecretPreservation,
 ) error {
 	if len(preservation.SecretEnv) == 0 && !preservation.OAuthClientSecret {

@@ -161,7 +161,7 @@ export function deriveTraceEvents(
         });
       }
 
-      if (part.type === "data" && part.name === "agh-permission") {
+      if (part.type === "data" && part.name === "compozy-permission") {
         const raw = part.data as { title?: string; decision?: string } | undefined;
         events.push({
           id: `${message.id}-${part.name}`,

@@ -3,7 +3,7 @@ package daemon
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 )
@@ -24,7 +24,7 @@ func (d *Daemon) configureMemoryController(state *bootState, sessions SessionMan
 	tiebreaker := &daemonMemoryControllerTiebreaker{
 		invoker: invoker,
 		roles:   roleResolverForState(state),
-		configSnapshot: func() aghconfig.Config {
+		configSnapshot: func() compozyconfig.Config {
 			d.mu.Lock()
 			defer d.mu.Unlock()
 			return state.cfg

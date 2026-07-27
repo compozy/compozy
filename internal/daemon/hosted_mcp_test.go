@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestBuildHostedMCPServiceLogsDisabledConfiguration(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBuildHostedMCPServiceLogsDisabledConfiguration(t *testing.T) {
 		t.Run("Should log disabled hosted MCP gate for "+name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := aghconfig.Config{Tools: aghconfig.DefaultToolsConfig()}
+			cfg := compozyconfig.Config{Tools: compozyconfig.DefaultToolsConfig()}
 			cfg.Tools.Enabled = testCase.toolsEnabled
 			cfg.Tools.HostedMCPEnabled = testCase.hostedMCPEnabled
 			var logOutput bytes.Buffer

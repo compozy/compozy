@@ -14,7 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -468,7 +468,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 					Channel:     "builders",
 					PeerFrom:    "reviewer.sess-peer",
 					Body:        json.RawMessage(`{"text":"coordination"}`),
-					ExtJSON:     json.RawMessage(`{"agh.coordination":`),
+					ExtJSON:     json.RawMessage(`{"compozy.coordination":`),
 					Timestamp:   time.Date(2026, 4, 26, 10, 2, 0, 0, time.UTC),
 				}}, nil
 			},
@@ -940,8 +940,8 @@ type agentCoreCoordinatorRoleResolver struct{}
 func (agentCoreCoordinatorRoleResolver) ResolveCoordinatorRole(
 	_ context.Context,
 	_ string,
-) (aghconfig.ResolvedCoordinatorRole, error) {
-	return aghconfig.ResolvedCoordinatorRole{
+) (compozyconfig.ResolvedCoordinatorRole, error) {
+	return compozyconfig.ResolvedCoordinatorRole{
 		Enabled:                       true,
 		AgentName:                     "coordinator",
 		Provider:                      "codex",
@@ -965,11 +965,11 @@ func newAgentCoreTestRouterWithNetworkStore(
 ) *gin.Engine {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg := compozyconfig.DefaultWithHome(homePaths)
 	cfg.Network.Enabled = true
 	handlers := NewBaseHandlers(&BaseHandlerConfig{
 		TransportName:       "udsapi",

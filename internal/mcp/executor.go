@@ -8,7 +8,7 @@ import (
 	"maps"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
@@ -334,7 +334,7 @@ func normalizeMCPDiscoveryError(err error) error {
 	)
 }
 
-func mcpServerMatches(server aghconfig.MCPServer, target string) bool {
+func mcpServerMatches(server compozyconfig.MCPServer, target string) bool {
 	target = strings.TrimSpace(target)
 	if target == "" {
 		return false
@@ -365,7 +365,7 @@ func mcpOwner(id toolspkg.ToolID) (string, error) {
 	return segments[1], nil
 }
 
-func cloneMCPServer(server aghconfig.MCPServer) aghconfig.MCPServer {
+func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
 	server.SecretEnv = cloneStringMap(server.SecretEnv)

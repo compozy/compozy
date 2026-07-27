@@ -74,7 +74,7 @@ const envelope = {
     daemon: {
       memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
-      socket: "/tmp/agh.sock",
+      socket: "/tmp/compozy.sock",
     },
     defaults: { agent: "general", provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
@@ -85,10 +85,10 @@ const envelope = {
   },
   config_paths: {
     daemon_info: "/tmp/daemon.json",
-    global_config: "~/.agh/config.toml",
-    global_mcp_sidecar: "~/.agh/mcp.json",
-    home_dir: "~/.agh",
-    log_file: "~/.agh/agh.log",
+    global_config: "~/.compozy/config.toml",
+    global_mcp_sidecar: "~/.compozy/mcp.json",
+    home_dir: "~/.compozy",
+    log_file: "~/.compozy/compozy.log",
   },
   runtime: {
     active_agents: 7,
@@ -96,7 +96,7 @@ const envelope = {
     available: true,
     http_host: "127.0.0.1",
     http_port: 2123,
-    socket: "~/.agh/daemon.sock",
+    socket: "~/.compozy/daemon.sock",
     total_sessions: 12,
     uptime_seconds: 3600,
   },
@@ -212,8 +212,8 @@ beforeEach(() => {
         latest_version: "v1.1.0",
         available: true,
         status: "available",
-        recommendation: "Run `agh update`.",
-        release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+        recommendation: "Run `compozy update`.",
+        release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
         checked_at: "2026-05-03T19:00:00Z",
       },
       isLoading: false,
@@ -290,11 +290,11 @@ describe("GeneralSettingsPage", () => {
       "available"
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
-      "Run `agh update`."
+      "Run `compozy update`."
     );
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
     expect(screen.getByText("Config file")).toBeInTheDocument();
-    expect(screen.getByText("~/.agh/config.toml")).toBeInTheDocument();
+    expect(screen.getByText("~/.compozy/config.toml")).toBeInTheDocument();
   });
 
   it("composes the remembered-decisions section after the permissions policy", () => {
@@ -361,8 +361,8 @@ describe("GeneralSettingsPage", () => {
       available: true,
       status: "unsupported",
       recommendation:
-        "Download the latest AGH Windows release archive and replace `agh.exe` manually.",
-      release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+        "Download the latest Compozy Windows release archive and replace `compozy.exe` manually.",
+      release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
       checked_at: "2026-05-03T19:00:00Z",
       last_error: "cached refresh failed",
     };
@@ -373,7 +373,7 @@ describe("GeneralSettingsPage", () => {
       /unsupported/i
     );
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
-      "replace `agh.exe` manually"
+      "replace `compozy.exe` manually"
     );
     expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
       "cached refresh failed"

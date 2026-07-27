@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -110,7 +110,7 @@ func TestRestartOperationValidateRejectsInvalidShapes(t *testing.T) {
 		Status:             RestartStatusPending,
 		OldPID:             4242,
 		OldStartedAt:       time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
-		OldSocketPath:      "/tmp/agh.sock",
+		OldSocketPath:      "/tmp/compozy.sock",
 		ActiveSessionCount: 1,
 		StartedAt:          time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
 		UpdatedAt:          time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC),
@@ -1279,11 +1279,11 @@ func TestWithTimeoutCapHonorsEarlierDeadlineAndShortensLongerParent(t *testing.T
 func TestRunRelaunchHelperReplacementFailurePersistsFailedOperation(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
@@ -1372,11 +1372,11 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 	}
 
 	dir := t.TempDir()
-	scriptPath := filepath.Join(dir, "agh-helper.sh")
+	scriptPath := filepath.Join(dir, "compozy-helper.sh")
 	script := "#!/bin/sh\nexit 0\n"
 	mode := os.FileMode(0o755)
 	if runtime.GOOS == "windows" {
-		scriptPath = filepath.Join(dir, "agh-helper.cmd")
+		scriptPath = filepath.Join(dir, "compozy-helper.cmd")
 		script = "@echo off\r\nexit /b 0\r\n"
 		mode = 0o600
 	}

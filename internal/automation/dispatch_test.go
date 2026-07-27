@@ -83,7 +83,7 @@ func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
 
 	store := newMemoryRunStore()
 	creator := newRecordingSessionCreator()
-	globalPath := filepath.Join(t.TempDir(), "agh-home")
+	globalPath := filepath.Join(t.TempDir(), "compozy-home")
 	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherGlobalWorkspacePath(globalPath))
 
 	job := testJob(AutomationScopeGlobal, "job-global", "")

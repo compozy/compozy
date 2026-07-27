@@ -1,4 +1,4 @@
-package aghsdk
+package compozysdk
 
 import (
 	"encoding/json"

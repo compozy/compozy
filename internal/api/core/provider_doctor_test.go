@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
@@ -21,15 +21,15 @@ func TestDoctorProviderFilterIncludesProviderDiagnostics(t *testing.T) {
 	t.Run("Should include provider diagnostics when filtering doctor output", func(t *testing.T) {
 		t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
-		cfg := aghconfig.DefaultWithHome(homePaths)
-		cfg.Providers["public"] = aghconfig.ProviderConfig{
+		cfg := compozyconfig.DefaultWithHome(homePaths)
+		cfg.Providers["public"] = compozyconfig.ProviderConfig{
 			Command:      "public-provider acp",
-			AuthMode:     aghconfig.ProviderAuthModeNone,
-			NoneSecurity: aghconfig.ProviderNoneSecurityPublicReadonly,
+			AuthMode:     compozyconfig.ProviderAuthModeNone,
+			NoneSecurity: compozyconfig.ProviderNoneSecurityPublicReadonly,
 		}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config:   cfg,

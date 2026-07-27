@@ -7,7 +7,7 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/soul"
@@ -49,7 +49,7 @@ func (s *ResourceStore) upsertOwnedJobs(
 func (s *ResourceStore) upsertOwnedAgents(
 	ctx context.Context,
 	ownerID string,
-	current map[string]resources.Record[aghconfig.AgentDef],
+	current map[string]resources.Record[compozyconfig.AgentDef],
 	desired map[string]ownedAgentResource,
 	changed map[resources.ResourceKind]struct{},
 ) error {
@@ -66,7 +66,7 @@ func (s *ResourceStore) upsertOwnedAgents(
 		if ok {
 			expectedVersion = existing.Version
 		}
-		if _, err := s.agents.Put(ctx, actor, resources.Draft[aghconfig.AgentDef]{
+		if _, err := s.agents.Put(ctx, actor, resources.Draft[compozyconfig.AgentDef]{
 			ID:              id,
 			Scope:           scope,
 			ExpectedVersion: expectedVersion,
@@ -74,10 +74,10 @@ func (s *ResourceStore) upsertOwnedAgents(
 		}); err != nil {
 			return fmt.Errorf("bundles: upsert owned agent %q: %w", id, err)
 		}
-		changed[aghconfig.AgentResourceKind] = struct{}{}
+		changed[compozyconfig.AgentResourceKind] = struct{}{}
 		delete(current, id)
 	}
-	return deleteStaleOwnedRecords(ctx, actor, current, changed, aghconfig.AgentResourceKind, s.agents.Delete)
+	return deleteStaleOwnedRecords(ctx, actor, current, changed, compozyconfig.AgentResourceKind, s.agents.Delete)
 }
 
 func (s *ResourceStore) upsertOwnedSouls(

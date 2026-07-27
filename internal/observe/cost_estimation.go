@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -25,7 +25,7 @@ type ProviderAuthModeResolver func(
 	provider string,
 	model string,
 	workspaceID string,
-) (aghconfig.ProviderAuthMode, error)
+) (compozyconfig.ProviderAuthMode, error)
 
 // WithCostCatalog injects the merged model catalog used for silent-agent estimation.
 func WithCostCatalog(catalog CostCatalog) Option {
@@ -60,7 +60,7 @@ func (o *Observer) observedCostFields(
 			string(modelcatalog.CostStatusActual),
 			string(modelcatalog.CostSourceAgentReported)
 	}
-	if snapshot.authMode == aghconfig.ProviderAuthModeNativeCLI {
+	if snapshot.authMode == compozyconfig.ProviderAuthModeNativeCLI {
 		return nil, nil, string(modelcatalog.CostStatusIncluded), string(modelcatalog.CostSourceNone)
 	}
 	if o.costCatalog == nil || snapshot.provider == "" || snapshot.model == "" {

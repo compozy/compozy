@@ -38,7 +38,7 @@ description = "Request signing secret"
 required = true
 
 [bridge.config_schema]
-schema = "agh.bridge.slack"
+schema = "compozy.bridge.slack"
 version = "v1"
 `)
 
@@ -67,7 +67,7 @@ version = "v1"
 	if manifest.Bridge.ConfigSchema == nil {
 		t.Fatal("manifest.Bridge.ConfigSchema = nil, want value")
 	}
-	if got, want := *manifest.Bridge.ConfigSchema, (bridgepkg.BridgeProviderConfigSchema{Schema: "agh.bridge.slack", Version: "v1"}); got != want {
+	if got, want := *manifest.Bridge.ConfigSchema, (bridgepkg.BridgeProviderConfigSchema{Schema: "compozy.bridge.slack", Version: "v1"}); got != want {
 		t.Fatalf("manifest.Bridge.ConfigSchema = %#v, want %#v", got, want)
 	}
 }

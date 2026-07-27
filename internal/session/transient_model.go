@@ -10,19 +10,19 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
 	transientMemoryControllerAgentName = "memory-controller"
-	transientMemoryControllerPrompt    = "AGH memory controller transient runtime."
+	transientMemoryControllerPrompt    = "Compozy memory controller transient runtime."
 	transientModelStopTimeout          = 5 * time.Second
 )
 
 // TransientModelCall describes one provider-backed model turn that must not
-// create a durable AGH session.
+// create a durable Compozy session.
 type TransientModelCall struct {
-	Config          *aghconfig.Config
+	Config          *compozyconfig.Config
 	Provider        string
 	Model           string
 	ReasoningEffort string
@@ -60,12 +60,12 @@ func (m *Manager) InvokeTransientModel(
 		return result, errors.New("session: transient model output bound must be positive")
 	}
 
-	resolved, err := call.Config.ResolveAgent(aghconfig.AgentDef{
+	resolved, err := call.Config.ResolveAgent(compozyconfig.AgentDef{
 		Name:            transientMemoryControllerAgentName,
 		Provider:        strings.TrimSpace(call.Provider),
 		Model:           strings.TrimSpace(call.Model),
 		ReasoningEffort: strings.TrimSpace(call.ReasoningEffort),
-		Permissions:     string(aghconfig.PermissionModeDenyAll),
+		Permissions:     string(compozyconfig.PermissionModeDenyAll),
 		Prompt:          transientMemoryControllerPrompt,
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func (m *Manager) InvokeTransientModel(
 		Command:         resolved.Command,
 		Cwd:             strings.TrimSpace(call.CWD),
 		Env:             sessionStartEnvForProvider(os.Environ(), nil, resolved.EnvPolicy),
-		Permissions:     aghconfig.PermissionModeDenyAll,
+		Permissions:     compozyconfig.PermissionModeDenyAll,
 		SystemPrompt:    strings.TrimSpace(call.SystemPrompt),
 		PreferredModel:  resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
@@ -122,7 +122,7 @@ func (m *Manager) InvokeTransientModel(
 
 func (m *Manager) prepareTransientModelProvider(
 	ctx context.Context,
-	resolved aghconfig.ResolvedAgent,
+	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, func() error, error) {
 	prepared, bindings, err := m.prepareProviderStartPolicies(ctx, resolved, opts)
@@ -141,8 +141,8 @@ func (m *Manager) prepareTransientModelProvider(
 		}
 		return nil
 	}
-	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
-		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
+	if resolved.Harness == compozyconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == compozyconfig.ProviderAuthModeBoundSecret {
 		runtimeDir, err = os.MkdirTemp(m.homePaths.HomeDir, ".memory-controller-")
 		if err != nil {
 			return acp.StartOpts{}, cleanup, fmt.Errorf("session: create transient provider runtime: %w", err)

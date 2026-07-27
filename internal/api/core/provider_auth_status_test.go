@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -35,13 +35,13 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 						},
 						CommandAvailable: true,
 						AuthStatus: settingspkg.ProviderAuthStatus{
-							Mode:       aghconfig.ProviderAuthModeNativeCLI,
-							EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
-							HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+							Mode:       compozyconfig.ProviderAuthModeNativeCLI,
+							EnvPolicy:  compozyconfig.ProviderEnvPolicyFiltered,
+							HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 							State:      "missing_cli",
 							Message:    "Native CLI \"codex\" was not found on PATH.",
 							LoginCmd:   "codex login",
-							LoginEnv:   []string{"HOME=/tmp/agh/providers/codex"},
+							LoginEnv:   []string{"HOME=/tmp/compozy/providers/codex"},
 							NativeCLI: &settingspkg.ProviderNativeCLIStatus{
 								Command: "codex",
 								Present: false,
@@ -100,7 +100,7 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 		if got, want := authStatus.NativeCLI.Source, "auth_login_command"; got != want {
 			t.Fatalf("AuthStatus.NativeCLI.Source = %q, want %q", got, want)
 		}
-		if got, want := strings.Join(authStatus.LoginEnv, " "), "HOME=/tmp/agh/providers/codex"; got != want {
+		if got, want := strings.Join(authStatus.LoginEnv, " "), "HOME=/tmp/compozy/providers/codex"; got != want {
 			t.Fatalf("AuthStatus.LoginEnv = %q, want %q", got, want)
 		}
 	})

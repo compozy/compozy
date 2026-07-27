@@ -5,7 +5,7 @@ import "strings"
 const consolidationPromptTemplate = `
 # Dream Consolidation
 
-You are running a one-shot AGH dream consolidation session.
+You are running a one-shot Compozy dream consolidation session.
 
 Your job is to distill durable, cross-session knowledge from recent session
 outputs and team-memory artifacts into the persistent memory store. Work in four

@@ -9,7 +9,7 @@ import (
 type SourceKind string
 
 const (
-	// SourceKindBuiltin identifies AGH's offline bootstrap catalog.
+	// SourceKindBuiltin identifies Compozy's offline bootstrap catalog.
 	SourceKindBuiltin SourceKind = "builtin"
 	// SourceKindConfig identifies operator-authored provider model config.
 	SourceKindConfig SourceKind = "config"
@@ -24,7 +24,7 @@ const (
 )
 
 const (
-	// SourceIDBuiltin is AGH's offline bootstrap catalog source.
+	// SourceIDBuiltin is Compozy's offline bootstrap catalog source.
 	SourceIDBuiltin = "builtin"
 	// SourceIDConfig is the operator-authored provider config source.
 	SourceIDConfig = "config"

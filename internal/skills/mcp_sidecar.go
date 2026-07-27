@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func mergeSkillMCPSidecarFile(dir string, skill *Skill) error {
@@ -17,7 +17,7 @@ func mergeSkillMCPSidecarFile(dir string, skill *Skill) error {
 		return errors.New("skills: skill is required")
 	}
 
-	sidecarPath := filepath.Join(strings.TrimSpace(dir), aghconfig.MCPJSONName)
+	sidecarPath := filepath.Join(strings.TrimSpace(dir), compozyconfig.MCPJSONName)
 	if _, err := os.Lstat(sidecarPath); err == nil {
 		if err := ensurePathWithinRoot(dir, sidecarPath); err != nil {
 			return err
@@ -25,7 +25,7 @@ func mergeSkillMCPSidecarFile(dir string, skill *Skill) error {
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("skills: stat MCP sidecar %q: %w", sidecarPath, err)
 	}
-	servers, err := aghconfig.LoadMCPServersJSONFile(sidecarPath)
+	servers, err := compozyconfig.LoadMCPServersJSONFile(sidecarPath)
 	if err != nil {
 		return err
 	}
@@ -39,9 +39,9 @@ func mergeSkillMCPSidecarFS(fsys fs.FS, dir string, skill *Skill) error {
 		return errors.New("skills: skill is required")
 	}
 
-	sidecarPath := aghconfig.MCPJSONName
+	sidecarPath := compozyconfig.MCPJSONName
 	if trimmed := strings.TrimSpace(dir); trimmed != "" {
-		sidecarPath = path.Join(trimmed, aghconfig.MCPJSONName)
+		sidecarPath = path.Join(trimmed, compozyconfig.MCPJSONName)
 	}
 
 	content, err := fs.ReadFile(fsys, sidecarPath)
@@ -52,7 +52,7 @@ func mergeSkillMCPSidecarFS(fsys fs.FS, dir string, skill *Skill) error {
 		return fmt.Errorf("skills: read MCP sidecar %q: %w", sidecarPath, err)
 	}
 
-	servers, err := aghconfig.ParseMCPServersJSON(content, sidecarPath)
+	servers, err := compozyconfig.ParseMCPServersJSON(content, sidecarPath)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func overrideSkillMCPServers(base []MCPServerDecl, overlay []MCPServerDecl) []MC
 	return merged
 }
 
-func toMCPServerDecls(servers []aghconfig.MCPServer) []MCPServerDecl {
+func toMCPServerDecls(servers []compozyconfig.MCPServer) []MCPServerDecl {
 	if len(servers) == 0 {
 		return nil
 	}

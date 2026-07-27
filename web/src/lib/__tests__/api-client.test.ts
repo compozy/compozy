@@ -67,7 +67,7 @@ describe("api client", () => {
     expect(result.data?.daemon.name).toBe("Compozy Daemon");
   });
 
-  it("keeps the existing agh client bound to runtime fetch after module import", async () => {
+  it("keeps the existing compozy client bound to runtime fetch after module import", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -75,7 +75,7 @@ describe("api client", () => {
             status: "ready",
             pid: 42,
             started_at: "2026-04-20T00:00:00Z",
-            socket: "/tmp/agh.sock",
+            socket: "/tmp/compozy.sock",
             http_host: "127.0.0.1",
             http_port: 2123,
             user_home_dir: "/tmp/home",

@@ -20,7 +20,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 
 		directID := "direct_99401d24bee62651d189e5a561785466"
 		client := &unixSocketClient{
-			socketPath: "/tmp/agh.sock",
+			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {

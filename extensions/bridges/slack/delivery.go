@@ -286,7 +286,7 @@ func slackCreateAck(
 
 func slackDeliveryMetadata(event bridgepkg.DeliveryEvent) *slackMessageMetadata {
 	return &slackMessageMetadata{
-		EventType: providerAghBridgeDeliveryKey,
+		EventType: providerCompozyBridgeDeliveryKey,
 		EventPayload: slackMessageMetadataPayload{
 			BridgeInstanceID: strings.TrimSpace(event.BridgeInstanceID),
 			DeliveryID:       strings.TrimSpace(event.DeliveryID),

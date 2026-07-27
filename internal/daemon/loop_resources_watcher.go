@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
@@ -70,7 +70,7 @@ func stopLoopWatcher(ctx context.Context, cancel context.CancelFunc, done <-chan
 }
 
 func workspaceLoopWatcherRoots(
-	homePaths aghconfig.HomePaths,
+	homePaths compozyconfig.HomePaths,
 	registry Registry,
 ) func(context.Context) ([]string, error) {
 	if registry == nil {
@@ -83,12 +83,12 @@ func workspaceLoopWatcherRoots(
 		}
 		roots := make([]string, 0, len(workspaces)*2)
 		for _, workspace := range workspaces {
-			for _, root := range aghconfig.WorkspaceDiscoveryRoots(
+			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 				workspace.RootDir,
 				workspace.AdditionalDirs,
 				homePaths,
 			) {
-				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
+				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
 				}
 				roots = append(roots, root.LoopsDir())

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 )
 
@@ -67,7 +67,7 @@ func (d *Daemon) bootRuntimeServices(
 	return d.bootMemorySessionRuntime(ctx, state, cleanup)
 }
 
-func dreamGateConfigFromConfig(cfg aghconfig.DreamConfig) memory.DreamGateConfig {
+func dreamGateConfigFromConfig(cfg compozyconfig.DreamConfig) memory.DreamGateConfig {
 	return memory.DreamGateConfig{
 		MinCandidates:   cfg.Gates.MinUnpromoted,
 		MinRecallCount:  cfg.Gates.MinRecallCount,

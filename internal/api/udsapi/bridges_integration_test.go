@@ -309,7 +309,7 @@ func testUDSBridgeProvidersExposeOperatorMetadata(t *testing.T) {
 			Required:    true,
 		}},
 		ConfigSchema: &bridgepkg.BridgeProviderConfigSchema{
-			Schema:  "agh.bridge.telegram",
+			Schema:  "compozy.bridge.telegram",
 			Version: "v1",
 		},
 		Enabled:       true,
@@ -332,7 +332,8 @@ func testUDSBridgeProvidersExposeOperatorMetadata(t *testing.T) {
 	if len(payload.Providers[0].SecretSlots) != 1 || payload.Providers[0].SecretSlots[0].Name != "bot_token" {
 		t.Fatalf("providers[0].SecretSlots = %#v", payload.Providers[0].SecretSlots)
 	}
-	if payload.Providers[0].ConfigSchema == nil || payload.Providers[0].ConfigSchema.Schema != "agh.bridge.telegram" {
+	if payload.Providers[0].ConfigSchema == nil ||
+		payload.Providers[0].ConfigSchema.Schema != "compozy.bridge.telegram" {
 		t.Fatalf("providers[0].ConfigSchema = %#v", payload.Providers[0].ConfigSchema)
 	}
 }

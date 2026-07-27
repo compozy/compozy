@@ -7,7 +7,7 @@ import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-ren
 import { useToolArtifact } from "../hooks/use-tool-artifact";
 import type { ToolArtifactRef, ToolUseResult } from "../types";
 
-const TOOL_ARTIFACT_URI_PREFIX = "agh://tool-artifacts/";
+const TOOL_ARTIFACT_URI_PREFIX = "compozy://tool-artifacts/";
 const BYTE_FORMATTER = new Intl.NumberFormat();
 
 function retainedArtifact(result: ToolUseResult): ToolArtifactRef | undefined {

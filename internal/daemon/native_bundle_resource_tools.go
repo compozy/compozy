@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	bundlepkg "github.com/compozy/compozy/internal/bundles"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -463,7 +463,7 @@ func resourceSourceFromInput(rawKind string, rawID string, path string) (resourc
 }
 
 func nativeBundleToolError(id toolspkg.ToolID, err error) error {
-	if errors.Is(err, aghconfig.ErrAgentNameReserved) {
+	if errors.Is(err, compozyconfig.ErrAgentNameReserved) {
 		return nativeReservedAgentNameToolError(id, err)
 	}
 	return nativeHTTPStatusToolError(id, err, core.StatusForBundleError(err))

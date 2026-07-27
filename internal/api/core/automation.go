@@ -14,13 +14,13 @@ import (
 const (
 	// WebhookTimestampHeader is the required HTTP header that carries the
 	// signed webhook timestamp.
-	WebhookTimestampHeader = "X-AGH-Webhook-Timestamp"
+	WebhookTimestampHeader = "X-Compozy-Webhook-Timestamp"
 	// WebhookSignatureHeader is the required HTTP header that carries the HMAC
 	// signature for webhook delivery.
-	WebhookSignatureHeader = "X-AGH-Webhook-Signature"
+	WebhookSignatureHeader = "X-Compozy-Webhook-Signature"
 	// WebhookDeliveryIDHeader identifies one webhook delivery so replayed
 	// requests can be rejected inside the trigger engine.
-	WebhookDeliveryIDHeader = "X-AGH-Webhook-Delivery-ID"
+	WebhookDeliveryIDHeader = "X-Compozy-Webhook-Delivery-ID"
 
 	maxWebhookPayloadSize = 1 << 20
 )

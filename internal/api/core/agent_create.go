@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -19,57 +19,57 @@ import (
 func CreateAgentFromRequest(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-	homePaths aghconfig.HomePaths,
-	globalConfig *aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
-) (aghconfig.AgentDef, aghconfig.Config, error) {
+) (compozyconfig.AgentDef, compozyconfig.Config, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
 	}
 	target, err := createAgentDefinitionTargetFor(
 		ctx, req, homePaths, globalConfig, workspaces, transportName,
 	)
 	if err != nil {
-		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
 	}
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
-		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
 	}
-	agent, err := aghconfig.CreateAgentDefFile(target.Path, draft, false)
+	agent, err := compozyconfig.CreateAgentDefFile(target.Path, draft, false)
 	if err != nil {
-		return aghconfig.AgentDef{}, aghconfig.Config{}, err
+		return compozyconfig.AgentDef{}, compozyconfig.Config{}, err
 	}
 	return agent, target.Config, nil
 }
 
-func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
+func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig.AgentDefinitionDraft, error) {
 	agent := req.Agent
-	agentName := aghconfig.NormalizeAgentName(agent.Name)
+	agentName := compozyconfig.NormalizeAgentName(agent.Name)
 	if agentName == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			errors.New("agent.name is required"),
 		)
 	}
-	if err := aghconfig.ValidateAuthoredAgentName(agentName); err != nil {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+	if err := compozyconfig.ValidateAuthoredAgentName(agentName); err != nil {
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
-			aghconfig.ErrInvalidAgentDefinition,
+			compozyconfig.ErrInvalidAgentDefinition,
 			err,
 		)
 	}
 	if strings.TrimSpace(agent.Prompt) == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			errors.New("agent.prompt is required"),
 		)
 	}
 	if err := session.ValidateReasoningEffort(string(agent.ReasoningEffort)); err != nil {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
-			aghconfig.ErrInvalidAgentDefinition,
+			compozyconfig.ErrInvalidAgentDefinition,
 			err,
 		)
 	}
@@ -77,7 +77,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 	if agent.Skills != nil {
 		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
 	}
-	return aghconfig.AgentDefinitionDraft{
+	return compozyconfig.AgentDefinitionDraft{
 		Name:            agentName,
 		Provider:        agent.Provider,
 		Command:         agent.Command,
@@ -87,14 +87,14 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 		Toolsets:        append([]string(nil), agent.Toolsets...),
 		DenyTools:       append([]string(nil), agent.DenyTools...),
 		Permissions:     string(agent.Permissions),
-		Skills:          aghconfig.AgentSkillsConfig{Disabled: disabledSkills},
+		Skills:          compozyconfig.AgentSkillsConfig{Disabled: disabledSkills},
 		CategoryPath:    append([]string(nil), agent.CategoryPath...),
 		Prompt:          agent.Prompt,
 	}, nil
 }
 
-func validateAgentDraftRuntime(draft aghconfig.AgentDefinitionDraft, cfg *aghconfig.Config) error {
-	_, agent, err := aghconfig.RenderAgentDefinition(draft)
+func validateAgentDraftRuntime(draft compozyconfig.AgentDefinitionDraft, cfg *compozyconfig.Config) error {
+	_, agent, err := compozyconfig.RenderAgentDefinition(draft)
 	if err != nil {
 		return err
 	}
@@ -110,8 +110,8 @@ func validateAgentDraftRuntime(draft aghconfig.AgentDefinitionDraft, cfg *aghcon
 func createAgentDefinitionPathFor(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-	homePaths aghconfig.HomePaths,
-	globalConfig *aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
 ) (string, error) {
@@ -127,26 +127,26 @@ func createAgentDefinitionPathFor(
 type createAgentDefinitionTarget struct {
 	Path        string
 	WorkspaceID string
-	Config      aghconfig.Config
+	Config      compozyconfig.Config
 }
 
 func createAgentDefinitionTargetFor(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-	homePaths aghconfig.HomePaths,
-	globalConfig *aghconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
 ) (createAgentDefinitionTarget, error) {
-	name := aghconfig.NormalizeAgentName(req.Agent.Name)
+	name := compozyconfig.NormalizeAgentName(req.Agent.Name)
 	switch req.Scope {
 	case contract.AgentCreateScopeGlobal:
-		var config aghconfig.Config
+		var config compozyconfig.Config
 		if globalConfig != nil {
 			config = *globalConfig
 		}
 		return createAgentDefinitionTarget{
-			Path:   filepath.Join(homePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName),
+			Path:   filepath.Join(homePaths.AgentsDir, name, compozyconfig.AgentDefinitionFileName),
 			Config: config,
 		}, nil
 	case contract.AgentCreateScopeWorkspace:
@@ -179,10 +179,10 @@ func createAgentDefinitionTargetFor(
 		return createAgentDefinitionTarget{
 			Path: filepath.Join(
 				rootDir,
-				aghconfig.DirName,
-				aghconfig.AgentsDirName,
+				compozyconfig.DirName,
+				compozyconfig.AgentsDirName,
 				name,
-				aghconfig.AgentDefinitionFileName,
+				compozyconfig.AgentDefinitionFileName,
 			),
 			WorkspaceID: strings.TrimSpace(resolved.ID),
 			Config:      resolved.Config,

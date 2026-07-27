@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/compozy/compozy/sdk/go"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 type askInput struct {
@@ -30,18 +30,18 @@ var askInputSchema = map[string]any{
 }
 
 func main() {
-	extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 		Name:    "clarify-tool",
 		Version: "0.1.0",
-		Capabilities: aghsdk.CapabilitiesConfig{
-			Provides: []string{aghsdk.CapabilityToolProvider},
+		Capabilities: compozysdk.CapabilitiesConfig{
+			Provides: []string{compozysdk.CapabilityToolProvider},
 		},
 	})
 
-	if err := aghsdk.Tool[askInput](
+	if err := compozysdk.Tool[askInput](
 		extension,
 		"ask",
-		aghsdk.ToolOptions{
+		compozysdk.ToolOptions{
 			Description: "Ask the operator one bounded clarification question",
 			ReadOnly:    true,
 			InputSchema: askInputSchema,
@@ -58,17 +58,17 @@ func main() {
 	}
 }
 
-func ask(ctx context.Context, request aghsdk.ToolRequest[askInput]) (aghsdk.ToolResult, error) {
-	answer, err := request.AskClarification(ctx, aghsdk.ClarifyQuestion{
+func ask(ctx context.Context, request compozysdk.ToolRequest[askInput]) (compozysdk.ToolResult, error) {
+	answer, err := request.AskClarification(ctx, compozysdk.ClarifyQuestion{
 		Question: request.Input.Question,
 		Choices:  request.Input.Choices,
 	})
 	if err != nil {
-		return aghsdk.ToolResult{}, fmt.Errorf("ask operator: %w", err)
+		return compozysdk.ToolResult{}, fmt.Errorf("ask operator: %w", err)
 	}
-	result, err := aghsdk.StructuredResult(answer)
+	result, err := compozysdk.StructuredResult(answer)
 	if err != nil {
-		return aghsdk.ToolResult{}, fmt.Errorf("encode clarification answer: %w", err)
+		return compozysdk.ToolResult{}, fmt.Errorf("encode clarification answer: %w", err)
 	}
 	return result, nil
 }

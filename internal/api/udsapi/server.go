@@ -11,7 +11,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/memory"
@@ -51,8 +51,8 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths          aghconfig.HomePaths
-	config             aghconfig.Config
+	homePaths          compozyconfig.HomePaths
+	config             compozyconfig.Config
 	configSet          bool
 	socketPath         string
 	logger             *slog.Logger
@@ -125,7 +125,7 @@ type Server struct {
 	state        serverState
 }
 
-// Handlers expose request/response and SSE endpoints for the AGH API.
+// Handlers expose request/response and SSE endpoints for the Compozy API.
 type Handlers struct {
 	*core.BaseHandlers
 	Extensions ExtensionService
@@ -324,7 +324,7 @@ func WithEngine(engine *gin.Engine) Option {
 
 // New constructs a Unix domain socket API server.
 func New(opts ...Option) (*Server, error) {
-	homePaths, err := aghconfig.ResolveHomePaths()
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
 		return nil, fmt.Errorf("udsapi: resolve home paths: %w", err)
 	}

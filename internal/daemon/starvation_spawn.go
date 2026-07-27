@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -103,7 +103,7 @@ func resolveAgentDef(
 	resolver reviewRouterAgentResolver,
 	agentName string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (compozyconfig.AgentDef, error) {
 	if resolver != nil {
 		return resolver.ResolveAgent(agentName, resolved)
 	}
@@ -114,7 +114,7 @@ func resolveAgentDef(
 			}
 		}
 	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, agentName)
+	return compozyconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, agentName)
 }
 
 func trimmedNonEmptyStrings(values []string) []string {

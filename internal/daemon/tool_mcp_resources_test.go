@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -160,9 +160,9 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
@@ -187,7 +187,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			t.Fatal("sameManagedRawRecord(tool) = true, want false for mismatched encoding")
 		}
 
-		mcpSpec := aghconfig.MCPServer{
+		mcpSpec := compozyconfig.MCPServer{
 			Name:    "git",
 			Command: "npx",
 			Args:    []string{"@modelcontextprotocol/server-git"},
@@ -349,7 +349,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			mcpServers: []mcpServerPublicationInput{{
 				sourceKey: "test/mcp/git",
 				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-				spec: aghconfig.MCPServer{
+				spec: compozyconfig.MCPServer{
 					Name:    "git",
 					Command: "npx",
 					Args:    []string{"@modelcontextprotocol/server-git"},
@@ -378,14 +378,14 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			t.Fatalf("Sync() error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 1)
-		if triggered[toolspkg.ToolResourceKind] != 1 || triggered[aghconfig.MCPServerResourceKind] != 1 {
+		if triggered[toolspkg.ToolResourceKind] != 1 || triggered[compozyconfig.MCPServerResourceKind] != 1 {
 			t.Fatalf("triggered = %#v, want one trigger per resource kind", triggered)
 		}
 
 		if err := syncer.Sync(context.Background()); err != nil {
 			t.Fatalf("second Sync() error = %v", err)
 		}
-		if triggered[toolspkg.ToolResourceKind] != 1 || triggered[aghconfig.MCPServerResourceKind] != 1 {
+		if triggered[toolspkg.ToolResourceKind] != 1 || triggered[compozyconfig.MCPServerResourceKind] != 1 {
 			t.Fatalf("triggered after no-op = %#v, want no additional triggers", triggered)
 		}
 
@@ -395,7 +395,7 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			t.Fatalf("third Sync() error = %v", err)
 		}
 		assertToolMCPStoreCounts(t, toolStore, mcpStore, 0, 1)
-		if triggered[toolspkg.ToolResourceKind] != 2 || triggered[aghconfig.MCPServerResourceKind] != 2 {
+		if triggered[toolspkg.ToolResourceKind] != 2 || triggered[compozyconfig.MCPServerResourceKind] != 2 {
 			t.Fatalf("triggered after replacement = %#v, want delete/update triggers", triggered)
 		}
 	})
@@ -449,9 +449,9 @@ func TestNewToolMCPPublisherBuildsSyncerWhenResourceRuntimeIsReady(t *testing.T)
 		if err != nil {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
 		}
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
 		codecs := resources.NewCodecRegistry()
@@ -589,16 +589,16 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			t.Fatalf("validateAndEncodeTool(invalid) error = %v, want backend.kind validation context", err)
 		}
 
-		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 		if err != nil {
-			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
 		mcpSpec, mcpEncoded, err := validateAndEncodeMCPServer(
 			context.Background(),
 			mcpCodec,
 			toolScope,
-			aghconfig.MCPServer{
+			compozyconfig.MCPServer{
 				Name:    " git ",
 				Command: " npx ",
 				Args:    []string{" --stdio "},
@@ -631,7 +631,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			context.Background(),
 			mcpCodec,
 			toolScope,
-			aghconfig.MCPServer{Name: "git"},
+			compozyconfig.MCPServer{Name: "git"},
 		)
 		if err == nil {
 			t.Fatal("validateAndEncodeMCPServer(invalid) error = nil, want validation failure")
@@ -651,8 +651,8 @@ func toolMCPSyncStores(
 	resources.RawStore,
 	resources.Store[toolspkg.Tool],
 	resources.KindCodec[toolspkg.Tool],
-	resources.Store[aghconfig.MCPServer],
-	resources.KindCodec[aghconfig.MCPServer],
+	resources.Store[compozyconfig.MCPServer],
+	resources.KindCodec[compozyconfig.MCPServer],
 ) {
 	t.Helper()
 
@@ -671,9 +671,9 @@ func toolMCPSyncStores(
 		t.Fatalf("resources.NewStore(tool) error = %v", err)
 	}
 
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+	mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
 	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 	}
 	mcpStore, err := resources.NewStore(kernel, mcpCodec)
 	if err != nil {
@@ -686,7 +686,7 @@ func toolMCPSyncStores(
 func assertToolMCPStoreCounts(
 	t *testing.T,
 	toolStore resources.Store[toolspkg.Tool],
-	mcpStore resources.Store[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
 	wantTools int,
 	wantMCPServers int,
 ) {

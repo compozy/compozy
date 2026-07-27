@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -15,7 +15,7 @@ import (
 
 func newDaemonParticipationResolver(
 	dependencies any,
-	config aghconfig.NetworkConfig,
+	config compozyconfig.NetworkConfig,
 ) (participation.Resolver, error) {
 	availability, ok := dependencies.(store.NetworkAvailabilityStore)
 	if !ok {

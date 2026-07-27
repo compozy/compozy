@@ -60,7 +60,7 @@ func nextBackoff(current time.Duration, maxDelay time.Duration) time.Duration {
 }
 
 func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.ReadCloser, size int64, err error) {
-	file, err := os.CreateTemp("", "agh-github-download-*")
+	file, err := os.CreateTemp("", "compozy-github-download-*")
 	if err != nil {
 		return nil, 0, fmt.Errorf("create temp download file for %q: %w", slug, err)
 	}

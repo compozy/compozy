@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -65,7 +65,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			Failure: &store.SessionFailure{
 				Kind:            store.FailureTimeout,
 				Summary:         "deadline exceeded",
-				CrashBundlePath: "/tmp/agh-crash.json",
+				CrashBundlePath: "/tmp/compozy-crash.json",
 			},
 			ACPSessionID: "acp-123",
 			AdvertisedCommands: []store.SessionAdvertisedCommand{{
@@ -152,7 +152,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if payload.Failure == nil ||
 			payload.Failure.Kind != store.FailureTimeout ||
 			payload.Failure.Summary != "deadline exceeded" ||
-			payload.Failure.CrashBundlePath != "/tmp/agh-crash.json" {
+			payload.Failure.CrashBundlePath != "/tmp/compozy-crash.json" {
 			t.Fatalf("payload failure = %#v", payload.Failure)
 		}
 		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession {
@@ -302,7 +302,7 @@ func TestAgentPayloadFromDef(t *testing.T) {
 	t.Run("Should convert agent definition to payload", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
+		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{
 			Name:        "coder",
 			Provider:    "fake",
 			Command:     "codex",
@@ -312,7 +312,7 @@ func TestAgentPayloadFromDef(t *testing.T) {
 			DenyTools:   []string{"compozy__task_*"},
 			Permissions: "approve-reads",
 			Prompt:      "hello",
-			MCPServers: []aghconfig.MCPServer{{
+			MCPServers: []compozyconfig.MCPServer{{
 				Name:    "memory",
 				Command: "memoryd",
 				Args:    []string{"serve"},
@@ -332,7 +332,7 @@ func TestAgentPayloadFromDef(t *testing.T) {
 		if got, want := strings.Join(payload.DenyTools, ","), "compozy__task_*"; got != want {
 			t.Fatalf("payload deny_tools = %#v, want %q", payload.DenyTools, want)
 		}
-		if payload.MCPServers[0].Env["TOKEN"] != aghconfig.RedactedValue() {
+		if payload.MCPServers[0].Env["TOKEN"] != compozyconfig.RedactedValue() {
 			t.Fatalf("payload mcp env = %#v", payload.MCPServers[0].Env)
 		}
 	})

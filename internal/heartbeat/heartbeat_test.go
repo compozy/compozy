@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
@@ -24,7 +24,7 @@ func TestParseHeartbeatPolicy(t *testing.T) {
 		content := []byte(`---
 version: 1
 enabled: true
-summary: "Reorient, inspect assignments, and claim only through AGH task APIs."
+summary: "Reorient, inspect assignments, and claim only through Compozy task APIs."
 preferences:
   min_interval: "30m"
   active_hours:
@@ -51,7 +51,7 @@ Inspect context first, then use compozy task next before doing task work.
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse(first) error = %v", err)
@@ -60,7 +60,7 @@ Inspect context first, then use compozy task next before doing task work.
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse(second) error = %v", err)
@@ -122,8 +122,8 @@ Inspect context first, then use compozy task next before doing task work.
 		resolved, err := Parse(context.Background(), ParseRequest{
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
-			Content:       []byte("Inspect context and then use official AGH task APIs.\n\n"),
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Content:       []byte("Inspect context and then use official Compozy task APIs.\n\n"),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse(body only) error = %v", err)
@@ -136,7 +136,7 @@ Inspect context first, then use compozy task next before doing task work.
 				resolved.Frontmatter.Version,
 			)
 		}
-		if got, want := resolved.Preferences.MinInterval, aghconfig.DefaultHeartbeatConfig().DefaultInterval; got != want {
+		if got, want := resolved.Preferences.MinInterval, compozyconfig.DefaultHeartbeatConfig().DefaultInterval; got != want {
 			t.Fatalf("Preferences.MinInterval = %s, want default %s", got, want)
 		}
 	})
@@ -158,12 +158,12 @@ preferences:
 ---
 Wake gently.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse(clamped) error = %v", err)
 		}
-		if got, want := resolved.Preferences.MinInterval, aghconfig.DefaultHeartbeatConfig().MinInterval; got != want {
+		if got, want := resolved.Preferences.MinInterval, compozyconfig.DefaultHeartbeatConfig().MinInterval; got != want {
 			t.Fatalf("Preferences.MinInterval = %s, want clamped %s", got, want)
 		}
 		assertDiagnostic(t, resolved.Diagnostics, "heartbeat_preference_clamped")
@@ -173,7 +173,7 @@ Wake gently.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.AllowActiveHoursPreferences = false
 		resolved, err := Parse(context.Background(), ParseRequest{
 			SourcePath:    sourcePath,
@@ -222,7 +222,7 @@ preferences:
 ---
 Wake gently.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Parse(invalid timezone) error = %v, want ErrInvalid", err)
@@ -249,7 +249,7 @@ preferences:
 ---
 Wake gently.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Parse(malformed window) error = %v, want ErrInvalid", err)
@@ -333,7 +333,7 @@ liveness: alive
 				SourcePath:    sourcePath,
 				WorkspaceRoot: workspaceRoot,
 				Content:       []byte(tt.content),
-				Config:        aghconfig.DefaultHeartbeatConfig(),
+				Config:        compozyconfig.DefaultHeartbeatConfig(),
 			})
 			if !errors.Is(err, ErrInvalid) {
 				t.Fatalf("Parse() error = %v, want ErrInvalid", err)
@@ -356,7 +356,7 @@ func TestResolveHeartbeatPolicy(t *testing.T) {
 		resolved, err := Resolve(context.Background(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Resolve(missing) error = %v", err)
@@ -390,7 +390,7 @@ func TestResolveHeartbeatPolicy(t *testing.T) {
 		resolved, err := Resolve(context.Background(), ResolveRequest{
 			AgentPath:     agentPath,
 			WorkspaceRoot: workspaceRoot,
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Resolve(existing) error = %v", err)
@@ -403,7 +403,7 @@ func TestResolveHeartbeatPolicy(t *testing.T) {
 				resolved.Valid,
 			)
 		}
-		if got, want := resolved.Status.MaxWakesPerCycle, aghconfig.DefaultHeartbeatConfig().MaxWakesPerCycle; got != want {
+		if got, want := resolved.Status.MaxWakesPerCycle, compozyconfig.DefaultHeartbeatConfig().MaxWakesPerCycle; got != want {
 			t.Fatalf("Status.MaxWakesPerCycle = %d, want %d", got, want)
 		}
 	})
@@ -425,12 +425,12 @@ Wake gently.
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       content,
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if err != nil {
 			t.Fatalf("Parse(first) error = %v", err)
 		}
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.DefaultInterval = 45 * time.Minute
 		second, err := Parse(context.Background(), ParseRequest{
 			SourcePath:    sourcePath,
@@ -453,7 +453,7 @@ Wake gently.
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.MaxBodyBytes = 32
 		cfg.ContextProjectionBytes = 16
 		secretBody := strings.Repeat("x", 40) + " token=super-secret-token-123456"
@@ -488,7 +488,7 @@ summary: "` + secret + `
 ---
 Wake gently.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Parse(malformed) error = %v, want ErrInvalid", err)
@@ -511,7 +511,7 @@ unknown: true
 ---
 Wake gently.
 `),
-			Config: aghconfig.DefaultHeartbeatConfig(),
+			Config: compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Parse(unsupported) error = %v, want ErrInvalid", err)
@@ -623,7 +623,7 @@ Wake gently.
 				SourcePath:    sourcePath,
 				WorkspaceRoot: workspaceRoot,
 				Content:       []byte(tt.content),
-				Config:        aghconfig.DefaultHeartbeatConfig(),
+				Config:        compozyconfig.DefaultHeartbeatConfig(),
 			})
 			if tt.wantCode == "" {
 				if err != nil {
@@ -654,7 +654,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Wake gently."),
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Parse(path escape) error = %v, want ErrInvalid", err)
@@ -668,7 +668,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 		resolved, err := Resolve(context.Background(), ResolveRequest{
 			AgentPath:     "",
 			WorkspaceRoot: t.TempDir(),
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, ErrInvalid) {
 			t.Fatalf("Resolve(empty agent path) error = %v, want ErrInvalid", err)
@@ -691,7 +691,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 			SourcePath:    sourcePath,
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Wake gently."),
-			Config:        aghconfig.DefaultHeartbeatConfig(),
+			Config:        compozyconfig.DefaultHeartbeatConfig(),
 		})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Parse(canceled) error = %v, want context.Canceled", err)
@@ -701,7 +701,7 @@ func TestHeartbeatRuntimeBoundaries(t *testing.T) {
 	t.Run("Should reject invalid config before digesting", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.MinInterval = time.Hour
 		cfg.DefaultInterval = time.Minute
 		_, err := ConfigProvenanceFor(cfg)
@@ -760,7 +760,7 @@ func TestHeartbeatPromptProjection(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot, sourcePath := heartbeatWorkspace(t)
-		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.ContextProjectionBytes = 256
 		body := "Wake guidance. " + strings.Repeat("Keep inspecting context. ", 80)
 		resolved, err := Parse(context.Background(), ParseRequest{

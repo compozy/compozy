@@ -42,7 +42,7 @@ describe("@compozy/create-extension", () => {
   });
 
   it("scaffolds a memory backend template with replacements", async () => {
-    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-"));
+    const baseDir = await mkdtemp(path.join(tmpdir(), "compozy-create-extension-"));
     tempDirs.push(baseDir);
 
     const projectDir = path.join(baseDir, "my-memory");
@@ -64,7 +64,7 @@ describe("@compozy/create-extension", () => {
   });
 
   it("scaffolds a tool provider template with extension.tool", async () => {
-    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-tool-"));
+    const baseDir = await mkdtemp(path.join(tmpdir(), "compozy-create-extension-tool-"));
     tempDirs.push(baseDir);
 
     const projectDir = path.join(baseDir, "tool-provider");
@@ -92,7 +92,7 @@ describe("@compozy/create-extension", () => {
   it(
     "scaffolds a buildable Go tool provider template",
     async () => {
-      const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-go-tool-"));
+      const baseDir = await mkdtemp(path.join(tmpdir(), "compozy-create-extension-go-tool-"));
       tempDirs.push(baseDir);
 
       const projectDir = path.join(baseDir, "go-tool-provider");
@@ -115,7 +115,7 @@ describe("@compozy/create-extension", () => {
       expect(extensionManifest.capabilities.provides).toContain("tool.provider");
       expect(extensionManifest.subprocess.command).toBe("./go-tool-provider");
       expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
-      expect(source).toContain("aghsdk.Tool[SearchInput]");
+      expect(source).toContain("compozysdk.Tool[SearchInput]");
       expect(source).toContain('Name:    "go-tool-provider"');
       expect(goMod).toContain("module example.com/go-tool-provider");
 
@@ -137,7 +137,7 @@ describe("@compozy/create-extension", () => {
   it(
     "scaffolds a buildable Go loop watch-source template",
     async () => {
-      const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-watch-source-"));
+      const baseDir = await mkdtemp(path.join(tmpdir(), "compozy-create-extension-watch-source-"));
       tempDirs.push(baseDir);
 
       const projectDir = path.join(baseDir, "loop-watch-source");
@@ -158,7 +158,7 @@ describe("@compozy/create-extension", () => {
 
       expect(extensionManifest.capabilities.provides).toContain("loop.watch_source");
       expect(extensionManifest.subprocess.command).toBe("./loop-watch-source");
-      expect(source).toContain("aghsdk.WatchSource[ReviewWatchSpec]");
+      expect(source).toContain("compozysdk.WatchSource[ReviewWatchSpec]");
       expect(source).toContain('Name:    "loop-watch-source"');
       expect(goMod).toContain("module example.com/loop-watch-source");
 
@@ -178,7 +178,7 @@ describe("@compozy/create-extension", () => {
   );
 
   it("rejects non-empty target directories", async () => {
-    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-full-"));
+    const baseDir = await mkdtemp(path.join(tmpdir(), "compozy-create-extension-full-"));
     tempDirs.push(baseDir);
     await mkdir(path.join(baseDir, "existing"), { recursive: true });
 

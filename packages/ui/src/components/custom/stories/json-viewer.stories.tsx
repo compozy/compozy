@@ -10,7 +10,7 @@ const meta: Meta<typeof JsonViewer> = {
     docs: {
       description: {
         component:
-          "Structured JSON viewer. Pretty-prints with 2-space indent and tokenises into `key`/`string`/`number`/`boolean`/`null`/`punct` spans coloured with the AGH signal palette. Use for inspector payloads and wire-card bodies.",
+          "Structured JSON viewer. Pretty-prints with 2-space indent and tokenises into `key`/`string`/`number`/`boolean`/`null`/`punct` spans coloured with the Compozy signal palette. Use for inspector payloads and wire-card bodies.",
       },
     },
   },
@@ -35,8 +35,8 @@ export const Receipt: Story = {
     <JsonViewer
       value={{
         kind: "receipt",
-        from: "agh://workspace/personal",
-        to: "agh://agent/anthropic",
+        from: "compozy://workspace/personal",
+        to: "compozy://agent/anthropic",
         ref: "msg_5f3a91",
         delivered: true,
         attempt: 1,

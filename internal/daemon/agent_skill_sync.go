@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/resources"
 
@@ -15,14 +15,14 @@ import (
 
 func newAgentSkillSourceSyncer(
 	raw resources.RawStore,
-	agentStore resources.Store[aghconfig.AgentDef],
-	agentCodec resources.KindCodec[aghconfig.AgentDef],
-	agentProjector resources.TypedProjector[aghconfig.AgentDef],
+	agentStore resources.Store[compozyconfig.AgentDef],
+	agentCodec resources.KindCodec[compozyconfig.AgentDef],
+	agentProjector resources.TypedProjector[compozyconfig.AgentDef],
 	skillStore resources.Store[skillspkg.SkillResourceSpec],
 	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
 	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec],
-	mcpStore resources.Store[aghconfig.MCPServer],
-	mcpCodec resources.KindCodec[aghconfig.MCPServer],
+	mcpStore resources.Store[compozyconfig.MCPServer],
+	mcpCodec resources.KindCodec[compozyconfig.MCPServer],
 	actor resources.MutationActor,
 	logger *slog.Logger,
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
@@ -101,7 +101,7 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	}
 
 	if agentChanged && s.trigger != nil {
-		if err := s.trigger(ctx, aghconfig.AgentResourceKind, resources.ReconcileReasonWrite); err != nil {
+		if err := s.trigger(ctx, compozyconfig.AgentResourceKind, resources.ReconcileReasonWrite); err != nil {
 			return err
 		}
 	}
@@ -111,7 +111,7 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 		}
 	}
 	if mcpChanged && s.trigger != nil {
-		if err := s.trigger(ctx, aghconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
+		if err := s.trigger(ctx, compozyconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
 			return err
 		}
 	}

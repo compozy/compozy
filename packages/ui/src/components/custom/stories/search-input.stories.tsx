@@ -49,7 +49,7 @@ export const Typing: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const input = await canvas.findByPlaceholderText("Search workspaces");
-    await userEvent.type(input, "agh");
-    await waitFor(() => expect((input as HTMLInputElement).value).toBe("agh"));
+    await userEvent.type(input, "compozy");
+    await waitFor(() => expect((input as HTMLInputElement).value).toBe("compozy"));
   },
 };

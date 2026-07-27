@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -63,9 +63,9 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 func (l hostedMCPLauncherAdapter) Launch(
 	ctx context.Context,
 	req session.HostedMCPLaunchRequest,
-) (aghconfig.MCPServer, error) {
+) (compozyconfig.MCPServer, error) {
 	if l.service == nil {
-		return aghconfig.MCPServer{}, mcppkg.ErrHostedDisabled
+		return compozyconfig.MCPServer{}, mcppkg.ErrHostedDisabled
 	}
 	return l.service.Launch(ctx, mcppkg.HostedLaunchRequest{
 		SessionID:   req.SessionID,

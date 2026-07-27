@@ -16,7 +16,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -55,11 +55,11 @@ func TestDriverOptionsAndNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalizeStartOpts() error = %v", err)
 	}
-	if normalized.Permissions != aghconfig.PermissionModeApproveReads {
+	if normalized.Permissions != compozyconfig.PermissionModeApproveReads {
 		t.Fatalf(
 			"normalizeStartOpts() permissions = %q, want %q",
 			normalized.Permissions,
-			aghconfig.PermissionModeApproveReads,
+			compozyconfig.PermissionModeApproveReads,
 		)
 	}
 
@@ -208,7 +208,7 @@ func TestNormalizeStartOptsRejectsInvalidAdditionalDirs(t *testing.T) {
 func TestHandleInboundReadWriteFile(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
@@ -248,7 +248,7 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 func TestHandleInboundWriteDenied(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 	target := filepath.Join(proc.Cwd, "notes.txt")
 
 	if _, reqErr := proc.handleInbound(
@@ -267,7 +267,7 @@ func TestHandleInboundWriteDenied(t *testing.T) {
 func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.SetTurnSourceProvider(func() string { return "network" })
 
 	active, err := proc.beginPrompt("turn-network-write", 4)
@@ -289,7 +289,7 @@ func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
 func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.SetTurnSourceProvider(func() string { return "network" })
 
 	active, err := proc.beginPrompt("turn-network-create", 4)
@@ -315,7 +315,7 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 			name: "non-network compozy subcommand",
 			request: acpsdk.CreateTerminalRequest{
 				SessionId: "sess-direct",
-				Command:   "agh",
+				Command:   "compozy",
 				Args:      []string{"version"},
 				Cwd:       new(proc.Cwd),
 			},
@@ -340,7 +340,7 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.toolGateway = toolExecutionGatewayFunc(
 		func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error) {
 			return ToolExecutionRequest{}, ErrPermissionDenied
@@ -363,7 +363,7 @@ func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) 
 func TestHandleWriteTextFileAppliesToolGatewayPatch(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	patchedPath := filepath.Join(proc.Cwd, "patched.txt")
 	proc.toolGateway = toolExecutionGatewayFunc(
 		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
@@ -399,7 +399,7 @@ func TestHandleWriteTextFileAppliesToolGatewayPatch(t *testing.T) {
 func TestHandleInboundPermissionRequest(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 	proc.permissionTimeout = time.Second
 	active, err := proc.beginPrompt("turn-permission", 8)
 	if err != nil {
@@ -498,7 +498,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 func TestResolvePermissionUnknownRequest(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	err := proc.ResolvePermission(ApproveRequest{
 		RequestID: "missing",
 		Decision:  string(decisionAllowOnce),
@@ -514,7 +514,7 @@ func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
 	t.Run("Should reject unsupported persistent decision and keep pending request", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 		requestID, pending := proc.registerPendingPermission("turn-unsupported", acpsdk.RequestPermissionRequest{
 			Options: []acpsdk.PermissionOption{
 				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
@@ -546,7 +546,7 @@ func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 	proc.permissionTimeout = 25 * time.Millisecond
 	active, err := proc.beginPrompt("turn-timeout", 8)
 	if err != nil {
@@ -596,7 +596,7 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	proc.toolGateway = toolExecutionGatewayFunc(
 		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
 			return req, nil
@@ -652,7 +652,7 @@ func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T
 func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.toolGateway = toolExecutionGatewayFunc(
 		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
 			return req, nil
@@ -721,7 +721,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+			proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 			active, err := proc.beginPrompt("turn-permission-event", 4)
 			if err != nil {
 				t.Fatalf("beginPrompt() error = %v", err)
@@ -773,7 +773,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	turnID := "turn-conflict"
 	_, first := proc.registerPendingPermission(turnID, acpsdk.RequestPermissionRequest{
 		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-1"},
@@ -798,7 +798,7 @@ func TestResolvePermissionByTurnIDConflictsWhenMultipleRequestsPending(t *testin
 func TestResolvePermissionConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 
 	const total = 8
 	type registered struct {
@@ -851,7 +851,7 @@ func TestResolvePermissionConcurrentSafety(t *testing.T) {
 func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
 	active, err := proc.beginPrompt("turn-read", 8)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
@@ -898,7 +898,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 func TestTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 
 	createResult, reqErr := proc.handleInbound(
 		context.Background(),
@@ -985,13 +985,13 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 
 func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	// This test mutates PATH with t.Setenv, so it must stay process-serial.
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	turnSource := ""
 	proc.SetTurnSourceProvider(func() string { return turnSource })
 
-	aghDir := t.TempDir()
-	writeFakeAGHBinary(t, aghDir, "printf network-ok")
-	t.Setenv("PATH", aghDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	compozyDir := t.TempDir()
+	writeFakeCompozyBinary(t, compozyDir, "printf network-ok")
+	t.Setenv("PATH", compozyDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
 
 	turnSource = "network"
@@ -1002,7 +1002,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 
 	networkCreate, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-direct",
-		Command:   "agh",
+		Command:   "compozy",
 		Args:      []string{"network", "status"},
 		Cwd:       new(proc.Cwd),
 		Env: []acpsdk.EnvVariable{
@@ -1180,7 +1180,7 @@ func TestHelperUtilities(t *testing.T) {
 		t.Fatalf("mergeCommandEnv() = %#v, want overridden env", env)
 	}
 
-	servers := toSDKMCPServers([]aghconfig.MCPServer{{
+	servers := toSDKMCPServers([]compozyconfig.MCPServer{{
 		Name:    "github",
 		Command: "npx",
 		Args:    []string{"-y", "mcp-server"},
@@ -1353,7 +1353,7 @@ func TestWithoutCancelPreservingDeadline(t *testing.T) {
 func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.processRegistry = toolruntime.NewRegistry(failingProcessStore{upsertErr: errors.New("boom")})
 	proc.SetTurnSourceProvider(func() string { return "network" })
 
@@ -1376,7 +1376,7 @@ func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T)
 
 	if _, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-direct",
-		Command:   "agh",
+		Command:   "compozy",
 		Args:      []string{"network", "status"},
 	}); err == nil {
 		t.Fatal("handleCreateTerminal() error = nil, want registration failure")
@@ -1393,7 +1393,7 @@ func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T)
 func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	proc.SetTurnSourceProvider(func() string { return "network" })
 	proc.terminalOwnership = map[string]terminalOwnership{
 		"term-external": {
@@ -1436,7 +1436,7 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 	t.Run("Should translate updates and retain the current ACP mode", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		proc.setCaps(Caps{ConfigOptions: []SessionConfigOption{{
 			ID:      "mode",
 			Kind:    SessionConfigOptionKindSelect,
@@ -1543,7 +1543,7 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 	t.Run("Should retain the complete typed ACP command replacement set", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		active, err := proc.beginPrompt("turn-commands", 4)
 		if err != nil {
 			t.Fatalf("beginPrompt() error = %v", err)
@@ -1588,7 +1588,7 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	active, err := proc.beginPrompt("turn-prechecked", 4)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
@@ -1663,7 +1663,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveAll, root)
+	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
@@ -1723,7 +1723,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 		t.Fatalf("permissionDecision(read) = %q, %v, want %q, false", readDecision, interactive, decisionAllowOnce)
 	}
 
-	approveReadsPolicy, err := newPermissionPolicy(aghconfig.PermissionModeApproveReads, root)
+	approveReadsPolicy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveReads, root)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy(approve-reads) error = %v", err)
 	}
@@ -1735,7 +1735,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 		t.Fatalf("permissionDecision(edit) = %q, %v, want %q, true", editDecision, interactive, decisionPending)
 	}
 
-	denyAllPolicy, err := newPermissionPolicy(aghconfig.PermissionModeDenyAll, root)
+	denyAllPolicy, err := newPermissionPolicy(compozyconfig.PermissionModeDenyAll, root)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy(deny-all) error = %v", err)
 	}
@@ -1759,7 +1759,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 		t.Fatalf("permissionRequestName() = %q, want %q", got, "turn-1:Write file")
 	}
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeDenyAll)
 	if got := proc.nextPermissionRequestID("turn-1", acpsdk.RequestPermissionRequest{
 		Meta: map[string]any{"request_id": "req-from-meta"},
 	}); got != "req-from-meta" {
@@ -1773,7 +1773,7 @@ func TestPermissionHelperBranches(t *testing.T) {
 func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	type contextKey string
 	const ctxKey contextKey = "terminal-create"
 	proc.toolHost = contextAwareToolHost{
@@ -1815,7 +1815,7 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	policy, err := newPermissionPolicy(aghconfig.PermissionModeApproveAll, root)
+	policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, root)
 	if err != nil {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
@@ -1845,7 +1845,7 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 	}
 }
 
-func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess {
+func newDirectProcess(t *testing.T, mode compozyconfig.PermissionMode) *AgentProcess {
 	t.Helper()
 
 	root := t.TempDir()
@@ -1960,10 +1960,10 @@ func (failingProcessStore) ListProcessRecords(
 	return nil, nil
 }
 
-func writeFakeAGHBinary(t *testing.T, dir string, body string) {
+func writeFakeCompozyBinary(t *testing.T, dir string, body string) {
 	t.Helper()
 
-	path := filepath.Join(dir, "agh")
+	path := filepath.Join(dir, "compozy")
 	script := "#!/bin/sh\n" + body + "\n"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)

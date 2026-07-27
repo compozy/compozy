@@ -45,7 +45,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 const WORKSPACES = [
-  { id: "A", name: "agh-core" },
+  { id: "A", name: "compozy-core" },
   { id: "C", name: "compozy" },
   { id: "R", name: "research" },
 ];
@@ -84,7 +84,7 @@ function RailContent({ active = "A" }: { active?: string }) {
 function HeaderContent() {
   return (
     <>
-      <span className="flex-1 truncate text-sm font-medium tracking-tight">agh-core</span>
+      <span className="flex-1 truncate text-sm font-medium tracking-tight">compozy-core</span>
       <button
         type="button"
         aria-label="Search"

@@ -61,7 +61,7 @@ func testInitializeRequest() subprocess.InitializeRequest {
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
-		AGHVersion:               "test",
+		CompozyVersion:           "test",
 		SessionNonce:             "nonce-test",
 		Extension: subprocess.InitializeExtension{
 			Name:       "telegram-adapter",

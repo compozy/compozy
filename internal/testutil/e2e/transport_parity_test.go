@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/compozy/internal/api/contract"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestRuntimeHarnessTransportClientsReuseSharedSurfaces(t *testing.T) {
@@ -15,8 +15,8 @@ func TestRuntimeHarnessTransportClientsReuseSharedSurfaces(t *testing.T) {
 	httpClient := &http.Client{}
 	udsClient := &http.Client{}
 	harness := &RuntimeHarness{
-		Config: aghconfig.Config{
-			Daemon: aghconfig.DaemonConfig{Socket: "/tmp/agh-transport.sock"},
+		Config: compozyconfig.Config{
+			Daemon: compozyconfig.DaemonConfig{Socket: "/tmp/compozy-transport.sock"},
 		},
 		HTTPBaseURL: "http://127.0.0.1:4317",
 		HTTPClient:  httpClient,
@@ -51,7 +51,7 @@ func TestRuntimeHarnessTransportClientsRejectBlankSocketPath(t *testing.T) {
 	t.Parallel()
 
 	harness := &RuntimeHarness{
-		Config: aghconfig.Config{},
+		Config: compozyconfig.Config{},
 	}
 
 	_, err := harness.TransportClients()
@@ -131,9 +131,9 @@ func TestValidateUDSApprovalResponseChecksApprovedPayload(t *testing.T) {
 func TestValidateWebhookRunProjectionUsesNarrowProjection(t *testing.T) {
 	t.Parallel()
 
-	delivery := aghcontract.WebhookDeliveryPayload{
+	delivery := compozycontract.WebhookDeliveryPayload{
 		Matched: 1,
-		Runs: []aghcontract.RunPayload{{
+		Runs: []compozycontract.RunPayload{{
 			ID:        "run-1",
 			TriggerID: "trg-1",
 			SessionID: "sess-1",
@@ -143,7 +143,7 @@ func TestValidateWebhookRunProjectionUsesNarrowProjection(t *testing.T) {
 		}},
 	}
 
-	httpProjection := aghcontract.RunPayload{
+	httpProjection := compozycontract.RunPayload{
 		ID:        "run-1",
 		TriggerID: "trg-1",
 		SessionID: "sess-1",
@@ -151,7 +151,7 @@ func TestValidateWebhookRunProjectionUsesNarrowProjection(t *testing.T) {
 		Attempt:   77,
 		Error:     "HTTP projection detail should not matter",
 	}
-	udsProjection := aghcontract.RunPayload{
+	udsProjection := compozycontract.RunPayload{
 		ID:        "run-1",
 		TriggerID: "trg-1",
 		SessionID: "sess-1",
@@ -164,7 +164,7 @@ func TestValidateWebhookRunProjectionUsesNarrowProjection(t *testing.T) {
 		t.Fatalf("ValidateWebhookRunProjection() error = %v", err)
 	}
 
-	mismatch := aghcontract.RunPayload{
+	mismatch := compozycontract.RunPayload{
 		ID:        "run-1",
 		TriggerID: "trg-1",
 		SessionID: "sess-2",
@@ -184,11 +184,11 @@ func TestPermissionPayloadHelpersAndTextDeltaDetection(t *testing.T) {
 
 	records := []SSEEvent{
 		{
-			Data: []byte(`{"type":"data-agh-permission","data":{"request_id":"req-1"}}`),
+			Data: []byte(`{"type":"data-compozy-permission","data":{"request_id":"req-1"}}`),
 		},
 		{
 			Event: "permission",
-			Data:  []byte(`{"type":"data-agh-permission","data":{"request_id":"req-1","decision":"allow-always"}}`),
+			Data:  []byte(`{"type":"data-compozy-permission","data":{"request_id":"req-1","decision":"allow-always"}}`),
 		},
 		{
 			Data: []byte(`{"type":"text-delta","delta":"allow-always"}`),

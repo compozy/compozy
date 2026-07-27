@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -123,20 +123,20 @@ func (h *BaseHandlers) memoryStoreForDecisionRecord(
 func (h *BaseHandlers) workspaceForMemoryDecision(
 	ctx context.Context,
 	workspaceID string,
-) (aghworkspace.Workspace, error) {
+) (compozyworkspace.Workspace, error) {
 	id := strings.TrimSpace(workspaceID)
 	if id == "" {
-		return aghworkspace.Workspace{}, errors.New("memory: decision workspace_id is required")
+		return compozyworkspace.Workspace{}, errors.New("memory: decision workspace_id is required")
 	}
 	if h.Workspaces == nil {
-		return aghworkspace.Workspace{}, errors.New("memory: workspace service is not configured")
+		return compozyworkspace.Workspace{}, errors.New("memory: workspace service is not configured")
 	}
 	workspace, err := h.Workspaces.Get(ctx, id)
 	if err != nil {
-		return aghworkspace.Workspace{}, fmt.Errorf("memory: resolve decision workspace %q: %w", id, err)
+		return compozyworkspace.Workspace{}, fmt.Errorf("memory: resolve decision workspace %q: %w", id, err)
 	}
 	if strings.TrimSpace(workspace.RootDir) == "" {
-		return aghworkspace.Workspace{}, fmt.Errorf("memory: decision workspace %q root_dir is required", id)
+		return compozyworkspace.Workspace{}, fmt.Errorf("memory: decision workspace %q root_dir is required", id)
 	}
 	return workspace, nil
 }

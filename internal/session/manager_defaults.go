@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 )
 
@@ -61,8 +61,8 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.soulRefreshTimeout <= 0 {
 		m.soulRefreshTimeout = defaultLifecycleTimeout
 	}
-	if m.supervision == (aghconfig.SessionSupervisionConfig{}) {
-		m.supervision = aghconfig.DefaultSessionSupervisionConfig()
+	if m.supervision == (compozyconfig.SessionSupervisionConfig{}) {
+		m.supervision = compozyconfig.DefaultSessionSupervisionConfig()
 	}
 	if err := m.supervision.Validate(); err != nil {
 		return fmt.Errorf("session: %w", err)
@@ -74,10 +74,10 @@ func (m *Manager) applyRuntimeDefaults() error {
 		return err
 	}
 	if m.sessionHealthStaleAfter <= 0 {
-		m.sessionHealthStaleAfter = aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
+		m.sessionHealthStaleAfter = compozyconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
 	}
 	if m.sessionHealthHookMinInterval <= 0 {
-		m.sessionHealthHookMinInterval = aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
+		m.sessionHealthHookMinInterval = compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
 	return nil
 }

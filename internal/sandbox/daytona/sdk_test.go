@@ -39,8 +39,8 @@ func TestSDKClientAdapter(t *testing.T) {
 				if got, want := r.URL.Query().Get("limit"), "1"; got != want {
 					t.Errorf("list limit = %q, want %q", got, want)
 				}
-				if labels := r.URL.Query().Get("labels"); !strings.Contains(labels, `"agh_sandbox_id":"env-sdk"`) {
-					t.Errorf("list labels = %q, want agh_sandbox_id label", labels)
+				if labels := r.URL.Query().Get("labels"); !strings.Contains(labels, `"compozy_sandbox_id":"env-sdk"`) {
+					t.Errorf("list labels = %q, want compozy_sandbox_id label", labels)
 				}
 				writeJSON(t, w, map[string]any{
 					"items":      []map[string]any{sandboxResponse(serverURL, "sandbox-sdk")},
@@ -78,7 +78,7 @@ func TestSDKClientAdapter(t *testing.T) {
 		ctx := context.Background()
 		created, err := client.Create(ctx, createSandboxRequest{
 			Snapshot: "snap-sdk",
-			Labels:   map[string]string{"agh_sandbox_id": "env-sdk"},
+			Labels:   map[string]string{"compozy_sandbox_id": "env-sdk"},
 			EnvVars:  map[string]string{"COMPOZY_SESSION_ID": "sess-sdk"},
 			Timeout:  time.Second,
 		})
@@ -98,7 +98,7 @@ func TestSDKClientAdapter(t *testing.T) {
 		if got.Name() == "" {
 			t.Fatal("Get().Name() = empty")
 		}
-		found, err := client.FindOne(ctx, map[string]string{"agh_sandbox_id": "env-sdk"})
+		found, err := client.FindOne(ctx, map[string]string{"compozy_sandbox_id": "env-sdk"})
 		if err != nil {
 			t.Fatalf("FindOne() error = %v", err)
 		}
@@ -176,7 +176,7 @@ func sandboxResponse(serverURL string, id string) map[string]any {
 		"name":               "sandbox-name",
 		"user":               "daytona",
 		"env":                map[string]string{},
-		"labels":             map[string]string{"agh_sandbox_id": "env-sdk"},
+		"labels":             map[string]string{"compozy_sandbox_id": "env-sdk"},
 		"public":             false,
 		"networkBlockAll":    false,
 		"target":             "default",

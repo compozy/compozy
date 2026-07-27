@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	aghworkspace "github.com/compozy/compozy/internal/workspace"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
@@ -160,7 +160,7 @@ func seedNetworkWakeIntegrationScope(
 ) {
 	t.Helper()
 
-	if err := db.InsertWorkspace(t.Context(), aghworkspace.Workspace{
+	if err := db.InsertWorkspace(t.Context(), compozyworkspace.Workspace{
 		ID: "workspace-network", RootDir: workspaceDir, Name: "network-runner",
 		CreatedAt: now, UpdatedAt: now,
 	}); err != nil {

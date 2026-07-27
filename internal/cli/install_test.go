@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {
@@ -47,22 +47,22 @@ func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(install) error = %v", err)
 		}
-		if decoded.AgentName != aghconfig.DefaultAgentName {
-			t.Fatalf("decoded.AgentName = %q, want %q", decoded.AgentName, aghconfig.DefaultAgentName)
+		if decoded.AgentName != compozyconfig.DefaultAgentName {
+			t.Fatalf("decoded.AgentName = %q, want %q", decoded.AgentName, compozyconfig.DefaultAgentName)
 		}
 		if decoded.Provider != "claude" {
 			t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "claude")
 		}
-		if decoded.Permissions != string(aghconfig.PermissionModeApproveAll) {
-			t.Fatalf("decoded.Permissions = %q, want %q", decoded.Permissions, aghconfig.PermissionModeApproveAll)
+		if decoded.Permissions != string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatalf("decoded.Permissions = %q, want %q", decoded.Permissions, compozyconfig.PermissionModeApproveAll)
 		}
 
-		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
-		if cfg.Defaults.Agent != aghconfig.DefaultAgentName {
-			t.Fatalf("cfg.Defaults.Agent = %q, want %q", cfg.Defaults.Agent, aghconfig.DefaultAgentName)
+		if cfg.Defaults.Agent != compozyconfig.DefaultAgentName {
+			t.Fatalf("cfg.Defaults.Agent = %q, want %q", cfg.Defaults.Agent, compozyconfig.DefaultAgentName)
 		}
 		if cfg.Defaults.Provider != "claude" {
 			t.Fatalf("cfg.Defaults.Provider = %q, want %q", cfg.Defaults.Provider, "claude")
@@ -72,7 +72,7 @@ func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(agent) error = %v", err)
 		}
-		if !strings.Contains(string(agentContents), "name: "+aghconfig.DefaultAgentName) {
+		if !strings.Contains(string(agentContents), "name: "+compozyconfig.DefaultAgentName) {
 			t.Fatalf("agent contents = %q, want bootstrap agent name", string(agentContents))
 		}
 	})
@@ -104,7 +104,7 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveHome() error = %v", err)
 		}
-		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
@@ -168,7 +168,7 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 			t.Fatalf("decoded.Model = %q, want empty provider-managed model", decoded.Model)
 		}
 
-		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
@@ -209,7 +209,7 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 			t.Fatalf("decoded.Model = %q, want moonshot default model", decoded.Model)
 		}
 
-		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig() error = %v", err)
 		}
@@ -221,7 +221,7 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 	t.Run("Should use canonical direct driver alias defaults", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		input := buildInstallWizardInput(&cfg)
 		selection, err := resolveNonInteractiveInstallSelection(input, "qwen", "")
 		if err != nil {
@@ -238,10 +238,10 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 	t.Run("Should reject missing model for pi-backed providers", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
-		cfg.Providers["custom-pi"] = aghconfig.ProviderConfig{
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		cfg.Providers["custom-pi"] = compozyconfig.ProviderConfig{
 			Command:         "npx -y pi-acp@latest",
-			Harness:         aghconfig.ProviderHarnessPiACP,
+			Harness:         compozyconfig.ProviderHarnessPiACP,
 			RuntimeProvider: "custom",
 		}
 		input := buildInstallWizardInput(&cfg)
@@ -289,10 +289,10 @@ func TestBuildInstallWizardInputAndBundleFormats(t *testing.T) {
 	t.Run("Should build wizard input and bundle formats", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		cfg.Defaults.Provider = "codex"
-		cfg.Providers["custom"] = aghconfig.ProviderConfig{
-			Models: aghconfig.ProviderModelsConfig{
+		cfg.Providers["custom"] = compozyconfig.ProviderConfig{
+			Models: compozyconfig.ProviderModelsConfig{
 				Default: "custom-model",
 			},
 		}
@@ -309,10 +309,10 @@ func TestBuildInstallWizardInputAndBundleFormats(t *testing.T) {
 		}
 
 		record := installRecord{
-			AgentName:    aghconfig.DefaultAgentName,
+			AgentName:    compozyconfig.DefaultAgentName,
 			Provider:     "codex",
 			Model:        "gpt-5.4",
-			Permissions:  string(aghconfig.PermissionModeApproveAll),
+			Permissions:  string(compozyconfig.PermissionModeApproveAll),
 			ConfigFile:   "/tmp/config.toml",
 			AgentFile:    "/tmp/AGENT.md",
 			CreatedAgent: true,

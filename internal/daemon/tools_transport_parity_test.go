@@ -180,7 +180,7 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 	})
 }
 
-const toolParityArtifactContent = `{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`
+const toolParityArtifactContent = `{"version":"compozy.tool-result/v1","tail":"D6-TAIL"}`
 
 func newToolParityArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
 	t.Helper()

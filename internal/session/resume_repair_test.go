@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -131,7 +131,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 			meta := store.SessionMeta{
 				State: string(tc.state),
 				Failure: &store.SessionFailure{
-					CrashBundlePath: "/tmp/agh/crash-bundles/existing.json",
+					CrashBundlePath: "/tmp/compozy/crash-bundles/existing.json",
 				},
 			}
 
@@ -148,7 +148,7 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 			if repaired.Failure.Summary == "" {
 				t.Fatal("Failure.Summary = empty, want fallback summary filled")
 			}
-			if got, want := repaired.Failure.CrashBundlePath, "/tmp/agh/crash-bundles/existing.json"; got != want {
+			if got, want := repaired.Failure.CrashBundlePath, "/tmp/compozy/crash-bundles/existing.json"; got != want {
 				t.Fatalf("Failure.CrashBundlePath = %q, want %q", got, want)
 			}
 		})
@@ -183,7 +183,7 @@ func TestValidateInfrastructure(t *testing.T) {
 				Name:    h.workspaceName,
 			},
 			Config: h.cfg,
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
@@ -252,7 +252,7 @@ func TestValidateInfrastructure(t *testing.T) {
 				Name:    h.workspaceName,
 			},
 			Config: h.cfg,
-			Agents: []aghconfig.AgentDef{{
+			Agents: []compozyconfig.AgentDef{{
 				Name:     "coder",
 				Provider: "claude",
 				Prompt:   "You are a coding assistant.",
@@ -342,7 +342,7 @@ func TestRepairRejectsNilContext(t *testing.T) {
 	}
 }
 
-func writeResumeEventStore(t *testing.T, homePaths aghconfig.HomePaths, sessionID string, contents []byte) string {
+func writeResumeEventStore(t *testing.T, homePaths compozyconfig.HomePaths, sessionID string, contents []byte) string {
 	t.Helper()
 
 	sessionDir := filepath.Join(homePaths.SessionsDir, sessionID)
