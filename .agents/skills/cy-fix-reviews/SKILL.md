@@ -1,6 +1,6 @@
 ---
 name: cy-fix-reviews
-description: Executes provider-agnostic PR review remediation using existing review round files under .compozy/tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
+description: Executes agent-authored review remediation using existing round files under .compozy/tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue markdown files, implementing fixes, and verifying the result. Do not use for task execution, review generation, or generic coding tasks without review issue files.
 ---
 
 # Fix Reviews
@@ -10,14 +10,14 @@ Execute the review remediation workflow in a strict sequence. The review files a
 ## Required Inputs
 
 - The scoped issue files listed in `<batch_issue_files>`.
-- The PRD review round directory and issue-file frontmatter.
+- The task review round directory and issue-file frontmatter.
 - The repository verification workflow required by `cy-final-verify`.
 
 ## Workflow
 
 1. Gather round context.
-   - Read the scoped issue file frontmatter to understand the provider, round number, and issue status/severity. If multiple issue files are in scope, verify their `provider`, `pr`, `round`, and `round_created_at` values agree.
-   - Read `<batch_scope>` to identify the PRD name, review round, code files in scope, and conditional flags such as auto-commit.
+   - Read the scoped issue file frontmatter to understand the round number and issue status/severity. If multiple issue files are in scope, verify their `round` and `round_created_at` values agree.
+   - Read `<batch_scope>` to identify the task name, review round, code files in scope, and conditional flags such as auto-commit.
 
 2. Read and triage the scoped issue files.
    - Read every listed issue file completely before editing code.
@@ -32,8 +32,9 @@ Execute the review remediation workflow in a strict sequence. The review files a
    - Do not refactor, clean up, or improve code that is unrelated to the issues being fixed.
 
 4. Close out issue files correctly.
-   - For a `valid` issue, set frontmatter `status: resolved` only after the code and verification are done.
-   - For an `invalid` issue, document why it is invalid and then set frontmatter `status: resolved` once the analysis is complete.
+   - Leave a `valid` issue at frontmatter `status: valid` after the code and focused verification are done.
+   - Leave an `invalid` issue at frontmatter `status: invalid` after documenting why it is invalid.
+   - Never set `status: resolved`; the Loop's Go finalizer owns that transition after the batch completes.
 
 5. Verify before completion.
    - Use `cy-final-verify` before any completion claim or automatic commit.
@@ -44,7 +45,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 ## Critical Rules
 
-- Do not fetch or export reviews inside this workflow. `compozy reviews fetch` already produced the round files.
-- Do not call provider-specific scripts or `gh` mutations. Compozy resolves provider threads after the batch succeeds.
+- Do not generate another review inside this workflow. The reviewer agent already produced the round files.
+- Do not publish or push changes. This workflow is local-only.
 - Do not modify issue files outside the scoped batch.
-- Do not mark an issue `resolved` before the underlying work and verification are actually complete.
+- Do not create, rename, timestamp, or mark an issue `resolved`; the Go writer and finalizer own those bytes.

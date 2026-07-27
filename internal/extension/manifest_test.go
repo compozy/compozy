@@ -575,26 +575,26 @@ min_compozy_version = "0.5.0"
 			wantField: "version",
 		},
 		{
-			name:          "legacy minimum daemon version TOML key",
+			name:          "unknown minimum daemon version TOML key",
 			daemonVersion: "0.6.0",
 			fileName:      manifestTOMLFileName,
 			content: `[extension]
 name = "pgvector-memory"
 version = "0.2.1"
-min_agh_version = "0.5.0"
+min_other_version = "0.5.0"
 `,
 			wantErr:   ErrManifestInvalid,
 			wantField: "min_compozy_version",
 		},
 		{
-			name:          "legacy minimum daemon version JSON key",
+			name:          "unknown minimum daemon version JSON key",
 			daemonVersion: "0.6.0",
 			fileName:      manifestJSONFileName,
 			content: `{
   "extension": {
     "name": "pgvector-memory",
     "version": "0.2.1",
-    "min_agh_version": "0.5.0"
+    "min_other_version": "0.5.0"
   }
 }
 `,

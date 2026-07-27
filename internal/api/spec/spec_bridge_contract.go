@@ -5,7 +5,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-const openapiTSWidenAdditionalPropertiesExtension = "x-agh-typescript-widen-additional-properties"
+const openapiTSWidenAdditionalPropertiesExtension = "x-compozy-typescript-widen-additional-properties"
 
 func bridgeProviderConfigSchema() *openapi3.Schema {
 	return openapi3.NewObjectSchema().

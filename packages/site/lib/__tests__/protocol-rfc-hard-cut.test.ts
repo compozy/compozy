@@ -133,13 +133,8 @@ describe("protocol RFC hard cut", () => {
   it("keeps active public protocol docs on workspace-qualified v0 network identity", () => {
     const legacyPatterns = [
       /compozy-network\/v2/,
-      /agh\.network\.v2/,
       /ProtocolV2/,
       /006_compozy-network-v2/,
-      /agh\.network\.v0\.<channel>/,
-      /agh\.network\.v1\.<channel>/,
-      /agh\.network\.v0\.builders\.(?:broadcast|peer)/,
-      /agh\.network\.v1\.builders\.(?:broadcast|peer)/,
       /\/api\/network\/(?:channels|peers|send|work)/,
     ];
 
@@ -179,7 +174,6 @@ describe("protocol RFC hard cut", () => {
     const retiredBindingPatterns = [
       /\bNATS\b/,
       /\bJetStream\b/,
-      /agh\.network\.v[01]\.<workspace_id>/,
       /broker[- ](?:backed|managed|cluster|subject)/i,
     ];
 

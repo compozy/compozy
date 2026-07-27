@@ -173,7 +173,7 @@ The removal remains committed; use the warning's residual path for operator clea
 
 The `compozy__automation_jobs_create` and `compozy__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 
-`compozy__automation_jobs_create` and `compozy__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped Compozy daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `agh_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
+`compozy__automation_jobs_create` and `compozy__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped Compozy daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `compozy_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
 
 Bundle tools live under `compozy__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `compozy__resources_*` for list/info/snapshot of desired-state resources.
 

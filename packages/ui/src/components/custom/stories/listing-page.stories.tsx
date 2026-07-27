@@ -10,7 +10,7 @@ import { Pill } from "../pill";
 
 const ROWS = [
   {
-    name: "reviews-watch",
+    name: "review-and-fix",
     desc: "React to inbound review requests as they arrive.",
     kind: "watch",
   },

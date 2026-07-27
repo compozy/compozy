@@ -4,8 +4,8 @@ area: RT
 title: Isolate runtime state with COMPOZY_HOME
 persona: Bruno
 journey: J-validate-compozy-hard-cut
-expected: Two temporary COMPOZY_HOME values create independent compozy.db files, daemon metadata, logs, and sockets; each compozy status -o json reports only its selected home, and an AGH_HOME-only process never redirects or merges either runtime.
-entry_points: COMPOZY_HOME=<tempdir> compozy daemon start; compozy status -o json; compozy doctor -o json; AGH_HOME-only negative control
+expected: Two temporary COMPOZY_HOME values create independent compozy.db files, daemon metadata, logs, and sockets; each compozy status -o json reports only its selected home, and a process with only a retired home variable never redirects or merges either runtime.
+entry_points: COMPOZY_HOME=<tempdir> compozy daemon start; compozy status -o json; compozy doctor -o json; retired-home-variable negative control
 qa_status: pass
 bug_ids:
 fix_status:

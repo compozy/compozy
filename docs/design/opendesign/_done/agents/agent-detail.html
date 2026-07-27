@@ -1410,7 +1410,7 @@ Speak in sentence case. No exclamation marks.</textarea>
   function getSelection(mountId){
     var inst = instances[mountId]; return inst ? Object.assign({}, inst.sel) : null;
   }
-  window.AGHPMR = { mount: mount, setSelection: setSelection, getSelection: getSelection, closePopup: closePopup, MODEL: MODEL, PROV: PROV };
+  window.COMPOZYPMR = { mount: mount, setSelection: setSelection, getSelection: getSelection, closePopup: closePopup, MODEL: MODEL, PROV: PROV };
 })();
 </script>
 
@@ -1665,16 +1665,16 @@ Speak in sentence case. No exclamation marks.</textarea>
       settingsCurrent.reasoning = agentRuntime.reasoning;
     }
     syncingPmr = true;
-    if (window.AGHPMR) {
-      if (!opts.fromHeader) AGHPMR.setSelection("header-pmr-mount", agentRuntime);
-      if (!opts.fromSettings) AGHPMR.setSelection("settings-pmr-mount", agentRuntime);
+    if (window.COMPOZYPMR) {
+      if (!opts.fromHeader) COMPOZYPMR.setSelection("header-pmr-mount", agentRuntime);
+      if (!opts.fromSettings) COMPOZYPMR.setSelection("settings-pmr-mount", agentRuntime);
     }
     syncingPmr = false;
     if (opts.toast !== false) {
-      var m = AGHPMR && AGHPMR.MODEL[sel.model];
-      var p = AGHPMR && AGHPMR.PROV[sel.provider];
+      var m = COMPOZYPMR && COMPOZYPMR.MODEL[sel.model];
+      var p = COMPOZYPMR && COMPOZYPMR.PROV[sel.provider];
       var rzLabel = "";
-      if (sel.reasoning && window.AGHPMR) {
+      if (sel.reasoning && window.COMPOZYPMR) {
         var labels = { minimal:"Minimal", low:"Low", medium:"Medium", high:"High", xhigh:"Extra high" };
         rzLabel = " · " + (labels[sel.reasoning] || sel.reasoning);
       }
@@ -1706,8 +1706,8 @@ Speak in sentence case. No exclamation marks.</textarea>
     document.getElementById("s-instructions").value = settingsCurrent.instructions;
     document.getElementById("dh-category").textContent = settingsCurrent.category || "—";
     syncingPmr = true;
-    if (window.AGHPMR) {
-      AGHPMR.setSelection("settings-pmr-mount", {
+    if (window.COMPOZYPMR) {
+      COMPOZYPMR.setSelection("settings-pmr-mount", {
         provider: settingsCurrent.provider,
         model: settingsCurrent.model,
         reasoning: settingsCurrent.reasoning || ""
@@ -1758,7 +1758,7 @@ Speak in sentence case. No exclamation marks.</textarea>
     selectMenuEl = menu;
   }
   function openSettings(section){
-    if (window.AGHPMR) AGHPMR.closePopup();
+    if (window.COMPOZYPMR) COMPOZYPMR.closePopup();
     showSettingsSection(section || "basics");
     syncSettingsFields();
     updateSettingsDirty();
@@ -1850,8 +1850,8 @@ Speak in sentence case. No exclamation marks.</textarea>
 
 
   /* Mount shared PMR control — header is live; settings drafts until Save */
-  if (window.AGHPMR) {
-    AGHPMR.mount("header-pmr-mount", {
+  if (window.COMPOZYPMR) {
+    COMPOZYPMR.mount("header-pmr-mount", {
       provider: agentRuntime.provider,
       model: agentRuntime.model,
       reasoning: agentRuntime.reasoning,
@@ -1860,7 +1860,7 @@ Speak in sentence case. No exclamation marks.</textarea>
         applyLiveRuntime(sel, { fromHeader: true });
       }
     });
-    AGHPMR.mount("settings-pmr-mount", {
+    COMPOZYPMR.mount("settings-pmr-mount", {
       provider: settingsCurrent.provider,
       model: settingsCurrent.model,
       reasoning: settingsCurrent.reasoning || "",

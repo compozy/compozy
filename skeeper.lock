@@ -4,9 +4,9 @@
   "source_branch": "v0.3",
   "namespaces": [
     {
-      "name": "agh",
-      "sidecar_branch": "agh/__branches__/v0.3",
-      "commit": "3e4f6bb37ff1f233466e2c589b6f188107b8207b",
+      "name": "compozy",
+      "sidecar_branch": "compozy/__branches__/v0.3",
+      "commit": "b710d6115a07d37b0f9ce5fc704a2735b5f12be3",
       "digest": "sha256:186ba4d19bd6d3b966bfeabd5db3fca5c849d9e901c8299beec8fc72267378ee",
       "files": 7383,
       "bytes": 235606174

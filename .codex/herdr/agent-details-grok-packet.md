@@ -1,6 +1,6 @@
 # Delegation contract: Agent Details remediation
 
-Repository: `/Users/pedronauck/Dev/compozy/agh`
+Repository: `/Users/pedronauck/Dev/compozy/compozy`
 
 Worker role/model: designated `designer` execution worker, Cursor TUI using `cursor-grok-4.5-high` (Grok 4.5 High).
 
@@ -15,9 +15,9 @@ The user explicitly says **do not create a new TechSpec or other spec artifacts 
 ## Mandatory skill/instruction activation before edits
 
 - Read root `AGENTS.md`/provided repository instructions, `/Users/pedronauck/.codex/RTK.md`, `web/CLAUDE.md`, and `packages/ui/CLAUDE.md` as applicable.
-- Activate and follow `agh-design`, `ui-craft`, `impeccable`, `no-workarounds`, and `agh-ui-screenshot` before UI edits.
+- Activate and follow `eng-design`, `ui-craft`, `impeccable`, `no-workarounds`, and `eng-ui-screenshot` before UI edits.
 - This is the repository's required `designer` execution pass. Declare the scene, Product register, and dials before editing.
-- Activate all additional web skills required by `web/CLAUDE.md` for touched domains: at minimum `react`, `tailwindcss`, `vercel-react-best-practices`; add `tanstack`, `agh-data-boundaries`, `app-renderer-systems`, `consolidate-test-suites`, `vitest`, `testing-boss`, `storybook-stories`, `shadcn`, and others when their triggers fire.
+- Activate all additional web skills required by `web/CLAUDE.md` for touched domains: at minimum `react`, `tailwindcss`, `vercel-react-best-practices`; add `tanstack`, `eng-data-boundaries`, `app-renderer-systems`, `eng-consolidate-test-suites`, `vitest`, `testing-boss`, `storybook-stories`, `shadcn`, and others when their triggers fire.
 - Before any test edit, state the invariant, owning layer, and canonical existing suite. Do not create duplicate/CSS-literal/snapshot/file-existence tests.
 - Use `rtk` for every shell command.
 
@@ -50,7 +50,7 @@ Close all applicable issue-register items AD-002, AD-005 through AD-030 after th
 - responsive behavior and keyboard/WCAG 2.2 AA contracts;
 - explicit delete targets: old full-page settings layout/topbar actions/sidebar rail/local chrome/topbar-only identity/substitute metrics/duplicate selectors/obsolete tests/stale evidence;
 - QA tracker impact: reset/add content-addressed `untested` agent scenarios as required, without running scenario QA;
-- docs and `skills/agh/` impact resolved only from actual public behavior; use required writing skills before editing skills/instruction files;
+- docs and `skills/compozy/` impact resolved only from actual public behavior; use required writing skills before editing skills/instruction files;
 - full Compozy Impact Audit evidence for native tools, extensibility/hooks/config lifecycle, workspace isolation, and official Compozy skill. For backend-owned proof gaps, report them to controller rather than editing backend.
 
 ## Visual contract
@@ -62,7 +62,7 @@ The named references are normative:
 - `docs/design/opendesign/agents-list.html`
 - `docs/design/opendesign/provider-model-reasoning-selector.html`
 
-Follow `agh-ui-screenshot` Visual Contract Mode before implementation. Record exact `git hash-object` identities. Build an explicit state/viewport matrix covering every state required by section 11 of the remediation plan. Capture matched reference/implementation pairs at identical dimensions, generate diagnostics, inspect every pair, fix all blocking structural/accessibility divergences, and validate every bundle. Runtime truth wins, but any authorized difference must cite the user's no-spec override or an existing higher-authority runtime/design contract. Implementation-only captures do not count.
+Follow `eng-ui-screenshot` Visual Contract Mode before implementation. Record exact `git hash-object` identities. Build an explicit state/viewport matrix covering every state required by section 11 of the remediation plan. Capture matched reference/implementation pairs at identical dimensions, generate diagnostics, inspect every pair, fix all blocking structural/accessibility divergences, and validate every bundle. Runtime truth wins, but any authorized difference must cite the user's no-spec override or an existing higher-authority runtime/design contract. Implementation-only captures do not count.
 
 ## Verification
 

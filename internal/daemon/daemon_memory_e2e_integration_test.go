@@ -127,7 +127,7 @@ func TestDaemonE2ERolesLiveApplyChangesNextMemoryExtractorModel(t *testing.T) {
 	})
 }
 
-func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T) {
+func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *testing.T) {
 	t.Parallel()
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
@@ -135,18 +135,18 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	legacyPath := filepath.Join(harness.WorkspaceRoot, ".agh", "memory", "legacy-only.md")
-	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(legacyPath), err)
+	noncanonicalPath := filepath.Join(harness.WorkspaceRoot, ".retired", "memory", "noncanonical-only.md")
+	if err := os.MkdirAll(filepath.Dir(noncanonicalPath), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(noncanonicalPath), err)
 	}
 	if err := os.WriteFile(
-		legacyPath,
+		noncanonicalPath,
 		[]byte(
-			memoryDocument("Legacy Decoy", "Legacy path should stay ignored", memcontract.TypeProject, "legacy decoy"),
+			memoryDocument("Noncanonical Decoy", "Noncanonical paths stay ignored", memcontract.TypeProject, "path decoy"),
 		),
 		0o644,
 	); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", legacyPath, err)
+		t.Fatalf("os.WriteFile(%q) error = %v", noncanonicalPath, err)
 	}
 
 	writeMemoryViaCLI(
@@ -183,7 +183,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		memcontract.ScopeWorkspace,
 	)
 
-	t.Run("Should return matching CLI and HTTP search results while ignoring legacy paths", func(t *testing.T) {
+	t.Run("Should return matching CLI and HTTP search results while ignoring noncanonical paths", func(t *testing.T) {
 		var cliSearch compozycontract.MemorySearchResponse
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
@@ -202,8 +202,8 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		if !containsSearchResult(cliSearch, "project_auth.md", memcontract.ScopeWorkspace) {
 			t.Fatalf("CLI search results = %#v, want workspace project_auth.md hit", cliSearch)
 		}
-		if containsSearchResult(cliSearch, "legacy-only.md", memcontract.ScopeWorkspace) {
-			t.Fatalf("CLI search results = %#v, want legacy path ignored", cliSearch)
+		if containsSearchResult(cliSearch, "noncanonical-only.md", memcontract.ScopeWorkspace) {
+			t.Fatalf("CLI search results = %#v, want noncanonical path ignored", cliSearch)
 		}
 
 		var httpSearch compozycontract.MemorySearchResponse

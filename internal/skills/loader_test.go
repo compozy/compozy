@@ -495,19 +495,19 @@ func TestParseSkillFileParsesCompozyMetadataFixtures(t *testing.T) {
 	}
 }
 
-func TestParseSkillFileIgnoresLegacyAGHMetadata(t *testing.T) {
+func TestParseSkillFileIgnoresForeignMetadata(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should ignore declarations under the legacy metadata key", func(t *testing.T) {
+	t.Run("Should ignore declarations under a foreign metadata key", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		skillPath := writeSkillFile(t, root, filepath.Join("legacy-metadata", skillFileName), strings.Join([]string{
+		skillPath := writeSkillFile(t, root, filepath.Join("foreign-metadata", skillFileName), strings.Join([]string{
 			"---",
-			"name: legacy-metadata",
-			"description: Legacy metadata must not activate declarations",
+			"name: foreign-metadata",
+			"description: Foreign metadata must not activate declarations",
 			"metadata:",
-			"  agh:",
+			"  foreign:",
 			"    mcp_servers:",
 			"      - name: legacy-server",
 			"        command: legacy-command",
@@ -520,7 +520,7 @@ func TestParseSkillFileIgnoresLegacyAGHMetadata(t *testing.T) {
 			t.Fatalf("ParseSkillFile() error = %v", err)
 		}
 		if len(skill.MCPServers) != 0 {
-			t.Fatalf("ParseSkillFile() MCPServers = %#v, want legacy metadata ignored", skill.MCPServers)
+			t.Fatalf("ParseSkillFile() MCPServers = %#v, want foreign metadata ignored", skill.MCPServers)
 		}
 	})
 }

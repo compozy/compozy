@@ -58396,7 +58396,7 @@
                               }
                             },
                             "type": "object",
-                            "x-agh-typescript-widen-additional-properties": true
+                            "x-compozy-typescript-widen-additional-properties": true
                           },
                           "display_name": {
                             "type": "string"
@@ -58975,7 +58975,7 @@
                       }
                     },
                     "type": "object",
-                    "x-agh-typescript-widen-additional-properties": true
+                    "x-compozy-typescript-widen-additional-properties": true
                   },
                   "display_name": {
                     "type": "string"
@@ -59140,7 +59140,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"
@@ -61030,7 +61030,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"
@@ -61597,7 +61597,7 @@
                       }
                     },
                     "type": "object",
-                    "x-agh-typescript-widen-additional-properties": true
+                    "x-compozy-typescript-widen-additional-properties": true
                   },
                   "display_name": {
                     "nullable": true,
@@ -61739,7 +61739,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"
@@ -62376,7 +62376,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"
@@ -63013,7 +63013,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"
@@ -64409,7 +64409,7 @@
                             }
                           },
                           "type": "object",
-                          "x-agh-typescript-widen-additional-properties": true
+                          "x-compozy-typescript-widen-additional-properties": true
                         },
                         "display_name": {
                           "type": "string"

@@ -174,9 +174,9 @@ approval gate.
     description · actions row (status pill + rate + `Run`). Grid 1/2/3 cols.
   - Binding badge: clock glyph for schedule / webhook glyph for webhook on loops with an
     attached loop-target automation (e.g. `software-delivery` · `0 3 * * *`). The
-    `reviews-watch` watch-source tag is a body-node concept, not a start binding — no badge.
+    `review-and-fix` watch-source tag is a body-node concept, not a start binding — no badge.
 - **Data shown (the 2 built-in Loops).** `software-delivery` (Engineering · delivery,
-  8 nodes, 5 inputs, cap 50) and `reviews-watch` (Engineering · watch, watch-source,
+  8 nodes, 5 inputs, cap 50) and `review-and-fix` (Engineering · watch, watch-source,
   6 inputs, cap ∞). The Custom group is empty until a fork exists (JS hides empty groups);
   never invent extra loops.
 - **Interactions.** Search + filter chips (AND); Rows|Cards toggle; row/card click →
@@ -588,7 +588,7 @@ stateful color in the panel. A watch-source is a node INSIDE the body, never a s
 - `terminal_states: [done, no_op, blocked, failed, exhausted, stalled]` (6 terminal
   outcomes).
 - `stop_when` (CEL, optional, ADR-020): a boolean early-terminal condition evaluated at
-  the generation boundary; true → terminal `done` (e.g. `reviews-watch`:
+  the generation boundary; true → terminal `done` (e.g. `review-and-fix`:
   `nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0`).
 - `no_progress: { window, hash_fields }` plus a structured blocker-ID signature: the
   `stalled` detector compares the sorted `blocking_issues[].id` set from the
@@ -808,7 +808,7 @@ close/reopen; runs outcome filter.
   the UI is not inventing metrics.
 
 ### 9.12 Watch loops: unbounded cap + quiet/stall rendering `[P2]`
-- **Design.** Catalog shows `reviews-watch` cap `∞`; runs shows watching/quiet/stall.
+- **Design.** Catalog shows `review-and-fix` cap `∞`; runs shows watching/quiet/stall.
 - **Question.** Confirm watch loops default iteration_cap 0 (unbounded), the quiet-window
   → stalled transition, and how the UI should render "unbounded".
 - **Proposal.** Confirm in ADR-012 + the watch-source spec; standardize the `∞` rendering.
@@ -890,11 +890,11 @@ close/reopen; runs outcome filter.
 ### 9.20 Fan-out batching: `batch_size` / `max_parallel` / `max_fan_out` `[P1]` - ADDED (ADR-006)
 - **Design impact.** `fan-out` carries three orthogonal knobs, never one: `batch_size`
   (items per agent branch, default 1; `software-delivery` = 1 → one task per branch,
-  `reviews-watch` = 10 → contiguous chunks of <=10 issues in fetch order), `max_parallel`
+  `review-and-fix` = 10 → contiguous chunks of <=10 issues in fetch order), `max_parallel`
   (concurrent branches; both examples = 1 → sequential) and `max_fan_out` (structural cap
   on materialized branches, clamped by the daemon ceiling 64; overflow → `exhausted` /
   `escalate`). Run timelines render fan-out as BATCH BRANCHES
-  (`batch 1 · issues 001-010 · 10 issues` for `reviews-watch`; `task_01 · schema
+  (`batch 1 · issues 001-010 · 10 issues` for `review-and-fix`; `task_01 · schema
   migration` for `software-delivery`); the editor inspector and the read-only DAG expose
   all three knobs. Only a status dot carries state on a batch chip; the content stays
   neutral mono.

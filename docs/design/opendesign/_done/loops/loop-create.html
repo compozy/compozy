@@ -326,10 +326,10 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
               </span>
               <svg class="tpl__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
-            <button class="tpl" data-id="reviews-watch" data-kind="builtin" aria-pressed="false">
+            <button class="tpl" data-id="review-and-fix" data-kind="builtin" aria-pressed="false">
               <span class="tpl__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
               <span class="tpl__main">
-                <span class="tpl__name"><b>reviews-watch</b><span class="tag">Built-in</span><span class="tpl__slug">watch-source</span></span>
+                <span class="tpl__name"><b>review-and-fix</b><span class="tag">Built-in</span><span class="tpl__slug">watch-source</span></span>
                 <span class="tpl__goal">Watch a PR; on each fresh CodeRabbit review of the current HEAD, remediate the unresolved threads, resolve them, and optionally push until it's clean.</span>
                 <span class="tpl__meta"><span class="k">9 nodes</span><span class="dotsep"></span><span class="k">6 inputs</span><span class="dotsep"></span><span>iteration cap &#8734;</span></span>
               </span>
@@ -460,7 +460,7 @@ select.input{appearance:none;cursor:pointer;padding-right:30px;background-image:
   "use strict";
   var TPL = {
     "software-delivery":{name:"software-delivery",kind:"builtin",cat:"Engineering",goal:"Ship every authored task for a slug in dependency order, implemented, reviewed to acceptance, and verified by the project's own checks.",nodes:8,inputs:5,limits:"iteration cap 50 &middot; budget on-exceeded halt"},
-    "reviews-watch":{name:"reviews-watch",kind:"builtin",cat:"Engineering",goal:"Watch a PR; on each fresh CodeRabbit review of the current HEAD, remediate the unresolved threads, resolve them, and optionally push until it's clean.",nodes:9,inputs:6,limits:"unbounded (&#8734;) &middot; budget on-exceeded escalate"}
+    "review-and-fix":{name:"review-and-fix",kind:"builtin",cat:"Engineering",goal:"Watch a PR; on each fresh CodeRabbit review of the current HEAD, remediate the unresolved threads, resolve them, and optionally push until it's clean.",nodes:9,inputs:6,limits:"unbounded (&#8734;) &middot; budget on-exceeded escalate"}
   };
 
   var state = { mode:"template", tpl:"software-delivery", start:"minimal" };

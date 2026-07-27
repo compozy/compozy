@@ -1,4 +1,4 @@
-# BUG-20260727-runtime-legacy-identity: Candidate runtime exposes retired AGH identities
+# BUG-20260727-runtime-legacy-identity: Candidate runtime exposes retired product identities
 
 - **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
@@ -15,7 +15,7 @@
 
 The candidate binary uses the Compozy executable and storage identity, but its live status output,
 managed-agent prompts, public headers, event payloads, artifact descriptors, bridge contracts, and
-Web state still expose retired AGH names. A fresh operator or agent therefore sees two product
+Web state still expose retired product names. A fresh operator or agent therefore sees two product
 identities in one runtime and cannot rely on the migration's hard-cut contract.
 
 ## Reproduction
@@ -29,10 +29,10 @@ identities in one runtime and cannot rely on the migration's hard-cut contract.
    parts, tool-artifact metadata, bridge manifests, and Web persistence keys.
 
 **Expected:** Every user-facing and agent-facing runtime surface uses one Compozy identity; retired
-AGH wire, artifact, bridge, prompt, and Web-state names are absent with no aliases or fallback
+Retired wire, artifact, bridge, prompt, and Web-state names are absent with no aliases or fallback
 readers.
 
-**Actual:** The live status response says `Required AGH-managed provider credential ...`, and the
+**Actual:** The live status response used the retired product name in a provider credential diagnostic, and the
 same retired identity remains active across the inspected public surfaces.
 
 ## Evidence
@@ -52,7 +52,7 @@ same retired identity remains active across the inspected public surfaces.
 
 - **Root cause:** Earlier migration batches cut executable, environment, package, and selected
   network identities by task boundary, but never closed the remaining runtime/public-contract
-  inventory. The final candidate therefore composed new Compozy surfaces with active AGH-era wire
+  inventory. The final candidate therefore composed new Compozy surfaces with active retired wire
   and presentation contracts.
 - **Fix commit:** `e4df8634`
 - **Regression test:** existing canonical contract, prompt, provider, bridge, transcript, artifact,
@@ -63,5 +63,5 @@ same retired identity remains active across the inspected public surfaces.
 
 - **Retested:** 2026-07-27 in the original isolated lab before channel or kickoff creation.
 - **Result:** Pass. Fresh `status-live.json` and `doctor-live.json` expose Compozy-only provider
-  diagnostics; an exact case-insensitive scan of live version/status/doctor evidence found no AGH
+  diagnostics; an exact case-insensitive scan of live version/status/doctor evidence found no retired
   header, prefix, diagnostic, or wire identity.

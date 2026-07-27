@@ -415,7 +415,7 @@ func writeTestSpec(t *testing.T, path string) {
 					},
 					"defaults": {
 					  "type": "object",
-					  "x-agh-typescript-widen-additional-properties": true,
+					  "x-compozy-typescript-widen-additional-properties": true,
 					  "properties": {
 					    "label": {
 					      "type": "string"

@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Start two sequential isolated COMPOZY_HOME runtimes; compare on-disk paths, status/doctor JSON, helpers, compozy.db, and per-session events.db."
-      - "Probe managed-session, hosted-MCP, Web proxy/assets, provider, and bridge environment inputs; only COMPOZY_* names may influence Compozy-owned behavior, while AGH_* names, the legacy command, and agh.db remain inert."
+      - "Probe managed-session, hosted-MCP, Web proxy/assets, provider, and bridge environment inputs; only COMPOZY_* names may influence Compozy-owned behavior, while retired environment names, commands, and database files remain inert."
       - "List and invoke native tools through CLI and a managed session, compare hosted MCP tools/list and tools/call, then inspect the one official skill across CLI, HTTP, UDS, native tools, and Web; every legacy tool, host, metadata, or skill alias must be absent."
       - "Load extension manifests and inspect workspace packages plus generated API readers; only min_compozy_version, @compozy/*, openapi/compozy.json, and the two canonical TypeScript declarations may resolve."
     must_avoid:

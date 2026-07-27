@@ -220,9 +220,9 @@
   .netbudget{padding:12px 16px;border-top:1px solid var(--line-soft)}
 
   /* ============ zone 5 · agents + network ============ */
-  .aghead,.agrow{display:grid;grid-template-columns:minmax(0,1.1fr) 52px 64px 52px minmax(0,1fr);gap:12px;align-items:center;padding:10px 16px}
-  .aghead{padding:9px 16px;border-bottom:1px solid var(--line-soft);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
-  .aghead span:nth-child(n+2){text-align:right}
+  .agent-head,.agrow{display:grid;grid-template-columns:minmax(0,1.1fr) 52px 64px 52px minmax(0,1fr);gap:12px;align-items:center;padding:10px 16px}
+  .agent-head{padding:9px 16px;border-bottom:1px solid var(--line-soft);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .agent-head span:nth-child(n+2){text-align:right}
   .agrow{border-top:1px solid var(--line-soft);transition:background var(--dur) var(--ease)}
   .agrow:first-of-type{border-top:0}
   .agrow:hover{background:var(--row-hover)}
@@ -292,7 +292,7 @@
     .att__row{grid-template-columns:14px minmax(0,1fr) auto}
     .att__time{display:none}
     .att__text{white-space:normal}
-    .aghead{display:none}
+    .agent-head{display:none}
     .agrow{grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr)}
     .agrow__num[data-col="sessions"],.agrow__num[data-col="failed"]{display:none}
     .runcard__trail .act{display:none}
@@ -542,7 +542,7 @@
             <span class="spacer"></span><span class="note">runtime · last 7 days</span>
           </div>
           <div class="panelbox">
-            <div class="aghead" aria-hidden="true"><span>Agent</span><span>Active</span><span>Sessions</span><span>Failed</span><span style="text-align:left;padding-left:0">Runtime</span></div>
+            <div class="agent-head" aria-hidden="true"><span>Agent</span><span>Active</span><span>Sessions</span><span>Failed</span><span style="text-align:left;padding-left:0">Runtime</span></div>
             <a class="agrow" href="#" data-od-id="agent-writer">
               <span class="agrow__name"><span class="avatar">WR</span><span>Writer</span></span>
               <span class="agrow__num">1</span>

@@ -62,13 +62,13 @@
     toast.textContent = message;
     toast.dataset.open = 'true';
     toast.classList.add('show');
-    window.clearTimeout(window.__aghToastTimer);
-    window.__aghToastTimer = window.setTimeout(() => {
+    window.clearTimeout(window.__compozyToastTimer);
+    window.__compozyToastTimer = window.setTimeout(() => {
       toast.dataset.open = 'false';
       toast.classList.remove('show');
     }, 3200);
   };
-  window.aghNotify = notify;
+  window.compozyNotify = notify;
 
   const activeDialog = root.querySelector('.scrim .dialog');
   const closedState = root.querySelector('.closed-state');
@@ -167,11 +167,11 @@
     trigger.addEventListener('click', () => {
       const opening = popover.dataset.open !== 'true';
       [...openPopovers].forEach((open) => {
-        const owner = open.__aghOpeningTrigger || root.querySelector(`[aria-controls="${open.id}"]`);
+        const owner = open.__compozyOpeningTrigger || root.querySelector(`[aria-controls="${open.id}"]`);
         if (owner) closePopover(open, owner, false);
       });
       if (!opening) return closePopover(popover, trigger);
-      popover.__aghOpeningTrigger = trigger;
+      popover.__compozyOpeningTrigger = trigger;
       const rect = trigger.getBoundingClientRect();
       popover.dataset.open = 'true';
       popover.setAttribute('aria-hidden', 'false');
@@ -188,7 +188,7 @@
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
-        closePopover(popover, popover.__aghOpeningTrigger || trigger);
+        closePopover(popover, popover.__compozyOpeningTrigger || trigger);
         return;
       }
       const options = [...popover.querySelectorAll('[role="option"]')].filter((option) => !option.disabled && !option.hidden);
@@ -213,7 +213,7 @@
     popover.addEventListener('click', (event) => {
       const option = event.target.closest('[role="option"]');
       if (!option || !popover.contains(option)) return;
-      const owner = popover.__aghOpeningTrigger || trigger;
+      const owner = popover.__compozyOpeningTrigger || trigger;
       const multi = owner.dataset.componentTrigger === 'agent-multi-select' || owner.hasAttribute('data-multi-select');
       popover.querySelectorAll('[role="option"]').forEach((item) => {
         if (!multi) item.setAttribute('aria-selected', String(item === option));

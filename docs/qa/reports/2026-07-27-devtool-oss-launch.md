@@ -71,7 +71,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Session Debriefs
 
-- **Platform hard cut:** the dirty-build boot failure and remaining public AGH identities were
+- **Platform hard cut:** the dirty-build boot failure and remaining retired public identities were
   fixed; executable, storage, environment, native-tool, extension, and official-skill reads pass.
 - **Wire/public hard cut:** headers, SSE, artifacts, bridges, Web persistence, public navigation,
   and claim-token redaction pass with Compozy-only identity.
@@ -120,7 +120,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - Before the first charter kickoff, the initial candidate daemon rejected
   `v0.2.15-16-gb2ad2446-dirty` as an unsupported prerelease track. Recorded as
   `BUG-20260727-dirty-build-release-track` and fixed in the owning update classifier.
-- The restarted candidate exposed `Required AGH-managed provider credential ...` in
+- The restarted candidate exposed the retired product name in a provider credential diagnostic in
   `compozy status -o json`. Source tracing found the retired identity across public prompt, wire,
   artifact, bridge, and Web-state surfaces. Recorded as
   `BUG-20260727-runtime-legacy-identity`; the rebuilt original-lab version/status/doctor retest is

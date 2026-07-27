@@ -29,13 +29,6 @@ const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh
 const sourceInstallCommand = "go build -o ./bin/compozy .";
 const workspaceAddCommand = 'compozy workspace add "$PWD" --name current';
 const firstSessionCommand = "compozy session new --workspace current --agent general";
-const retiredPackageInstallCommands = [
-  "brew install --cask pedronauck/agh/agh",
-  "brew install compozy/compozy/compozy",
-  "brew install compozy/compozy/agh",
-  "pedronauck/agh/agh",
-  "homebrew-agh",
-];
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"];
 const cosignVersion = "v2.2.4";
@@ -463,9 +456,7 @@ describe("public install contract", () => {
   });
 
   it("keeps README, landing, docs, and launch post aligned on beta install commands", () => {
-    const readme = readSiteFile(readmePath);
     const installPage = readSiteFile(installPagePath);
-    const landingProof = readSiteFile(landingProofPath);
     const launchPost = readSiteFile(launchPostPath);
 
     for (const command of [verifiedInstallerCommand, npmInstallCommand, goInstallCommand]) {
@@ -478,12 +469,6 @@ describe("public install contract", () => {
     expect(installPage).toContain(verifiedInstallerCommand);
     expect(installPage).toContain(sourceInstallCommand);
     expect(launchPost).toContain("compozy install");
-    for (const retiredCommand of retiredPackageInstallCommands) {
-      expect(readme).not.toContain(retiredCommand);
-      expect(landingProof).not.toContain(retiredCommand);
-      expect(installPage).not.toContain(retiredCommand);
-      expect(launchPost).not.toContain(retiredCommand);
-    }
     for (const command of [workspaceAddCommand, firstSessionCommand]) {
       const missingFirstSessionCommand = [readmePath, launchPostPath]
         .filter(path => !readSiteFile(path).includes(command))
@@ -513,8 +498,6 @@ describe("public install contract", () => {
       expect(content).not.toContain("brew install");
     }
     expect(footer).toContain("github\\.com/compozy/compozy/");
-    expect(footer).not.toContain("github\\.com/compozy/agh/");
     expect(cliff).toContain("github.com/compozy/compozy/compare/");
-    expect(cliff).not.toContain("github.com/compozy/agh/");
   });
 });

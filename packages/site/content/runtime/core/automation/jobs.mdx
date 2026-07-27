@@ -108,7 +108,7 @@ job, including update payloads and resource-applied definitions. It classifies d
 `compozy daemon restart|stop` commands, process signals targeting `compozy`, and `systemctl`, `launchctl`,
 or `service` lifecycle commands targeting Compozy.
 
-The rejection names one stable class: `agh_daemon`, `process_signal`, or `service_manager`. The
+The rejection names one stable class: `compozy_daemon`, `process_signal`, or `service_manager`. The
 same error reaches CLI, HTTP/UDS, and `compozy__automation_jobs_create|update`. There is no bypass.
 Remove the daemon lifecycle command and retry the write. Human-readable fields remain ordinary
 prose, so a job name such as `Review compozy daemon restart behavior` is valid.

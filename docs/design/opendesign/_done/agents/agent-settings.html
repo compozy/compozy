@@ -1087,7 +1087,7 @@ code,kbd,pre,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antia
   function getSelection(mountId){
     var inst = instances[mountId]; return inst ? Object.assign({}, inst.sel) : null;
   }
-  window.AGHPMR = { mount: mount, setSelection: setSelection, getSelection: getSelection, closePopup: closePopup, MODEL: MODEL, PROV: PROV };
+  window.COMPOZYPMR = { mount: mount, setSelection: setSelection, getSelection: getSelection, closePopup: closePopup, MODEL: MODEL, PROV: PROV };
 })();
 </script>
 
@@ -1095,7 +1095,7 @@ code,kbd,pre,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antia
 (function () {
   var AGENT_NAME = "release-captain";
   var CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
-  /* provider/model via AGHPMR */
+  /* provider/model via COMPOZYPMR */
 
   var initial = {
     category: "Engineering / Release",
@@ -1194,7 +1194,7 @@ code,kbd,pre,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antia
     openMenuEl = menu;
   }
   function syncRuntimeSelects() {
-    if (window.AGHPMR) AGHPMR.setSelection("settings-pmr-mount", { provider: current.provider, model: current.model, reasoning: current.reasoning || "" });
+    if (window.COMPOZYPMR) COMPOZYPMR.setSelection("settings-pmr-mount", { provider: current.provider, model: current.model, reasoning: current.reasoning || "" });
   }
   document.addEventListener("click", function () { closeSelectMenu(); });
   window.addEventListener("resize", closeSelectMenu);
@@ -1338,8 +1338,8 @@ code,kbd,pre,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antia
   syncRuntimeSelects();
   syncPermissionUI();
   updateDirtyUI();
-  if (window.AGHPMR) {
-    AGHPMR.mount("settings-pmr-mount", {
+  if (window.COMPOZYPMR) {
+    COMPOZYPMR.mount("settings-pmr-mount", {
       provider: current.provider,
       model: current.model,
       reasoning: current.reasoning || "",

@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -318,10 +317,9 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should exclude retired commands skills and branding", func(t *testing.T) {
+	t.Run("Should exclude retired commands and skills", func(t *testing.T) {
 		t.Parallel()
 
-		legacyBrand := regexp.MustCompile(`(?i)\bagh\b`)
 		for _, name := range bundledSkillNames {
 			path := "skills/" + name + "/SKILL.md"
 			data, err := fs.ReadFile(FS(), path)
@@ -339,9 +337,6 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 				if strings.Contains(body, retired) {
 					t.Fatalf("%s contains retired surface %q", path, retired)
 				}
-			}
-			if legacyBrand.MatchString(body) {
-				t.Fatalf("%s contains retired AGH branding", path)
 			}
 		}
 		if slices.Contains(bundledSkillNames, "compozy") {

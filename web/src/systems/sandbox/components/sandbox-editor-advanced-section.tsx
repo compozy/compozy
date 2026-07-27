@@ -25,7 +25,7 @@ const PERSISTENCE_MODES: readonly { value: string; label: string }[] = [
 const DAYTONA_FIELDS: readonly { key: string; label: string; placeholder: string }[] = [
   { key: "api_url", label: "API URL", placeholder: "https://app.daytona.io/api" },
   { key: "target", label: "Target", placeholder: "default" },
-  { key: "image", label: "Image", placeholder: "ghcr.io/compozy/agh-dev" },
+  { key: "image", label: "Image", placeholder: "ghcr.io/your-org/dev-image" },
   { key: "snapshot", label: "Snapshot", placeholder: "snapshot id" },
   { key: "class", label: "Class", placeholder: "medium" },
   { key: "auto_stop", label: "Auto stop", placeholder: "30m" },

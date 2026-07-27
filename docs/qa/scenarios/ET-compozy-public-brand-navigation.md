@@ -4,8 +4,8 @@ area: ET
 title: Navigate the public Compozy brand and launch post
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: The public site, launch post, metadata, OpenGraph assets, sitemap, robots, RSS, llms output, and authored runtime guidance identify Compozy at https://compozy.com; the former launch-post slug redirects permanently to the Compozy slug; no active page points at agh.network.
-entry_points: local packages/site root and metadata outputs; local /blog/introducing-compozy-the-first-agent-network-protocol; local /blog/introducing-agh-the-first-agent-network-protocol redirect; canonical https://compozy.com declarations
+expected: The public site, launch post, metadata, OpenGraph assets, sitemap, robots, RSS, llms output, and authored runtime guidance identify Compozy at https://compozy.com; no compatibility redirect or active page points at the retired site.
+entry_points: local packages/site root and metadata outputs; local /blog/introducing-compozy-the-first-agent-network-protocol; canonical https://compozy.com declarations
 qa_status: pass
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed

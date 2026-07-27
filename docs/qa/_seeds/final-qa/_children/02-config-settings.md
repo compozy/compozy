@@ -182,7 +182,7 @@ Workspace overlay layout: `<workspace>/.compozy/config.toml`, `<workspace>/.comp
 ### 2.2 `internal/settings/` tests
 
 - `service_test.go` (~1700 LoC): full mutation matrix, `restart_required` classification (`:447, 451, 495, 554, 651, 801, 913, 1320, 1452`), action triggers (`:560`), workspace + global scope behavior, vault-secret integration through `ProviderSecrets` mock.
-- `service_integration_test.go`: end-to-end through real `aghconfig.Load*` and a real workspace resolver.
+- `service_integration_test.go`: end-to-end through real `config.Load*` and a real workspace resolver.
 
 **Gap flag — `service_test.go` uses an in-memory `ProviderSecretStore` mock — no real vault encryption path. The daemon-resident store is not exercised in the same test.**
 
@@ -552,7 +552,7 @@ preconditions:
   - Repo at HEAD. Test runs `go test ./internal/config -run TestExampleConfigMatchesDefaults` (this scenario specifies the test that MUST exist).
 steps:
   - "Construct cfg := DefaultWithHome(testHomePaths)"
-  - "Parse repo-rooted config.toml via aghconfig.ApplyConfigOverlayFile(repo/config.toml, &empty)"
+  - "Parse repo-rooted config.toml via config.ApplyConfigOverlayFile(repo/config.toml, &empty)"
   - "Diff the two — every overlapping field must agree"
 expected:
   - "Test passes with the current claude-sonnet-5 default and fails on any future example-vs-builtin disagreement"
@@ -786,7 +786,7 @@ cleanup:
 
 ````markdown
 ```yaml qa-scenario
-id: cfg-16-dotenv-and-aghhome-precedence
+id: cfg-16-dotenv-and-home-precedence
 title: Workspace .env feeds env-ref provider lookup; process env wins over .env
 theme: config
 coverage:
@@ -842,7 +842,7 @@ The QA pass MUST also drive the following edges, each as a one-shot assertion (s
 
 ## 6. Integration Surfaces (this module ↔ others)
 
-- **`internal/daemon` (composition root)**: boot calls `aghconfig.LoadForHome(homePaths)`. Boot fails fast on validation. Bootstrap creates the home layout via `EnsureHomeLayout` (`config/home.go:117-136`). Restart-required mutations require the daemon to consume the persisted overlay on next start.
+- **`internal/daemon` (composition root)**: boot calls `config.LoadForHome(homePaths)`. Boot fails fast on validation. Bootstrap creates the home layout via `EnsureHomeLayout` (`config/home.go:117-136`). Restart-required mutations require the daemon to consume the persisted overlay on next start.
 - **`internal/session`**: each session captures a `ResolvedWorkspace` + `ResolvedAgent` snapshot at start. Per-session config snapshot is what determines hot-apply boundaries.
 - **`internal/skills`**: `SkillsConfig.DisabledSkills` consumed by skill registry (only field with hot-apply pathway). Workspace skills loaded via `WorkspaceDiscoveryRoots` (`config/agent.go:117-146`) and `scanWorkspace` (`workspace/scanner.go:48-83`). Five-tier precedence (Bundled → Marketplace → User → Additional → Workspace, agent-local override) per `internal/CLAUDE.md:125-127`.
 - **`internal/api/core` (`BaseHandlers`)**: settings + vault HTTP/UDS handlers all use the shared `service` types. `MutationResult.RestartRequired` propagates as the `restart_required` JSON field (`internal/api/contract/settings.go:60,652`).

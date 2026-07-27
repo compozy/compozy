@@ -4,7 +4,7 @@ area: RT
 title: Create the Compozy home layout on fresh boot
 persona: Bruno
 journey: J-validate-compozy-hard-cut
-expected: A fresh daemon boot creates the canonical .compozy home and workspace overlay, status and doctor report only those paths, and no legacy .agh directory or fallback is created or read.
+expected: A fresh daemon boot creates the canonical .compozy home and workspace overlay, status and doctor report only those paths, and no retired home directory or fallback is created or read.
 entry_points: compozy daemon start; compozy status -o json; compozy doctor -o json; fresh isolated home and workspace
 qa_status: pass
 bug_ids: BUG-20260727-dirty-build-release-track
@@ -16,6 +16,6 @@ last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
 overlaps: RT-refuse-legacy-database
 ---
 
-QA impact 2026-07-26: the runtime home and workspace overlay moved from `.agh/` to
+QA impact 2026-07-26: the runtime home and workspace overlay moved from the retired path to
 `.compozy/` as a zero-legacy hard cut. Planning flag only; the next QA cycle owns a
 fresh-boot and structured-diagnostics pass.

@@ -13,15 +13,6 @@ const config = {
     formats: ["image/avif", "image/webp"],
     qualities: [75, 90],
   },
-  async redirects() {
-    return [
-      {
-        source: "/blog/introducing-agh-the-first-agent-network-protocol",
-        destination: "/blog/introducing-compozy-the-first-agent-network-protocol",
-        permanent: true,
-      },
-    ];
-  },
 };
 
 export default withMDX(config);

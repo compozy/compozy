@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -14,14 +14,6 @@ function pageProps(slug: string) {
 }
 
 describe("blog metadata", () => {
-  it("redirects the retired launch-post slug to the Compozy slug", () => {
-    const configSource = readFileSync(resolve(siteRoot, "next.config.mjs"), "utf8");
-
-    expect(configSource).toMatch(
-      /source: "\/blog\/introducing-agh-the-first-agent-network-protocol",\s+destination: "\/blog\/introducing-compozy-the-first-agent-network-protocol",\s+permanent: true/
-    );
-  });
-
   it("generates one static route per public post slug", () => {
     expect(generateStaticParams()).toEqual(
       allPosts().map(post => ({ slug: post.slug.replace(/^posts\//, "") }))

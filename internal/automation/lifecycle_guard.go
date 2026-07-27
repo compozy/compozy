@@ -15,7 +15,7 @@ type DaemonLifecycleCommandClass string
 
 const (
 	// DaemonLifecycleCommandClassCompozyDaemon identifies the native daemon CLI.
-	DaemonLifecycleCommandClassCompozyDaemon DaemonLifecycleCommandClass = "agh_daemon"
+	DaemonLifecycleCommandClassCompozyDaemon DaemonLifecycleCommandClass = "compozy_daemon"
 	// DaemonLifecycleCommandClassProcessSignal identifies process-targeting kill commands.
 	DaemonLifecycleCommandClassProcessSignal DaemonLifecycleCommandClass = "process_signal"
 	// DaemonLifecycleCommandClassServiceManager identifies service-manager lifecycle commands.

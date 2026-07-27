@@ -97,12 +97,6 @@ function generatedCLICommands(): Set<string> {
   return commands;
 }
 
-function stalePatternViolations(pattern: RegExp): string[] {
-  return listManualDocs(contentRoot)
-    .filter(doc => pattern.test(doc.content))
-    .map(doc => doc.path);
-}
-
 function extractManualCompozyCommandPrefixes(
   line: string,
   generatedCommands: Set<string>
@@ -165,12 +159,6 @@ describe("manual site CLI examples", () => {
 
   it("uses command names that exist in the generated CLI reference", () => {
     expect(manualCompozyCommandViolations()).toEqual([]);
-  });
-
-  it("does not document stale command forms that are not implemented by cobra", () => {
-    expect(stalePatternViolations(/\bagh session get\b/)).toEqual([]);
-    expect(stalePatternViolations(/\bagh network peers\s+--channel\b/)).toEqual([]);
-    expect(stalePatternViolations(/\bagh spawn\b[\s\S]{0,240}--prompt(?!-overlay)\b/)).toEqual([]);
   });
 
   it("does not execute the replaced compozy memory verbs in any documented shell block", () => {

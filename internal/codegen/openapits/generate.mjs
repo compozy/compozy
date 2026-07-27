@@ -10,7 +10,7 @@ import openapiTS, {
 } from "openapi-typescript";
 import ts from "typescript";
 
-const widenAdditionalPropertiesExtension = "x-agh-typescript-widen-additional-properties";
+const widenAdditionalPropertiesExtension = "x-compozy-typescript-widen-additional-properties";
 
 const runtimeArgs = process.argv.slice(1);
 const args = runtimeArgs[0]?.endsWith("generate.mjs") ? runtimeArgs.slice(1) : runtimeArgs;

@@ -85,7 +85,7 @@ New components live in `components/run-page/` with the same naming convention; r
 ## 5. The three engineered pieces
 
 ### 5.1 Genericity rule
-The prototypes tell the `reviews-watch` story; the implementation must render **any** loop. Every string below is a template over real fields — domain flavor comes only from node ids, inputs, and event payloads. Never special-case a loop name.
+The prototypes tell the `review-and-fix` story; the implementation must render **any** loop. Every string below is a template over real fields — domain flavor comes only from node ids, inputs, and event payloads. Never special-case a loop name.
 
 ### 5.2 Group progress bar
 - If the latest generation has fan-out outputs (>1 distinct `item_index` for one node): render one segment per branch, flex-weighted equally (batch sizes are not first-class — do **not** invent weights). Segment state from output status: `succeeded/reused` → success · `running/enqueued/awaiting_*` → accent-dim · `failed` → idle-neutral (redo pending) or danger in terminal `failed` runs · `pending` → idle.

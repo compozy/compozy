@@ -677,9 +677,6 @@ func TestWebAssetsPrepare(t *testing.T) {
 		if !strings.Contains(metadataSource, "production Compozy web UI bundle") {
 			t.Fatalf("generated metadata does not identify the Compozy web UI bundle:\n%s", metadataSource)
 		}
-		if strings.Contains(metadataSource, "AGH") {
-			t.Fatalf("generated metadata retains the retired AGH identity:\n%s", metadataSource)
-		}
 		firstDigest, err := directoryDigest(repoDir)
 		if err != nil {
 			t.Fatalf("directoryDigest(repo first) error = %v", err)

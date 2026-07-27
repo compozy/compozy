@@ -18,7 +18,7 @@ flowchart TD
     F --> H
     G --> H
     H --> I{Try legacy identifier}
-    I -->|agh command/home/db/tool/metadata/wire| J[Unknown, ignored, or absent — never aliased]
+    I -->|retired command/home/db/tool/metadata/wire| J[Unknown, ignored, or absent — never aliased]
     I -->|raw claim in mixed case| K[Redacted before log, event, stream, or persistence]
     J --> L[Restart and reopen]
     K --> L

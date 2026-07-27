@@ -4,7 +4,7 @@ area: RT
 title: Run the Compozy CLI and shipped helper binaries
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: Source builds, local development helpers, code generation, catalog tooling, and the Daytona sidecar invoke only their Compozy binary names; compozy version and status work and no legacy `agh` command alias is installed.
+expected: Source builds, local development helpers, code generation, catalog tooling, and the Daytona sidecar invoke only their Compozy binary names; compozy version and status work and no retired command alias is installed.
 entry_points: go list -m; make build; ./bin/compozy version; compozy status -o json; compozy-codegen; compozy-catalog; compozy-daytona-sidecar
 qa_status: pass
 bug_ids: BUG-20260727-dirty-build-release-track

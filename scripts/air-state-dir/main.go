@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	config "github.com/compozy/compozy/internal/config"
 )
 
 func main() {
-	homeDir, err := aghconfig.ResolveHomeDir()
+	homeDir, err := config.ResolveHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "resolve Compozy home for Air state: %v\n", err)
 		os.Exit(1)

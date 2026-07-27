@@ -4,7 +4,7 @@ area: RT
 title: Use only the Compozy process environment namespace
 persona: Dora
 journey: J-validate-compozy-hard-cut
-expected: Runtime home, managed-session, hosted-MCP, Web proxy/assets, QA/build, provider-policy, and bridge-template environment contracts use their COMPOZY_* names; equivalent AGH_* variables are never read as fallbacks, while provider credentials and permitted pass-through variables still reach only their intended process.
+expected: Runtime home, managed-session, hosted-MCP, Web proxy/assets, QA/build, provider-policy, and bridge-template environment contracts use their COMPOZY_* names; retired variables are never read as fallbacks, while provider credentials and permitted pass-through variables still reach only their intended process.
 entry_points: COMPOZY_HOME; COMPOZY_MANAGED; COMPOZY_MCP_SERVE_TOKEN; COMPOZY_WEB_API_PROXY_TARGET; Web asset/distribution variables; provider env-policy and process allowlists; bridge manifests/templates; hosted-MCP env injection
 qa_status: pass
 bug_ids: BUG-20260727-runtime-legacy-identity
