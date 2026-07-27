@@ -21,6 +21,7 @@ const (
 	loopDryRunKey     = "dry-run"
 	loopInputKey      = "input"
 	loopConfigFileKey = "config-file"
+	loopRuntimeKey    = "runtime"
 	loopPayloadKey    = "payload"
 	loopListKey       = "list"
 	loopInspectKey    = "inspect"
@@ -215,6 +216,7 @@ func newLoopValidateCommand(deps commandDeps) *cobra.Command {
 func newLoopRunCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, name, parentRunID, configPath string
 	var inputs []string
+	var runtimeFlags []string
 	var dry bool
 	var networkFlags networkParticipationFlags
 	cmd := &cobra.Command{
@@ -242,6 +244,16 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 				}
 				overrides = &cfg
 			}
+			runtimeOverrides, err := parseLoopRuntimeFlags(runtimeFlags)
+			if err != nil {
+				return err
+			}
+			if runtimeOverrides.RuntimeDefaults != nil || runtimeOverrides.RuntimeRules != nil {
+				if overrides == nil {
+					overrides = &looppkg.LoopConfig{}
+				}
+				mergeLoopRuntimeFlags(overrides, runtimeOverrides)
+			}
 			configOverrides, err := loopConfigPayloadFromDomain(overrides)
 			if err != nil {
 				return err
@@ -265,6 +277,12 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
 	cmd.Flags().StringArrayVar(&inputs, loopInputKey, nil, "Input key=value (repeatable; JSON values supported)")
+	cmd.Flags().StringArrayVar(
+		&runtimeFlags,
+		loopRuntimeKey,
+		nil,
+		"Runtime worker|judge|id|type|complexity selector (repeatable)",
+	)
 	cmd.Flags().StringVar(&parentRunID, "parent-loop-run-id", "", "Parent Loop run ID")
 	cmd.Flags().StringVar(&configPath, loopConfigFileKey, "", "Per-run config override YAML or JSON file")
 	cmd.Flags().BoolVar(&dry, loopDryRunKey, false, "Preview the plan without creating a run")

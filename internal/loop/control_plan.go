@@ -23,6 +23,7 @@ type controlEvalContext struct {
 	effective          EffectiveConfig
 	gateEvaluator      gate.GateEvaluator
 	gateDecisions      GateDecisionReader
+	runtimeCatalog     WorkspaceRuntimeCatalog
 	fanOutWidth        int
 	watchRuntime       coordinatorWatchRuntime
 	watchEventsRuntime coordinatorWatchEventsRuntime
@@ -36,6 +37,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	effective EffectiveConfig,
 	gateEvaluator gate.GateEvaluator,
 	gateDecisions GateDecisionReader,
+	runtimeCatalog WorkspaceRuntimeCatalog,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
 	watchEventsRuntime coordinatorWatchEventsRuntime,
@@ -65,6 +67,7 @@ func buildInitialControlAwareCoordinatorPlan(
 			effective:          effective,
 			gateEvaluator:      gateEvaluator,
 			gateDecisions:      gateDecisions,
+			runtimeCatalog:     runtimeCatalog,
 			fanOutWidth:        fanOutWidth,
 			watchRuntime:       watchRuntime,
 			watchEventsRuntime: watchEventsRuntime,
@@ -225,6 +228,7 @@ func evaluateControlNode(
 			eval.effective,
 			eval.gateEvaluator,
 			eval.gateDecisions,
+			eval.runtimeCatalog,
 			output,
 			node,
 			*outputs,

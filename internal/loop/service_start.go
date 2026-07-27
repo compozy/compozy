@@ -162,7 +162,7 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, err
 	}
-	if origin.Kind == RunOriginSession && strings.TrimSpace(effective.ModelDefaults.Judge) == "" {
+	if origin.Kind == RunOriginSession && strings.TrimSpace(effective.RuntimeDefaults.Judge.Model) == "" {
 		return Run{}, reasonError(
 			ReasonCodeGoalJudgeUnavailable,
 			ErrActionDependencyMissing,

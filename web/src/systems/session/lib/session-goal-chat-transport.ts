@@ -14,7 +14,7 @@ const GOAL_COMMAND_FAILURE_GUIDANCE = {
     "A Goal is already active. Replace it explicitly or keep the current Goal.",
   goal_replace_stale: "The active Goal changed before replacement. Refresh its status, then retry.",
   goal_judge_unavailable:
-    "Goal judge is not configured. Set loops.defaults.delivery.model_defaults.judge or use a session created with an explicit model, then retry.",
+    "Goal judge is not configured. Set loops.defaults.delivery.runtime_defaults.judge.model or use a session created with an explicit model, then retry.",
   goal_objective_required: "Add an objective after /goal, then try again.",
   goal_objective_too_large: "Shorten the Goal objective, then try again.",
   goal_contract_clause_empty: "Complete every Goal contract clause or remove the empty clause.",

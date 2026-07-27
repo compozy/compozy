@@ -180,12 +180,46 @@ Node classes: `action` (open), `control` (closed), `source` (closed). Reserved *
 Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion.
 
-Model routing belongs to the Loop runtime. `contract.model_defaults.worker` and
-`[loops.defaults.*].model_defaults.worker` seed `run-agent` actions that omit `params.model`.
-`contract.model_defaults.judge` and `[loops.defaults.*].model_defaults.judge` seed `agent-judge`
-criteria that omit `model`. A node or criterion-local `model` wins over the effective default. Empty
-values preserve the provider/runtime default. `[[tasks.run.task_runtime_rules]]` is scoped to normal
-task worker profiles and does not route Loop `run-agent` workers.
+Runtime routing belongs to the Loop runtime. Worker fields resolve independently in this order:
+per-run rules, imported task frontmatter, configured runtime rules, `params.runtime`,
+`runtime_defaults.worker`, then the agent definition. A higher layer replaces only the fields it
+sets. Each rule matches exactly one of `id`, `type`, or `complexity`; specificity is
+`id > type > complexity`, and the later rule wins when specificity is equal. Child `run-loop`
+definitions resolve their own rules and never inherit the parent's per-run rules.
+
+Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definition, or
+`[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` nodes
+use `params.runtime`. Imported task frontmatter may set `runtime: {provider, model, reasoning}`.
+Judges use only `runtime_defaults.judge` plus the criterion's `runtime`; task rules never select a
+judge. The retired `model_defaults`, scalar `params.model`, and scalar criterion `model` keys fail
+with migration guidance.
+
+`--runtime` is repeatable and preserves rule order:
+
+```bash
+compozy loop run \
+  --workspace . \
+  --name software-delivery \
+  --runtime worker=codex/gpt-5.4@high \
+  --runtime type=frontend:claude/opus \
+  --runtime id=task_03:-/gpt-5.5-codex@xhigh \
+  --dry-run \
+  -o json
+```
+
+The runtime expression is `provider/model@reasoning`. Use `-` to leave provider or model unset;
+bare `worker=opus` is model-only shorthand, and gateway model IDs retain slashes after the first
+provider separator. Dry-run resolves workspace, stored, definition, and per-run layers without
+creating a run.
+
+`compozy loop validate` performs static definition validation. Dry-run and submission perform
+effective validation after workspace, stored, and per-run layers resolve, then the daemon validates
+again immediately before binding. Failures return structured `runtime_validation` items and spawn
+no ACP process. Model membership is enforced only for providers with an authoritative catalog.
+
+Successful generation outputs expose the binder-applied `resolved_runtime` triple plus per-field
+provenance through `compozy loop status`, HTTP/UDS run detail, `compozy__loop_status`, and
+`runtime_applied` SSE frames. The web run inspector displays the same durable values read-only.
 
 ## Loop Hook Events
 
@@ -205,9 +239,9 @@ Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_nam
 `GET /loop-runs/:run_id/events` streams durable named SSE frames for a run. Reconnect with
 `Last-Event-ID` or `?after_sequence=` to resume after a sequence number. The daemon persists and
 streams the same enumerated event kinds the web run page consumes: `status_changed`, `node_running`,
-`node_succeeded`, `node_failed`, `generation_started`, `gate_verdict`, `channel_msg`,
-`token_tick`, and `needs_approval`. Payloads are redacted/bounded before storage, and reads are
-scoped to the run's workspace.
+`node_succeeded`, `node_failed`, `generation_started`, `gate_verdict`, `runtime_applied`,
+`channel_msg`, `token_tick`, and `needs_approval`. Payloads are redacted/bounded before storage, and
+reads are scoped to the run's workspace.
 
 ## Watch-Source Behavior
 

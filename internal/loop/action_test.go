@@ -374,7 +374,11 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		t.Parallel()
 
 		binder := &fakeActionSessionBinder{
-			binding: loop.ActionSessionBinding{SessionID: "sess-shared", Handle: "main"},
+			binding: loop.ActionSessionBinding{
+				SessionID:      "sess-shared",
+				Handle:         "main",
+				AppliedRuntime: loop.RuntimeSpec{Model: "gpt-5.4"},
+			},
 			promptResults: []loop.ActionPromptResult{
 				{Text: "not json", EventStartSeq: 1, EventEndSeq: 2, TokensUsed: 11},
 				{Text: "```json\n{\"summary\":\"done\"}\n```", EventStartSeq: 3, EventEndSeq: 4, TokensUsed: 13},
@@ -399,7 +403,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			Params: dsl.NodeParams{
 				"agent":         "planner",
 				"prompt":        "Summarize {{ .inputs.topic }}",
-				"model":         "gpt-5.4",
+				"runtime":       map[string]any{"model": "gpt-5.4"},
 				"allowed_tools": []string{"compozy__task_read"},
 				"max_turns":     3,
 				"output_schema": map[string]any{"summary": "string"},
@@ -418,6 +422,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				Boundaries:       []string{"Keep source and control closed"},
 				StopWhen:         "generation > 2",
 			},
+			RuntimeSelection: &loop.ActionRuntimeSelection{Catalog: actionTestRuntimeCatalog{}},
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -443,8 +448,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.ItemIndex != 2 {
 			t.Fatalf("bind item index = %d, want 2", bind.ItemIndex)
 		}
-		if bind.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
+		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)
+		}
+		if raw.ResolvedRuntime.Runtime.Model != "gpt-5.4" ||
+			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceNode {
+			t.Fatalf("resolved runtime = %#v, want applied node model", raw.ResolvedRuntime)
 		}
 		for _, fragment := range []string{
 			"Goal:\nShip the loop",
@@ -466,6 +475,35 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 		if !strings.Contains(prompts[1], "did not satisfy output_schema") {
 			t.Fatalf("retry prompt = %q, want schema validation feedback", prompts[1])
+		}
+	})
+
+	t.Run("Should mark runtime fields completed by the agent definition", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{
+			binding: loop.ActionSessionBinding{
+				SessionID: "sess-agent-runtime", Handle: "main",
+				AppliedRuntime: loop.RuntimeSpec{Provider: "mock", Model: "agent-model"},
+			},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		raw, err := executor.Execute(context.Background(), dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "planner", "prompt": "Work"},
+		}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if raw.ResolvedRuntime.Runtime.Provider != "mock" || raw.ResolvedRuntime.Runtime.Model != "agent-model" ||
+			raw.ResolvedRuntime.Source.Provider != loop.RuntimeSourceAgent ||
+			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceAgent {
+			t.Fatalf("ResolvedRuntime = %#v, want agent-completed provider/model", raw.ResolvedRuntime)
 		}
 	})
 
@@ -533,14 +571,19 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 
 		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
-			WorkerModel: "default-worker-model",
+			RuntimeSelection: &loop.ActionRuntimeSelection{
+				Defaults: loop.RuntimeDefaults{
+					Worker: loop.RuntimeSpec{Model: "default-worker-model"},
+				},
+				Catalog: actionTestRuntimeCatalog{},
+			},
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
 		bind := binder.mustSingleBind(t)
-		if bind.Model != "default-worker-model" {
-			t.Fatalf("bind model = %q, want default-worker-model", bind.Model)
+		if bind.Runtime.Model != "default-worker-model" {
+			t.Fatalf("bind model = %q, want default-worker-model", bind.Runtime.Model)
 		}
 	})
 
@@ -566,6 +609,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1"}},
+			RuntimeSelection: &loop.ActionRuntimeSelection{
+				RunRules: []loop.RuntimeRule{{
+					Match:   loop.RuntimeMatch{Type: "frontend"},
+					Runtime: loop.RuntimeSpec{Model: "parent-only-model"},
+				}},
+			},
 		})
 		if err != nil {
 			t.Fatalf("Execute(await) error = %v", err)
@@ -576,6 +625,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		start := starter.mustLastStart(t)
 		if start.inputs.ParentLoopRunID != "parent-1" || start.inputs.Values["ticket"] != "T-1" {
 			t.Fatalf("start inputs = %#v, want parent + rendered inputs", start.inputs)
+		}
+		if len(start.inputs.ConfigOverrides.RuntimeRules) != 0 {
+			t.Fatalf(
+				"child config runtime rules = %#v, want no parent propagation",
+				start.inputs.ConfigOverrides.RuntimeRules,
+			)
 		}
 
 		detachNode := awaitNode
@@ -642,6 +697,16 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("transform literal = %#v, want unrendered literal", got["literal"])
 		}
 	})
+}
+
+type actionTestRuntimeCatalog struct{}
+
+func (actionTestRuntimeCatalog) CanonicalProvider(provider string) string {
+	return strings.TrimSpace(provider)
+}
+
+func (actionTestRuntimeCatalog) ValidateRuntime(context.Context, loop.RuntimeSpec) error {
+	return nil
 }
 
 func newActionRegistryForTest(

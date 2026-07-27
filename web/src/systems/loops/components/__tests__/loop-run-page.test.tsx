@@ -26,6 +26,7 @@ const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card")
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
+const { LoopRunResolvedRuntimes } = await import("../run-page/loop-run-resolved-runtimes");
 const { LoopRunSubhead } = await import("../run-page/loop-run-subhead");
 const { buildRunProgress } = await import("../../lib/loop-run-progress");
 const { buildRunUsage } = await import("../../lib/loop-run-usage");
@@ -422,6 +423,45 @@ describe("LoopRunAboutRail", () => {
     expect(screen.getByTestId("loop-run-about-started-by")).toHaveTextContent("A webhook");
     expect(screen.getByTestId("loop-run-about-workspace")).toHaveTextContent("Home");
     expect(screen.getByTestId("loop-run-about-id")).toHaveTextContent(run().id);
+  });
+});
+
+describe("LoopRunResolvedRuntimes", () => {
+  it("Should expose each durable runtime field with the daemon-reported provenance", () => {
+    render(
+      <LoopRunResolvedRuntimes
+        generations={[
+          {
+            generation: 2,
+            outputs: [
+              {
+                node_id: "execute_task",
+                item_index: 2,
+                status: "running",
+                task_run_id: "tr_204",
+                resolved_runtime: {
+                  provider: "openai",
+                  model: "gpt-5.4",
+                  reasoning: "high",
+                  source: { provider: "run", model: "frontmatter", reasoning: "config" },
+                },
+              },
+            ],
+          },
+        ]}
+      />
+    );
+
+    const runtime = screen.getByTestId("loop-run-resolved-runtime");
+    expect(runtime).toHaveTextContent("Generation 2 · execute_task · item 3");
+    expect(runtime).toHaveTextContent("tr_204");
+    expect(runtime).toHaveTextContent("openai");
+    expect(runtime).toHaveTextContent("per-run rule");
+    expect(runtime).toHaveTextContent("gpt-5.4");
+    expect(runtime).toHaveTextContent("task frontmatter");
+    expect(runtime).toHaveTextContent("high");
+    expect(runtime).toHaveTextContent("config rule");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
 

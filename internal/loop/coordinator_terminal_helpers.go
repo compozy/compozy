@@ -22,7 +22,14 @@ func (r *CoordinatorRunner) terminalForFailedGeneration(
 	outputs []GenerationOutput,
 	failed GenerationOutput,
 ) (*task.CoordinatorTerminal, error) {
-	stalled, err := r.stalledBlockingIssueTerminal(ctx, run.ID, generation, noProgressWindow, outputs)
+	stalled, err := r.stalledBlockingIssueTerminal(
+		ctx,
+		run.WorkspaceID,
+		run.ID,
+		generation,
+		noProgressWindow,
+		outputs,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +42,7 @@ func (r *CoordinatorRunner) terminalForFailedGeneration(
 	}
 	history, err := r.generationFailureHistory(
 		ctx,
+		run.WorkspaceID,
 		run.ID,
 		generation,
 		outputs,
@@ -69,6 +77,7 @@ func failedOutputTerminal(output GenerationOutput) task.CoordinatorTerminal {
 
 func (r *CoordinatorRunner) generationFailureHistory(
 	ctx context.Context,
+	workspaceID WorkspaceID,
 	runID RunID,
 	generation int,
 	current []GenerationOutput,
@@ -84,7 +93,7 @@ func (r *CoordinatorRunner) generationFailureHistory(
 		if previousGeneration <= 0 {
 			break
 		}
-		previous, err := r.outputs.ListGenerationOutputs(ctx, runID, previousGeneration)
+		previous, err := r.outputs.ListGenerationOutputs(ctx, workspaceID, runID, previousGeneration)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"loop: list generation %d outputs for failure breaker: %w",
@@ -165,6 +174,7 @@ func circuitBreakerTerminal() task.CoordinatorTerminal {
 
 func (r *CoordinatorRunner) stalledBlockingIssueTerminal(
 	ctx context.Context,
+	workspaceID WorkspaceID,
 	runID RunID,
 	generation int,
 	window int,
@@ -185,7 +195,7 @@ func (r *CoordinatorRunner) stalledBlockingIssueTerminal(
 		if previousGeneration <= 0 {
 			return nil, nil
 		}
-		previous, err := r.outputs.ListGenerationOutputs(ctx, runID, previousGeneration)
+		previous, err := r.outputs.ListGenerationOutputs(ctx, workspaceID, runID, previousGeneration)
 		if err != nil {
 			return nil, err
 		}

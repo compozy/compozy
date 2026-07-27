@@ -154,18 +154,22 @@ func (q *Queries) GetLoopDefinitionSnapshot(ctx context.Context, arg GetLoopDefi
 }
 
 const getLoopGenerationOutputStatus = `-- name: GetLoopGenerationOutputStatus :one
-SELECT status FROM loop_generation_outputs
-WHERE loop_run_id = ?1 AND task_run_id = ?2
-ORDER BY generation DESC LIMIT 1
+SELECT output.status FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+WHERE output.loop_run_id = ?1
+  AND output.task_run_id = ?2
+  AND run.workspace_id = ?3
+ORDER BY output.generation DESC LIMIT 1
 `
 
 type GetLoopGenerationOutputStatusParams struct {
-	LoopRunID string         `json:"loop_run_id"`
-	TaskRunID sql.NullString `json:"task_run_id"`
+	LoopRunID   string         `json:"loop_run_id"`
+	TaskRunID   sql.NullString `json:"task_run_id"`
+	WorkspaceID string         `json:"workspace_id"`
 }
 
 func (q *Queries) GetLoopGenerationOutputStatus(ctx context.Context, arg GetLoopGenerationOutputStatusParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getLoopGenerationOutputStatus, arg.LoopRunID, arg.TaskRunID)
+	row := q.db.QueryRowContext(ctx, getLoopGenerationOutputStatus, arg.LoopRunID, arg.TaskRunID, arg.WorkspaceID)
 	var status string
 	err := row.Scan(&status)
 	return status, err
@@ -384,29 +388,35 @@ func (q *Queries) ListLoopGateDecisions(ctx context.Context, arg ListLoopGateDec
 }
 
 const listLoopGenerationOutputs = `-- name: ListLoopGenerationOutputs :many
-SELECT generation, node_id, item_index, status, output_ref, task_run_id, child_loop_run_id
-FROM loop_generation_outputs
-WHERE loop_run_id = ?1 AND generation = ?2
-ORDER BY node_id ASC, item_index ASC
+SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+WHERE output.loop_run_id = ?1
+  AND output.generation = ?2
+  AND run.workspace_id = ?3
+ORDER BY output.node_id ASC, output.item_index ASC
 `
 
 type ListLoopGenerationOutputsParams struct {
-	LoopRunID  string `json:"loop_run_id"`
-	Generation int64  `json:"generation"`
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  int64  `json:"generation"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type ListLoopGenerationOutputsRow struct {
-	Generation     int64          `json:"generation"`
-	NodeID         string         `json:"node_id"`
-	ItemIndex      int64          `json:"item_index"`
-	Status         string         `json:"status"`
-	OutputRef      sql.NullString `json:"output_ref"`
-	TaskRunID      sql.NullString `json:"task_run_id"`
-	ChildLoopRunID sql.NullString `json:"child_loop_run_id"`
+	Generation          int64          `json:"generation"`
+	NodeID              string         `json:"node_id"`
+	ItemIndex           int64          `json:"item_index"`
+	Status              string         `json:"status"`
+	OutputRef           sql.NullString `json:"output_ref"`
+	TaskRunID           sql.NullString `json:"task_run_id"`
+	ChildLoopRunID      sql.NullString `json:"child_loop_run_id"`
+	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
 }
 
 func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGenerationOutputsParams) ([]ListLoopGenerationOutputsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listLoopGenerationOutputs, arg.LoopRunID, arg.Generation)
+	rows, err := q.db.QueryContext(ctx, listLoopGenerationOutputs, arg.LoopRunID, arg.Generation, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -422,6 +432,7 @@ func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGen
 			&i.OutputRef,
 			&i.TaskRunID,
 			&i.ChildLoopRunID,
+			&i.ResolvedRuntimeJson,
 		); err != nil {
 			return nil, err
 		}
@@ -601,6 +612,44 @@ func (q *Queries) ProjectLoopPauseToGoalCheckpoints(ctx context.Context, arg Pro
 		arg.LoopRunID,
 	)
 	return err
+}
+
+const recordLoopGenerationOutputRuntime = `-- name: RecordLoopGenerationOutputRuntime :execrows
+UPDATE loop_generation_outputs
+SET resolved_runtime_json = ?1
+WHERE loop_generation_outputs.loop_run_id = ?2
+  AND loop_generation_outputs.generation = ?3
+  AND loop_generation_outputs.node_id = ?4
+  AND loop_generation_outputs.item_index = ?5
+  AND EXISTS (
+    SELECT 1 FROM loop_runs
+    WHERE loop_runs.id = loop_generation_outputs.loop_run_id
+      AND loop_runs.workspace_id = ?6
+  )
+`
+
+type RecordLoopGenerationOutputRuntimeParams struct {
+	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
+	LoopRunID           string         `json:"loop_run_id"`
+	TargetGeneration    int64          `json:"target_generation"`
+	TargetNodeID        string         `json:"target_node_id"`
+	TargetItemIndex     int64          `json:"target_item_index"`
+	WorkspaceID         string         `json:"workspace_id"`
+}
+
+func (q *Queries) RecordLoopGenerationOutputRuntime(ctx context.Context, arg RecordLoopGenerationOutputRuntimeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordLoopGenerationOutputRuntime,
+		arg.ResolvedRuntimeJson,
+		arg.LoopRunID,
+		arg.TargetGeneration,
+		arg.TargetNodeID,
+		arg.TargetItemIndex,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setLoopRunPauseState = `-- name: SetLoopRunPauseState :execrows

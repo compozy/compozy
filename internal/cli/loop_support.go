@@ -119,9 +119,12 @@ func readLoopDefinitionFile(path string) (dsl.Definition, error) {
 	if err != nil {
 		return dsl.Definition{}, fmt.Errorf("cli: read loop definition file: %w", err)
 	}
-	var definition dsl.Definition
-	if err := yaml.Unmarshal(body, &definition); err != nil {
+	definition, err := dsl.Parse(body)
+	if err != nil {
 		return dsl.Definition{}, fmt.Errorf("cli: parse loop definition file: %w", err)
+	}
+	if err := looppkg.ValidateDefinitionRuntime(context.Background(), nil, definition); err != nil {
+		return dsl.Definition{}, fmt.Errorf("cli: validate loop definition runtime: %w", err)
 	}
 	return definition, nil
 }
@@ -149,6 +152,9 @@ func readLoopConfigFile(path string) (looppkg.LoopConfig, error) {
 func loopConfigPayloadFromDomain(cfg *looppkg.LoopConfig) (*contract.LoopConfig, error) {
 	if cfg == nil {
 		return nil, nil
+	}
+	if err := looppkg.ValidateLoopConfigRuntime(context.Background(), nil, *cfg); err != nil {
+		return nil, fmt.Errorf("cli: validate loop config runtime: %w", err)
 	}
 	body, err := json.Marshal(cfg)
 	if err != nil {

@@ -51,6 +51,13 @@ func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOp
 	}
 }
 
+// WithCoordinatorRuntimeCatalog injects pre-bind provider/model validation.
+func WithCoordinatorRuntimeCatalog(catalog WorkspaceRuntimeCatalog) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.runtimeCatalog = catalog
+	}
+}
+
 // WithCoordinatorWatchSilenceWindow overrides the watch-source inactivity window.
 func WithCoordinatorWatchSilenceWindow(window time.Duration) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {

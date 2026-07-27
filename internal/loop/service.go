@@ -38,6 +38,7 @@ type service struct {
 	goalRunActivator      GoalRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	participationResolver participation.Resolver
+	runtimeCatalog        WorkspaceRuntimeCatalog
 	logger                *slog.Logger
 	now                   func() time.Time
 	newRunID              func() RunID
@@ -149,6 +150,13 @@ func (s *service) Configure(
 	if err := validateConfigJSON(clamped); err != nil {
 		return err
 	}
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	if err != nil {
+		return err
+	}
+	if err := ValidateLoopConfigRuntime(ctx, catalog, clamped); err != nil {
+		return err
+	}
 	return s.store.UpsertLoopConfig(ctx, ws, loopName, clamped)
 }
 
@@ -182,6 +190,13 @@ func (s *service) GetConfigSnapshot(
 	}
 	effective, err := ResolveEffectiveConfig(resolved, defaults, stored, LoopConfig{})
 	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	if err := ValidateEffectiveRuntime(ctx, catalog, effective); err != nil {
 		return ConfigSnapshot{}, err
 	}
 	return ConfigSnapshot{Stored: stored, Effective: effective}, nil
@@ -271,7 +286,18 @@ func (s *service) effectiveConfig(
 	if err != nil {
 		return EffectiveConfig{}, fmt.Errorf("resolve loop defaults: %w", err)
 	}
-	return ResolveEffectiveConfig(resolved, defaults, stored, perRun)
+	effective, err := ResolveEffectiveConfig(resolved, defaults, stored, perRun)
+	if err != nil {
+		return EffectiveConfig{}, err
+	}
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	if err != nil {
+		return EffectiveConfig{}, err
+	}
+	if err := ValidateEffectiveRuntime(ctx, catalog, effective); err != nil {
+		return EffectiveConfig{}, err
+	}
+	return effective, nil
 }
 
 func (s *service) ensureAncestry(ctx context.Context, parentID RunID, targetLoop string) error {

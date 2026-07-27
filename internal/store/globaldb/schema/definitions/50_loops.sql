@@ -11,8 +11,8 @@ CREATE TABLE loop_config (
 			no_progress_window  INTEGER,
 			fan_out_width       INTEGER,
 			gate_max_revisions  INTEGER,
-			model_default_worker TEXT,
-			model_default_judge  TEXT,
+			runtime_defaults_json TEXT CHECK (runtime_defaults_json IS NULL OR json_valid(runtime_defaults_json)),
+			runtime_rules_json    TEXT CHECK (runtime_rules_json IS NULL OR json_valid(runtime_rules_json)),
 			PRIMARY KEY (workspace_id, loop_name)
 		);
 
@@ -51,7 +51,9 @@ CREATE TABLE loop_generation_outputs (
 			status            TEXT NOT NULL,
 			output_ref        TEXT,
 			task_run_id       TEXT,
-			child_loop_run_id TEXT, goal_status TEXT, goal_turns_used INTEGER, goal_turn_limit INTEGER,
+			child_loop_run_id TEXT,
+			resolved_runtime_json TEXT CHECK (resolved_runtime_json IS NULL OR json_valid(resolved_runtime_json)),
+			goal_status TEXT, goal_turns_used INTEGER, goal_turn_limit INTEGER,
 			PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 		);
 

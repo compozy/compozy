@@ -17,6 +17,7 @@ import { onExceededPolicy } from "../../lib/loop-limits";
 import type {
   LoopDefinition,
   LoopRunEventFrame,
+  LoopRunGeneration,
   LoopRunRecord,
   LoopWatchEventsState,
 } from "../../types";
@@ -29,6 +30,7 @@ import {
   LoopRunInspectWatch,
   type LoopRunInspectTile,
 } from "./loop-run-inspect-sections";
+import { LoopRunResolvedRuntimes } from "./loop-run-resolved-runtimes";
 
 interface LoopRunInspectSheetProps {
   open: boolean;
@@ -38,6 +40,7 @@ interface LoopRunInspectSheetProps {
   graph: LoopGraph | null;
   latestVerdict: LoopGateVerdict | null;
   watchEvents?: LoopWatchEventsState;
+  generations: readonly LoopRunGeneration[];
   frames: readonly LoopRunEventFrame[];
 }
 
@@ -118,6 +121,7 @@ export function LoopRunInspectSheet({
   graph,
   latestVerdict,
   watchEvents,
+  generations,
   frames,
 }: LoopRunInspectSheetProps) {
   return (
@@ -174,6 +178,7 @@ export function LoopRunInspectSheet({
           </div>
           <LoopRunInspectTiles tiles={buildTiles(run, definition, graph)} />
           <LoopRunInspectVerification verification={definition?.contract?.verification ?? []} />
+          <LoopRunResolvedRuntimes generations={generations} />
           <LoopRunInspectTerminalStates states={definition?.contract?.terminal_states ?? []} />
           <LoopRunInspectCriteria verdict={latestVerdict} />
           <LoopRunInspectWatch state={watchEvents} />

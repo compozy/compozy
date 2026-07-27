@@ -16,6 +16,7 @@ const (
 	LoopRunEventGoalTurnStarted   LoopRunEventKind = "goal_turn_started"
 	LoopRunEventGoalTurnCompleted LoopRunEventKind = "goal_turn_completed"
 	LoopRunEventGoalStatusChanged LoopRunEventKind = "goal_status_changed"
+	LoopRunEventRuntimeApplied    LoopRunEventKind = "runtime_applied"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -73,6 +74,7 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventGoalTurnStarted),
 		string(LoopRunEventGoalTurnCompleted),
 		string(LoopRunEventGoalStatusChanged),
+		string(LoopRunEventRuntimeApplied),
 	}
 }
 
@@ -87,5 +89,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventGenerationStarted),
 		string(LoopRunEventNeedsApproval),
 		string(LoopRunEventGoalStatusChanged),
+		string(LoopRunEventRuntimeApplied),
 	}
 }

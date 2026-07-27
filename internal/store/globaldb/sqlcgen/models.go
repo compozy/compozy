@@ -452,20 +452,20 @@ type Extension struct {
 }
 
 type LoopConfig struct {
-	WorkspaceID        string         `json:"workspace_id"`
-	LoopName           string         `json:"loop_name"`
-	HumanGateEnabled   int64          `json:"human_gate_enabled"`
-	ReattemptStrategy  sql.NullString `json:"reattempt_strategy"`
-	EnabledChecksJson  string         `json:"enabled_checks_json"`
-	IterationCap       sql.NullInt64  `json:"iteration_cap"`
-	BudgetTokens       sql.NullInt64  `json:"budget_tokens"`
-	BudgetWallSec      sql.NullInt64  `json:"budget_wall_sec"`
-	BudgetOnExceeded   sql.NullString `json:"budget_on_exceeded"`
-	NoProgressWindow   sql.NullInt64  `json:"no_progress_window"`
-	FanOutWidth        sql.NullInt64  `json:"fan_out_width"`
-	GateMaxRevisions   sql.NullInt64  `json:"gate_max_revisions"`
-	ModelDefaultWorker sql.NullString `json:"model_default_worker"`
-	ModelDefaultJudge  sql.NullString `json:"model_default_judge"`
+	WorkspaceID         string         `json:"workspace_id"`
+	LoopName            string         `json:"loop_name"`
+	HumanGateEnabled    int64          `json:"human_gate_enabled"`
+	ReattemptStrategy   sql.NullString `json:"reattempt_strategy"`
+	EnabledChecksJson   string         `json:"enabled_checks_json"`
+	IterationCap        sql.NullInt64  `json:"iteration_cap"`
+	BudgetTokens        sql.NullInt64  `json:"budget_tokens"`
+	BudgetWallSec       sql.NullInt64  `json:"budget_wall_sec"`
+	BudgetOnExceeded    sql.NullString `json:"budget_on_exceeded"`
+	NoProgressWindow    sql.NullInt64  `json:"no_progress_window"`
+	FanOutWidth         sql.NullInt64  `json:"fan_out_width"`
+	GateMaxRevisions    sql.NullInt64  `json:"gate_max_revisions"`
+	RuntimeDefaultsJson sql.NullString `json:"runtime_defaults_json"`
+	RuntimeRulesJson    sql.NullString `json:"runtime_rules_json"`
 }
 
 type LoopDefinitionSnapshot struct {
@@ -494,17 +494,18 @@ type LoopGateDecision struct {
 }
 
 type LoopGenerationOutput struct {
-	LoopRunID      string         `json:"loop_run_id"`
-	Generation     int64          `json:"generation"`
-	NodeID         string         `json:"node_id"`
-	ItemIndex      int64          `json:"item_index"`
-	Status         string         `json:"status"`
-	OutputRef      sql.NullString `json:"output_ref"`
-	TaskRunID      sql.NullString `json:"task_run_id"`
-	ChildLoopRunID sql.NullString `json:"child_loop_run_id"`
-	GoalStatus     sql.NullString `json:"goal_status"`
-	GoalTurnsUsed  sql.NullInt64  `json:"goal_turns_used"`
-	GoalTurnLimit  sql.NullInt64  `json:"goal_turn_limit"`
+	LoopRunID           string         `json:"loop_run_id"`
+	Generation          int64          `json:"generation"`
+	NodeID              string         `json:"node_id"`
+	ItemIndex           int64          `json:"item_index"`
+	Status              string         `json:"status"`
+	OutputRef           sql.NullString `json:"output_ref"`
+	TaskRunID           sql.NullString `json:"task_run_id"`
+	ChildLoopRunID      sql.NullString `json:"child_loop_run_id"`
+	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
+	GoalStatus          sql.NullString `json:"goal_status"`
+	GoalTurnsUsed       sql.NullInt64  `json:"goal_turns_used"`
+	GoalTurnLimit       sql.NullInt64  `json:"goal_turn_limit"`
 }
 
 type LoopGoalBindingRetryWitness struct {

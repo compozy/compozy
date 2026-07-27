@@ -77,8 +77,7 @@ type ActionExecutionInput struct {
 	ToolScope                tools.Scope
 	Actor                    task.ActorContext
 	CorrelationID            string
-	WorkerModel              string
-	JudgeModel               string
+	RuntimeSelection         *ActionRuntimeSelection
 	CWD                      string
 	AllowedTools             []string
 	OriginSessionID          string
@@ -90,6 +89,23 @@ type ActionExecutionInput struct {
 	PersistedTaskTokensUsed  int64
 	GoalSegmentEpoch         int64
 	NetworkParticipation     *participation.Spec
+}
+
+// ActionRuntimeSelection carries the runtime inputs shared by runtime-aware action executors.
+type ActionRuntimeSelection struct {
+	Defaults    RuntimeDefaults
+	ConfigRules []RuntimeRule
+	RunRules    []RuntimeRule
+	Catalog     RuntimeCatalog
+	Recorder    ActionAppliedRuntimeRecorder
+}
+
+// RuntimeSelectionOrZero returns the configured runtime inputs or their zero-value semantics.
+func (in ActionExecutionInput) RuntimeSelectionOrZero() ActionRuntimeSelection {
+	if in.RuntimeSelection == nil {
+		return ActionRuntimeSelection{}
+	}
+	return *in.RuntimeSelection
 }
 
 // ActionRawResult captures backend-specific action output before harvest policy.
@@ -108,19 +124,34 @@ type ActionRawResult struct {
 	RenderedParams  json.RawMessage
 	RenderedHarvest *dsl.HarvestSpec
 	Control         *ActionControl
+	ResolvedRuntime *ResolvedRuntime
 }
 
 // ActionOutput is the typed loop-node output written into generation snapshots.
 type ActionOutput struct {
-	Structured     json.RawMessage
-	Value          any
-	Text           string
-	SessionID      string
-	EventStartSeq  int64
-	EventEndSeq    int64
-	TokensUsed     int64
-	ChildLoopRunID RunID
-	Status         string
+	Structured      json.RawMessage
+	Value           any
+	Text            string
+	SessionID       string
+	EventStartSeq   int64
+	EventEndSeq     int64
+	TokensUsed      int64
+	ChildLoopRunID  RunID
+	Status          string
+	ResolvedRuntime *ResolvedRuntime
+}
+
+// ActionAppliedRuntimeRecorder persists the runtime actually applied by a successful bind.
+type ActionAppliedRuntimeRecorder interface {
+	RecordAppliedRuntime(
+		ctx context.Context,
+		workspaceID WorkspaceID,
+		loopRunID RunID,
+		generation int,
+		nodeID dsl.NodeID,
+		itemIndex int,
+		resolved ResolvedRuntime,
+	) error
 }
 
 // ActionEvent is a stable projection of one ACP/network event harvested by sequence.
@@ -217,7 +248,7 @@ type ActionSessionBindRequest struct {
 	PinnedCreationDigest           string
 	StaticPolicySpecDigest         string
 	Isolated                       bool
-	Model                          string
+	Runtime                        RuntimeSpec
 	AllowedTools                   []string
 	MaxTurns                       int
 	ContractBlock                  string
@@ -272,6 +303,7 @@ type ActionSessionBinding struct {
 	State              string
 	Ownership          string
 	Isolated           bool
+	AppliedRuntime     RuntimeSpec
 }
 
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.

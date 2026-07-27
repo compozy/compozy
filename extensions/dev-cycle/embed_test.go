@@ -62,7 +62,7 @@ func TestDevCycleRuntimeToolDescriptorsShouldPinImportTasksSchemaDigests(t *test
 
 		const (
 			wantInputDigest  = "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832"
-			wantOutputDigest = "8ebb2e834741f5f5e908adcf0c3b2e251eee9ee37dcf24ba88f461e7eb5ccbc3"
+			wantOutputDigest = "084491ee6855dd4b58a53ac222f7eeebe59d8f53eba12e7ed4583c58fee3d1cf"
 		)
 		descriptors, err := runtimeToolDescriptors()
 		if err != nil {

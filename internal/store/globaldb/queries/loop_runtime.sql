@@ -92,15 +92,35 @@ END
 WHERE id = sqlc.arg(id);
 
 -- name: ListLoopGenerationOutputs :many
-SELECT generation, node_id, item_index, status, output_ref, task_run_id, child_loop_run_id
-FROM loop_generation_outputs
-WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
-ORDER BY node_id ASC, item_index ASC;
+SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json
+FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+WHERE output.loop_run_id = sqlc.arg(loop_run_id)
+  AND output.generation = sqlc.arg(generation)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY output.node_id ASC, output.item_index ASC;
+
+-- name: RecordLoopGenerationOutputRuntime :execrows
+UPDATE loop_generation_outputs
+SET resolved_runtime_json = sqlc.arg(resolved_runtime_json)
+WHERE loop_generation_outputs.loop_run_id = sqlc.arg(loop_run_id)
+  AND loop_generation_outputs.generation = sqlc.arg(target_generation)
+  AND loop_generation_outputs.node_id = sqlc.arg(target_node_id)
+  AND loop_generation_outputs.item_index = sqlc.arg(target_item_index)
+  AND EXISTS (
+    SELECT 1 FROM loop_runs
+    WHERE loop_runs.id = loop_generation_outputs.loop_run_id
+      AND loop_runs.workspace_id = sqlc.arg(workspace_id)
+  );
 
 -- name: GetLoopGenerationOutputStatus :one
-SELECT status FROM loop_generation_outputs
-WHERE loop_run_id = sqlc.arg(loop_run_id) AND task_run_id = sqlc.arg(task_run_id)
-ORDER BY generation DESC LIMIT 1;
+SELECT output.status FROM loop_generation_outputs AS output
+JOIN loop_runs AS run ON run.id = output.loop_run_id
+WHERE output.loop_run_id = sqlc.arg(loop_run_id)
+  AND output.task_run_id = sqlc.arg(task_run_id)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY output.generation DESC LIMIT 1;
 
 -- name: GetLoopOutputBlob :one
 SELECT payload_json FROM loop_output_blobs WHERE output_ref = sqlc.arg(output_ref);

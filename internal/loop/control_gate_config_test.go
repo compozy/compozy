@@ -1,7 +1,9 @@
 package loop
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -71,4 +73,78 @@ func TestApplyEffectiveGateConfigShouldFilterRuntimeCriteria(t *testing.T) {
 			t.Fatalf("criterion check = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestJudgeRuntimeShouldValidateWithoutTaskRules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate the criterion merged over judge defaults", func(t *testing.T) {
+		t.Parallel()
+
+		factory := judgeRuntimeCatalogFactoryForTest{catalog: judgeRuntimeCatalogForTest{}}
+		err := validateJudgeGateRuntimes(
+			context.Background(), factory, "ws-judge",
+			RuntimeSpec{Provider: "codex", Model: "default-model", Reasoning: "high"},
+			[]dsl.GateCriterion{{
+				ID: "judge", Type: dsl.CriterionAgentJudge,
+				Runtime: dsl.RuntimeSpec{Provider: "flarp", Model: "criterion-model"},
+			}},
+		)
+		validation, ok := AsRuntimeValidationError(err)
+		if !ok || len(validation.Items) != 1 || validation.Items[0].Field != "provider" ||
+			validation.Items[0].Value != "flarp" {
+			t.Fatalf("validateJudgeGateRuntimes() error = %v, want unknown provider", err)
+		}
+	})
+
+	t.Run("Should expose only judge defaults to the gate evaluator", func(t *testing.T) {
+		t.Parallel()
+
+		effective := EffectiveConfig{
+			RuntimeDefaults: RuntimeDefaults{Judge: RuntimeSpec{
+				Provider: "codex", Model: "judge-model", Reasoning: "high",
+			}},
+			RuntimeRules: []RuntimeRule{{
+				Match: RuntimeMatch{Type: "frontend"}, Runtime: RuntimeSpec{Model: "config-task-model"},
+			}},
+			RunRuntimeRules: []RuntimeRule{{
+				Match: RuntimeMatch{ID: "task_01"}, Runtime: RuntimeSpec{Model: "run-task-model"},
+			}},
+		}
+		input := runtimeGateInput(
+			Run{ID: "run-judge", WorkspaceID: "ws-judge"}, 1,
+			&ResolvedDefinition{Definition: dsl.Definition{}}, effective,
+			map[string]any{}, gate.PlacementInBody, nil,
+		)
+		if input.JudgeRuntime.Provider != "codex" || input.JudgeRuntime.Model != "judge-model" ||
+			input.JudgeRuntime.Reasoning != "high" {
+			t.Fatalf("JudgeRuntime = %#v, want only runtime_defaults.judge", input.JudgeRuntime)
+		}
+	})
+}
+
+type judgeRuntimeCatalogFactoryForTest struct {
+	catalog RuntimeCatalog
+}
+
+func (f judgeRuntimeCatalogFactoryForTest) ForWorkspace(context.Context, WorkspaceID) (RuntimeCatalog, error) {
+	if f.catalog == nil {
+		return nil, errors.New("catalog unavailable")
+	}
+	return f.catalog, nil
+}
+
+type judgeRuntimeCatalogForTest struct{}
+
+func (judgeRuntimeCatalogForTest) CanonicalProvider(provider string) string {
+	return provider
+}
+
+func (judgeRuntimeCatalogForTest) ValidateRuntime(_ context.Context, runtime RuntimeSpec) error {
+	if runtime.Provider == "flarp" {
+		return NewRuntimeValidationError(RuntimeValidationItem{
+			Field: "provider", Value: runtime.Provider, Reason: "unknown_provider",
+		})
+	}
+	return nil
 }

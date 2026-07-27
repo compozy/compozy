@@ -150,7 +150,7 @@ describe("createGoalAwareFetch", () => {
 
     expect(onResult).toHaveBeenCalledWith(payload, "/goal ship the verified release");
     await expect(response.text()).resolves.toBe(
-      "Goal judge is not configured. Set loops.defaults.delivery.model_defaults.judge or use a session created with an explicit model, then retry."
+      "Goal judge is not configured. Set loops.defaults.delivery.runtime_defaults.judge.model or use a session created with an explicit model, then retry."
     );
   });
 

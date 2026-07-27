@@ -140,6 +140,7 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 			effective:          effective,
 			gateEvaluator:      gateEvaluator,
 			gateDecisions:      r.store,
+			runtimeCatalog:     r.runtimeCatalog,
 			fanOutWidth:        fanOutWidth,
 			watchRuntime:       watchRuntime,
 			watchEventsRuntime: watchEventsRuntime,
@@ -274,6 +275,7 @@ func (r *CoordinatorRunner) finishSucceededGenerationPlan(
 		topology,
 		gateEvaluator,
 		r.store,
+		r.runtimeCatalog,
 		advancedOutputs,
 	)
 	if err != nil {

@@ -44,19 +44,17 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
-	model := strings.TrimSpace(criterion.Model)
-	if model == "" {
-		model = strings.TrimSpace(in.JudgeModel)
-	}
+	runtime := mergeJudgeRuntime(in.JudgeRuntime, criterion.Runtime)
+	attempt := in.Revision + 1
 	response, err := e.judges.Judge(ctx, JudgeRequest{
 		LoopRunID:            strings.TrimSpace(in.LoopRunID),
 		GateID:               gate.ID,
 		CriterionID:          criterion.ID,
-		Attempt:              in.Revision + 1,
-		CorrelationID:        strings.TrimSpace(in.ToolCallCorrelationID),
+		Attempt:              attempt,
+		CorrelationID:        agentJudgeCorrelationID(in, gate.ID, criterion.ID, attempt),
 		WorkspaceID:          in.ToolScope.WorkspaceID,
 		Agent:                criterion.Agent,
-		Model:                model,
+		Runtime:              runtime,
 		Rubric:               rubric,
 		Contract:             contract,
 		NetworkParticipation: in.NetworkParticipation,
@@ -88,6 +86,34 @@ func (e *Evaluator) evaluateAgentJudge(
 	result.judgeTokensUsed = response.TokensUsed
 	result.judgeTokensReported = response.TokensReported
 	return result
+}
+
+func agentJudgeCorrelationID(in GateInput, gateID string, criterionID string, attempt int) string {
+	if correlationID := strings.TrimSpace(in.ToolCallCorrelationID); correlationID != "" {
+		return correlationID
+	}
+	return fmt.Sprintf(
+		"loop-judge:%s:%s:%s:%d",
+		strings.TrimSpace(in.LoopRunID),
+		strings.TrimSpace(gateID),
+		strings.TrimSpace(criterionID),
+		attempt,
+	)
+}
+
+func mergeJudgeRuntime(defaults dsl.RuntimeSpec, criterion dsl.RuntimeSpec) dsl.RuntimeSpec {
+	merged := defaults
+	if value := strings.TrimSpace(criterion.Provider); value != "" {
+		merged.Provider = value
+	}
+	if value := strings.TrimSpace(criterion.Model); value != "" {
+		merged.Model = value
+	}
+	if value := strings.TrimSpace(criterion.Reasoning); value != "" {
+		merged.Reasoning = value
+	}
+	merged.Extra = nil
+	return merged
 }
 
 func gateInputContract(contract *dsl.Contract) dsl.Contract {

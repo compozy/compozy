@@ -318,6 +318,7 @@ export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBody
     run: effectiveRun,
     definition: reviewsWatchDefinition,
     goalTurns: scenario.goalTurns ?? [],
+    generations,
     watchEvents,
     frames: live.frames,
     workspaceLabel: "Home",

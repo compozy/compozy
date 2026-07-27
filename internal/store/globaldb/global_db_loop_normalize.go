@@ -147,18 +147,13 @@ func nullStringPtr[T ~string](value *T) sql.NullString {
 	return sql.NullString{String: string(*value), Valid: true}
 }
 
-func modelDefaultNullString(defaults *looppkg.ModelDefaults, worker bool) sql.NullString {
-	if defaults == nil {
-		return sql.NullString{}
-	}
-	var value *string
-	if worker {
-		value = defaults.Worker
-	} else {
-		value = defaults.Judge
-	}
+func nullableLoopConfigJSON(value any) (sql.NullString, error) {
 	if value == nil {
-		return sql.NullString{}
+		return sql.NullString{}, nil
 	}
-	return sql.NullString{String: strings.TrimSpace(*value), Valid: true}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return sql.NullString{}, fmt.Errorf("store: marshal loop runtime config: %w", err)
+	}
+	return sql.NullString{String: string(data), Valid: true}, nil
 }

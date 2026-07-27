@@ -19,6 +19,7 @@ import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import type {
   LoopDefinition,
   LoopRunEventFrame,
+  LoopRunGeneration,
   LoopRunRecord,
   LoopRunStatus,
   LoopWatchEventsState,
@@ -80,6 +81,7 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   latestVerdict: LoopGateVerdict | null;
   watchEvents?: LoopWatchEventsState;
   watchCadence: string | null;
+  generations: readonly LoopRunGeneration[];
   frames: readonly LoopRunEventFrame[];
   inputRows: LoopRunInputRow[];
   startedBy: string;
@@ -129,6 +131,7 @@ export function LoopRunPageBody({
   latestVerdict,
   watchEvents,
   watchCadence,
+  generations,
   frames,
   inputRows,
   startedBy,
@@ -265,6 +268,7 @@ export function LoopRunPageBody({
         graph={graph}
         latestVerdict={latestVerdict}
         watchEvents={watchEvents}
+        generations={generations}
         frames={frames}
       />
     </div>

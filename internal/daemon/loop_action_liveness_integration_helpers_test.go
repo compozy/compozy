@@ -159,7 +159,7 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 	if !strings.Contains(failed.Error, loopActionReasonNoProgress) {
 		t.Fatalf("failed worker error = %q, want reason %q", failed.Error, loopActionReasonNoProgress)
 	}
-	outputs, err := db.ListGenerationOutputs(ctx, created.ID, 1)
+	outputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 1)
 	if err != nil {
 		t.Fatalf("ListGenerationOutputs(failed worker) error = %v", err)
 	}
@@ -203,7 +203,7 @@ func testLoopActionLivenessIntegration(t *testing.T) {
 	if advanced.Generation != 2 || advanced.Status != looppkg.StatusRunning {
 		t.Fatalf("advanced Loop = %#v, want running generation 2", advanced)
 	}
-	generationTwoOutputs, err := db.ListGenerationOutputs(ctx, created.ID, 2)
+	generationTwoOutputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 2)
 	if err != nil {
 		t.Fatalf("ListGenerationOutputs(generation two) error = %v", err)
 	}

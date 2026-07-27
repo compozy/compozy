@@ -48,7 +48,12 @@ type UIAnnotation struct {
 type RunReader interface {
 	ListLoopRuns(ctx context.Context, query RunListQuery) ([]Run, error)
 	ListLoopRunEvents(ctx context.Context, query RunEventQuery) ([]RunEvent, error)
-	ListGenerationOutputs(ctx context.Context, runID RunID, generation int) ([]GenerationOutput, error)
+	ListGenerationOutputs(
+		ctx context.Context,
+		workspaceID WorkspaceID,
+		runID RunID,
+		generation int,
+	) ([]GenerationOutput, error)
 }
 
 // AnnotationStore persists workspace-scoped loop editor sidecars.

@@ -55,11 +55,11 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 		if params.Agent != "operator-agent" || params.MaxTurns != 7 || len(params.Judge) != 1 {
 			t.Fatalf("Goal params = %#v", params)
 		}
-		if definition.Contract.ModelDefaults == nil ||
-			definition.Contract.ModelDefaults.Judge != goalCommandCursorModel {
+		if definition.Contract.RuntimeDefaults == nil ||
+			definition.Contract.RuntimeDefaults.Judge.Model != goalCommandCursorModel {
 			t.Fatalf(
 				"Goal judge model default = %#v, want %s",
-				definition.Contract.ModelDefaults,
+				definition.Contract.RuntimeDefaults,
 				goalCommandCursorModel,
 			)
 		}
@@ -509,7 +509,7 @@ func (f goalCommandHandlerFixture) mustRun(t *testing.T, runID string) looppkg.R
 func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(
 	t *testing.T,
 	run looppkg.Run,
-	wantJudgeModel string,
+	wantRuntimeModel string,
 ) {
 	t.Helper()
 	snapshot, err := f.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
@@ -528,11 +528,11 @@ func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(
 		params.Judge[0].Check != "" || !strings.Contains(params.Judge[0].Rubric, "make verify") {
 		t.Fatalf("pinned Goal judge = %#v", params.Judge)
 	}
-	if resolved.EffectiveConfig.ModelDefaults.Judge != wantJudgeModel {
+	if resolved.EffectiveConfig.RuntimeDefaults.Judge.Model != wantRuntimeModel {
 		t.Fatalf(
 			"pinned Goal judge model = %q, want %q",
-			resolved.EffectiveConfig.ModelDefaults.Judge,
-			wantJudgeModel,
+			resolved.EffectiveConfig.RuntimeDefaults.Judge.Model,
+			wantRuntimeModel,
 		)
 	}
 }

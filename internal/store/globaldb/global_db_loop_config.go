@@ -13,8 +13,8 @@ type loopConfigPatchFlags struct {
 	NoProgressWindow bool
 	FanOutWidth      bool
 	GateMaxRevisions bool
-	ModelWorker      bool
-	ModelJudge       bool
+	RuntimeDefaults  bool
+	RuntimeRules     bool
 }
 
 func loopConfigPatchFlagsForStore(original looppkg.LoopConfig, normalized looppkg.LoopConfig) loopConfigPatchFlags {
@@ -29,7 +29,7 @@ func loopConfigPatchFlagsForStore(original looppkg.LoopConfig, normalized looppk
 		NoProgressWindow: normalized.NoProgressWindow != nil,
 		FanOutWidth:      normalized.FanOutWidth != nil,
 		GateMaxRevisions: normalized.GateMaxRevisions != nil,
-		ModelWorker:      normalized.ModelDefaults != nil && normalized.ModelDefaults.Worker != nil,
-		ModelJudge:       normalized.ModelDefaults != nil && normalized.ModelDefaults.Judge != nil,
+		RuntimeDefaults:  normalized.RuntimeDefaults != nil,
+		RuntimeRules:     original.RuntimeRules != nil,
 	}
 }

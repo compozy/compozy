@@ -301,7 +301,7 @@ func (n *daemonNativeTools) networkWork(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.NetworkWorkPayloadFromStore(work)
-	return structuredNetworkResult(map[string]any{"work": payload}, payload.WorkID)
+	return structuredNetworkResult(map[string]any{nativeToolsWorkKey: payload}, payload.WorkID)
 }
 
 func (n *daemonNativeTools) resolveNetworkDirectRoomPeers(

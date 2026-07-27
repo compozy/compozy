@@ -106,14 +106,15 @@ func (e *Executor) Harvest(_ context.Context, raw loop.ActionRawResult, _ dsl.No
 		return loop.ActionOutput{}, err
 	}
 	return loop.ActionOutput{
-		Structured:    append([]byte(nil), raw.Structured...),
-		Value:         raw.Value,
-		Text:          raw.Text,
-		SessionID:     raw.SessionID,
-		EventStartSeq: raw.EventStartSeq,
-		EventEndSeq:   raw.EventEndSeq,
-		TokensUsed:    raw.TokensUsed,
-		Status:        raw.Status,
+		Structured:      append([]byte(nil), raw.Structured...),
+		Value:           raw.Value,
+		Text:            raw.Text,
+		SessionID:       raw.SessionID,
+		EventStartSeq:   raw.EventStartSeq,
+		EventEndSeq:     raw.EventEndSeq,
+		TokensUsed:      raw.TokensUsed,
+		Status:          raw.Status,
+		ResolvedRuntime: raw.ResolvedRuntime,
 	}, nil
 }
 
@@ -128,6 +129,7 @@ type segmentState struct {
 	lastResult         loop.ActionPromptResult
 	lastVerdict        string
 	lastBlockingIssues []gate.BlockingIssue
+	resolvedRuntime    loop.ResolvedRuntime
 }
 
 type turnBoundary struct {

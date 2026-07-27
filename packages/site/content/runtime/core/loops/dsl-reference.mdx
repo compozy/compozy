@@ -77,14 +77,20 @@ contract:
   iteration_cap: 50 # 0 = unbounded (watch Loops)
   no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
-  model_defaults: { worker: "", judge: "" } # empty = provider/runtime default
+  runtime_defaults:
+    worker: { provider: codex, model: gpt-5.4, reasoning: high }
+    judge: { provider: claude, model: opus }
+  runtime_rules:
+    - match: { type: frontend }
+      runtime: { model: gpt-5.5-codex }
 ```
 
 `verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
 model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
 [guardrails](/runtime/core/loops/guardrails) page. `terminal_states` lists the fixed six outcomes.
-`model_defaults.worker` seeds `run-agent` actions that omit `params.model`;
-`model_defaults.judge` seeds `agent-judge` criteria that omit `model`.
+`runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
+Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
+the runtime fields it sets.
 
 ## The body graph
 
@@ -112,7 +118,7 @@ extension, and MCP tool is a Loop action for free.
 
 | Kind        | Params                                                                                                                                     |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `model?`, `allowed_tools?`, `max_turns?`                                |
+| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `runtime?`, `allowed_tools?`, `max_turns?`                              |
 | `run-loop`  | `loop` (name), `inputs`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                          |
 | `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                                  |
 | `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`; see the [Goal node reference](/runtime/core/loops/goal-node) |
@@ -120,9 +126,11 @@ extension, and MCP tool is a Loop action for free.
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
-`params.model` is a per-node override. If it is empty, Compozy uses the effective
-`model_defaults.worker`; if that is also empty, the provider/runtime default model remains in
-effect.
+`params.runtime` is a per-node `{ provider, model, reasoning }` layer. For an imported task item,
+fields resolve independently in this order: per-run rule, task frontmatter, configured rule,
+`params.runtime`, `runtime_defaults.worker`, then the agent definition. Rule specificity is
+`id > type > complexity`; a later rule wins at equal specificity. A child `run-loop` resolves its
+own rules and never inherits the parent's per-run rules.
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
@@ -222,12 +230,12 @@ dormant on events.
 A `gate` node (and the contract's `verification`) is a list of typed **criteria**. Each criterion
 is a typed object, never a bare string — push vague checks toward a `command` where you can.
 
-| Criterion `type` | Fields                                                 | Verdict source? |
-| ---------------- | ------------------------------------------------------ | --------------- |
-| `command`        | `check` (command), `expect` (e.g. `exit_zero`)         | no              |
-| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `model` | yes             |
-| `human`          | `prompt`                                               | yes             |
-| `extension`      | `tool` (tool ID), `inputs`                             | no              |
+| Criterion `type` | Fields                                                   | Verdict source? |
+| ---------------- | -------------------------------------------------------- | --------------- |
+| `command`        | `check` (command), `expect` (e.g. `exit_zero`)           | no              |
+| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `runtime` | yes             |
+| `human`          | `prompt`                                                 | yes             |
+| `extension`      | `tool` (tool ID), `inputs`                               | no              |
 
 `verdict_policy` selects how the gate decides:
 
@@ -242,7 +250,20 @@ compares the repeated set across the no-progress window. A malformed judge respo
 revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
 `error`, `timeout`, `invalid_output`) to a route; `max_revisions` caps the loop before the gate
 fails.
-An `agent-judge.model` value overrides `model_defaults.judge` for that criterion only.
+An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
+only. Task runtime rules never apply to judges.
+
+## Runtime validation and provenance
+
+`compozy loop validate --workspace <ref> --file <path>` validates definition-contained runtime
+values. `compozy loop run --dry-run` and normal submission validate the effective runtime after
+workspace, stored, and per-run layers resolve; the daemon repeats the check immediately before
+binding. A failure returns structured `runtime_validation` items and starts no ACP process.
+
+Use repeatable `--runtime` flags for per-run defaults and rules. The expression is
+`provider/model@reasoning`; `-` leaves one field unset, and model IDs may contain additional
+slashes. Run detail exposes the final binder-applied `resolved_runtime` and each field's source
+through CLI, HTTP/UDS, native tools, SSE, and the read-only web run inspector.
 
 ## Start bindings
 

@@ -1,5 +1,7 @@
 package config
 
+import "github.com/compozy/compozy/internal/loop/dsl"
+
 type loopsOverlay struct {
 	Defaults loopsDefaultsOverlay `toml:"defaults"`
 }
@@ -10,12 +12,13 @@ type loopsDefaultsOverlay struct {
 }
 
 type loopDefaultOverlay struct {
-	IterationCap  *int                         `toml:"iteration_cap"`
-	NoProgress    loopNoProgressDefaultOverlay `toml:"no_progress"`
-	Gates         loopGatesDefaultOverlay      `toml:"gates"`
-	Budget        loopBudgetDefaultOverlay     `toml:"budget"`
-	ModelDefaults loopModelDefaultsOverlay     `toml:"model_defaults"`
-	FanOutWidth   *int                         `toml:"fan_out_width"`
+	IterationCap    *int                         `toml:"iteration_cap"`
+	NoProgress      loopNoProgressDefaultOverlay `toml:"no_progress"`
+	Gates           loopGatesDefaultOverlay      `toml:"gates"`
+	Budget          loopBudgetDefaultOverlay     `toml:"budget"`
+	RuntimeDefaults loopRuntimeDefaultsOverlay   `toml:"runtime_defaults"`
+	RuntimeRules    []dsl.RuntimeRule            `toml:"runtime_rules"`
+	FanOutWidth     *int                         `toml:"fan_out_width"`
 }
 
 type loopNoProgressDefaultOverlay struct {
@@ -32,9 +35,15 @@ type loopBudgetDefaultOverlay struct {
 	OnExceeded   *string `toml:"on_exceeded"`
 }
 
-type loopModelDefaultsOverlay struct {
-	Worker *string `toml:"worker"`
-	Judge  *string `toml:"judge"`
+type loopRuntimeDefaultsOverlay struct {
+	Worker loopRuntimeSpecOverlay `toml:"worker"`
+	Judge  loopRuntimeSpecOverlay `toml:"judge"`
+}
+
+type loopRuntimeSpecOverlay struct {
+	Provider  *string `toml:"provider"`
+	Model     *string `toml:"model"`
+	Reasoning *string `toml:"reasoning"`
 }
 
 func (o loopsOverlay) Apply(dst *LoopsConfig) {
@@ -53,7 +62,10 @@ func (o loopDefaultOverlay) Apply(dst *LoopDefaultConfig) {
 	o.NoProgress.Apply(&dst.NoProgress)
 	o.Gates.Apply(&dst.Gates)
 	o.Budget.Apply(&dst.Budget)
-	o.ModelDefaults.Apply(&dst.ModelDefaults)
+	o.RuntimeDefaults.Apply(&dst.RuntimeDefaults)
+	if len(o.RuntimeRules) > 0 {
+		dst.RuntimeRules = append(dst.RuntimeRules, o.RuntimeRules...)
+	}
 	if o.FanOutWidth != nil {
 		dst.FanOutWidth = *o.FanOutWidth
 	}
@@ -83,11 +95,19 @@ func (o loopBudgetDefaultOverlay) Apply(dst *LoopBudgetDefaultConfig) {
 	}
 }
 
-func (o loopModelDefaultsOverlay) Apply(dst *LoopModelDefaultsConfig) {
-	if o.Worker != nil {
-		dst.Worker = *o.Worker
+func (o loopRuntimeDefaultsOverlay) Apply(dst *dsl.RuntimeDefaults) {
+	o.Worker.Apply(&dst.Worker)
+	o.Judge.Apply(&dst.Judge)
+}
+
+func (o loopRuntimeSpecOverlay) Apply(dst *dsl.RuntimeSpec) {
+	if o.Provider != nil {
+		dst.Provider = *o.Provider
 	}
-	if o.Judge != nil {
-		dst.Judge = *o.Judge
+	if o.Model != nil {
+		dst.Model = *o.Model
+	}
+	if o.Reasoning != nil {
+		dst.Reasoning = *o.Reasoning
 	}
 }

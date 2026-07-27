@@ -287,7 +287,16 @@ export const handlers: HttpHandler[] = [
               fan_out_width: 4,
               gate_max_revisions: 3,
               human_gate_enabled: true,
-              model_defaults: { judge: "claude", worker: "codex" },
+              runtime_defaults: {
+                worker: { provider: "openai", model: "gpt-5.4" },
+                judge: { provider: "anthropic", model: "claude-sonnet-4" },
+              },
+              runtime_rules: [
+                {
+                  match: { type: "implementation" },
+                  runtime: { reasoning: "high" },
+                },
+              ],
               no_progress_window: 3,
               reattempt_strategy: "failed_only",
               enabled_checks_json: null,

@@ -605,10 +605,20 @@ window = 3
 # Gate revision seed default. Compile-time ceiling: 64.
 max_revisions = 10
 
-[loops.defaults.delivery.model_defaults]
-# Empty strings keep the provider/runtime default model.
-worker = ""
-judge = ""
+[loops.defaults.delivery.runtime_defaults.worker]
+provider = "codex"
+model = "gpt-5.4"
+reasoning = "high"
+
+[loops.defaults.delivery.runtime_defaults.judge]
+provider = "claude"
+model = "opus"
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
+type = "frontend"
+[loops.defaults.delivery.runtime_rules.runtime]
+model = "gpt-5.5-codex"
 
 [loops.defaults.delivery.budget]
 # 0 means unlimited. When set, budgets are enforced with halt or escalate.
@@ -624,9 +634,13 @@ fan_out_width = 2
 [loops.defaults.watch.no_progress]
 window = 2
 
-[loops.defaults.watch.model_defaults]
-worker = ""
-judge = ""
+[loops.defaults.watch.runtime_defaults.worker]
+provider = "codex"
+model = "gpt-5.4-mini"
+
+[loops.defaults.watch.runtime_defaults.judge]
+provider = "claude"
+model = "sonnet"
 
 [loops.defaults.watch.budget]
 tokens = 0
@@ -1718,22 +1732,35 @@ Existing loop runs keep the config values materialized at start.
 Compile-time ceilings stay in code. Operator config can tighten fan-out, no-progress, and gate
 revision defaults, but it cannot loosen them past the hard runtime ceilings.
 
-| Field                   | Delivery default | Watch default | Valid values              | Description                                                                 |
-| ----------------------- | ---------------- | ------------- | ------------------------- | --------------------------------------------------------------------------- |
-| `iteration_cap`         | `50`             | `0`           | Zero or positive integer. | Maximum loop iterations seeded for new runs. `0` means no configured cap.   |
-| `no_progress.window`    | `3`              | `2`           | `0` through `30`.         | Generation-hash no-progress window. This is not the inactivity clock.       |
-| `gates.max_revisions`   | `10`             | `0`           | `0` through `64`.         | Gate revision seed default. `0` means no gate-revision seed for that class. |
-| `budget.tokens`         | `0`              | `0`           | Zero or positive integer. | Token budget. `0` means unlimited. A set budget is enforced.                |
-| `budget.wall_clock_sec` | `0`              | `0`           | Zero or positive integer. | Wall-clock budget in seconds. `0` means unlimited.                          |
-| `budget.on_exceeded`    | `halt`           | `halt`        | `halt` or `escalate`.     | Enforcement policy once a non-zero budget is exceeded.                      |
-| `model_defaults.worker` | empty            | empty         | string.                   | Default model for `run-agent` actions that omit `params.model`.             |
-| `model_defaults.judge`  | empty            | empty         | string.                   | Default model for `agent-judge` criteria that omit `model`.                 |
-| `fan_out_width`         | `4`              | `2`           | `0` through `64`.         | Fan-out width seed default for new runs.                                    |
+| Field                                          | Delivery default | Watch default | Valid values                    | Description                                                                 |
+| ---------------------------------------------- | ---------------- | ------------- | ------------------------------- | --------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- | ---- | ----- | ----- | ------------------------- |
+| `iteration_cap`                                | `50`             | `0`           | Zero or positive integer.       | Maximum loop iterations seeded for new runs. `0` means no configured cap.   |
+| `no_progress.window`                           | `3`              | `2`           | `0` through `30`.               | Generation-hash no-progress window. This is not the inactivity clock.       |
+| `gates.max_revisions`                          | `10`             | `0`           | `0` through `64`.               | Gate revision seed default. `0` means no gate-revision seed for that class. |
+| `budget.tokens`                                | `0`              | `0`           | Zero or positive integer.       | Token budget. `0` means unlimited. A set budget is enforced.                |
+| `budget.wall_clock_sec`                        | `0`              | `0`           | Zero or positive integer.       | Wall-clock budget in seconds. `0` means unlimited.                          |
+| `budget.on_exceeded`                           | `halt`           | `halt`        | `halt` or `escalate`.           | Enforcement policy once a non-zero budget is exceeded.                      |
+| `runtime_defaults.worker.provider`             | empty            | empty         | Configured provider name/alias. | Worker provider default.                                                    |
+| `runtime_defaults.worker.model`                | empty            | empty         | Non-empty model ID.             | Worker model default. Gateway IDs may contain `/`.                          |
+| `runtime_defaults.worker.reasoning`            | empty            | empty         | `none                           | minimal                                                                     | low                             | medium                                            | high | xhigh | max`. | Worker reasoning default. |
+| `runtime_defaults.judge.provider`              | empty            | empty         | Configured provider name/alias. | Judge provider default.                                                     |
+| `runtime_defaults.judge.model`                 | empty            | empty         | Non-empty model ID.             | Judge model default.                                                        |
+| `runtime_defaults.judge.reasoning`             | empty            | empty         | `none                           | minimal                                                                     | low                             | medium                                            | high | xhigh | max`. | Judge reasoning default.  |
+| `runtime_rules[].match.id                      | type             | complexity`   | none                            | none                                                                        | Exactly one non-empty selector. | Selects imported tasks; `id > type > complexity`. |
+| `runtime_rules[].runtime.{provider,model,...}` | none             | none          | At least one populated field.   | Field-merged override; later equal-specificity rules win.                   |
+| `fan_out_width`                                | `4`              | `2`           | `0` through `64`.               | Fan-out width seed default for new runs.                                    |
 
 These paths are mutable through `compozy config set` and the native config tools. Writes return
 `lifecycle="restart-required"` because the daemon does not rewrite active runs after defaults change.
 New starts read the resolved defaults after the daemon reloads its config state; live runs keep the
 effective config materialized at start.
+
+For workers, runtime fields resolve from per-run rules, imported task frontmatter, configured
+rules, node `params.runtime`, runtime defaults, then the agent definition. Judges use judge defaults
+plus criterion `runtime`; task rules never apply. `model_defaults`, scalar `params.model`, and
+scalar criterion `model` are rejected instead of translated. Static `loop validate` checks authored
+definition values; dry-run and submission check the effective workspace/run values before any ACP
+process starts.
 
 ## `[goals]`
 

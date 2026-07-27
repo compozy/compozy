@@ -420,6 +420,12 @@ function deliveryGenerations(run: LoopRun): LoopRunDetail["generations"] {
         generation: 1,
         item_index: 2,
         task_run_id: "tr_3",
+        resolved_runtime: {
+          provider: "openai",
+          model: "gpt-5.4",
+          reasoning: "high",
+          source: { provider: "run", model: "frontmatter", reasoning: "config" },
+        },
       },
       { node_id: "collect", status: "succeeded", generation: 1 },
       { node_id: "review", status: "failed", generation: 1 },
@@ -435,6 +441,12 @@ function deliveryGenerations(run: LoopRun): LoopRunDetail["generations"] {
         status: live ? "running" : "succeeded",
         generation: 2,
         item_index: 2,
+        resolved_runtime: {
+          provider: "openai",
+          model: "gpt-5.4",
+          reasoning: "high",
+          source: { provider: "run", model: "frontmatter", reasoning: "config" },
+        },
       },
       {
         node_id: "child_delivery",
@@ -510,7 +522,16 @@ export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
   gate_max_revisions: 3,
   human_gate_enabled: true,
   iteration_cap: 16,
-  model_defaults: { judge: "", worker: "" },
+  runtime_defaults: {
+    worker: { provider: "openai", model: "gpt-5.4" },
+    judge: { provider: "anthropic", model: "claude-sonnet-4" },
+  },
+  runtime_rules: [
+    {
+      match: { type: "implementation" },
+      runtime: { reasoning: "high" },
+    },
+  ],
   no_progress_window: 3,
   reattempt_strategy: "failed_only",
 };

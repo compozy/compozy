@@ -67,7 +67,10 @@ func resolveObservedAgent(
 	if err != nil {
 		return aghconfig.ResolvedAgent{}, err
 	}
-	resolved, err := cfg.ResolveSessionAgentWithRuntime(agentDef, provider, model)
+	resolved, err := cfg.ResolveSessionAgentWithRuntime(agentDef, aghconfig.RuntimeOverrides{
+		Provider: provider,
+		Model:    model,
+	})
 	if err != nil {
 		return aghconfig.ResolvedAgent{}, fmt.Errorf("resolve agent %q: %w", agentName, err)
 	}

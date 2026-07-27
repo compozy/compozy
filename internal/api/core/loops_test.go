@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -862,6 +863,172 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		assertLoopErrorPayloadContains(t, payload, taskpkg.ErrPermissionDenied.Error())
+	})
+
+	t.Run("Should return structured runtime validation over HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		for _, transport := range []string{"httpapi", "udsapi"} {
+			t.Run("Should preserve runtime validation through "+transport, func(t *testing.T) {
+				t.Parallel()
+
+				service := happyLoopService(t)
+				service.validateLoopFn = func(
+					context.Context,
+					string,
+					string,
+					contract.ValidateLoopRequest,
+				) (contract.LoopValidationResponse, error) {
+					return contract.LoopValidationResponse{}, looppkg.NewRuntimeValidationError(
+						looppkg.RuntimeValidationItem{
+							TaskID: "task_03", Field: "model", Value: "missing-model", Reason: "unknown_model",
+						},
+					)
+				}
+				_, engine := newLoopHandlerFixture(t, transport, service)
+				resp := performRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/workspaces/ws-1/loops/alpha/validate",
+					testutil.MustJSONBody(t, contract.ValidateLoopRequest{Definition: loopDefinitionDocument(t)}),
+				)
+				assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
+				var payload contract.LoopValidationResponse
+				testutil.DecodeJSONResponse(t, resp, &payload)
+				if payload.Valid || len(payload.RuntimeValidation) != 1 {
+					t.Fatalf("runtime validation payload = %#v, want one invalid item", payload)
+				}
+				item := payload.RuntimeValidation[0]
+				if item.TaskID != "task_03" || item.Field != "model" || item.Value != "missing-model" ||
+					item.Reason != "unknown_model" {
+					t.Fatalf("runtime validation item = %#v, want stable structured fields", item)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject retired runtime keys before validation service dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name     string
+			wantPath string
+			mutate   func(map[string]any)
+		}{
+			{
+				name:     "model defaults",
+				wantPath: "definition.contract.model_defaults",
+				mutate: func(definition map[string]any) {
+					loopContract := definition["contract"].(map[string]any)
+					loopContract["model_defaults"] = map[string]any{"worker": map[string]any{"model": "opus"}}
+				},
+			},
+			{
+				name:     "node params model",
+				wantPath: "definition.graph.nodes[0].params.model",
+				mutate: func(definition map[string]any) {
+					graph := definition["graph"].(map[string]any)
+					nodes := graph["nodes"].([]any)
+					nodes[0].(map[string]any)["params"] = map[string]any{"model": "opus"}
+				},
+			},
+			{
+				name:     "criterion model",
+				wantPath: "definition.contract.verification[0].model",
+				mutate: func(definition map[string]any) {
+					loopContract := definition["contract"].(map[string]any)
+					loopContract["verification"] = []any{map[string]any{
+						"id": "quality", "type": "judge", "model": "opus",
+					}}
+				},
+			},
+		} {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				service := happyLoopService(t)
+				service.validateLoopFn = func(
+					context.Context,
+					string,
+					string,
+					contract.ValidateLoopRequest,
+				) (contract.LoopValidationResponse, error) {
+					t.Fatalf("ValidateLoop() should not be called for retired key %s", testCase.wantPath)
+					return contract.LoopValidationResponse{}, nil
+				}
+				_, engine := newLoopHandlerFixture(t, "httpapi", service)
+				body := testutil.MustJSONBody(
+					t,
+					contract.ValidateLoopRequest{Definition: loopDefinitionDocument(t)},
+				)
+				var document map[string]any
+				if err := json.Unmarshal(body, &document); err != nil {
+					t.Fatalf("json.Unmarshal(validate request) error = %v", err)
+				}
+				testCase.mutate(document["definition"].(map[string]any))
+				body, err := json.Marshal(document)
+				if err != nil {
+					t.Fatalf("json.Marshal(validate request) error = %v", err)
+				}
+				resp := performRequest(
+					t,
+					engine,
+					http.MethodPost,
+					"/workspaces/ws-1/loops/alpha/validate",
+					body,
+				)
+				assertLoopStatus(t, resp.Code, http.StatusBadRequest, resp.Body.String())
+				if responseBody := resp.Body.String(); !strings.Contains(responseBody, testCase.wantPath) ||
+					!strings.Contains(responseBody, "MIGRATION_GUIDE.md#per-task-runtime-selection") {
+					t.Fatalf("retired runtime response = %s, want path and migration guide", responseBody)
+				}
+			})
+		}
+	})
+
+	t.Run("Should allow runtime model fields at the HTTP boundary", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		validateCalls := 0
+		service.validateLoopFn = func(
+			context.Context,
+			string,
+			string,
+			contract.ValidateLoopRequest,
+		) (contract.LoopValidationResponse, error) {
+			validateCalls++
+			return contract.LoopValidationResponse{Valid: true}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+		body := testutil.MustJSONBody(t, contract.ValidateLoopRequest{Definition: loopDefinitionDocument(t)})
+		var document map[string]any
+		if err := json.Unmarshal(body, &document); err != nil {
+			t.Fatalf("json.Unmarshal(validate request) error = %v", err)
+		}
+		definition := document["definition"].(map[string]any)
+		loopContract := definition["contract"].(map[string]any)
+		loopContract["runtime_defaults"] = map[string]any{
+			"judge": map[string]any{"model": "judge-model"},
+		}
+		loopContract["verification"] = []any{map[string]any{
+			"id": "quality", "type": "judge", "runtime": map[string]any{"model": "criterion-model"},
+		}}
+		graph := definition["graph"].(map[string]any)
+		nodes := graph["nodes"].([]any)
+		nodes[0].(map[string]any)["params"] = map[string]any{
+			"runtime": map[string]any{"model": "worker-model"},
+		}
+		body, err := json.Marshal(document)
+		if err != nil {
+			t.Fatalf("json.Marshal(validate request) error = %v", err)
+		}
+		resp := performRequest(t, engine, http.MethodPost, "/workspaces/ws-1/loops/alpha/validate", body)
+		assertLoopStatus(t, resp.Code, http.StatusOK, resp.Body.String())
+		if validateCalls != 1 {
+			t.Fatalf("ValidateLoop() calls = %d, want 1", validateCalls)
+		}
 	})
 }
 

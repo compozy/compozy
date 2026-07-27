@@ -20,6 +20,7 @@ func definitionOfDoneTerminal(
 	topology controlTopology,
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
+	runtimeCatalog WorkspaceRuntimeCatalog,
 	outputs []GenerationOutput,
 ) (*task.CoordinatorTerminal, error) {
 	terminal := &task.CoordinatorTerminal{
@@ -39,6 +40,15 @@ func definitionOfDoneTerminal(
 	}
 	if empty {
 		return approvedDefinitionOfDoneTerminal(terminal)
+	}
+	if err := validateJudgeGateRuntimes(
+		ctx,
+		runtimeCatalog,
+		run.WorkspaceID,
+		effective.RuntimeDefaults.Judge,
+		runtimeGate.Criteria,
+	); err != nil {
+		return nil, err
 	}
 	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
 	if err != nil {

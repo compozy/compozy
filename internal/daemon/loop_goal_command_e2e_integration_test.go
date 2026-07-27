@@ -328,8 +328,8 @@ func goalCommandRuntimeOptions(
 [memory]
 enabled = false
 
-[loops.defaults.delivery.model_defaults]
-judge = "goal-e2e-judge"
+[loops.defaults.delivery.runtime_defaults.judge]
+model = "goal-e2e-judge"
 `,
 			},
 		},

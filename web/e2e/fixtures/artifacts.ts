@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 const MANIFEST_VERSION = 1;
-const TEMP_DIR_PREFIX = "agh-playwright-artifacts-";
+const TEMP_DIR_PREFIX = "compozy-playwright-artifacts-";
 const VITE_DEV_MARKERS = ["/@vite/client", "/src/main.tsx", "vite.svg"];
 
 const browserArtifactSpecs = {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/frontmatter"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,13 +27,16 @@ type markdownTasksImportResult struct {
 }
 
 type markdownTaskPayload struct {
-	ID      string   `json:"id"`
-	Number  int      `json:"number"`
-	Title   string   `json:"title"`
-	Path    string   `json:"path"`
-	Body    string   `json:"body"`
-	BodyRef string   `json:"body_ref"`
-	Blocks  []string `json:"blocks"`
+	ID         string           `json:"id"`
+	Number     int              `json:"number"`
+	Title      string           `json:"title"`
+	Type       string           `json:"type"`
+	Complexity string           `json:"complexity"`
+	Runtime    *dsl.RuntimeSpec `json:"runtime,omitempty"`
+	Path       string           `json:"path"`
+	Body       string           `json:"body"`
+	BodyRef    string           `json:"body_ref"`
+	Blocks     []string         `json:"blocks"`
 }
 
 type compozyTaskManifest struct {
@@ -65,9 +69,12 @@ type compozyTaskFile struct {
 }
 
 type compozyTaskFrontmatter struct {
-	Status       string   `yaml:"status"`
-	Title        string   `yaml:"title"`
-	Dependencies []string `yaml:"dependencies"`
+	Status       string           `yaml:"status"`
+	Title        string           `yaml:"title"`
+	Type         string           `yaml:"type"`
+	Complexity   string           `yaml:"complexity"`
+	Runtime      *dsl.RuntimeSpec `yaml:"runtime"`
+	Dependencies []string         `yaml:"dependencies"`
 }
 
 func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
@@ -110,13 +117,16 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 			continue
 		}
 		payloads = append(payloads, markdownTaskPayload{
-			ID:      taskFile.ID,
-			Number:  taskFile.Number,
-			Title:   taskFile.Meta.Title,
-			Path:    taskFile.Path,
-			Body:    taskFile.Body,
-			BodyRef: looppkg.OutputRefForPayload([]byte(taskFile.Body)),
-			Blocks:  compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
+			ID:         taskFile.ID,
+			Number:     taskFile.Number,
+			Title:      taskFile.Meta.Title,
+			Type:       taskFile.Meta.Type,
+			Complexity: taskFile.Meta.Complexity,
+			Runtime:    taskFile.Meta.Runtime,
+			Path:       taskFile.Path,
+			Body:       taskFile.Body,
+			BodyRef:    looppkg.OutputRefForPayload([]byte(taskFile.Body)),
+			Blocks:     compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
 		})
 	}
 	return markdownTasksImportResult{Tasks: payloads}, nil
@@ -374,5 +384,23 @@ func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error
 	}
 	meta.Status = strings.TrimSpace(meta.Status)
 	meta.Title = strings.TrimSpace(meta.Title)
+	meta.Type = strings.TrimSpace(meta.Type)
+	meta.Complexity = strings.TrimSpace(meta.Complexity)
+	if meta.Runtime != nil {
+		if len(meta.Runtime.Extra) > 0 {
+			keys := make([]string, 0, len(meta.Runtime.Extra))
+			for key := range meta.Runtime.Extra {
+				keys = append(keys, key)
+			}
+			slices.Sort(keys)
+			return compozyTaskFrontmatter{}, "", fmt.Errorf(
+				"runtime.%s is unknown; see MIGRATION_GUIDE.md#per-task-runtime-selection",
+				keys[0],
+			)
+		}
+		meta.Runtime.Provider = strings.TrimSpace(meta.Runtime.Provider)
+		meta.Runtime.Model = strings.TrimSpace(meta.Runtime.Model)
+		meta.Runtime.Reasoning = strings.TrimSpace(meta.Runtime.Reasoning)
+	}
 	return meta, parts.Body, nil
 }

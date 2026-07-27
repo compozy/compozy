@@ -50,24 +50,10 @@ func (e *RunAgentActionExecutor) Execute(
 		contract = *in.Contract
 	}
 	contractBlock := RenderContractBlock(contract)
-	binding, err := e.binder.BindActionSession(runCtx, ActionSessionBindRequest{
-		WorkspaceID:          in.WorkspaceID,
-		LoopRunID:            in.LoopRunID,
-		Agent:                strings.TrimSpace(spec.Agent),
-		CWD:                  strings.TrimSpace(spec.CWD),
-		Handle:               actionSessionHandle(node.Session),
-		ItemIndex:            in.ItemIndex,
-		Isolated:             node.Session != nil && node.Session.Isolated,
-		Model:                runAgentModel(spec.Model, in.WorkerModel),
-		AllowedTools:         append([]string(nil), spec.AllowedTools...),
-		MaxTurns:             spec.MaxTurns,
-		ContractBlock:        contractBlock,
-		NetworkParticipation: in.NetworkParticipation,
-	})
+	binding, resolvedRuntime, err := e.bindRunAgentSession(runCtx, node, in, spec, contractBlock)
 	if err != nil {
-		return ActionRawResult{}, fmt.Errorf("bind run-agent session: %w", err)
+		return ActionRawResult{}, err
 	}
-	reportActionSessionBound(runCtx, binding.SessionID)
 	first, err := e.promptActionSession(runCtx, binding, spec.Prompt, 0, cancelOnDeadline)
 	if err != nil {
 		return ActionRawResult{}, err
@@ -76,10 +62,9 @@ func (e *RunAgentActionExecutor) Execute(
 	structured, err := validateRunAgentStructured(spec.OutputSchema, first)
 	if err == nil {
 		first.TokensUsed = tokensUsed
-		return rawFromPromptResult(binding, first, structured), nil
+		return rawFromPromptResult(binding, first, structured, resolvedRuntime), nil
 	}
 	if !errors.Is(err, ErrActionSchemaInvalid) {
-		// Defensive branch for future validation failures that should not consume the free schema retry.
 		return ActionRawResult{}, err
 	}
 	retryPrompt, retryErr := schemaRetryPrompt(spec.Prompt, spec.OutputSchema, err)
@@ -96,14 +81,66 @@ func (e *RunAgentActionExecutor) Execute(
 		return ActionRawResult{}, retryValidationErr
 	}
 	second.TokensUsed = tokensUsed
-	return rawFromPromptResult(binding, second, structured), nil
+	return rawFromPromptResult(binding, second, structured, resolvedRuntime), nil
 }
 
-func runAgentModel(nodeModel string, workerModel string) string {
-	if model := strings.TrimSpace(nodeModel); model != "" {
-		return model
+func (e *RunAgentActionExecutor) bindRunAgentSession(
+	ctx context.Context,
+	node dsl.Node,
+	in ActionExecutionInput,
+	spec dsl.RunAgentParams,
+	contractBlock string,
+) (ActionSessionBinding, ResolvedRuntime, error) {
+	runtimeSelection := in.RuntimeSelectionOrZero()
+	item, err := ItemRuntimeFromNamespace(in.Namespace, spec.Runtime)
+	if err != nil {
+		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
-	return strings.TrimSpace(workerModel)
+	resolvedRuntime, err := ResolveItemRuntime(RuntimeLayers{
+		Defaults:    runtimeSelection.Defaults.Worker,
+		ConfigRules: runtimeSelection.ConfigRules,
+		RunRules:    runtimeSelection.RunRules,
+	}, item)
+	if err != nil {
+		return ActionSessionBinding{}, ResolvedRuntime{}, err
+	}
+	resolvedRuntime, err = ValidateResolvedRuntime(ctx, runtimeSelection.Catalog, item.TaskID, resolvedRuntime)
+	if err != nil {
+		return ActionSessionBinding{}, ResolvedRuntime{}, err
+	}
+	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
+		WorkspaceID:          in.WorkspaceID,
+		LoopRunID:            in.LoopRunID,
+		Agent:                strings.TrimSpace(spec.Agent),
+		CWD:                  strings.TrimSpace(spec.CWD),
+		Handle:               actionSessionHandle(node.Session),
+		ItemIndex:            in.ItemIndex,
+		Isolated:             node.Session != nil && node.Session.Isolated,
+		Runtime:              resolvedRuntime.Runtime,
+		AllowedTools:         append([]string(nil), spec.AllowedTools...),
+		MaxTurns:             spec.MaxTurns,
+		ContractBlock:        contractBlock,
+		NetworkParticipation: in.NetworkParticipation,
+	})
+	if err != nil {
+		return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("bind run-agent session: %w", err)
+	}
+	resolvedRuntime = appliedResolvedRuntime(resolvedRuntime, binding.AppliedRuntime)
+	if runtimeSelection.Recorder != nil {
+		if err := runtimeSelection.Recorder.RecordAppliedRuntime(
+			ctx,
+			in.WorkspaceID,
+			in.LoopRunID,
+			in.Generation,
+			in.NodeID,
+			in.ItemIndex,
+			resolvedRuntime,
+		); err != nil {
+			return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("persist applied runtime: %w", err)
+		}
+	}
+	reportActionSessionBound(ctx, binding.SessionID)
+	return binding, resolvedRuntime, nil
 }
 
 // Harvest returns the run-agent prompt result.
@@ -180,13 +217,15 @@ func rawFromPromptResult(
 	binding ActionSessionBinding,
 	result ActionPromptResult,
 	structured json.RawMessage,
+	resolvedRuntime ResolvedRuntime,
 ) ActionRawResult {
 	return ActionRawResult{
-		Structured:    cloneRawMessage(structured),
-		Text:          result.Text,
-		SessionID:     binding.SessionID,
-		EventStartSeq: result.EventStartSeq,
-		EventEndSeq:   result.EventEndSeq,
-		TokensUsed:    result.TokensUsed,
+		Structured:      cloneRawMessage(structured),
+		Text:            result.Text,
+		SessionID:       binding.SessionID,
+		EventStartSeq:   result.EventStartSeq,
+		EventEndSeq:     result.EventEndSeq,
+		TokensUsed:      result.TokensUsed,
+		ResolvedRuntime: &resolvedRuntime,
 	}
 }

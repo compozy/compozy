@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +16,27 @@ import (
 )
 
 const nativeLoopApprovalHashLen = len("sha256:") + 64
+
+func decodeNativeLoopInput(req toolspkg.CallRequest, dst any) error {
+	if path, found := retiredNativeLoopRuntimePath(req.Input); found {
+		message := fmt.Sprintf(
+			"retired runtime key %s; see MIGRATION_GUIDE.md#per-task-runtime-selection",
+			path,
+		)
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			req.ToolID,
+			message,
+			fmt.Errorf("%w: %s", toolspkg.ErrToolInvalidInput, message),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return decodeNativeInput(req, dst)
+}
+
+func retiredNativeLoopRuntimePath(raw json.RawMessage) (string, bool) {
+	return looppkg.RetiredRuntimeKeyPath(raw)
+}
 
 func nativeLoopWorkspaceID(id toolspkg.ToolID, workspaceID string, scope toolspkg.Scope) (string, error) {
 	resolved, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)

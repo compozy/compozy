@@ -33,11 +33,16 @@ var (
 				"items":{
 					"type":"object",
 					"additionalProperties":false,
-					"required":["id","number","title","path","body","body_ref","blocks"],
+					"required":["id","number","title","type","complexity","path","body","body_ref","blocks"],
 					"properties":{
 						"id":{"type":"string"},
 						"number":{"type":"integer"},
 						"title":{"type":"string"},
+						"type":{"type":"string"},
+						"complexity":{"type":"string"},
+						"runtime":{"type":"object","additionalProperties":false,"properties":{
+							"provider":{"type":"string"},"model":{"type":"string"},"reasoning":{"type":"string"}
+						}},
 						"path":{"type":"string"},
 						"body":{"type":"string"},
 						"body_ref":{"type":"string"},

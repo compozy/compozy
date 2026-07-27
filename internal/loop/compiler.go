@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -81,6 +82,9 @@ type ResolvedDefaults struct {
 // Compile lints, parses templates/CEL, snapshots tool schemas, and folds defaults.
 func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	def.Normalize()
+	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
+		return nil, err
+	}
 	lintErrors := c.linter.Lint(def)
 	blockingErrors := blockingLintErrors(lintErrors)
 	if len(blockingErrors) > 0 {
@@ -205,6 +209,18 @@ func cloneNodeParams(params dsl.NodeParams) dsl.NodeParams {
 
 func cloneAny(value any) any {
 	switch typed := value.(type) {
+	case dsl.NodeParams:
+		cloned := make(dsl.NodeParams, len(typed))
+		for key, child := range typed {
+			cloned[key] = cloneAny(child)
+		}
+		return cloned
+	case dsl.Schema:
+		cloned := make(dsl.Schema, len(typed))
+		for key, child := range typed {
+			cloned[key] = cloneAny(child)
+		}
+		return cloned
 	case map[string]any:
 		cloned := make(map[string]any, len(typed))
 		for key, child := range typed {

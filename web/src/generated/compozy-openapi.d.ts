@@ -83220,14 +83220,34 @@ export interface operations {
                 definition_of_done: string;
                 goal: string;
                 iteration_cap: number;
-                model_defaults?: {
-                  judge?: string;
-                  worker?: string;
-                } | null;
                 no_progress: {
                   hash_fields?: string[];
                   window: number;
                 };
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
                 stop_when?: string;
                 terminal_states?: string[];
                 verification?: {
@@ -83238,9 +83258,13 @@ export interface operations {
                   inputs?: {
                     [key: string]: unknown;
                   };
-                  model?: string;
                   prompt?: string;
                   rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
                   tool?: string;
                   type: string;
                 }[];
@@ -83442,6 +83466,16 @@ export interface operations {
                 item_index?: number;
                 node_id: string;
                 output_ref?: string;
+                resolved_runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  source: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
                 status: string;
                 task_run_id?: string;
               }[];
@@ -83911,7 +83945,8 @@ export interface operations {
               | "status_changed"
               | "goal_turn_started"
               | "goal_turn_completed"
-              | "goal_status_changed";
+              | "goal_status_changed"
+              | "runtime_applied";
             loop_run_id: string;
             payload: unknown;
             /** Format: int64 */
@@ -85021,14 +85056,34 @@ export interface operations {
                 definition_of_done: string;
                 goal: string;
                 iteration_cap: number;
-                model_defaults?: {
-                  judge?: string;
-                  worker?: string;
-                } | null;
                 no_progress: {
                   hash_fields?: string[];
                   window: number;
                 };
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
                 stop_when?: string;
                 terminal_states?: string[];
                 verification?: {
@@ -85039,9 +85094,13 @@ export interface operations {
                   inputs?: {
                     [key: string]: unknown;
                   };
-                  model?: string;
                   prompt?: string;
                   rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
                   tool?: string;
                   type: string;
                 }[];
@@ -85257,14 +85316,34 @@ export interface operations {
               definition_of_done: string;
               goal: string;
               iteration_cap: number;
-              model_defaults?: {
-                judge?: string;
-                worker?: string;
-              } | null;
               no_progress: {
                 hash_fields?: string[];
                 window: number;
               };
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
               stop_when?: string;
               terminal_states?: string[];
               verification?: {
@@ -85275,9 +85354,13 @@ export interface operations {
                 inputs?: {
                   [key: string]: unknown;
                 };
-                model?: string;
                 prompt?: string;
                 rubric?: string;
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
                 tool?: string;
                 type: string;
               }[];
@@ -85504,14 +85587,34 @@ export interface operations {
                   definition_of_done: string;
                   goal: string;
                   iteration_cap: number;
-                  model_defaults?: {
-                    judge?: string;
-                    worker?: string;
-                  } | null;
                   no_progress: {
                     hash_fields?: string[];
                     window: number;
                   };
+                  runtime_defaults?: {
+                    judge?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                    worker?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  } | null;
+                  runtime_rules?: {
+                    match: {
+                      complexity?: string;
+                      id?: string;
+                      type?: string;
+                    };
+                    runtime: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  }[];
                   stop_when?: string;
                   terminal_states?: string[];
                   verification?: {
@@ -85522,9 +85625,13 @@ export interface operations {
                     inputs?: {
                       [key: string]: unknown;
                     };
-                    model?: string;
                     prompt?: string;
                     rubric?: string;
+                    runtime?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
                     tool?: string;
                     type: string;
                   }[];
@@ -85816,6 +85923,12 @@ export interface operations {
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
+            runtime_validation?: {
+              field: string;
+              reason: string;
+              task_id?: string;
+              value: string;
+            }[];
             valid: boolean;
           };
         };
@@ -85914,14 +86027,34 @@ export interface operations {
                   definition_of_done: string;
                   goal: string;
                   iteration_cap: number;
-                  model_defaults?: {
-                    judge?: string;
-                    worker?: string;
-                  } | null;
                   no_progress: {
                     hash_fields?: string[];
                     window: number;
                   };
+                  runtime_defaults?: {
+                    judge?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                    worker?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  } | null;
+                  runtime_rules?: {
+                    match: {
+                      complexity?: string;
+                      id?: string;
+                      type?: string;
+                    };
+                    runtime: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  }[];
                   stop_when?: string;
                   terminal_states?: string[];
                   verification?: {
@@ -85932,9 +86065,13 @@ export interface operations {
                     inputs?: {
                       [key: string]: unknown;
                     };
-                    model?: string;
                     prompt?: string;
                     rubric?: string;
+                    runtime?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
                     tool?: string;
                     type: string;
                   }[];
@@ -86418,14 +86555,34 @@ export interface operations {
               definition_of_done: string;
               goal: string;
               iteration_cap: number;
-              model_defaults?: {
-                judge?: string;
-                worker?: string;
-              } | null;
               no_progress: {
                 hash_fields?: string[];
                 window: number;
               };
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
               stop_when?: string;
               terminal_states?: string[];
               verification?: {
@@ -86436,9 +86593,13 @@ export interface operations {
                 inputs?: {
                   [key: string]: unknown;
                 };
-                model?: string;
                 prompt?: string;
                 rubric?: string;
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
                 tool?: string;
                 type: string;
               }[];
@@ -86665,14 +86826,34 @@ export interface operations {
                   definition_of_done: string;
                   goal: string;
                   iteration_cap: number;
-                  model_defaults?: {
-                    judge?: string;
-                    worker?: string;
-                  } | null;
                   no_progress: {
                     hash_fields?: string[];
                     window: number;
                   };
+                  runtime_defaults?: {
+                    judge?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                    worker?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  } | null;
+                  runtime_rules?: {
+                    match: {
+                      complexity?: string;
+                      id?: string;
+                      type?: string;
+                    };
+                    runtime: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
+                  }[];
                   stop_when?: string;
                   terminal_states?: string[];
                   verification?: {
@@ -86683,9 +86864,13 @@ export interface operations {
                     inputs?: {
                       [key: string]: unknown;
                     };
-                    model?: string;
                     prompt?: string;
                     rubric?: string;
+                    runtime?: {
+                      model?: string;
+                      provider?: string;
+                      reasoning?: string;
+                    };
                     tool?: string;
                     type: string;
                   }[];
@@ -86988,6 +87173,12 @@ export interface operations {
               node_id?: string;
               /** @enum {string} */
               severity: "error" | "warning";
+            }[];
+            runtime_validation?: {
+              field: string;
+              reason: string;
+              task_id?: string;
+              value: string;
             }[];
             valid: boolean;
           };
@@ -87305,13 +87496,33 @@ export interface operations {
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
               iteration_cap?: number | null;
-              model_defaults?: {
-                judge?: string | null;
-                worker?: string | null;
-              } | null;
               no_progress_window?: number | null;
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
             } | null;
             effective_config: {
               /** @enum {string} */
@@ -87323,13 +87534,45 @@ export interface operations {
               gate_max_revisions: number;
               human_gate_enabled: boolean;
               iteration_cap: number;
-              model_defaults: {
-                judge: string;
-                worker: string;
-              };
               no_progress_window: number;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              run_runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
+              runtime_defaults: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              };
+              runtime_rules: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
             };
           };
         };
@@ -87462,13 +87705,33 @@ export interface operations {
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
             iteration_cap?: number | null;
-            model_defaults?: {
-              judge?: string | null;
-              worker?: string | null;
-            } | null;
             no_progress_window?: number | null;
             /** @enum {string|null} */
             reattempt_strategy?: "failed_only" | "full_body" | null;
+            runtime_defaults?: {
+              judge?: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+              worker?: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+            } | null;
+            runtime_rules?: {
+              match: {
+                complexity?: string;
+                id?: string;
+                type?: string;
+              };
+              runtime: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+            }[];
           };
         };
       };
@@ -87491,13 +87754,33 @@ export interface operations {
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
               iteration_cap?: number | null;
-              model_defaults?: {
-                judge?: string | null;
-                worker?: string | null;
-              } | null;
               no_progress_window?: number | null;
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
             } | null;
             effective_config: {
               /** @enum {string} */
@@ -87509,13 +87792,45 @@ export interface operations {
               gate_max_revisions: number;
               human_gate_enabled: boolean;
               iteration_cap: number;
-              model_defaults: {
-                judge: string;
-                worker: string;
-              };
               no_progress_window: number;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              run_runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
+              runtime_defaults: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              };
+              runtime_rules: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
             };
           };
         };
@@ -87626,13 +87941,33 @@ export interface operations {
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
             iteration_cap?: number | null;
-            model_defaults?: {
-              judge?: string | null;
-              worker?: string | null;
-            } | null;
             no_progress_window?: number | null;
             /** @enum {string|null} */
             reattempt_strategy?: "failed_only" | "full_body" | null;
+            runtime_defaults?: {
+              judge?: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+              worker?: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+            } | null;
+            runtime_rules?: {
+              match: {
+                complexity?: string;
+                id?: string;
+                type?: string;
+              };
+              runtime: {
+                model?: string;
+                provider?: string;
+                reasoning?: string;
+              };
+            }[];
           } | null;
           inputs?: {
             [key: string]: unknown;
@@ -87722,14 +88057,34 @@ export interface operations {
                 definition_of_done: string;
                 goal: string;
                 iteration_cap: number;
-                model_defaults?: {
-                  judge?: string;
-                  worker?: string;
-                } | null;
                 no_progress: {
                   hash_fields?: string[];
                   window: number;
                 };
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
                 stop_when?: string;
                 terminal_states?: string[];
                 verification?: {
@@ -87740,9 +88095,13 @@ export interface operations {
                   inputs?: {
                     [key: string]: unknown;
                   };
-                  model?: string;
                   prompt?: string;
                   rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
                   tool?: string;
                   type: string;
                 }[];
@@ -87757,13 +88116,45 @@ export interface operations {
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
                 iteration_cap: number;
-                model_defaults: {
-                  judge: string;
-                  worker: string;
-                };
                 no_progress_window: number;
                 /** @enum {string} */
                 reattempt_strategy: "failed_only" | "full_body";
+                run_runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
+                runtime_defaults: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                };
+                runtime_rules: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
               };
               generation: number;
               loop_name: string;
@@ -87945,14 +88336,34 @@ export interface operations {
                 definition_of_done: string;
                 goal: string;
                 iteration_cap: number;
-                model_defaults?: {
-                  judge?: string;
-                  worker?: string;
-                } | null;
                 no_progress: {
                   hash_fields?: string[];
                   window: number;
                 };
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
                 stop_when?: string;
                 terminal_states?: string[];
                 verification?: {
@@ -87963,9 +88374,13 @@ export interface operations {
                   inputs?: {
                     [key: string]: unknown;
                   };
-                  model?: string;
                   prompt?: string;
                   rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
                   tool?: string;
                   type: string;
                 }[];
@@ -87980,13 +88395,45 @@ export interface operations {
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
                 iteration_cap: number;
-                model_defaults: {
-                  judge: string;
-                  worker: string;
-                };
                 no_progress_window: number;
                 /** @enum {string} */
                 reattempt_strategy: "failed_only" | "full_body";
+                run_runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
+                runtime_defaults: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                };
+                runtime_rules: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
               };
               generation: number;
               loop_name: string;
@@ -88356,14 +88803,34 @@ export interface operations {
               definition_of_done: string;
               goal: string;
               iteration_cap: number;
-              model_defaults?: {
-                judge?: string;
-                worker?: string;
-              } | null;
               no_progress: {
                 hash_fields?: string[];
                 window: number;
               };
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
               stop_when?: string;
               terminal_states?: string[];
               verification?: {
@@ -88374,9 +88841,13 @@ export interface operations {
                 inputs?: {
                   [key: string]: unknown;
                 };
-                model?: string;
                 prompt?: string;
                 rubric?: string;
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
                 tool?: string;
                 type: string;
               }[];
@@ -88588,6 +89059,12 @@ export interface operations {
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
+            runtime_validation?: {
+              field: string;
+              reason: string;
+              task_id?: string;
+              value: string;
+            }[];
             valid: boolean;
           };
         };
@@ -88630,6 +89107,12 @@ export interface operations {
               node_id?: string;
               /** @enum {string} */
               severity: "error" | "warning";
+            }[];
+            runtime_validation?: {
+              field: string;
+              reason: string;
+              task_id?: string;
+              value: string;
             }[];
             valid: boolean;
           };

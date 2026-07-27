@@ -150,6 +150,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     run,
     effectiveRun,
     definition,
+    generations: generations ?? [],
     graph: view?.graph ?? null,
     watchEvents,
     versionLabel,

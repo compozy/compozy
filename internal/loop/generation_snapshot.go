@@ -20,13 +20,14 @@ type GenerationSnapshotPayload struct {
 
 // GenerationOutput is one loop_generation_outputs row mutation.
 type GenerationOutput struct {
-	Generation     int    `json:"generation,omitempty"`
-	NodeID         string `json:"node_id"`
-	ItemIndex      int    `json:"item_index,omitempty"`
-	Status         string `json:"status"`
-	OutputRef      string `json:"output_ref,omitempty"`
-	TaskRunID      string `json:"task_run_id,omitempty"`
-	ChildLoopRunID string `json:"child_loop_run_id,omitempty"`
+	Generation      int              `json:"generation,omitempty"`
+	NodeID          string           `json:"node_id"`
+	ItemIndex       int              `json:"item_index,omitempty"`
+	Status          string           `json:"status"`
+	OutputRef       string           `json:"output_ref,omitempty"`
+	TaskRunID       string           `json:"task_run_id,omitempty"`
+	ChildLoopRunID  string           `json:"child_loop_run_id,omitempty"`
+	ResolvedRuntime *ResolvedRuntime `json:"resolved_runtime,omitempty"`
 }
 
 // GenerationOutputBlob is one content-addressed loop output payload required by
@@ -81,16 +82,25 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		if err := output.validate(); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(
+		resolvedRuntime, err := resolvedRuntimeSQLValue(output.ResolvedRuntime)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(
 			ctx,
 			`INSERT INTO loop_generation_outputs (
-				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, child_loop_run_id
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
+				child_loop_run_id, resolved_runtime_json
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
 				status = excluded.status,
 				output_ref = excluded.output_ref,
 				task_run_id = excluded.task_run_id,
-				child_loop_run_id = excluded.child_loop_run_id`,
+				child_loop_run_id = excluded.child_loop_run_id,
+				resolved_runtime_json = COALESCE(
+					excluded.resolved_runtime_json,
+					loop_generation_outputs.resolved_runtime_json
+				)`,
 			loopRunID,
 			snap.Generation,
 			output.NodeID,
@@ -99,6 +109,7 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 			sqlNullString(output.OutputRef),
 			sqlNullString(output.TaskRunID),
 			sqlNullString(output.ChildLoopRunID),
+			resolvedRuntime,
 		)
 		if err != nil {
 			return fmt.Errorf(
@@ -143,7 +154,22 @@ func writeGenerationOutputBlob(ctx context.Context, tx task.Tx, blob GenerationO
 func (o GenerationOutput) normalized() GenerationOutput {
 	o.NodeID = strings.TrimSpace(o.NodeID)
 	o.Status = strings.TrimSpace(o.Status)
+	if o.ResolvedRuntime != nil {
+		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)
+		o.ResolvedRuntime = &normalized
+	}
 	return o
+}
+
+func resolvedRuntimeSQLValue(runtime *ResolvedRuntime) (any, error) {
+	if runtime == nil {
+		return nil, nil
+	}
+	data, err := json.Marshal(runtime)
+	if err != nil {
+		return nil, fmt.Errorf("loop: marshal resolved runtime: %w", err)
+	}
+	return string(data), nil
 }
 
 func normalizeGenerationSnapshotPayload(value any) (GenerationSnapshotPayload, error) {

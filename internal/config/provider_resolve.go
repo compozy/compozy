@@ -224,18 +224,26 @@ func resolvedAgentFromProvider(
 // provider-owned runtime fields are re-resolved from that provider to avoid
 // mixed runtimes from the original agent definition.
 func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (ResolvedAgent, error) {
-	return c.ResolveSessionAgentWithRuntime(agent, providerOverride, "")
+	return c.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{Provider: providerOverride})
 }
 
-// ResolveSessionAgentWithRuntime resolves one session agent with runtime-level provider/model overrides.
+// RuntimeOverrides are the engine-resolved runtime fields applied to one session.
+type RuntimeOverrides struct {
+	Provider  string
+	Model     string
+	Reasoning string
+}
+
+// ResolveSessionAgentWithRuntime resolves one session agent with runtime-level overrides.
 func (c *Config) ResolveSessionAgentWithRuntime(
 	agent AgentDef,
-	providerOverride string,
-	modelOverride string,
+	overrides RuntimeOverrides,
 ) (ResolvedAgent, error) {
-	override := CanonicalProviderName(providerOverride)
-	model := strings.TrimSpace(modelOverride)
-	if override == "" && model == "" {
+	rawProviderOverride := strings.TrimSpace(overrides.Provider)
+	override := CanonicalProviderName(rawProviderOverride)
+	model := strings.TrimSpace(overrides.Model)
+	reasoningEffort := strings.TrimSpace(overrides.Reasoning)
+	if rawProviderOverride == "" && model == "" && reasoningEffort == "" {
 		return c.ResolveAgent(agent)
 	}
 
@@ -243,17 +251,24 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
-	if override == "" || override == effectiveProvider {
+	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
-			if model != strings.TrimSpace(agent.Model) {
+			if model != strings.TrimSpace(agent.Model) && reasoningEffort == "" {
 				sessionAgent.ReasoningEffort = ""
 			}
 			sessionAgent.Model = model
 		}
+		if reasoningEffort != "" {
+			sessionAgent.ReasoningEffort = reasoningEffort
+		}
 		return c.ResolveAgent(sessionAgent)
 	}
 
+	// A changed provider owns the complete provider-derived runtime. Clearing
+	// these fields prevents an agent model or command from leaking across
+	// providers while same-provider selections retain valid agent-specific
+	// commands and apply only the explicitly selected runtime fields above.
 	sessionAgent := agent
 	sessionAgent.Provider = override
 	sessionAgent.Command = ""
@@ -261,6 +276,9 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 	sessionAgent.ReasoningEffort = ""
 	if model != "" {
 		sessionAgent.Model = model
+	}
+	if reasoningEffort != "" {
+		sessionAgent.ReasoningEffort = reasoningEffort
 	}
 
 	resolved, err := c.ResolveAgent(sessionAgent)

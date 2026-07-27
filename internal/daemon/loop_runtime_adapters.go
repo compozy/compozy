@@ -66,7 +66,9 @@ func (r *loopGateJudgeRunner) Judge(
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
 		AgentName:                    agent,
-		Model:                        strings.TrimSpace(req.Model),
+		Provider:                     strings.TrimSpace(req.Runtime.Provider),
+		Model:                        strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
 		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
 		PromptOverlay:                contractOverlay,

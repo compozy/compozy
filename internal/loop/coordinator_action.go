@@ -58,7 +58,12 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	outputs, err := r.outputs.ListGenerationOutputs(ctx, actionCtx.loopRun.ID, actionCtx.meta.Generation)
+	outputs, err := r.outputs.ListGenerationOutputs(
+		ctx,
+		actionCtx.loopRun.WorkspaceID,
+		actionCtx.loopRun.ID,
+		actionCtx.meta.Generation,
+	)
 	if err != nil {
 		return task.RunResult{}, err
 	}
@@ -76,6 +81,18 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		return task.RunResult{}, err
 	}
 	input.UsageReporter = actionUsageReporterFromContext(ctx)
+	if input.RuntimeSelection == nil {
+		input.RuntimeSelection = &ActionRuntimeSelection{}
+	}
+	if r.runtimeCatalog != nil {
+		input.RuntimeSelection.Catalog, err = r.runtimeCatalog.ForWorkspace(ctx, actionCtx.loopRun.WorkspaceID)
+		if err != nil {
+			return task.RunResult{}, err
+		}
+	}
+	if recorder, ok := r.outputs.(ActionAppliedRuntimeRecorder); ok {
+		input.RuntimeSelection.Recorder = recorder
+	}
 	input.PersistedTaskTokensUsed = taskRun.TokensUsed
 	executor, err := r.resolvePinnedActionExecutor(ctx, input.ToolScope, &actionCtx)
 	if err != nil {
@@ -234,18 +251,21 @@ func actionExecutionInput(
 		return ActionExecutionInput{}, err
 	}
 	return ActionExecutionInput{
-		WorkspaceID:              loopRun.WorkspaceID,
-		LoopRunID:                loopRun.ID,
-		Generation:               meta.Generation,
-		NodeID:                   node.ID,
-		ItemIndex:                meta.ItemIndex,
-		Namespace:                namespace,
-		Contract:                 &resolved.Definition.Contract,
-		ToolScope:                actionToolScope(loopRun, actor),
-		Actor:                    actor,
-		CorrelationID:            strings.TrimSpace(taskRun.ID),
-		WorkerModel:              effective.ModelDefaults.Worker,
-		JudgeModel:               effective.ModelDefaults.Judge,
+		WorkspaceID:   loopRun.WorkspaceID,
+		LoopRunID:     loopRun.ID,
+		Generation:    meta.Generation,
+		NodeID:        node.ID,
+		ItemIndex:     meta.ItemIndex,
+		Namespace:     namespace,
+		Contract:      &resolved.Definition.Contract,
+		ToolScope:     actionToolScope(loopRun, actor),
+		Actor:         actor,
+		CorrelationID: strings.TrimSpace(taskRun.ID),
+		RuntimeSelection: &ActionRuntimeSelection{
+			Defaults:    effective.RuntimeDefaults,
+			ConfigRules: cloneRuntimeRules(effective.RuntimeRules),
+			RunRules:    cloneRuntimeRules(effective.RunRuntimeRules),
+		},
 		OriginSessionID:          loopRun.Origin.SessionID,
 		OriginCreationProfileRef: loopRun.Origin.CreationProfileRef,
 		OriginPolicySpecDigest:   loopRun.Origin.PolicySpecDigest,

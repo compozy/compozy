@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -72,6 +73,37 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 		if got := origin.NetworkParticipation; got != originParticipation {
 			t.Fatalf("origin participation = %#v, want unchanged %#v", got, originParticipation)
+		}
+	})
+
+	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "runtime-profile", nil, withoutInitialGoalBinding())
+		firstRequest := fixture.bindingRequest("runtime-profile")
+		firstRequest.Runtime = looppkg.RuntimeSpec{Model: "first-model"}
+
+		first, err := fixture.runtime.BindActionSession(testutil.Context(t), firstRequest)
+		if err != nil {
+			t.Fatalf("BindActionSession(first runtime) error = %v", err)
+		}
+		if first.AppliedRuntime.Model != "first-model" {
+			t.Fatalf("first AppliedRuntime = %#v, want first-model", first.AppliedRuntime)
+		}
+
+		secondRequest := fixture.bindingRequest("runtime-profile")
+		secondRequest.BindingAttemptID = "binding-attempt-goal-managed-runtime-profile-divergent"
+		secondRequest.DesiredSessionID = "sess-goal-managed-runtime-profile-divergent"
+		secondRequest.Runtime = looppkg.RuntimeSpec{Model: "second-model"}
+		_, err = fixture.runtime.BindActionSession(testutil.Context(t), secondRequest)
+		var reason *looppkg.ReasonError
+		if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
+			!errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("BindActionSession(divergent runtime) error = %v, want bindingMismatch", err)
+		}
+		if _, active := fixture.manager.Get(first.SessionID); !active {
+			t.Fatalf("first session %q is not active after rejected divergence", first.SessionID)
+		}
+		if _, active := fixture.manager.Get(secondRequest.DesiredSessionID); active {
+			t.Fatalf("divergent session %q was materialized", secondRequest.DesiredSessionID)
 		}
 	})
 
@@ -345,7 +377,13 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 				WorkspaceID: fixture.run.WorkspaceID, LoopRunID: fixture.run.ID,
 				Generation: 1, NodeID: fixture.node.ID, ItemIndex: 0,
 				Actor: fixture.actor, CorrelationID: fixture.workerClaim.Run.ID,
-				WorkerModel: "worker-model", JudgeModel: "judge-model",
+				RuntimeSelection: &looppkg.ActionRuntimeSelection{
+					Defaults: looppkg.RuntimeDefaults{
+						Worker: looppkg.RuntimeSpec{Model: "worker-model"},
+						Judge:  looppkg.RuntimeSpec{Model: "judge-model"},
+					},
+					Catalog: integrationRuntimeCatalog{},
+				},
 				CWD: fixture.workspaceRoot, GoalSegmentEpoch: 1,
 				GoalContextNudgeRatio: new(fixture.run.GoalContextNudgeRatio),
 			})
@@ -462,6 +500,16 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("Goal successor = %#v metadata = %#v", successor, metadata)
 		}
 	})
+}
+
+type integrationRuntimeCatalog struct{}
+
+func (integrationRuntimeCatalog) CanonicalProvider(provider string) string {
+	return provider
+}
+
+func (integrationRuntimeCatalog) ValidateRuntime(context.Context, looppkg.RuntimeSpec) error {
+	return nil
 }
 
 func managedTestGoalRunPolicyResolver() looppkg.GoalRunPolicyResolver {
@@ -787,7 +835,12 @@ func (f loopGoalCoordinatorRuntimeFixture) assertAwaitingGoalWithoutWorker(t *te
 	if !ok {
 		t.Fatalf("task store = %T, want GenerationOutputReader", f.taskStore)
 	}
-	generationOutputs, err := outputs.ListGenerationOutputs(testutil.Context(t), f.run.ID, 1)
+	generationOutputs, err := outputs.ListGenerationOutputs(
+		testutil.Context(t),
+		f.run.WorkspaceID,
+		f.run.ID,
+		1,
+	)
 	if err != nil {
 		t.Fatalf("ListGenerationOutputs() error = %v", err)
 	}

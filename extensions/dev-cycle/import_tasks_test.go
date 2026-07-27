@@ -75,6 +75,108 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish task type complexity and runtime frontmatter", func(t *testing.T) {
+		t.Parallel()
+
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+		writeImportTaskFileWithFrontmatter(t, tasksDir, "task_01.md", []string{
+			"status: pending",
+			"title: Runtime task",
+			"type: frontend",
+			"complexity: high",
+			"owner: platform",
+			"runtime:",
+			"  provider: claude",
+			"  model: opus",
+			"  reasoning: xhigh",
+		}, "# Runtime task\n")
+		writeImportTaskFile(t, tasksDir, "task_02.md", "completed", "Second task", "# Second\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third task", "# Third\n")
+
+		result, err := importMarkdownTasks(filepath.Join(tasksDir, "task_*.md"))
+		if err != nil {
+			t.Fatalf("importMarkdownTasks() error = %v", err)
+		}
+		if len(result.Tasks) != 1 {
+			t.Fatalf("len(tasks) = %d, want one task", len(result.Tasks))
+		}
+		task := result.Tasks[0]
+		if task.Type != "frontend" || task.Complexity != "high" || task.Runtime == nil {
+			t.Fatalf("task metadata = %#v, want frontend/high/runtime", task)
+		}
+		if task.Runtime.Provider != "claude" || task.Runtime.Model != "opus" ||
+			task.Runtime.Reasoning != "xhigh" {
+			t.Fatalf("task runtime = %#v, want claude/opus@xhigh", task.Runtime)
+		}
+	})
+
+	t.Run("Should preserve absent type and runtime", func(t *testing.T) {
+		t.Parallel()
+
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+		writeImportTaskFile(t, tasksDir, "task_01.md", "pending", "First task", "# First\n")
+		writeImportTaskFile(t, tasksDir, "task_02.md", "completed", "Second task", "# Second\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third task", "# Third\n")
+
+		result, err := importMarkdownTasks(filepath.Join(tasksDir, "task_*.md"))
+		if err != nil {
+			t.Fatalf("importMarkdownTasks() error = %v", err)
+		}
+		if len(result.Tasks) != 1 || result.Tasks[0].Type != "" || result.Tasks[0].Runtime != nil {
+			t.Fatalf("tasks = %#v, want absent type and runtime", result.Tasks)
+		}
+	})
+
+	t.Run("Should reject malformed nested runtime fields with file scope", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			runtime  []string
+			wantText string
+		}{
+			{
+				name: "Should reject non string reasoning",
+				runtime: []string{
+					"runtime:",
+					"  reasoning: 5",
+				},
+				wantText: "reasoning",
+			},
+			{
+				name: "Should reject an unknown runtime field",
+				runtime: []string{
+					"runtime:",
+					"  ide: claude",
+				},
+				wantText: "runtime.ide is unknown",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				tasksDir := t.TempDir()
+				writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, nil)
+				metadata := []string{"status: pending", "title: Runtime task"}
+				metadata = append(metadata, tc.runtime...)
+				writeImportTaskFileWithFrontmatter(
+					t, tasksDir, "task_01.md", metadata, "# Runtime task\n",
+				)
+				writeImportTaskFile(t, tasksDir, "task_02.md", "completed", "Second task", "# Second\n")
+				writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third task", "# Third\n")
+
+				_, err := importMarkdownTasks(filepath.Join(tasksDir, "task_*.md"))
+				if !errors.Is(err, looppkg.ErrValidation) || !strings.Contains(err.Error(), "task_01.md") ||
+					!strings.Contains(err.Error(), tc.wantText) {
+					t.Fatalf("importMarkdownTasks() error = %v, want file-scoped %q", err, tc.wantText)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject unsupported manifest schema versions", func(t *testing.T) {
 		t.Parallel()
 
@@ -421,6 +523,7 @@ func TestImportTasksToolShouldReturnStructuredPayload(t *testing.T) {
 		task := output.Tasks[0]
 		want := fmt.Sprintf(
 			`{"tasks":[{"id":"task_01","number":1,"title":"First task",`+
+				`"type":"","complexity":"",`+
 				`"path":%q,"body":%q,"body_ref":%q,"blocks":[]}],"count":1}`,
 			task.Path,
 			task.Body,

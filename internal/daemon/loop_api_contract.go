@@ -81,16 +81,33 @@ func loopGenerationOutputsPayload(outputs []looppkg.GenerationOutput) []contract
 	out := make([]contract.LoopGenerationOutput, 0, len(outputs))
 	for _, output := range outputs {
 		out = append(out, contract.LoopGenerationOutput{
-			Generation:     output.Generation,
-			NodeID:         output.NodeID,
-			ItemIndex:      output.ItemIndex,
-			Status:         output.Status,
-			OutputRef:      output.OutputRef,
-			TaskRunID:      output.TaskRunID,
-			ChildLoopRunID: output.ChildLoopRunID,
+			Generation:      output.Generation,
+			NodeID:          output.NodeID,
+			ItemIndex:       output.ItemIndex,
+			Status:          output.Status,
+			OutputRef:       output.OutputRef,
+			TaskRunID:       output.TaskRunID,
+			ChildLoopRunID:  output.ChildLoopRunID,
+			ResolvedRuntime: loopResolvedRuntimePayload(output.ResolvedRuntime),
 		})
 	}
 	return out
+}
+
+func loopResolvedRuntimePayload(runtime *looppkg.ResolvedRuntime) *contract.LoopResolvedRuntime {
+	if runtime == nil {
+		return nil
+	}
+	return &contract.LoopResolvedRuntime{
+		Provider:  runtime.Runtime.Provider,
+		Model:     runtime.Runtime.Model,
+		Reasoning: runtime.Runtime.Reasoning,
+		Source: contract.LoopRuntimeProvenance{
+			Provider:  string(runtime.Source.Provider),
+			Model:     string(runtime.Source.Model),
+			Reasoning: string(runtime.Source.Reasoning),
+		},
+	}
 }
 
 func transcodeLoopAPI(value any, target any) error {

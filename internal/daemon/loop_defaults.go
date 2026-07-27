@@ -59,7 +59,8 @@ func loopDefaultConfigFromConfig(cfg aghconfig.LoopDefaultConfig, includeZeroGat
 		BudgetTokens:     new(cfg.Budget.Tokens),
 		BudgetWallSec:    new(cfg.Budget.WallClockSec),
 		BudgetOnExceeded: budgetExceededPtr(cfg.Budget.OnExceeded),
-		ModelDefaults:    loopModelDefaultsFromConfig(cfg.ModelDefaults),
+		RuntimeDefaults:  loopRuntimeDefaultsFromConfig(cfg.RuntimeDefaults),
+		RuntimeRules:     loopRuntimeRulesFromConfig(cfg.RuntimeRules),
 		FanOutWidth:      new(cfg.FanOutWidth),
 	}
 	if includeZeroGate || cfg.Gates.MaxRevisions > 0 {
@@ -68,20 +69,34 @@ func loopDefaultConfigFromConfig(cfg aghconfig.LoopDefaultConfig, includeZeroGat
 	return result
 }
 
-func loopModelDefaultsFromConfig(cfg aghconfig.LoopModelDefaultsConfig) *looppkg.ModelDefaults {
-	worker := strings.TrimSpace(cfg.Worker)
-	judge := strings.TrimSpace(cfg.Judge)
-	if worker == "" && judge == "" {
+func loopRuntimeDefaultsFromConfig(cfg loopdsl.RuntimeDefaults) *looppkg.RuntimeDefaults {
+	worker := runtimeSpecFromConfig(cfg.Worker)
+	judge := runtimeSpecFromConfig(cfg.Judge)
+	if runtimeSpecEmpty(worker) && runtimeSpecEmpty(judge) {
 		return nil
 	}
-	defaults := looppkg.ModelDefaults{}
-	if worker != "" {
-		defaults.Worker = new(worker)
+	return &looppkg.RuntimeDefaults{Worker: worker, Judge: judge}
+}
+
+func runtimeSpecEmpty(runtime looppkg.RuntimeSpec) bool {
+	return runtime.Provider == "" && runtime.Model == "" && runtime.Reasoning == ""
+}
+
+func runtimeSpecFromConfig(cfg loopdsl.RuntimeSpec) looppkg.RuntimeSpec {
+	return looppkg.RuntimeSpec{
+		Provider:  strings.TrimSpace(cfg.Provider),
+		Model:     strings.TrimSpace(cfg.Model),
+		Reasoning: strings.TrimSpace(cfg.Reasoning),
 	}
-	if judge != "" {
-		defaults.Judge = new(judge)
+}
+
+func loopRuntimeRulesFromConfig(rules []loopdsl.RuntimeRule) []looppkg.RuntimeRule {
+	if len(rules) == 0 {
+		return nil
 	}
-	return &defaults
+	cloned := make([]looppkg.RuntimeRule, len(rules))
+	copy(cloned, rules)
+	return cloned
 }
 
 func budgetExceededPtr(value string) *loopdsl.BudgetExceeded {

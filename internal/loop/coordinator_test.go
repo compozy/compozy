@@ -2438,6 +2438,7 @@ type coordinatorRunnerOutputs struct {
 
 func (r coordinatorRunnerOutputs) ListGenerationOutputs(
 	_ context.Context,
+	_ WorkspaceID,
 	_ RunID,
 	generation int,
 ) ([]GenerationOutput, error) {

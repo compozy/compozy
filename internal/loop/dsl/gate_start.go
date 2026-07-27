@@ -2,17 +2,17 @@ package dsl
 
 // GateCriterion is one typed check in a gate or verification bundle.
 type GateCriterion struct {
-	ID     string         `json:"id"               yaml:"id"`
-	Type   CriterionType  `json:"type"             yaml:"type"`
-	Check  string         `json:"check,omitempty"  yaml:"check,omitempty"`
-	Expect string         `json:"expect,omitempty" yaml:"expect,omitempty"`
-	Agent  string         `json:"agent,omitempty"  yaml:"agent,omitempty"`
-	Model  string         `json:"model,omitempty"  yaml:"model,omitempty"`
-	Rubric string         `json:"rubric,omitempty" yaml:"rubric,omitempty"`
-	Prompt string         `json:"prompt,omitempty" yaml:"prompt,omitempty"`
-	Tool   string         `json:"tool,omitempty"   yaml:"tool,omitempty"`
-	Inputs map[string]any `json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Extra  map[string]any `json:"-"                yaml:",inline"`
+	ID      string         `json:"id"               yaml:"id"`
+	Type    CriterionType  `json:"type"             yaml:"type"`
+	Check   string         `json:"check,omitempty"  yaml:"check,omitempty"`
+	Expect  string         `json:"expect,omitempty" yaml:"expect,omitempty"`
+	Agent   string         `json:"agent,omitempty"  yaml:"agent,omitempty"`
+	Runtime RuntimeSpec    `json:"runtime,omitzero" yaml:"runtime,omitempty"`
+	Rubric  string         `json:"rubric,omitempty" yaml:"rubric,omitempty"`
+	Prompt  string         `json:"prompt,omitempty" yaml:"prompt,omitempty"`
+	Tool    string         `json:"tool,omitempty"   yaml:"tool,omitempty"`
+	Inputs  map[string]any `json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Extra   map[string]any `json:"-"                yaml:",inline"`
 }
 
 // CriterionType is the closed gate criterion vocabulary.

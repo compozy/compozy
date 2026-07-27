@@ -24,8 +24,8 @@ func TestLoopDefaultsFromConfigShouldMapDeliveryAndWatchDefaults(t *testing.T) {
 			*defaults.Delivery.BudgetOnExceeded != loopdsl.BudgetExceededHalt {
 			t.Fatalf("delivery budget on exceeded = %#v, want halt", defaults.Delivery.BudgetOnExceeded)
 		}
-		if defaults.Delivery.ModelDefaults != nil {
-			t.Fatalf("delivery model defaults = %#v, want nil for empty config", defaults.Delivery.ModelDefaults)
+		if defaults.Delivery.RuntimeDefaults != nil {
+			t.Fatalf("delivery runtime defaults = %#v, want nil for empty config", defaults.Delivery.RuntimeDefaults)
 		}
 		assertIntPointer(t, "delivery fan out width", defaults.Delivery.FanOutWidth, 4)
 
@@ -37,29 +37,29 @@ func TestLoopDefaultsFromConfigShouldMapDeliveryAndWatchDefaults(t *testing.T) {
 				defaults.Watch.GateMaxRevisions,
 			)
 		}
-		if defaults.Watch.ModelDefaults != nil {
-			t.Fatalf("watch model defaults = %#v, want nil for empty config", defaults.Watch.ModelDefaults)
+		if defaults.Watch.RuntimeDefaults != nil {
+			t.Fatalf("watch runtime defaults = %#v, want nil for empty config", defaults.Watch.RuntimeDefaults)
 		}
 		assertIntPointer(t, "watch fan out width", defaults.Watch.FanOutWidth, 2)
 
 		cfg := aghconfig.DefaultLoopsConfig()
-		cfg.Defaults.Delivery.ModelDefaults.Worker = "delivery-worker"
-		cfg.Defaults.Delivery.ModelDefaults.Judge = "delivery-judge"
-		cfg.Defaults.Watch.ModelDefaults.Judge = "watch-judge"
+		cfg.Defaults.Delivery.RuntimeDefaults.Worker.Model = "delivery-worker"
+		cfg.Defaults.Delivery.RuntimeDefaults.Judge.Model = "delivery-judge"
+		cfg.Defaults.Watch.RuntimeDefaults.Judge.Model = "watch-judge"
 		defaults = loopDefaultsFromConfig(cfg)
 
-		if defaults.Delivery.ModelDefaults == nil {
-			t.Fatal("delivery model defaults = nil, want configured defaults")
+		if defaults.Delivery.RuntimeDefaults == nil {
+			t.Fatal("delivery runtime defaults = nil, want configured defaults")
 		}
-		assertStringPointer(t, "delivery worker model", defaults.Delivery.ModelDefaults.Worker, "delivery-worker")
-		assertStringPointer(t, "delivery judge model", defaults.Delivery.ModelDefaults.Judge, "delivery-judge")
-		if defaults.Watch.ModelDefaults == nil {
-			t.Fatal("watch model defaults = nil, want configured defaults")
+		assertString(t, "delivery worker model", defaults.Delivery.RuntimeDefaults.Worker.Model, "delivery-worker")
+		assertString(t, "delivery judge model", defaults.Delivery.RuntimeDefaults.Judge.Model, "delivery-judge")
+		if defaults.Watch.RuntimeDefaults == nil {
+			t.Fatal("watch runtime defaults = nil, want configured defaults")
 		}
-		if defaults.Watch.ModelDefaults.Worker != nil {
-			t.Fatalf("watch worker model = %#v, want nil when unset", defaults.Watch.ModelDefaults.Worker)
+		if defaults.Watch.RuntimeDefaults.Worker.Model != "" {
+			t.Fatalf("watch worker model = %#v, want empty when unset", defaults.Watch.RuntimeDefaults.Worker)
 		}
-		assertStringPointer(t, "watch judge model", defaults.Watch.ModelDefaults.Judge, "watch-judge")
+		assertString(t, "watch judge model", defaults.Watch.RuntimeDefaults.Judge.Model, "watch-judge")
 	})
 }
 
@@ -74,13 +74,9 @@ func assertIntPointer(t *testing.T, label string, got *int, want int) {
 	}
 }
 
-func assertStringPointer(t *testing.T, label string, got *string, want string) {
+func assertString(t *testing.T, label string, got string, want string) {
 	t.Helper()
-
-	if got == nil {
-		t.Fatalf("%s = nil, want %q", label, want)
-	}
-	if *got != want {
-		t.Fatalf("%s = %q, want %q", label, *got, want)
+	if got != want {
+		t.Fatalf("%s = %q, want %q", label, got, want)
 	}
 }

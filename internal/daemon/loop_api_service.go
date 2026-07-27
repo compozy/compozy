@@ -60,6 +60,7 @@ type daemonLoopAPIService struct {
 	goalContext       *loopGoalContextRuntime
 	sessionStatus     loopSessionStatusReader
 	creationStore     store.SessionCreationStore
+	runtimeCatalog    looppkg.WorkspaceRuntimeCatalog
 	publishMu         sync.Mutex
 }
 
@@ -110,33 +111,14 @@ func newDaemonLoopAPIService(
 		catalog:         state.loopCatalog,
 		compilerFactory: newLoopCompilerFactory(state.deps.ToolRegistry),
 	}
-	options := []looppkg.Option{
-		looppkg.WithClock(now),
-		looppkg.WithLogger(logger),
-		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
-		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
-	}
-	if state.participationResolver != nil {
-		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))
-	}
-	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
-		var judges *loopGateJudgeRunner
-		if state.tasks != nil {
-			judges = state.tasks.loopJudges
-		}
-		options = append(options, looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{
-			sessions: revoker,
-			judges:   judges,
-		}))
-	}
-	if state.notifier != nil {
-		options = append(options, looppkg.WithHookDispatcher(state.notifier))
+	runtimeCatalog := loopRuntimeCatalogFactory{
+		homePaths: homePaths, workspaceResolver: state.workspaceResolver, models: state.modelCatalog,
 	}
 	aggregate, err := looppkg.NewService(
 		persistence,
 		resolver,
 		newGoalRunPolicyResolver(homePaths, state.workspaceResolver),
-		options...,
+		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop aggregate api service: %w", err)
@@ -156,7 +138,41 @@ func newDaemonLoopAPIService(
 		goalContext:       &loopGoalContextRuntime{sessions: state.sessions},
 		sessionStatus:     state.sessions,
 		creationStore:     sessionCreationStoreFromRegistry(state.registry),
+		runtimeCatalog:    runtimeCatalog,
 	}, nil
+}
+
+func loopAPIServiceOptions(
+	state *bootState,
+	homePaths aghconfig.HomePaths,
+	now func() time.Time,
+	logger *slog.Logger,
+	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
+) []looppkg.Option {
+	options := []looppkg.Option{
+		looppkg.WithClock(now),
+		looppkg.WithLogger(logger),
+		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
+		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
+		looppkg.WithRuntimeCatalog(runtimeCatalog),
+	}
+	if state.participationResolver != nil {
+		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))
+	}
+	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
+		var judges *loopGateJudgeRunner
+		if state.tasks != nil {
+			judges = state.tasks.loopJudges
+		}
+		options = append(options, looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{
+			sessions: revoker,
+			judges:   judges,
+		}))
+	}
+	if state.notifier != nil {
+		options = append(options, looppkg.WithHookDispatcher(state.notifier))
+	}
+	return options
 }
 
 func goalPersistenceFromRegistry(registry any) loopGoalAPIPersistence {
@@ -300,7 +316,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 
 func (s *daemonLoopAPIService) ValidateLoop(
 	ctx context.Context,
-	_ string,
+	workspaceID string,
 	name string,
 	req contract.ValidateLoopRequest,
 ) (contract.LoopValidationResponse, error) {
@@ -313,6 +329,20 @@ func (s *daemonLoopAPIService) ValidateLoop(
 			"%w: definition meta.name must match route name",
 			looppkg.ErrValidation,
 		)
+	}
+	var catalog looppkg.RuntimeCatalog
+	if s.runtimeCatalog != nil {
+		ws, normalizeErr := normalizeLoopWorkspaceID(workspaceID)
+		if normalizeErr != nil {
+			return contract.LoopValidationResponse{}, normalizeErr
+		}
+		catalog, err = s.runtimeCatalog.ForWorkspace(ctx, ws)
+		if err != nil {
+			return contract.LoopValidationResponse{}, fmt.Errorf("resolve workspace runtime catalog: %w", err)
+		}
+	}
+	if err := looppkg.ValidateDefinitionRuntime(ctx, catalog, def); err != nil {
+		return contract.LoopValidationResponse{}, err
 	}
 	if err := s.compileForPublish(ctx, def); err != nil {
 		return contract.LoopValidationResponse{}, err

@@ -145,40 +145,31 @@ type LoopConfig struct {
 	NoProgressWindow  *int                `json:"no_progress_window,omitempty"`
 	FanOutWidth       *int                `json:"fan_out_width,omitempty"`
 	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"`
-	ModelDefaults     *ModelDefaults      `json:"model_defaults,omitempty"`
-}
-
-// ModelDefaults is one raw loop model-default override layer.
-type ModelDefaults struct {
-	Worker *string `json:"worker,omitempty"`
-	Judge  *string `json:"judge,omitempty"`
+	RuntimeDefaults   *RuntimeDefaults    `json:"runtime_defaults,omitempty"`
+	RuntimeRules      []RuntimeRule       `json:"runtime_rules,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
 type EffectiveConfig struct {
-	HumanGateEnabled  bool                   `json:"human_gate_enabled"`
-	ReattemptStrategy ReattemptStrategy      `json:"reattempt_strategy"`
-	EnabledChecks     json.RawMessage        `json:"enabled_checks_json"`
-	IterationCap      int                    `json:"iteration_cap"`
-	BudgetTokens      int                    `json:"budget_tokens"`
-	BudgetWallSec     int                    `json:"budget_wall_sec"`
-	BudgetOnExceeded  dsl.BudgetExceeded     `json:"budget_on_exceeded"`
-	NoProgressWindow  int                    `json:"no_progress_window"`
-	FanOutWidth       int                    `json:"fan_out_width"`
-	GateMaxRevisions  int                    `json:"gate_max_revisions"`
-	ModelDefaults     EffectiveModelDefaults `json:"model_defaults"`
+	HumanGateEnabled  bool               `json:"human_gate_enabled"`
+	ReattemptStrategy ReattemptStrategy  `json:"reattempt_strategy"`
+	EnabledChecks     json.RawMessage    `json:"enabled_checks_json"`
+	IterationCap      int                `json:"iteration_cap"`
+	BudgetTokens      int                `json:"budget_tokens"`
+	BudgetWallSec     int                `json:"budget_wall_sec"`
+	BudgetOnExceeded  dsl.BudgetExceeded `json:"budget_on_exceeded"`
+	NoProgressWindow  int                `json:"no_progress_window"`
+	FanOutWidth       int                `json:"fan_out_width"`
+	GateMaxRevisions  int                `json:"gate_max_revisions"`
+	RuntimeDefaults   RuntimeDefaults    `json:"runtime_defaults"`
+	RuntimeRules      []RuntimeRule      `json:"runtime_rules"`
+	RunRuntimeRules   []RuntimeRule      `json:"run_runtime_rules"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
 type ConfigSnapshot struct {
 	Stored    *LoopConfig
 	Effective EffectiveConfig
-}
-
-// EffectiveModelDefaults is the fully resolved loop-owned session model routing.
-type EffectiveModelDefaults struct {
-	Worker string `json:"worker"`
-	Judge  string `json:"judge"`
 }
 
 // LoopDefaults carries the `[loops.defaults.*]` layer consumed by the resolver.

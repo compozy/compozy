@@ -95,7 +95,7 @@ type GateInput struct {
 	ToolScope                tools.Scope
 	ToolCallCorrelationID    string
 	ToolSensitiveInputFields []string
-	JudgeModel               string
+	JudgeRuntime             dsl.RuntimeSpec
 	JudgeUsageReporter       JudgeUsageReporter
 	JudgeEvidence            JudgeEvidence
 	NetworkParticipation     *participation.Spec
@@ -256,7 +256,7 @@ type JudgeRequest struct {
 	CorrelationID        string
 	WorkspaceID          string
 	Agent                string
-	Model                string
+	Runtime              dsl.RuntimeSpec
 	Rubric               string
 	Contract             dsl.Contract
 	NetworkParticipation *participation.Spec

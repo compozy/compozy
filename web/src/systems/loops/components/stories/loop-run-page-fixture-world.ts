@@ -230,6 +230,12 @@ export function generationsFor(
           generation: 2,
           item_index: 3,
           task_run_id: "tr_204",
+          resolved_runtime: {
+            provider: "openai",
+            model: "gpt-5.4",
+            reasoning: "high",
+            source: { provider: "run", model: "frontmatter", reasoning: "config" },
+          },
         },
         { node_id: "check_all", status: remaining, generation: 2 },
         { node_id: "resolve_threads", status: remaining, generation: 2 },

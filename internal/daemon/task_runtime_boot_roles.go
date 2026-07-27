@@ -185,6 +185,7 @@ func newLoopCoordinatorRunner(
 	watchPoller watchpkg.Poller,
 	gateEvaluator gate.GateEvaluator,
 	actions *looppkg.ActionRegistry,
+	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
 	logger *slog.Logger,
 ) (*looppkg.CoordinatorRunner, error) {
 	loopStore, ok := store.(looppkg.Store)
@@ -221,6 +222,9 @@ func newLoopCoordinatorRunner(
 	}
 	if actions != nil {
 		options = append(options, looppkg.WithCoordinatorActionRegistry(actions))
+	}
+	if runtimeCatalog != nil {
+		options = append(options, looppkg.WithCoordinatorRuntimeCatalog(runtimeCatalog))
 	}
 	return looppkg.NewCoordinatorRunner(
 		store,
@@ -295,6 +299,9 @@ func newBootLoopCoordinatorRuntime(
 		daemonExtensionWatchPoller{runtime: state.currentExtensionRuntime},
 		gateEvaluator,
 		actions,
+		loopRuntimeCatalogFactory{
+			homePaths: homePaths, workspaceResolver: workspaceResolver, models: state.modelCatalog,
+		},
 		state.logger,
 	)
 	if err != nil {

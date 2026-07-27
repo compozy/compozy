@@ -445,22 +445,26 @@ async function ensureDaemonBinary(repoRoot: string): Promise<string> {
 async function buildDaemonBinary(repoRoot: string): Promise<string> {
   await runCommand("bun", ["run", "build"], path.join(repoRoot, "web"));
 
-  const buildDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-build-"));
-  const binaryName = process.platform === "win32" ? "agh.exe" : "agh";
+  const buildDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-build-"));
+  const binaryName = process.platform === "win32" ? "compozy.exe" : "compozy";
   const binaryPath = path.join(buildDir, binaryName);
-  await runCommand("go", ["build", "-o", binaryPath, "./cmd/agh"], repoRoot);
+  await runCommand("go", ["build", "-o", binaryPath, "./cmd/compozy"], repoRoot);
   return binaryPath;
 }
 
 async function createRuntimePaths(): Promise<RuntimePaths> {
-  const homeDir = await mkdtemp(path.join(os.tmpdir(), "agh-playwright-home-"));
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-home-"));
   const configFile = path.join(homeDir, "config.toml");
   const daemonSocket = path.join(
     os.tmpdir(),
-    `agh-playwright-${process.pid}-${Date.now()}-${Math.round(Math.random() * 1000)}.sock`
+    `compozy-playwright-${process.pid}-${Date.now()}-${Math.round(Math.random() * 1000)}.sock`
   );
   const daemonLog = path.join(homeDir, "logs", "daemon-process.log");
-  const cliShim = path.join(homeDir, "bin", process.platform === "win32" ? "agh.exe" : "agh");
+  const cliShim = path.join(
+    homeDir,
+    "bin",
+    process.platform === "win32" ? "compozy.exe" : "compozy"
+  );
 
   await mkdir(path.join(homeDir, "agents"), { recursive: true });
   await mkdir(path.join(homeDir, "skills"), { recursive: true });

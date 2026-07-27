@@ -54,6 +54,9 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+		if err := rejectRemovedLoopRuntimeKeys(source, undecoded); err != nil {
+			return overlay, err
+		}
 		if err := rejectRemovedProviderModelKeys(source, undecoded); err != nil {
 			return overlay, err
 		}
@@ -61,6 +64,22 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	return overlay, nil
+}
+
+func rejectRemovedLoopRuntimeKeys(source string, keys []burnttoml.Key) error {
+	for _, key := range sortedTOMLKeys(keys) {
+		for _, segment := range key {
+			if segment != "model_defaults" {
+				continue
+			}
+			return fmt.Errorf(
+				"removed config key %q in %q: use runtime_defaults; see MIGRATION_GUIDE.md#per-task-runtime-selection",
+				key.String(),
+				source,
+			)
+		}
+	}
+	return nil
 }
 
 func rejectRemovedProviderModelKeys(source string, keys []burnttoml.Key) error {

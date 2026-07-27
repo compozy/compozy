@@ -41,8 +41,8 @@ func (h *BaseHandlers) CreateLoop(c *gin.Context) {
 		return
 	}
 	var req contract.CreateLoopRequest
-	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode create loop request: %v", looppkg.ErrValidation, err))
+	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
+		h.respondLoopError(c, loopDecodeError("create", err))
 		return
 	}
 	response, err := service.CreateLoop(c.Request.Context(), c.Param("workspace_id"), req)
@@ -74,8 +74,8 @@ func (h *BaseHandlers) PatchLoop(c *gin.Context) {
 		return
 	}
 	var req contract.PatchLoopRequest
-	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode patch loop request: %v", looppkg.ErrValidation, err))
+	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
+		h.respondLoopError(c, loopDecodeError("patch", err))
 		return
 	}
 	response, err := service.PatchLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
@@ -93,8 +93,8 @@ func (h *BaseHandlers) ValidateLoop(c *gin.Context) {
 		return
 	}
 	var req contract.ValidateLoopRequest
-	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode validate loop request: %v", looppkg.ErrValidation, err))
+	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
+		h.respondLoopError(c, loopDecodeError("validate", err))
 		return
 	}
 	response, err := service.ValidateLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
@@ -125,8 +125,8 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		return
 	}
 	var req contract.RunLoopRequest
-	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode run loop request: %v", looppkg.ErrValidation, err))
+	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
+		h.respondLoopError(c, loopDecodeError("run", err))
 		return
 	}
 	dry, err := ParseOptionalBool(c.Query("dry"))
@@ -180,8 +180,8 @@ func (h *BaseHandlers) PutLoopConfig(c *gin.Context) {
 		return
 	}
 	var req contract.PutLoopConfigRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode loop config request: %v", looppkg.ErrValidation, err))
+	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
+		h.respondLoopError(c, loopDecodeError("config", err))
 		return
 	}
 	response, err := service.PutLoopConfig(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
@@ -190,6 +190,17 @@ func (h *BaseHandlers) PutLoopConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+func loopDecodeError(operation string, err error) error {
+	message := fmt.Sprintf("decode %s loop request: %v", operation, err)
+	if strings.Contains(message, `unknown field "model_defaults"`) ||
+		strings.Contains(message, `unknown field "model"`) ||
+		strings.Contains(message, "unknown_field: model_defaults") ||
+		strings.Contains(message, "unknown_field: model") {
+		message += "; see MIGRATION_GUIDE.md#per-task-runtime-selection"
+	}
+	return fmt.Errorf("%w: %s", looppkg.ErrValidation, message)
 }
 
 // GetLoopAnnotations returns editor node positions for one Loop.
@@ -441,6 +452,22 @@ func (h *BaseHandlers) respondLoopError(c *gin.Context, err error) {
 		c.JSON(http.StatusUnprocessableEntity, contract.LoopValidationResponse{
 			Valid:  false,
 			Errors: lint.Errors,
+		})
+		return
+	}
+	if runtimeValidation, ok := errors.AsType[*looppkg.RuntimeValidationError](err); ok {
+		items := make([]contract.LoopRuntimeValidationItemPayload, 0, len(runtimeValidation.Items))
+		for _, item := range runtimeValidation.Items {
+			items = append(items, contract.LoopRuntimeValidationItemPayload{
+				TaskID: item.TaskID,
+				Field:  item.Field,
+				Value:  item.Value,
+				Reason: item.Reason,
+			})
+		}
+		c.JSON(http.StatusUnprocessableEntity, contract.LoopValidationResponse{
+			Valid:             false,
+			RuntimeValidation: items,
 		})
 		return
 	}

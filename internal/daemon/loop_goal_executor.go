@@ -119,7 +119,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 			ActorKind:   harnessSummaryDefaultAgentName,
 		},
 		ToolCallCorrelationID: strings.TrimSpace(req.AttemptID),
-		JudgeModel:            strings.TrimSpace(resolved.EffectiveConfig.ModelDefaults.Judge),
+		JudgeRuntime:          resolved.EffectiveConfig.RuntimeDefaults.Judge,
 		JudgeUsageReporter:    usage,
 		JudgeEvidence: gate.JudgeEvidence{
 			Text:       req.Result.Text,

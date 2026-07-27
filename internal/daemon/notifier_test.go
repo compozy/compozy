@@ -1647,6 +1647,7 @@ func (r *recordingLoopHookStore) PromoteOldestQueuedLoopRun(
 
 func (r *recordingLoopHookStore) LookupLoopGenerationOutputStatus(
 	_ context.Context,
+	_ string,
 	loopRunID string,
 	taskRunID string,
 ) (string, bool, error) {
@@ -1656,6 +1657,7 @@ func (r *recordingLoopHookStore) LookupLoopGenerationOutputStatus(
 
 func (r *recordingLoopHookStore) ListGenerationOutputs(
 	_ context.Context,
+	_ looppkg.WorkspaceID,
 	_ looppkg.RunID,
 	_ int,
 ) ([]looppkg.GenerationOutput, error) {

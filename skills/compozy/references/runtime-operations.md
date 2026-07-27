@@ -122,7 +122,7 @@ emits `role.fallback.used`; the event records that the route was tried, not that
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
 `fallback_chain`. Coordinator additionally owns `ttl`, `max_children`, and
 `max_active_sessions_per_workspace`. The in-process `memory_controller` has no `agent`; it owns
-`timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop model defaults,
+`timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
 TaskExecutionProfile selectors, automation resources, or subsystem policy into `[roles]`.
 
 ### Usage cost truth

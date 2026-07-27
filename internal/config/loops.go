@@ -25,12 +25,13 @@ type LoopsDefaultsConfig struct {
 
 // LoopDefaultConfig is one `[loops.defaults.<kind>]` seed layer.
 type LoopDefaultConfig struct {
-	IterationCap  int                         `toml:"iteration_cap"`
-	NoProgress    LoopNoProgressDefaultConfig `toml:"no_progress"`
-	Gates         LoopGatesDefaultConfig      `toml:"gates"`
-	Budget        LoopBudgetDefaultConfig     `toml:"budget"`
-	ModelDefaults LoopModelDefaultsConfig     `toml:"model_defaults"`
-	FanOutWidth   int                         `toml:"fan_out_width"`
+	IterationCap    int                         `toml:"iteration_cap"`
+	NoProgress      LoopNoProgressDefaultConfig `toml:"no_progress"`
+	Gates           LoopGatesDefaultConfig      `toml:"gates"`
+	Budget          LoopBudgetDefaultConfig     `toml:"budget"`
+	RuntimeDefaults dsl.RuntimeDefaults         `toml:"runtime_defaults"`
+	RuntimeRules    []dsl.RuntimeRule           `toml:"runtime_rules"`
+	FanOutWidth     int                         `toml:"fan_out_width"`
 }
 
 // LoopNoProgressDefaultConfig controls generation-hash no-progress detection.
@@ -48,12 +49,6 @@ type LoopBudgetDefaultConfig struct {
 	Tokens       int    `toml:"tokens"`
 	WallClockSec int    `toml:"wall_clock_sec"`
 	OnExceeded   string `toml:"on_exceeded"`
-}
-
-// LoopModelDefaultsConfig controls loop-owned worker and judge session model defaults.
-type LoopModelDefaultsConfig struct {
-	Worker string `toml:"worker"`
-	Judge  string `toml:"judge"`
 }
 
 // DefaultLoopsConfig returns the TechSpec `[loops.defaults.*]` layer.

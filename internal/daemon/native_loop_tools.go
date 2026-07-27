@@ -156,7 +156,7 @@ func (n *daemonNativeTools) loopValidate(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input nativeLoopValidateInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeLoopInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID, err := nativeLoopWorkspaceID(req.ToolID, input.WorkspaceID, scope)
@@ -182,6 +182,23 @@ func (n *daemonNativeTools) loopValidate(
 				},
 			}, "loop validation failed")
 		}
+		if runtimeValidation, ok := errors.AsType[*looppkg.RuntimeValidationError](err); ok {
+			items := make([]contract.LoopRuntimeValidationItemPayload, 0, len(runtimeValidation.Items))
+			for _, item := range runtimeValidation.Items {
+				items = append(items, contract.LoopRuntimeValidationItemPayload{
+					TaskID: item.TaskID,
+					Field:  item.Field,
+					Value:  item.Value,
+					Reason: item.Reason,
+				})
+			}
+			return structuredResult(map[string]any{
+				nativeLoopValidationKey: contract.LoopValidationResponse{
+					Valid:             false,
+					RuntimeValidation: items,
+				},
+			}, "loop runtime validation failed")
+		}
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{nativeLoopValidationKey: response}, "loop validation passed")
@@ -193,7 +210,7 @@ func (n *daemonNativeTools) loopCreate(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input nativeLoopCreateInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeLoopInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID, err := nativeLoopWorkspaceID(req.ToolID, input.WorkspaceID, scope)
@@ -247,7 +264,7 @@ func (n *daemonNativeTools) loopRun(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input nativeLoopRunInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeLoopInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID, name, err := nativeLoopWorkspaceAndName(req.ToolID, input.WorkspaceID, input.Name, scope)
@@ -352,7 +369,7 @@ func (n *daemonNativeTools) loopConfigure(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input nativeLoopConfigureInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeLoopInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID, name, err := nativeLoopWorkspaceAndName(req.ToolID, input.WorkspaceID, input.Name, scope)

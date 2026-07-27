@@ -21,9 +21,6 @@ The sheet has four groups, all scoped to the checks and limits the Loop already 
   finishes.
 - **Re-attempt strategy** — `failed-only` (the default; retry only what failed) or `full-body`
   (re-run the whole body). This is where re-attempt granularity is chosen, not on the run form.
-- **Model defaults** — the worker model used by `run-agent` actions that omit `params.model`, and
-  the judge model used by `agent-judge` criteria that omit `model`. Empty values leave provider
-  defaults in control.
 - **Stop limits** — the same six numeric limits as the run form's Advanced panel, each clamped at
   its daemon ceiling. Configure sets the per-Loop **default**; the run form can still override per
   run.
@@ -60,10 +57,11 @@ compile-time ceilings:
 first three layers as `effective_config`. A missing override is `config: null`; it is not a missing
 Loop and does not prevent clients from reading the effective values.
 
-Loop `run-agent` workers use the Loop action runtime. They do not read
-`[[tasks.run.task_runtime_rules]]`; that table remains scoped to normal task worker profile
-routing. The Loop runtime resolves the model into the ACP session bind request, then the provider
-adapter decides what an empty model means.
+Loop `run-agent` workers use Loop-owned `runtime_defaults` and `runtime_rules`; they do not read
+`[[tasks.run.task_runtime_rules]]`. Runtime fields resolve independently and the daemon persists the
+final binder-applied provider, model, reasoning, and provenance on each generation output. The
+current web sheet edits checks, gates, re-attempt strategy, and stop limits. Use the structured
+CLI, HTTP, or native-tool config surface to write runtime defaults or rules.
 
 <OperatorNote label="No cost cap">
   There is no USD field in Configure. Cost is

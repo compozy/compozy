@@ -51,6 +51,23 @@ func (e *Executor) initializeSegment(
 	if err != nil {
 		return nil, err
 	}
+	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, params.Runtime)
+	if err != nil {
+		return nil, err
+	}
+	runtimeSelection := in.RuntimeSelectionOrZero()
+	resolvedRuntime, err := loop.ResolveItemRuntime(loop.RuntimeLayers{
+		Defaults:    runtimeSelection.Defaults.Worker,
+		ConfigRules: runtimeSelection.ConfigRules,
+		RunRules:    runtimeSelection.RunRules,
+	}, item)
+	if err != nil {
+		return nil, err
+	}
+	resolvedRuntime, err = loop.ValidateResolvedRuntime(ctx, runtimeSelection.Catalog, item.TaskID, resolvedRuntime)
+	if err != nil {
+		return nil, err
+	}
 	key := TurnKey{
 		WorkspaceID: in.WorkspaceID,
 		LoopRunID:   in.LoopRunID,
@@ -74,12 +91,13 @@ func (e *Executor) initializeSegment(
 		)
 	}
 	segment := &segmentState{
-		input:      in,
-		key:        key,
-		node:       node,
-		params:     params,
-		checkpoint: checkpoint,
-		usage:      newUsageTracker(in.PersistedTaskTokensUsed, in.UsageReporter),
+		input:           in,
+		key:             key,
+		node:            node,
+		params:          params,
+		checkpoint:      checkpoint,
+		usage:           newUsageTracker(in.PersistedTaskTokensUsed, in.UsageReporter),
+		resolvedRuntime: resolvedRuntime,
 	}
 	if err := e.hydratePriorJudgeContext(ctx, segment); err != nil {
 		return nil, err
@@ -176,6 +194,21 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState) error
 				return fmt.Errorf("%w: managed Goal binding identity is incomplete", loop.ErrValidation)
 			}
 			segment.binding = binding
+			segment.resolvedRuntime = appliedGoalRuntime(segment.resolvedRuntime, binding.AppliedRuntime)
+			runtimeSelection := segment.input.RuntimeSelectionOrZero()
+			if runtimeSelection.Recorder != nil {
+				if err := runtimeSelection.Recorder.RecordAppliedRuntime(
+					ctx,
+					segment.key.WorkspaceID,
+					segment.key.LoopRunID,
+					segment.key.Generation,
+					segment.key.NodeID,
+					segment.key.ItemIndex,
+					segment.resolvedRuntime,
+				); err != nil {
+					return fmt.Errorf("persist applied Goal runtime: %w", err)
+				}
+			}
 			return nil
 		}
 		var creationErr *loop.ActionSessionCreationError
@@ -269,7 +302,7 @@ func (e *Executor) actionSessionBindRequest(
 		PinnedCreationDigest:           strings.TrimSpace(segment.input.OriginCreationDigest),
 		StaticPolicySpecDigest:         strings.TrimSpace(segment.input.OriginPolicySpecDigest),
 		Isolated:                       segment.node.Session != nil && segment.node.Session.Isolated,
-		Model:                          strings.TrimSpace(segment.input.WorkerModel),
+		Runtime:                        segment.resolvedRuntime.Runtime,
 		AllowedTools:                   append([]string(nil), segment.input.AllowedTools...),
 		MaxTurns:                       segment.params.MaxTurns,
 		ContractBlock:                  loop.RenderContractBlock(contract),
@@ -311,15 +344,30 @@ func (e *Executor) rawResult(
 	}
 	tokensUsed, _ := segment.usage.snapshot()
 	return loop.ActionRawResult{
-		Structured:    structured,
-		Text:          segment.lastResult.Text,
-		SessionID:     segment.binding.SessionID,
-		EventStartSeq: segment.lastResult.EventStartSeq,
-		EventEndSeq:   segment.lastResult.EventEndSeq,
-		TokensUsed:    tokensUsed,
-		Status:        control.GoalStatus,
-		Control:       control,
+		Structured:      structured,
+		Text:            segment.lastResult.Text,
+		SessionID:       segment.binding.SessionID,
+		EventStartSeq:   segment.lastResult.EventStartSeq,
+		EventEndSeq:     segment.lastResult.EventEndSeq,
+		TokensUsed:      tokensUsed,
+		Status:          control.GoalStatus,
+		Control:         control,
+		ResolvedRuntime: &segment.resolvedRuntime,
 	}, nil
+}
+
+func appliedGoalRuntime(intent loop.ResolvedRuntime, applied loop.RuntimeSpec) loop.ResolvedRuntime {
+	resolved := loop.ResolvedRuntime{Runtime: applied, Source: intent.Source}
+	if strings.TrimSpace(intent.Runtime.Provider) == "" && strings.TrimSpace(applied.Provider) != "" {
+		resolved.Source.Provider = loop.RuntimeSourceAgent
+	}
+	if strings.TrimSpace(intent.Runtime.Model) == "" && strings.TrimSpace(applied.Model) != "" {
+		resolved.Source.Model = loop.RuntimeSourceAgent
+	}
+	if strings.TrimSpace(intent.Runtime.Reasoning) == "" && strings.TrimSpace(applied.Reasoning) != "" {
+		resolved.Source.Reasoning = loop.RuntimeSourceAgent
+	}
+	return resolved
 }
 
 func goalExecutionContext(

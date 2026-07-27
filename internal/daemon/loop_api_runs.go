@@ -309,7 +309,7 @@ func (s *daemonLoopAPIService) loopGenerations(
 	}
 	generations := make([]contract.LoopGenerationPayload, 0, run.Generation)
 	for generation := 1; generation <= run.Generation; generation++ {
-		outputs, err := s.persistence.ListGenerationOutputs(ctx, run.ID, generation)
+		outputs, err := s.persistence.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, generation)
 		if err != nil {
 			return nil, err
 		}

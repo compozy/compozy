@@ -203,6 +203,10 @@ func paramsStringFieldsWithSkip(
 		switch typed := value.(type) {
 		case string:
 			fields = append(fields, namedString{name: name, value: typed})
+		case dsl.NodeParams:
+			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
+		case dsl.Schema:
+			fields = append(fields, paramsStringFieldsWithSkip(name, map[string]any(typed), skip)...)
 		case map[string]any:
 			fields = append(fields, paramsStringFieldsWithSkip(name, typed, skip)...)
 		case map[any]any:

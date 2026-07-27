@@ -22,6 +22,7 @@ func evaluateGateNode(
 	effective EffectiveConfig,
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
+	runtimeCatalog WorkspaceRuntimeCatalog,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -56,6 +57,15 @@ func evaluateGateNode(
 	if empty {
 		return approveGateOutput(output)
 	}
+	if err := validateJudgeGateRuntimes(
+		ctx,
+		runtimeCatalog,
+		run.WorkspaceID,
+		effective.RuntimeDefaults.Judge,
+		runtimeGate.Criteria,
+	); err != nil {
+		return GenerationOutput{}, nil, err
+	}
 	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
 	if err != nil {
 		return GenerationOutput{}, nil, err
@@ -73,6 +83,35 @@ func evaluateGateNode(
 		return GenerationOutput{}, nil, err
 	}
 	return gateOutputFromVerdict(output, node.ID, verdict)
+}
+
+func validateJudgeGateRuntimes(
+	ctx context.Context,
+	factory WorkspaceRuntimeCatalog,
+	workspaceID WorkspaceID,
+	defaults RuntimeSpec,
+	criteria []dsl.GateCriterion,
+) error {
+	if factory == nil {
+		return nil
+	}
+	catalog, err := factory.ForWorkspace(ctx, workspaceID)
+	if err != nil {
+		return fmt.Errorf("resolve judge runtime catalog: %w", err)
+	}
+	if catalog == nil {
+		return fmt.Errorf("%w: judge runtime catalog returned nil", ErrActionDependencyMissing)
+	}
+	for _, criterion := range criteria {
+		if criterion.Type != dsl.CriterionAgentJudge {
+			continue
+		}
+		resolved := ResolveJudgeRuntime(defaults, criterion.Runtime)
+		if _, err := ValidateResolvedRuntime(ctx, catalog, "", resolved); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runtimeGateInput(
@@ -94,7 +133,7 @@ func runtimeGateInput(
 		TemplateData:         namespace,
 		Revision:             max(0, generation-1),
 		HumanDecisions:       humanDecisions,
-		JudgeModel:           effective.ModelDefaults.Judge,
+		JudgeRuntime:         effective.RuntimeDefaults.Judge,
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		ToolScope: tools.Scope{
 			WorkspaceID: string(run.WorkspaceID),

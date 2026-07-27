@@ -417,6 +417,173 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 			t.Fatalf("foreign events = %#v, want none", foreign)
 		}
 	})
+
+	t.Run("Should persist applied runtime and its event across reopen without workspace leaks", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-runtime-applied", now, looppkg.StatusRunning)
+		run.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		insertLoopRuntimeOutputForTest(t, globalDB, run.ID, 1, "work", 2)
+		resolved := looppkg.ResolvedRuntime{
+			Runtime: looppkg.RuntimeSpec{Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high"},
+			Source: looppkg.RuntimeProvenance{
+				Provider: looppkg.RuntimeSourceRun,
+				Model:    looppkg.RuntimeSourceFrontmatter, Reasoning: looppkg.RuntimeSourceDefault,
+			},
+		}
+		if err := globalDB.RecordAppliedRuntime(ctx, "ws-a", run.ID, 1, "work", 2, resolved); err != nil {
+			t.Fatalf("RecordAppliedRuntime() error = %v", err)
+		}
+
+		foreignOutputs, err := globalDB.ListGenerationOutputs(ctx, "ws-b", run.ID, 1)
+		if err != nil {
+			t.Fatalf("ListGenerationOutputs(foreign) error = %v", err)
+		}
+		if len(foreignOutputs) != 0 {
+			t.Fatalf("foreign outputs = %#v, want none", foreignOutputs)
+		}
+		foreignEvents, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: "ws-b", RunID: run.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents(foreign) error = %v", err)
+		}
+		if len(foreignEvents) != 0 {
+			t.Fatalf("foreign events = %#v, want none", foreignEvents)
+		}
+
+		path := globalDB.path
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(before reopen) error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(context.Background()); closeErr != nil {
+				t.Errorf("Close(reopened) error = %v", closeErr)
+			}
+		})
+		outputs, err := reopened.ListGenerationOutputs(ctx, "ws-a", run.ID, 1)
+		if err != nil {
+			t.Fatalf("ListGenerationOutputs(reopen) error = %v", err)
+		}
+		if len(outputs) != 1 || outputs[0].ResolvedRuntime == nil {
+			t.Fatalf("outputs after reopen = %#v, want durable runtime", outputs)
+		}
+		got := outputs[0].ResolvedRuntime
+		if got.Runtime.Provider != resolved.Runtime.Provider || got.Runtime.Model != resolved.Runtime.Model ||
+			got.Runtime.Reasoning != resolved.Runtime.Reasoning || got.Source != resolved.Source {
+			t.Fatalf("resolved runtime after reopen = %#v, want %#v", got, resolved)
+		}
+		events, err := reopened.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: "ws-a", RunID: run.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents(reopen) error = %v", err)
+		}
+		var runtimeEvent *looppkg.RunEvent
+		for index := range events {
+			if events[index].Kind == loopRunEventRuntimeApplied {
+				runtimeEvent = &events[index]
+				break
+			}
+		}
+		if runtimeEvent == nil {
+			t.Fatalf("events after reopen = %#v, want runtime_applied", events)
+		}
+		var eventPayload struct {
+			Generation      int    `json:"generation"`
+			NodeID          string `json:"node_id"`
+			ItemIndex       int    `json:"item_index"`
+			ResolvedRuntime struct {
+				Provider string `json:"provider"`
+				Model    string `json:"model"`
+				Source   struct {
+					Model string `json:"model"`
+				} `json:"source"`
+			} `json:"resolved_runtime"`
+		}
+		if err := json.Unmarshal(runtimeEvent.Payload, &eventPayload); err != nil {
+			t.Fatalf("json.Unmarshal(runtime event) error = %v", err)
+		}
+		if eventPayload.Generation != 1 || eventPayload.NodeID != "work" || eventPayload.ItemIndex != 2 ||
+			eventPayload.ResolvedRuntime.Provider != "codex" ||
+			eventPayload.ResolvedRuntime.Model != "gpt-5.6-terra" ||
+			eventPayload.ResolvedRuntime.Source.Model != "frontmatter" {
+			t.Fatalf("runtime event payload = %#v, want durable public runtime shape", eventPayload)
+		}
+	})
+
+	t.Run("Should roll back output runtime when event append fails", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		run := testLoopRun(
+			"looprun-runtime-rollback",
+			time.Date(2026, 7, 26, 13, 0, 0, 0, time.UTC),
+			looppkg.StatusRunning,
+		)
+		run.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		insertLoopRuntimeOutputForTest(t, globalDB, run.ID, 1, "work", 0)
+		if _, err := globalDB.db.ExecContext(ctx, `
+			CREATE TRIGGER fail_runtime_applied_event
+			BEFORE INSERT ON loop_run_events
+			WHEN NEW.kind = 'runtime_applied'
+			BEGIN
+				SELECT RAISE(ABORT, 'runtime event failure');
+			END
+		`); err != nil {
+			t.Fatalf("create runtime event failure trigger: %v", err)
+		}
+
+		err := globalDB.RecordAppliedRuntime(ctx, "ws-a", run.ID, 1, "work", 0, looppkg.ResolvedRuntime{
+			Runtime: looppkg.RuntimeSpec{Provider: "codex", Model: "gpt-5.6-terra"},
+		})
+		if err == nil || !strings.Contains(err.Error(), "runtime event failure") {
+			t.Fatalf("RecordAppliedRuntime() error = %v, want injected event failure", err)
+		}
+		var runtimeJSON sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `
+			SELECT resolved_runtime_json
+			FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0
+		`, string(run.ID)).Scan(&runtimeJSON); err != nil {
+			t.Fatalf("query rolled back runtime: %v", err)
+		}
+		if runtimeJSON.Valid {
+			t.Fatalf("resolved_runtime_json = %q, want transaction rollback", runtimeJSON.String)
+		}
+	})
+}
+
+func insertLoopRuntimeOutputForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+	generation int,
+	nodeID string,
+	itemIndex int,
+) {
+	t.Helper()
+	if _, err := globalDB.db.ExecContext(testutil.Context(t), `
+		INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status
+		) VALUES (?, ?, ?, ?, 'pending')
+	`, string(runID), generation, nodeID, itemIndex); err != nil {
+		t.Fatalf("insert loop runtime output: %v", err)
+	}
 }
 
 func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {

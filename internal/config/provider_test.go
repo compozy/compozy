@@ -1059,7 +1059,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			Provider:        "claude",
 			ReasoningEffort: providerReasoningMaxKey,
 			Prompt:          "prompt",
-		}, "codex", "gpt-5.6-terra")
+		}, RuntimeOverrides{Provider: "codex", Model: "gpt-5.6-terra"})
 		if err != nil {
 			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
 		}
@@ -1068,6 +1068,31 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 		}
 		if got, want := resolved.RuntimeSources.ReasoningEffort, RuntimeValueSourceModelDefault; got != want {
 			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort source = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should rederive the full provider runtime and apply reasoning overrides", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(AgentDef{
+			Name: "coder", Provider: "claude", Command: "agent-command",
+			Model: "agent-model", ReasoningEffort: providerReasoningMaxKey, Prompt: "prompt",
+		}, RuntimeOverrides{Provider: "codex", Reasoning: providerHighKey})
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		provider, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if resolved.Provider != "codex" || resolved.Command != provider.Command ||
+			resolved.Model != provider.Models.Default || resolved.ReasoningEffort != providerHighKey {
+			t.Fatalf("resolved runtime = %#v, want provider-derived codex runtime with high reasoning", resolved)
 		}
 	})
 
@@ -1085,7 +1110,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			Model:           modelGPT56SolID,
 			ReasoningEffort: providerMediumKey,
 			Prompt:          "prompt",
-		}, "codex", "gpt-5.6-terra")
+		}, RuntimeOverrides{Provider: "codex", Model: "gpt-5.6-terra"})
 		if err != nil {
 			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
 		}
@@ -2318,7 +2343,10 @@ func TestResolveSessionAgent(t *testing.T) {
 			Prompt:   "prompt",
 		}
 
-		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, "codex", "profile-model")
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{
+			Provider: "codex",
+			Model:    "profile-model",
+		})
 		if err != nil {
 			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
 		}

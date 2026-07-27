@@ -348,10 +348,14 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		def.Contract.NoProgress.Window = 2
 		def.Contract.Budget.Tokens = 100
 		def.Contract.Budget.WallClockSec = 10
-		def.Contract.ModelDefaults = &dsl.ModelDefaults{
-			Worker: "definition-worker",
-			Judge:  "definition-judge",
+		def.Contract.RuntimeDefaults = &dsl.RuntimeDefaults{
+			Worker: dsl.RuntimeSpec{Model: "definition-worker"},
+			Judge:  dsl.RuntimeSpec{Model: "definition-judge"},
 		}
+		def.Contract.RuntimeRules = []dsl.RuntimeRule{{
+			Match:   dsl.RuntimeMatch{Complexity: "high"},
+			Runtime: dsl.RuntimeSpec{Provider: "definition-provider"},
+		}}
 		requireNode(t, &def, "fan").MaxParallel = 2
 		appendGate(&def, dsl.Node{
 			ID:           "review_gate",
@@ -366,19 +370,27 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 				NoProgressWindow: new(99),
 				FanOutWidth:      new(99),
 				GateMaxRevisions: new(99),
-				ModelDefaults: &loop.ModelDefaults{
-					Worker: new("default-worker"),
-					Judge:  new("default-judge"),
+				RuntimeDefaults: &loop.RuntimeDefaults{
+					Worker: loop.RuntimeSpec{Model: "default-worker"},
+					Judge:  loop.RuntimeSpec{Model: "default-judge"},
 				},
+				RuntimeRules: []loop.RuntimeRule{{
+					Match:   loop.RuntimeMatch{Type: "frontend"},
+					Runtime: loop.RuntimeSpec{Provider: "default-provider"},
+				}},
 			},
 		}
 		stored := loop.LoopConfig{
 			IterationCap:     new(7),
 			NoProgressWindow: new(8),
 			FanOutWidth:      new(12),
-			ModelDefaults: &loop.ModelDefaults{
-				Worker: new("stored-worker"),
+			RuntimeDefaults: &loop.RuntimeDefaults{
+				Worker: loop.RuntimeSpec{Model: "stored-worker"},
 			},
+			RuntimeRules: []loop.RuntimeRule{{
+				Match:   loop.RuntimeMatch{Type: "frontend"},
+				Runtime: loop.RuntimeSpec{Model: "stored-model"},
+			}},
 		}
 		escalate := dsl.BudgetExceededEscalate
 		perRun := loop.LoopConfig{
@@ -386,9 +398,13 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 			BudgetOnExceeded: &escalate,
 			FanOutWidth:      new(99),
 			GateMaxRevisions: new(99),
-			ModelDefaults: &loop.ModelDefaults{
-				Judge: new("per-run-judge"),
+			RuntimeDefaults: &loop.RuntimeDefaults{
+				Judge: loop.RuntimeSpec{Model: "per-run-judge"},
 			},
+			RuntimeRules: []loop.RuntimeRule{{
+				Match:   loop.RuntimeMatch{ID: "task_01"},
+				Runtime: loop.RuntimeSpec{Reasoning: "max"},
+			}},
 		}
 
 		effective, err := loop.ResolveEffectiveConfig(resolved, defaults, &stored, perRun)
@@ -418,11 +434,65 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		if effective.BudgetOnExceeded != dsl.BudgetExceededEscalate {
 			t.Fatalf("BudgetOnExceeded = %q, want escalate", effective.BudgetOnExceeded)
 		}
-		if effective.ModelDefaults.Worker != "stored-worker" {
-			t.Fatalf("ModelDefaults.Worker = %q, want stored-worker", effective.ModelDefaults.Worker)
+		if effective.RuntimeDefaults.Worker.Model != "stored-worker" {
+			t.Fatalf(
+				"RuntimeDefaults.Worker.Model = %q, want stored-worker",
+				effective.RuntimeDefaults.Worker.Model,
+			)
 		}
-		if effective.ModelDefaults.Judge != "per-run-judge" {
-			t.Fatalf("ModelDefaults.Judge = %q, want per-run-judge", effective.ModelDefaults.Judge)
+		if effective.RuntimeDefaults.Judge.Model != "per-run-judge" {
+			t.Fatalf(
+				"RuntimeDefaults.Judge.Model = %q, want per-run-judge",
+				effective.RuntimeDefaults.Judge.Model,
+			)
+		}
+		if len(effective.RuntimeRules) != 3 {
+			t.Fatalf("RuntimeRules = %#v, want definition/default/stored order", effective.RuntimeRules)
+		}
+		if effective.RuntimeRules[0].Match.Complexity != "high" ||
+			effective.RuntimeRules[1].Runtime.Provider != "default-provider" ||
+			effective.RuntimeRules[2].Runtime.Model != "stored-model" {
+			t.Fatalf("RuntimeRules = %#v, want ordered config layers", effective.RuntimeRules)
+		}
+		if len(effective.RunRuntimeRules) != 1 ||
+			effective.RunRuntimeRules[0].Match.ID != "task_01" ||
+			effective.RunRuntimeRules[0].Runtime.Reasoning != "max" {
+			t.Fatalf("RunRuntimeRules = %#v, want separated per-run rule", effective.RunRuntimeRules)
+		}
+	})
+
+	t.Run("Should select watch runtime defaults only for watch definitions", func(t *testing.T) {
+		t.Parallel()
+
+		defaults := loop.LoopDefaults{
+			Delivery: loop.LoopConfig{RuntimeDefaults: &loop.RuntimeDefaults{
+				Worker: loop.RuntimeSpec{Model: "delivery-model"},
+			}},
+			Watch: loop.LoopConfig{RuntimeDefaults: &loop.RuntimeDefaults{
+				Worker: loop.RuntimeSpec{Model: "watch-model"},
+			}},
+		}
+		delivery, err := loop.ResolveEffectiveConfig(
+			&loop.ResolvedDefinition{Definition: dsl.Definition{}}, defaults, nil, loop.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig(delivery) error = %v", err)
+		}
+		watch, err := loop.ResolveEffectiveConfig(&loop.ResolvedDefinition{Definition: dsl.Definition{
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID: "watch", Class: dsl.NodeClassSource, Kind: string(dsl.SourceWatchSource),
+			}}},
+		}}, defaults, nil, loop.LoopConfig{})
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig(watch) error = %v", err)
+		}
+		if delivery.RuntimeDefaults.Worker.Model != "delivery-model" ||
+			watch.RuntimeDefaults.Worker.Model != "watch-model" {
+			t.Fatalf(
+				"runtime defaults delivery/watch = %q/%q, want delivery-model/watch-model",
+				delivery.RuntimeDefaults.Worker.Model,
+				watch.RuntimeDefaults.Worker.Model,
+			)
 		}
 	})
 
@@ -1343,6 +1413,45 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			t.Fatalf("CreateLoopRun calls = %d, want 0", store.createCount())
 		}
 	})
+
+	t.Run("Should reject invalid effective runtime before creating loop run state", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.RuntimeDefaults = &dsl.RuntimeDefaults{
+			Worker: dsl.RuntimeSpec{Provider: "flarp"},
+		}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
+		)
+		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+
+		if _, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs); err == nil {
+			t.Fatal("DryRun() error = nil, want runtime validation")
+		} else if validation, ok := loop.AsRuntimeValidationError(err); !ok ||
+			len(validation.Items) != 1 || validation.Items[0].Reason != "unknown_provider" {
+			t.Fatalf("DryRun() error = %v, want unknown_provider runtime validation", err)
+		}
+		if _, err := svc.Start(
+			context.Background(),
+			"ws-1",
+			"valid-loop",
+			inputs,
+			humanActor(t),
+		); err == nil {
+			t.Fatal("Start() error = nil, want runtime validation")
+		} else if validation, ok := loop.AsRuntimeValidationError(err); !ok ||
+			len(validation.Items) != 1 || validation.Items[0].Reason != "unknown_provider" {
+			t.Fatalf("Start() error = %v, want unknown_provider runtime validation", err)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime validation", store.createCount())
+		}
+	})
 }
 
 func TestCostShouldBeDisplayOnly(t *testing.T) {
@@ -1374,9 +1483,11 @@ func inlineGoalDefinition(objective string, judgeModel string) dsl.Definition {
 	definition.Inputs = map[string]dsl.Input{}
 	definition.Contract.Goal = objective
 	definition.Contract.DefinitionOfDone = "The objective is satisfied according to the Goal judge."
-	definition.Contract.ModelDefaults = nil
+	definition.Contract.RuntimeDefaults = nil
 	if strings.TrimSpace(judgeModel) != "" {
-		definition.Contract.ModelDefaults = &dsl.ModelDefaults{Judge: judgeModel}
+		definition.Contract.RuntimeDefaults = &dsl.RuntimeDefaults{
+			Judge: dsl.RuntimeSpec{Model: judgeModel},
+		}
 	}
 	definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
 		ID:    "goal",
@@ -1827,6 +1938,30 @@ type fakeTransition struct {
 	from  loop.Status
 	to    loop.Status
 	cause loop.TransitionCause
+}
+
+type rejectingServiceRuntimeCatalogFactory struct{}
+
+func (rejectingServiceRuntimeCatalogFactory) ForWorkspace(
+	context.Context,
+	loop.WorkspaceID,
+) (loop.RuntimeCatalog, error) {
+	return rejectingServiceRuntimeCatalog{}, nil
+}
+
+type rejectingServiceRuntimeCatalog struct{}
+
+func (rejectingServiceRuntimeCatalog) CanonicalProvider(provider string) string {
+	return strings.TrimSpace(provider)
+}
+
+func (rejectingServiceRuntimeCatalog) ValidateRuntime(_ context.Context, runtime loop.RuntimeSpec) error {
+	if runtime.Provider != "flarp" {
+		return nil
+	}
+	return loop.NewRuntimeValidationError(loop.RuntimeValidationItem{
+		Field: "provider", Value: runtime.Provider, Reason: "unknown_provider",
+	})
 }
 
 type fakeLoopStore struct {

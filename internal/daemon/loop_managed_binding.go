@@ -91,11 +91,12 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action session create returned nil")
 	}
 	return looppkg.ActionSessionBinding{
-		WorkspaceID: req.WorkspaceID,
-		LoopRunID:   req.LoopRunID,
-		SessionID:   strings.TrimSpace(created.Info().ID),
-		Handle:      strings.TrimSpace(req.Handle),
-		Isolated:    req.Isolated,
+		WorkspaceID:    req.WorkspaceID,
+		LoopRunID:      req.LoopRunID,
+		SessionID:      strings.TrimSpace(created.Info().ID),
+		Handle:         strings.TrimSpace(req.Handle),
+		Isolated:       req.Isolated,
+		AppliedRuntime: appliedRuntimeFromCreateOptions(opts),
 	}, nil
 }
 
@@ -119,7 +120,8 @@ func (b *loopActionSessionBinder) adoptOriginBinding(
 	if pinned := strings.TrimSpace(req.PinnedCreationDigest); pinned != "" && pinned != identity.CreationDigest {
 		return looppkg.ActionSessionBinding{}, bindingMismatch("origin creation digest differs from pinned identity")
 	}
-	if err := b.revalidatePersistedProfile(ctx, req, identity); err != nil {
+	appliedRuntime, err := b.revalidatePersistedProfile(ctx, req, identity)
+	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
 	attemptID := strings.TrimSpace(req.BindingAttemptID)
@@ -153,7 +155,7 @@ func (b *loopActionSessionBinder) adoptOriginBinding(
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
-	return actionBindingFromGoal(req, binding), nil
+	return actionBindingFromGoal(req, binding, appliedRuntime), nil
 }
 
 func (b *loopActionSessionBinder) ensureRunOwnedBinding(
@@ -190,9 +192,13 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 				SessionID: prepared.SessionID,
 			},
 		); settleErr != nil {
-			return actionBindingFromGoal(req, prepared), errors.Join(createErr, settleErr)
+			return actionBindingFromGoal(
+				req,
+				prepared,
+				appliedRuntimeFromCreateOptions(opts),
+			), errors.Join(createErr, settleErr)
 		}
-		binding := actionBindingFromGoal(req, prepared)
+		binding := actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts))
 		if creationErr, ok := errors.AsType[*session.CreationError](createErr); ok {
 			return binding, &looppkg.ActionSessionCreationError{
 				EffectKnownFalse: creationErr.Effect == session.EffectKnownFalse,
@@ -210,12 +216,12 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 		return looppkg.ActionSessionBinding{}, err
 	}
 	if stopped {
-		return actionBindingFromGoal(req, prepared), fmt.Errorf(
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), fmt.Errorf(
 			"%w: Goal session creation completed after its Run was stopped",
 			looppkg.ErrTransitionConflict,
 		)
 	}
-	return actionBindingFromGoal(req, activated), nil
+	return actionBindingFromGoal(req, activated, appliedRuntimeFromCreateOptions(opts)), nil
 }
 
 func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
@@ -364,7 +370,7 @@ func (b *loopActionSessionBinder) validateActiveBindingPolicy(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
 	binding goalpkg.SessionBinding,
-) error {
+) (looppkg.RuntimeSpec, error) {
 	identity := store.SessionCreationIdentity{
 		CreationProfileRef: binding.CreationProfileRef,
 		PolicySpecDigest:   binding.PolicySpecDigest,
@@ -377,28 +383,31 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
 	identity store.SessionCreationIdentity,
-) error {
-	profile, _, err := b.resolveEffectiveCreationProfile(ctx, req, identity.CreationProfileRef)
+) (looppkg.RuntimeSpec, error) {
+	profile, opts, err := b.resolveEffectiveCreationProfile(ctx, req, identity.CreationProfileRef)
 	if err != nil {
-		return err
+		return looppkg.RuntimeSpec{}, err
 	}
 	profileRef, err := profile.Ref()
 	if err != nil {
-		return err
+		return looppkg.RuntimeSpec{}, err
 	}
 	policyDigest, err := profile.PolicySpecDigest()
 	if err != nil {
-		return err
+		return looppkg.RuntimeSpec{}, err
 	}
 	if profileRef != identity.CreationProfileRef || policyDigest != identity.PolicySpecDigest {
-		return bindingMismatch("persisted creation profile no longer passes the effective policy gate")
+		return looppkg.RuntimeSpec{}, bindingMismatch(
+			"persisted creation profile no longer passes the effective policy gate",
+		)
 	}
-	return nil
+	return appliedRuntimeFromCreateOptions(opts), nil
 }
 
 func actionBindingFromGoal(
 	req looppkg.ActionSessionBindRequest,
 	binding goalpkg.SessionBinding,
+	appliedRuntime looppkg.RuntimeSpec,
 ) looppkg.ActionSessionBinding {
 	return looppkg.ActionSessionBinding{
 		WorkspaceID:        req.WorkspaceID,
@@ -415,6 +424,7 @@ func actionBindingFromGoal(
 		State:              string(binding.State),
 		Ownership:          string(binding.Ownership),
 		Isolated:           req.Isolated,
+		AppliedRuntime:     appliedRuntime,
 	}
 }
 

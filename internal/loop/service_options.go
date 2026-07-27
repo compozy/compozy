@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -41,6 +42,13 @@ func WithParticipationResolver(resolver participation.Resolver) Option {
 func WithDefaultsResolver(resolver DefaultsResolver) Option {
 	return func(s *service) {
 		s.defaultsResolver = resolver
+	}
+}
+
+// WithRuntimeCatalog injects workspace-specific effective runtime validation.
+func WithRuntimeCatalog(catalog WorkspaceRuntimeCatalog) Option {
+	return func(s *service) {
+		s.runtimeCatalog = catalog
 	}
 }
 
@@ -84,4 +92,21 @@ func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefa
 		return s.defaults, nil
 	}
 	return s.defaultsResolver(ctx, ws)
+}
+
+func (s *service) runtimeCatalogForWorkspace(
+	ctx context.Context,
+	ws WorkspaceID,
+) (RuntimeCatalog, error) {
+	if s.runtimeCatalog == nil {
+		return nil, nil
+	}
+	catalog, err := s.runtimeCatalog.ForWorkspace(ctx, ws)
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace runtime catalog: %w", err)
+	}
+	if catalog == nil {
+		return nil, fmt.Errorf("%w: workspace runtime catalog returned nil", ErrActionDependencyMissing)
+	}
+	return catalog, nil
 }

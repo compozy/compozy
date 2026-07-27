@@ -142,8 +142,8 @@ func (n *daemonNativeTools) toolApprovalsRevoke(
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
 	return structuredResult(map[string]string{
-		"revoked_id":   input.ID,
-		"workspace_id": workspaceID,
+		"revoked_id":         input.ID,
+		daemonWorkspaceIDKey: workspaceID,
 	}, "Remembered tool approval revoked")
 }
 

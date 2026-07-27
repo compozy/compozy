@@ -937,7 +937,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 		if got, want := len(secondResult.EnqueuedRuns), 1; got != want {
 			t.Fatalf("second EnqueuedRuns = %d, want %d", got, want)
 		}
-		outputs, err := globalDB.ListGenerationOutputs(ctx, created.ID, 1)
+		outputs, err := globalDB.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 1)
 		if err != nil {
 			t.Fatalf("ListGenerationOutputs() error = %v", err)
 		}
@@ -1889,7 +1889,7 @@ func claimAndRunWatchEventsWakeForTest(
 	if got, want := len(result.EnqueuedRuns), 1; got != want {
 		t.Fatalf("wake EnqueuedRuns = %d, want %d", got, want)
 	}
-	outputs, err := globalDB.ListGenerationOutputs(ctx, loopRun.ID, 1)
+	outputs, err := globalDB.ListGenerationOutputs(ctx, loopRun.WorkspaceID, loopRun.ID, 1)
 	if err != nil {
 		t.Fatalf("ListGenerationOutputs(%s) error = %v", loopRun.ID, err)
 	}

@@ -69,15 +69,16 @@ func outputFromRaw(raw ActionRawResult) (ActionOutput, error) {
 		value = decoded
 	}
 	return ActionOutput{
-		Structured:     cloneRawMessage(raw.Structured),
-		Value:          value,
-		Text:           raw.Text,
-		SessionID:      raw.SessionID,
-		EventStartSeq:  raw.EventStartSeq,
-		EventEndSeq:    raw.EventEndSeq,
-		TokensUsed:     raw.TokensUsed,
-		ChildLoopRunID: raw.ChildLoopRunID,
-		Status:         raw.Status,
+		Structured:      cloneRawMessage(raw.Structured),
+		Value:           value,
+		Text:            raw.Text,
+		SessionID:       raw.SessionID,
+		EventStartSeq:   raw.EventStartSeq,
+		EventEndSeq:     raw.EventEndSeq,
+		TokensUsed:      raw.TokensUsed,
+		ChildLoopRunID:  raw.ChildLoopRunID,
+		Status:          raw.Status,
+		ResolvedRuntime: raw.ResolvedRuntime,
 	}, nil
 }
 

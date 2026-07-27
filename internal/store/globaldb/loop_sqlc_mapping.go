@@ -3,6 +3,7 @@ package globaldb
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -102,7 +103,7 @@ func loopRunEventFromGenerated(row sqlcgen.LoopRunEvent) looppkg.RunEvent {
 	}
 }
 
-func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) looppkg.GenerationOutput {
+func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (looppkg.GenerationOutput, error) {
 	output := looppkg.GenerationOutput{
 		Generation: int(row.Generation), NodeID: row.NodeID,
 		ItemIndex: int(row.ItemIndex), Status: row.Status,
@@ -116,17 +117,24 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) loo
 	if row.ChildLoopRunID.Valid {
 		output.ChildLoopRunID = row.ChildLoopRunID.String
 	}
-	return output
+	if row.ResolvedRuntimeJson.Valid {
+		var resolved looppkg.ResolvedRuntime
+		if err := json.Unmarshal([]byte(row.ResolvedRuntimeJson.String), &resolved); err != nil {
+			return looppkg.GenerationOutput{}, fmt.Errorf("store: decode resolved runtime: %w", err)
+		}
+		output.ResolvedRuntime = &resolved
+	}
+	return output, nil
 }
 
-func loopConfigFromGenerated(row sqlcgen.GetLoopConfigRow) looppkg.LoopConfig {
+func loopConfigFromGenerated(row sqlcgen.GetLoopConfigRow) (looppkg.LoopConfig, error) {
 	return loopConfigScanValues{
 		humanGateEnabled: int(row.HumanGateEnabled), reattempt: row.ReattemptStrategy,
 		enabledChecks: row.EnabledChecksJson, iterationCap: row.IterationCap,
 		budgetTokens: row.BudgetTokens, budgetWallSec: row.BudgetWallSec,
 		budgetOnExceeded: row.BudgetOnExceeded, noProgressWindow: row.NoProgressWindow,
 		fanOutWidth: row.FanOutWidth, gateMaxRevisions: row.GateMaxRevisions,
-		modelDefaultWorker: row.ModelDefaultWorker, modelDefaultJudge: row.ModelDefaultJudge,
+		runtimeDefaultsJSON: row.RuntimeDefaultsJson, runtimeRulesJSON: row.RuntimeRulesJson,
 	}.toConfig()
 }
 
@@ -145,9 +153,12 @@ func loopConfigPatchParams(
 		BudgetOnExceeded: insert.BudgetOnExceeded, PatchNoProgressWindow: loopPatchIntFlag(patch.NoProgressWindow),
 		NoProgressWindow: insert.NoProgressWindow, PatchFanOutWidth: loopPatchIntFlag(patch.FanOutWidth),
 		FanOutWidth: insert.FanOutWidth, PatchGateMaxRevisions: loopPatchIntFlag(patch.GateMaxRevisions),
-		GateMaxRevisions: insert.GateMaxRevisions, PatchModelWorker: loopPatchStringFlag(patch.ModelWorker),
-		ModelDefaultWorker: insert.ModelDefaultWorker, PatchModelJudge: loopPatchStringFlag(patch.ModelJudge),
-		ModelDefaultJudge: insert.ModelDefaultJudge, WorkspaceID: insert.WorkspaceID, LoopName: insert.LoopName,
+		GateMaxRevisions:     insert.GateMaxRevisions,
+		PatchRuntimeDefaults: loopPatchStringFlag(patch.RuntimeDefaults),
+		RuntimeDefaultsJson:  insert.RuntimeDefaultsJson,
+		PatchRuntimeRules:    loopPatchStringFlag(patch.RuntimeRules),
+		RuntimeRulesJson:     insert.RuntimeRulesJson,
+		WorkspaceID:          insert.WorkspaceID, LoopName: insert.LoopName,
 	}
 }
 

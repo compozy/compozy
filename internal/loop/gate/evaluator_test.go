@@ -133,10 +133,10 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 	t.Run("Should route agent judge through criterion model before effective default", func(t *testing.T) {
 		t.Parallel()
 
-		var models []string
+		var runtimes []dsl.RuntimeSpec
 		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
 			func(_ context.Context, req JudgeRequest) (JudgeResponse, error) {
-				models = append(models, req.Model)
+				runtimes = append(runtimes, req.Runtime)
 				return JudgeResponse{
 					Raw: `{"verdict":"approved","confidence":0.9,"evidence":{"checked":["model"]}}`,
 				}, nil
@@ -147,10 +147,10 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 			Criteria: []dsl.GateCriterion{
 				{
-					ID:     "explicit",
-					Type:   dsl.CriterionAgentJudge,
-					Rubric: "Check explicit model",
-					Model:  "criterion-model",
+					ID:      "explicit",
+					Type:    dsl.CriterionAgentJudge,
+					Rubric:  "Check explicit model",
+					Runtime: dsl.RuntimeSpec{Model: "criterion-model"},
 				},
 				{
 					ID:     "defaulted",
@@ -159,21 +159,25 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				},
 			},
 		}, GateInput{
-			Placement:  PlacementInBody,
-			Contract:   new(validContract()),
-			JudgeModel: "default-judge-model",
+			Placement: PlacementInBody,
+			Contract:  new(validContract()),
+			JudgeRuntime: dsl.RuntimeSpec{
+				Provider: "codex", Model: "default-judge-model", Reasoning: "high",
+			},
 		})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
-		if len(models) != 2 {
-			t.Fatalf("judge calls = %d, want 2", len(models))
+		if len(runtimes) != 2 {
+			t.Fatalf("judge calls = %d, want 2", len(runtimes))
 		}
-		if models[0] != "criterion-model" {
-			t.Fatalf("explicit model = %q, want criterion-model", models[0])
+		if runtimes[0].Provider != "codex" || runtimes[0].Model != "criterion-model" ||
+			runtimes[0].Reasoning != "high" {
+			t.Fatalf("explicit runtime = %#v, want field-merged criterion runtime", runtimes[0])
 		}
-		if models[1] != "default-judge-model" {
-			t.Fatalf("default model = %q, want default-judge-model", models[1])
+		if runtimes[1].Provider != "codex" || runtimes[1].Model != "default-judge-model" ||
+			runtimes[1].Reasoning != "high" {
+			t.Fatalf("default runtime = %#v, want judge defaults", runtimes[1])
 		}
 	})
 
@@ -205,6 +209,36 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 		}
 		if verdict.Route.Action == RouteDone || verdict.Route.Action == RouteContinue {
 			t.Fatalf("Route.Action = %q, want no false done or DoD continue for broken judge", verdict.Route.Action)
+		}
+	})
+
+	t.Run("Should derive complete judge correlation without a tool call owner", func(t *testing.T) {
+		t.Parallel()
+
+		var request JudgeRequest
+		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
+			func(_ context.Context, req JudgeRequest) (JudgeResponse, error) {
+				request = req
+				return JudgeResponse{
+					Raw: `{"verdict":"approved","confidence":0.9,"evidence":{"checked":["identity"]}}`,
+				}, nil
+			},
+		)))
+		_, err := evaluator.Evaluate(context.Background(), Gate{
+			ID:            "quality_gate",
+			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{{
+				ID: "quality", Type: dsl.CriterionAgentJudge, Rubric: "Check the output",
+			}},
+		}, GateInput{
+			LoopRunID: "looprun-1", Placement: PlacementDefinitionOfDone,
+			Revision: 2, Contract: new(validContract()),
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if request.CorrelationID != "loop-judge:looprun-1:quality_gate:quality:3" {
+			t.Fatalf("JudgeRequest.CorrelationID = %q, want deterministic loop judge identity", request.CorrelationID)
 		}
 	})
 

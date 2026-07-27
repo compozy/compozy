@@ -68,16 +68,10 @@ func goLint() error {
 }
 
 func runGolangCILint() error {
-	userCacheDir, err := os.UserCacheDir()
+	cacheDir, err := golangCILintCacheDir(os.Getenv("GOLANGCI_LINT_CACHE"))
 	if err != nil {
-		return fmt.Errorf("resolve user cache directory: %w", err)
+		return err
 	}
-	cacheDir := filepath.Join(
-		userCacheDir,
-		"compozy-dev",
-		"golangci-lint",
-		strings.TrimPrefix(golangciLintVersion, "v"),
-	)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return fmt.Errorf("create golangci-lint cache directory: %w", err)
 	}
@@ -98,6 +92,22 @@ func runGolangCILint() error {
 		args...,
 	)
 	return sh.RunWithV(env, "go", goRunArgs...)
+}
+
+func golangCILintCacheDir(explicit string) (string, error) {
+	if cacheDir := strings.TrimSpace(explicit); cacheDir != "" {
+		return cacheDir, nil
+	}
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user cache directory: %w", err)
+	}
+	return filepath.Join(
+		userCacheDir,
+		"compozy-dev",
+		"golangci-lint",
+		strings.TrimPrefix(golangciLintVersion, "v"),
+	), nil
 }
 
 func hasPinnedTool(name string, wantVersion string, versionArgs ...string) bool {

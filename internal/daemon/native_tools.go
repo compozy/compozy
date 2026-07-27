@@ -37,6 +37,7 @@ const (
 	nativeToolsSkillsKey    = "skills"
 	nativeToolsTaskKey      = "task"
 	nativeToolsTextKey      = "text"
+	nativeToolsWorkKey      = "work"
 	nativeToolsWorkspaceKey = "workspace"
 	nativeToolsAgentsKey    = "agents"
 )

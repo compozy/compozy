@@ -308,6 +308,18 @@ func (g *LoopRepo) UpsertLoopConfig(
 	patch := loopConfigPatchFlagsForStore(cfg, normalized)
 	err = g.withImmediateTransaction(ctx, "upsert loop config", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
+		runtimeDefaultsJSON, marshalErr := nullableLoopConfigJSON(normalized.RuntimeDefaults)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		var runtimeRulesValue any
+		if normalized.RuntimeRules != nil {
+			runtimeRulesValue = normalized.RuntimeRules
+		}
+		runtimeRulesJSON, marshalErr := nullableLoopConfigJSON(runtimeRulesValue)
+		if marshalErr != nil {
+			return marshalErr
+		}
 		insert := sqlcgen.InsertLoopConfigIfMissingParams{
 			WorkspaceID:      workspaceID,
 			LoopName:         trimmedLoopName,
@@ -321,12 +333,12 @@ func (g *LoopRepo) UpsertLoopConfig(
 			BudgetWallSec: nullIntPtr(
 				normalized.BudgetWallSec,
 			),
-			BudgetOnExceeded:   nullStringPtr(normalized.BudgetOnExceeded),
-			NoProgressWindow:   nullIntPtr(normalized.NoProgressWindow),
-			FanOutWidth:        nullIntPtr(normalized.FanOutWidth),
-			GateMaxRevisions:   nullIntPtr(normalized.GateMaxRevisions),
-			ModelDefaultWorker: modelDefaultNullString(normalized.ModelDefaults, true),
-			ModelDefaultJudge:  modelDefaultNullString(normalized.ModelDefaults, false),
+			BudgetOnExceeded:    nullStringPtr(normalized.BudgetOnExceeded),
+			NoProgressWindow:    nullIntPtr(normalized.NoProgressWindow),
+			FanOutWidth:         nullIntPtr(normalized.FanOutWidth),
+			GateMaxRevisions:    nullIntPtr(normalized.GateMaxRevisions),
+			RuntimeDefaultsJson: runtimeDefaultsJSON,
+			RuntimeRulesJson:    runtimeRulesJSON,
 		}
 		if insertErr := queries.InsertLoopConfigIfMissing(ctx, insert); insertErr != nil {
 			return insertErr
@@ -357,7 +369,10 @@ func (g *LoopRepo) GetLoopConfig(
 		}
 		return nil, err
 	}
-	cfg := loopConfigFromGenerated(row)
+	cfg, err := loopConfigFromGenerated(row)
+	if err != nil {
+		return nil, err
+	}
 	return &cfg, nil
 }
 

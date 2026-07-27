@@ -794,6 +794,15 @@ func waitForLoopRunStatus(
 			if response.Run.Status == want {
 				return
 			}
+			if loopRunStatusTerminal(response.Run.Status) {
+				logLoopRunTimeoutDebug(t, harness, runID, lastRun)
+				t.Fatalf(
+					"loop run reached terminal status %s while waiting for %s; run=%#v",
+					response.Run.Status,
+					want,
+					response.Run,
+				)
+			}
 		}
 		select {
 		case <-timer.C:
@@ -807,6 +816,20 @@ func waitForLoopRunStatus(
 			)
 		case <-ticker.C:
 		}
+	}
+}
+
+func loopRunStatusTerminal(status aghcontract.LoopRunStatus) bool {
+	switch status {
+	case aghcontract.LoopRunStatusDone,
+		aghcontract.LoopRunStatusNoOp,
+		aghcontract.LoopRunStatusBlocked,
+		aghcontract.LoopRunStatusFailed,
+		aghcontract.LoopRunStatusExhausted,
+		aghcontract.LoopRunStatusStalled:
+		return true
+	default:
+		return false
 	}
 }
 

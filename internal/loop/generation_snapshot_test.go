@@ -31,8 +31,8 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
 		}
-		if len(tx.args) != 8 {
-			t.Fatalf("ExecContext args len = %d, want 8: %#v", len(tx.args), tx.args)
+		if len(tx.args) != 9 {
+			t.Fatalf("ExecContext args len = %d, want 9: %#v", len(tx.args), tx.args)
 		}
 		if got, want := tx.args[0], "loop-run-1"; got != want {
 			t.Fatalf("ExecContext loop_run_id arg = %#v, want %q", got, want)
@@ -42,6 +42,9 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		}
 		if got, want := tx.args[4], generationOutputSucceeded; got != want {
 			t.Fatalf("ExecContext status arg = %#v, want %q", got, want)
+		}
+		if got := tx.args[8]; got != nil {
+			t.Fatalf("ExecContext resolved_runtime arg = %#v, want nil", got)
 		}
 	})
 }

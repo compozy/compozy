@@ -2709,18 +2709,33 @@ func testGoalInput(t *testing.T) loop.ActionExecutionInput {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 	}
 	return loop.ActionExecutionInput{
-		WorkspaceID:           "workspace-1",
-		LoopRunID:             "loop-1",
-		Generation:            1,
-		NodeID:                "converge",
-		ItemIndex:             0,
-		Actor:                 actor,
-		CorrelationID:         "task-run-1",
-		WorkerModel:           "worker-model",
-		JudgeModel:            "judge-model",
+		WorkspaceID:   "workspace-1",
+		LoopRunID:     "loop-1",
+		Generation:    1,
+		NodeID:        "converge",
+		ItemIndex:     0,
+		Actor:         actor,
+		CorrelationID: "task-run-1",
+		RuntimeSelection: &loop.ActionRuntimeSelection{
+			Defaults: loop.RuntimeDefaults{
+				Worker: loop.RuntimeSpec{Model: "worker-model"},
+				Judge:  loop.RuntimeSpec{Model: "judge-model"},
+			},
+			Catalog: goalTestRuntimeCatalog{},
+		},
 		GoalContextNudgeRatio: new(0.8),
 		GoalSegmentEpoch:      1,
 	}
+}
+
+type goalTestRuntimeCatalog struct{}
+
+func (goalTestRuntimeCatalog) CanonicalProvider(provider string) string {
+	return strings.TrimSpace(provider)
+}
+
+func (goalTestRuntimeCatalog) ValidateRuntime(context.Context, loop.RuntimeSpec) error {
+	return nil
 }
 
 func scriptedEndTurn(text string, tokens int64, callbacks ...int64) scriptedPrompt {

@@ -1982,7 +1982,7 @@ async function ensureACPmockDriverBinary(repoRoot: string): Promise<string> {
 }
 
 async function buildACPmockDriverBinary(repoRoot: string): Promise<string> {
-  const buildDir = await mkdtemp(path.join(os.tmpdir(), "agh-acpmock-driver-"));
+  const buildDir = await mkdtemp(path.join(os.tmpdir(), "compozy-acpmock-driver-"));
   const outputPath = path.join(
     buildDir,
     process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver"
@@ -2145,7 +2145,7 @@ async function createAutomationOperatorTrigger(
 async function prepareBrowserBridgeExtension(): Promise<PreparedBrowserBridgeExtension> {
   const repoRoot = resolveBrowserRepoRoot();
   const sourceDir = path.join(repoRoot, "sdk", "examples", BRIDGE_EXTENSION_NAME);
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "agh-browser-bridge-extension-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridge-extension-"));
   const extensionDir = path.join(tempRoot, BRIDGE_EXTENSION_NAME);
   const markers = createBridgeAdapterMarkerPaths(path.join(extensionDir, "markers"));
 
@@ -2221,7 +2221,7 @@ function patchBridgeExtensionManifest(manifest: string, markers: BridgeAdapterMa
 async function computeDirectoryChecksum(rootDir: string): Promise<string> {
   const repoRoot = resolveBrowserRepoRoot();
   await mkdir(path.join(repoRoot, ".tmp"), { recursive: true });
-  const helperRoot = await mkdtemp(path.join(repoRoot, ".tmp", "agh-browser-checksum-"));
+  const helperRoot = await mkdtemp(path.join(repoRoot, ".tmp", "compozy-browser-checksum-"));
   const helperPath = path.join(helperRoot, "main.go");
 
   await writeFile(

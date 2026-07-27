@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -50,11 +51,14 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
-			WorkspaceID:          looppkg.WorkspaceID("ws-loop"),
-			LoopRunID:            looppkg.RunID("loop-run-policy"),
-			Agent:                "task-worker",
-			Handle:               "execute_task",
-			AllowedTools:         []string{allowedTools[1], allowedTools[0], allowedTools[0]},
+			WorkspaceID:  looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:    looppkg.RunID("loop-run-policy"),
+			Agent:        "task-worker",
+			Handle:       "execute_task",
+			AllowedTools: []string{allowedTools[1], allowedTools[0], allowedTools[0]},
+			Runtime: looppkg.RuntimeSpec{
+				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high",
+			},
 			ContractBlock:        "Follow the loop contract.",
 			NetworkParticipation: new(loopParticipation),
 		})
@@ -89,6 +93,43 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 				createCall.AllowedToolsOverride,
 				allowedTools,
 			)
+		}
+		if createCall.Provider != "codex" || createCall.Model != "gpt-5.6-terra" ||
+			createCall.ReasoningEffort != "high" {
+			t.Fatalf("CreateOpts runtime = %#v, want codex/gpt-5.6-terra@high", createCall)
+		}
+		if binding.AppliedRuntime.Provider != createCall.Provider ||
+			binding.AppliedRuntime.Model != createCall.Model ||
+			binding.AppliedRuntime.Reasoning != createCall.ReasoningEffort {
+			t.Fatalf(
+				"binding AppliedRuntime = %#v, want final CreateOpts runtime",
+				binding.AppliedRuntime,
+			)
+		}
+	})
+
+	t.Run("Should report agent runtime when engine runtime is empty", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Model: "agent-model", Prompt: "Handle the loop node.",
+		}})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-agent-runtime"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			}},
+		}
+
+		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: "ws-loop", Agent: "task-worker", Handle: "execute_task",
+		})
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		if binding.AppliedRuntime.Provider != "mock" || binding.AppliedRuntime.Model != "agent-model" {
+			t.Fatalf("AppliedRuntime = %#v, want agent runtime", binding.AppliedRuntime)
 		}
 	})
 
@@ -162,6 +203,34 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("Create call count = %d, want 0", got)
 		}
 	})
+}
+
+func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
+	t.Parallel()
+
+	profile := store.SessionCreationProfile{
+		Provider: "claude", Model: "opus", ReasoningEffort: "high",
+	}
+	cases := []struct {
+		name    string
+		runtime looppkg.RuntimeSpec
+	}{
+		{name: "Should reject provider divergence", runtime: looppkg.RuntimeSpec{Provider: "codex"}},
+		{name: "Should reject model divergence", runtime: looppkg.RuntimeSpec{Model: "sonnet"}},
+		{name: "Should reject reasoning divergence", runtime: looppkg.RuntimeSpec{Reasoning: "max"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validatePinnedRuntime(tc.runtime, profile)
+			var reason *looppkg.ReasonError
+			if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
+				!errors.Is(err, looppkg.ErrTransitionConflict) {
+				t.Fatalf("validatePinnedRuntime() error = %v, want continuous binding mismatch", err)
+			}
+		})
+	}
 }
 
 func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {

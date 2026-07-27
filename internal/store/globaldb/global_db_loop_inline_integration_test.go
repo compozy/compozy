@@ -623,8 +623,10 @@ func inlineGoalRunForTest(
 		Contract: dsl.Contract{
 			Goal: "ship the release", DefinitionOfDone: "The objective is satisfied.",
 			IterationCap: 3, NoProgress: dsl.NoProgress{Window: 1},
-			Budget:        dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
-			ModelDefaults: &dsl.ModelDefaults{Judge: "judge-v1"},
+			Budget: dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			RuntimeDefaults: &dsl.RuntimeDefaults{
+				Judge: dsl.RuntimeSpec{Model: "judge-v1"},
+			},
 		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal),

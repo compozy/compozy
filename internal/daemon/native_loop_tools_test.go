@@ -217,6 +217,170 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"release"`))
 	})
 
+	t.Run("Should return structured runtime validation diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		definition := loopAPITestDefinition(t, "release", 1, "Release safely")
+		input, err := json.Marshal(map[string]any{
+			"workspace_id": "ws-alpha",
+			"name":         "release",
+			"definition":   definition,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(loop_validate input) error = %v", err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					validateLoopFn: func(
+						context.Context,
+						string,
+						string,
+						contract.ValidateLoopRequest,
+					) (contract.LoopValidationResponse, error) {
+						return contract.LoopValidationResponse{}, looppkg.NewRuntimeValidationError(
+							looppkg.RuntimeValidationItem{
+								TaskID: "task_06",
+								Field:  "model",
+								Value:  "unknown-model",
+								Reason: "unknown_model",
+							},
+						)
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDLoopValidate, Input: input},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_validate) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"valid":false`))
+		requireNativeStructuredContains(t, result, []byte(`"runtime_validation"`))
+		requireNativeStructuredContains(t, result, []byte(`"task_id":"task_06"`))
+		requireNativeStructuredContains(t, result, []byte(`"reason":"unknown_model"`))
+	})
+
+	t.Run("Should reject retired runtime keys before calling the loop service", func(t *testing.T) {
+		t.Parallel()
+
+		validateCalled := false
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					validateLoopFn: func(
+						context.Context,
+						string,
+						string,
+						contract.ValidateLoopRequest,
+					) (contract.LoopValidationResponse, error) {
+						validateCalled = true
+						return contract.LoopValidationResponse{}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopValidate,
+				Input:  json.RawMessage(`{"definition":{"contract":{"model_defaults":{}}}}`),
+			},
+		)
+
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) {
+			t.Fatalf("Registry.Call(loop_validate retired key) error = %v, want ToolError", err)
+		}
+		if toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!strings.Contains(toolErr.Error(), "definition.contract.model_defaults") ||
+			!strings.Contains(toolErr.Error(), "MIGRATION_GUIDE.md#per-task-runtime-selection") {
+			t.Fatalf("tool error = %#v, want retired-key migration guidance", toolErr)
+		}
+		if validateCalled {
+			t.Fatal("ValidateLoop was called after native retired-key preflight failed")
+		}
+	})
+
+	t.Run("Should distinguish retired criterion model from nested runtime model", func(t *testing.T) {
+		t.Parallel()
+
+		valid := json.RawMessage(`{
+			"definition": {
+				"contract": {
+					"runtime_defaults": {"judge": {"model": "judge-model"}},
+					"verification": [{"runtime": {"model": "criterion-model"}}]
+				}
+			}
+		}`)
+		if path, found := retiredNativeLoopRuntimePath(valid); found {
+			t.Fatalf("retiredNativeLoopRuntimePath(valid runtime) = %q, true; want false", path)
+		}
+		retired := json.RawMessage(
+			`{"definition":{"contract":{"verification":[{"model":"gpt-5.4"}]}}}`,
+		)
+		path, found := retiredNativeLoopRuntimePath(retired)
+		if !found || path != "definition.contract.verification[0].model" {
+			t.Fatalf("retiredNativeLoopRuntimePath(retired model) = %q, %t", path, found)
+		}
+	})
+
+	t.Run("Should preserve resolved runtime provenance in native status", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					getLoopRunFn: func(
+						context.Context,
+						string,
+						string,
+					) (contract.LoopRunResponse, error) {
+						return contract.LoopRunResponse{
+							Run: contract.LoopRunPayload{ID: "run-1", Status: contract.LoopRunStatusRunning},
+							Generations: []contract.LoopGenerationPayload{{
+								Generation: 1,
+								Outputs: []contract.LoopGenerationOutput{{
+									NodeID: "worker",
+									Status: "completed",
+									ResolvedRuntime: &contract.LoopResolvedRuntime{
+										Provider: "openai",
+										Model:    "gpt-5.4",
+										Source: contract.LoopRuntimeProvenance{
+											Provider: "default",
+											Model:    "frontmatter",
+										},
+									},
+								}},
+							}},
+						}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopStatus,
+				Input:  json.RawMessage(`{"run_id":"run-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_status) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"resolved_runtime"`))
+		requireNativeStructuredContains(t, result, []byte(`"model":"gpt-5.4"`))
+		requireNativeStructuredContains(t, result, []byte(`"model":"frontmatter"`))
+	})
+
 	t.Run("Should keep loop tools unavailable until service is ready", func(t *testing.T) {
 		t.Parallel()
 

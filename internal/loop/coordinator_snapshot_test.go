@@ -32,9 +32,9 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 			NoProgressWindow:  6,
 			FanOutWidth:       5,
 			GateMaxRevisions:  4,
-			ModelDefaults: EffectiveModelDefaults{
-				Worker: "worker-pinned",
-				Judge:  "judge-pinned",
+			RuntimeDefaults: RuntimeDefaults{
+				Worker: RuntimeSpec{Model: "worker-pinned"},
+				Judge:  RuntimeSpec{Model: "judge-pinned"},
 			},
 		}
 		snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
@@ -188,7 +188,10 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		resolved.WatchEventsContracts[hooks.HookTaskStatusChanged] = pinnedContract
 		effective := snapshotEffectiveConfig()
 		effective.IterationCap = 27
-		effective.ModelDefaults = EffectiveModelDefaults{Worker: "worker-v1", Judge: "judge-v1"}
+		effective.RuntimeDefaults = RuntimeDefaults{
+			Worker: RuntimeSpec{Model: "worker-v1"},
+			Judge:  RuntimeSpec{Model: "judge-v1"},
+		}
 
 		snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
 		if err != nil {
@@ -258,7 +261,9 @@ func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.
 		ReattemptStrategy: ReattemptFailedOnly,
 		EnabledChecks:     []byte(`{}`),
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
-		ModelDefaults:     EffectiveModelDefaults{Judge: "judge-v1"},
+		RuntimeDefaults: RuntimeDefaults{
+			Judge: RuntimeSpec{Model: "judge-v1"},
+		},
 	}
 	raw, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
 	if err != nil {
@@ -266,6 +271,65 @@ func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.
 	}
 	if _, err := LoadExecutedDefinitionSnapshot(raw, digest); err != nil {
 		t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+	}
+}
+
+func TestExecutedDefinitionSnapshotShouldPreserveRunAgentRuntimeTemplateManifest(t *testing.T) {
+	t.Parallel()
+
+	definition := pinnedSnapshotDefinition()
+	definition.Graph = dsl.Graph{
+		Nodes: []dsl.Node{
+			{
+				ID: "items", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"tasks": map[string]any{"value": []any{
+					map[string]any{
+						"id": "task-1", "path": ".compozy/tasks/task-1.md",
+						"runtime": map[string]any{"model": "frontmatter-model"},
+					},
+				}}}},
+			},
+			{
+				ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut),
+				Collection: "{{ .nodes.items.output.tasks }}", BatchSize: 1, MaxFanOut: 1,
+			},
+			{
+				ID: "worker", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{
+					"agent": "codex", "prompt": "Complete the task.",
+					"runtime": map[string]any{"model": "node-model"},
+				},
+			},
+			{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+		},
+		Edges: []dsl.Edge{
+			{From: "items", To: "fan"},
+			{From: "fan", To: "worker"},
+			{From: "worker", To: "collect"},
+		},
+	}
+	serialized, err := dsl.Serialize(definition)
+	if err != nil {
+		t.Fatalf("Serialize(run-agent runtime) error = %v", err)
+	}
+	parsed, err := dsl.Parse(serialized)
+	if err != nil {
+		t.Fatalf("Parse(run-agent runtime) error = %v", err)
+	}
+	resolved, err := NewCompiler().Compile(parsed)
+	if err != nil {
+		t.Fatalf("Compile(run-agent runtime) error = %v", err)
+	}
+	raw, digest, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+	}
+	hydrated, err := LoadExecutedDefinitionSnapshot(raw, digest)
+	if err != nil {
+		t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+	}
+	if hydrated.Templates["nodes.worker.params.runtime.model"] == nil {
+		t.Fatal("hydrated run-agent runtime model template is nil")
 	}
 }
 

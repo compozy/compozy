@@ -58,7 +58,11 @@ func (g *loopSessionPolicyGate) applyResolved(
 			err,
 		)
 	}
-	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, opts.Provider, opts.Model)
+	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, aghconfig.RuntimeOverrides{
+		Provider:  opts.Provider,
+		Model:     opts.Model,
+		Reasoning: opts.ReasoningEffort,
+	})
 	if err != nil {
 		return loopSessionPolicyResolution{}, fmt.Errorf(
 			"%w: resolve loop session policy for %q: %w",
@@ -80,6 +84,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 	opts.CWD = cwd
 	opts.Provider = strings.TrimSpace(resolvedAgent.Provider)
 	opts.Model = strings.TrimSpace(resolvedAgent.Model)
+	opts.ReasoningEffort = strings.TrimSpace(resolvedAgent.ReasoningEffort)
 	if runtimeMode := normalizeSessionRuntimeMode(policy.Runtime.Mode); runtimeMode != "" {
 		opts.RuntimeMode = string(runtimeMode)
 	}

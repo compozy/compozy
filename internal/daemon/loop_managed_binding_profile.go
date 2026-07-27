@@ -26,6 +26,9 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 		if err != nil {
 			return store.SessionCreationProfile{}, session.CreateOpts{}, err
 		}
+		if err := validatePinnedRuntime(req.Runtime, profile); err != nil {
+			return store.SessionCreationProfile{}, session.CreateOpts{}, err
+		}
 		agent = profile.AgentName
 		opts = createOptionsFromProfile(req, profile)
 	} else {
@@ -67,7 +70,9 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	opts := session.CreateOpts{
 		AgentName:                    strings.TrimSpace(agent),
-		Model:                        strings.TrimSpace(req.Model),
+		Provider:                     strings.TrimSpace(req.Runtime.Provider),
+		Model:                        strings.TrimSpace(req.Runtime.Model),
+		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
 		CWD:                          strings.TrimSpace(req.CWD),
 		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
@@ -85,6 +90,29 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
 	}
 	return opts
+}
+
+func validatePinnedRuntime(runtime looppkg.RuntimeSpec, profile store.SessionCreationProfile) error {
+	if provider := strings.TrimSpace(runtime.Provider); provider != "" &&
+		aghconfig.CanonicalProviderName(provider) != aghconfig.CanonicalProviderName(profile.Provider) {
+		return bindingMismatch("requested runtime provider differs from pinned creation profile")
+	}
+	if model := strings.TrimSpace(runtime.Model); model != "" && model != strings.TrimSpace(profile.Model) {
+		return bindingMismatch("requested runtime model differs from pinned creation profile")
+	}
+	if reasoning := strings.TrimSpace(runtime.Reasoning); reasoning != "" &&
+		reasoning != strings.TrimSpace(profile.ReasoningEffort) {
+		return bindingMismatch("requested runtime reasoning differs from pinned creation profile")
+	}
+	return nil
+}
+
+func appliedRuntimeFromCreateOptions(opts session.CreateOpts) looppkg.RuntimeSpec {
+	return looppkg.RuntimeSpec{
+		Provider:  strings.TrimSpace(opts.Provider),
+		Model:     strings.TrimSpace(opts.Model),
+		Reasoning: strings.TrimSpace(opts.ReasoningEffort),
+	}
 }
 
 func createOptionsFromProfile(

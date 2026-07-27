@@ -9,6 +9,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
 )
 
@@ -124,7 +125,9 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 			Loops: aghconfig.LoopsConfig{
 				Defaults: aghconfig.LoopsDefaultsConfig{
 					Delivery: aghconfig.LoopDefaultConfig{
-						ModelDefaults: aghconfig.LoopModelDefaultsConfig{Judge: "judge-v1"},
+						RuntimeDefaults: dsl.RuntimeDefaults{
+							Judge: dsl.RuntimeSpec{Model: "judge-v1", Reasoning: "high"},
+						},
 					},
 				},
 			},
@@ -135,7 +138,8 @@ func TestWorkspaceContractConfigClone(t *testing.T) {
 		}
 
 		cloned := cloneConfig(&original)
-		if cloned.Loops.Defaults.Delivery.ModelDefaults.Judge != "judge-v1" ||
+		if cloned.Loops.Defaults.Delivery.RuntimeDefaults.Judge.Model != "judge-v1" ||
+			cloned.Loops.Defaults.Delivery.RuntimeDefaults.Judge.Reasoning != "high" ||
 			cloned.Goals.MaxTurns != 7 || cloned.Goals.ContextNudgeRatio != 0.4 ||
 			cloned.Task.Orchestration.SummaryMaxBytes != 4096 {
 			t.Fatalf("cloned runtime config = %#v", cloned)

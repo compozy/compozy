@@ -32,11 +32,13 @@ type loopHookCoordinatorStore interface {
 	) (taskpkg.Run, bool, error)
 	LookupLoopGenerationOutputStatus(
 		ctx context.Context,
+		workspaceID string,
 		loopRunID string,
 		taskRunID string,
 	) (string, bool, error)
 	ListGenerationOutputs(
 		ctx context.Context,
+		workspaceID looppkg.WorkspaceID,
 		runID looppkg.RunID,
 		generation int,
 	) ([]looppkg.GenerationOutput, error)
@@ -145,7 +147,12 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 	if err := o.store.AdvanceLoopRunProgress(ctx, loopRunID, payload.Timestamp); err != nil {
 		errs = append(errs, err)
 	}
-	suppress, suppressErr := o.suppressIntermediateGoalTerminal(ctx, loopRunID, payload.RunID)
+	suppress, suppressErr := o.suppressIntermediateGoalTerminal(
+		ctx,
+		payload.WorkspaceID,
+		loopRunID,
+		payload.RunID,
+	)
 	if suppressErr != nil {
 		errs = append(errs, suppressErr)
 	}
@@ -163,10 +170,16 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 
 func (o *loopNativeHookObserver) suppressIntermediateGoalTerminal(
 	ctx context.Context,
+	workspaceID string,
 	loopRunID string,
 	taskRunID string,
 ) (bool, error) {
-	status, found, err := o.store.LookupLoopGenerationOutputStatus(ctx, loopRunID, strings.TrimSpace(taskRunID))
+	status, found, err := o.store.LookupLoopGenerationOutputStatus(
+		ctx,
+		strings.TrimSpace(workspaceID),
+		loopRunID,
+		strings.TrimSpace(taskRunID),
+	)
 	if err != nil {
 		return true, fmt.Errorf("lookup loop generation output status: %w", err)
 	}
@@ -232,7 +245,12 @@ func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminals(
 	if payload.Generation <= 0 {
 		return fmt.Errorf("daemon: settled Goal node hook requires a positive generation")
 	}
-	outputs, err := o.store.ListGenerationOutputs(ctx, looppkg.RunID(payload.LoopRunID), payload.Generation)
+	outputs, err := o.store.ListGenerationOutputs(
+		ctx,
+		looppkg.WorkspaceID(payload.WorkspaceID),
+		looppkg.RunID(payload.LoopRunID),
+		payload.Generation,
+	)
 	if err != nil {
 		return fmt.Errorf("daemon: list settled Goal outputs: %w", err)
 	}

@@ -61,9 +61,17 @@ window = 2
 [loops.defaults.delivery.gates]
 max_revisions = 9
 
-[loops.defaults.delivery.model_defaults]
-worker = "global-worker"
-judge = "global-judge"
+[loops.defaults.delivery.runtime_defaults.worker]
+model = "global-worker"
+
+[loops.defaults.delivery.runtime_defaults.judge]
+model = "global-judge"
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
+complexity = "high"
+[loops.defaults.delivery.runtime_rules.runtime]
+model = "global-complexity-model"
 
 [loops.defaults.delivery.budget]
 tokens = 100
@@ -77,8 +85,8 @@ fan_out_width = 1
 [loops.defaults.watch.no_progress]
 window = 1
 
-[loops.defaults.watch.model_defaults]
-judge = "global-watch-judge"
+[loops.defaults.watch.runtime_defaults.judge]
+model = "global-watch-judge"
 `)
 		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [loops.defaults.delivery]
@@ -89,8 +97,14 @@ fan_out_width = 2
 tokens = 0
 on_exceeded = "halt"
 
-[loops.defaults.delivery.model_defaults]
-worker = "workspace-worker"
+[loops.defaults.delivery.runtime_defaults.worker]
+model = "workspace-worker"
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
+type = "frontend"
+[loops.defaults.delivery.runtime_rules.runtime]
+model = "workspace-frontend-model"
 
 [loops.defaults.watch]
 fan_out_width = 5
@@ -101,8 +115,8 @@ window = 4
 [loops.defaults.watch.gates]
 max_revisions = 7
 
-[loops.defaults.watch.model_defaults]
-judge = "workspace-watch-judge"
+[loops.defaults.watch.runtime_defaults.judge]
+model = "workspace-watch-judge"
 `)
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
@@ -131,6 +145,30 @@ judge = "workspace-watch-judge"
 			fanOutWidth:      5,
 			judgeModel:       "workspace-watch-judge",
 		})
+		rules := cfg.Loops.Defaults.Delivery.RuntimeRules
+		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
+			rules[1].Match.Type != "frontend" || rules[1].Runtime.Model != "workspace-frontend-model" {
+			t.Fatalf("delivery runtime rules = %#v, want ordered global/workspace rules", rules)
+		}
+	})
+
+	t.Run("Should reject retired model defaults with migration guidance", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+[loops.defaults.delivery.model_defaults.worker]
+model = "opus"
+`)
+
+		_, err = LoadForHome(homePaths)
+		if err == nil || !strings.Contains(err.Error(), "model_defaults") ||
+			!strings.Contains(err.Error(), "MIGRATION_GUIDE.md#per-task-runtime-selection") {
+			t.Fatalf("LoadForHome() error = %v, want retired-key migration guidance", err)
+		}
 	})
 }
 
@@ -214,8 +252,8 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
-			name: "Should allow delivery worker model defaults",
-			path: []string{"loops", "defaults", "delivery", "model_defaults", "worker"},
+			name: "Should allow delivery worker runtime defaults",
+			path: []string{"loops", "defaults", "delivery", "runtime_defaults", "worker", "model"},
 			kind: ConfigValueString,
 		},
 	}
@@ -274,10 +312,20 @@ func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, 
 	if got.FanOutWidth != want.fanOutWidth {
 		t.Fatalf("%s FanOutWidth = %d, want %d", label, got.FanOutWidth, want.fanOutWidth)
 	}
-	if got.ModelDefaults.Worker != want.workerModel {
-		t.Fatalf("%s ModelDefaults.Worker = %q, want %q", label, got.ModelDefaults.Worker, want.workerModel)
+	if got.RuntimeDefaults.Worker.Model != want.workerModel {
+		t.Fatalf(
+			"%s RuntimeDefaults.Worker.Model = %q, want %q",
+			label,
+			got.RuntimeDefaults.Worker.Model,
+			want.workerModel,
+		)
 	}
-	if got.ModelDefaults.Judge != want.judgeModel {
-		t.Fatalf("%s ModelDefaults.Judge = %q, want %q", label, got.ModelDefaults.Judge, want.judgeModel)
+	if got.RuntimeDefaults.Judge.Model != want.judgeModel {
+		t.Fatalf(
+			"%s RuntimeDefaults.Judge.Model = %q, want %q",
+			label,
+			got.RuntimeDefaults.Judge.Model,
+			want.judgeModel,
+		)
 	}
 }

@@ -19,7 +19,9 @@ func (m *Manager) resolveSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
 	agentDef := artifacts.Agent
-	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, spec.provider, spec.model)
+	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, aghconfig.RuntimeOverrides{
+		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort,
+	})
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}

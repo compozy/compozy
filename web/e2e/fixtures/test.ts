@@ -17,7 +17,7 @@ export const test = base.extend<E2EFixtures>({
   runtime: [
     async ({ browserName: _browserName, runtimeOptions }, provide, testInfo) => {
       const runtime = await createBrowserRuntime({
-        artifactRootDir: testInfo.outputPath("agh-artifacts"),
+        artifactRootDir: testInfo.outputPath("compozy-artifacts"),
         ...runtimeOptions,
       });
       try {

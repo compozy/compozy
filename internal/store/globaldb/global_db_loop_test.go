@@ -35,6 +35,7 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventGoalTurnStarted:   {},
 		loopRunEventGoalTurnCompleted: {},
 		loopRunEventGoalStatusChanged: {},
+		loopRunEventRuntimeApplied:    {},
 	}
 	for _, kind := range contract.LoopRunEventKindValues() {
 		t.Run("Should accept public kind "+kind, func(t *testing.T) {
@@ -82,9 +83,9 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			NoProgressWindow:  new(4),
 			FanOutWidth:       new(5),
 			GateMaxRevisions:  new(6),
-			ModelDefaults: &looppkg.ModelDefaults{
-				Worker: &workerModel,
-				Judge:  &judgeModel,
+			RuntimeDefaults: &looppkg.RuntimeDefaults{
+				Worker: looppkg.RuntimeSpec{Model: workerModel},
+				Judge:  looppkg.RuntimeSpec{Model: judgeModel},
 			},
 		})
 		if err != nil {
@@ -107,14 +108,14 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		if got.FanOutWidth == nil || *got.FanOutWidth != 5 {
 			t.Fatalf("FanOutWidth = %#v, want 5", got.FanOutWidth)
 		}
-		if got.ModelDefaults == nil {
-			t.Fatal("ModelDefaults = nil, want stored defaults")
+		if got.RuntimeDefaults == nil {
+			t.Fatal("RuntimeDefaults = nil, want stored defaults")
 		}
-		if got.ModelDefaults.Worker == nil || *got.ModelDefaults.Worker != "stored-worker" {
-			t.Fatalf("ModelDefaults.Worker = %#v, want stored-worker", got.ModelDefaults.Worker)
+		if got.RuntimeDefaults.Worker.Model != "stored-worker" {
+			t.Fatalf("RuntimeDefaults.Worker.Model = %#v, want stored-worker", got.RuntimeDefaults.Worker)
 		}
-		if got.ModelDefaults.Judge == nil || *got.ModelDefaults.Judge != "stored-judge" {
-			t.Fatalf("ModelDefaults.Judge = %#v, want stored-judge", got.ModelDefaults.Judge)
+		if got.RuntimeDefaults.Judge.Model != "stored-judge" {
+			t.Fatalf("RuntimeDefaults.Judge.Model = %#v, want stored-judge", got.RuntimeDefaults.Judge)
 		}
 		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "delivery")
 		if !errors.Is(err, looppkg.ErrConfigNotFound) {
@@ -165,7 +166,9 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			EnabledChecks:     []byte(`{"command":true}`),
 			BudgetTokens:      new(2000),
 			FanOutWidth:       new(5),
-			ModelDefaults:     &looppkg.ModelDefaults{Worker: &workerModel},
+			RuntimeDefaults: &looppkg.RuntimeDefaults{
+				Worker: looppkg.RuntimeSpec{Model: workerModel},
+			},
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig(initial) error = %v", err)
 		}
@@ -194,8 +197,8 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		if got.BudgetTokens == nil || *got.BudgetTokens != 5000 {
 			t.Fatalf("BudgetTokens = %#v, want updated 5000", got.BudgetTokens)
 		}
-		if got.ModelDefaults == nil || got.ModelDefaults.Worker == nil || *got.ModelDefaults.Worker != "stored-worker" {
-			t.Fatalf("ModelDefaults.Worker = %#v, want preserved stored-worker", got.ModelDefaults)
+		if got.RuntimeDefaults == nil || got.RuntimeDefaults.Worker.Model != "stored-worker" {
+			t.Fatalf("RuntimeDefaults.Worker = %#v, want preserved stored-worker", got.RuntimeDefaults)
 		}
 	})
 }

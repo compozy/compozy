@@ -41,6 +41,7 @@ type CoordinatorTaskRunReader interface {
 type GenerationOutputReader interface {
 	ListGenerationOutputs(
 		ctx context.Context,
+		workspaceID WorkspaceID,
 		runID RunID,
 		generation int,
 	) ([]GenerationOutput, error)
@@ -65,6 +66,7 @@ type CoordinatorRunner struct {
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
 	actionRegistry     *ActionRegistry
+	runtimeCatalog     WorkspaceRuntimeCatalog
 	logger             *slog.Logger
 	now                func() time.Time
 	watchPoller        WatchPoller
@@ -192,7 +194,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
 	}
 	if run.Generation > 0 {
-		outputs, err := r.outputs.ListGenerationOutputs(ctx, run.ID, run.Generation)
+		outputs, err := r.outputs.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, run.Generation)
 		if err != nil {
 			return task.CoordinatorCompletionPlan{}, err
 		}
@@ -229,6 +231,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		effective,
 		r.gateEvaluator,
 		r.store,
+		r.runtimeCatalog,
 		fanOutWidth,
 		r.watchRuntime(),
 		r.watchEventsRuntime(),

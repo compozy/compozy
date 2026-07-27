@@ -57,6 +57,9 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			"--input", "target=prod",
 			"--input", "enabled=true",
 			"--input", "retries=3",
+			"--runtime", "worker=codex/gpt-5.4@high",
+			"--runtime", "id=task_06:codex/openai/gpt-5.4@medium",
+			"--runtime", "type=feature:-/claude-sonnet-4-5",
 			"--network", "live",
 			"--network-channel-strategy", "named",
 			"--network-channel", "builders",
@@ -79,6 +82,23 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 		if got, ok := capturedRequest.Inputs["retries"].(json.Number); !ok || got.String() != "3" {
 			t.Fatalf("RunLoop retries = %#v, want json.Number(3)", capturedRequest.Inputs["retries"])
+		}
+		overrides := capturedRequest.ConfigOverrides
+		if overrides == nil || overrides.RuntimeDefaults == nil ||
+			overrides.RuntimeDefaults.Worker.Provider != "codex" ||
+			overrides.RuntimeDefaults.Worker.Model != "gpt-5.4" ||
+			overrides.RuntimeDefaults.Worker.Reasoning != "high" {
+			t.Fatalf("RunLoop runtime defaults = %#v, want codex/gpt-5.4@high", overrides)
+		}
+		if len(overrides.RuntimeRules) != 2 ||
+			overrides.RuntimeRules[0].Match.ID != "task_06" ||
+			overrides.RuntimeRules[0].Runtime.Provider != "codex" ||
+			overrides.RuntimeRules[0].Runtime.Model != "openai/gpt-5.4" ||
+			overrides.RuntimeRules[0].Runtime.Reasoning != "medium" ||
+			overrides.RuntimeRules[1].Match.Type != "feature" ||
+			overrides.RuntimeRules[1].Runtime.Provider != "" ||
+			overrides.RuntimeRules[1].Runtime.Model != "claude-sonnet-4-5" {
+			t.Fatalf("RunLoop runtime rules = %#v, want ordered ID then type rules", overrides.RuntimeRules)
 		}
 		participationRequest := capturedRequest.NetworkParticipation
 		if participationRequest == nil ||

@@ -25,6 +25,7 @@ const (
 	loopRunEventGoalTurnStarted   = "goal_turn_started"
 	loopRunEventGoalTurnCompleted = "goal_turn_completed"
 	loopRunEventGoalStatusChanged = "goal_status_changed"
+	loopRunEventRuntimeApplied    = "runtime_applied"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -177,7 +178,8 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventStatusChanged,
 		loopRunEventGoalTurnStarted,
 		loopRunEventGoalTurnCompleted,
-		loopRunEventGoalStatusChanged:
+		loopRunEventGoalStatusChanged,
+		loopRunEventRuntimeApplied:
 		return true
 	default:
 		return false

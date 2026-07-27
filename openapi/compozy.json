@@ -197089,18 +197089,6 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
-                                                        "model_defaults": {
-                                                            "nullable": true,
-                                                            "properties": {
-                                                                "judge": {
-                                                                    "type": "string"
-                                                                },
-                                                                "worker": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "type": "object"
-                                                        },
                                                         "no_progress": {
                                                             "properties": {
                                                                 "hash_fields": {
@@ -197115,6 +197103,77 @@
                                                             },
                                                             "required": ["window"],
                                                             "type": "object"
+                                                        },
+                                                        "runtime_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "worker": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
                                                         },
                                                         "stop_when": {
                                                             "type": "string"
@@ -197144,14 +197203,25 @@
                                                                         "additionalProperties": {},
                                                                         "type": "object"
                                                                     },
-                                                                    "model": {
-                                                                        "type": "string"
-                                                                    },
                                                                     "prompt": {
                                                                         "type": "string"
                                                                     },
                                                                     "rubric": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
                                                                     },
                                                                     "tool": {
                                                                         "type": "string"
@@ -197681,6 +197751,36 @@
                                                                 },
                                                                 "output_ref": {
                                                                     "type": "string"
+                                                                },
+                                                                "resolved_runtime": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "source": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "required": ["source"],
+                                                                    "type": "object"
                                                                 },
                                                                 "status": {
                                                                     "type": "string"
@@ -198780,7 +198880,8 @@
                                                 "status_changed",
                                                 "goal_turn_started",
                                                 "goal_turn_completed",
-                                                "goal_status_changed"
+                                                "goal_status_changed",
+                                                "runtime_applied"
                                             ],
                                             "type": "string"
                                         },
@@ -201327,18 +201428,6 @@
                                                             "iteration_cap": {
                                                                 "type": "integer"
                                                             },
-                                                            "model_defaults": {
-                                                                "nullable": true,
-                                                                "properties": {
-                                                                    "judge": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "worker": {
-                                                                        "type": "string"
-                                                                    }
-                                                                },
-                                                                "type": "object"
-                                                            },
                                                             "no_progress": {
                                                                 "properties": {
                                                                     "hash_fields": {
@@ -201353,6 +201442,80 @@
                                                                 },
                                                                 "required": ["window"],
                                                                 "type": "object"
+                                                            },
+                                                            "runtime_defaults": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "judge": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "worker": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime_rules": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "match": {
+                                                                            "properties": {
+                                                                                "complexity": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "runtime": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "match",
+                                                                        "runtime"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
                                                             },
                                                             "stop_when": {
                                                                 "type": "string"
@@ -201382,14 +201545,25 @@
                                                                             "additionalProperties": {},
                                                                             "type": "object"
                                                                         },
-                                                                        "model": {
-                                                                            "type": "string"
-                                                                        },
                                                                         "prompt": {
                                                                             "type": "string"
                                                                         },
                                                                         "rubric": {
                                                                             "type": "string"
+                                                                        },
+                                                                        "runtime": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
                                                                         },
                                                                         "tool": {
                                                                             "type": "string"
@@ -201937,18 +202111,6 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
-                                                    "model_defaults": {
-                                                        "nullable": true,
-                                                        "properties": {
-                                                            "judge": {
-                                                                "type": "string"
-                                                            },
-                                                            "worker": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "type": "object"
-                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -201963,6 +202125,77 @@
                                                         },
                                                         "required": ["window"],
                                                         "type": "object"
+                                                    },
+                                                    "runtime_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "worker": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "runtime_rules": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "match": {
+                                                                    "properties": {
+                                                                        "complexity": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "required": ["match", "runtime"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "stop_when": {
                                                         "type": "string"
@@ -201992,14 +202225,25 @@
                                                                     "additionalProperties": {},
                                                                     "type": "object"
                                                                 },
-                                                                "model": {
-                                                                    "type": "string"
-                                                                },
                                                                 "prompt": {
                                                                     "type": "string"
                                                                 },
                                                                 "rubric": {
                                                                     "type": "string"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
                                                                 },
                                                                 "tool": {
                                                                     "type": "string"
@@ -202586,18 +202830,6 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
-                                                                "model_defaults": {
-                                                                    "nullable": true,
-                                                                    "properties": {
-                                                                        "judge": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "worker": {
-                                                                            "type": "string"
-                                                                        }
-                                                                    },
-                                                                    "type": "object"
-                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -202612,6 +202844,80 @@
                                                                     },
                                                                     "required": ["window"],
                                                                     "type": "object"
+                                                                },
+                                                                "runtime_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "worker": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime_rules": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "match": {
+                                                                                "properties": {
+                                                                                    "complexity": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "id": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "match",
+                                                                            "runtime"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
                                                                 },
                                                                 "stop_when": {
                                                                     "type": "string"
@@ -202641,14 +202947,25 @@
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
                                                                             },
-                                                                            "model": {
-                                                                                "type": "string"
-                                                                            },
                                                                             "prompt": {
                                                                                 "type": "string"
                                                                             },
                                                                             "rubric": {
                                                                                 "type": "string"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
                                                                             },
                                                                             "tool": {
                                                                                 "type": "string"
@@ -203410,6 +203727,27 @@
                                             },
                                             "type": "array"
                                         },
+                                        "runtime_validation": {
+                                            "items": {
+                                                "properties": {
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "reason": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["field", "reason", "value"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
                                         "valid": {
                                             "type": "boolean"
                                         }
@@ -203993,18 +204331,6 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
-                                                                "model_defaults": {
-                                                                    "nullable": true,
-                                                                    "properties": {
-                                                                        "judge": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "worker": {
-                                                                            "type": "string"
-                                                                        }
-                                                                    },
-                                                                    "type": "object"
-                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -204019,6 +204345,80 @@
                                                                     },
                                                                     "required": ["window"],
                                                                     "type": "object"
+                                                                },
+                                                                "runtime_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "worker": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime_rules": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "match": {
+                                                                                "properties": {
+                                                                                    "complexity": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "id": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "match",
+                                                                            "runtime"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
                                                                 },
                                                                 "stop_when": {
                                                                     "type": "string"
@@ -204048,14 +204448,25 @@
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
                                                                             },
-                                                                            "model": {
-                                                                                "type": "string"
-                                                                            },
                                                                             "prompt": {
                                                                                 "type": "string"
                                                                             },
                                                                             "rubric": {
                                                                                 "type": "string"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
                                                                             },
                                                                             "tool": {
                                                                                 "type": "string"
@@ -204931,18 +205342,6 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
-                                                    "model_defaults": {
-                                                        "nullable": true,
-                                                        "properties": {
-                                                            "judge": {
-                                                                "type": "string"
-                                                            },
-                                                            "worker": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "type": "object"
-                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -204957,6 +205356,77 @@
                                                         },
                                                         "required": ["window"],
                                                         "type": "object"
+                                                    },
+                                                    "runtime_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "worker": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "runtime_rules": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "match": {
+                                                                    "properties": {
+                                                                        "complexity": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "required": ["match", "runtime"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "stop_when": {
                                                         "type": "string"
@@ -204986,14 +205456,25 @@
                                                                     "additionalProperties": {},
                                                                     "type": "object"
                                                                 },
-                                                                "model": {
-                                                                    "type": "string"
-                                                                },
                                                                 "prompt": {
                                                                     "type": "string"
                                                                 },
                                                                 "rubric": {
                                                                     "type": "string"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
                                                                 },
                                                                 "tool": {
                                                                     "type": "string"
@@ -205582,18 +206063,6 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
-                                                                "model_defaults": {
-                                                                    "nullable": true,
-                                                                    "properties": {
-                                                                        "judge": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "worker": {
-                                                                            "type": "string"
-                                                                        }
-                                                                    },
-                                                                    "type": "object"
-                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -205608,6 +206077,80 @@
                                                                     },
                                                                     "required": ["window"],
                                                                     "type": "object"
+                                                                },
+                                                                "runtime_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "worker": {
+                                                                            "properties": {
+                                                                                "model": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "provider": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "reasoning": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime_rules": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "match": {
+                                                                                "properties": {
+                                                                                    "complexity": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "id": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "match",
+                                                                            "runtime"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
                                                                 },
                                                                 "stop_when": {
                                                                     "type": "string"
@@ -205637,14 +206180,25 @@
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
                                                                             },
-                                                                            "model": {
-                                                                                "type": "string"
-                                                                            },
                                                                             "prompt": {
                                                                                 "type": "string"
                                                                             },
                                                                             "rubric": {
                                                                                 "type": "string"
+                                                                            },
+                                                                            "runtime": {
+                                                                                "properties": {
+                                                                                    "model": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "provider": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "reasoning": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
                                                                             },
                                                                             "tool": {
                                                                                 "type": "string"
@@ -206425,6 +206979,27 @@
                                             },
                                             "type": "array"
                                         },
+                                        "runtime_validation": {
+                                            "items": {
+                                                "properties": {
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "reason": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["field", "reason", "value"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
                                         "valid": {
                                             "type": "boolean"
                                         }
@@ -207158,20 +207733,6 @@
                                                     "nullable": true,
                                                     "type": "integer"
                                                 },
-                                                "model_defaults": {
-                                                    "nullable": true,
-                                                    "properties": {
-                                                        "judge": {
-                                                            "nullable": true,
-                                                            "type": "string"
-                                                        },
-                                                        "worker": {
-                                                            "nullable": true,
-                                                            "type": "string"
-                                                        }
-                                                    },
-                                                    "type": "object"
-                                                },
                                                 "no_progress_window": {
                                                     "nullable": true,
                                                     "type": "integer"
@@ -207180,6 +207741,77 @@
                                                     "enum": ["failed_only", "full_body"],
                                                     "nullable": true,
                                                     "type": "string"
+                                                },
+                                                "runtime_defaults": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "judge": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "worker": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 }
                                             },
                                             "type": "object"
@@ -207209,24 +207841,119 @@
                                                 "iteration_cap": {
                                                     "type": "integer"
                                                 },
-                                                "model_defaults": {
-                                                    "properties": {
-                                                        "judge": {
-                                                            "type": "string"
-                                                        },
-                                                        "worker": {
-                                                            "type": "string"
-                                                        }
-                                                    },
-                                                    "required": ["judge", "worker"],
-                                                    "type": "object"
-                                                },
                                                 "no_progress_window": {
                                                     "type": "integer"
                                                 },
                                                 "reattempt_strategy": {
                                                     "enum": ["failed_only", "full_body"],
                                                     "type": "string"
+                                                },
+                                                "run_runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "runtime_defaults": {
+                                                    "properties": {
+                                                        "judge": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "worker": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 }
                                             },
                                             "required": [
@@ -207238,9 +207965,10 @@
                                                 "gate_max_revisions",
                                                 "human_gate_enabled",
                                                 "iteration_cap",
-                                                "model_defaults",
                                                 "no_progress_window",
-                                                "reattempt_strategy"
+                                                "reattempt_strategy",
+                                                "runtime_defaults",
+                                                "runtime_rules"
                                             ],
                                             "type": "object"
                                         }
@@ -207564,20 +208292,6 @@
                                                 "nullable": true,
                                                 "type": "integer"
                                             },
-                                            "model_defaults": {
-                                                "nullable": true,
-                                                "properties": {
-                                                    "judge": {
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    },
-                                                    "worker": {
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "type": "object"
-                                            },
                                             "no_progress_window": {
                                                 "nullable": true,
                                                 "type": "integer"
@@ -207586,6 +208300,77 @@
                                                 "enum": ["failed_only", "full_body"],
                                                 "nullable": true,
                                                 "type": "string"
+                                            },
+                                            "runtime_defaults": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "judge": {
+                                                        "properties": {
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "reasoning": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "worker": {
+                                                        "properties": {
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "reasoning": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "runtime_rules": {
+                                                "items": {
+                                                    "properties": {
+                                                        "match": {
+                                                            "properties": {
+                                                                "complexity": {
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": ["match", "runtime"],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
                                             }
                                         },
                                         "type": "object"
@@ -207638,20 +208423,6 @@
                                                     "nullable": true,
                                                     "type": "integer"
                                                 },
-                                                "model_defaults": {
-                                                    "nullable": true,
-                                                    "properties": {
-                                                        "judge": {
-                                                            "nullable": true,
-                                                            "type": "string"
-                                                        },
-                                                        "worker": {
-                                                            "nullable": true,
-                                                            "type": "string"
-                                                        }
-                                                    },
-                                                    "type": "object"
-                                                },
                                                 "no_progress_window": {
                                                     "nullable": true,
                                                     "type": "integer"
@@ -207660,6 +208431,77 @@
                                                     "enum": ["failed_only", "full_body"],
                                                     "nullable": true,
                                                     "type": "string"
+                                                },
+                                                "runtime_defaults": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "judge": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "worker": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 }
                                             },
                                             "type": "object"
@@ -207689,24 +208531,119 @@
                                                 "iteration_cap": {
                                                     "type": "integer"
                                                 },
-                                                "model_defaults": {
-                                                    "properties": {
-                                                        "judge": {
-                                                            "type": "string"
-                                                        },
-                                                        "worker": {
-                                                            "type": "string"
-                                                        }
-                                                    },
-                                                    "required": ["judge", "worker"],
-                                                    "type": "object"
-                                                },
                                                 "no_progress_window": {
                                                     "type": "integer"
                                                 },
                                                 "reattempt_strategy": {
                                                     "enum": ["failed_only", "full_body"],
                                                     "type": "string"
+                                                },
+                                                "run_runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "runtime_defaults": {
+                                                    "properties": {
+                                                        "judge": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "worker": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "runtime_rules": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "match": {
+                                                                "properties": {
+                                                                    "complexity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "runtime": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["match", "runtime"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 }
                                             },
                                             "required": [
@@ -207718,9 +208655,10 @@
                                                 "gate_max_revisions",
                                                 "human_gate_enabled",
                                                 "iteration_cap",
-                                                "model_defaults",
                                                 "no_progress_window",
-                                                "reattempt_strategy"
+                                                "reattempt_strategy",
+                                                "runtime_defaults",
+                                                "runtime_rules"
                                             ],
                                             "type": "object"
                                         }
@@ -207993,20 +208931,6 @@
                                                 "nullable": true,
                                                 "type": "integer"
                                             },
-                                            "model_defaults": {
-                                                "nullable": true,
-                                                "properties": {
-                                                    "judge": {
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    },
-                                                    "worker": {
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "type": "object"
-                                            },
                                             "no_progress_window": {
                                                 "nullable": true,
                                                 "type": "integer"
@@ -208015,6 +208939,77 @@
                                                 "enum": ["failed_only", "full_body"],
                                                 "nullable": true,
                                                 "type": "string"
+                                            },
+                                            "runtime_defaults": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "judge": {
+                                                        "properties": {
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "reasoning": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "worker": {
+                                                        "properties": {
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "reasoning": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "runtime_rules": {
+                                                "items": {
+                                                    "properties": {
+                                                        "match": {
+                                                            "properties": {
+                                                                "complexity": {
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime": {
+                                                            "properties": {
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "reasoning": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    },
+                                                    "required": ["match", "runtime"],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
                                             }
                                         },
                                         "type": "object"
@@ -208267,18 +209262,6 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
-                                                        "model_defaults": {
-                                                            "nullable": true,
-                                                            "properties": {
-                                                                "judge": {
-                                                                    "type": "string"
-                                                                },
-                                                                "worker": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "type": "object"
-                                                        },
                                                         "no_progress": {
                                                             "properties": {
                                                                 "hash_fields": {
@@ -208293,6 +209276,77 @@
                                                             },
                                                             "required": ["window"],
                                                             "type": "object"
+                                                        },
+                                                        "runtime_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "worker": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
                                                         },
                                                         "stop_when": {
                                                             "type": "string"
@@ -208322,14 +209376,25 @@
                                                                         "additionalProperties": {},
                                                                         "type": "object"
                                                                     },
-                                                                    "model": {
-                                                                        "type": "string"
-                                                                    },
                                                                     "prompt": {
                                                                         "type": "string"
                                                                     },
                                                                     "rubric": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
                                                                     },
                                                                     "tool": {
                                                                         "type": "string"
@@ -208378,24 +209443,119 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
-                                                        "model_defaults": {
-                                                            "properties": {
-                                                                "judge": {
-                                                                    "type": "string"
-                                                                },
-                                                                "worker": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "required": ["judge", "worker"],
-                                                            "type": "object"
-                                                        },
                                                         "no_progress_window": {
                                                             "type": "integer"
                                                         },
                                                         "reattempt_strategy": {
                                                             "enum": ["failed_only", "full_body"],
                                                             "type": "string"
+                                                        },
+                                                        "run_runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "runtime_defaults": {
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "worker": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
                                                         }
                                                     },
                                                     "required": [
@@ -208407,9 +209567,10 @@
                                                         "gate_max_revisions",
                                                         "human_gate_enabled",
                                                         "iteration_cap",
-                                                        "model_defaults",
                                                         "no_progress_window",
-                                                        "reattempt_strategy"
+                                                        "reattempt_strategy",
+                                                        "runtime_defaults",
+                                                        "runtime_rules"
                                                     ],
                                                     "type": "object"
                                                 },
@@ -208917,18 +210078,6 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
-                                                        "model_defaults": {
-                                                            "nullable": true,
-                                                            "properties": {
-                                                                "judge": {
-                                                                    "type": "string"
-                                                                },
-                                                                "worker": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "type": "object"
-                                                        },
                                                         "no_progress": {
                                                             "properties": {
                                                                 "hash_fields": {
@@ -208943,6 +210092,77 @@
                                                             },
                                                             "required": ["window"],
                                                             "type": "object"
+                                                        },
+                                                        "runtime_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "worker": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
                                                         },
                                                         "stop_when": {
                                                             "type": "string"
@@ -208972,14 +210192,25 @@
                                                                         "additionalProperties": {},
                                                                         "type": "object"
                                                                     },
-                                                                    "model": {
-                                                                        "type": "string"
-                                                                    },
                                                                     "prompt": {
                                                                         "type": "string"
                                                                     },
                                                                     "rubric": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
                                                                     },
                                                                     "tool": {
                                                                         "type": "string"
@@ -209028,24 +210259,119 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
-                                                        "model_defaults": {
-                                                            "properties": {
-                                                                "judge": {
-                                                                    "type": "string"
-                                                                },
-                                                                "worker": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "required": ["judge", "worker"],
-                                                            "type": "object"
-                                                        },
                                                         "no_progress_window": {
                                                             "type": "integer"
                                                         },
                                                         "reattempt_strategy": {
                                                             "enum": ["failed_only", "full_body"],
                                                             "type": "string"
+                                                        },
+                                                        "run_runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "runtime_defaults": {
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "worker": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "runtime_rules": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "match": {
+                                                                        "properties": {
+                                                                            "complexity": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "runtime": {
+                                                                        "properties": {
+                                                                            "model": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "provider": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["match", "runtime"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
                                                         }
                                                     },
                                                     "required": [
@@ -209057,9 +210383,10 @@
                                                         "gate_max_revisions",
                                                         "human_gate_enabled",
                                                         "iteration_cap",
-                                                        "model_defaults",
                                                         "no_progress_window",
-                                                        "reattempt_strategy"
+                                                        "reattempt_strategy",
+                                                        "runtime_defaults",
+                                                        "runtime_rules"
                                                     ],
                                                     "type": "object"
                                                 },
@@ -210032,18 +211359,6 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
-                                                    "model_defaults": {
-                                                        "nullable": true,
-                                                        "properties": {
-                                                            "judge": {
-                                                                "type": "string"
-                                                            },
-                                                            "worker": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "type": "object"
-                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -210058,6 +211373,77 @@
                                                         },
                                                         "required": ["window"],
                                                         "type": "object"
+                                                    },
+                                                    "runtime_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "worker": {
+                                                                "properties": {
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "runtime_rules": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "match": {
+                                                                    "properties": {
+                                                                        "complexity": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            },
+                                                            "required": ["match", "runtime"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "stop_when": {
                                                         "type": "string"
@@ -210087,14 +211473,25 @@
                                                                     "additionalProperties": {},
                                                                     "type": "object"
                                                                 },
-                                                                "model": {
-                                                                    "type": "string"
-                                                                },
                                                                 "prompt": {
                                                                     "type": "string"
                                                                 },
                                                                 "rubric": {
                                                                     "type": "string"
+                                                                },
+                                                                "runtime": {
+                                                                    "properties": {
+                                                                        "model": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
                                                                 },
                                                                 "tool": {
                                                                     "type": "string"
@@ -210629,6 +212026,27 @@
                                             },
                                             "type": "array"
                                         },
+                                        "runtime_validation": {
+                                            "items": {
+                                                "properties": {
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "reason": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["field", "reason", "value"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
                                         "valid": {
                                             "type": "boolean"
                                         }
@@ -210725,6 +212143,27 @@
                                                     }
                                                 },
                                                 "required": ["code", "message", "severity"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "runtime_validation": {
+                                            "items": {
+                                                "properties": {
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "reason": {
+                                                        "type": "string"
+                                                    },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["field", "reason", "value"],
                                                 "type": "object"
                                             },
                                             "type": "array"

@@ -150,6 +150,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
       latestVerdict={page.latestVerdict}
       watchEvents={page.watchEvents}
       watchCadence={page.watchCadence}
+      generations={page.generations}
       frames={page.live.frames}
       inputRows={page.inputRows}
       startedBy={page.startedBy}

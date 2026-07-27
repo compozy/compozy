@@ -16,7 +16,8 @@ func (b *loopActionSessionBinder) bindFromActiveSession(
 	key goalpkg.BindingKey,
 	active goalpkg.SessionBinding,
 ) (looppkg.ActionSessionBinding, bool, error) {
-	if err := b.validateActiveBindingPolicy(ctx, req, active); err != nil {
+	appliedRuntime, err := b.validateActiveBindingPolicy(ctx, req, active)
+	if err != nil {
 		return looppkg.ActionSessionBinding{}, true, err
 	}
 	if active.Ownership == goalpkg.BindingOwnershipOriginBorrowed &&
@@ -34,7 +35,7 @@ func (b *loopActionSessionBinder) bindFromActiveSession(
 		return binding, true, err
 	}
 	if active.BindingEpoch >= req.TargetBindingEpoch {
-		return actionBindingFromGoal(req, active), true, nil
+		return actionBindingFromGoal(req, active, appliedRuntime), true, nil
 	}
 	if req.TargetBindingEpoch != active.BindingEpoch+1 {
 		return looppkg.ActionSessionBinding{}, true, bindingMismatch(

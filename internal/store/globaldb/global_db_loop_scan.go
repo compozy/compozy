@@ -209,21 +209,21 @@ func applyLoopRunScanTimestamps(
 }
 
 type loopConfigScanValues struct {
-	humanGateEnabled   int
-	reattempt          sql.NullString
-	enabledChecks      string
-	iterationCap       sql.NullInt64
-	budgetTokens       sql.NullInt64
-	budgetWallSec      sql.NullInt64
-	budgetOnExceeded   sql.NullString
-	noProgressWindow   sql.NullInt64
-	fanOutWidth        sql.NullInt64
-	gateMaxRevisions   sql.NullInt64
-	modelDefaultWorker sql.NullString
-	modelDefaultJudge  sql.NullString
+	humanGateEnabled    int
+	reattempt           sql.NullString
+	enabledChecks       string
+	iterationCap        sql.NullInt64
+	budgetTokens        sql.NullInt64
+	budgetWallSec       sql.NullInt64
+	budgetOnExceeded    sql.NullString
+	noProgressWindow    sql.NullInt64
+	fanOutWidth         sql.NullInt64
+	gateMaxRevisions    sql.NullInt64
+	runtimeDefaultsJSON sql.NullString
+	runtimeRulesJSON    sql.NullString
 }
 
-func (v loopConfigScanValues) toConfig() looppkg.LoopConfig {
+func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 	cfg := looppkg.LoopConfig{
 		HumanGateEnabled: new(v.humanGateEnabled != 0),
 		EnabledChecks:    json.RawMessage(v.enabledChecks),
@@ -254,16 +254,21 @@ func (v loopConfigScanValues) toConfig() looppkg.LoopConfig {
 	if v.gateMaxRevisions.Valid {
 		cfg.GateMaxRevisions = new(int(v.gateMaxRevisions.Int64))
 	}
-	if v.modelDefaultWorker.Valid || v.modelDefaultJudge.Valid {
-		cfg.ModelDefaults = &looppkg.ModelDefaults{}
-		if v.modelDefaultWorker.Valid {
-			cfg.ModelDefaults.Worker = new(v.modelDefaultWorker.String)
+	if v.runtimeDefaultsJSON.Valid {
+		var defaults looppkg.RuntimeDefaults
+		if err := json.Unmarshal([]byte(v.runtimeDefaultsJSON.String), &defaults); err != nil {
+			return looppkg.LoopConfig{}, fmt.Errorf("store: decode loop runtime defaults: %w", err)
 		}
-		if v.modelDefaultJudge.Valid {
-			cfg.ModelDefaults.Judge = new(v.modelDefaultJudge.String)
-		}
+		cfg.RuntimeDefaults = &defaults
 	}
-	return cfg
+	if v.runtimeRulesJSON.Valid {
+		var rules []looppkg.RuntimeRule
+		if err := json.Unmarshal([]byte(v.runtimeRulesJSON.String), &rules); err != nil {
+			return looppkg.LoopConfig{}, fmt.Errorf("store: decode loop runtime rules: %w", err)
+		}
+		cfg.RuntimeRules = rules
+	}
+	return cfg, nil
 }
 
 func parseLoopRunTimestamp(value string) (time.Time, error) {

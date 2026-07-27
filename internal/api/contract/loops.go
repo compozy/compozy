@@ -111,8 +111,9 @@ type ValidateLoopRequest struct {
 
 // LoopValidationResponse reports lint/compile diagnostics.
 type LoopValidationResponse struct {
-	Valid  bool                   `json:"valid"`
-	Errors []LoopLintErrorPayload `json:"errors,omitempty"`
+	Valid             bool                               `json:"valid"`
+	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
+	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
 }
 
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
@@ -185,34 +186,25 @@ type LoopConfig struct {
 	NoProgressWindow  *int                   `json:"no_progress_window,omitempty"`
 	FanOutWidth       *int                   `json:"fan_out_width,omitempty"`
 	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitempty"`
-	ModelDefaults     *LoopModelDefaults     `json:"model_defaults,omitempty"`
-}
-
-// LoopModelDefaults is one public loop model-default override layer.
-type LoopModelDefaults struct {
-	Worker *string `json:"worker,omitempty"`
-	Judge  *string `json:"judge,omitempty"`
+	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitempty"`
+	RuntimeRules      []LoopRuntimeRule      `json:"runtime_rules,omitempty"`
 }
 
 // LoopEffectiveConfig is the public fully resolved runtime config.
 type LoopEffectiveConfig struct {
-	HumanGateEnabled  bool                       `json:"human_gate_enabled"`
-	ReattemptStrategy LoopReattemptStrategy      `json:"reattempt_strategy"`
-	EnabledChecks     json.RawMessage            `json:"enabled_checks_json"`
-	IterationCap      int                        `json:"iteration_cap"`
-	BudgetTokens      int                        `json:"budget_tokens"`
-	BudgetWallSec     int                        `json:"budget_wall_sec"`
-	BudgetOnExceeded  LoopBudgetExceeded         `json:"budget_on_exceeded"`
-	NoProgressWindow  int                        `json:"no_progress_window"`
-	FanOutWidth       int                        `json:"fan_out_width"`
-	GateMaxRevisions  int                        `json:"gate_max_revisions"`
-	ModelDefaults     LoopEffectiveModelDefaults `json:"model_defaults"`
-}
-
-// LoopEffectiveModelDefaults is the public resolved loop-owned model routing.
-type LoopEffectiveModelDefaults struct {
-	Worker string `json:"worker"`
-	Judge  string `json:"judge"`
+	HumanGateEnabled  bool                  `json:"human_gate_enabled"`
+	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
+	EnabledChecks     json.RawMessage       `json:"enabled_checks_json"`
+	IterationCap      int                   `json:"iteration_cap"`
+	BudgetTokens      int                   `json:"budget_tokens"`
+	BudgetWallSec     int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded  LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	NoProgressWindow  int                   `json:"no_progress_window"`
+	FanOutWidth       int                   `json:"fan_out_width"`
+	GateMaxRevisions  int                   `json:"gate_max_revisions"`
+	RuntimeDefaults   LoopRuntimeDefaults   `json:"runtime_defaults"`
+	RuntimeRules      []LoopRuntimeRule     `json:"runtime_rules"`
+	RunRuntimeRules   []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
 }
 
 // LoopAnnotationPayload is one editor node position.
@@ -295,13 +287,14 @@ type LoopGenerationPayload struct {
 
 // LoopGenerationOutput is one public generation output row.
 type LoopGenerationOutput struct {
-	Generation     int    `json:"generation,omitempty"`
-	NodeID         string `json:"node_id"`
-	ItemIndex      int    `json:"item_index,omitempty"`
-	Status         string `json:"status"`
-	OutputRef      string `json:"output_ref,omitempty"`
-	TaskRunID      string `json:"task_run_id,omitempty"`
-	ChildLoopRunID string `json:"child_loop_run_id,omitempty"`
+	Generation      int                  `json:"generation,omitempty"`
+	NodeID          string               `json:"node_id"`
+	ItemIndex       int                  `json:"item_index,omitempty"`
+	Status          string               `json:"status"`
+	OutputRef       string               `json:"output_ref,omitempty"`
+	TaskRunID       string               `json:"task_run_id,omitempty"`
+	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
+	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitempty"`
 }
 
 // LoopRunEventPayload is one SSE/audit event for a loop run.
@@ -374,17 +367,18 @@ type LoopInputRef struct {
 }
 
 type LoopContract struct {
-	Goal             string                     `json:"goal"`
-	DefinitionOfDone string                     `json:"definition_of_done"`
-	Constraints      []string                   `json:"constraints,omitempty"`
-	Boundaries       []string                   `json:"boundaries,omitempty"`
-	StopWhen         string                     `json:"stop_when,omitempty"`
-	Verification     []LoopGateCriterion        `json:"verification,omitempty"`
-	TerminalStates   []string                   `json:"terminal_states,omitempty"`
-	IterationCap     int                        `json:"iteration_cap"`
-	NoProgress       LoopNoProgress             `json:"no_progress"`
-	Budget           LoopBudget                 `json:"budget"`
-	ModelDefaults    *LoopContractModelDefaults `json:"model_defaults,omitempty"`
+	Goal             string               `json:"goal"`
+	DefinitionOfDone string               `json:"definition_of_done"`
+	Constraints      []string             `json:"constraints,omitempty"`
+	Boundaries       []string             `json:"boundaries,omitempty"`
+	StopWhen         string               `json:"stop_when,omitempty"`
+	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
+	TerminalStates   []string             `json:"terminal_states,omitempty"`
+	IterationCap     int                  `json:"iteration_cap"`
+	NoProgress       LoopNoProgress       `json:"no_progress"`
+	Budget           LoopBudget           `json:"budget"`
+	RuntimeDefaults  *LoopRuntimeDefaults `json:"runtime_defaults,omitempty"`
+	RuntimeRules     []LoopRuntimeRule    `json:"runtime_rules,omitempty"`
 }
 
 type LoopNoProgress struct {
@@ -396,12 +390,6 @@ type LoopBudget struct {
 	Tokens       int                `json:"tokens"`
 	WallClockSec int                `json:"wall_clock_sec"`
 	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// LoopContractModelDefaults defines authored model defaults for loop-owned sessions.
-type LoopContractModelDefaults struct {
-	Worker string `json:"worker,omitempty"`
-	Judge  string `json:"judge,omitempty"`
 }
 
 type LoopGraph struct {
@@ -439,16 +427,17 @@ type LoopGraphNode struct {
 }
 
 type LoopGateCriterion struct {
-	ID     string         `json:"id"`
-	Type   string         `json:"type"`
-	Check  string         `json:"check,omitempty"`
-	Expect string         `json:"expect,omitempty"`
-	Agent  string         `json:"agent,omitempty"`
-	Model  string         `json:"model,omitempty"`
-	Rubric string         `json:"rubric,omitempty"`
-	Prompt string         `json:"prompt,omitempty"`
-	Tool   string         `json:"tool,omitempty"`
-	Inputs map[string]any `json:"inputs,omitempty"`
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Check  string `json:"check,omitempty"`
+	Expect string `json:"expect,omitempty"`
+	Agent  string `json:"agent,omitempty"`
+	//nolint:modernize // OpenAPI requires omitempty; JSON uses omitzero.
+	Runtime LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
+	Rubric  string          `json:"rubric,omitempty"`
+	Prompt  string          `json:"prompt,omitempty"`
+	Tool    string          `json:"tool,omitempty"`
+	Inputs  map[string]any  `json:"inputs,omitempty"`
 }
 
 type LoopGraphEdge struct {
