@@ -47,7 +47,7 @@ daemon becomes reachable.
   recognize the valid `git describe --dirty` form for a build made after a tag. The update manager
   therefore routes the dirty source build into published-channel parsing, where the Git distance
   and dirty suffix are misclassified as a release prerelease track.
-- **Fix commit:** pending
+- **Fix commit:** `e4df8634`
 - **Regression test:** `internal/update/version_test.go` — dirty tagged Git-describe builds must be
   classified as development builds.
 

@@ -39,17 +39,17 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-cli-binary | Ada | Garbage Tour | Fixed | BUG-20260727-dirty-build-release-track | pending |
+| 1 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-cli-binary | Ada | Garbage Tour | Fixed | BUG-20260727-dirty-build-release-track | e4df8634 |
 | 2 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-global-database | Ada | Garbage Tour | Pass | | |
-| 3 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-home-layout | Ada | Garbage Tour | Fixed | BUG-20260727-dirty-build-release-track | pending |
+| 3 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-home-layout | Ada | Garbage Tour | Fixed | BUG-20260727-dirty-build-release-track | e4df8634 |
 | 4 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-home-isolation | Ada | Garbage Tour | Pass | | |
-| 5 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-environment-namespace | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
-| 6 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-native-tool-invocation | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
-| 7 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-extension-contract-identity | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
+| 5 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / RT-compozy-environment-namespace | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
+| 6 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-native-tool-invocation | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
+| 7 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-extension-contract-identity | Ada | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
 | 8 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-official-skill-discovery | Ada | Garbage Tour | Pass | | |
-| 9 | CH-compozy-wire-public-hard-cut | J-validate-compozy-hard-cut / NB-compozy-wire-identity | Dora | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
+| 9 | CH-compozy-wire-public-hard-cut | J-validate-compozy-hard-cut / NB-compozy-wire-identity | Dora | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
 | 10 | CH-compozy-wire-public-hard-cut | J-validate-compozy-hard-cut / RT-compozy-claim-token-redaction | Dora | Garbage Tour | Pass | | |
-| 11 | CH-compozy-wire-public-hard-cut | J-validate-compozy-hard-cut / ET-compozy-public-brand-navigation | Dora | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
+| 11 | CH-compozy-wire-public-hard-cut | J-validate-compozy-hard-cut / ET-compozy-public-brand-navigation | Dora | Garbage Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
 | 12 | CH-compozy-mixed-runtime-delivery | J-01 / LP-runtime-selection-overrides | Bruno | Feature Tour | Pass | | |
 | 13 | CH-compozy-mixed-runtime-delivery | J-01 / LP-runtime-provenance-observation | Bruno | Feature Tour | Pass | | |
 | 14 | CH-compozy-mixed-runtime-delivery | J-01 / LP-loop-run-deep-link | Bruno | Feature Tour | Pass | | |
@@ -60,7 +60,7 @@
 | 19 | CH-compozy-agent-authored-review | J-08 / LP-agent-authored-review-run | Bruno | Interrupt Tour | Pass | | |
 | 20 | CH-compozy-agent-authored-review | J-08 / LP-review-artifact-inspection | Bruno | Interrupt Tour | Pass | | |
 | 21 | CH-compozy-agent-authored-review | J-08 / LP-review-round-finalization | Bruno | Interrupt Tour | Pass | | |
-| 22 | CH-compozy-dev-cycle-skills | J-offer-runnable-capabilities / ET-dev-cycle-skill-bundle | Ada | Feature Tour | Fixed | BUG-20260727-runtime-legacy-identity | pending |
+| 22 | CH-compozy-dev-cycle-skills | J-offer-runnable-capabilities / ET-dev-cycle-skill-bundle | Ada | Feature Tour | Fixed | BUG-20260727-runtime-legacy-identity | e4df8634 |
 | 23 | CH-compozy-dev-cycle-skills | J-offer-runnable-capabilities / ET-dev-cycle-legacy-skill-retired | Ada | Feature Tour | Pass | | |
 | 24 | CH-compozy-beta-candidate | J-approve-compozy-beta-candidate / REL-release-candidate-plan | Dora | Garbage Tour | Pass | | |
 | 25 | CH-compozy-beta-candidate | J-approve-compozy-beta-candidate / REL-migration-guide-parity | Dora | Garbage Tour | Pass | | |

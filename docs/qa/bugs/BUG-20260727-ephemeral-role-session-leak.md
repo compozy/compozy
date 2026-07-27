@@ -46,7 +46,7 @@ every provider is unreachable, each rejected attempt can remain in the catalog.
   correct for user-created sessions and asynchronously accepted sessions, but internal role
   orchestration reused the same path for retry attempts that had not crossed its acceptance
   boundary.
-- **Fix commit:** pending
+- **Fix commit:** `e4df8634`
 - **Regression test:** `internal/daemon/auto_title_role_integration_test.go` — rejected fallback
   attempts are absent from the workspace catalog, exhausted attempts are fully cleaned up, and an
   accepted child remains durable if later work fails.

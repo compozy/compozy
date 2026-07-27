@@ -54,7 +54,7 @@ same retired identity remains active across the inspected public surfaces.
   network identities by task boundary, but never closed the remaining runtime/public-contract
   inventory. The final candidate therefore composed new Compozy surfaces with active AGH-era wire
   and presentation contracts.
-- **Fix commit:** pending
+- **Fix commit:** `e4df8634`
 - **Regression test:** existing canonical contract, prompt, provider, bridge, transcript, artifact,
   and Web suites must assert the Compozy-only values; the isolated charter rerun must prove the live
   candidate emits no retired identity.

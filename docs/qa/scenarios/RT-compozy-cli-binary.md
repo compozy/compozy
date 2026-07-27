@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260727-dirty-build-release-track
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: e4df8634
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/daemon-start.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/api-status.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
 overlaps: RT-compozy-home-layout
