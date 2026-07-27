@@ -835,9 +835,9 @@ Use Lucide icons through the shared icon helpers when possible. The default
 stroke width is 1.75; extra-small icons can use 2. Icons in buttons need
 tooltips or accessible labels when the command is not obvious.
 
-The `agh` wordmark is the only NuixyberNext surface. Product logos and provider
-marks should come from the existing logo package or official assets; do not
-draw fake logos with generic SVG shapes.
+The Compozy wordmark is official SVG geometry from the logo sources. It never
+uses a `<text>` node or font fallback; product and provider marks still come
+from the logo package or their official assets, never generic substitute logos.
 
 ## 9. Component contracts
 

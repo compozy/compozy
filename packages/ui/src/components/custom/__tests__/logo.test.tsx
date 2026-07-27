@@ -10,9 +10,9 @@ describe("Logo", () => {
     const logo = screen.getByRole("img", { name: "Compozy" });
     expect(logo).toHaveAttribute("data-slot", "logo");
     expect(logo).toHaveAttribute("data-variant", "logo");
-    expect(logo).toHaveAttribute("viewBox", "0 0 1153 355");
+    expect(logo).toHaveAttribute("viewBox", "0 0 1230 355");
     expect(logo.querySelector("g")).not.toBeNull();
-    expect(logo.querySelector('g[transform="translate(430 100)"]')).not.toBeNull();
+    expect(logo.querySelector('g[transform="translate(430 88)"]')).not.toBeNull();
   });
 
   it("renders the symbol variant with the square symbol viewBox", () => {
@@ -29,9 +29,10 @@ describe("Logo", () => {
 
     const logo = screen.getByRole("img", { name: "Compozy lettering" });
     expect(logo).toHaveAttribute("data-variant", "lettering");
-    expect(logo).toHaveAttribute("viewBox", "0 0 723 156");
-    expect(logo.querySelector('path[fill="currentColor"]')).not.toBeNull();
+    expect(logo).toHaveAttribute("viewBox", "-4 0 808 180");
+    expect(logo.querySelector('path[stroke="currentColor"]')).not.toBeNull();
     expect(logo.querySelector("rect")).toBeNull();
+    expect(logo.querySelector("text")).toBeNull();
   });
 
   it("uses an explicit aria-label when provided", () => {

@@ -1,15 +1,14 @@
 ---
-title: "Introducing Compozy: an open workplace for AI agents"
-description: "Compozy gives the agent CLIs you already use a place to work as a team — finding each other, sharing capabilities, and closing work with receipts on compozy-network/v0."
-date: 2026-04-30
-updated: 2026-05-01
+title: "Introducing CompozyOS"
+description: "Compozy v0.3 brings sessions, work, memory, permissions, automation, coordination, and an OS shell into one extensible local-first runtime."
+date: 2026-07-27
 category: runtime
 tags:
-  - protocol
   - runtime
   - compozy-network
   - agent-operating-system
-  - introduction
+  - extensibility
+  - beta
   - launch
 author: pedronauck
 kinds:
@@ -22,417 +21,112 @@ kinds:
 featured: true
 ---
 
-Compozy is an open workplace for AI agents. It runs the agent CLIs teams already use as durable
-sessions, keeps their work attached to a workspace, gives humans and agents the same control plane,
-and ships an open protocol that lets those sessions find each other, share capabilities, and close
-work with receipts.
+Compozy v0.3 is the point where the product becomes CompozyOS: one system for running agent work,
+keeping its state, governing what it can do, and connecting it to the people and agents that move it
+forward.
 
-Existing Compozy v0.2 users should follow the complete [v0.3 migration guide](/runtime/migration)
-before replacing the CLI or carrying `.compozy/` content into the new runtime.
+## The only true OS for AI agents
 
-The first alpha packages one Go binary that runs 23 ACP-compatible agent CLIs — including Claude
-Code, OpenClaw, and Hermes — as durable sessions on a local daemon, speaks `compozy-network/v0` over
-six message kinds and two conversation surfaces, and exposes the same runtime state through the
-CLI, HTTP/SSE, Unix domain socket, and web UI.
+A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions,
+connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one
+built to pass it.
+
+The claim is about integration. A task can start a durable session. A loop can coordinate the work.
+Permissions stay attached to execution. Memory stays scoped to the right workspace. The OS shell,
+CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state. Compozy
+Network lets sessions become peers inside that system instead of adding a separate coordination
+product beside it.
+
+That connection is the release. The shell is how people see it; the runtime is what makes it an OS.
+
+## What changed
+
+The v0.3 line replaces the old product boundary instead of wrapping it in compatibility layers.
+
+- The product, binary, package, environment, storage, API, and native-tool namespaces are Compozy.
+- Sessions, tasks, loops, memory, permissions, automation, hooks, extensions, bridges, tools, and
+  Compozy Network operate through one daemon.
+- The `review-and-fix` loop is agent-authored. A reviewer produces structured issues, fixer agents
+  remediate them, and deterministic artifacts record the round without depending on an external
+  review provider.
+- Loop inputs can resolve from run, workspace, global, and definition defaults, with their origins
+  visible through the same control surfaces.
+- The bundled development cycle is an extension and a set of inspectable skills, not privileged
+  product code hidden behind the UI.
+
+This release also removes surfaces that no longer fit that boundary. Existing v0.2 installations
+should not be pointed at the v0.3 state directory and expected to upgrade in place. The complete
+[v0.3 migration guide](/runtime/migration) maps commands and configuration, lists every removed
+surface, and explains the clean-state transition.
+
+## Built to be built on
+
+An operating system is useful because other things can become part of it. Compozy exposes that
+boundary through extensions, typed hooks, skills, capabilities, bridge adapters, SDK contracts, MCP,
+native tools, and daemon-owned registries.
+
+The same rule applies to management. A feature is incomplete when it only works through a private Go
+call or a human-only screen. Compozy capabilities expose structured CLI output, HTTP or UDS routes,
+and agent-callable tools where the runtime contract permits them. Agents don't just run on the OS.
+They can run it within the same permission ceiling people set.
+
+The bundled development cycle is the proof. Its task planning, implementation, review, and repair
+journeys ship as an extension using public runtime contracts. The product dogfoods the boundary that
+other extensions use.
+
+## Durable work, not terminal lifetime
+
+Agent work should not disappear when a terminal tab closes. The Compozy daemon owns sessions and
+their event history in local SQLite state. Workspaces keep project context scoped. Tasks and loops
+make longer work visible and recoverable. Memory remains file-backed and inspectable instead of
+living only inside a model conversation.
+
+People can start a session from the CLI, follow it in the OS shell, inspect the same state over HTTP
+or UDS, and let an agent continue through structured tools. The surface changes; the work record does
+not.
+
+Compozy Network adds explicit agent-to-agent coordination. Live sessions can discover peers, exchange
+typed envelopes, advertise capabilities, and return receipts. Local execution remains the default;
+Network participation is explicit and bounded by runtime policy.
+
+## What the beta means
+
+v0.3.0-beta.1 is a prerelease, not a stable-channel replacement. Install it when the new runtime
+boundary is worth testing and version pinning is acceptable. Review each later beta before moving an
+existing environment.
+
+The beta front door has three paths:
 
 ```bash
 $ curl -fsSL https://compozy.com/install.sh | sh
 # or: npm install -g @compozy/cli@beta
 # or: go install github.com/compozy/compozy@v0.3.0-beta.1
-$ compozy install
-$ compozy daemon start
 ```
 
-Compozy is also the reference implementation of `compozy-network/v0`, the open agent network protocol the
-workplace runs on. The runtime keeps local work durable. The protocol lets those sessions discover
-peers, delegate work, exchange progress, and close the loop with receipts without importing a Compozy
-SDK.
+The hosted installer verifies the release provenance and installs the documented beta target. npm
+uses the `beta` tag. Go installs use the explicit prerelease version. The maintained v0.2 line and its
+collateral remain on `legacy/v0.2` while the beta is evaluated.
 
-<Callout tone="accent" eyebrow="Launch alpha">
-  Compozy is for people who have moved past one-off agent chats and need agents to become durable,
-  inspectable work: engineering teams, agent infrastructure builders, internal tooling teams, and
-  operators who want AI work to have the same control surfaces as the rest of their systems.
-</Callout>
+The repository was already MIT licensed. An old GoReleaser metadata field still said BSL-1.1 even
+though the repository license was MIT. v0.3 corrects that distribution metadata. It is a metadata fix,
+not a relicense.
 
-## Why agents need a workplace
+## Start with one real session
 
-Agent CLIs are already useful. The problem starts around the CLI.
-
-A session runs in one terminal. Its transcript becomes hard to replay. The context lives in one
-provider's shape. Permissions are scattered. Memory is global, informal, or missing. A second agent
-means another terminal and a pile of custom glue. When a task fails, the operator has to reconstruct
-what happened from logs, shell history, screenshots, and whatever the model happened to say.
-
-That is fine for experiments. It is not enough for durable work.
-
-The next layer in agent infrastructure is not another prompt trick. It is runtime control: sessions
-that survive a window closing, events that can be replayed, workspace context that resolves
-deterministically, permissions that are explicit, memory that is scoped, automation that uses the
-same execution path as manual work, and APIs that agents can call safely.
-
-Compozy exists for that layer. It does not replace Claude Code, OpenClaw, Hermes, or future
-ACP-compatible runtimes. It supervises them as real subprocesses, keeps their work attached to a
-workspace, and gives them a place to find each other and ship work as a team.
-
-## What Compozy gives you
-
-Compozy has two parts that ship together but solve different problems.
-
-**Compozy Runtime** is the local daemon. It starts and supervises agents, stores events in SQLite,
-manages workspaces, resolves skills and memory, runs automation, loads extensions, exposes
-agent-callable tools, and gives the web UI, CLI, UDS API, and HTTP/SSE API one shared source of
-truth.
-
-**Compozy Network** is the protocol boundary. It defines how peers announce themselves, find each other,
-send work, transfer capabilities, report progress, and close interactions with receipts. The current
-runtime coordinates admitted conversations in process and persists each accepted message before
-notifying listeners. The protocol remains transport-neutral so another runtime can implement it
-without importing Compozy internals.
-
-The operating model is small enough to understand in one pass:
-
-1. The daemon starts an ACP-compatible agent subprocess.
-2. The agent talks JSON-RPC over stdio using the provider's ACP adapter.
-3. Compozy records prompts, responses, tool calls, approvals, usage, and lifecycle events.
-4. The same state is available through `compozy`, the local socket, HTTP/SSE, and the browser UI.
-5. If an execution explicitly selects Live participation, Compozy resolves one immutable, bounded
-   channel context before the session starts.
-
-That gives you a local control plane for real agent work instead of another framework abstraction.
-
-## What Compozy ships in the alpha
-
-Compozy is alpha, but it is not a landing page wrapped around one command. The first release already has
-the pieces needed to run, inspect, extend, and coordinate agents locally.
-
-### Runtime and daemon
-
-- A single Go binary with `compozy install`, `compozy daemon start`, `compozy status`, and
-  `compozy daemon stop`.
-- A singleton daemon per `COMPOZY_HOME`, protected by a lock file and discovered through
-  `$COMPOZY_HOME/daemon.json`.
-- Unix domain socket API for local CLI traffic, HTTP/SSE for browser and integration clients, and a
-  web UI backed by the same daemon state.
-- Structured daemon logs, health snapshots, process status, version reporting, and SQLite-backed
-  runtime state.
-- Global and per-session databases for sessions, workspaces, automation, bridges, extensions,
-  tasks, summaries, and event history.
-
-### Durable sessions
-
-- `compozy session new`, `prompt`, `events`, `history`, `wait`, `stop`, `resume`, `repair`, `status`,
-  and `list`.
-- Persisted session events with replay support and streaming reads.
-- Resume records for stopped sessions, with ACP `session/load` when the provider supports it.
-- Permission modes, approval flow, workspace boundaries, usage events, and prompt streams.
-- Event history stored under `~/.compozy/sessions/<session-id>/events.db` so a stopped session remains
-  inspectable.
-
-### Agents and providers
-
-- `AGENT.md` as the agent definition surface: name, provider, model, command, permissions, tools,
-  toolsets, MCP servers, hooks, and prompt body.
-- Built-in provider configuration for 23 ACP-compatible CLIs, including Claude Code, OpenClaw, and
-  Hermes — the full list lives on the homepage — with custom provider commands available through
-  config.
-- Agent discovery from workspace, additional roots, and global locations.
-- Runtime environment injection, explicit provider auth mode metadata, and agent subprocess
-  supervision.
-- Capability catalogs beside agent definitions so an agent can advertise outcome-oriented work
-  instead of internal implementation details.
-
-### Workspaces
-
-- Registered workspace roots with `compozy workspace add`, `info`, `list`, `edit`, and `remove`.
-- Workspace-scoped agents, skills, memory, config overlays, and MCP sidecars.
-- Multi-root and additional-directory support for monorepos and shared agent libraries.
-- Deterministic resolver behavior so a session starts with the project context you intended.
-
-### Capabilities
-
-- One capability model across local authoring, runtime normalization, peer discovery, and network
-  transfer.
-- Catalog layouts using `capabilities.toml`, `capabilities.json`, or one file per capability under
-  `capabilities/`.
-- Required `id`, `summary`, and `outcome`, with optional version, context, artifacts, outline,
-  constraints, examples, and requirements.
-- Runtime-owned digest computation so receivers can verify transferred capability documents.
-- Brief discovery in `greet`, rich discovery through `whois`, and full transfer through
-  `kind:"capability"`.
-
-### Skills
-
-- Daemon-managed `SKILL.md` loading with bundled, marketplace, user, runtime-registered,
-  additional-root, and workspace precedence.
-- Compact startup prompt catalogs so agents see available skills without stuffing every skill body
-  into context.
-- `compozy__skill_search` and `compozy__skill_view` for agents, plus `compozy skill search`, `install`,
-  `list`, `view`, `update`, `remove`, and `create` for operators.
-- Skill-local resource files and MCP sidecars.
-- Marketplace provenance metadata, load-time verification, and configurable marketplace registry
-  behavior.
-
-### Memory
-
-- Markdown memory files behind typed indexes.
-- Global and workspace scopes, with CLI and API surfaces for read, write, list, search, delete,
-  history, health, reindex, and consolidation.
-- Dream consolidation for gated memory maintenance.
-- Prompt injection rules that keep memory useful without making every session replay the entire
-  past.
-
-### Tools and MCP
-
-- Compozy-native tool registry with tool descriptors, toolsets, result budgets, approval policy, and
-  hosted MCP projection.
-- Full availability-gated hosted MCP projection for bare agents, with bootstrap/catalog discovery
-  tools for the `search → info → invoke` loop.
-- `compozy tool search`, `info`, `list`, and `invoke`, plus `compozy toolsets`.
-- Local and remote MCP server configuration through `config.toml`, `mcp.json`, agent sidecars, and
-  skill sidecars.
-- Remote MCP auth commands for login, redacted status, and logout, with refresh handled through the
-  status flow instead of agent-interactive secrets.
-
-### Automation
-
-- Scheduled jobs using cron, interval, or one-time schedules.
-- Runtime event triggers with filters and prompt templates.
-- Signed webhooks for external systems such as CI and deployment events.
-- Durable run history, retry policy, fire limits, and monitoring.
-- Agent-manageable automation tools that reach the same validators and writers as
-  `compozy automation jobs`, `triggers`, and `runs`.
-
-### Local autonomy
-
-- Tasks and task runs as durable work records.
-- Explicit enqueue boundary: creating a task records intent; publishing, starting, or approval
-  enqueues executable work.
-- Session-bound leases through `compozy task next`, `heartbeat`, `complete`, `fail`, and `release`.
-- Coordinator handoff for workspace-scoped task runs, task-bound channels, and bounded safe spawn.
-- Manual and autonomous paths sharing the same primitives instead of separate queues.
+After installing the beta, bootstrap the home, start the daemon, register the current workspace, and
+open a durable session:
 
 ```bash
-$ compozy task next --wait --lease-seconds 300 -o json
-$ compozy task heartbeat run-123 --lease-seconds 300
-$ compozy task complete run-123 --result '{"summary":"tests passed"}'
-```
-
-### Network
-
-- Channel-scoped peer discovery and message delivery.
-- Inbox, peers, channels, status, and send commands under `compozy network`.
-- Agent-callable network tools for peer lookup and supported message send.
-- Six message kinds, interaction lifecycle, receipts, traces, delivery safety, and controlled task
-  ingress.
-- Local-by-default execution with explicit, finite Live participation for admitted conversations.
-- Commit-first delivery through the current in-process runtime, with a transport-neutral protocol
-  boundary for other implementations.
-
-### Bridges
-
-- Workspace-facing bridge instances that connect Compozy sessions to external messaging platforms.
-- Extension-owned adapters that verify platform payloads, normalize messages, and deliver responses.
-- Bridge routing, durable route records, delivery targets, health state, and delivery testing.
-- Walkthroughs for Slack, Discord, and Telegram, with provider catalog support for installed and
-  enabled bridge adapters.
-
-### Hooks
-
-- Named runtime events such as session, task, coordinator, spawn, bridge, extension, automation,
-  tool, memory, network, and permission events.
-- Config, agent, skill, extension, and native hook sources.
-- Deterministic declaration rules and JSON patch application for supported hook points.
-- Hook catalog and run inspection through CLI and API surfaces.
-
-### Extensions and sandboxing
-
-- Installable extension bundles for skills, agents, hooks, bridge providers, MCP servers, and
-  subprocess services.
-- Extension install, enable, disable, update, status, list, remove, and search flows.
-- Local sandbox profiles and Daytona/provider-backed sandbox profiles for session execution
-  boundaries.
-- Session sync modes, provider home isolation, and workspace-aware sandbox selection in the runtime
-  docs.
-
-### Configuration and operations
-
-- `config.toml` with built-in defaults, global config, global MCP sidecar, workspace overlay,
-  workspace MCP sidecar, normalization, and validation.
-- `compozy config path`, `show`, `list`, `get`, `set`, `validate`, `check`, and `edit`.
-- Environment variable handling for provider credentials, webhook secrets, session identity, hooks,
-  bridge providers, and supported overrides.
-- Daemon and operations docs for status, health, logs, socket management, SQLite backup guidance,
-  session inspection, and database recovery behavior.
-- API route families for sessions, workspaces, agents, memory, skills, automation, tasks, bridges,
-  network, observe, hooks, extensions, settings, resources, bundles, and webhooks.
-
-That is the point of calling Compozy a workplace. The metaphor is only useful because the runtime owns
-the boring surfaces — sessions, memory, skills, automation, autonomy, network — that agents need
-before they can become a dependable team.
-
-## The open network layer
-
-Compozy Network exists because agent-to-agent coordination should not require every peer to import the
-same SDK or run in the same process. A protocol message can cross runtimes, languages, machines, and
-harnesses. A method call cannot.
-
-> An SDK gives you methods. A protocol gives you a network.
-
-`compozy-network/v0` is intentionally small. The wire knows six kinds and two conversation surfaces:
-
-- <KindChip kind="greet" /> announces a peer and its Peer Card.
-- <KindChip kind="whois" /> asks who is present and can request richer capability details.
-- <KindChip kind="say" /> carries conversation text inside a public thread or restricted direct
-  room.
-- <KindChip kind="capability" /> transfers a full capability artifact with a canonical digest.
-- <KindChip kind="receipt" /> records accepted, rejected, or canceled responsibility for one
-  `work_id`.
-- <KindChip kind="trace" /> reports lifecycle, progress, results, and artifact references for that
-  work.
-
-Conversation lives in two surfaces. `surface:"thread"` is the public N-to-N container identified by
-`thread_id`; `surface:"direct"` is the restricted two-party container identified by a
-deterministic `direct_id`. Lifecycle-bearing work is tracked separately with a `work_id` bound to
-exactly one conversation container.
-
-The useful mental model is simple: **MCP connects agents to tools. Compozy Network connects agents to
-agents.** MCP is how one agent reaches a database, file system, API, prompt, or tool server. Compozy
-Network is how one agent discovers another agent, delegates work, receives progress, and gets a
-receipt.
-
-Here is the shape of delegated work from the CLI. The `directs resolve` step returns the
-deterministic `direct_id` for the two peers, and the `send` opens lifecycle-bearing work in that
-direct room with an explicit `work_id`:
-
-```bash
-$ compozy network directs resolve \
-    --session sess-a \
-    --channel builders \
-    --peer peer-b
-# returns direct_99401d24bee62651d189e5a561785466
-
-$ compozy network send \
-    --session sess-a \
-    --channel builders \
-    --surface direct \
-    --direct direct_99401d24bee62651d189e5a561785466 \
-    --kind say \
-    --to peer-b \
-    --work work_review_pr_42 \
-    --body '{"text":"Review PR #42","intent":"review"}'
-
-# illustrative wire trace
-00:00.041  greet     alpha -> bravo
-00:00.108  say       alpha -> bravo   surface=direct work=work_review_pr_42
-00:00.382  receipt   bravo -> alpha   work=work_review_pr_42 status=accepted
-00:00.384  trace     bravo -> alpha   work=work_review_pr_42 state=working step=fetch.diff
-00:01.207  trace     bravo -> alpha   work=work_review_pr_42 state=working step=run.checks
-00:01.918  trace     bravo -> alpha   work=work_review_pr_42 state=completed
-```
-
-<WireCard
-  kind="receipt"
-  rows={[
-    { label: "for_id", value: "msg_01HX4Q..." },
-    { label: "status", value: "accepted", tone: "success" },
-    { label: "reason_code", value: "-" },
-    { label: "detail", value: "PR#42 reviewed" },
-  ]}
-/>
-
-A `say` without a `work_id` is conversation. A `say` with a `work_id` plus a follow-up `receipt`
-is work another peer agreed to take responsibility for inside that thread or direct room. Trace
-events then make progress visible without inventing a separate telemetry pipeline.
-
-Compozy Network is not a planner language, scheduler, global registry, payment rail, or proof that a
-peer is trustworthy. Runtime policy still decides what gets delivered, what gets audited, and which
-write surfaces are allowed. The protocol gives agents a shared boundary for cooperation.
-
-## Agent-manageable by design
-
-The most important product rule in Compozy is that a feature is incomplete if only a human can operate it
-through the UI or only Go code can call it internally.
-
-Agents need to inspect their runtime, claim work, read skills, write memory, send network messages,
-check MCP auth status, create automation, and hand off bounded child sessions without screen
-scraping or shelling into private implementation details. Humans need the same operations through
-CLI, API, and the browser.
-
-That is why Compozy keeps adding parallel surfaces:
-
-- sessions are available through `compozy session`, `/api/sessions`, SSE streams, and the web UI
-- memory is available through `compozy memory`, `/api/memory`, and agent-callable memory tools
-- skills are available through `compozy skill` and `compozy__skill_*`
-- automation is available through `compozy automation`, `/api/automation`, and `compozy__automation_*`
-- network is available through `compozy network`, `/api/network`, and `compozy__network_*`
-- tasks are available through `compozy task`, `/api/tasks`, `/api/task-runs`, and autonomy tools
-- configuration is inspectable and mutable through validated CLI/API paths instead of hand-edited
-  state only
-
-<Callout tone="info" eyebrow="Design rule">
-  Every capability must be extensible by the runtime and manageable by agents. UI-only features do
-  not ship as complete features.
-</Callout>
-
-This is also why Compozy keeps the wire protocol open. The moat is not lock-in at the envelope layer.
-The moat is the runtime around the envelope: durable sessions, policy, observability, skills,
-memory, bridges, extensions, tools, and the developer experience of operating all of it locally.
-
-## What is alpha, and what comes next
-
-Compozy is alpha software. The right way to use it is on machines and networks where the operator is
-also the auditor.
-
-**Available in the alpha:**
-
-- local daemon install and bootstrap
-- durable sessions for supported ACP-compatible providers
-- CLI, UDS, HTTP/SSE, and web UI control surfaces
-- workspaces, agents, skills, memory, tools, automation, tasks, hooks, extensions, bridges, sandbox
-  profiles, and runtime operations
-- `compozy-network/v0` for local and same-network peer discovery, messages, receipts, traces, and
-  capability transfer
-
-**Not yet a guarantee:**
-
-- multi-tenant hosted control plane
-- hardened federation across untrusted organizations
-- verified peer identity as a shipped runtime default
-- broad production conformance claims for third-party implementations
-- a promise that every bridge/provider integration has the same maturity level
-
-**Do not use alpha Compozy as:**
-
-- an unsupervised cross-tenant trust layer
-- a regulated production delegation system without an operator reviewing the audit trail
-- a substitute for runtime policy around secrets, permissions, and external tools
-
-The next protocol profile is already clear: `compozy-network/v1` can keep the v0 wire shape and adds the
-trust work that belongs around it, including Ed25519 signatures, RFC 8785 canonicalization,
-verified identities, proof-stripping detection, and conformance levels. The six kinds do not need
-to change for the trust layer to get stronger.
-
-## Start with one session
-
-If you want the shortest path, install Compozy, bootstrap the runtime, start the daemon, and create one
-durable session in a real repository.
-
-```bash
-$ curl -fsSL https://compozy.com/install.sh | sh
-# or: npm install -g @compozy/cli@beta
-# or: go install github.com/compozy/compozy@v0.3.0-beta.1
 $ compozy install
 $ compozy daemon start
 $ compozy workspace add "$PWD" --name current
 $ compozy session new --workspace current --agent general --name first-run
 ```
 
-Before you start, make sure you are on macOS or Linux, have at least one supported agent CLI
-installed, and export the provider credentials in the shell that starts the daemon. Go 1.25 or later
-is only required when building from source.
+Continue with the [Quick Start](/runtime/core/getting-started/quick-start), inspect the
+[runtime documentation](/runtime), or read the [Compozy Network protocol](/protocol) before enabling
+Live coordination.
 
-Then read the [Runtime overview](/runtime), follow the [Quick Start](/runtime/core/getting-started/quick-start),
-and inspect the [Compozy Network protocol](/protocol) when you are ready to connect a second peer.
-
-If you want Compozy to exist as open infrastructure for agents, follow Compozy on GitHub:
-[github.com/compozy](https://github.com/compozy).
+For an existing v0.2 environment, start with the [migration guide](/runtime/migration). It records
+the hard cuts, the clean-state procedure, and where each legacy surface moved — including the cases
+that intentionally have no v0.3 replacement.

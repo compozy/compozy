@@ -6,7 +6,6 @@
                 "app/**/*.{ts,tsx}",
                 "components/**/*.{ts,tsx}",
                 "lib/**/*.{ts,tsx}",
-                "remotion/**/*.{ts,tsx}",
                 "source.config.ts",
                 "velite.config.ts"
             ],
@@ -14,7 +13,6 @@
                 "app/**/*.{ts,tsx}",
                 "components/**/*.{ts,tsx}",
                 "lib/**/*.{ts,tsx}",
-                "remotion/**/*.{ts,tsx}",
                 "source.config.ts",
                 "velite.config.ts"
             ]

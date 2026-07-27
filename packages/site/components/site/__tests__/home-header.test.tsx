@@ -83,8 +83,8 @@ describe("HomeHeader", () => {
     expect(link.getAttribute("href")).toBe("/");
     expect(logo).not.toBeNull();
     expect(logo?.getAttribute("data-variant")).toBe("logo");
-    expect(logo?.getAttribute("viewBox")).toBe("0 0 1153 355");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByText("Beta")).toBeDefined();
   });
 
   it("renders the public navigation links in desktop and mobile headers", () => {

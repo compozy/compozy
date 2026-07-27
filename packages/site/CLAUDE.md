@@ -1,13 +1,13 @@
 # CLAUDE.md (packages/site)
 
-Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Remotion (protocol illustrations), Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
+Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
 
 ## Critical Rules
 
 - **Tokens from `packages/ui/src/tokens.css` + generated `DESIGN.md`** — no invented values. Site-only layout/type extensions go in `packages/site/app/global.css` `@theme inline`. After changing runtime/site theme tokens run `make codegen` + `make codegen-check`; never hand-edit generated `DESIGN.md` regions.
 - **Eyebrow markup is mandatory** for every uppercase label: `<Eyebrow>` from `@compozy/ui` (children + `className` only) **or** the `eyebrow` utility class on structural elements; tone via `className`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract **Inter UC 11/600/-0.005em**. Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
 - **Product language from `COPY.md`** — landing copy, blog/changelog, runtime/protocol docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
-- **Launch hero ownership:** Task 11 owns the final headline, subhead, and their locks. Until that contract lands, treat current landing copy as provisional; do not copy it into governance, metadata, or new surfaces. `COPY.md` owns the OS-first positioning and people-first register.
+- **Launch hero lock:** ship `The only true OS for AI agents.` followed immediately by `A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it.` The two are one contract; `COPY.md` owns the OS-first positioning and people-first register.
 - **`packages/site` ships in the same PR as backend contract changes** that affect documented APIs/CLI verbs (per the `internal/api/contract` co-ship rule).
 - **Test placement before any site test.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites first. No prose-string/snapshot/generated/file-existence tests unless that artifact is the product contract and no stronger gate exists.
 

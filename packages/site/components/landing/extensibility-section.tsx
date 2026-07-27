@@ -1,123 +1,72 @@
 import { Eyebrow } from "@compozy/ui";
-import { ArrowUpRight, BookOpen, Box, FileCode2, Plug, Sparkles, Timer } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { FeatureCard } from "./primitives/feature-card";
+
 import { SectionFrame } from "./primitives/section-frame";
-import { SectionHeader } from "./primitives/section-header";
 
 const EXTENSIONS_DOCS_HREF = "/runtime/core/extensions";
 
-const FEATURES = [
+const SURFACES = [
   {
-    icon: <FileCode2 className="size-4" />,
-    eyebrow: "Hooks",
-    title: "Typed dispatch on every state transition",
-    description:
-      "Not an event bus. ~24 typed lifecycle hooks fire at the call site that owns the transition: session, prompt, tool, permission, autonomy. Hooks can deny or narrow, never bypass.",
-    cite: { href: "/runtime/core/hooks", label: "hooks catalog" },
+    label: "Hooks",
+    detail: "Carry policy into lifecycle transitions without opening a second control plane.",
   },
   {
-    icon: <Sparkles className="size-4" />,
-    eyebrow: "Skills",
-    title: "Drop-in SKILL.md bundles",
-    description:
-      "Share reusable instruction sets with YAML frontmatter and Markdown body. Bundled defaults + global + workspace scopes.",
-    cite: { href: "/runtime/core/skills", label: "skills guide" },
+    label: "Skills",
+    detail: "Keep reusable instructions in versionable, inspectable files.",
   },
   {
-    icon: <Timer className="size-4" />,
-    eyebrow: "Automation",
-    title: "Cron + webhook + event triggers",
-    description:
-      "Durable jobs and triggers stored in SQLite. Schedule work. Delegate to peers. Track runs.",
-    cite: { href: "/runtime/core/automation", label: "automation" },
+    label: "Automation",
+    detail: "Schedule and trigger work through durable jobs rather than a sidecar script.",
   },
   {
-    icon: <Box className="size-4" />,
-    eyebrow: "Sandbox",
-    title: "Run agents away from the host filesystem",
-    description:
-      "Stay local when isolation isn't needed, or bind a workspace to a Daytona sandbox with explicit sync, lifecycle, and provider metadata.",
-    cite: { href: "/runtime/core/sandbox/profiles", label: "sandbox profiles" },
+    label: "Extensions",
+    detail: "Package skills, hooks, bridge adapters, and MCP servers as one capability surface.",
   },
-  {
-    icon: <Plug className="size-4" />,
-    eyebrow: "Extensions",
-    title: "Install from local or marketplace",
-    description:
-      "Extensions bundle skills, hooks, bridge adapters, and MCP servers. Ship them as zip files or via a GitHub registry.",
-    cite: { href: EXTENSIONS_DOCS_HREF, label: "extensions" },
-  },
-];
+] as const;
 
 export function ExtensibilitySection() {
   return (
-    <SectionFrame background="canvas" padY="lg" className="border-b border-line">
-      <SectionHeader
-        align="start"
-        eyebrow="Extensibility"
-        title="Hooks, skills, automation, sandbox, extensions."
-        description="The daemon is extensible at every seam you actually need. No plugins to write; contracts are plain files."
-      />
-
-      <div className="mt-20 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map(feature => (
-          <FeatureCard
-            key={feature.eyebrow}
-            icon={feature.icon}
-            eyebrow={feature.eyebrow}
-            title={feature.title}
-            description={feature.description}
-            cite={feature.cite}
-          />
-        ))}
-        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-diagram border border-dashed border-line bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
-          <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-line text-muted transition-colors group-hover:border-accent group-hover:text-accent">
-            <BookOpen aria-hidden className="size-5" />
-          </span>
-          <Eyebrow className="text-subtle">Reference</Eyebrow>
-          <h3 className="text-base font-medium leading-snug text-fg">
-            Every extensibility surface, in one reference.
-          </h3>
-          <p className="text-sm leading-relaxed text-muted">
-            Hooks, skills, automation, sandbox, extensions: schemas, CLI verbs, examples.
+    <SectionFrame background="surface" padY="lg" className="border-b border-line">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-18">
+        <div>
+          <Eyebrow className="text-accent">Criterion two</Eyebrow>
+          <h2 className="mt-5 max-w-[14ch] text-site-hero-section leading-none font-normal tracking-tight text-fg">
+            Built to be built on.
+          </h2>
+          <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-muted">
+            An operating system has an extension surface that is part of the system, not an escape
+            hatch around it. Compozy keeps those contracts readable, local, and reachable by both
+            people and agents.
           </p>
+          <dl className="mt-8 border-t border-line">
+            {SURFACES.map(surface => (
+              <div
+                key={surface.label}
+                className="grid gap-2 border-b border-line py-4 sm:grid-cols-[8rem_1fr]"
+              >
+                <dt className="text-small-body font-medium text-fg">{surface.label}</dt>
+                <dd className="text-small-body leading-relaxed text-muted">{surface.detail}</dd>
+              </div>
+            ))}
+          </dl>
           <Link
             href={EXTENSIONS_DOCS_HREF}
-            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-accent before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="mt-7 inline-flex items-center gap-2 text-sm font-medium text-fg transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            Read extensions docs
-            <ArrowUpRight
-              aria-hidden
-              className="size-3 transition-transform duration-slow group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-            />
+            Read the extensions reference <ArrowUpRight aria-hidden className="size-4" />
           </Link>
-        </article>
-      </div>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-center lg:gap-10">
-        <div className="max-w-[56ch] text-sm leading-relaxed text-muted">
-          <h3 className="font-display text-2xl mb-2 mt-8 text-fg-strong">
-            A skill is a Markdown file with frontmatter.
-          </h3>
-          <p>
-            A hook is a TOML block in your config. Everything the daemon loads is inspectable with{" "}
-            <code className="font-mono text-fg">compozy skill view</code>,{" "}
-            <code className="font-mono text-fg">compozy hooks list</code>, and{" "}
-            <code className="font-mono text-fg">compozy extension list</code>.
-          </p>
-          <Eyebrow className="mt-4 text-subtle">Contract on disk, not a plugin API.</Eyebrow>
         </div>
         <Image
           src="/images/extensibility-skill-contract-v1.png"
-          alt="deploy-staging.skill.md shown as a Markdown skill contract with frontmatter, deployment capabilities, and a staged execution trace."
+          alt="A Compozy skill contract shown as a Markdown file with frontmatter and an execution trace."
           width={1200}
           height={760}
           decoding="async"
           sizes="(min-width: 1024px) 60vw, 100vw"
           quality={90}
-          className="block w-full object-cover object-center opacity-95"
+          className="block w-full rounded-diagram border border-line object-cover object-center"
         />
       </div>
     </SectionFrame>

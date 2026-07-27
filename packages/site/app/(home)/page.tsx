@@ -1,16 +1,10 @@
 import {
-  AutonomyKernelSection,
-  BentoSection,
-  BridgesSection,
   Comparison,
   ExtensibilitySection,
-  FeaturesSection,
+  FeatureWall,
   FinalCta,
   Hero,
-  InstallSection,
-  MemoryDreamSection,
-  NetworkSection,
-  SupportedAgents,
+  ProofSection,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
 import { siteConfig } from "@/lib/site-config";
@@ -25,16 +19,10 @@ export default function HomePage() {
     <>
       <WebSiteJsonLd />
       <Hero />
-      <SupportedAgents />
-      <NetworkSection />
-      <BentoSection />
-      <MemoryDreamSection />
-      <AutonomyKernelSection />
-      <FeaturesSection />
       <ExtensibilitySection />
-      <BridgesSection />
-      <InstallSection />
+      <FeatureWall />
       <Comparison />
+      <ProofSection />
       <FinalCta />
     </>
   );

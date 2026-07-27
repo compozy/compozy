@@ -1,7 +1,9 @@
 import { render } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ClaudeLogo } from "../claude";
 import { GeminiLogo } from "../gemini";
+import { GithubLogo } from "../github";
 import { LinearLogo } from "../linear";
 import { OpenAILogo } from "../openai";
 
@@ -34,6 +36,18 @@ describe("GeminiLogo", () => {
     expect(ids.length).toBeGreaterThan(0);
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(maskRefs).size).toBe(maskRefs.length);
+  });
+});
+
+describe("GithubLogo", () => {
+  it("serializes every variant with hydration-stable SVG paths", () => {
+    for (const variant of ["invertocat", "wordmark", "lockup"] as const) {
+      const markup = renderToString(<GithubLogo variant={variant} />);
+      const paths = Array.from(markup.matchAll(/\sd="([^"]+)"/g), match => match[1]);
+
+      expect(paths.length, variant).toBeGreaterThan(0);
+      for (const path of paths) expect(path, variant).not.toMatch(/[\n\r\t]|\s{2,}/);
+    }
   });
 });
 

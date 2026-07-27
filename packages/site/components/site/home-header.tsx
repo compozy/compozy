@@ -67,7 +67,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
           <span aria-hidden className="hidden sm:inline-flex">
             <Eyebrow className="flex items-center gap-1.5 text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              Alpha
+              Beta
             </Eyebrow>
           </span>
         </Link>

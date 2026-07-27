@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { LogoLockup, SymbolGlyph } from "../og/logo";
-import { siteConfig } from "../site-config";
 
 const nextOg = vi.hoisted(() => ({
   ImageResponse: class MockImageResponse {
@@ -95,22 +94,21 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders headline, CompozyOS eyebrow, and footer rail with the warm-dark palette", async () => {
+  it("renders the locked OS definition and beta footer rail with the warm-dark palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("An open workplace for AI agents.");
-    expect(copy).toContain("COMPOZYOS");
-    expect(copy).toContain("COMPOZY NETWORK / V0");
-    expect(copy).toContain("LOCAL-FIRST RUNTIME");
+    expect(copy).toContain("The only true OS for AI agents.");
+    expect(copy).toContain(
+      "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it."
+    );
+    expect(copy).toContain("COMPOZYOS / BETA");
+    expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
+    expect(copy).toContain("RUN · MEMORY · POLICY · CONNECTION");
     expect(copy).toContain("compozy.com");
-
-    const subheadStart = siteConfig.description.indexOf(".") + 1;
-    const subhead = siteConfig.description.slice(subheadStart).trim();
-    expect(copy).toContain(subhead);
 
     for (const hex of PALETTE_HEXES) {
       expect(styleValues).toContain(hex);
@@ -150,7 +148,7 @@ describe("Docs OpenGraph template (runtime/protocol)", () => {
     expect(copy).toContain("RUNTIME");
     expect(copy).toContain("compozy.com");
 
-    expect(types).toContain(SymbolGlyph);
+    expect(types).toContain(LogoLockup);
     expect(styleValues).toContain("#E8572A");
     expect(styleValues).toContain("#141312");
 
@@ -196,7 +194,7 @@ describe("Blog OpenGraph template", () => {
     expect(copy).toContain("compozy.com/blog/introducing-compozy-the-first-agent-network-protocol");
     expect(copy).toContain("BY pnauck");
 
-    expect(types).toContain(SymbolGlyph);
+    expect(types).toContain(LogoLockup);
     const usesPlayfair = styleValues.some(value => value.includes("Playfair Display"));
     expect(usesPlayfair).toBe(true);
     expect(styleValues).toContain("#E8572A");

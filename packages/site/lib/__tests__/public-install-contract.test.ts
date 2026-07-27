@@ -16,7 +16,7 @@ const launchPostPath = resolve(
   siteRoot,
   "content/blog/posts/introducing-compozy-the-first-agent-network-protocol.mdx"
 );
-const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
+const landingProofPath = resolve(siteRoot, "components/landing/proof-section.tsx");
 const readmePath = resolve(siteRoot, "../../README.md");
 const releaseHeaderPath = resolve(siteRoot, "../../.goreleaser.release-header.md.tmpl");
 const releaseFooterPath = resolve(siteRoot, "../../.goreleaser.release-footer.md.tmpl");
@@ -465,16 +465,11 @@ describe("public install contract", () => {
   it("keeps README, landing, docs, and launch post aligned on beta install commands", () => {
     const readme = readSiteFile(readmePath);
     const installPage = readSiteFile(installPagePath);
-    const landingInstall = readSiteFile(landingInstallPath);
+    const landingProof = readSiteFile(landingProofPath);
     const launchPost = readSiteFile(launchPostPath);
 
-    for (const command of [npmInstallCommand, goInstallCommand]) {
-      const missingPrimaryCommand = [
-        readmePath,
-        landingInstallPath,
-        installPagePath,
-        launchPostPath,
-      ]
+    for (const command of [verifiedInstallerCommand, npmInstallCommand, goInstallCommand]) {
+      const missingPrimaryCommand = [readmePath, landingProofPath, installPagePath, launchPostPath]
         .filter(path => !readSiteFile(path).includes(command))
         .map(path => relative(siteRoot, path));
       expect(missingPrimaryCommand, command).toEqual([]);
@@ -485,12 +480,12 @@ describe("public install contract", () => {
     expect(launchPost).toContain("compozy install");
     for (const retiredCommand of retiredPackageInstallCommands) {
       expect(readme).not.toContain(retiredCommand);
-      expect(landingInstall).not.toContain(retiredCommand);
+      expect(landingProof).not.toContain(retiredCommand);
       expect(installPage).not.toContain(retiredCommand);
       expect(launchPost).not.toContain(retiredCommand);
     }
     for (const command of [workspaceAddCommand, firstSessionCommand]) {
-      const missingFirstSessionCommand = [readmePath, landingInstallPath, launchPostPath]
+      const missingFirstSessionCommand = [readmePath, launchPostPath]
         .filter(path => !readSiteFile(path).includes(command))
         .map(path => relative(siteRoot, path));
       expect(missingFirstSessionCommand, command).toEqual([]);

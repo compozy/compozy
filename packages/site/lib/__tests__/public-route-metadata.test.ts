@@ -98,7 +98,7 @@ describe("public route metadata", () => {
 
     expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
     expect(body).toContain(
-      "> An open workplace for AI agents, the runtime, the compozy-network/v0 protocol, and the blog."
+      "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime."
     );
     expect(body).toContain(
       "- [How to use these docs](https://compozy.com/runtime/how-to-use-these-docs): Runtime docs overview."

@@ -29,7 +29,7 @@ The CLAUDE.md and packages/site/CLAUDE.md invariants this child encodes:
 
 - "**Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion." (`packages/site/CLAUDE.md:7`)
 - "**Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording." (`packages/site/CLAUDE.md:8`)
-- "**Hero positioning is locked**: headline 'An open workplace for AI agents.' with subhead … Open-workplace-first." (`packages/site/CLAUDE.md:9`; mirrors COPY.md §3 and the auto-memory entry "Compozy Site & Documentation Project — hero relocked 2026-05-01").
+- "**Launch hero lock**: headline 'The only true OS for AI agents.' followed immediately by the exact OS definition." (`packages/site/CLAUDE.md`; mirrors `COPY.md` §2).
 - "**`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md)." (`packages/site/CLAUDE.md:10`)
 - "Document only behavior the runtime actually supports today. … API/CLI references are generated from `openapi/compozy.json` and the cobra JSON export — do not paraphrase. If the generated reference is wrong, fix the source." (`packages/site/CLAUDE.md:54-55`)
 - "Vocabulary follows `docs/_memory/glossary.md`. The canonical artifact name is `capability`, never `recipe`." (`packages/site/CLAUDE.md:56`)
@@ -84,13 +84,11 @@ Generated artifacts that **must be in lockstep** with their generators (any drif
 | `content/runtime/api-reference/**`              | `bun run generate:openapi` (`packages/site/scripts/generate-openapi.ts:96-118`)  | `openapi/compozy.json` (`packages/site/lib/openapi.ts:8`)            |
 | `out/` (static export)                          | `make site-build` (`Makefile:74-75`) → `cd packages/site && bun run build`       | All the above                                                    |
 
-The fonts allowed are precisely four:
+The fonts allowed are precisely three:
 
 - **Inter** — `packages/site/app/layout.tsx:8-12` (sans, body, UI, docs headings)
 - **Playfair Display** — `packages/site/app/layout.tsx:14-19` (marketing display, `.site-home h1/h2` only — `packages/site/app/global.css:310-313`)
 - **JetBrains Mono** — `packages/site/app/layout.tsx:21-25` (mono labels, badges, code)
-- **NuixyberNext** — `packages/site/app/global.css:14-20` (`@font-face` for `/fonts/NuixyberNext-Regular.ttf`); used **only** via `<Logo variant="logo" />` from `@compozy/ui` for the wordmark.
-
 Per `DESIGN.md` §3 "Font Families" any other font on any page is a doc-site failure.
 
 ## 2. Existing coverage — do NOT duplicate
@@ -109,7 +107,7 @@ Per `DESIGN.md` §3 "Font Families" any other font on any page is a doc-site fai
 - `packages/site/lib/public-copy-quality.test.ts`, `lib/public-secret-safety.test.ts`, `lib/public-link-safety.test.ts`, `lib/public-icon-accessibility.test.ts`, `lib/public-landmark-accessibility.test.ts`, `lib/public-heading-hierarchy.test.tsx`, `lib/public-visual-accessibility.test.ts`, `lib/public-internal-links.test.ts`, `lib/public-aside-accessibility.test.ts`, `lib/public-button-safety.test.ts`, `lib/public-search-index.test.ts`, `lib/public-error-handling.test.ts`, `lib/public-install-contract.test.ts`, `lib/public-media-quality.test.ts`, `lib/public-motion-safety.test.ts`, `lib/public-security-headers.test.ts`, `lib/public-route-metadata.test.ts`, `lib/public-assets.test.ts` — public-page hygiene gates.
 - `packages/site/lib/content-*.test.ts` (heading, table, code-block, link-text, frontmatter, diagram, media, meta-navigation, related-navigation, outcome-doc, release-readiness, external-links, test-utils) — MDX content-quality gates (>= 13 specs).
 - `packages/site/lib/runtime-*` extras: `runtime-authored-context-docs.test.ts`, `runtime-autonomy-docs.test.ts`, `runtime-docs-discovery.test.ts`, `runtime-hub-quality.test.ts`, `runtime-manual-api-routes.test.ts`, `runtime-tools-canonical-docs.test.ts` — runtime-tree truth gates.
-- `packages/site/lib/blog-*` and `lib/landing-cli-snippets.test.ts`, `lib/section-layouts.test.tsx`, `lib/static-route-metadata.test.ts`, `lib/site-config.test.ts`, `lib/site-navigation.test.ts`, `lib/footer-config.ts`-paired tests — page composition + navigation gates.
+- `packages/site/lib/blog-*` and `lib/section-layouts.test.tsx`, `lib/static-route-metadata.test.ts`, `lib/site-config.test.ts`, `lib/site-navigation.test.ts`, `lib/footer-config.ts`-paired tests — page composition + navigation gates.
 - `packages/site/components/**/*.test.tsx` — component-level RTL specs (header, footer, blog primitives, mermaid, doc-page-masthead, etc.).
 - `packages/site/lib/opengraph-image.test.tsx` — OG image renders the locked headline + description.
 
@@ -117,13 +115,13 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 
 ## 3. Gaps the real-scenario lane must close
 
-1. **Hero copy is the canonical 2026-05-01 relock**: assert hero `<h1>` is exactly "An open workplace for AI agents." and the subhead matches `packages/site/CLAUDE.md:9` byte-for-byte (DOC-01).
+1. **Hero copy is the canonical OS-first lock**: assert hero `<h1>` is exactly "The only true OS for AI agents." and the adjacent definition matches `packages/site/CLAUDE.md` byte-for-byte (DOC-01).
 2. **Sidebar resolution is exhaustive**: every `runtimeDocs.getPages()` and `protocolDocs.getPages()` URL renders a 200 in the static export and every internal link from those pages resolves (DOC-02).
 3. **Search returns results for "session", "memory", "extension"**: assert `/api/search` answers each query with non-zero hits and at least one `tag: "Runtime"` and one `tag: "Compozy Network"` result (DOC-03).
 4. **API reference rendering is faithful to `openapi/compozy.json`**: every `<tag>.mdx` exists, renders an APIPage block, and the page enumerates every operation in that tag (DOC-04).
 5. **CLI reference rendering is faithful to the cobra export**: `make cli-docs` is idempotent, every cobra leaf has a generated MDX, and any agent-manageable verb listed in `internal/cli/root.go:65-123` is reachable from `/runtime/cli-reference/<verb>` (DOC-05).
 6. **MDX live blocks compile**: `Mermaid`, `GuideCard`, `GuideGrid`, `OperatorNote`, `RouteList`, `RouteRow`, `Workflow`, `WorkflowStep`, and `APIPage` all render in static export (DOC-06).
-7. **Theme contract**: every page passes the dark-only contract; `<html class="dark">` is hardcoded in the export; no shadows, no off-palette hex colors, fonts limited to Inter + JetBrains Mono + Playfair Display (`.site-home` only) + NuixyberNext (wordmark only) (DOC-07).
+7. **Theme contract**: every page passes the dark-only contract; `<html class="dark">` is hardcoded in the export; no shadows, no off-palette hex colors, fonts limited to Inter + JetBrains Mono + Playfair Display (`.site-home` only) (DOC-07).
 8. **Mobile viewport 390×844**: no horizontal overflow, no truncated nav (DOC-08).
 9. **Accessibility headless audit**: keyboard nav, aria-labels, landmarks, color contrast (DOC-09).
 10. **External links live**: every external href on the static export is non-rotting (HTTP 200/301/302) or marked `archive` (DOC-10).
@@ -214,8 +212,9 @@ steps:
   - Build: `make site-build` (`Makefile:74-75`) and capture exit code.
   - Serve: `bunx serve packages/site/out -p $PORT` in the background; wait until 200 on `/`.
   - Navigate Chromium headless to `http://127.0.0.1:$PORT/`.
-  - Assert the page <h1> text is exactly `An open workplace for AI agents.` (byte-equal, no trailing whitespace).
-  - Assert the lead paragraph contains the locked subhead (substring match per `packages/site/CLAUDE.md:9`).
+  - Assert the page <h1> text is exactly `The only true OS for AI agents.` (byte-equal, no trailing whitespace).
+  - Assert the adjacent definition matches the launch hero lock in `packages/site/CLAUDE.md` byte-for-byte.
+  - Assert the hero renders `/images/landing/os-shell-hero.png` with an accessible description of the windows, task board, and loop run.
   - Capture First Contentful Paint via Performance Timing API; assert FCP <= 2500 ms on the loopback static server.
   - Capture full-page screenshot to `doc-01-home.png`.
 expected:
@@ -230,8 +229,8 @@ evidence:
 failure_signatures:
   - <h1> deviates from the relock string → marketing copy regression; touches `components/landing/hero.tsx:44`.
   - Subhead missing or paraphrased → COPY.md drift; CLAUDE.md hero lock violated.
-  - FCP > 2500 ms on loopback → asset regression; check landing hero `hero-bg.webp` size and Remotion player bundle.
-  - Console errors → Remotion or `@remotion/player` import drift; check `components/landing/hero-player.tsx`.
+  - FCP > 2500 ms on loopback → asset regression; check `public/images/landing/os-shell-hero.png` size and Next image output.
+  - Console errors or missing hero media → static asset/import drift; check `components/landing/hero.tsx` and the OS-shell capture.
 cleanup:
   - Kill static server PID; remove `out/` only after evidence is written.
 ```
@@ -457,7 +456,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: doc-07-theme-contract
-title: Every page is dark-only; no shadows; only DESIGN.md hex tokens and Inter / JetBrains Mono / Playfair Display (site-home only) / NuixyberNext (wordmark only) fonts appear
+title: Every page is dark-only; no shadows; only DESIGN.md hex tokens and Inter / JetBrains Mono / Playfair Display (site-home only) fonts appear
 theme: docs-site.design-system
 coverage:
   primary:
@@ -484,11 +483,11 @@ steps:
   - Assert zero matches for `box-shadow` (excluding `box-shadow:none` if it appears as an explicit reset).
   - Assert zero matches for `drop-shadow` and `text-shadow`.
   - Extract every `#[0-9a-fA-F]{6,8}` hex from the concatenated CSS; assert each is also present in `packages/ui/src/tokens.css` (case-insensitive). The existing `site-design-token-contract.test.ts` enforces this on source files; this scenario re-runs the assertion on the **emitted** CSS bundle.
-  - Extract every `font-family` declaration; assert each name is one of: `Inter`, `Inter Variable`, `JetBrains Mono`, `Playfair Display`, `NuixyberNext`, system fallbacks (`-apple-system`, `BlinkMacSystemFont`, `sans-serif`, `serif`, `monospace`, `ui-monospace`, `Courier New`).
+  - Extract every `font-family` declaration; assert each name is one of: `Inter`, `Inter Variable`, `JetBrains Mono`, `Playfair Display`, system fallbacks (`-apple-system`, `BlinkMacSystemFont`, `sans-serif`, `serif`, `monospace`, `ui-monospace`, `Courier New`).
   - Inspect rendered DOM on `/`: assert `<html class="dark …">` (per `app/layout.tsx:80-83`).
   - Inspect rendered DOM on `/runtime/`, `/protocol/`, `/blog/`, `/changelog/`: same `class="dark"` and no `prefers-color-scheme: light` adaptation.
   - Inspect every page that uses Playfair Display: confirm scope is `.site-home h1, .site-home h2` (per `app/global.css:310-313`) — Playfair must NOT appear on `/runtime/`, `/protocol/`, `/blog/`, `/changelog/` document headings.
-  - Inspect NuixyberNext usage: confirm it appears only inside the wordmark `<Logo variant="logo" />` from `@compozy/ui` — never in document body or headings.
+  - Inspect the wordmark: confirm `<Logo variant="logo" />` renders SVG path geometry and introduces no font family.
 expected:
   - Zero shadow declarations.
   - 100% of hex colors map to canonical tokens.
@@ -811,12 +810,12 @@ code_refs:
 steps:
   - Concatenate every CSS file under `packages/site/out/_next/static/css/`.
   - Run the same scrape as DOC-07, but on the EMITTED CSS (DOC-07 also covers the source files via the existing `site-design-token-contract.test.ts`).
-  - Bonus: assert the only `@font-face` declaration is `NuixyberNext` (`app/global.css:14-20`); the other three fonts (Inter, JetBrains Mono, Playfair Display) come from `next/font/google` and are inlined as data URIs.
+  - Assert no retired local wordmark font is emitted; Inter, JetBrains Mono, and Playfair Display come from `next/font/google` and are inlined as data URIs.
 expected:
   - Zero shadow declarations.
   - Zero off-palette hex.
   - Zero disallowed font-families.
-  - Exactly one `@font-face` declaration (NuixyberNext).
+  - No retired local wordmark `@font-face` declaration.
 evidence:
   - `doc-15-emitted-css.txt`
   - `doc-15-shadow-violations.json`
@@ -979,25 +978,25 @@ preconditions:
   - Daemon up: `compozy status -o json` reports `status="running"`
   - Direct `claude` auth available in the effective Claude home for the lane
 code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero-player.tsx (Remotion Player)
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/remotion/hero/composition.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/public/images/landing/os-shell-hero.png
   - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md
   - /Users/pedronauck/Dev/compozy/compozy/.compozy/tasks/final-qa/_children/03-acp-sessions.md (sibling for real prompt path)
 steps:
   - Audit `packages/site/app/`, `packages/site/components/`, `packages/site/lib/` for any client-side fetch to a daemon endpoint (`/api/sessions/.../prompt`, `/api/sessions/.../stream`, `compozy.com` itself, or a staged daemon URL). Use `grep -rE 'fetch\(|EventSource|/api/sessions|/api/observe' packages/site/`.
-  - **Today's expected outcome**: zero client-side daemon prompt calls (the only `Player` is Remotion's local `HeroChatComposition`; there is no live ACP).
+  - **Today's expected outcome**: zero client-side daemon prompt calls; the hero is a static capture of the shipped OS shell, not a live ACP surface.
   - If audit finds a "Try it" embed (e.g., a future feature):
     - Drive a headless browser to the page hosting the embed.
     - Type a known-good prompt ("Read README.md and summarize the title in one sentence").
     - Assert the embed receives an SSE stream from the daemon and renders text in real time.
     - Cross-reference the daemon's `events.db` for the matching session.
   - If audit finds none (the truthful current state):
-    - Assert the hero animation is a Remotion `<Player>` composition (`components/landing/hero-player.tsx:46-60`), not a live LLM stream.
-    - Assert the composition runs locally (no network call) — verify by intercepting Network requests in the headless browser; expect zero requests to `127.0.0.1:<daemon-port>` or `compozy.com/api/`.
+    - Assert the hero renders the local static OS-shell capture, not a live LLM stream.
+    - Verify the page makes no daemon request by intercepting browser traffic; expect zero requests to `127.0.0.1:<daemon-port>` or `compozy.com/api/`.
     - Assert the README/landing copy never claims interactive embeds today.
     - Document the test-mode harness for any future embed: a future scenario template that drives the embed against an isolated daemon with `COMPOZY_WEB_API_PROXY_TARGET` exported (per CLAUDE.md "Isolated Web QA must export `COMPOZY_WEB_API_PROXY_TARGET`").
 expected:
-  - Truthful UI: today, the site renders a Remotion preview, NOT a live LLM stream. The QA report explicitly states "no live embed today; honest preview".
+  - Truthful UI: today, the site renders a static verified OS-shell capture, not a live LLM stream. The QA report explicitly states "no live embed today; honest static capture".
   - If a future embed is added: it MUST connect to a real daemon and produce a real SSE event sequence (mirroring API-02 in `11-api-cli-parity.md`).
 evidence:
   - `doc-19-fetch-audit.txt` (output of the grep)

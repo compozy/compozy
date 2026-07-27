@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
-import { SymbolGlyph } from "../logo";
+import { LogoLockup } from "../logo";
 import { COLORS, FONTS, formatBlogDate, SIZE, truncate } from "../tokens";
 
 export interface RenderBlogOGInput {
@@ -58,28 +58,7 @@ export async function renderBlogOG({
           justifyContent: "space-between",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <SymbolGlyph size={48} radius={12} />
-          <div
-            style={{
-              display: "flex",
-              fontFamily: FONTS.mono,
-              fontSize: "32px",
-              color: COLORS.textPrimary,
-              fontWeight: 500,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Compozy
-          </div>
-        </div>
+        <LogoLockup height={48} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
           <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>COMPOZY BLOG</span>
           {formattedDate ? (
@@ -94,56 +73,38 @@ export async function renderBlogOG({
       <div
         style={{
           display: "flex",
-          flexDirection: "row",
-          alignItems: "stretch",
-          gap: "32px",
+          flexDirection: "column",
+          gap: "28px",
           maxWidth: "1056px",
         }}
       >
         <div
           style={{
-            display: "flex",
-            width: "3px",
-            background: COLORS.accent,
-            borderRadius: "2px",
-          }}
-        />
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "28px",
-            flexGrow: 1,
+            fontFamily: FONTS.display,
+            fontSize: "76px",
+            lineHeight: 1.0,
+            letterSpacing: "-0.02em",
+            color: COLORS.textPrimary,
+            fontWeight: 400,
+            maxWidth: "940px",
           }}
         >
+          {safeTitle}
+        </div>
+        {safeDescription ? (
           <div
             style={{
-              fontFamily: FONTS.display,
-              fontSize: "76px",
-              lineHeight: 1.0,
-              letterSpacing: "-0.02em",
-              color: COLORS.textPrimary,
+              fontFamily: FONTS.inter,
+              fontSize: "22px",
+              lineHeight: 1.5,
+              color: COLORS.textSecondary,
+              maxWidth: "880px",
               fontWeight: 400,
-              maxWidth: "940px",
             }}
           >
-            {safeTitle}
+            {safeDescription}
           </div>
-          {safeDescription ? (
-            <div
-              style={{
-                fontFamily: FONTS.inter,
-                fontSize: "22px",
-                lineHeight: 1.5,
-                color: COLORS.textSecondary,
-                maxWidth: "880px",
-                fontWeight: 400,
-              }}
-            >
-              {safeDescription}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
       <div

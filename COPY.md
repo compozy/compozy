@@ -47,7 +47,14 @@ Compozy turns the agent CLIs people already use into durable work that can outli
 
 Use `agent operating system` as the category descriptor. Use **CompozyOS** when naming the complete system or making the category explicit; use **Compozy** in normal product prose. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
 
-Task 11 owns the launch headline, subhead, and their final locks. Do not promote provisional landing copy into this file before that task.
+### Launch Hero Lock
+
+> **The only true OS for AI agents.**
+>
+> A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it.
+
+Use the headline and definition together, verbatim, on the landing hero. Never use `only` or `true`
+as a standalone product claim without the definition or adjacent named-system proof.
 
 ### Primary Promise
 
@@ -62,7 +69,7 @@ Lead with the system, then prove it through the connected parts:
 3. **Local-first durability:** one Go binary and SQLite-backed daemon keep sessions, events, work, and state durable, resumable, and inspectable.
 4. **Shared control:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents.
 5. **Bounded autonomy:** task runs, claim tokens, leases, safe spawn, memory scopes, and coordinator handoff make multi-agent work observable and recoverable.
-6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts. In the named comparison set — Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 — this is the subsystem none provides as part of the same agent OS.
+6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts inside the same runtime that owns their work, state, permissions, and memory.
 
 ### What Compozy Is Not
 
@@ -473,9 +480,9 @@ CompozyOS is an agent operating system for real work: it runs agent sessions, ke
 
 ### Hero
 
-Task 11 owns the launch headline, subhead, and final allocation across landing, OpenGraph, and launch surfaces. Until that work lands, treat the current site hero as provisional and do not copy it into governance, metadata, or new public surfaces.
-
-Any hero proposal still follows these constraints: lead with the OS-level outcome, place the mechanism one step behind it, prove integrated completeness, keep the people-first register, and avoid making Compozy Network stand in for the complete product.
+Use the Launch Hero Lock in §2 verbatim across the landing and launch surfaces. Keep the definition
+adjacent to the headline, prove integrated completeness, and never make Compozy Network stand in for
+the complete product.
 
 ### Feature Card
 

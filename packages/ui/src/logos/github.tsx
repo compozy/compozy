@@ -4,6 +4,10 @@ type GithubLogoProps = SVGProps<SVGSVGElement> & {
   variant?: "invertocat" | "wordmark" | "lockup";
 };
 
+function GithubPath({ d, ...props }: SVGProps<SVGPathElement> & { d: string }) {
+  return <path {...props} d={d.trim().replace(/\s+/g, " ")} />;
+}
+
 export function GithubLogo({ className, variant = "invertocat", ...props }: GithubLogoProps) {
   if (variant === "invertocat") {
     return (
@@ -15,7 +19,7 @@ export function GithubLogo({ className, variant = "invertocat", ...props }: Gith
         className={className}
       >
         <title>GitHub Invertocat</title>
-        <path
+        <GithubPath
           fill="currentColor"
           d="M48.9,0C21.8,0,0,22,0,49.2C0,71,14,89.4,33.4,95.9c2.4,0.5,3.3-1.1,3.3-2.4c0-1.1-0.1-5.1-0.1-9.1
 	c-13.6,2.9-16.4-5.9-16.4-5.9c-2.2-5.7-5.4-7.2-5.4-7.2c-4.4-3,0.3-3,0.3-3c4.9,0.3,7.5,5.1,7.5,5.1c4.4,7.5,11.4,5.4,14.2,4.1
@@ -38,7 +42,7 @@ export function GithubLogo({ className, variant = "invertocat", ...props }: Gith
         className={className}
       >
         <title>GitHub Wordmark</title>
-        <path
+        <GithubPath
           fill="currentColor"
           d="M103.4,55.9h-0.1C103.3,55.9,103.3,56,103.4,55.9L103.4,55.9L103.4,55.9z M103.4,56c-0.5,0-1.8,0.3-3.2,0.3
 	c-4.4,0-5.9-2-5.9-4.6V34.2h8.9c0.5,0,0.9-0.4,0.9-1.1v-9.5c0-0.5-0.4-0.9-0.9-0.9h-8.9V10.9c0-0.4-0.3-0.7-0.8-0.7h-12
@@ -73,7 +77,7 @@ export function GithubLogo({ className, variant = "invertocat", ...props }: Gith
       >
         <title>GitHub Lockup</title>
         <g>
-          <path
+          <GithubPath
             fill="currentColor"
             d="M46.1,0C20.6,0,0,20.6,0,46.1c0,20.4,13.2,37.7,31.5,43.8c2.3,0.4,3.2-1,3.2-2.2c0-1.1-0.1-4.7-0.1-8.6
 		c-11.6,2.1-14.6-2.8-15.5-5.4c-0.5-1.3-2.8-5.4-4.7-6.5c-1.6-0.9-3.9-3-0.1-3.1c3.6-0.1,6.2,3.3,7.1,4.7c4.2,7,10.8,5,13.4,3.8
@@ -82,7 +86,7 @@ export function GithubLogo({ className, variant = "invertocat", ...props }: Gith
 		c0,17.7-10.8,21.6-21.1,22.8c1.7,1.4,3.1,4.2,3.1,8.5c0,6.2-0.1,11.1-0.1,12.7c0,1.2,0.9,2.7,3.2,2.2c18.2-6.1,31.4-23.4,31.4-43.8
 		C92.3,20.6,71.6,0,46.1,0z"
           />
-          <path
+          <GithubPath
             fill="currentColor"
             d="M221.6,67.1h-0.1C221.6,67.1,221.6,67.1,221.6,67.1L221.6,67.1L221.6,67.1z M221.6,67.1
 		c-0.5,0-1.8,0.3-3.2,0.3c-4.4,0-5.9-2-5.9-4.6V45.3h8.9c0.5,0,0.9-0.4,0.9-1.1v-9.5c0-0.5-0.4-0.9-0.9-0.9h-8.9V22.1

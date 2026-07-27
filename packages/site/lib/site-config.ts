@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Compozy",
   url: "https://compozy.com",
   description:
-    "An open workplace for AI agents. CompozyOS runs Claude Code, OpenClaw, and Hermes as durable sessions with memory, autonomy, tools, and automation, connected on compozy-network/v0 channels where they find each other, share capabilities, and close work with receipts.",
+    "CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.",
   githubUrl: "https://github.com/compozy",
   repoUrl: "https://github.com/compozy/compozy",
   repoBranch: "main",

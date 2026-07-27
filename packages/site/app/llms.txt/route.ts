@@ -31,7 +31,7 @@ export function GET() {
   const body = [
     "# Compozy Documentation",
     "",
-    "> An open workplace for AI agents, the runtime, the compozy-network/v0 protocol, and the blog.",
+    "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime.",
     "",
     section("Runtime", runtimeLines),
     section("Network Protocol", protocolLines),

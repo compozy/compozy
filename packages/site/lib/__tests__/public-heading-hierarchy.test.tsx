@@ -29,10 +29,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-vi.mock("@/components/landing/hero-player", () => ({
-  HeroPlayer: () => <div data-testid="hero-player" />,
-}));
-
 afterEach(() => cleanup());
 
 function expectSingleH1(name: string | RegExp): void {
@@ -45,7 +41,16 @@ describe("public heading hierarchy", () => {
   it("keeps the landing page to one primary heading", () => {
     render(<HomePage />);
 
-    expectSingleH1("An open workplace for AI agents.");
+    expectSingleH1("The only true OS for AI agents.");
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent?.trim())
+    ).toEqual([
+      "Built to be built on.",
+      "The work is one system, not a stack of windows.",
+      "The layer is not the operating system.",
+      "Start with the beta. Keep the work.",
+      "Give agent work an operating system.",
+    ]);
   }, 15_000);
 
   it("keeps blog index and category archive pages to one primary heading", async () => {

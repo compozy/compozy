@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
 import { loadOGFonts } from "../fonts";
-import { SymbolGlyph } from "../logo";
+import { LogoLockup } from "../logo";
 import { COLORS, FONTS, SIZE, truncate } from "../tokens";
 import { Chip } from "./chip";
 
@@ -74,7 +74,7 @@ export async function renderDocsOG({
           gap: "24px",
         }}
       >
-        <SymbolGlyph size={56} radius={14} />
+        <LogoLockup height={42} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
           <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>{labels.eyebrow}</span>
           <span style={{ width: "48px", height: "1px", background: COLORS.border }} />

@@ -1,23 +1,18 @@
 import { ImageResponse } from "next/og";
 import type { CSSProperties } from "react";
-import { siteConfig } from "@/lib/site-config";
 import { loadOGFonts } from "../fonts";
 import { LogoLockup, SymbolGlyph } from "../logo";
 import { COLORS, FONTS, SIZE } from "../tokens";
 
-const HEADLINE = "An open workplace for AI agents.";
-const EYEBROW = "COMPOZYOS";
-
-function deriveSubhead(description: string): string {
-  const firstStop = description.indexOf(".");
-  if (firstStop < 0) return description;
-  return description.slice(firstStop + 1).trim();
-}
+const HEADLINE = "The only true OS for AI agents.";
+const DEFINITION =
+  "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it.";
+const EYEBROW = "COMPOZYOS / BETA";
 
 const FOOTER_RAIL = [
-  { label: "COMPOZY NETWORK / V0", color: COLORS.accent, lowercase: false },
+  { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.accent, lowercase: false },
   { label: "compozy.com", color: COLORS.textSecondary, lowercase: true },
-  { label: "LOCAL-FIRST RUNTIME", color: COLORS.textSecondary, lowercase: false },
+  { label: "RUN · MEMORY · POLICY · CONNECTION", color: COLORS.textSecondary, lowercase: false },
 ] as const;
 
 const canvasStyle: CSSProperties = {
@@ -65,7 +60,6 @@ const footerRailItemStyle: CSSProperties = {
 
 export async function renderLandingOG(): Promise<ImageResponse> {
   const fonts = await loadOGFonts();
-  const subhead = deriveSubhead(siteConfig.description);
 
   return new ImageResponse(
     <div style={canvasStyle}>
@@ -119,7 +113,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
             fontWeight: 400,
           }}
         >
-          {subhead}
+          {DEFINITION}
         </div>
       </div>
 

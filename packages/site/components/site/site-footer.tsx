@@ -96,7 +96,7 @@ export function SiteFooter() {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm"
             )}
           >
-            <Eyebrow>Alpha · Compozy on GitHub</Eyebrow>
+            <Eyebrow>Beta · Compozy on GitHub</Eyebrow>
             <span aria-hidden="true">→</span>
           </a>
         </div>
