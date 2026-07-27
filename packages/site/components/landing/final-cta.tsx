@@ -13,7 +13,8 @@ export function FinalCta() {
             Give agent work an operating system.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
-            Install the beta, run a session, and keep the work connected as it grows.
+            Install the beta, run a session, and keep the work connected as it grows. Build your
+            factory on it.
           </p>
         </div>
 

@@ -23,6 +23,11 @@ const MARKET_SCOPES = [
     scope: "A minimal web GUI for coding agents across several providers.",
     sourcePath: ".resources/t3code/README.md",
   },
+  {
+    name: "Mastra Factory",
+    scope: "An agent-powered software delivery environment built on Mastra.",
+    sourcePath: ".resources/mastra/mastracode/factory/README.md",
+  },
 ] as const;
 
 export function Comparison() {
@@ -36,8 +41,9 @@ export function Comparison() {
           </h2>
           <p className="mt-6 max-w-[47ch] text-base leading-relaxed text-muted">
             The category already values agent orchestration, durable runs, assistants, and coding
-            interfaces. Compozy brings the operating responsibilities together: run, memory,
-            permissions, connection, and extensibility.
+            interfaces. The newest layer even has a name — the software factory. Factories are the
+            machines; an OS is the floor they run on. Compozy brings the operating responsibilities
+            together: run, memory, permissions, connection, and extensibility.
           </p>
         </div>
 

@@ -11,6 +11,7 @@ const comparisonPath = resolve(landingRoot, "comparison.tsx");
 
 const approvedMarketSources = new Set([
   ".resources/orca/src/main/ghostty/index.ts",
+  ".resources/mastra/mastracode/factory/README.md",
   ".resources/paperclip/README.md",
   ".resources/smithers/README.md",
   ".resources/openclaw/README.md",

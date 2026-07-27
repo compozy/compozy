@@ -202,6 +202,15 @@ Why this trio: these are the most recognizable ACP-compatible CLIs in the curren
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
+### Factory Vocabulary
+
+"Software factory" / "agent factory" name the workload people build on top of Compozy — a standing, mostly-autonomous pipeline that turns outside signals into shipped software, with humans at chosen gates. Rules:
+
+- Factory describes what runs **on** CompozyOS, never Compozy itself. Approved bridge line: "The OS your agent factory runs on." CTA form: "Build your factory on it."
+- Never adopt `Factory` as a Compozy product or feature name. The noun is occupied in this space (Factory.ai claims the "software factory" category; Mastra ships "Mastra Factory").
+- Never write `AI factory`. That phrase is NVIDIA's and means a datacenter that manufactures intelligence, not a software process.
+- Keep the anti-cage framing: an OS gives agents general capability with safe boundaries; a factory built on it is not a rigid assembly line. (Context: Garry Tan's "Foxconn factories for your agents" critique, 2026-06.)
+
 ### Runtime Terms
 
 - `daemon`: the local background runtime process.
