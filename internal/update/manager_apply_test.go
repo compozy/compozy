@@ -25,7 +25,7 @@ func TestManagerApplyRelease(t *testing.T) {
 			BinaryApplier:  applier,
 		})
 
-		archiveBody := createTarGzBinary(t, "agh", []byte("#!/bin/sh\necho updated\n"), 0o755)
+		archiveBody := createTarGzBinary(t, "compozy", []byte("#!/bin/sh\necho updated\n"), 0o755)
 		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
 			archiveBody: archiveBody,
 			bundleBody:  []byte(`{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3"}`),
@@ -46,7 +46,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		if applied.TargetPath != executablePath || applied.Version != "v1.1.0" {
 			t.Fatalf("applied = %#v, want executable %q and version v1.1.0", applied, executablePath)
 		}
-		if !strings.Contains(applied.BackupPath, ".agh.compozy-backup-") {
+		if !strings.Contains(applied.BackupPath, ".compozy.compozy-backup-") {
 			t.Fatalf("applied.BackupPath = %q, want sibling backup naming", applied.BackupPath)
 		}
 		if applier.targetPath != executablePath || applier.mode != 0o755 {
@@ -69,7 +69,7 @@ func TestManagerApplyRelease(t *testing.T) {
 			BinaryApplier:  applier,
 		})
 
-		archiveBody := createTarGzBinary(t, "agh", []byte("#!/bin/sh\necho updated\n"), 0o644)
+		archiveBody := createTarGzBinary(t, "compozy", []byte("#!/bin/sh\necho updated\n"), 0o644)
 		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
 			archiveBody: archiveBody,
 			bundleBody:  []byte("{\"mediaType\":\"application/vnd.dev.sigstore.bundle+json;version=0.3\"}"),
@@ -162,7 +162,7 @@ func TestManagerApplyRelease(t *testing.T) {
 			BinaryApplier:  applier,
 		})
 
-		archiveBody := createTarGzBinary(t, "agh", []byte("#!/bin/sh\necho updated\n"), 0o755)
+		archiveBody := createTarGzBinary(t, "compozy", []byte("#!/bin/sh\necho updated\n"), 0o755)
 		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
 			archiveBody: archiveBody,
 			bundleBody:  []byte(`{"invalid":true}`),
@@ -194,7 +194,7 @@ func TestManagerApplyRelease(t *testing.T) {
 			BinaryApplier:  applier,
 		})
 
-		archiveBody := createTarGzBinary(t, "agh", []byte("#!/bin/sh\necho updated\n"), 0o755)
+		archiveBody := createTarGzBinary(t, "compozy", []byte("#!/bin/sh\necho updated\n"), 0o755)
 		archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {
 			t.Fatalf("archiveAssetName() error = %v", err)
@@ -339,7 +339,7 @@ func TestManagerRestore(t *testing.T) {
 		if err := os.Chmod(executablePath, 0o644); err != nil {
 			t.Fatalf("Chmod(%q) error = %v", executablePath, err)
 		}
-		backupPath := filepath.Join(filepath.Dir(executablePath), ".agh.backup")
+		backupPath := filepath.Join(filepath.Dir(executablePath), ".compozy.backup")
 		if err := os.WriteFile(backupPath, []byte("backup-binary"), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", backupPath, err)
 		}
@@ -398,7 +398,7 @@ func newReleaseFixtureServer(
 
 	release := &Release{
 		Version:    "v1.1.0",
-		ReleaseURL: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+		ReleaseURL: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
 		Assets: []ReleaseAsset{
 			{Name: archiveName, DownloadURL: server.URL + "/archive"},
 			{Name: checksumsAssetName, DownloadURL: server.URL + "/checksums.txt"},

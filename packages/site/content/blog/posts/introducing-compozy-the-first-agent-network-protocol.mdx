@@ -36,9 +36,9 @@ six message kinds and two conversation surfaces, and exposes the same runtime st
 CLI, HTTP/SSE, Unix domain socket, and web UI.
 
 ```bash
-$ brew install compozy/compozy/agh
-# or: npm install -g @compozy/agh
-# or: go install github.com/compozy/compozy@latest
+$ curl -fsSL https://compozy.com/install.sh | sh
+# or: npm install -g @compozy/cli@beta
+# or: go install github.com/compozy/compozy@v0.3.0-beta.1
 $ compozy install
 $ compozy daemon start
 ```
@@ -418,9 +418,9 @@ If you want the shortest path, install Compozy, bootstrap the runtime, start the
 durable session in a real repository.
 
 ```bash
-$ brew install compozy/compozy/agh
-# or: npm install -g @compozy/agh
-# or: go install github.com/compozy/compozy@latest
+$ curl -fsSL https://compozy.com/install.sh | sh
+# or: npm install -g @compozy/cli@beta
+# or: go install github.com/compozy/compozy@v0.3.0-beta.1
 $ compozy install
 $ compozy daemon start
 $ compozy workspace add "$PWD" --name current

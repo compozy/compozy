@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 const (
@@ -31,33 +33,90 @@ type githubAssetResponse struct {
 }
 
 func (m *Manager) fetchLatestRelease(ctx context.Context) (*Release, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubReleaseAPIURL, http.NoBody)
+	if m.releaseTrack == releaseTrackBeta {
+		return m.fetchLatestBetaRelease(ctx)
+	}
+	return m.fetchLatestStableRelease(ctx)
+}
+
+func (m *Manager) fetchLatestStableRelease(ctx context.Context) (*Release, error) {
+	var payload githubReleaseResponse
+	if err := m.fetchGitHubJSON(ctx, githubLatestReleaseAPIURL, &payload); err != nil {
+		return nil, err
+	}
+	if payload.Draft || payload.Prerelease {
+		return nil, fmt.Errorf("update: latest release %q is not a stable release", payload.TagName)
+	}
+	return releaseFromGitHubResponse(payload)
+}
+
+func (m *Manager) fetchLatestBetaRelease(ctx context.Context) (*Release, error) {
+	_, current, err := releaseTrackForVersion(m.currentVersion)
 	if err != nil {
-		return nil, fmt.Errorf("update: create latest release request: %w", err)
+		return nil, fmt.Errorf("update: parse current beta version: %w", err)
+	}
+
+	var payloads []githubReleaseResponse
+	if err := m.fetchGitHubJSON(ctx, githubReleasesAPIURL, &payloads); err != nil {
+		return nil, err
+	}
+
+	var (
+		selected        *githubReleaseResponse
+		selectedVersion *semver.Version
+	)
+	for index := range payloads {
+		payload := &payloads[index]
+		if payload.Draft || !payload.Prerelease {
+			continue
+		}
+		candidate, parseErr := parseVersion(payload.TagName)
+		if parseErr != nil || !isBetaVersionForLine(candidate, current) {
+			continue
+		}
+		if selectedVersion == nil || candidate.GreaterThan(selectedVersion) {
+			selected = payload
+			selectedVersion = candidate
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf(
+			"update: no beta release found for v%d.%d",
+			current.Major(),
+			current.Minor(),
+		)
+	}
+	return releaseFromGitHubResponse(*selected)
+}
+
+func (m *Manager) fetchGitHubJSON(ctx context.Context, url string, target any) (err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("update: create release request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", m.userAgent())
 
 	resp, err := m.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("update: request latest release: %w", err)
+		return fmt.Errorf("update: request release metadata: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("update: close release response: %w", closeErr)
+		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("update: latest release request returned %s", resp.Status)
+		return fmt.Errorf("update: release request returned %s", resp.Status)
 	}
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		return fmt.Errorf("update: decode release response: %w", err)
+	}
+	return nil
+}
 
-	var payload githubReleaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("update: decode latest release response: %w", err)
-	}
-	if payload.Draft || payload.Prerelease {
-		return nil, fmt.Errorf("update: latest release %q is not a stable release", payload.TagName)
-	}
-
+func releaseFromGitHubResponse(payload githubReleaseResponse) (*Release, error) {
 	release := &Release{
 		Version:     strings.TrimSpace(payload.TagName),
 		ReleaseURL:  strings.TrimSpace(payload.HTMLURL),
@@ -151,7 +210,7 @@ func (m *Manager) userAgent() string {
 	if version == "" {
 		version = githubDevKey
 	}
-	return "agh/" + version
+	return "compozy/" + version
 }
 
 func (r *Release) findAsset(name string) (ReleaseAsset, bool) {
@@ -176,9 +235,9 @@ func archiveAssetName(runtimeOS string, runtimeArch string) (string, error) {
 
 	switch runtimeOS {
 	case runtimeOSDarwin, runtimeOSLinux:
-		return "agh_" + runtimeOS + "_" + arch + ".tar.gz", nil
+		return "compozy_" + runtimeOS + "_" + arch + ".tar.gz", nil
 	case runtimeOSWindows:
-		return "agh_" + runtimeOSWindows + "_" + arch + ".zip", nil
+		return "compozy_" + runtimeOSWindows + "_" + arch + ".zip", nil
 	default:
 		return "", fmt.Errorf("update: unsupported operating system %q", runtimeOS)
 	}

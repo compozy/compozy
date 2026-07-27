@@ -9,25 +9,26 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
-	githubReleaseAPIURL        = "https://api.github.com/repos/compozy/agh/releases/latest"
-	githubRepositorySlug       = "compozy/agh"
+	githubLatestReleaseAPIURL  = "https://api.github.com/repos/compozy/compozy/releases/latest"
+	githubReleasesAPIURL       = "https://api.github.com/repos/compozy/compozy/releases?per_page=100"
+	githubRepositorySlug       = "compozy/compozy"
 	goInstallModulePath        = "github.com/compozy/compozy"
 	checksumsAssetName         = "checksums.txt"
 	checksumsBundleAssetName   = "checksums.txt.sigstore.json"
 	sigstoreOIDCIssuer         = "https://token.actions.githubusercontent.com"
-	releaseWorkflowIdentityExp = `^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/heads/main$`
+	releaseWorkflowIdentityExp = `^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$`
 )
 
 const (
-	aghBinaryName          = "agh"
-	aghWindowsBinaryName   = "agh.exe"
-	managedPathUsrBin      = "/usr/bin/agh"
-	managedPathBin         = "/bin/agh"
-	managedPathUsrLocalBin = "/usr/local/bin/agh"
+	compozyBinaryName        = "compozy"
+	compozyWindowsBinaryName = "compozy.exe"
+	managedPathUsrBin        = "/usr/bin/compozy"
+	managedPathBin           = "/bin/compozy"
+	managedPathUsrLocalBin   = "/usr/local/bin/compozy"
 )
 
 const (
@@ -64,7 +65,7 @@ const (
 	StatusFailed      Status = "failed"
 )
 
-// InstallMethod reports how the running AGH binary was installed.
+// InstallMethod reports how the running Compozy binary was installed.
 type InstallMethod string
 
 const (
@@ -135,7 +136,7 @@ type BinaryApplier interface {
 
 // Config builds one update manager bound to the current runtime.
 type Config struct {
-	HomePaths       aghconfig.HomePaths
+	HomePaths       compozyconfig.HomePaths
 	CurrentVersion  string
 	ExecutablePath  func() (string, error)
 	ResolveSymlinks func(string) (string, error)
@@ -163,9 +164,9 @@ type installInfo struct {
 	Managed bool
 }
 
-// Manager owns the AGH self-update flow for the current runtime.
+// Manager owns the Compozy self-update flow for the current runtime.
 type Manager struct {
-	homePaths      aghconfig.HomePaths
+	homePaths      compozyconfig.HomePaths
 	currentVersion string
 	executablePath string
 	getenv         func(string) string
@@ -177,12 +178,13 @@ type Manager struct {
 	runCommand     func(context.Context, string, ...string) (string, error)
 	bundleVerifier BundleVerifier
 	binaryApplier  BinaryApplier
+	releaseTrack   releaseTrack
 	installOnce    sync.Once
 	install        installInfo
 }
 
 func (m *Manager) cachePath() string {
-	return filepath.Join(m.homePaths.HomeDir, "cache", "update-state.json")
+	return filepath.Join(m.homePaths.HomeDir, "cache", "update-state-"+string(m.releaseTrack)+".json")
 }
 
 func (m *Manager) sigstoreCachePath() string {

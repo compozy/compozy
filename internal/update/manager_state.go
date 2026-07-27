@@ -58,19 +58,19 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	switch {
 	case isDevVersion(state.CurrentVersion):
 		state.Status = StatusUnsupported
-		state.Message = "AGH self-update is unavailable for dev builds."
-		state.Recommendation = "Install a tagged AGH release binary or rebuild from source."
+		state.Message = "Compozy self-update is unavailable for dev builds."
+		state.Recommendation = "Install a tagged Compozy release binary or rebuild from source."
 		return state
 	case latest == nil || strings.TrimSpace(latest.Version) == "":
 		state.Status = StatusFailed
-		state.Message = "The latest stable AGH release metadata is unavailable."
+		state.Message = "The latest Compozy release metadata for the active channel is unavailable."
 		return state
 	}
 
 	comparison, err := compareVersions(state.CurrentVersion, latest.Version)
 	if err != nil {
 		state.Status = StatusUnsupported
-		state.Message = "The running AGH version cannot be compared against published releases."
+		state.Message = "The running Compozy version cannot be compared against published releases."
 		state.LastError = err.Error()
 		return state
 	}
@@ -84,27 +84,29 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	switch {
 	case state.Managed && state.Available:
 		state.Status = StatusDeferred
-		state.Message = "AGH is managed by an external package manager; no local update was performed."
-		state.Recommendation = updateRecommendation(state.InstallMethod, state.ReleaseURL)
+		state.Message = "Compozy is managed by an external package manager; no local update was performed."
+		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Managed:
 		state.Status = StatusCurrent
-		state.Message = "AGH is already on the latest stable release. Managed installs stay on the package manager path."
-		state.Recommendation = updateRecommendation(state.InstallMethod, state.ReleaseURL)
+		state.Message = "Compozy is already current on its release channel. " +
+			"Managed installs stay on the package manager path."
+		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case !state.Supported && state.Available:
 		state.Status = StatusUnsupported
-		state.Message = "A newer stable AGH release is available, but this install method does not support in-place updates."
-		state.Recommendation = updateRecommendation(state.InstallMethod, state.ReleaseURL)
+		state.Message = "A newer Compozy release is available on the active channel, " +
+			"but this install method does not support in-place updates."
+		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case !state.Supported:
 		state.Status = StatusUnsupported
-		state.Message = "This AGH install method does not support in-place self-update."
-		state.Recommendation = updateRecommendation(state.InstallMethod, state.ReleaseURL)
+		state.Message = "This Compozy install method does not support in-place self-update."
+		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Available:
 		state.Status = StatusAvailable
-		state.Message = "A newer stable AGH release is available."
+		state.Message = "A newer Compozy release is available on the active channel."
 		state.Recommendation = "Run `compozy update`."
 	default:
 		state.Status = StatusCurrent
-		state.Message = "AGH is already on the latest stable release."
+		state.Message = "Compozy is already current on its release channel."
 	}
 
 	if state.InstallMethod == string(InstallMethodDirectBinary) && !supportedPlatform {
@@ -115,9 +117,9 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 
 func (m *Manager) archiveBinaryName() string {
 	if m.runtimeOS == runtimeOSWindows {
-		return aghWindowsBinaryName
+		return compozyWindowsBinaryName
 	}
-	return aghBinaryName
+	return compozyBinaryName
 }
 
 func supportsDirectBinarySelfUpdate(runtimeOS string, runtimeArch string) bool {
@@ -127,43 +129,62 @@ func supportsDirectBinarySelfUpdate(runtimeOS string, runtimeArch string) bool {
 	return runtimeArch == runtimeArchAMD64 || runtimeArch == runtimeArchARM64
 }
 
-func updateRecommendation(installMethod string, releaseURL string) string {
+func (m *Manager) updateRecommendation(installMethod string, release *Release) string {
+	releaseURL := ""
+	releaseVersion := ""
+	if release != nil {
+		releaseURL = strings.TrimSpace(release.ReleaseURL)
+		releaseVersion = strings.TrimSpace(release.Version)
+	}
+	if m.releaseTrack == releaseTrackBeta {
+		switch installMethod {
+		case string(InstallMethodNPM):
+			return "Use `npm install -g @compozy/cli@beta`."
+		case string(InstallMethodGoInstall):
+			return "Use `go install " + goInstallModulePath + "@" + releaseVersion + "`."
+		case string(InstallMethodDirectBinary):
+			return manualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
+		default:
+			return "Install the v0.3 beta with `curl -fsSL https://compozy.com/install.sh | sh`."
+		}
+	}
+
 	switch installMethod {
 	case string(InstallMethodHomebrew):
-		return "Use `brew upgrade compozy/compozy/agh`."
+		return "Use `brew upgrade compozy/compozy/compozy`."
 	case string(InstallMethodNPM):
-		return "Use `npm update -g @compozy/agh`."
+		return "Use `npm update -g @compozy/cli`."
 	case string(InstallMethodAPT):
-		return "Use `sudo apt update && sudo apt upgrade agh`."
+		return "Use `sudo apt update && sudo apt upgrade compozy`."
 	case string(InstallMethodDNF):
-		return "Use `sudo dnf upgrade agh`."
+		return "Use `sudo dnf upgrade compozy`."
 	case string(InstallMethodRPM):
 		return "Upgrade the installed RPM package through your system package tooling."
 	case string(InstallMethodScoop):
-		return "Use `scoop update agh`."
+		return "Use `scoop update compozy`."
 	case string(InstallMethodGoInstall):
 		return "Use `go install " + goInstallModulePath + "@latest`."
 	case string(InstallMethodDirectBinary):
-		return manualDirectBinaryRecommendation(releaseURL, "")
+		return manualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
 	default:
 		if strings.TrimSpace(installMethod) == "" {
 			return ""
 		}
-		return "Use the package manager or installer that manages this AGH binary instead of mutating it in place."
+		return "Use the package manager or installer that manages this Compozy binary instead of mutating it in place."
 	}
 }
 
 func manualDirectBinaryRecommendation(releaseURL string, runtimeOS string) string {
 	if runtimeOS == runtimeOSWindows {
 		if strings.TrimSpace(releaseURL) == "" {
-			return "Download the latest AGH Windows release archive and replace `agh.exe` manually."
+			return "Download the latest Compozy Windows release archive and replace `compozy.exe` manually."
 		}
-		return "Download the latest AGH Windows release archive from " + releaseURL + " and replace `agh.exe` manually."
+		return "Download the latest Compozy Windows release archive from " + releaseURL + " and replace `compozy.exe` manually."
 	}
 	if strings.TrimSpace(releaseURL) == "" {
-		return "Download the latest AGH release archive and replace the binary manually."
+		return "Install the verified Compozy binary with `curl -fsSL https://compozy.com/install.sh | sh`."
 	}
-	return "Download the latest AGH release archive from " + releaseURL + " and replace the binary manually."
+	return "Download the latest Compozy release archive from " + releaseURL + " and replace the binary manually."
 }
 
 func defaultRunCommand(ctx context.Context, name string, args ...string) (string, error) {

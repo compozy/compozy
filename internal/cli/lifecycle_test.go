@@ -10,45 +10,45 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 type stubUpdateManager struct {
-	checkFn    func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
-	applyFn    func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error)
-	restoreFn  func(aghupdate.AppliedBinary) error
-	finalizeFn func(aghupdate.AppliedBinary) error
+	checkFn    func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
+	applyFn    func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error)
+	restoreFn  func(compozyupdate.AppliedBinary) error
+	finalizeFn func(compozyupdate.AppliedBinary) error
 }
 
 func (s stubUpdateManager) Check(
 	ctx context.Context,
-	opts aghupdate.CheckOptions,
-) (aghupdate.State, *aghupdate.Release, error) {
+	opts compozyupdate.CheckOptions,
+) (compozyupdate.State, *compozyupdate.Release, error) {
 	if s.checkFn != nil {
 		return s.checkFn(ctx, opts)
 	}
-	return aghupdate.State{}, nil, nil
+	return compozyupdate.State{}, nil, nil
 }
 
 func (s stubUpdateManager) ApplyRelease(
 	ctx context.Context,
-	release *aghupdate.Release,
-) (aghupdate.AppliedBinary, error) {
+	release *compozyupdate.Release,
+) (compozyupdate.AppliedBinary, error) {
 	if s.applyFn != nil {
 		return s.applyFn(ctx, release)
 	}
-	return aghupdate.AppliedBinary{}, nil
+	return compozyupdate.AppliedBinary{}, nil
 }
 
-func (s stubUpdateManager) Restore(applied aghupdate.AppliedBinary) error {
+func (s stubUpdateManager) Restore(applied compozyupdate.AppliedBinary) error {
 	if s.restoreFn != nil {
 		return s.restoreFn(applied)
 	}
 	return nil
 }
 
-func (s stubUpdateManager) Finalize(applied aghupdate.AppliedBinary) error {
+func (s stubUpdateManager) Finalize(applied compozyupdate.AppliedBinary) error {
 	if s.finalizeFn != nil {
 		return s.finalizeFn(applied)
 	}
@@ -60,7 +60,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 
 	deps := newTestDeps(t, &stubClient{})
 	deps.getenv = func(key string) string {
-		if key == aghupdate.ManagedEnvName {
+		if key == compozyupdate.ManagedEnvName {
 			return "homebrew"
 		}
 		return ""
@@ -68,19 +68,19 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	deps.runInstallWizard = func(context.Context, installWizardInput) (installWizardSelection, error) {
 		return installWizardSelection{Provider: "claude", Model: "claude-sonnet-4-6"}, nil
 	}
-	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 		return stubUpdateManager{
-			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-				return aghupdate.State{
+			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+				return compozyupdate.State{
 					Managed:        true,
 					InstallMethod:  "homebrew",
 					CurrentVersion: "v1.0.0",
 					LatestVersion:  "v1.1.0",
 					Available:      true,
-					Status:         aghupdate.StatusDeferred,
-					Recommendation: "Use `brew upgrade compozy/compozy/agh`.",
+					Status:         compozyupdate.StatusDeferred,
+					Recommendation: "Use `brew upgrade compozy`.",
 					Message:        "Compozy is managed by an external package manager; no local update was performed.",
-				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
 	}
@@ -105,7 +105,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if update.Status != string(aghupdate.StatusDeferred) || !update.Managed ||
+	if update.Status != string(compozyupdate.StatusDeferred) || !update.Managed ||
 		!strings.Contains(update.Recommendation, "brew") {
 		t.Fatalf("managed update record = %#v, want deferred brew recommendation", update)
 	}
@@ -129,12 +129,12 @@ func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
 		t.Parallel()
 
 		update := managedRecommendation("npm", "update Compozy")
-		if !strings.Contains(update, "npm update -g @compozy/agh") {
+		if !strings.Contains(update, "npm install -g @compozy/cli@beta") {
 			t.Fatalf("managedRecommendation(update) = %q, want npm update command", update)
 		}
 
 		uninstall := managedRecommendation("nodejs", "uninstall Compozy")
-		if !strings.Contains(uninstall, "npm uninstall -g @compozy/agh") {
+		if !strings.Contains(uninstall, "npm uninstall -g @compozy/cli") {
 			t.Fatalf("managedRecommendation(uninstall) = %q, want npm uninstall command", uninstall)
 		}
 	})
@@ -148,7 +148,7 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	deps.processAlive = func(int) bool { return false }
@@ -215,19 +215,19 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
-	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 		return stubUpdateManager{
-			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-				return aghupdate.State{
+			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+				return compozyupdate.State{
 					Supported:      true,
 					Managed:        false,
 					InstallMethod:  "direct-binary",
 					CurrentVersion: "v1.0.0",
 					LatestVersion:  "v1.1.0",
 					Available:      true,
-					Status:         aghupdate.StatusAvailable,
+					Status:         compozyupdate.StatusAvailable,
 					Message:        "A newer stable Compozy release is available.",
-				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
 	}
@@ -240,7 +240,8 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if record.Status != string(aghupdate.StatusAvailable) || record.Managed || record.InstallMethod != "direct-binary" {
+	if record.Status != string(compozyupdate.StatusAvailable) ||
+		record.Managed || record.InstallMethod != "direct-binary" {
 		t.Fatalf("update record = %#v, want available direct-binary update", record)
 	}
 }
@@ -262,24 +263,24 @@ func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 	}
 	writeFile(t, homePaths.DaemonInfo, `{"pid":42,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
 	deps.processAlive = func(int) bool { return true }
-	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 		return stubUpdateManager{
-			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
-				return aghupdate.State{
+			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+				return compozyupdate.State{
 					Supported:      true,
 					Managed:        false,
 					InstallMethod:  "direct-binary",
 					CurrentVersion: "v1.0.0",
 					LatestVersion:  "v1.1.0",
 					Available:      true,
-					Status:         aghupdate.StatusAvailable,
+					Status:         compozyupdate.StatusAvailable,
 					Message:        "A newer stable Compozy release is available.",
-				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
-			applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {
-				return aghupdate.AppliedBinary{
-					TargetPath: filepath.Join(t.TempDir(), "agh"),
-					BackupPath: filepath.Join(t.TempDir(), "agh.backup"),
+			applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
+				return compozyupdate.AppliedBinary{
+					TargetPath: filepath.Join(t.TempDir(), "compozy"),
+					BackupPath: filepath.Join(t.TempDir(), "compozy.backup"),
 					Version:    "v1.1.0",
 				}, nil
 			},
@@ -294,7 +295,7 @@ func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if record.Status != string(aghupdate.StatusUpdated) || !record.DaemonRestarted {
+	if record.Status != string(compozyupdate.StatusUpdated) || !record.DaemonRestarted {
 		t.Fatalf("update record = %#v, want updated with daemon restart", record)
 	}
 }
@@ -326,7 +327,7 @@ func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	if _, _, err := executeRootCommand(t, deps, "config", "edit", "-o", "json"); err != nil {
 		t.Fatalf("config edit error = %v", err)
 	}
-	cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+	cfg, err := compozyconfig.LoadGlobalConfig(homePaths)
 	if err != nil {
 		t.Fatalf("LoadGlobalConfig(after edit) error = %v", err)
 	}
@@ -343,7 +344,7 @@ func TestUninstallContinuesWhenRunningDaemonAlreadyExited(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
 	}
-	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 	for _, path := range []string{homePaths.DaemonSocket, homePaths.DaemonLock} {
@@ -379,7 +380,7 @@ func TestUninstallIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveHome() error = %v", err)
 			}
-			if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+			if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 				t.Fatalf("EnsureHomeLayout() error = %v", err)
 			}
 			for _, path := range []string{homePaths.DaemonSocket, homePaths.DaemonLock} {

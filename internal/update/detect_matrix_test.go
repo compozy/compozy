@@ -19,7 +19,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				name: "Should detect Homebrew installs from the executable path",
 				cfg: Config{
 					ExecutablePath: func() (string, error) {
-						return "/opt/homebrew/Caskroom/agh/1.0.0/agh", nil
+						return "/opt/homebrew/Cellar/compozy/1.0.0/bin/compozy", nil
 					},
 				},
 				want: string(InstallMethodHomebrew),
@@ -28,7 +28,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				name: "Should detect NPM installs from the executable path",
 				cfg: Config{
 					ExecutablePath: func() (string, error) {
-						return "/usr/local/lib/node_modules/@compozy/agh/bin/agh", nil
+						return "/usr/local/lib/node_modules/@compozy/cli/bin/compozy", nil
 					},
 				},
 				want: string(InstallMethodNPM),
@@ -37,7 +37,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				name: "Should detect Windows NPM installs from the executable path",
 				cfg: Config{
 					ExecutablePath: func() (string, error) {
-						return "C:\\Users\\pedro\\AppData\\Roaming\\npm\\node_modules\\@compozy\\agh\\bin\\agh.exe", nil
+						return "C:\\Users\\pedro\\AppData\\Roaming\\npm\\node_modules\\@compozy\\cli\\bin\\compozy.exe", nil
 					},
 				},
 				want: string(InstallMethodNPM),
@@ -46,7 +46,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				name: "Should detect Scoop installs from the executable path",
 				cfg: Config{
 					ExecutablePath: func() (string, error) {
-						return "C:\\Users\\pedro\\scoop\\apps\\agh\\current\\agh.exe", nil
+						return "C:\\Users\\pedro\\scoop\\apps\\compozy\\current\\compozy.exe", nil
 					},
 				},
 				want: string(InstallMethodScoop),
@@ -56,7 +56,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				cfg: Config{
 					RuntimeOS: runtimeOSLinux,
 					ExecutablePath: func() (string, error) {
-						return "/usr/bin/agh", nil
+						return "/usr/bin/compozy", nil
 					},
 					LookPath: func(name string) (string, error) {
 						if name == "dpkg" {
@@ -66,7 +66,7 @@ func TestDetectInstallMethods(t *testing.T) {
 					},
 					RunCommand: func(_ context.Context, name string, _ ...string) (string, error) {
 						if name == "dpkg" {
-							return "agh: /usr/bin/agh", nil
+							return "compozy: /usr/bin/compozy", nil
 						}
 						return "", errors.New("unexpected command")
 					},
@@ -78,7 +78,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				cfg: Config{
 					RuntimeOS: runtimeOSLinux,
 					ExecutablePath: func() (string, error) {
-						return "/usr/bin/agh", nil
+						return "/usr/bin/compozy", nil
 					},
 					LookPath: func(name string) (string, error) {
 						switch name {
@@ -92,7 +92,7 @@ func TestDetectInstallMethods(t *testing.T) {
 					},
 					RunCommand: func(_ context.Context, name string, _ ...string) (string, error) {
 						if name == "rpm" {
-							return "agh", nil
+							return "compozy", nil
 						}
 						return "", errors.New("unexpected command")
 					},
@@ -104,7 +104,7 @@ func TestDetectInstallMethods(t *testing.T) {
 				cfg: Config{
 					RuntimeOS: runtimeOSLinux,
 					ExecutablePath: func() (string, error) {
-						return "/usr/bin/agh", nil
+						return "/usr/bin/compozy", nil
 					},
 					LookPath: func(name string) (string, error) {
 						if name == "rpm" {
@@ -114,7 +114,7 @@ func TestDetectInstallMethods(t *testing.T) {
 					},
 					RunCommand: func(_ context.Context, name string, _ ...string) (string, error) {
 						if name == "rpm" {
-							return "agh", nil
+							return "compozy", nil
 						}
 						return "", errors.New("unexpected command")
 					},

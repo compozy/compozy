@@ -17,7 +17,7 @@ func TestReadWriteCacheRoundTrip(t *testing.T) {
 			t,
 			nil,
 			"v1.2.3",
-			"https://github.com/compozy/agh/releases/tag/v1.2.3",
+			"https://github.com/compozy/compozy/releases/tag/v1.2.3",
 			now,
 		)
 

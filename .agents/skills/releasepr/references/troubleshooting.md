@@ -24,6 +24,10 @@ Match the exact error or symptom to a row before proposing a fix.
 | `git cliff: command not found` / changelog or version step fails | `git-cliff` not installed in the runner. | Install git-cliff before invoking pr-release (binary, `taiki-e/install-action`, pipx, or bun/npm). See `setup.md`. |
 | `release_artifacts` command cannot see version/branch values | Script reads the wrong variable names. | Use the injected `PR_RELEASE_*` vars (`PR_RELEASE_VERSION`, `PR_RELEASE_BRANCH`, etc.). See `configuration.md`. |
 | `go run` in CI fails with temp-dir/permission errors | Restricted default `TMPDIR` on the runner. | Point a writable temp dir, e.g. set `GOTMPDIR` to `${{ runner.temp }}/go-tmp` (created beforehand). |
+| `release version must not start with v` | `plan --version` received a Git tag instead of an unprefixed version. | Pass `0.3.0-beta.1`, not `v0.3.0-beta.1`; consume the emitted `release_tag` for tag operations. |
+| `release ref ... does not match HEAD` | The supplied ref resolves to a different commit than the checkout. | Checkout the exact dispatch ref before running `plan`; do not replace the ref with the current branch name. |
+| `release tag ... already exists` | The derived tag exists locally or on `origin`. | Choose the intended next version or stop the duplicate release; never overwrite the existing tag. |
+| `beta channel requires...` / `stable channel requires...` | The SemVer prerelease shape conflicts with the explicit channel. | Use a `-beta...` prerelease only with `beta`; use a version without prerelease data for `stable` or `legacy`. |
 
 If the error is not listed, re-read `configuration.md` (validation) and
 `release-workflow.md` (trigger rules) before guessing — most failures are a

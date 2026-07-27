@@ -18,16 +18,21 @@ const launchPostPath = resolve(
 );
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
 const readmePath = resolve(siteRoot, "../../README.md");
+const releaseHeaderPath = resolve(siteRoot, "../../.goreleaser.release-header.md.tmpl");
+const releaseFooterPath = resolve(siteRoot, "../../.goreleaser.release-footer.md.tmpl");
+const cliffPath = resolve(siteRoot, "../../cliff.toml");
 
-const homebrewInstallCommand = "brew install compozy/compozy/agh";
-const npmInstallCommand = "npm install -g @compozy/agh";
-const goInstallCommand = "go install github.com/compozy/compozy@latest";
+const betaVersion = "v0.3.0-beta.1";
+const npmInstallCommand = "npm install -g @compozy/cli@beta";
+const goInstallCommand = `go install github.com/compozy/compozy@${betaVersion}`;
 const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";
 const sourceInstallCommand = "go build -o ./bin/compozy .";
 const workspaceAddCommand = 'compozy workspace add "$PWD" --name current';
 const firstSessionCommand = "compozy session new --workspace current --agent general";
 const retiredPackageInstallCommands = [
   "brew install --cask pedronauck/agh/agh",
+  "brew install compozy/compozy/compozy",
+  "brew install compozy/compozy/agh",
   "pedronauck/agh/agh",
   "homebrew-agh",
 ];
@@ -68,8 +73,7 @@ const installerReleaseGuaranteeSnippets = [
   "shasum -a 256 -c - >/dev/null",
 ];
 const installerCriticalErrorSnippets = [
-  "failed to resolve latest release",
-  "latest release resolved to unexpected ref:",
+  "release version must be an explicit v-prefixed tag",
   "unsupported operating system:",
   "unsupported architecture:",
   "unsupported cosign verifier platform:",
@@ -78,11 +82,11 @@ const installerCriticalErrorSnippets = [
   "checksum mismatch",
   "sha256sum or shasum is required to verify the download",
   "checksums.txt does not include",
-  "archive did not contain an agh binary",
+  "archive did not contain a compozy binary",
   "warning: ${INSTALL_DIR} is not on PATH",
   "add it to PATH or run ${TARGET} directly",
   "no interactive terminal detected; run this next:",
-  "agh install",
+  "compozy install",
 ];
 const ttyPermissionProbePattern =
   /\[\s*-[rwe]\s+["']?\/dev\/tty["']?\s*\]|\btest\s+-[rwe]\s+["']?\/dev\/tty["']?/;
@@ -97,7 +101,7 @@ function readSiteFile(path: string): string {
 }
 
 function runInstallScript(args: string[]) {
-  const installDir = mkdtempSync(resolve(tmpdir(), "agh-install-contract-"));
+  const installDir = mkdtempSync(resolve(tmpdir(), "compozy-install-contract-"));
   return spawnSync("sh", [installScriptPath, ...args, "--dir", installDir], {
     cwd: siteRoot,
     encoding: "utf8",
@@ -119,7 +123,7 @@ function currentInstallPlatform() {
   const digestKey = (os + "/" + process.arch) as keyof typeof cosignDigests;
 
   return {
-    archiveName: "agh_" + os + "_" + archiveArch + ".tar.gz",
+    archiveName: "compozy_" + os + "_" + archiveArch + ".tar.gz",
     cosignName: "cosign-" + os + "-" + cosignArch,
     cosignDigest: cosignDigests[digestKey],
   };
@@ -132,7 +136,7 @@ function sha256(data: Buffer | string): string {
 function createFixtureArchive(root: string): Buffer {
   const sourceDir = join(root, "archive-src");
   mkdirSync(sourceDir, { recursive: true });
-  const binaryPath = join(sourceDir, "agh");
+  const binaryPath = join(sourceDir, "compozy");
   writeFileSync(
     binaryPath,
     '#!/bin/sh\nif [ "${1:-}" = "version" ]; then exit 0; fi\nexit 0\n',
@@ -140,8 +144,8 @@ function createFixtureArchive(root: string): Buffer {
   );
   chmodSync(binaryPath, 0o755);
 
-  const archivePath = join(root, "agh.tar.gz");
-  const result = spawnSync("tar", ["-czf", archivePath, "-C", sourceDir, "agh"], {
+  const archivePath = join(root, "compozy.tar.gz");
+  const result = spawnSync("tar", ["-czf", archivePath, "-C", sourceDir, "compozy"], {
     encoding: "utf8",
   });
   if (result.status !== 0) {
@@ -269,7 +273,7 @@ describe("public install contract", () => {
     const extractIndex = script.indexOf('tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"');
 
     expect(script.startsWith("#!/bin/sh\nset -eu\n")).toBe(true);
-    expect(script).toContain('RELEASE_REPO="compozy/agh"');
+    expect(script).toContain('RELEASE_REPO="compozy/compozy"');
     expect(script).not.toContain("COMPOZY_RELEASE_REPO");
     expect(script).toContain('BASE_URL="https://github.com/${RELEASE_REPO}/releases');
     expect(script).not.toContain("http://");
@@ -281,14 +285,15 @@ describe("public install contract", () => {
     expect(script).toContain("if command -v cosign >/dev/null 2>&1; then");
     expect(script).toContain('BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"');
     expect(script).toContain(
-      "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/heads/main$'"
+      "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/compozy/\\.github/workflows/release\\.yml@refs/heads/main$'"
     );
+    expect(script).toContain('VERSION="${COMPOZY_VERSION:-v0.3.0-beta.1}"');
     expect(script).toContain("v[0-9][A-Za-z0-9._-]*)");
     expect(script).toContain(
       'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
     );
-    expect(script).toContain("resolve_latest_release_tag()");
-    expect(script).toContain('VERSION="$(resolve_latest_release_tag)"');
+    expect(script).not.toContain("resolve_latest_release_tag()");
+    expect(script).not.toContain("releases/latest");
     expect(script).toContain('"$COSIGN_BIN" verify-blob "$CHECKSUM_PATH"');
     expect(script).toContain('--bundle "$BUNDLE_PATH"');
     expect(script).toContain('--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"');
@@ -297,7 +302,7 @@ describe("public install contract", () => {
     expect(script).toContain('CHECKSUM_CMD="shasum"');
     expect(script).toContain("shasum -a 256 -c - >/dev/null");
     expect(script).toContain("trap cleanup EXIT INT TERM");
-    expect(script).toContain('TMP_TARGET="${INSTALL_DIR}/.agh.tmp.$$"');
+    expect(script).toContain('TMP_TARGET="${INSTALL_DIR}/.compozy.tmp.$$"');
     expect(script).toContain('chmod 0755 "$TMP_TARGET"');
     expect(script).toContain('mv "$TMP_TARGET" "$TARGET"');
     expect(script).toContain('"$TARGET" version >/dev/null');
@@ -325,10 +330,10 @@ describe("public install contract", () => {
     }
 
     expect(dryRun.status).toBe(0);
-    expect(dryRun.stdout).toContain("AGH installer");
-    expect(dryRun.stdout).toContain("release: compozy/agh v0.1.0");
+    expect(dryRun.stdout).toContain("Compozy installer");
+    expect(dryRun.stdout).toContain("release: compozy/compozy v0.1.0");
     expect(dryRun.stdout).toContain(
-      "archive: https://github.com/compozy/agh/releases/download/v0.1.0/"
+      "archive: https://github.com/compozy/compozy/releases/download/v0.1.0/"
     );
     expect(dryRun.stdout).toContain("bootstrap: skipped");
     expect(dryRun.stdout).toContain("dry run complete");
@@ -347,7 +352,7 @@ describe("public install contract", () => {
     for (const snippet of installerCriticalErrorSnippets) {
       expect(script, snippet).toContain(snippet);
     }
-    expect(script).toContain("printf 'agh installer: %s\\n' \"$*\" >&2");
+    expect(script).toContain("printf 'compozy installer: %s\\n' \"$*\" >&2");
     expect(script).toContain('curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"');
     expect(script).toContain('curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"');
     expect(script).toContain('curl -fsSL "$BUNDLE_URL" -o "$BUNDLE_PATH"');
@@ -357,11 +362,11 @@ describe("public install contract", () => {
     expect(script).toContain(
       'printf \'%s\\n\' "$CHECKSUM_LINE" | (cd "$TMP_DIR" && shasum -a 256 -c - >/dev/null)'
     );
-    expect(script).toContain('log "next: agh install"');
+    expect(script).toContain('log "next: compozy install"');
   });
 
   it("bootstraps a pinned temporary cosign verifier when none is on PATH", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "agh-install-cosign-bootstrap-"));
+    const root = mkdtempSync(resolve(tmpdir(), "compozy-install-cosign-bootstrap-"));
     try {
       const platform = currentInstallPlatform();
       const installDir = join(root, "bin");
@@ -410,7 +415,7 @@ describe("public install contract", () => {
         expect(result.status, result.stderr || result.stdout).toBe(0);
         expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
         expect(readFileSync(cosignArgsPath, "utf8")).toContain("verify-blob");
-        expect(readFileSync(join(installDir, "agh"), "utf8")).toContain('"${1:-}" = "version"');
+        expect(readFileSync(join(installDir, "compozy"), "utf8")).toContain('"${1:-}" = "version"');
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -457,13 +462,13 @@ describe("public install contract", () => {
     expect(headers).toContain("Content-Security-Policy:");
   });
 
-  it("keeps README, landing, docs, and launch post aligned on install commands", () => {
+  it("keeps README, landing, docs, and launch post aligned on beta install commands", () => {
     const readme = readSiteFile(readmePath);
     const installPage = readSiteFile(installPagePath);
     const landingInstall = readSiteFile(landingInstallPath);
     const launchPost = readSiteFile(launchPostPath);
 
-    for (const command of [homebrewInstallCommand, npmInstallCommand, goInstallCommand]) {
+    for (const command of [npmInstallCommand, goInstallCommand]) {
       const missingPrimaryCommand = [
         readmePath,
         landingInstallPath,
@@ -498,5 +503,23 @@ describe("public install contract", () => {
     }
     expect(installPage).toContain("pinned temporary cosign verifier");
     expect(installPage).toContain("checksums.txt.sigstore.json");
+  });
+
+  it("keeps release collateral on the Compozy beta identity", () => {
+    const readme = readSiteFile(readmePath);
+    const header = readSiteFile(releaseHeaderPath);
+    const footer = readSiteFile(releaseFooterPath);
+    const cliff = readSiteFile(cliffPath);
+
+    for (const content of [readme, header]) {
+      expect(content).toContain(npmInstallCommand);
+      expect(content).toContain("go install github.com/compozy/compozy@");
+      expect(content).toContain(verifiedInstallerCommand);
+      expect(content).not.toContain("brew install");
+    }
+    expect(footer).toContain("github\\.com/compozy/compozy/");
+    expect(footer).not.toContain("github\\.com/compozy/agh/");
+    expect(cliff).toContain("github.com/compozy/compozy/compare/");
+    expect(cliff).not.toContain("github.com/compozy/agh/");
   });
 });

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
-	aghupdate "github.com/compozy/compozy/internal/update"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +58,7 @@ type lifecycleRecord struct {
 func detectManagedState(deps commandDeps) managedState {
 	manager := ""
 	if deps.getenv != nil {
-		manager = strings.TrimSpace(deps.getenv(aghupdate.ManagedEnvName))
+		manager = strings.TrimSpace(deps.getenv(compozyupdate.ManagedEnvName))
 	}
 	return managedState{
 		Managed: manager != "",
@@ -89,33 +89,33 @@ func managedRecommendation(manager string, action string) string {
 	switch {
 	case strings.Contains(normalizedManager, "brew") || strings.Contains(normalizedManager, "homebrew"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `brew uninstall compozy/compozy/agh`."
+			return "Use `brew uninstall compozy/compozy/compozy`."
 		}
-		return "Use `brew upgrade compozy/compozy/agh`."
+		return "Use `brew upgrade compozy/compozy/compozy`."
 	case strings.Contains(normalizedManager, "npm") ||
 		strings.Contains(normalizedManager, "node") ||
 		strings.Contains(normalizedManager, "nodejs"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `npm uninstall -g @compozy/agh`."
+			return "Use `npm uninstall -g @compozy/cli`."
 		}
-		return "Use `npm update -g @compozy/agh`."
+		return "Use `npm install -g @compozy/cli@beta`."
 	case strings.Contains(normalizedManager, "scoop"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `scoop uninstall agh`."
+			return "Use `scoop uninstall compozy`."
 		}
-		return "Use `scoop update agh`."
+		return "Use `scoop update compozy`."
 	case strings.Contains(normalizedManager, "nix"):
 		return "Update or remove Compozy through your Nix configuration and run `nixos-rebuild switch`."
 	case strings.Contains(normalizedManager, "apt"), strings.Contains(normalizedManager, "deb"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `sudo apt remove agh` or the package name used to install Compozy."
+			return "Use `sudo apt remove compozy` or the package name used to install Compozy."
 		}
-		return "Use `sudo apt update && sudo apt upgrade agh` or the package name used to install Compozy."
+		return "Use `sudo apt update && sudo apt upgrade compozy` or the package name used to install Compozy."
 	case strings.Contains(normalizedManager, "dnf"), strings.Contains(normalizedManager, "rpm"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `sudo dnf remove agh` or the package name used to install Compozy."
+			return "Use `sudo dnf remove compozy` or the package name used to install Compozy."
 		}
-		return "Use `sudo dnf upgrade agh` or the package name used to install Compozy."
+		return "Use `sudo dnf upgrade compozy` or the package name used to install Compozy."
 	default:
 		return "Use the package manager that set COMPOZY_MANAGED instead of mutating this install directly."
 	}
@@ -213,7 +213,7 @@ func stopDaemonForUninstall(ctx context.Context, deps commandDeps, runtime *runt
 	return true, nil
 }
 
-func removeRuntimeArtifacts(homePaths aghconfig.HomePaths) ([]string, error) {
+func removeRuntimeArtifacts(homePaths compozyconfig.HomePaths) ([]string, error) {
 	candidates := []string{
 		homePaths.DaemonSocket,
 		homePaths.DaemonLock,
@@ -304,7 +304,7 @@ func lifecycleBundle(title string, record lifecycleRecord) outputBundle {
 	}
 }
 
-func ensureWriteTargetParent(target aghconfig.WriteTarget) error {
+func ensureWriteTargetParent(target compozyconfig.WriteTarget) error {
 	path := strings.TrimSpace(target.Path())
 	if path == "" {
 		return errors.New("cli: config write target path is required")

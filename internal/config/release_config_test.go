@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -86,7 +87,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			t.Fatalf("archives len = %d, want 1", len(archives))
 		}
 		archive := asMap(t, archives[0], "archives[0]")
-		if got, want := stringAt(t, archive, "id"), "agh-archive"; got != want {
+		if got, want := stringAt(t, archive, "id"), "compozy-archive"; got != want {
 			t.Fatalf("archives[0].id = %q, want %q", got, want)
 		}
 		nameTemplate := stringAt(t, archive, "name_template")
@@ -108,7 +109,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		if got, want := stringAt(t, github, "owner"), "compozy"; got != want {
 			t.Fatalf("release.github.owner = %q, want %q", got, want)
 		}
-		if got, want := stringAt(t, github, "name"), "agh"; got != want {
+		if got, want := stringAt(t, github, "name"), "compozy"; got != want {
 			t.Fatalf("release.github.name = %q, want %q", got, want)
 		}
 
@@ -116,44 +117,29 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		assertReleaseExtraFile(t, extraFiles, "./packages/site/public/install.sh", "install.sh")
 	})
 
-	t.Run("Should configure Homebrew formula and Linux package targets", func(t *testing.T) {
+	t.Run("Should keep Homebrew publishing outside deprecated GoReleaser targets", func(t *testing.T) {
+		t.Parallel()
+
 		if _, ok := cfg["homebrew_casks"]; ok {
-			t.Fatal("homebrew_casks configured, want Homebrew formula via brews")
+			t.Fatal("homebrew_casks configured, want the existing Formula/compozy.rb channel")
 		}
-		brews := sliceAt(t, cfg, "brews")
-		if len(brews) != 1 {
-			t.Fatalf("brews len = %d, want 1", len(brews))
+		if _, ok := cfg["brews"]; ok {
+			t.Fatal("brews configured, want no deprecated GoReleaser Homebrew publisher")
 		}
-		formula := asMap(t, brews[0], "brews[0]")
-		if got, want := stringAt(t, formula, "name"), "agh"; got != want {
-			t.Fatalf("brews[0].name = %q, want %q", got, want)
-		}
-		if !stringSliceContains(sliceAt(t, formula, "ids"), "agh-archive") {
-			t.Fatalf("brews[0].ids = %#v, want agh-archive", formula["ids"])
-		}
-		if got, want := stringAt(t, formula, "directory"), "Formula"; got != want {
-			t.Fatalf("brews[0].directory = %q, want %q", got, want)
-		}
-		repository := mapAt(t, formula, "repository")
-		if got, want := stringAt(t, repository, "owner"), "compozy"; got != want {
-			t.Fatalf("brews[0].repository.owner = %q, want %q", got, want)
-		}
-		if got, want := stringAt(t, repository, "name"), "homebrew-compozy"; got != want {
-			t.Fatalf("brews[0].repository.name = %q, want %q", got, want)
-		}
-		if _, ok := formula["binaries"]; ok {
-			t.Fatal("brews[0].binaries configured, want formula archive install semantics")
-		}
+	})
+
+	t.Run("Should configure Linux package targets", func(t *testing.T) {
+		t.Parallel()
 
 		nfpms := sliceAt(t, cfg, "nfpms")
 		if len(nfpms) != 1 {
 			t.Fatalf("nfpms len = %d, want 1", len(nfpms))
 		}
 		nfpm := asMap(t, nfpms[0], "nfpms[0]")
-		if got, want := stringAt(t, nfpm, "id"), "agh-linux-packages"; got != want {
+		if got, want := stringAt(t, nfpm, "id"), "compozy-linux-packages"; got != want {
 			t.Fatalf("nfpms[0].id = %q, want %q", got, want)
 		}
-		if !stringSliceContains(sliceAt(t, nfpm, "ids"), "agh") {
+		if !stringSliceContains(sliceAt(t, nfpm, "ids"), "compozy") {
 			t.Fatalf("nfpms[0].ids = %#v, want compozy build id", nfpm["ids"])
 		}
 		formats := sliceAt(t, nfpm, "formats")
@@ -170,9 +156,9 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			t.Fatalf("npms len = %d, want 1", len(npms))
 		}
 		npm := asMap(t, npms[0], "npms[0]")
-		assertEqualString(t, "npms[0].name", stringAt(t, npm, "name"), "@compozy/agh")
-		if !stringSliceContains(sliceAt(t, npm, "ids"), "agh-archive") {
-			t.Fatalf("npms[0].ids = %#v, want agh-archive", npm["ids"])
+		assertEqualString(t, "npms[0].name", stringAt(t, npm, "name"), "@compozy/cli")
+		if !stringSliceContains(sliceAt(t, npm, "ids"), "compozy-archive") {
+			t.Fatalf("npms[0].ids = %#v, want compozy-archive", npm["ids"])
 		}
 		assertEqualString(t, "npms[0].access", stringAt(t, npm, "access"), "public")
 		assertEqualString(t, "npms[0].format", stringAt(t, npm, "format"), "tar.gz")
@@ -180,10 +166,82 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			t,
 			"npms[0].repository",
 			stringAt(t, npm, "repository"),
-			"git+https://github.com/compozy/agh.git",
+			"git+https://github.com/compozy/compozy.git",
 		)
 		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://compozy.com")
+		assertEqualString(t, "npms[0].tag", stringAt(t, npm, "tag"), "{{ .Env.NPM_TAG }}")
 	})
+
+	t.Run("Should consume planner publication policy without an AUR target", func(t *testing.T) {
+		t.Parallel()
+
+		release := mapAt(t, cfg, "release")
+		assertEqualString(
+			t,
+			"release.prerelease",
+			stringAt(t, release, "prerelease"),
+			"{{ .Env.GITHUB_PRERELEASE }}",
+		)
+		assertEqualString(
+			t,
+			"release.make_latest",
+			stringAt(t, release, "make_latest"),
+			"{{ .Env.GITHUB_MAKE_LATEST }}",
+		)
+		assertEqualString(
+			t,
+			"release.name_template",
+			stringAt(t, release, "name_template"),
+			"CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}",
+		)
+		for _, key := range []string{"aurs", "aursources"} {
+			if _, ok := cfg[key]; ok {
+				t.Fatalf("%s configured, want no active AUR publisher", key)
+			}
+		}
+	})
+}
+
+func TestHomebrewFormulaRendererPreservesLegacyFormulaIdentity(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	checksumsPath := filepath.Join(t.TempDir(), "checksums.txt")
+	checksums := strings.Join([]string{
+		strings.Repeat("1", 64) + "  compozy_darwin_x86_64.tar.gz",
+		strings.Repeat("2", 64) + "  compozy_darwin_arm64.tar.gz",
+		strings.Repeat("3", 64) + "  compozy_linux_x86_64.tar.gz",
+		strings.Repeat("4", 64) + "  compozy_linux_arm64.tar.gz",
+	}, "\n") + "\n"
+	if err := os.WriteFile(checksumsPath, []byte(checksums), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(checksums) error = %v", err)
+	}
+	formulaPath := filepath.Join(t.TempDir(), "Formula", "compozy.rb")
+	cmd := exec.CommandContext(
+		t.Context(),
+		"bash",
+		filepath.Join(root, "scripts", "render-homebrew-formula.sh"),
+		"--release-repo", "compozy/compozy",
+		"--release-version", "9.9.9",
+		"--release-tag", "v9.9.9",
+		"--checksums", checksumsPath,
+		"--output", formulaPath,
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("render-homebrew-formula.sh error = %v, output = %s", err, output)
+	}
+	formula := readTextFile(t, "", formulaPath)
+	for _, snippet := range []string{
+		"class Compozy < Formula",
+		`version "9.9.9"`,
+		`license "MIT"`,
+		"https://github.com/compozy/compozy/releases/download/v9.9.9/compozy_darwin_arm64.tar.gz",
+		"https://github.com/compozy/compozy/releases/download/v9.9.9/compozy_linux_x86_64.tar.gz",
+		`bin.install "compozy"`,
+		`system "#{bin}/compozy", "version"`,
+	} {
+		assertContainsText(t, "Homebrew formula", formula, snippet)
+	}
 }
 
 func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
@@ -194,12 +252,12 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	installScript := readTextFile(t, root, filepath.Join("packages", "site", "public", "install.sh"))
 
 	projectName := stringAt(t, goreleaser, "project_name")
-	assertEqualString(t, "goreleaser project_name", projectName, "agh")
+	assertEqualString(t, "goreleaser project_name", projectName, "compozy")
 	build := firstMapAt(t, goreleaser, "builds")
 	buildID := stringAt(t, build, "id")
-	assertEqualString(t, "build id", buildID, "agh")
-	assertEqualString(t, "build binary", stringAt(t, build, "binary"), "agh")
-	assertEqualString(t, "build main", stringAt(t, build, "main"), "./cmd/compozy")
+	assertEqualString(t, "build id", buildID, "compozy")
+	assertEqualString(t, "build binary", stringAt(t, build, "binary"), "compozy")
+	assertEqualString(t, "build main", stringAt(t, build, "main"), ".")
 	ldflags := strings.Join(stringsFromSlice(t, sliceAt(t, build, "ldflags"), "builds[0].ldflags"), "\n")
 	assertContainsText(
 		t,
@@ -224,7 +282,7 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 			t.Fatalf("archives[0].name_template = %q, want fragment %q", nameTemplate, fragment)
 		}
 	}
-	if !strings.Contains(installScript, `ARCHIVE_NAME="agh_${OS}_${ARCH}.tar.gz"`) {
+	if !strings.Contains(installScript, `ARCHIVE_NAME="compozy_${OS}_${ARCH}.tar.gz"`) {
 		t.Fatalf("install.sh archive naming must stay aligned with GoReleaser template")
 	}
 
@@ -246,9 +304,17 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	releaseRepo := shellAssignment(t, installScript, "RELEASE_REPO")
 	goreleaserRepo := stringAt(t, github, "owner") + "/" + stringAt(t, github, "name")
 	assertEqualString(t, "installer RELEASE_REPO", releaseRepo, goreleaserRepo)
-	if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/agh"`) {
+	if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/compozy"`) {
 		t.Fatalf("install.sh must install the same binary name GoReleaser builds")
 	}
+	assertEqualString(
+		t,
+		"installer beta default",
+		shellAssignment(t, installScript, "VERSION"),
+		"${COMPOZY_VERSION:-v0.3.0-beta.1}",
+	)
+	assertNotContainsText(t, "installer", installScript, "resolve_latest_release_tag")
+	assertNotContainsText(t, "installer", installScript, "releases/latest")
 }
 
 func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
@@ -262,14 +328,14 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 		t.Parallel()
 
 		for _, snippet := range []string{
-			"brew install compozy/compozy/agh",
-			"npm install -g @compozy/agh",
+			"npm install -g @compozy/cli@beta",
 			"go install github.com/compozy/compozy@{{ .Tag }}",
 			"curl -fsSL https://compozy.com/install.sh | sh",
 			"Verified Binary Installer",
 		} {
 			assertContainsText(t, "GoReleaser release header", header, snippet)
 		}
+		assertNotContainsText(t, "GoReleaser release header", header, "brew install")
 		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/agh")
 	})
 
@@ -287,6 +353,57 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 		assertNotContainsText(t, "GoReleaser release footer", footer, "All release artifacts are signed")
 		assertNotContainsText(t, "GoReleaser release footer", footer, "production-ready")
 	})
+}
+
+func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+
+	for _, snippet := range []string{
+		"release_ref:",
+		"release_version:",
+		"release_channel:",
+		"github.com/compozy/releasepr@v0.0.24",
+		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
+		"go run \"${PR_RELEASE_MODULE}\" plan",
+		"PR_RELEASE_LOG_LEVEL: error",
+		"scripts/release-plan-contract.sh",
+		"ref: ${{ needs.release-plan.outputs.release_ref }}",
+		"if [[ \"$(git rev-parse HEAD)\" != \"${RELEASE_COMMIT}\" ]]",
+		"git tag -a \"${RELEASE_TAG}\"",
+		"git push origin \"refs/tags/${RELEASE_TAG}\"",
+		"GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}",
+		"RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}",
+		"RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
+		"GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}",
+		"GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}",
+		"NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}",
+		"HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}",
+		"if: needs.release-plan.outputs.homebrew_skip_upload == 'false'",
+		"scripts/render-homebrew-formula.sh",
+		"repository: compozy/homebrew-compozy",
+		"--output .release-homebrew/Formula/compozy.rb",
+	} {
+		assertContainsText(t, "release workflow", workflow, snippet)
+	}
+	for _, forbidden := range []string{
+		"git cliff --bumped-version",
+		"GITHUB_HEAD_REF",
+		"RELEASE_PR_TITLE",
+		"@compozy/agh",
+		"compozy/agh",
+		"schedule:",
+		"aurs:",
+		"aursources:",
+		"secrets.COMPOZY_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN",
+	} {
+		assertNotContainsText(t, "release workflow", workflow, forbidden)
+	}
+	if got := strings.Count(workflow, `go run "${PR_RELEASE_MODULE}" plan`); got != 1 {
+		t.Fatalf("release workflow plan invocation count = %d, want 1", got)
+	}
 }
 
 func findRepoRootForReleaseConfigTest(t *testing.T) string {

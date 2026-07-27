@@ -6,7 +6,7 @@ This GitHub Release is produced by the release workflow after the release PR and
 - Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.
 - Production release: generated release assets are validated before `goreleaser release --clean` publishes the release.
 - Artifact provenance: GoReleaser signs `checksums.txt` with cosign, publishes the Sigstore bundle `checksums.txt.sigstore.json`, and generates Syft SBOMs for archives, packages, and source.
-- Installer verification: the curl installer uses local cosign when present or a pinned temporary cosign v2.2.4 verifier before checking AGH release provenance.
+- Installer verification: the curl installer uses local cosign when present or a pinned temporary cosign v2.2.4 verifier before checking Compozy release provenance.
 
 Known limitation: this release text does not claim a manual post-release install smoke or live-provider QA run unless the notes above name that evidence.
 
@@ -14,13 +14,13 @@ Known limitation: this release text does not claim a manual post-release install
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/heads/main$' \
+  --certificate-identity-regexp '^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 ```
 
 {{- if .PreviousTag }}
-**Full Changelog**: https://github.com/compozy/agh/compare/{{ .PreviousTag }}...{{ .Tag }}
+**Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
 {{- else }}
-**Source**: https://github.com/compozy/agh/tree/{{ .Tag }}
+**Source**: https://github.com/compozy/compozy/tree/{{ .Tag }}
 {{- end }}

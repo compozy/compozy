@@ -3,15 +3,15 @@
 version: 2
 pro: true
 
-project_name: agh
+project_name: compozy
 
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "MIT"
   homepage: "https://compozy.com"
-  description: "Compozy — agent operating system"
+  description: "A local-first operating system for agent work."
   maintainers:
-    - "AGH Team"
+    - "Compozy Team"
 
 env:
   - GO111MODULE=on
@@ -27,9 +27,9 @@ before:
     - go run github.com/magefile/mage@v1.17.2 webAssetsCheck
 
 builds:
-  - id: agh
-    main: ./cmd/compozy
-    binary: agh
+  - id: compozy
+    main: .
+    binary: compozy
     goos:
       - linux
       - darwin
@@ -52,9 +52,9 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: agh-archive
+  - id: compozy-archive
     ids:
-      - agh
+      - compozy
     name_template: >-
       {{ .ProjectName }}_{{ .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
@@ -66,37 +66,17 @@ archives:
         formats:
           - zip
 
-brews:
-  - name: agh
-    ids:
-      - agh-archive
-    directory: Formula
-    homepage: "https://compozy.com"
-    description: "Compozy — agent operating system"
-    license: "MIT"
-    test: |
-      system "#{bin}/agh", "version"
-    caveats: |
-      AGH is distributed through the Compozy Homebrew tap. Use `brew upgrade compozy/compozy/agh`
-      for managed updates, or set COMPOZY_MANAGED=homebrew in shell wrappers that need
-      managed lifecycle diagnostics from `agh update` and `agh uninstall`.
-    repository:
-      owner: compozy
-      name: homebrew-compozy
-      branch: main
-      token: "{{ .Env.RELEASE_TOKEN }}"
-
 nfpms:
-  - id: agh-linux-packages
-    package_name: agh
+  - id: compozy-linux-packages
+    package_name: compozy
     file_name_template: "{{ .ConventionalFileName }}"
     ids:
-      - agh
+      - compozy
     if: '{{ eq .Os "linux" }}'
-    vendor: AGH
+    vendor: Compozy
     homepage: "https://compozy.com"
-    maintainer: "AGH Team"
-    description: "Compozy — agent operating system"
+    maintainer: "Compozy Team"
+    description: "A local-first operating system for agent work."
     license: "MIT"
     bindir: /usr/bin
     section: utils
@@ -106,13 +86,14 @@ nfpms:
       - rpm
 
 npms:
-  - name: "@compozy/agh"
+  - name: "@compozy/cli"
     ids:
-      - agh-archive
-    description: "Compozy — agent operating system"
-    repository: "git+https://github.com/compozy/agh.git"
-    bugs: "https://github.com/compozy/agh/issues"
+      - compozy-archive
+    description: "A local-first operating system for agent work."
+    repository: "git+https://github.com/compozy/compozy.git"
+    bugs: "https://github.com/compozy/compozy/issues"
     access: public
+    tag: "{{ .Env.NPM_TAG }}"
     format: tar.gz
     license: "MIT"
     homepage: "https://compozy.com"
@@ -195,13 +176,13 @@ changelog:
 release:
   github:
     owner: compozy
-    name: agh
+    name: compozy
   target_commitish: "{{ .Commit }}"
-  name_template: "Release {{ .Version }}"
+  name_template: "CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}"
   mode: replace
-  replace_existing_artifacts: true
   draft: false
-  prerelease: auto
+  prerelease: "{{ .Env.GITHUB_PRERELEASE }}"
+  make_latest: "{{ .Env.GITHUB_MAKE_LATEST }}"
   extra_files:
     - glob: ./packages/site/public/install.sh
       name_template: install.sh

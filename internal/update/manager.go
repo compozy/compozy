@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// NewManager binds the update flow to the current AGH runtime.
+// NewManager binds the update flow to the current Compozy runtime.
 func NewManager(cfg Config) (*Manager, error) {
 	executablePath := cfg.ExecutablePath
 	if executablePath == nil {
@@ -48,18 +48,18 @@ func NewManager(cfg Config) (*Manager, error) {
 		runCommand = defaultRunCommand
 	}
 
-	resolvedExecutable, err := executablePath()
+	resolvedExecutable, err := resolveExecutablePath(executablePath, resolveSymlinks)
 	if err != nil {
-		return nil, fmt.Errorf("update: resolve executable path: %w", err)
+		return nil, err
 	}
-	trimmedExecutable := strings.TrimSpace(resolvedExecutable)
-	if trimmedExecutable == "" {
-		return nil, errors.New("update: executable path is required")
-	}
-	resolvedExecutable = trimmedExecutable
-	symlinkResolved, err := resolveSymlinks(resolvedExecutable)
-	if err == nil && strings.TrimSpace(symlinkResolved) != "" {
-		resolvedExecutable = strings.TrimSpace(symlinkResolved)
+
+	releaseTrack := releaseTrackStable
+	if !isDevVersion(cfg.CurrentVersion) {
+		var trackErr error
+		releaseTrack, _, trackErr = releaseTrackForVersion(cfg.CurrentVersion)
+		if trackErr != nil {
+			return nil, fmt.Errorf("update: resolve release track: %w", trackErr)
+		}
 	}
 
 	manager := &Manager{
@@ -74,6 +74,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		lookPath:       lookPath,
 		runCommand:     runCommand,
 		binaryApplier:  cfg.BinaryApplier,
+		releaseTrack:   releaseTrack,
 	}
 	if manager.runtimeOS == "" {
 		manager.runtimeOS = runtime.GOOS
@@ -90,9 +91,29 @@ func NewManager(cfg Config) (*Manager, error) {
 		manager.bundleVerifier = sigstoreBundleVerifier{cachePath: manager.sigstoreCachePath()}
 	}
 	if strings.TrimSpace(manager.homePaths.HomeDir) == "" {
-		return nil, errors.New("update: AGH home directory is required")
+		return nil, errors.New("update: Compozy home directory is required")
 	}
 	return manager, nil
+}
+
+func resolveExecutablePath(
+	executablePath func() (string, error),
+	resolveSymlinks func(string) (string, error),
+) (string, error) {
+	resolved, err := executablePath()
+	if err != nil {
+		return "", fmt.Errorf("update: resolve executable path: %w", err)
+	}
+	resolved = strings.TrimSpace(resolved)
+	if resolved == "" {
+		return "", errors.New("update: executable path is required")
+	}
+	if symlinkResolved, resolveErr := resolveSymlinks(resolved); resolveErr == nil {
+		if trimmed := strings.TrimSpace(symlinkResolved); trimmed != "" {
+			resolved = trimmed
+		}
+	}
+	return resolved, nil
 }
 
 // Check returns the current update state and the latest release metadata when available.
@@ -124,7 +145,7 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		if err != nil {
 			state := m.composeState(install, latest, checkedAt)
 			state.LastError = err.Error()
-			state.Message = "Failed to check for a newer stable AGH release."
+			state.Message = "Failed to check for a newer Compozy release on the active channel."
 			if latest != nil && opts.AllowCachedOnFailure {
 				return state, latest, nil
 			}
@@ -148,7 +169,7 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 }
 
 // ApplyRelease downloads, verifies, extracts, and swaps in the supplied release.
-func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBinary, error) {
+func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied AppliedBinary, err error) {
 	if release == nil {
 		return AppliedBinary{}, errors.New("update: release metadata is required")
 	}
@@ -162,12 +183,14 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBi
 		return AppliedBinary{}, fmt.Errorf("update: stat current executable %q: %w", m.executablePath, err)
 	}
 
-	tmpDir, err := os.MkdirTemp("", "agh-update-*")
+	tmpDir, err := os.MkdirTemp("", "compozy-update-*")
 	if err != nil {
 		return AppliedBinary{}, fmt.Errorf("update: create temp directory: %w", err)
 	}
 	defer func() {
-		_ = os.RemoveAll(tmpDir)
+		if removeErr := os.RemoveAll(tmpDir); removeErr != nil && err == nil {
+			err = fmt.Errorf("update: remove temp directory %q: %w", tmpDir, removeErr)
+		}
 	}()
 
 	downloaded, err := m.downloadReleaseArtifacts(ctx, tmpDir, assets)

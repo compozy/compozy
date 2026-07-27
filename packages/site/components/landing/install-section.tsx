@@ -7,26 +7,26 @@ import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-type TabId = "homebrew" | "npm" | "go";
+type TabId = "installer" | "npm" | "go";
 
 const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[] = [
   {
-    id: "homebrew",
-    label: "Homebrew",
-    command: "brew install compozy/compozy/agh",
-    note: "Managed updates · macOS + Linux · Compozy tap",
+    id: "installer",
+    label: "Installer",
+    command: "curl -fsSL https://compozy.com/install.sh | sh",
+    note: "Verified beta · macOS + Linux · Sigstore provenance",
   },
   {
     id: "npm",
     label: "npm",
-    command: "npm install -g @compozy/agh",
-    note: "Managed updates · Node package · downloads the CompozyOS release archive",
+    command: "npm install -g @compozy/cli@beta",
+    note: "Beta channel · Node package · managed updates",
   },
   {
     id: "go",
     label: "Go",
-    command: "go install github.com/compozy/compozy@latest",
-    note: "Requires Go · builds the current release from the public module",
+    command: "go install github.com/compozy/compozy@v0.3.0-beta.1",
+    note: "Pinned beta · requires Go · builds from the public module",
   },
 ];
 
@@ -62,7 +62,7 @@ function getPanelId(id: TabId) {
 }
 
 export function InstallSection() {
-  const [tab, setTab] = useState<TabId>("homebrew");
+  const [tab, setTab] = useState<TabId>("installer");
 
   function selectTab(next: TabId) {
     setTab(next);
@@ -102,12 +102,12 @@ export function InstallSection() {
   }
 
   return (
-    <SectionFrame background="surface" padY="lg" className="border-b border-line">
+    <SectionFrame id="install" background="surface" padY="lg" className="border-b border-line">
       <SectionHeader
         align="center"
         eyebrow="Getting started"
         title="Three commands. First session in under a minute."
-        description="macOS and Linux. Install with Homebrew, npm, or Go. The full installation guide also covers the verified binary installer, Linux packages, and source builds."
+        description="macOS and Linux. Install the beta with the verified installer, npm, or Go. Homebrew returns with the stable release."
       />
 
       <div className="mx-auto mt-10 w-full max-w-190">

@@ -1,7 +1,7 @@
 # CLI command reference
 
 The CLI is Cobra-based. Run `pr-release <command> --help` for built-in help.
-Four commands exist: `pr-release`, `dry-run`, `add-note`, `version`.
+Five commands exist: `pr-release`, `plan`, `dry-run`, `add-note`, `version`.
 
 ## `pr-release` — create or update the release PR
 
@@ -25,6 +25,38 @@ Standard CI invocation (the de-facto convention across all observed consumers):
 not "force a release with no changes" — it makes the job idempotent so re-runs
 deterministically refresh the release PR and it no-ops when nothing changed.
 
+## `plan` — prove explicit release identity
+
+Validates an operator-supplied release ref, version, and channel without
+mutating the repository or publishing. It resolves the ref and requires it to
+equal the checked-out `HEAD`, derives the Git tag exactly once, and rejects the
+plan if that tag already exists locally or on `origin`.
+
+| Flag        | Type   | Default | Behavior |
+| ----------- | ------ | ------- | -------- |
+| `--ref`     | string | required | Git ref or revision that must resolve to `HEAD`. |
+| `--version` | string | required | Strict, unprefixed SemVer such as `0.3.0-beta.1`; a leading `v` is rejected. |
+| `--channel` | string | required | One of `beta`, `stable`, or `legacy`. |
+| `--format`  | string | `json`  | `json` emits the plan object; `github` emits ordered `key=value` lines for `$GITHUB_OUTPUT`. |
+
+The channel policy is closed:
+
+| Channel  | Version shape | GitHub | npm tag | Homebrew |
+| -------- | ------------- | ------ | ------- | -------- |
+| `beta`   | `-beta...` prerelease | prerelease, not latest | `beta` | skip upload |
+| `stable` | no prerelease | stable, latest | `latest` | publish |
+| `legacy` | no prerelease | stable, latest | `latest` | publish |
+
+`legacy` identifies a downstream maintenance profile or ref; pr-release does
+not hard-code a legacy branch name. The consumer must use the emitted values
+for tag creation and publishing without re-parsing the version or inferring a
+channel.
+
+```bash
+pr-release plan --ref main --version 0.3.0-beta.1 --channel beta
+pr-release plan --ref legacy/v0.2 --version 0.2.16 --channel legacy --format github
+```
+
 ## `dry-run` — validate the release PR
 
 Runs the dry-run orchestrator (always internally `DryRun=true`): performs the
@@ -35,8 +67,9 @@ validation steps a release PR must pass, without pushing or opening anything.
 | `--ci-output` | bool | false   | Emit CI-friendly output. |
 
 This is the command the dry-run CI job runs against an open release PR. It
-reads `GITHUB_HEAD_REF` / `GITHUB_ISSUE_NUMBER` from the environment in CI to
-target the right PR.
+reads `GITHUB_ISSUE_NUMBER` in CI when a result comment should target a pull
+request. It does not infer a version or channel; an explicit-release workflow
+must run `plan` as its identity gate.
 
 `pr-release --dry-run` and the `dry-run` command are not identical:
 `pr-release --dry-run` exercises the release-PR orchestrator in no-write mode;

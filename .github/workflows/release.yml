@@ -14,6 +14,23 @@ on:
       - "release/v*"
 
   workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Git ref or revision that must resolve to the checked-out HEAD
+        required: true
+        type: string
+      release_version:
+        description: Strict unprefixed SemVer, for example 0.3.0-beta.1
+        required: true
+        type: string
+      release_channel:
+        description: Publication policy
+        required: true
+        type: choice
+        options:
+          - beta
+          - stable
+          - legacy
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -24,7 +41,7 @@ env:
   GO_VERSION: "1.26.4"
   NODE_VERSION: "22"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.23
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.24
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -46,8 +63,7 @@ jobs:
        !startsWith(github.event.head_commit.message, 'release:') &&
        !startsWith(github.event.head_commit.message, 'ci(release):') &&
        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
-       github.event.head_commit.author.name != 'github-actions[bot]') ||
-      (github.event_name == 'workflow_dispatch')
+       github.event.head_commit.author.name != 'github-actions[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -79,7 +95,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN }}
+          COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
@@ -120,39 +136,13 @@ jobs:
         with:
           install-playwright: "false"
 
-      - name: Resolve dry-run release version
-        env:
-          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          VERSION="${GITHUB_HEAD_REF#release/v}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            VERSION="$(printf '%s\n' "$RELEASE_PR_TITLE" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
-          fi
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Could not extract release version for dry-run (got: $VERSION)"
-            exit 1
-          fi
-          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: Verify npm package version availability
-        run: |
-          npm_view_output="$(mktemp)"
-          if npm view "@compozy/agh@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
-            echo "::error::@compozy/agh@${RELEASE_VERSION} is already published and npm versions are immutable"
-            exit 1
-          fi
-          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
-            echo "@compozy/agh@${RELEASE_VERSION} is not published yet"
-          else
-            cat "$npm_view_output"
-            echo "::error::Could not confirm @compozy/agh@${RELEASE_VERSION} is unpublished"
-            exit 1
-          fi
+      - name: Verify explicit release plan contract
+        run: scripts/release-plan-contract.sh "${{ env.PR_RELEASE_MODULE }}"
 
       - name: Verify npm publish authentication
         run: |
           if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is required to publish @compozy/agh"
+            echo "::error::NPM_TOKEN is required to publish @compozy/cli"
             exit 1
           fi
           npm whoami --registry=https://registry.npmjs.org
@@ -161,6 +151,7 @@ jobs:
         uses: ./.github/actions/setup-release
         with:
           goreleaser-distribution: goreleaser-pro
+          goreleaser-version: v2.17.1
           setup-docker: false
           setup-docker-login: false
           setup-qemu: false
@@ -174,7 +165,10 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_PRERELEASE: "true"
+          GITHUB_MAKE_LATEST: "false"
+          NPM_TAG: beta
+          HOMEBREW_SKIP_UPLOAD: "true"
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
@@ -284,19 +278,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 5: Production release on merge of the Release PR
+  # Job 5: Resolve the explicit release identity exactly once.
+  release-plan:
+    name: Explicit Release Plan
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      release_ref: ${{ steps.plan.outputs.release_ref }}
+      release_commit: ${{ steps.plan.outputs.release_commit }}
+      release_version: ${{ steps.plan.outputs.release_version }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      release_channel: ${{ steps.plan.outputs.release_channel }}
+      github_prerelease: ${{ steps.plan.outputs.github_prerelease }}
+      github_make_latest: ${{ steps.plan.outputs.github_make_latest }}
+      npm_tag: ${{ steps.plan.outputs.npm_tag }}
+      homebrew_skip_upload: ${{ steps.plan.outputs.homebrew_skip_upload }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Plan explicit release
+        id: plan
+        env:
+          RELEASE_REF_INPUT: ${{ inputs.release_ref }}
+          RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
+          RELEASE_CHANNEL_INPUT: ${{ inputs.release_channel }}
+          PR_RELEASE_LOG_LEVEL: error
+        run: |
+          set -euo pipefail
+          plan_output="${RUNNER_TEMP}/release-plan-output"
+          go run "${PR_RELEASE_MODULE}" plan \
+            --ref "${RELEASE_REF_INPUT}" \
+            --version "${RELEASE_VERSION_INPUT}" \
+            --channel "${RELEASE_CHANNEL_INPUT}" \
+            --format github >"${plan_output}"
+
+          expected_keys=(
+            release_ref release_commit release_version release_tag release_channel
+            github_prerelease github_make_latest npm_tag homebrew_skip_upload
+          )
+          for key in "${expected_keys[@]}"; do
+            if [[ "$(grep -c "^${key}=" "${plan_output}")" != "1" ]]; then
+              echo "::error::Planner output must contain exactly one ${key} entry"
+              exit 1
+            fi
+          done
+          if [[ "$(wc -l <"${plan_output}" | tr -d ' ')" != "9" ]]; then
+            echo "::error::Planner output must contain exactly nine authoritative entries"
+            exit 1
+          fi
+          cat "${plan_output}" >>"${GITHUB_OUTPUT}"
+
+  # Job 6: Publish only from an explicit, validated plan.
   release:
     name: Production Release
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      (startsWith(github.event.head_commit.message, 'ci(release):') ||
-       startsWith(github.event.head_commit.message, 'release:'))
+    needs: release-plan
+    if: github.event_name == 'workflow_dispatch' && needs.release-plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -322,63 +373,31 @@ jobs:
         uses: ./.github/actions/setup-release
         with:
           goreleaser-distribution: goreleaser-pro
+          goreleaser-version: v2.17.1
           setup-docker: false
           setup-docker-login: false
           setup-qemu: false
           cosign-version: "v2.2.4"
 
-      - name: Create local Git tag for release
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
-          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            :
-          else
-            echo "git-cliff did not return a valid version ($VERSION); falling back to commit message"
-            VERSION=$(git log -1 --pretty=format:"%s" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Could not extract version from any source (got: $VERSION)"
-              exit 1
-            fi
-          fi
-
-          TAG="v$VERSION"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
-            HEAD_COMMIT=$(git rev-parse HEAD)
-            if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
-              echo "::error::Existing local tag $TAG points to $TAG_COMMIT instead of $HEAD_COMMIT"
-              exit 1
-            fi
-            echo "Local tag $TAG already points to HEAD"
-          else
-            git tag -a "$TAG" -m "Release $TAG"
-            echo "Created local tag $TAG"
-          fi
-          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
-
       - name: Verify npm publish authentication
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is required to publish @compozy/agh"
+            echo "::error::NPM_TOKEN is required to publish @compozy/cli"
             exit 1
           fi
           npm whoami --registry=https://registry.npmjs.org
           npm_view_output="$(mktemp)"
-          if npm view "@compozy/agh@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
-            echo "::error::@compozy/agh@${RELEASE_VERSION} is already published and npm versions are immutable"
+          if npm view "@compozy/cli@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
+            echo "::error::@compozy/cli@${RELEASE_VERSION} is already published and npm versions are immutable"
             exit 1
           fi
           if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
-            echo "@compozy/agh@${RELEASE_VERSION} is not published yet"
+            echo "@compozy/cli@${RELEASE_VERSION} is not published yet"
           else
             cat "$npm_view_output"
-            echo "::error::Could not confirm @compozy/agh@${RELEASE_VERSION} is unpublished"
+            echo "::error::Could not confirm @compozy/cli@${RELEASE_VERSION} is unpublished"
             exit 1
           fi
 
@@ -430,15 +449,30 @@ jobs:
             echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
             exit 1
           fi
-          if ! grep -q 'name: "@compozy/agh"' .goreleaser.yml; then
-            echo "::error::.goreleaser.yml must publish the @compozy/agh npm package"
+          if ! grep -q 'name: "@compozy/cli"' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must publish the @compozy/cli npm package"
             exit 1
           fi
+
+      - name: Create and push annotated release tag
+        env:
+          RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$(git rev-parse HEAD)" != "${RELEASE_COMMIT}" ]]; then
+            echo "::error::Authoritative release ref moved after planning"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
+          git push origin "refs/tags/${RELEASE_TAG}"
 
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
-          version: ~> v2
+          version: v2.17.1
           args: >-
             release --clean
             --release-notes=RELEASE_BODY.md
@@ -450,3 +484,101 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
+          GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}
+          GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+          HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
+
+      - name: Checkout canonical formula renderer
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: .release-tools
+          sparse-checkout: scripts/render-homebrew-formula.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Checkout Homebrew tap
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: compozy/homebrew-compozy
+          ref: main
+          token: ${{ secrets.RELEASE_TOKEN }}
+          path: .release-homebrew
+
+      - name: Publish Homebrew formula
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          checksum_dir="${RUNNER_TEMP}/homebrew-release"
+          mkdir -p "${checksum_dir}"
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern checksums.txt \
+            --dir "${checksum_dir}"
+          .release-tools/scripts/render-homebrew-formula.sh \
+            --release-repo "${GITHUB_REPOSITORY}" \
+            --release-version "${RELEASE_VERSION}" \
+            --release-tag "${RELEASE_TAG}" \
+            --checksums "${checksum_dir}/checksums.txt" \
+            --output .release-homebrew/Formula/compozy.rb
+
+          git -C .release-homebrew config user.name "github-actions[bot]"
+          git -C .release-homebrew config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C .release-homebrew add Formula/compozy.rb
+          if git -C .release-homebrew diff --cached --quiet; then
+            echo "::error::Homebrew formula did not change for ${RELEASE_TAG}"
+            exit 1
+          fi
+          git -C .release-homebrew commit -m "compozy ${RELEASE_TAG}"
+          git -C .release-homebrew push origin HEAD:main
+
+      - name: Verify published channel policy
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}
+          GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: |
+          set -euo pipefail
+          echo "Verifying ${RELEASE_CHANNEL} policy for ${RELEASE_TAG}"
+          release_prerelease="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.prerelease')"
+          if [[ "${release_prerelease}" != "${GITHUB_PRERELEASE}" ]]; then
+            echo "::error::GitHub prerelease state does not match the authoritative release plan"
+            exit 1
+          fi
+
+          latest_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ "${GITHUB_MAKE_LATEST}" == "true" && "${latest_tag}" != "${RELEASE_TAG}" ]]; then
+            echo "::error::GitHub latest release does not match the authoritative release plan"
+            exit 1
+          fi
+          if [[ "${GITHUB_MAKE_LATEST}" == "false" && "${latest_tag}" == "${RELEASE_TAG}" ]]; then
+            echo "::error::Prerelease unexpectedly became the latest GitHub release"
+            exit 1
+          fi
+
+          dist_tags="$(npm view @compozy/cli dist-tags --json --registry=https://registry.npmjs.org)"
+          DIST_TAGS_JSON="${dist_tags}" node <<'NODE'
+          const tags = JSON.parse(process.env.DIST_TAGS_JSON || "{}");
+          const expectedTag = process.env.NPM_TAG;
+          const version = process.env.RELEASE_VERSION;
+          if (tags[expectedTag] !== version) {
+            throw new Error(`npm ${expectedTag} points to ${tags[expectedTag]}, want ${version}`);
+          }
+          if (expectedTag === "beta" && tags.latest === version) {
+            throw new Error("npm latest moved during a beta release");
+          }
+          NODE

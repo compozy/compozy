@@ -1,0 +1,33 @@
+name: Compozy CodeQL configuration
+
+disable-default-queries: false
+
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
+
+paths:
+  - cmd/
+  - internal/
+  - magefiles/
+  - sdk/go/
+  - main.go
+
+paths-ignore:
+  - "**/*_test.go"
+  - "**/*.pb.go"
+  - "**/*.gen.go"
+  - "**/*_generated.go"
+  - vendor/
+
+query-filters:
+  - exclude:
+      id: go/empty-block
+  - exclude:
+      id: go/unused-variable
+  - include:
+      severity: error
+  - include:
+      security-severity: high
+  - include:
+      security-severity: critical

@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -33,15 +33,15 @@ func newManagerWithExecutable(t *testing.T, cfg Config) (*Manager, string) {
 	homePaths := cfg.HomePaths
 	if strings.TrimSpace(homePaths.HomeDir) == "" {
 		var err error
-		homePaths, err = aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		homePaths, err = compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 	}
 
-	binaryName := "agh"
+	binaryName := "compozy"
 	if strings.EqualFold(cfg.RuntimeOS, runtimeOSWindows) {
-		binaryName = "agh.exe"
+		binaryName = "compozy.exe"
 	}
 	executablePath := filepath.Join(t.TempDir(), "bin", binaryName)
 	if err := os.MkdirAll(filepath.Dir(executablePath), 0o755); err != nil {
@@ -76,7 +76,7 @@ func newManagerWithExecutable(t *testing.T, cfg Config) (*Manager, string) {
 func testReleaseAssets(t testing.TB, manager *Manager) []ReleaseAsset {
 	t.Helper()
 
-	archiveName := "agh_linux_x86_64.tar.gz"
+	archiveName := "compozy_linux_x86_64.tar.gz"
 	if manager != nil {
 		resolvedArchiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
 		if err != nil {

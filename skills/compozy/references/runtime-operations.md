@@ -6,6 +6,17 @@ Compozy is a local-first daemon that starts ACP-compatible agents as managed sub
 
 Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public Compozy surfaces with structured output.
 
+## v0.3 Beta Distribution
+
+Keep beta installations on the beta line. Use the verified hosted installer,
+`npm install -g @compozy/cli@beta`, or
+`go install github.com/compozy/compozy@v0.3.0-beta.1`. A beta build's
+`compozy update` follows newer v0.3 beta releases and never offers the v0.2
+stable line. Homebrew remains on deprecated v0.2 during beta and returns with
+v0.3.0 stable; do not recommend it for a v0.3 beta install. Existing v0.2
+operators must follow the migration guide and use `legacy/v0.2` only for
+critical maintenance.
+
 ## Daemon Drain
 
 Use `compozy drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon-global new-work admission while admitted prompts and claimed runs finish. The stable response is `{"state":"draining"}`; repeated calls are no-ops. New session/prompt, task-run enqueue, retry/recover, and run-claim attempts return 503 with `daemon is draining; new work admission is closed`, while cancellation, terminal transitions, and teardown remain available.

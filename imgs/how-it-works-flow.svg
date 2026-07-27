@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100" role="img" aria-labelledby="title description">
+  <title id="title">CompozyOS local runtime map</title>
+  <desc id="description">A calm architecture diagram showing people and agents using CLI, Web, HTTP plus SSE, UDS, and native tools to operate a local Compozy daemon. The daemon owns durable sessions, tasks, loops, and memory, persists runtime state in SQLite, and exposes extension surfaces including extensions, hooks, skills, capabilities, bridges, SDKs, and MCP.</desc>
+  <defs>
+    <style>
+      .canvas { fill: #131211; }
+      .surface { fill: #1a1918; stroke: rgba(255,255,255,.055); stroke-width: 2; }
+      .elevated { fill: #232220; stroke: rgba(255,255,255,.09); stroke-width: 2; }
+      .muted-surface { fill: rgba(255,255,255,.025); stroke: rgba(255,255,255,.055); stroke-width: 2; }
+      .accent-surface { fill: rgba(232,87,42,.10); stroke: #e8572a; stroke-width: 2; }
+      .line { stroke: rgba(255,255,255,.18); stroke-width: 2; fill: none; }
+      .line-soft { stroke: rgba(255,255,255,.09); stroke-width: 2; fill: none; }
+      .line-accent { stroke: #e8572a; stroke-width: 3; fill: none; }
+      .eyebrow { fill: #9a9a9f; font: 600 17px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: 2.8px; }
+      .title { fill: #f6f6f8; font: 510 48px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -1.25px; }
+      .section { fill: #ececef; font: 600 27px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.45px; }
+      .label { fill: #ececef; font: 510 22px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.2px; }
+      .body { fill: #9a9a9f; font: 400 19px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; }
+      .mono { fill: #b8b8bd; font: 510 18px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: .1px; }
+      .mono-accent { fill: #f6874f; font: 600 18px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: .7px; }
+    </style>
+    <marker id="arrow" viewBox="0 0 12 12" refX="9.5" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#e8572a"/>
+    </marker>
+  </defs>
+
+  <rect class="canvas" width="1800" height="1100"/>
+
+  <g transform="translate(104 94)">
+    <text class="eyebrow" x="0" y="0">COMPOZYOS · LOCAL RUNTIME</text>
+    <text class="title" x="0" y="63">One daemon keeps agent work connected.</text>
+    <text class="body" x="0" y="101">People and agents operate the same durable runtime through structured surfaces.</text>
+  </g>
+
+  <path class="line-soft" d="M104 232H1696"/>
+
+  <!-- The diagram stays deliberately sparse: one input plane, one runtime plane, one durable state plane. -->
+  <g transform="translate(104 292)">
+    <rect class="surface" width="410" height="258" rx="14"/>
+    <text class="eyebrow" x="30" y="40">OPERATORS</text>
+    <text class="section" x="30" y="86">People and agents</text>
+    <text class="body" x="30" y="121">Start, inspect, guide, and resume work.</text>
+    <rect class="muted-surface" x="30" y="158" width="162" height="68" rx="8"/>
+    <text class="label" x="52" y="201">People</text>
+    <rect class="muted-surface" x="218" y="158" width="162" height="68" rx="8"/>
+    <text class="label" x="240" y="201">Agents</text>
+  </g>
+
+  <g transform="translate(634 292)">
+    <rect class="surface" width="1062" height="258" rx="14"/>
+    <text class="eyebrow" x="30" y="40">CONTROL SURFACES</text>
+    <text class="section" x="30" y="86">The same runtime, from every direction</text>
+    <g transform="translate(30 135)">
+      <rect class="muted-surface" width="160" height="64" rx="8"/>
+      <text class="mono" x="80" y="39" text-anchor="middle">CLI</text>
+      <rect class="muted-surface" x="178" width="160" height="64" rx="8"/>
+      <text class="mono" x="258" y="39" text-anchor="middle">Web</text>
+      <rect class="muted-surface" x="356" width="190" height="64" rx="8"/>
+      <text class="mono" x="451" y="39" text-anchor="middle">HTTP + SSE</text>
+      <rect class="muted-surface" x="564" width="160" height="64" rx="8"/>
+      <text class="mono" x="644" y="39" text-anchor="middle">UDS</text>
+      <rect class="muted-surface" x="742" width="290" height="64" rx="8"/>
+      <text class="mono" x="887" y="39" text-anchor="middle">Native tools</text>
+    </g>
+  </g>
+
+  <path class="line-accent" d="M514 421H600" marker-end="url(#arrow)"/>
+  <path class="line-accent" d="M1165 550V621" marker-end="url(#arrow)"/>
+
+  <g transform="translate(258 630)">
+    <rect class="accent-surface" width="1284" height="278" rx="14"/>
+    <text class="eyebrow" x="32" y="44" fill="#f6874f">COMPOZYOS DAEMON</text>
+    <text class="section" x="32" y="92">Local runtime ownership</text>
+    <text class="body" x="32" y="124">One daemon owns execution, events, permissions, and the state people and agents share.</text>
+
+    <g transform="translate(32 162)">
+      <rect class="elevated" width="274" height="82" rx="9"/>
+      <text class="label" x="24" y="35">Sessions</text>
+      <text class="body" x="24" y="61">durable agent work</text>
+
+      <rect class="elevated" x="292" width="274" height="82" rx="9"/>
+      <text class="label" x="316" y="35">Tasks</text>
+      <text class="body" x="316" y="61">owned, recoverable work</text>
+
+      <rect class="elevated" x="584" width="274" height="82" rx="9"/>
+      <text class="label" x="608" y="35">Loops</text>
+      <text class="body" x="608" y="61">repeatable coordination</text>
+
+      <rect class="elevated" x="876" width="344" height="82" rx="9"/>
+      <text class="label" x="900" y="35">Memory</text>
+      <text class="body" x="900" y="61">scoped, inspectable context</text>
+    </g>
+  </g>
+
+  <g transform="translate(104 970)">
+    <rect class="surface" width="720" height="82" rx="12"/>
+    <text class="eyebrow" x="28" y="31">DURABLE STATE</text>
+    <text class="label" x="28" y="61">SQLite runtime state</text>
+  </g>
+
+  <g transform="translate(864 970)">
+    <rect class="surface" width="832" height="82" rx="12"/>
+    <text class="eyebrow" x="28" y="31">EXTENSION SURFACES</text>
+    <text class="mono" x="28" y="61">extensions · hooks · skills · capabilities · bridges · SDKs · MCP</text>
+  </g>
+
+  <path class="line-soft" d="M464 908V970"/>
+  <path class="line-soft" d="M1200 908V970"/>
+</svg>

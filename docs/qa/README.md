@@ -25,6 +25,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | MS | Memory & settings (memory, config lifecycle, sandbox/env) |
 | LP | Loops (workflow runs, catalog, configure/fork, editor) |
 | GL | Goal (conversational convergence, controls, context, recovery) |
+| REL | Release and distribution (installers, registries, channels, provenance) |
 
 New areas: define the code here first, then mint ids.
 

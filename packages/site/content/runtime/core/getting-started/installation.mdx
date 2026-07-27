@@ -12,10 +12,11 @@ your first durable session.
 Make sure you have:
 
 - **macOS or Linux**. Compozy currently targets local-first Unix-like environments.
-- **An install method that fits your machine**. Use Homebrew, npm, or Go for managed installs.
-  The verified binary installer additionally requires `curl`, `tar`, and either `sha256sum` or
-  `shasum`. It uses a local `cosign` when available; otherwise it downloads a pinned temporary
-  cosign verifier before checking Compozy release provenance.
+- **An install method that fits your machine**. During the v0.3 beta, use the verified installer,
+  npm's `beta` channel, or the explicit Go beta version. Homebrew returns with v0.3.0 stable.
+  The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
+  a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
+  checking Compozy release provenance.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
 - **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
@@ -33,52 +34,23 @@ export OPENROUTER_API_KEY="..."
 
 ## Install the Binary
 
-### Option 1: managed install
+### Option 1: verified binary installer
 
-Use one of the managed install methods when you want updates to stay attached to the package
-manager that installed Compozy.
-
-#### Homebrew
-
-```bash
-brew install compozy/compozy/agh
-```
-
-Use this path on macOS or Linuxbrew. Make sure Homebrew's `bin` directory is on `PATH` before
-running `compozy version`.
-
-#### npm
-
-```bash
-npm install -g @compozy/agh
-```
-
-#### Go
-
-```bash
-go install github.com/compozy/compozy@latest
-```
-
-Homebrew, npm, and Go installs should be updated with the same tool that installed them.
-`compozy update --check` reports the exact command to run when it detects a managed install.
-
-### Option 2: verified binary installer
-
-Use the verified installer when you want a standalone binary install on macOS or Linux:
+Use the verified installer for a standalone beta install on macOS or Linux:
 
 ```bash
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
-The installer detects your platform, downloads a pinned temporary cosign verifier when `cosign` is
-not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
+The installer targets `v0.3.0-beta.1`, downloads a pinned temporary cosign verifier when `cosign`
+is not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
 against `checksums.txt.sigstore.json`, verifies the archive checksum, installs `compozy`, runs
 `compozy version`, and opens `compozy install` when an interactive terminal is available.
 
 Use flags when you need a pinned or scripted install:
 
 ```bash
-curl -fsSL https://compozy.com/install.sh | sh -s -- --version v0.1.0 --dir "$HOME/.local/bin"
+curl -fsSL https://compozy.com/install.sh | sh -s -- --version v0.3.0-beta.1 --dir "$HOME/.local/bin"
 curl -fsSL https://compozy.com/install.sh | sh -s -- --skip-bootstrap
 curl -fsSL https://compozy.com/install.sh | sh -s -- --dry-run
 ```
@@ -87,18 +59,34 @@ Environment variables are equivalent for automation:
 
 ```bash
 curl -fsSL https://compozy.com/install.sh |
-  COMPOZY_VERSION=v0.1.0 COMPOZY_INSTALL_DIR="$HOME/.local/bin" COMPOZY_SKIP_BOOTSTRAP=1 sh
+  COMPOZY_VERSION=v0.3.0-beta.1 COMPOZY_INSTALL_DIR="$HOME/.local/bin" COMPOZY_SKIP_BOOTSTRAP=1 sh
 ```
 
 If the target directory is not on your `PATH`, the installer prints the exact directory to add.
 
-### Option 3: Linux packages
+### Option 2: npm beta channel
+
+Use npm when you want package-manager-owned updates on the beta channel:
+
+```bash
+npm install -g @compozy/cli@beta
+```
+
+### Option 3: explicit Go beta
+
+Go's `@latest` still resolves the v0.2 stable line during beta. Pin the v0.3 prerelease:
+
+```bash
+go install github.com/compozy/compozy@v0.3.0-beta.1
+```
+
+### Option 4: Linux packages
 
 Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
 and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
 against `checksums.txt`, then install it with your distribution package manager.
 
-### Option 4: build from a repository checkout
+### Option 5: build from a repository checkout
 
 Use this when you are already working from the Compozy source tree or want a local build artifact you
 control explicitly. This path requires Go 1.25 or later.
@@ -145,13 +133,14 @@ Use `compozy config path` to inspect the exact global and workspace config files
 Use `compozy config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
 bounded repair.
 
-`compozy update` applies the latest stable release for direct-binary macOS and Linux installs. Use
-`compozy update --check` when you want a status-only check. Managed installs defer to the package
-manager and return the exact upgrade command instead of mutating files directly, such as
-`brew upgrade compozy/compozy/agh`, `npm update -g @compozy/agh`, or
-`go install github.com/compozy/compozy@latest`. Windows direct-binary installs remain manual in
-this first cut. `compozy uninstall` removes runtime launch
-artifacts idempotently and preserves `~/.compozy` unless you explicitly pass `--purge --force`.
+`compozy update` keeps a beta install on newer v0.3 prereleases and never offers the v0.2 stable
+line. Use `compozy update --check` for a status-only check. Managed installs defer to their package
+manager and return the beta-safe command instead of mutating files directly:
+`npm install -g @compozy/cli@beta`, the hosted installer, or
+`go install github.com/compozy/compozy@v0.3.0-beta.1`. Homebrew guidance returns only after the
+formula ships v0.3.0 stable. Windows direct-binary installs remain manual in this first cut.
+`compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
+you explicitly pass `--purge --force`.
 
 ## Sanity Check the Runtime Inputs
 

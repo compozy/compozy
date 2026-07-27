@@ -1,17 +1,16 @@
-## AGH {{ .Version }}
+## CompozyOS {{ .Version }}
 
-AGH is an agent operating system for running ACP-compatible coding agents as managed sessions.
+CompozyOS is a local-first agent operating system for durable ACP-compatible work.
 
 ### Installation
 
-#### Homebrew
-```bash
-brew install compozy/compozy/agh
-```
-
 #### npm
 ```bash
-npm install -g @compozy/agh
+{{- if eq .Env.NPM_TAG "beta" }}
+npm install -g @compozy/cli@beta
+{{- else }}
+npm install -g @compozy/cli@latest
+{{- end }}
 ```
 
 #### Go Install
@@ -24,9 +23,15 @@ go install github.com/compozy/compozy@{{ .Tag }}
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
-The installer downloads the release archive for macOS or Linux, uses local `cosign` when present or a
-pinned temporary verifier when absent, verifies it against `checksums.txt`, installs `agh`, and
-starts `agh install` when an interactive terminal is available.
+The installer downloads the configured v0.3 archive for macOS or Linux, uses local `cosign` when
+present or a pinned temporary verifier when absent, verifies it against `checksums.txt`, installs
+`compozy`, and starts `compozy install` when an interactive terminal is available.
 
 #### Binary Download
-Download the appropriate `agh_<os>_<arch>.tar.gz` asset for your platform and extract it.
+Download the appropriate `compozy_<os>_<arch>.tar.gz` asset for your platform and extract it.
+
+{{- if eq .Env.HOMEBREW_SKIP_UPLOAD "true" }}
+Homebrew is intentionally unavailable for this prerelease.
+{{- else }}
+Homebrew distribution is updated for this stable release.
+{{- end }}

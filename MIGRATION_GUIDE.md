@@ -232,6 +232,49 @@ loader, or hidden fallback ships in v0.3.
 The web route mapping is a semantic mapping, not a redirect promise. v0.3 intentionally ships no
 legacy route aliases.
 
+### Legacy README anchor disposition
+
+The v0.2 README accumulated inbound links from package registries, search results, and external
+articles. The v0.3 front door keeps each semantic successor at the matching heading. Removed
+pipeline-era sections have no empty heading stub; their disposition is explicit here.
+
+| v0.2 heading                  | Inbound anchor                | v0.3 disposition                                                                           |
+| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------ |
+| Highlights                    | `#-highlights`                | Preserved at README **Highlights**.                                                        |
+| Installation                  | `#-installation`              | Preserved at README **Installation**.                                                      |
+| Homebrew                      | `#homebrew`                   | **No successor during beta.** Homebrew remains on deprecated v0.2 until v0.3.0 stable.     |
+| NPM                           | `#npm`                        | Preserved at README **NPM**, now `@compozy/cli@beta`.                                      |
+| Go                            | `#go`                         | Preserved at README **Go**, with the explicit v0.3 beta version.                           |
+| From Source                   | `#from-source`                | Preserved at README **From Source**, using the root build target.                          |
+| How It Works                  | `#-how-it-works`              | Preserved at README **How It Works**.                                                      |
+| Daemon Runtime Model          | `#daemon-runtime-model`       | Preserved at the daemon-owned runtime explanation.                                         |
+| Task Schema v2                | `#task-schema-v2`             | Preserved at the task-to-Loop migration explanation.                                       |
+| Config Files                  | `#-config-files`              | Preserved at README **Config Files**.                                                      |
+| Reusable Agents               | `#reusable-agents`            | Preserved at README **Reusable Agents**.                                                   |
+| Extensions                    | `#-extensions`                | Preserved at README **Extensions**.                                                        |
+| SDK support                   | `#sdk-support`                | Preserved at the v0.3 SDK boundary.                                                        |
+| Extension CLI                 | `#extension-cli`              | Preserved at the current extension commands.                                               |
+| Learn more                    | `#learn-more`                 | Preserved at the extension documentation links.                                            |
+| Ad Hoc Exec                   | `#-ad-hoc-exec`               | **No successor.** Use explicit durable sessions; see the removed-surface ledger above.     |
+| Quick Start                   | `#-quick-start`               | Preserved at the v0.3 first-session flow.                                                  |
+| 1. Install skills             | `#1-install-skills`           | **No successor as a numbered pipeline step.** Skills are daemon-managed resources in v0.3. |
+| 2. (Optional) Create an Issue | `#2-optional-create-an-issue` | **No successor.** Issue creation is outside the v0.3 runtime quick start.                  |
+| 3. Create a PRD               | `#3-create-a-prd`             | **No successor in the README.** The retained dev-cycle skill owns this optional process.   |
+| 4. Create a TechSpec          | `#4-create-a-techspec`        | **No successor in the README.** The retained dev-cycle skill owns this optional process.   |
+| 5. Break down into tasks      | `#5-break-down-into-tasks`    | **No successor in the README.** Durable tasks are created through current task surfaces.   |
+| 6. Execute tasks              | `#6-execute-tasks`            | **No successor.** The v0.2 pipeline runner is replaced by Loops.                           |
+| 7. Review                     | `#7-review`                   | **No successor.** Provider-backed review commands were removed.                            |
+| 8. Fix review issues          | `#8-fix-review-issues`        | **No successor.** Use the bundled `review-and-fix` Loop.                                   |
+| 9. Iterate and ship           | `#9-iterate-and-ship`         | **No successor.** Shipping policy belongs to each repository.                              |
+| Skills                        | `#-skills`                    | Preserved at README **Skills**.                                                            |
+| Workflow Memory               | `#-workflow-memory`           | Preserved at the current scoped-memory explanation.                                        |
+| Supported Agents              | `#-supported-agents`          | Preserved at the runtime/provider explanation.                                             |
+| CLI Reference                 | `#-cli-reference`             | Preserved at the generated CLI reference link.                                             |
+| Development                   | `#-development`               | Preserved at README **Development**.                                                       |
+| Star History                  | `#star-history`               | Preserved at the repository widget.                                                        |
+| Contributing                  | `#-contributing`              | Preserved at README **Contributing**.                                                      |
+| License                       | `#-license`                   | Preserved at README **License**.                                                           |
+
 <a id="license"></a>
 
 ## 6. License metadata correction

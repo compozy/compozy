@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
 
-RELEASE_REPO="compozy/agh"
+RELEASE_REPO="compozy/compozy"
 COSIGN_VERSION="v2.2.4"
 COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
-COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/heads/main$'
+COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
-VERSION="${COMPOZY_VERSION:-latest}"
+VERSION="${COMPOZY_VERSION:-v0.3.0-beta.1}"
 INSTALL_DIR="${COMPOZY_INSTALL_DIR:-}"
 SKIP_BOOTSTRAP="false"
 DRY_RUN="false"
@@ -20,16 +20,16 @@ fi
 
 usage() {
   cat <<'USAGE'
-AGH installer
+Compozy installer
 
 Usage:
   curl -fsSL https://compozy.com/install.sh | sh
   curl -fsSL https://compozy.com/install.sh | sh -s -- [options]
 
 Options:
-  --version vX.Y.Z      Install a specific release tag instead of latest.
-  --dir PATH            Install agh into PATH.
-  --skip-bootstrap      Install the binary only; do not run agh install.
+  --version vX.Y.Z      Install a specific release tag instead of v0.3.0-beta.1.
+  --dir PATH            Install compozy into PATH.
+  --skip-bootstrap      Install the binary only; do not run compozy install.
   --dry-run             Print the resolved install plan without writing files.
   -h, --help            Show this help.
 
@@ -49,24 +49,8 @@ log() {
 }
 
 fail() {
-  printf 'agh installer: %s\n' "$*" >&2
+  printf 'compozy installer: %s\n' "$*" >&2
   exit 1
-}
-
-resolve_latest_release_tag() {
-  resolved_url="$(
-    curl -fsSL -o /dev/null -w '%{url_effective}' \
-      "https://github.com/${RELEASE_REPO}/releases/latest"
-  )" || fail "failed to resolve latest release"
-  resolved_tag="${resolved_url##*/}"
-  case "$resolved_tag" in
-    v[0-9][A-Za-z0-9._-]*)
-      printf '%s\n' "$resolved_tag"
-      ;;
-    *)
-      fail "latest release resolved to unexpected ref: ${resolved_url}"
-      ;;
-  esac
 }
 
 verify_file_sha256() {
@@ -145,6 +129,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+case "$VERSION" in
+  v[0-9][A-Za-z0-9._-]*) ;;
+  *) fail "release version must be an explicit v-prefixed tag" ;;
+esac
+
 case "$(uname -s)" in
   Linux)
     OS="linux"
@@ -153,7 +142,7 @@ case "$(uname -s)" in
     OS="darwin"
     ;;
   *)
-    fail "unsupported operating system: $(uname -s). AGH installer supports macOS and Linux."
+    fail "unsupported operating system: $(uname -s). Compozy installer supports macOS and Linux."
     ;;
 esac
 
@@ -165,7 +154,7 @@ case "$(uname -m)" in
     ARCH="arm64"
     ;;
   *)
-    fail "unsupported architecture: $(uname -m). AGH installer supports x86_64 and arm64."
+    fail "unsupported architecture: $(uname -m). Compozy installer supports x86_64 and arm64."
     ;;
 esac
 
@@ -191,13 +180,8 @@ case "${OS}/${ARCH}" in
     ;;
 esac
 
-ARCHIVE_NAME="agh_${OS}_${ARCH}.tar.gz"
-
-if [ "$VERSION" = "latest" ]; then
-  BASE_URL="https://github.com/${RELEASE_REPO}/releases/latest/download"
-else
-  BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"
-fi
+ARCHIVE_NAME="compozy_${OS}_${ARCH}.tar.gz"
+BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"
 
 ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
 CHECKSUM_URL="${BASE_URL}/checksums.txt"
@@ -211,9 +195,9 @@ if [ "$INSTALL_DIR" = "" ]; then
   fi
 fi
 
-TARGET="${INSTALL_DIR}/agh"
+TARGET="${INSTALL_DIR}/compozy"
 
-log "AGH installer"
+log "Compozy installer"
 log "  release: ${RELEASE_REPO} ${VERSION}"
 log "  platform: ${OS}/${ARCH}"
 log "  archive: ${ARCHIVE_URL}"
@@ -228,15 +212,6 @@ fi
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 
-if [ "$VERSION" = "latest" ]; then
-  VERSION="$(resolve_latest_release_tag)"
-  BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"
-  ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
-  CHECKSUM_URL="${BASE_URL}/checksums.txt"
-  BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"
-  log "resolved latest release to ${VERSION}"
-fi
-
 if command -v sha256sum >/dev/null 2>&1; then
   CHECKSUM_CMD="sha256sum"
 elif command -v shasum >/dev/null 2>&1; then
@@ -245,7 +220,7 @@ else
   fail "sha256sum or shasum is required to verify the download"
 fi
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agh-install.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/compozy-install.XXXXXX")"
 TMP_TARGET=""
 
 cleanup() {
@@ -288,11 +263,11 @@ fi
 mkdir -p "$EXTRACT_DIR"
 tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
 
-BIN_PATH="$(find "$EXTRACT_DIR" -type f -name agh | head -n 1)"
-[ "$BIN_PATH" != "" ] || fail "archive did not contain an agh binary"
+BIN_PATH="$(find "$EXTRACT_DIR" -type f -name compozy | head -n 1)"
+[ "$BIN_PATH" != "" ] || fail "archive did not contain a compozy binary"
 
 mkdir -p "$INSTALL_DIR"
-TMP_TARGET="${INSTALL_DIR}/.agh.tmp.$$"
+TMP_TARGET="${INSTALL_DIR}/.compozy.tmp.$$"
 cp "$BIN_PATH" "$TMP_TARGET"
 chmod 0755 "$TMP_TARGET"
 mv "$TMP_TARGET" "$TARGET"
@@ -300,7 +275,7 @@ TMP_TARGET=""
 
 log "installed ${TARGET}"
 "$TARGET" version >/dev/null
-log "verified agh version"
+log "verified compozy version"
 
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
@@ -312,14 +287,14 @@ esac
 
 if [ "$SKIP_BOOTSTRAP" = "true" ]; then
   log "bootstrap skipped"
-  log "next: agh install"
+  log "next: compozy install"
   exit 0
 fi
 
 if (: </dev/tty >/dev/tty) 2>/dev/null; then
-  log "starting agh install"
+  log "starting compozy install"
   "$TARGET" install </dev/tty >/dev/tty
 else
   log "no interactive terminal detected; run this next:"
-  log "  agh install"
+  log "  compozy install"
 fi

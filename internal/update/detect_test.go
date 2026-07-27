@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/compozy/internal/config"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {
@@ -60,7 +60,7 @@ func TestDetectInstallRecognizesGoInstallPaths(t *testing.T) {
 		goPath := filepath.Join(t.TempDir(), "gopath")
 		manager := testManager(t, Config{
 			ExecutablePath: func() (string, error) {
-				return filepath.Join(goPath, "bin", "agh"), nil
+				return filepath.Join(goPath, "bin", "compozy"), nil
 			},
 			Getenv: func(key string) string {
 				switch key {
@@ -90,7 +90,7 @@ func TestDetectInstallFallsBackToDirectBinary(t *testing.T) {
 
 		manager := testManager(t, Config{
 			ExecutablePath: func() (string, error) {
-				return "/usr/local/bin/agh", nil
+				return "/usr/local/bin/compozy", nil
 			},
 		})
 
@@ -122,7 +122,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 			},
 			RunCommand: func(context.Context, string, ...string) (string, error) {
 				runCalls++
-				return "agh: /usr/bin/agh", nil
+				return "compozy: /usr/bin/compozy", nil
 			},
 		})
 
@@ -141,7 +141,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 func testManager(t *testing.T, cfg Config) *Manager {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
@@ -150,7 +150,7 @@ func testManager(t *testing.T, cfg Config) *Manager {
 	cfg.CurrentVersion = "v1.0.0"
 	if cfg.ExecutablePath == nil {
 		cfg.ExecutablePath = func() (string, error) {
-			return filepath.Join(os.TempDir(), "agh"), nil
+			return filepath.Join(os.TempDir(), "compozy"), nil
 		}
 	}
 	if cfg.ResolveSymlinks == nil {

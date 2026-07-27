@@ -129,11 +129,11 @@ func isHomebrewPath(path string) bool {
 }
 
 func isNPMPath(path string) bool {
-	return strings.Contains(path, "/node_modules/@compozy/agh/")
+	return strings.Contains(path, "/node_modules/@compozy/cli/")
 }
 
 func isScoopPath(path string) bool {
-	return strings.Contains(path, "/scoop/apps/agh/")
+	return strings.Contains(path, "/scoop/apps/compozy/")
 }
 
 func isGoInstallPath(path string, env installEnvironment) bool {

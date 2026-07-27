@@ -370,10 +370,10 @@ describe("NetworkSection", () => {
 describe("InstallSection", () => {
   it("renders three install tabs and the three CLI steps", () => {
     render(<InstallSection />);
-    expect(screen.getByRole("tab", { name: "Homebrew" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Installer" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "npm" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "Go" })).toBeDefined();
-    expect(screen.getByText("brew install compozy/compozy/agh")).toBeDefined();
+    expect(screen.getByText("curl -fsSL https://compozy.com/install.sh | sh")).toBeDefined();
     expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
     expect(screen.getByText("Start the daemon")).toBeDefined();
     expect(screen.getByText("Launch a real session")).toBeDefined();
@@ -382,17 +382,17 @@ describe("InstallSection", () => {
   it("wires tab roles, panels, and keyboard navigation", () => {
     render(<InstallSection />);
 
-    const homebrew = screen.getByRole("tab", { name: "Homebrew" });
+    const installer = screen.getByRole("tab", { name: "Installer" });
     const npm = screen.getByRole("tab", { name: "npm" });
     const go = screen.getByRole("tab", { name: "Go" });
 
-    expect(homebrew.getAttribute("id")).toBe("install-tab-homebrew");
-    expect(homebrew.getAttribute("aria-controls")).toBe("install-panel-homebrew");
-    expect(homebrew.getAttribute("tabindex")).toBe("0");
+    expect(installer.getAttribute("id")).toBe("install-tab-installer");
+    expect(installer.getAttribute("aria-controls")).toBe("install-panel-installer");
+    expect(installer.getAttribute("tabindex")).toBe("0");
     expect(npm.getAttribute("tabindex")).toBe("-1");
     expect(go.getAttribute("tabindex")).toBe("-1");
 
-    fireEvent.keyDown(homebrew, { key: "ArrowRight" });
+    fireEvent.keyDown(installer, { key: "ArrowRight" });
 
     expect(npm.getAttribute("aria-selected")).toBe("true");
     let panel = screen.getByRole("tabpanel");
@@ -407,9 +407,9 @@ describe("InstallSection", () => {
 
     fireEvent.keyDown(go, { key: "Home" });
 
-    expect(homebrew.getAttribute("aria-selected")).toBe("true");
+    expect(installer.getAttribute("aria-selected")).toBe("true");
     panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-homebrew");
+    expect(panel.getAttribute("id")).toBe("install-panel-installer");
   });
 });
 
