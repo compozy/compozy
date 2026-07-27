@@ -16,7 +16,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const deliveryLoop = loopDetailByName.get("software-delivery")!;
-const watchLoop = loopDetailByName.get("reviews-watch")!;
+const watchLoop = loopDetailByName.get("review-and-fix")!;
 const deliveryConfig = {
   iteration_cap: 3,
   budget_on_exceeded: "escalate" as const,

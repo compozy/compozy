@@ -169,17 +169,17 @@ describe("LoopTargetFields", () => {
   it("Should filter by the authoritative start contract and preserve an incompatible edit target", () => {
     render(
       <Harness
-        initialValue={{ loop_name: "reviews-watch", inputs: {}, input_mapping: {} }}
+        initialValue={{ loop_name: "review-and-fix", inputs: {}, input_mapping: {} }}
         requiredStartKind="schedule"
       />
     );
 
     const select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveValue("reviews-watch");
+    expect(select).toHaveValue("review-and-fix");
     expect(select).toHaveTextContent("software-delivery");
-    expect(select).toHaveTextContent("reviews-watch (unavailable for schedule)");
+    expect(select).toHaveTextContent("review-and-fix (unavailable for schedule)");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "reviews-watch does not declare the schedule start kind"
+      "review-and-fix does not declare the schedule start kind"
     );
   });
 });

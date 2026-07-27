@@ -29,12 +29,23 @@ func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (jso
 	}
 	raw, err := structuredCandidate(result)
 	if err != nil {
-		return nil, reasonError(ReasonCodeActionSchemaInvalid, errors.Join(ErrActionSchemaInvalid, err), nil)
+		return nil, actionSchemaInvalidError(err)
 	}
 	if err := validateJSONSchema(schema, raw); err != nil {
-		return nil, reasonError(ReasonCodeActionSchemaInvalid, errors.Join(ErrActionSchemaInvalid, err), nil)
+		return nil, actionSchemaInvalidError(err)
 	}
 	return raw, nil
+}
+
+func actionSchemaInvalidError(err error) error {
+	return newSafeActionFailureError(
+		reasonError(ReasonCodeActionSchemaInvalid, errors.Join(ErrActionSchemaInvalid, err), nil),
+		NewActionFailure(
+			string(ReasonCodeActionSchemaInvalid),
+			"The agent output did not satisfy the action output schema.",
+			"Return one JSON object that satisfies every required output field, then retry the action.",
+		),
+	)
 }
 
 func structuredCandidate(result ActionPromptResult) (json.RawMessage, error) {

@@ -64,6 +64,7 @@ type configSeedFile struct {
 	Roles       *aghconfig.RolesConfig              `toml:"roles,omitempty"`
 	Memory      *aghconfig.MemoryConfig             `toml:"memory,omitempty"`
 	Network     *aghconfig.NetworkConfig            `toml:"network,omitempty"`
+	Tools       *aghconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *aghconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
 	Extensions  *configSeedExtensionsSection        `toml:"extensions,omitempty"`
 	Providers   map[string]aghconfig.ProviderConfig `toml:"providers,omitempty"`
@@ -176,6 +177,7 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 		Roles:   cloneRolesConfig(&cfg.Roles),
 		Memory:  cloneMemoryConfig(&cfg.Memory),
 		Network: &cfg.Network,
+		Tools:   cloneToolsConfig(&cfg.Tools),
 		Marketplace: &aghconfig.MarketplaceRuntimeConfig{
 			Catalog: cfg.Marketplace.Catalog,
 		},
@@ -222,6 +224,15 @@ func cloneRolesConfig(cfg *aghconfig.RolesConfig) *aghconfig.RolesConfig {
 
 func cloneMemoryConfig(cfg *aghconfig.MemoryConfig) *aghconfig.MemoryConfig {
 	cloned := aghconfig.CloneMemoryConfig(cfg)
+	return &cloned
+}
+
+func cloneToolsConfig(cfg *aghconfig.ToolsConfig) *aghconfig.ToolsConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	cloned.Policy.TrustedSources = append([]string(nil), cfg.Policy.TrustedSources...)
 	return &cloned
 }
 

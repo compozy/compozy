@@ -247,18 +247,23 @@ reads are scoped to the run's workspace.
 
 A Loop with a `watch-source` node is a watch Loop. It holds `watching` between ticks, defaults to
 `iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no-op`, and ends on silence past its
-window `stalled` (reason `watch_source_silence`). The default `dev-cycle` `reviews-watch` Loop is a
-watch Loop and requires `gh` to be installed and authenticated for CodeRabbit polling.
+window `stalled` (reason `watch_source_silence`). Watch sources are extension-defined; the bundled
+`dev-cycle` extension does not publish one.
 
-`reviews-watch` waits for CodeRabbit evidence on the current PR head. A ready tick requires the
-provider PR head to match local `git rev-parse HEAD`, a successful CodeRabbit commit status for that
-head, and either a current CodeRabbit review for that commit or `current_settled` evidence for the
-current head. The following `fetch_issues` step decides whether unresolved issues remain: zero issues
-ends the tick cleanly, otherwise the fixer runs. Pending status keeps the run watching; failed/error
-status blocks with the provider diagnostic; stale review commits are not treated as ready. Fetching
-review-body nitpicks is opt-in with `include_nitpicks` (default `false`). `auto_push=true` implies the
-fixer creates the local fix commit before the loop's push node runs; `auto_commit=true` does the same
-without pushing.
+## Agent-Authored Review and Fix
+
+The bundled `review-and-fix` Loop reviews a named task without a pull-request provider. Start it with
+`compozy loop run --workspace <workspace-id> --name review-and-fix --input task_name=<task>`.
+Optional `reviewer` and `fixer` inputs select agents; `auto_commit` defaults to `false`.
+
+The reviewer returns source-agnostic structured issues. `ext__dev_cycle__write_review_artifacts`
+creates the next exclusive `.compozy/tasks/<task>/reviews-NNN/` round inside the authenticated
+workspace, validates file containment, and returns complete batches of issue-file paths. The fixer
+reads each batch and changes `status: pending` only to `valid` or `invalid`; it never creates,
+renames, timestamps, or resolves an issue file. `ext__dev_cycle__finalize_review_round` alone changes
+triaged statuses to `resolved` and returns structured `{resolved, invalid, pending}` counts. The next
+generation reviews the task again; an empty `issues` array ends the run. Neither artifact tool input
+accepts a workspace root.
 
 Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
 `skip_missed`. Explicit recurring schedule policies are `skip_missed`, `coalesce`, `replay`, and

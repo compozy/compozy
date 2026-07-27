@@ -388,7 +388,7 @@ func assertDevCycleLoopCatalog(
 		}
 		return
 	}
-	for _, name := range []string{"software-delivery", "reviews-watch"} {
+	for _, name := range []string{"software-delivery", "review-and-fix"} {
 		spec, ok := found[name]
 		if !ok {
 			t.Fatalf("dev-cycle loop %q missing from catalog; found %#v", name, found)

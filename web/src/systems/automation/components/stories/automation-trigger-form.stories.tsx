@@ -163,16 +163,16 @@ export const WorkspaceLoopTarget: Story = {
   parameters: storybookMswParameters({
     loops: [
       compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
-        const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
-        if (!reviewsWatch) {
+        const reviewAndFix = loopCatalogFixtures.find(loop => loop.name === "review-and-fix");
+        if (!reviewAndFix) {
           return HttpResponse.json(
-            { error: "reviews-watch fixture is unavailable" },
+            { error: "review-and-fix fixture is unavailable" },
             { status: 500 }
           );
         }
 
         const loop = {
-          ...reviewsWatch,
+          ...reviewAndFix,
           inputs: { pr: { type: "number" as const, required: true } },
           start: [{ kind: "trigger" as const }],
         };
@@ -192,7 +192,7 @@ export const WorkspaceLoopTarget: Story = {
         loop_target: {
           input_mapping: {},
           inputs: { pr: 2 },
-          loop_name: "reviews-watch",
+          loop_name: "review-and-fix",
           network_participation: {
             mode: "live",
             channel_strategy: "named",

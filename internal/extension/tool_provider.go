@@ -200,12 +200,19 @@ func (h *extensionToolHandle) Call(ctx context.Context, req toolspkg.CallRequest
 			toolspkg.ReasonExtensionInactive,
 		)
 	}
-	return runtime.CallTool(ctx, h.extensionID(), toolspkg.ExtensionToolCallRequest{
+	callRequest := toolspkg.ExtensionToolCallRequest{
 		ToolID:    h.manifest.descriptor.Tool.ID,
 		Handler:   h.manifest.descriptor.Tool.Backend.Handler,
 		SessionID: req.SessionID,
 		Input:     cloneRawMessage(req.Input),
-	})
+	}
+	if root := strings.TrimSpace(req.TrustedWorkspaceRoot); root != "" {
+		callRequest.TrustedWorkspace = &toolspkg.ExtensionToolWorkspaceScope{
+			ID:   strings.TrimSpace(req.WorkspaceID),
+			Root: root,
+		}
+	}
+	return runtime.CallTool(ctx, h.extensionID(), callRequest)
 }
 
 func (h *extensionToolHandle) runtimeState() (ExtensionToolRuntimeState, ExtensionToolRuntime) {

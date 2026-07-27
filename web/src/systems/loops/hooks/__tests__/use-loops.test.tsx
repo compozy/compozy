@@ -71,7 +71,7 @@ describe("loop read hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.loops.map(loop => loop.name)).toEqual([
       "software-delivery",
-      "reviews-watch",
+      "review-and-fix",
     ]);
     expect(result.current.total).toBe(2);
     expect(result.current.facets).toEqual({

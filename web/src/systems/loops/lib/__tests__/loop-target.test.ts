@@ -15,8 +15,8 @@ const base: LoopTargetDraft = {
 
 describe("loop-target", () => {
   it("Should switch the target loop and reset inputs + mapping tied to the old schema", () => {
-    const next = setLoopTargetLoop(base, "reviews-watch");
-    expect(next.loop_name).toBe("reviews-watch");
+    const next = setLoopTargetLoop(base, "review-and-fix");
+    expect(next.loop_name).toBe("review-and-fix");
     expect(next.inputs).toEqual({});
     expect(next.input_mapping).toEqual({});
   });

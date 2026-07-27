@@ -35,13 +35,14 @@ Two first-party Loops ship through the default-enrolled `dev-cycle` extension:
 
 - **`software-delivery`** — Engineering · delivery. Executes already-authored tasks in dependency
   order, reviews them, remediates failures, and verifies against the project's checks.
-- **`reviews-watch`** — Engineering · watch. Watches an open change and remediates each new batch of
-  review comments until nothing is unresolved. Its cap renders `∞`.
+- **`review-and-fix`** — Engineering. Runs the configured reviewer against a named task, writes
+  each finding under `.compozy/tasks/<task>/reviews-NNN/`, and dispatches the fixer over complete
+  artifact batches. A clean review generation ends the run.
 
 The **Workspace** group stays empty until you fork a Loop. A workspace with only the two
 `dev-cycle` Loops is the honest empty state — the catalog never invents extra Loops to look fuller;
-it shows the real runs of the Loops you have. Disabling `dev-cycle` removes those two Loops, the
-default agents, provider tools, and the `coderabbit_pr_review` watch source together.
+it shows the real runs of the Loops you have. Disabling `dev-cycle` removes those two Loops, their
+default agents, and their artifact tools together.
 
 <OperatorNote label="Derived metrics">
   Success rate and run counts are a derived read model computed over real runs — they are aggregates

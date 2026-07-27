@@ -338,7 +338,7 @@ describe("loops-api (against MSW mock handlers)", () => {
 
   it("Should resolve the catalog, a definition, runs and a run detail from the fixtures", async () => {
     const loops = await listLoops(WS);
-    expect(loops.loops.map(loop => loop.name)).toEqual(["software-delivery", "reviews-watch"]);
+    expect(loops.loops.map(loop => loop.name)).toEqual(["software-delivery", "review-and-fix"]);
 
     const detail = await getLoop(WS, "software-delivery");
     expect(detail.definition.meta.name).toBe("software-delivery");

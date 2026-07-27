@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Confirmation: Story = {
   args: {
-    loopName: "reviews-watch",
+    loopName: "review-and-fix",
     isPending: false,
     error: null,
     defaultOpen: true,

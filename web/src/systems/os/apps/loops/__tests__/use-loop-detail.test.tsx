@@ -96,7 +96,7 @@ describe("useLoopDetail", () => {
 
   it("Should surface non-conflict fork failures instead of navigating silently", async () => {
     mocks.createMutateAsync.mockRejectedValue(new Error("daemon unavailable"));
-    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
 
     await act(async () => {
       await result.current.handlers.onOpenEditor();
@@ -105,13 +105,13 @@ describe("useLoopDetail", () => {
     expect(mocks.toastError).toHaveBeenCalledWith("daemon unavailable");
     expect(mocks.navigate).not.toHaveBeenCalledWith({
       to: "/loops/$name/editor",
-      params: { name: "reviews-watch" },
+      params: { name: "review-and-fix" },
     });
   });
 
   it("Should tolerate an existing workspace fork and navigate to the editor", async () => {
     mocks.createMutateAsync.mockRejectedValue(new LoopsApiError("Loop already exists", 409));
-    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
 
     await act(async () => {
       await result.current.handlers.onOpenEditor();
@@ -120,14 +120,14 @@ describe("useLoopDetail", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/loops/$name/editor",
-      params: { name: "reviews-watch" },
+      params: { name: "review-and-fix" },
     });
   });
 
   it("Should await workspace deletion before replacing detail with the catalog", async () => {
     mocks.loopSource = "workspace";
     mocks.deleteMutateAsync.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
 
     await act(async () => {
       await result.current.handlers.onDelete();
@@ -135,16 +135,16 @@ describe("useLoopDetail", () => {
 
     expect(mocks.deleteMutateAsync).toHaveBeenCalledWith({
       workspaceId: "ws_default",
-      name: "reviews-watch",
+      name: "review-and-fix",
     });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Deleted workspace loop reviews-watch");
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("Deleted workspace loop review-and-fix");
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/loops", replace: true });
   });
 
   it("Should keep the detail route when workspace deletion fails", async () => {
     mocks.loopSource = "workspace";
     mocks.deleteMutateAsync.mockRejectedValue(new Error("delete failed"));
-    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
 
     await act(async () => {
       await result.current.handlers.onDelete();
@@ -155,12 +155,12 @@ describe("useLoopDetail", () => {
   });
 
   it("Should query exact loop bindings inside the target workspace with pageable limits", () => {
-    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
 
     expect(mocks.useAutomationJobs).toHaveBeenCalledWith(
       {
         limit: 50,
-        loop: "reviews-watch",
+        loop: "review-and-fix",
         scope: "workspace",
         workspace_id: "ws_default",
       },
@@ -169,7 +169,7 @@ describe("useLoopDetail", () => {
     expect(mocks.useAutomationTriggers).toHaveBeenCalledWith(
       {
         limit: 50,
-        loop: "reviews-watch",
+        loop: "review-and-fix",
         scope: "workspace",
         workspace_id: "ws_default",
       },

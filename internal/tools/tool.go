@@ -296,6 +296,7 @@ type CallRequest struct {
 	Input                json.RawMessage `json:"input"`
 	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
 	ApprovalToken        string          `json:"approval_token,omitempty"`
+	TrustedWorkspaceRoot string          `json:"-"`
 }
 
 // EffectiveToolDecision records the combined policy and availability decision.

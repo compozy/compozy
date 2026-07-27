@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
@@ -58,7 +59,7 @@ func renderNodeParamsExcept(
 			out[key] = normalized
 			continue
 		}
-		rendered, err := renderAny(fmt.Sprintf("nodes.%s.params.%s", node.ID, key), value, namespace)
+		rendered, err := renderActionParam(fmt.Sprintf("nodes.%s.params.%s", node.ID, key), value, namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -80,17 +81,38 @@ func normalizeNodeParams(params dsl.NodeParams) (map[string]any, error) {
 }
 
 func renderAny(name string, value any, namespace map[string]any) (any, error) {
+	return renderTemplatedValue(name, value, namespace, false)
+}
+
+func renderActionParam(name string, value any, namespace map[string]any) (any, error) {
+	return renderTemplatedValue(name, value, namespace, true)
+}
+
+func renderTemplatedValue(
+	name string,
+	value any,
+	namespace map[string]any,
+	preserveDirectReferenceType bool,
+) (any, error) {
 	normalized, err := normalizeJSONValue(value)
 	if err != nil {
 		return nil, err
 	}
 	switch typed := normalized.(type) {
 	case string:
+		if path, ok := directTemplateReferencePath(typed); preserveDirectReferenceType && ok {
+			return namespacePathValue(namespace, path)
+		}
 		return refs.RenderTemplateString(name, typed, namespace)
 	case map[string]any:
 		out := make(map[string]any, len(typed))
 		for key, child := range typed {
-			rendered, err := renderAny(name+"."+key, child, namespace)
+			rendered, err := renderTemplatedValue(
+				name+"."+key,
+				child,
+				namespace,
+				preserveDirectReferenceType,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -100,7 +122,12 @@ func renderAny(name string, value any, namespace map[string]any) (any, error) {
 	case []any:
 		out := make([]any, 0, len(typed))
 		for idx, child := range typed {
-			rendered, err := renderAny(name+"["+strconv.Itoa(idx)+"]", child, namespace)
+			rendered, err := renderTemplatedValue(
+				name+"["+strconv.Itoa(idx)+"]",
+				child,
+				namespace,
+				preserveDirectReferenceType,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -110,6 +137,25 @@ func renderAny(name string, value any, namespace map[string]any) (any, error) {
 	default:
 		return typed, nil
 	}
+}
+
+func directTemplateReferencePath(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) < 5 || !strings.HasPrefix(trimmed, "{{") || !strings.HasSuffix(trimmed, "}}") {
+		return "", false
+	}
+	inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
+	if !strings.HasPrefix(inner, ".") || len(inner) == 1 {
+		return "", false
+	}
+	path := strings.TrimPrefix(inner, ".")
+	for _, character := range path {
+		if character == '.' || character == '_' || unicode.IsLetter(character) || unicode.IsDigit(character) {
+			continue
+		}
+		return "", false
+	}
+	return path, true
 }
 
 func normalizeJSONValue(value any) (any, error) {

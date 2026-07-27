@@ -5,9 +5,9 @@ import {
   type LoopRunLiveState,
 } from "../../lib/loop-events";
 import { projectLoopRunPageView } from "../../lib/loop-run-page-view";
-import { deriveCostEstimate } from "../../lib/loop-run-usage";
 import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
 import type {
+  LoopDefinition,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
@@ -16,24 +16,24 @@ import type {
 import {
   createFrameFactory,
   generationsFor,
+  genericWatchDefinition,
+  genericWatchRun,
   minutesAgo,
   nodePayload,
-  REVISE_ISSUES,
-  reviewsWatchDefinition,
-  reviewsWatchRun,
+  reviewAndFixDefinition,
+  reviewAndFixRun,
   roundOneFrames,
   STORY_NOW,
 } from "./loop-run-page-fixture-world";
 
 /**
- * The `reviews-watch` story world mirroring the canonical prototypes
- * (`loop-run-detail.html` + states): a watch loop fixing review comments on PR
- * #128 in three fan-out groups. The data is fixture flavor; every derivation
- * below runs through the production libs, exactly like the page hook.
+ * Production-derived run-page scenarios. Review states use the bundled
+ * agent-authored Loop; watch-only states use a separate generic watch Loop.
  */
 
 export interface LoopRunStoryScenario {
   run: LoopRunRecord;
+  definition: LoopDefinition;
   frames: LoopRunEventFrame[];
   generations: LoopRunGeneration[];
   watchEvents?: LoopWatchEventsState;
@@ -48,105 +48,66 @@ export function runningScenario(): LoopRunStoryScenario {
     frame(
       "node_running",
       4,
-      nodePayload("fix_batches", 2, {
+      nodePayload("fix_batch", 2, {
         item_index: 3,
         task_id: "task_fix",
         task_run_id: "tr_204",
       })
     ),
-    frame("token_tick", 3, { tokens_used: 268_000 }),
+    frame("token_tick", 3, { tokens_used: 68_000 }),
   ];
-  return { run: reviewsWatchRun(), frames, generations: generationsFor("running") };
+  return {
+    run: reviewAndFixRun(),
+    definition: reviewAndFixDefinition,
+    frames,
+    generations: generationsFor("running"),
+  };
 }
 
 export function needsApprovalScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
     ...roundOneFrames(frame, 20),
-    frame("gate_verdict", 7, {
-      node_id: "check_all",
-      generation: 2,
-      verdict: "revise",
-      confidence: 0.88,
-      criteria: [
-        {
-          id: "all_issues_handled",
-          type: "agent-judge",
-          status: "revise",
-          note: "still two open points",
-        },
-      ],
-      blocking_issues: REVISE_ISSUES,
-    }),
     frame("generation_started", 6, { generation: 3, reattempt_strategy: "failed_only" }),
     frame("needs_approval", 2, {
-      gate_id: "budget",
-      title: "Time limit reached — continue this run?",
+      gate_id: "tool_policy",
+      title: "Approve writing review artifacts?",
       generation: 3,
       facts: [
-        { label: "Time used", value: "45m of 45m" },
-        { label: "Tokens", value: "412K / 1.5M" },
-        { label: "Cost", value: `${deriveCostEstimate(412_000)} est.` },
-        { label: "Round", value: "3" },
+        { label: "Tool", value: "write_review_artifacts" },
+        { label: "Task", value: "billing-webhooks" },
+        { label: "Round", value: "2" },
       ],
     }),
     frame("status_changed", 2, {
       from: "running",
       to: "needs-approval",
       status: "needs-approval",
-      cause: "budget",
+      cause: "tool_policy",
     }),
   ];
   return {
-    run: reviewsWatchRun({
+    run: reviewAndFixRun({
       status: "needs-approval",
       generation: 3,
-      tokens_used: 412_000,
+      tokens_used: 92_000,
       created_at: minutesAgo(46),
       started_at: minutesAgo(46),
       last_progress_at: minutesAgo(1),
-      active_gate_id: "budget",
+      active_gate_id: "tool_policy",
     }),
+    definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("pending"),
   };
 }
 
 export function watchingScenario(): LoopRunStoryScenario {
-  const frame = createFrameFactory();
+  const frame = createFrameFactory("r-watch-01");
   const frames = [
-    ...roundOneFrames(frame, 16),
-    frame("generation_started", 20, { generation: 2, reattempt_strategy: "failed_only" }),
-    frame(
-      "node_succeeded",
-      19,
-      nodePayload("fix_batches", 2, { item_index: 3, task_id: "task_fix", task_run_id: "tr_204" })
-    ),
-    frame("gate_verdict", 18, {
-      node_id: "check_all",
-      generation: 2,
-      verdict: "pass",
-      confidence: 0.94,
-      criteria: [
-        {
-          id: "all_issues_handled",
-          type: "agent-judge",
-          status: "pass",
-          note: "every comment handled",
-        },
-      ],
-      blocking_issues: [],
-    }),
-    frame(
-      "node_succeeded",
-      17,
-      nodePayload("resolve_threads", 2, { task_id: "task_resolve", task_run_id: "tr_205" })
-    ),
-    frame(
-      "node_succeeded",
-      17,
-      nodePayload("push_changes", 2, { task_id: "task_push", task_run_id: "tr_206" })
-    ),
+    frame("generation_started", 20, { generation: 4, reattempt_strategy: "failed_only" }),
+    frame("node_succeeded", 19, nodePayload("watch_inbox", 4)),
+    frame("node_succeeded", 18, nodePayload("handle_event", 4)),
     frame("status_changed", 16, {
       from: "running",
       to: "watching",
@@ -155,17 +116,24 @@ export function watchingScenario(): LoopRunStoryScenario {
     }),
   ];
   return {
-    run: reviewsWatchRun({
-      status: "watching",
-      tokens_used: 341_000,
+    run: genericWatchRun({
       created_at: minutesAgo(38),
       started_at: minutesAgo(38),
       last_progress_at: minutesAgo(16),
     }),
+    definition: genericWatchDefinition,
     frames,
-    generations: generationsFor("succeeded", "succeeded"),
+    generations: [
+      {
+        generation: 4,
+        outputs: [
+          { node_id: "watch_inbox", status: "succeeded", generation: 4 },
+          { node_id: "handle_event", status: "succeeded", generation: 4 },
+        ],
+      },
+    ],
     watchEvents: {
-      subscriptions: [{ kind: "event.post_record", filter: "payload.pr == input.pr" }],
+      subscriptions: [{ kind: "event.post_record", filter: "payload.inbox == input.inbox" }],
       cursors: { workspace_events: 4_182 },
       last_wake_at: minutesAgo(16),
     },
@@ -185,13 +153,14 @@ export function pausedScenario(): LoopRunStoryScenario {
     }),
   ];
   return {
-    run: reviewsWatchRun({
+    run: reviewAndFixRun({
       status: "paused",
-      tokens_used: 296_000,
+      tokens_used: 74_000,
       created_at: minutesAgo(29),
       started_at: minutesAgo(29),
       last_progress_at: minutesAgo(3),
     }),
+    definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("pending"),
   };
@@ -205,7 +174,7 @@ export function failedScenario(): LoopRunStoryScenario {
     frame(
       "node_running",
       61,
-      nodePayload("fix_batches", 2, { item_index: 3, task_id: "task_fix", task_run_id: "tr_204" })
+      nodePayload("fix_batch", 2, { item_index: 3, task_id: "task_fix", task_run_id: "tr_204" })
     ),
     frame("status_changed", 60, {
       from: "running",
@@ -213,24 +182,24 @@ export function failedScenario(): LoopRunStoryScenario {
       status: "failed",
       cause: "coordinator_failure",
       failure: {
-        kind: "coordinator_failure",
-        code: "watch_poll_failed",
-        cause: "The watch source failed before it could produce a generation.",
-        recovery:
-          "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
+        kind: "action_failure",
+        code: "action_schema_invalid",
+        cause: "The fixer result did not include one entry per issue file.",
+        recovery: "Correct the fixer output and start a new run.",
       },
     }),
   ];
   return {
-    run: reviewsWatchRun({
+    run: reviewAndFixRun({
       status: "failed",
-      tokens_used: 310_000,
+      tokens_used: 81_000,
       created_at: minutesAgo(87),
       started_at: minutesAgo(87),
       last_progress_at: minutesAgo(60),
     }),
+    definition: reviewAndFixDefinition,
     frames,
-    generations: generationsFor("running"),
+    generations: generationsFor("failed"),
   };
 }
 
@@ -242,25 +211,26 @@ export function exhaustedScenario(): LoopRunStoryScenario {
       from: "running",
       to: "exhausted",
       status: "exhausted",
-      cause: "budget",
+      cause: "iteration_cap",
     }),
   ];
   return {
-    run: reviewsWatchRun({
+    run: reviewAndFixRun({
       status: "exhausted",
-      tokens_used: 1_500_000,
-      budget_on_exceeded: "halt",
+      generation: 3,
+      tokens_used: 144_000,
       created_at: minutesAgo(80),
       started_at: minutesAgo(80),
       last_progress_at: minutesAgo(30),
     }),
+    definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("pending"),
   };
 }
 
 export function noOpScenario(): LoopRunStoryScenario {
-  const frame = createFrameFactory();
+  const frame = createFrameFactory("r-watch-01");
   const frames = [
     frame("status_changed", 50, {
       from: "watching",
@@ -268,7 +238,7 @@ export function noOpScenario(): LoopRunStoryScenario {
       status: "running",
       cause: "watch_poll",
     }),
-    frame("node_succeeded", 50, nodePayload("fetch_issues", 1, {})),
+    frame("node_succeeded", 50, nodePayload("watch_inbox", 5)),
     frame("status_changed", 49, {
       from: "running",
       to: "no-op",
@@ -277,14 +247,15 @@ export function noOpScenario(): LoopRunStoryScenario {
     }),
   ];
   return {
-    run: reviewsWatchRun({
+    run: genericWatchRun({
       status: "no-op",
-      generation: 1,
-      tokens_used: 12_000,
+      generation: 5,
+      tokens_used: 21_000,
       created_at: minutesAgo(51),
       started_at: minutesAgo(51),
       last_progress_at: minutesAgo(49),
     }),
+    definition: genericWatchDefinition,
     frames,
     generations: [],
   };
@@ -297,26 +268,21 @@ function reduceLiveState(frames: readonly LoopRunEventFrame[]): LoopRunLiveState
 
 type ScenarioBodyProps = Omit<LoopRunPageBodyProps, "inspect">;
 
-/**
- * Derives the full page-body prop set from a scenario through the same
- * `projectLoopRunPageView` the live page hook uses, then adds the fixture-only
- * chrome (workspace label, pinned version, no-op handlers). One derivation path
- * means the stories cannot drift from production.
- */
+/** Projects fixture events through the same view model used by the live page. */
 export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBodyProps {
-  const { run, generations, watchEvents } = scenario;
+  const { run, definition, generations, watchEvents } = scenario;
   const live = reduceLiveState(scenario.frames);
   const { effectiveRun, ...view } = projectLoopRunPageView({
     run,
     generations,
     live,
-    definition: reviewsWatchDefinition,
+    definition,
     nowMs: STORY_NOW,
   });
   return {
     ...view,
     run: effectiveRun,
-    definition: reviewsWatchDefinition,
+    definition,
     goalTurns: scenario.goalTurns ?? [],
     generations,
     watchEvents,

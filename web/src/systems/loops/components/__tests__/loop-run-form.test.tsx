@@ -12,7 +12,7 @@ import type { LoopEffectiveConfig } from "../../types";
 
 const WS = "ws_default";
 const loop = loopDetailByName.get("software-delivery")!;
-const watchLoop = loopDetailByName.get("reviews-watch")!;
+const watchLoop = loopDetailByName.get("review-and-fix")!;
 const savedConfig: Partial<LoopEffectiveConfig> = {
   iteration_cap: 3,
   budget_on_exceeded: "escalate",
@@ -209,8 +209,11 @@ describe("LoopRunForm", () => {
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {
     const { onRunStarted } = renderForm(vi.fn(), watchLoop);
+    fireEvent.change(screen.getByTestId("loop-run-field-input-task_name"), {
+      target: { value: "billing-webhooks" },
+    });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
-    await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_watching"));
+    await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_review_running"));
   });
 
   it("Should ignore a second run submit while the first run mutation is pending", async () => {

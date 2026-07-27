@@ -56,48 +56,72 @@ func TestEmbeddedLoopsShouldCompileWithDevCycleToolSchemas(t *testing.T) {
 	}
 }
 
-func TestDevCycleRuntimeToolDescriptorsShouldPinImportTasksSchemaDigests(t *testing.T) {
-	t.Run("Should pin import tasks schema digests", func(t *testing.T) {
+func TestDevCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
+	t.Run("Should pin managed tool schema digests and policies", func(t *testing.T) {
 		t.Parallel()
 
-		const (
-			wantInputDigest  = "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832"
-			wantOutputDigest = "084491ee6855dd4b58a53ac222f7eeebe59d8f53eba12e7ed4583c58fee3d1cf"
-		)
+		want := map[string]struct {
+			inputDigest  string
+			outputDigest string
+			readOnly     bool
+			risk         toolspkg.RiskClass
+		}{
+			toolImportTasks: {
+				inputDigest:  "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832",
+				outputDigest: "084491ee6855dd4b58a53ac222f7eeebe59d8f53eba12e7ed4583c58fee3d1cf",
+				readOnly:     true,
+				risk:         toolspkg.RiskRead,
+			},
+			toolWriteArtifacts: {
+				inputDigest:  "7834650b96b2c8eb7190656b380d1c85541c7ebdc47c6be5a4550f6491602716",
+				outputDigest: "fc17d6fe3eabaab11c8cec9c79edda8a860f5012c3bb0f5ad17a5ec48f359219",
+				readOnly:     false,
+				risk:         toolspkg.RiskMutating,
+			},
+			toolFinalizeRound: {
+				inputDigest:  "1edaf49be27be8c496cf20384c75219558bbd5d7e5a7c34c84c4e192c4c45972",
+				outputDigest: "278a9a459aa25e19b2558ca21ff698f69ea686a7f733da48b7da4f8ad9a43f3a",
+				readOnly:     false,
+				risk:         toolspkg.RiskMutating,
+			},
+		}
 		descriptors, err := runtimeToolDescriptors()
 		if err != nil {
 			t.Fatalf("runtimeToolDescriptors() error = %v", err)
 		}
-		var found bool
+		found := make(map[string]bool, len(want))
 		for _, descriptor := range descriptors {
-			if descriptor.Handler != toolImportTasks {
+			expected, ok := want[descriptor.Handler]
+			if !ok {
 				continue
 			}
-			found = true
-			if got, want := descriptor.ID.String(), devCycleToolID(t, toolImportTasks); got != want {
-				t.Fatalf("import_tasks id = %q, want %q", got, want)
+			found[descriptor.Handler] = true
+			if got, wantID := descriptor.ID.String(), devCycleToolID(t, descriptor.Handler); got != wantID {
+				t.Fatalf("%s id = %q, want %q", descriptor.Handler, got, wantID)
 			}
-			if !descriptor.ReadOnly {
-				t.Fatalf("import_tasks read_only = false, want true")
+			if descriptor.ReadOnly != expected.readOnly {
+				t.Fatalf("%s read_only = %t, want %t", descriptor.Handler, descriptor.ReadOnly, expected.readOnly)
 			}
-			if got, want := descriptor.Risk, toolspkg.RiskRead; got != want {
-				t.Fatalf("import_tasks risk = %q, want %q", got, want)
+			if got := descriptor.Risk; got != expected.risk {
+				t.Fatalf("%s risk = %q, want %q", descriptor.Handler, got, expected.risk)
 			}
-			if got := descriptor.InputSchemaDigest; got != wantInputDigest {
-				t.Fatalf("import_tasks input digest = %q, want %q", got, wantInputDigest)
+			if got := descriptor.InputSchemaDigest; got != expected.inputDigest {
+				t.Errorf("%s input digest = %q, want %q", descriptor.Handler, got, expected.inputDigest)
 			}
-			if got := descriptor.OutputSchemaDigest; got != wantOutputDigest {
-				t.Fatalf("import_tasks output digest = %q, want %q", got, wantOutputDigest)
+			if got := descriptor.OutputSchemaDigest; got != expected.outputDigest {
+				t.Errorf("%s output digest = %q, want %q", descriptor.Handler, got, expected.outputDigest)
 			}
 		}
-		if !found {
-			t.Fatal("runtimeToolDescriptors() missing import_tasks descriptor")
+		for handler := range want {
+			if !found[handler] {
+				t.Fatalf("runtimeToolDescriptors() missing %s descriptor", handler)
+			}
 		}
 	})
 }
 
-func TestDevCycleManagedInstallShouldPublishImportTasksManifestTool(t *testing.T) {
-	t.Run("Should publish import tasks through the bundled manifest install", func(t *testing.T) {
+func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
+	t.Run("Should publish managed tools through the bundled manifest install", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -130,75 +154,173 @@ func TestDevCycleManagedInstallShouldPublishImportTasksManifestTool(t *testing.T
 		if err != nil {
 			t.Fatalf("LoadManifest(%q) error = %v", installed.ManifestPath, err)
 		}
-		tool, ok := manifest.Resources.Tools[toolImportTasks]
-		if !ok {
-			t.Fatalf("manifest tools = %#v, want %q", manifest.Resources.Tools, toolImportTasks)
+		want := map[string]struct {
+			readOnly        bool
+			concurrencySafe bool
+			risk            toolspkg.RiskClass
+		}{
+			toolImportTasks:    {readOnly: true, concurrencySafe: true, risk: toolspkg.RiskRead},
+			toolWriteArtifacts: {readOnly: false, concurrencySafe: true, risk: toolspkg.RiskMutating},
+			toolFinalizeRound:  {readOnly: false, concurrencySafe: false, risk: toolspkg.RiskMutating},
 		}
-		if tool.Handler != toolImportTasks ||
-			tool.Backend.Kind != "extension_host" ||
-			tool.Backend.Handler != toolImportTasks {
-			t.Fatalf(
-				"import_tasks backend = %#v, handler %q; want extension_host import_tasks",
-				tool.Backend,
-				tool.Handler,
-			)
+		for handler, expected := range want {
+			tool, ok := manifest.Resources.Tools[handler]
+			if !ok {
+				t.Fatalf("manifest tools = %#v, want %q", manifest.Resources.Tools, handler)
+			}
+			if tool.Handler != handler ||
+				tool.Backend.Kind != "extension_host" ||
+				tool.Backend.Handler != handler {
+				t.Fatalf(
+					"%s backend = %#v, handler %q; want extension_host %s",
+					handler,
+					tool.Backend,
+					tool.Handler,
+					handler,
+				)
+			}
+			if tool.ReadOnly != expected.readOnly ||
+				tool.ConcurrencySafe != expected.concurrencySafe ||
+				tool.Risk != string(expected.risk) {
+				t.Fatalf(
+					"%s tool policy = %#v, want read_only=%t concurrency_safe=%t risk=%q",
+					handler,
+					tool,
+					expected.readOnly,
+					expected.concurrencySafe,
+					expected.risk,
+				)
+			}
+			if len(tool.InputSchema) == 0 || len(tool.OutputSchema) == 0 {
+				t.Fatalf(
+					"%s schemas are empty: input=%d output=%d",
+					handler,
+					len(tool.InputSchema),
+					len(tool.OutputSchema),
+				)
+			}
 		}
-		if !tool.ReadOnly || !tool.ConcurrencySafe || tool.Risk != string(toolspkg.RiskRead) {
-			t.Fatalf("import_tasks tool policy = %#v, want read-only concurrency-safe read risk", tool)
+
+		manifestDescriptors, err := extensionpkg.ResolveManifestToolDescriptors(manifest)
+		if err != nil {
+			t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
 		}
-		if len(tool.InputSchema) == 0 || len(tool.OutputSchema) == 0 {
-			t.Fatalf(
-				"import_tasks schemas are empty: input=%d output=%d",
-				len(tool.InputSchema),
-				len(tool.OutputSchema),
-			)
+		runtimeDescriptors, err := runtimeToolDescriptors()
+		if err != nil {
+			t.Fatalf("runtimeToolDescriptors() error = %v", err)
+		}
+		runtimeByID := make(map[toolspkg.ToolID]toolspkg.ExtensionToolRuntimeDescriptor, len(runtimeDescriptors))
+		for _, descriptor := range runtimeDescriptors {
+			runtimeByID[descriptor.ID] = descriptor
+		}
+		if got, wantCount := len(manifestDescriptors), len(runtimeByID); got != wantCount {
+			t.Fatalf("manifest descriptor count = %d, runtime descriptor count = %d", got, wantCount)
+		}
+		state := extensionpkg.ExtensionToolRuntimeState{
+			Enabled:              true,
+			Active:               true,
+			Healthy:              true,
+			ProvidedCapabilities: []string{"tool.provider"},
+		}
+		for index := range manifestDescriptors {
+			descriptor := &manifestDescriptors[index]
+			runtimeDescriptor, ok := runtimeByID[descriptor.Tool.ID]
+			if !ok {
+				t.Fatalf("runtime descriptors omit %q", descriptor.Tool.ID)
+			}
+			availability := extensionpkg.ReconcileManifestToolRuntime(descriptor, &runtimeDescriptor, state)
+			if !availability.Executable {
+				t.Fatalf(
+					"manifest/runtime descriptor %q is not executable: reasons=%v manifest=%#v runtime=%#v",
+					descriptor.Tool.ID,
+					availability.ReasonCodes,
+					descriptor.RuntimeDescriptor,
+					runtimeDescriptor,
+				)
+			}
 		}
 	})
 }
 
 func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
-	t.Run("Should keep reviews-watch trigger start and clean-tick stop_when", func(t *testing.T) {
+	t.Run("Should keep the internal review source and clean round termination contract", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/reviews-watch/loop.yaml")
+		def := parseEmbeddedLoopForTest(t, "loops/review-and-fix/loop.yaml")
 		if got, want := def.Contract.StopWhen,
-			"nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0"; got != want {
-			t.Fatalf("reviews-watch stop_when = %q, want %q", got, want)
+			"nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0"; got != want {
+			t.Fatalf("review-and-fix stop_when = %q, want %q", got, want)
 		}
-		if got, want := def.Contract.IterationCap, 0; got != want {
-			t.Fatalf("reviews-watch iteration_cap = %d, want %d", got, want)
+		if got, want := def.Contract.IterationCap, 3; got != want {
+			t.Fatalf("review-and-fix iteration_cap = %d, want %d", got, want)
 		}
-		if !hasStartKind(def, dsl.StartTrigger) {
-			t.Fatalf("reviews-watch start = %#v, want trigger start binding", def.Start)
+		if !hasStartKind(def, dsl.StartTrigger) || hasStartKind(def, dsl.StartSchedule) {
+			t.Fatalf("review-and-fix start = %#v, want trigger and no schedule", def.Start)
 		}
-		newReview := requireDevCycleNode(t, def, "new_review")
-		reviewSchema := requireSchemaObject(t, newReview.Produces, "review")
-		properties := requireSchemaObject(t, reviewSchema, "properties")
-		for _, field := range []string{"head_sha", "review_id", "submitted_at"} {
-			if _, ok := properties[field]; !ok {
-				t.Fatalf("new_review produces.review.properties missing %q: %#v", field, properties)
+		review := requireDevCycleNode(t, def, "review")
+		if got, want := review.Kind, string(dsl.ActionRunAgent); got != want {
+			t.Fatalf("review kind = %q, want %q", got, want)
+		}
+		outputSchema := requireSchemaObject(t, review.Params, "output_schema")
+		properties := requireSchemaObject(t, outputSchema, "properties")
+		issues := requireSchemaObject(t, properties, "issues")
+		item := requireSchemaObject(t, issues, "items")
+		required, ok := item["required"].([]any)
+		if !ok {
+			t.Fatalf("review issue required = %#v, want []any", item["required"])
+		}
+		for _, field := range []string{reviewIssueFieldTitle, reviewIssueFieldBody, reviewIssueFieldSeverity} {
+			if !schemaStringListContains(required, field) {
+				t.Fatalf("review issue required = %#v, want %q", required, field)
 			}
+		}
+		hasIssues := requireDevCycleNode(t, def, "has_issues")
+		if got, want := hasIssues.Condition, "size(nodes.review.output.issues) > 0"; got != want {
+			t.Fatalf("has_issues condition = %q, want %q", got, want)
 		}
 	})
 
-	t.Run("Should keep reviews-watch fixer prompt and inputs wired", func(t *testing.T) {
+	t.Run("Should keep the review write fix finalize graph and local execution modes", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/reviews-watch/loop.yaml")
-		for _, input := range []string{"include_nitpicks", "auto_commit", "auto_push"} {
+		def := parseEmbeddedLoopForTest(t, "loops/review-and-fix/loop.yaml")
+		wantInputs := []string{"task_name", "reviewer", "fixer", "auto_commit"}
+		if len(def.Inputs) != len(wantInputs) {
+			t.Fatalf("review-and-fix inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
+		}
+		for _, input := range wantInputs {
 			if _, ok := def.Inputs[input]; !ok {
-				t.Fatalf("reviews-watch input %q missing", input)
+				t.Fatalf("review-and-fix input %q missing", input)
 			}
 		}
-		if got, want := def.Inputs["include_nitpicks"].Default, false; got != want {
-			t.Fatalf("include_nitpicks default = %#v, want %#v", got, want)
+		if !def.Inputs["task_name"].Required {
+			t.Fatal("task_name required = false, want true")
 		}
 		if got, want := def.Inputs["auto_commit"].Default, false; got != want {
 			t.Fatalf("auto_commit default = %#v, want %#v", got, want)
 		}
-		fetchIssues := requireDevCycleNode(t, def, "fetch_issues")
-		if got, want := fetchIssues.Params["include_nitpicks"], "{{ .inputs.include_nitpicks }}"; got != want {
-			t.Fatalf("fetch_issues include_nitpicks param = %#v, want %q", got, want)
+		wantNodes := []dsl.NodeID{
+			"review", "has_issues", "write_artifacts", "fix_batches", "fix_batch", "collect_fixes", "finalize_round",
+		}
+		if len(def.Graph.Nodes) != len(wantNodes) {
+			t.Fatalf("review-and-fix nodes = %#v, want exactly %#v", def.Graph.Nodes, wantNodes)
+		}
+		for index, wantNode := range wantNodes {
+			if got := def.Graph.Nodes[index].ID; got != wantNode {
+				t.Fatalf("review-and-fix node[%d] = %q, want %q", index, got, wantNode)
+			}
+		}
+		writeArtifacts := requireDevCycleNode(t, def, "write_artifacts")
+		wantWriteArtifactsKind := toolspkg.ToolID("ext__dev_cycle__write_review_artifacts").String()
+		if got, want := writeArtifacts.Kind, wantWriteArtifactsKind; got != want {
+			t.Fatalf("write_artifacts kind = %q, want %q", got, want)
+		}
+		if got, want := writeArtifacts.Params["issues"], "{{ .nodes.review.output.issues }}"; got != want {
+			t.Fatalf("write_artifacts issues = %#v, want %q", got, want)
+		}
+		fixBatches := requireDevCycleNode(t, def, "fix_batches")
+		if got, want := fixBatches.Collection, "{{ .nodes.write_artifacts.output.batches }}"; got != want {
+			t.Fatalf("fix_batches collection = %q, want %q", got, want)
 		}
 		fixBatch := requireDevCycleNode(t, def, "fix_batch")
 		prompt := requireStringParam(t, fixBatch, "prompt")
@@ -207,49 +329,38 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 			"no-workarounds",
 			"cy-fix-reviews",
 			"cy-final-verify",
-			"Remediate this batch of {{ len .item }}",
-			"do NOT ask for confirmation",
-			"Read every issue in this batch completely before editing code",
-			"real verification",
-			"fails as a whole",
-			"auto_commit: {{ .inputs.auto_commit }}",
-			"auto_push: {{ .inputs.auto_push }}",
-			"Because auto_push is true",
-			"Because auto_commit and auto_push are false",
-			"Follow the execution mode above exactly",
+			"Remediate this complete batch of review artifact files",
+			"begin immediately without asking for confirmation",
+			"Read every listed issue file completely before editing code",
+			"Never create, rename, timestamp",
+			"{{ .item.file }}",
+			"{{ range .item.issue_files -}}",
+			"all-or-nothing",
+			"{{ if .inputs.auto_commit -}}",
+			"Create exactly one local commit for this batch",
+			"Leave the verified changes uncommitted",
 		} {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("fix_batch prompt missing %q", required)
 			}
 		}
-		pushPrompt := renderReviewsWatchFixerPromptForTest(t, prompt, false, true)
+		commitPrompt := renderReviewAndFixPromptForTest(t, prompt, true)
 		for _, required := range []string{
-			"auto_commit: false",
-			"auto_push: true",
-			"Because auto_push is true, create exactly one local fix commit after verification",
+			"Create exactly one local commit for this batch after verification. Do not push.",
 		} {
-			if !strings.Contains(pushPrompt, required) {
-				t.Fatalf("auto_push rendered prompt missing %q", required)
+			if !strings.Contains(commitPrompt, required) {
+				t.Fatalf("auto_commit rendered prompt missing %q", required)
 			}
 		}
-		if strings.Contains(pushPrompt, "leave verified changes uncommitted") {
-			t.Fatalf("auto_push rendered prompt incorrectly leaves changes uncommitted")
+		if strings.Contains(commitPrompt, "Leave the verified changes uncommitted") {
+			t.Fatal("auto_commit prompt incorrectly leaves changes uncommitted")
 		}
-		manualPrompt := renderReviewsWatchFixerPromptForTest(t, prompt, false, false)
-		for _, required := range []string{
-			"auto_commit: false",
-			"auto_push: false",
-			"Because auto_commit and auto_push are false, leave verified changes uncommitted for",
-		} {
-			if !strings.Contains(manualPrompt, required) {
-				t.Fatalf("manual rendered prompt missing %q", required)
-			}
+		manualPrompt := renderReviewAndFixPromptForTest(t, prompt, false)
+		if !strings.Contains(manualPrompt, "Leave the verified changes uncommitted for manual review") {
+			t.Fatal("manual prompt missing leave-uncommitted instruction")
 		}
-		if strings.Contains(manualPrompt, "Because auto_push is true") {
-			t.Fatalf("manual rendered prompt incorrectly instructs auto_push commit")
-		}
-		if strings.Contains(prompt, "notes") {
-			t.Fatalf("fix_batch prompt contains retired notes contract")
+		if strings.Contains(manualPrompt, "Create exactly one local commit") {
+			t.Fatal("manual prompt incorrectly creates a commit")
 		}
 		resultsSchema := requireSchemaObject(t, requireSchemaObject(t, fixBatch.Params, "output_schema"), "properties")
 		results := requireSchemaObject(t, resultsSchema, "results")
@@ -263,6 +374,18 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		}
 		if !schemaStringListContains(required, "resolution") {
 			t.Fatalf("fix_batch result required = %#v, want resolution", required)
+		}
+		for _, field := range []string{"path", "triage"} {
+			if !schemaStringListContains(required, field) {
+				t.Fatalf("fix_batch result required = %#v, want %s", required, field)
+			}
+		}
+		finalize := requireDevCycleNode(t, def, "finalize_round")
+		if got, want := finalize.Kind, toolspkg.ToolID("ext__dev_cycle__finalize_review_round").String(); got != want {
+			t.Fatalf("finalize_round kind = %q, want %q", got, want)
+		}
+		if _, ok := finalize.Produces["pr"]; ok {
+			t.Fatalf("finalize_round produces deleted pr field: %#v", finalize.Produces)
 		}
 	})
 
@@ -393,11 +516,11 @@ func renderSoftwareDeliveryImplementerPromptForTest(
 			"auto_commit": autoCommit,
 		},
 		"item": map[string]any{
-			"id":     "task_03",
-			"title":  "Ship loops",
-			"path":   ".compozy/tasks/loops/task_03.md",
-			"body":   "Implement the loop runtime.",
-			"blocks": []any{"task_01", "task_02"},
+			"id":                  "task_03",
+			reviewIssueFieldTitle: "Ship loops",
+			"path":                ".compozy/tasks/loops/task_03.md",
+			reviewIssueFieldBody:  "Implement the loop runtime.",
+			"blocks":              []any{"task_01", "task_02"},
 		},
 	})
 	if err != nil {
@@ -406,29 +529,21 @@ func renderSoftwareDeliveryImplementerPromptForTest(
 	return rendered
 }
 
-func renderReviewsWatchFixerPromptForTest(
+func renderReviewAndFixPromptForTest(
 	t *testing.T,
 	prompt string,
 	autoCommit bool,
-	autoPush bool,
 ) string {
 	t.Helper()
 
-	rendered, err := refs.RenderTemplateString("reviews-watch.fix_batch.prompt", prompt, map[string]any{
+	rendered, err := refs.RenderTemplateString("review-and-fix.fix_batch.prompt", prompt, map[string]any{
 		"inputs": map[string]any{
-			"pr":          123,
 			"auto_commit": autoCommit,
-			"auto_push":   autoPush,
 		},
-		"item": []map[string]any{{
-			"id":           "CR-1",
-			"title":        "Fix loop event handling",
-			"file":         "internal/daemon/loop.go",
-			"line":         42,
-			"severity":     "medium",
-			"provider_ref": "THREAD-1",
-			"body":         "Please fix this issue.",
-		}},
+		"item": map[string]any{
+			"file":        "internal/daemon/loop.go",
+			"issue_files": []string{".compozy/tasks/delivery/reviews-001/issue_001.md"},
+		},
 	})
 	if err != nil {
 		t.Fatalf("RenderTemplateString() error = %v", err)
@@ -449,11 +564,12 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			"systematic-debugging",
 			"no-workarounds",
 			"cy-fix-reviews",
-			"Read every issue in the batch completely before editing code",
+			"Read every supplied issue file completely before editing code",
 			"fails as a whole",
 			"real verification commands",
+			"Never create, rename, timestamp, or set an issue file to `resolved`",
 			"`resolution` is accepted only as `fixed` or `documented`",
-			"`id`, `triage`, `resolution`, and `summary`",
+			"`path`, `triage`, `resolution`, and `summary`",
 		} {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("review_fixer prompt missing %q", required)
@@ -488,7 +604,7 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep reviewer judge discipline", func(t *testing.T) {
+	t.Run("Should keep reviewer source discipline", func(t *testing.T) {
 		t.Parallel()
 
 		data, err := fs.ReadFile(FS(), "agents/reviewer/AGENT.md")
@@ -497,9 +613,11 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 		prompt := string(data)
 		for _, required := range []string{
-			"files, tests, command output",
-			"stable issue ids",
+			"files, tests, and command output",
+			"source-agnostic `ReviewIssue[]`",
+			"`title`, `body`, and `severity`",
 			"most severe first",
+			"empty issue array only when the round is clean",
 		} {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("reviewer prompt missing %q", required)
@@ -698,23 +816,17 @@ func devCycleToolSchemaSource(t *testing.T) devCycleToolSchemas {
 			importTasksInputSchema,
 			importTasksOutputSchema,
 		),
-		devCycleToolID(t, toolFetchUnresolved): toolSnapshot(
+		devCycleToolID(t, toolWriteArtifacts): toolSnapshot(
 			t,
-			toolFetchUnresolved,
-			fetchInputSchema,
-			fetchOutputSchema,
+			toolWriteArtifacts,
+			writeArtifactsInputSchema,
+			writeArtifactsOutputSchema,
 		),
-		devCycleToolID(t, toolResolveThreads): toolSnapshot(
+		devCycleToolID(t, toolFinalizeRound): toolSnapshot(
 			t,
-			toolResolveThreads,
-			resolveInputSchema,
-			resolveOutputSchema,
-		),
-		devCycleToolID(t, toolGitPush): toolSnapshot(
-			t,
-			toolGitPush,
-			pushInputSchema,
-			pushOutputSchema,
+			toolFinalizeRound,
+			finalizeRoundInputSchema,
+			finalizeRoundOutputSchema,
 		),
 	}
 }

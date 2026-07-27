@@ -148,7 +148,7 @@ describe("LoopDetailView", () => {
   });
 
   it("Should never offer Delete for a read-only Loop", () => {
-    const readOnlyLoop = loopDetailByName.get("reviews-watch")!;
+    const readOnlyLoop = loopDetailByName.get("review-and-fix")!;
     renderDetail({}, savedConfig, readOnlyLoop);
 
     fireEvent.click(screen.getByTestId("loop-detail-overflow"));

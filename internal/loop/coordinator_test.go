@@ -761,7 +761,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 		loopRun := Run{
 			ID:           "looprun-stop-when-dirty",
 			WorkspaceID:  "ws-1",
-			LoopName:     "reviews-watch",
+			LoopName:     "review-and-fix",
 			Status:       StatusRunning,
 			Generation:   1,
 			IterationCap: 0,
@@ -799,8 +799,8 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 			t.Fatalf("NextCoordinator participation = %#v, want %#v", got, liveSpec)
 		}
 		next := outputsByNodeForTest(coordinatorPostReservePayloadForTest(t, plan).Outputs)
-		if got, want := next["fetch_issues"].Status, generationOutputPending; got != want {
-			t.Fatalf("next fetch_issues status = %q, want %q", got, want)
+		if got, want := next["inspect_issues"].Status, generationOutputPending; got != want {
+			t.Fatalf("next inspect_issues status = %q, want %q", got, want)
 		}
 		if got, want := next["verify_gate"].Status, generationOutputPending; got != want {
 			t.Fatalf("next verify_gate status = %q, want %q", got, want)
@@ -822,7 +822,7 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 		loopRun := Run{
 			ID:           "looprun-stop-when-clean",
 			WorkspaceID:  "ws-1",
-			LoopName:     "reviews-watch",
+			LoopName:     "review-and-fix",
 			Status:       StatusRunning,
 			Generation:   1,
 			IterationCap: 0,
@@ -2180,12 +2180,12 @@ func newCoordinatorRunnerForStopWhenTest(
 			"seed": {Type: dsl.InputTypeString},
 		},
 		Contract: dsl.Contract{
-			StopWhen: "nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0",
+			StopWhen: "nodes.inspect_issues.status == 'succeeded' && size(nodes.inspect_issues.output.issues) == 0",
 		},
 		Graph: dsl.Graph{
 			Nodes: []dsl.Node{
 				{
-					ID:       "fetch_issues",
+					ID:       "inspect_issues",
 					Class:    dsl.NodeClassSource,
 					Kind:     string(dsl.SourceInput),
 					InputRef: "seed",
@@ -2203,7 +2203,7 @@ func newCoordinatorRunnerForStopWhenTest(
 					VerdictPolicy: dsl.VerdictPolicyFixedPasses,
 				},
 			},
-			Edges: []dsl.Edge{{From: "fetch_issues", To: "verify_gate"}},
+			Edges: []dsl.Edge{{From: "inspect_issues", To: "verify_gate"}},
 		},
 	})
 	effective, err := ResolveEffectiveConfig(
@@ -2225,7 +2225,7 @@ func newCoordinatorRunnerForStopWhenTest(
 		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 			{
 				Generation: 1,
-				NodeID:     "fetch_issues",
+				NodeID:     "inspect_issues",
 				Status:     generationOutputSucceeded,
 				OutputRef:  outputRef,
 			},

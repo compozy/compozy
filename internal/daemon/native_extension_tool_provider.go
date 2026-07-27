@@ -11,7 +11,11 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-const devCycleImportTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"
+const (
+	devCycleImportTasksToolID          toolspkg.ToolID = "ext__dev_cycle__import_tasks"
+	devCycleWriteReviewArtifactsToolID toolspkg.ToolID = "ext__dev_cycle__write_review_artifacts"
+	devCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__dev_cycle__finalize_review_round"
+)
 
 type daemonExtensionToolProvider struct {
 	inner             toolspkg.Provider
@@ -92,9 +96,20 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 ) (toolspkg.CallRequest, error) {
-	if req.ToolID != devCycleImportTasksToolID {
+	switch req.ToolID {
+	case devCycleImportTasksToolID:
+		return h.workspaceScopedImportTasksCallRequest(ctx, req)
+	case devCycleWriteReviewArtifactsToolID, devCycleFinalizeReviewRoundToolID:
+		return h.attachTrustedWorkspace(ctx, req)
+	default:
 		return req, nil
 	}
+}
+
+func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
+	ctx context.Context,
+	req toolspkg.CallRequest,
+) (toolspkg.CallRequest, error) {
 	if h.workspaceResolver == nil {
 		return toolspkg.CallRequest{}, importTasksScopeError(
 			req.ToolID,
@@ -150,6 +165,49 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	return req, nil
 }
 
+func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
+	ctx context.Context,
+	req toolspkg.CallRequest,
+) (toolspkg.CallRequest, error) {
+	if h.workspaceResolver == nil {
+		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q has no workspace resolver", req.ToolID),
+			toolspkg.ErrToolInvalidInput,
+		)
+	}
+	workspaceID := strings.TrimSpace(req.WorkspaceID)
+	if workspaceID == "" {
+		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q requires workspace scope", req.ToolID),
+			toolspkg.ErrToolInvalidInput,
+		)
+	}
+	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
+	if err != nil {
+		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q workspace %q is invalid", req.ToolID, workspaceID),
+			fmt.Errorf("resolve workspace: %w", err),
+		)
+	}
+	root := strings.TrimSpace(resolved.RootDir)
+	if root == "" {
+		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q workspace %q has no root directory", req.ToolID, workspaceID),
+			toolspkg.ErrToolInvalidInput,
+		)
+	}
+	req.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
+	if req.WorkspaceID == "" {
+		req.WorkspaceID = strings.TrimSpace(resolved.ID)
+	}
+	req.TrustedWorkspaceRoot = root
+	return req, nil
+}
+
 func (h *daemonExtensionToolHandle) resolveImportTasksPattern(
 	ctx context.Context,
 	toolID toolspkg.ToolID,
@@ -199,6 +257,20 @@ func importTasksScopeError(
 		toolID,
 		message,
 		cause,
+		toolspkg.ReasonScopeMismatch,
+	)
+}
+
+func extensionWorkspaceScopeError(
+	toolID toolspkg.ToolID,
+	message string,
+	cause error,
+) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		toolID,
+		message,
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, cause),
 		toolspkg.ReasonScopeMismatch,
 	)
 }

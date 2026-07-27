@@ -18,6 +18,78 @@ import (
 func TestDaemonExtensionToolProvider(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should attach resolved workspace authority to workspace-bound dev-cycle calls", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		resolver := &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "workspace-registration", RootDir: root},
+				WorkspaceID: "workspace-identity",
+			},
+		}
+		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
+		for _, toolID := range []toolspkg.ToolID{
+			devCycleWriteReviewArtifactsToolID,
+			devCycleFinalizeReviewRoundToolID,
+		} {
+			handle, ok, err := provider.Resolve(
+				t.Context(),
+				toolspkg.Scope{WorkspaceID: "workspace-registration"},
+				toolID,
+			)
+			if err != nil {
+				t.Fatalf("Resolve(%s) error = %v", toolID, err)
+			}
+			if !ok {
+				t.Fatalf("Resolve(%s) ok = false, want true", toolID)
+			}
+			_, err = handle.Call(t.Context(), toolspkg.CallRequest{
+				ToolID:      toolID,
+				WorkspaceID: "workspace-registration",
+				Input:       json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatalf("Call(%s) error = %v", toolID, err)
+			}
+			if got, want := inner.handle.request.WorkspaceID, "workspace-identity"; got != want {
+				t.Fatalf("%s request.WorkspaceID = %q, want %q", toolID, got, want)
+			}
+			if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {
+				t.Fatalf("%s request.TrustedWorkspaceRoot = %q, want %q", toolID, got, want)
+			}
+		}
+	})
+
+	t.Run("Should require authenticated workspace scope for review artifact calls", func(t *testing.T) {
+		t.Parallel()
+
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		provider := newDaemonScopedExtensionToolProvider(inner, &daemonExtensionWorkspaceResolverStub{})
+		handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, devCycleFinalizeReviewRoundToolID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("Resolve() ok = false, want true")
+		}
+		_, err = handle.Call(t.Context(), toolspkg.CallRequest{
+			ToolID: devCycleFinalizeReviewRoundToolID,
+			Input:  json.RawMessage(`{"task_name":"delivery","round":1}`),
+		})
+		if err == nil {
+			t.Fatal("Call() error = nil, want workspace scope error")
+		}
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
+			t.Fatalf("Call() error = %v, want scope mismatch", err)
+		}
+		if inner.handle.called {
+			t.Fatal("inner handle called without trusted workspace scope")
+		}
+	})
+
 	t.Run("Should anchor dev cycle import task patterns to workspace root", func(t *testing.T) {
 		t.Parallel()
 

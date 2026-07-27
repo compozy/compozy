@@ -123,3 +123,60 @@ func TestDecodeRejectsNilCallback(t *testing.T) {
 		t.Fatal("Decode(nil callback) error = nil, want non-nil")
 	}
 }
+
+func TestFormatAndRewriteStringField(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format canonical field order and body", func(t *testing.T) {
+		t.Parallel()
+
+		content, err := Format(struct {
+			Provider string `yaml:"provider,omitempty"`
+			Status   string `yaml:"status"`
+			File     string `yaml:"file"`
+		}{Provider: "internal", Status: "valid", File: "internal/store.go"}, "# Review\n\nEvidence")
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := strings.Join([]string{
+			"---",
+			"provider: internal",
+			"status: valid",
+			"file: internal/store.go",
+			"---",
+			"",
+			"# Review",
+			"",
+			"Evidence",
+			"",
+		}, "\n")
+		if content != want {
+			t.Fatalf("Format() = %q, want %q", content, want)
+		}
+	})
+
+	t.Run("Should rewrite only the selected scalar token", func(t *testing.T) {
+		t.Parallel()
+
+		content := strings.Join([]string{
+			"---",
+			"provider:   internal # preserve spacing and comment",
+			"status: 'valid' # preserve this comment",
+			"file: internal/store.go",
+			"---",
+			"",
+			"# Review",
+			"",
+			"Evidence",
+			"",
+		}, "\n")
+		rewritten, err := RewriteStringField(content, "status", "resolved")
+		if err != nil {
+			t.Fatalf("RewriteStringField() error = %v", err)
+		}
+		want := strings.Replace(content, "'valid'", "resolved", 1)
+		if rewritten != want {
+			t.Fatalf("RewriteStringField() = %q, want %q", rewritten, want)
+		}
+	})
+}

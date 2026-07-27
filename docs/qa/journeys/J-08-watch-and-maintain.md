@@ -1,90 +1,87 @@
-# J-08 — Watch and maintain: a self-correcting watch-source Loop
+# J-08 — Review and remediate: an agent-authored review Loop
 
-The identity case (PRD F8, use-cases §1, `reviews-watch`). A Loop is driven by an external signal — new review comments on an open change — cycling fetch → fix → verify each time the source wakes it, and concluding on its own (`done`, a clean `no-op` tick, or `stalled` if the source goes silent past its window). Between events it rests in the live, zero-cost `watching` state. This is also the extensibility surface: the `coderabbit_pr_review` watch source, the fetch/resolve/push tools, and the `review_fixer` agent all arrive from the default-enrolled `dev-cycle` extension (ADR-024/ADR-016), and CodeRabbit behavior **requires `gh` installed and authenticated** — a missing/unauthenticated `gh` must surface as an actionable availability error, never a silent hang or a fake `watching` state (LP-039).
+The identity case is the bundled `review-and-fix` Loop. A reviewer agent inspects a named task and
+returns source-agnostic structured issues. The runtime writes those issues as inspectable artifacts,
+fans complete file batches to the fixer, finalizes only fully triaged rounds, and asks the reviewer
+again. A new clean review ends the run. No pull-request provider, external CLI, or watch event is
+part of this journey.
 
 ```mermaid
 flowchart TD
-    A[Entry: run reviews-watch manual/cli/agent] --> B[Loop arms its watch-source]
-    B --> C[Live watching state: dormant, ZERO cost, zero lease]
-    C --> D{Watch event?}
-    D -->|new review lands| E[Wake → wait a beat → confirm the reviewer finished]
-    E --> F[Round: fetch new comments → fan out one fix per comment → rejoin]
-    F --> G{Resolve-check gate: anything unresolved?}
-    G -->|unresolved remain| C
-    G -->|zero unresolved, work done| H[True end: terminal done]
-    D -->|clean tick, nothing new| N[Terminal no-op — a clean watch tick is NEVER fake done]
-    D -->|source silent past the window| S[True end: terminal stalled + escalate ping]
-    B --> W{Watch-source provider}
-    W -->|dev-cycle extension: coderabbit_pr_review, gh authenticated| C
-    W -->|gh missing or unauthenticated| WG[Actionable availability error — no silent hang, no fake watching]
-    W -->|extension WITH loop.watch_source over watch/poll| C
-    W -->|extension WITHOUT the capability| WE[Cannot serve the source — gated, surfaced in InitializeResponse]
-    C -.->|operator stops a watching run| X1[Abandon: terminal failed(operator_stop), never coerced]
-    S -.->|never re-armed| X2[Abandon: run ended stalled and pinged — no infinite silent wait]
+    A([Start review-and-fix with task_name]) --> B[Reviewer returns structured issues]
+    B --> C{Any issues?}
+    C -->|No| D([Terminal done])
+    C -->|Yes| E[Write exclusive reviews-NNN artifact round]
+    E --> F[Fan out complete issue-file batches]
+    F --> G[Fixer triages and remediates every issue file]
+    G --> H[Collect one structured result per issue]
+    H --> I{Every issue triaged?}
+    I -->|No| J[Fail without partial finalization]
+    I -->|Yes| K[Finalize valid issues as resolved]
+    K --> B
 ```
 
 ```yaml
 journey:
   id: J-08
-  name: "Run a watch-source Loop that self-corrects and concludes on its own"
-  value_statement: "A recurring, externally-triggered Loop keeps a change clean without a babysitter and concludes truthfully — done, a clean no-op, or stalled when the source goes quiet."
+  name: "Review a named task, remediate every finding, and prove the next review is clean"
+  value_statement: "An agent-authored review becomes inspectable workspace evidence and bounded remediation without depending on a pull-request provider."
   personas: [Bruno, Marina]
   entry_points:
-    - url: "web /loops (loops-catalog) reviews-watch › Run  /  web run-detail (rounds)"
+    - url: "web /loops review-and-fix > Run / web run detail"
       origin: in-app-nav
-    - url: "CLI: compozy loop run --name reviews-watch --input pr=123 (until-clean IS the default: iteration_cap 0; max-rounds via loop_config)"
+    - url: "CLI: compozy loop run --workspace <workspace-id> --name review-and-fix --input task_name=<task>"
       origin: direct
   actions:
     - step: 1
-      verb: "Start reviews-watch on an open change"
-      expected_observable: "Run enters the live watching state (zero cost, zero lease) between events; catalog shows the watch tag + iteration cap ∞"
+      verb: "Start review-and-fix for a named task"
+      expected_observable: "The run records the selected reviewer/fixer agents and begins with an isolated reviewer action"
     - step: 2
-      verb: "A new review lands"
-      expected_observable: "The Loop wakes, waits a quiet-period beat, confirms, then runs a round: fetch → fan out fixes → resolve-check"
+      verb: "Inspect the authored review round"
+      expected_observable: "Each structured issue has one deterministic issue file under the next exclusive reviews-NNN directory"
     - step: 3
-      verb: "Repeat until clean / silent"
-      expected_observable: "Zero-unresolved → done; a clean tick with nothing new → no-op; silence past the window → stalled + escalate"
+      verb: "Remediate complete artifact batches"
+      expected_observable: "Every issue file receives one valid or invalid triage result before the round can finalize"
+    - step: 4
+      verb: "Review the task again"
+      expected_observable: "A non-empty result creates the next round; an empty issues array ends the run done"
   goal:
-    observable: "The Loop concludes with a truthful terminal outcome (done / no-op / stalled) appropriate to what actually happened"
-    side_effects: [watch-source-wakes, fan-out-fix-runs, escalate-ping-on-stalled]
-  true_end_state: "A clean watch tick is reported as no-op (never done-with-fake-work); a silent source ends stalled with an escalation, not an infinite wait; a resolved change ends done — each verifiable on reload."
+    observable: "The run ends done only after a fresh reviewer generation reports no issues"
+    side_effects: [review-artifact-rounds, scoped-code-fixes, monotonic-finalization]
+  true_end_state: "All prior issues are finalized, the latest reviewer output is empty, and fresh run status and on-disk artifacts agree."
   exit:
-    natural: "Operator/evaluator lands on the truthful terminal run; the change is clean or the escalation is visible."
+    natural: "The operator lands on a terminal done run with inspectable finalized review evidence."
   abandonment:
+    - at_step: 2
+      how: "The reviewer returns output that violates the declared schema."
+      resume: "The run fails with action_schema_invalid and no partial artifact round."
     - at_step: 3
-      how: "The reviewer goes silent and never posts again."
-      resume: "The source's no-progress guard ends the run stalled and pings — no infinite silent wait."
-    - at_step: 1
-      how: "Operator stops a watching run."
-      resume: "Terminal failed(operator_stop), never coerced to done."
-  crosses: [watch-source-poll, extension-capability-gate, fan-out/collect, resolve-gate, escalation]
+      how: "A fixer omits a result or leaves an issue pending."
+      resume: "The round remains unfinalized; correct the complete batch and start a new run."
+  crosses: [run-agent, extension-tools, workspace-containment, fan-out/collect, loop-stop-contract]
 
 design_reference:
   screens:
-    - "docs/design/opendesign/run-detail.html (LOOPS-DESIGN-SPEC §4.4 — rounds/generations timeline)"
-    - "docs/design/opendesign/loops-catalog.html (§4.1 — watch tag, cap ∞; the watch-source tag is a body-node concept, never a start-binding badge)"
+    - "docs/design/opendesign/run-detail.html (LOOPS-DESIGN-SPEC section 4.4 — generations timeline)"
+    - "docs/design/opendesign/loops-catalog.html (bundled read-only Loop and declared inputs)"
   truthful_ui_checks:
-    - "watching is a LIVE zero-cost dormant state — not terminal, not running (ADR-013)."
-    - "no-op renders as its own neutral terminal — a clean tick is NEVER shown as done-with-fake-work (ADR-022 inv5)."
-    - "stalled (silent source) renders as itself, never as done."
-    - "The reviews-watch watch-source is a body-node concept and never gets the catalog start-binding badge (§4.1)."
-    - "loops-refac (2026-07-08): reviews-watch's fix_batch run-agent sessions are now policy-gated (resolved sandbox/permission + subset-only allowed_tools) — the wake/remediate/done behavior is unchanged, but LP-029 is reset to verify the new session posture (CH-005 gating bullet). NOTE this is the ADR-016 extension watch_source; the new daemon-internal watch-events source class is J-11."
+    - "The catalog describes an agent-authored task review and never claims a pull-request provider prerequisite."
+    - "The run timeline uses the executable node names: review, write_artifacts, fix_batch, collect_fixes, and finalize_round."
+    - "A clean reviewer result ends done without displaying skipped remediation as completed work."
+    - "Artifact and finalization counts shown by structured surfaces match the workspace files."
 
 e2e_backbone:
   runtime:
-    - "E2E-runtime-2: wake reviews-watch on fake review events, remediate, and conclude (incl. stalled on silence)."
-    - "E2E-runtime-9: drive a loop end-to-end from an extension-provided watch-source over watch/poll (ADR-016)."
-    - "E2E-runtime-7: no-progress → stalled, fan-out ceiling → exhausted/escalate (guardrail side)."
+    - "Task07 real daemon/CLI/ACP E2E: reviewer issues, deterministic artifacts, fixer batches, finalization, clean re-review, and two-workspace isolation."
+    - "Task07 schema-failure E2E: invalid reviewer output fails safely without a partial artifact round."
   web:
-    - "E2E-web-9: all 11 states render truthfully (covers watching / no-op / stalled pills)."
+    - "Loop catalog and run-page stories use the agent-authored graph, exact inputs, and truthful terminal states."
   integration:
-    - "Integration-2: watch-source poll→ready→settle→confirm with a fake source; end stalled on silence past the window."
-    - "Integration-18: gate watch/poll — an extension WITHOUT loop.watch_source cannot serve it; one WITH it serves; watch_source_kinds surfaced in InitializeResponse."
+    - "Dev-cycle artifact suites prove exclusive rounds, containment, one result per issue file, and monotonic finalization."
   unit:
-    - "Unit-6 (zero lease/token for a watching loop); Unit-15 (no false done, exhausted/stalled/needs-approval) + §7-15 (the precise no-op/blocked terminal-not-coerced owner); Unit-2 (stalled on no-progress window)."
+    - "Coordinator branch/fan-out settlement covers the clean-review branch and the non-empty remediation path."
   followups:
-    - "LP-039 — gh missing/unauthenticated availability path is owned by the dev-cycle provider-failure suite (`_changes_spec.md` v2 R9); walk it with a lab shell whose PATH hides gh (or logged-out gh) — distinct from LP-038's mid-run blocked classification."
-    - "AB-001 — the loop e2e-web seed harness must include a watch-source seed (fake review events) to exercise watching/round/stalled in Playwright; daemon rich SSE emission exists, but browser seeds still do not drive this journey."
-    - "AB-004 — LP-038 owns the truthful-`blocked` guarantee (external dependency impossible, ADR-022), but it needs a behavioral seed (a watch-source missing a credential, or a refused run-loop cycle) to walk a run into `blocked` — not just render the pill; qa-execution seeds it via AB-004."
-    - "Watch-source PUSH path (watch/subscribe + loops/watch/notify) and MCP-backed passive sources are v1-deferred (not in scope for this cycle) — recorded, not tested."
+    - "LP-agent-authored-review-run — start and observe the provider-free journey through agent-manageable surfaces."
+    - "LP-review-artifact-inspection — inspect deterministic on-disk findings before remediation."
+    - "LP-review-round-finalization — prove incomplete rounds cannot partially finalize."
 ```

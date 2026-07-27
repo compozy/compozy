@@ -47,11 +47,18 @@ func (d ExtensionToolRuntimeDescriptor) Validate() error {
 
 // ExtensionToolCallRequest is the extension host call request.
 type ExtensionToolCallRequest struct {
-	ToolID       ToolID          `json:"tool_id"`
-	Handler      string          `json:"handler"`
-	SessionID    string          `json:"session_id,omitempty"`
-	InvocationID string          `json:"invocation_id,omitempty"`
-	Input        json.RawMessage `json:"input"`
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
+}
+
+// ExtensionToolWorkspaceScope is daemon-authenticated invocation context, separate from tool input.
+type ExtensionToolWorkspaceScope struct {
+	ID   string `json:"id"`
+	Root string `json:"root"`
 }
 
 // ExtensionProvideToolsResponse is the extension host runtime descriptor response.

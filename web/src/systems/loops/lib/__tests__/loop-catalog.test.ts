@@ -20,19 +20,20 @@ import {
   successRateLabel,
 } from "../loop-catalog";
 
-const [delivery, watch] = loopCatalogFixtures;
+const [delivery, review] = loopCatalogFixtures;
 
 describe("loop-catalog", () => {
   it("Should classify read-only vs workspace loops by source", () => {
     expect(loopKind({ source: "marketplace" })).toBe("read-only");
     expect(loopKind({ source: "workspace" })).toBe("workspace");
     expect(loopKind(delivery)).toBe("workspace");
-    expect(loopKind(watch)).toBe("read-only");
+    expect(loopKind(review)).toBe("read-only");
   });
 
   it("Should derive only categories actually present, sorted (no invented taxonomy)", () => {
     expect(loopCategory(delivery)).toBe("delivery");
-    expect(loopCategories(loopCatalogFixtures)).toEqual(["delivery", "watch"]);
+    expect(loopCategory(review)).toBe("Engineering");
+    expect(loopCategories(loopCatalogFixtures)).toEqual(["delivery", "Engineering"]);
     const blank: LoopCatalogEntry = {
       ...delivery,
       catalog: { ...delivery.catalog, category: "  " },
@@ -40,10 +41,10 @@ describe("loop-catalog", () => {
     expect(loopCategory(blank)).toBeNull();
   });
 
-  it("Should count declared inputs and detect unbounded watch loops", () => {
+  it("Should count declared inputs and distinguish bounded review loops", () => {
     expect(loopInputCount(delivery)).toBe(2);
-    expect(loopInputCount(watch)).toBe(0);
-    expect(isUnboundedCap(watch)).toBe(true);
+    expect(loopInputCount(review)).toBe(4);
+    expect(isUnboundedCap(review)).toBe(false);
     expect(isUnboundedCap(delivery)).toBe(false);
   });
 
@@ -100,16 +101,16 @@ describe("loop-catalog", () => {
 
   it("Should label the editability source shared by the row and card", () => {
     expect(loopSourceLabel(delivery)).toBe("Workspace");
-    expect(loopSourceLabel(watch)).toBe("Read-only");
+    expect(loopSourceLabel(review)).toBe("Read-only");
     expect(loopSourceLabel({ source: "marketplace" })).toBe("Read-only");
   });
 
   it("Should derive only last-run statuses actually present, deduped and sorted", () => {
-    expect(loopStatuses(loopCatalogFixtures)).toEqual(["running", "watching"]);
-    expect(loopStatuses([delivery, watch, delivery])).toEqual(["running", "watching"]);
+    expect(loopStatuses(loopCatalogFixtures)).toEqual(["running"]);
+    expect(loopStatuses([delivery, review, delivery])).toEqual(["running"]);
     expect(loopStatuses([])).toEqual([]);
     const withoutRun: LoopCatalogEntry = { ...delivery, last_run: undefined };
-    expect(loopStatuses([withoutRun, watch])).toEqual(["watching"]);
+    expect(loopStatuses([withoutRun, review])).toEqual(["running"]);
   });
 
   it("Should report active filters for a query or any chip, ignoring whitespace", () => {
@@ -145,7 +146,7 @@ describe("loop-catalog", () => {
 
     const none = groupLoopCatalog(loopCatalogFixtures, {
       kind: "workspace",
-      category: "watch",
+      category: "Engineering",
       status: null,
     });
     expect(none).toHaveLength(0);

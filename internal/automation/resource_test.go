@@ -842,7 +842,7 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		loopTrigger.TargetKind = TargetKindLoop
 		loopTrigger.LoopTarget = &LoopTarget{
 			WorkspaceID: h.workspace.ID,
-			LoopName:    "reviews-watch",
+			LoopName:    "review-and-fix",
 			Inputs:      map[string]any{"pr": float64(2)},
 		}
 		createdLoopTrigger, err := manager.CreateTrigger(h.ctx, loopTrigger, WebhookSecretWrite{})

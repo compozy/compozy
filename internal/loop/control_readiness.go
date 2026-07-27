@@ -254,8 +254,15 @@ func allGenerationOutputsSucceededControlAware(
 	}
 	outputMap := generationOutputMap(outputs)
 	for _, node := range graph.Nodes {
-		if _, inFanOut := topology.inFanOutBody(node.ID); inFanOut {
-			branchCount, ok := fanOutBranchCount(outputs, topology.nodeFanOut[node.ID])
+		if fanOutID, inFanOut := topology.inFanOutBody(node.ID); inFanOut {
+			fanOutOutput, fanOutOutputExists := outputMap[generationOutputKey{
+				nodeID:    string(fanOutID),
+				itemIndex: 0,
+			}]
+			if fanOutOutputExists && fanOutOutput.OutputRef == branchSkippedOutputRef {
+				continue
+			}
+			branchCount, ok := fanOutBranchCount(outputs, fanOutID)
 			if !ok {
 				return false
 			}

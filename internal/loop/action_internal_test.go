@@ -165,6 +165,14 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 		if !errors.Is(err, ErrActionSchemaInvalid) {
 			t.Fatalf("validateRunAgentStructured(invalid) error = %v, want ErrActionSchemaInvalid", err)
 		}
+		provider, ok := errors.AsType[SafeActionFailureProvider](err)
+		if !ok {
+			t.Fatalf("validateRunAgentStructured(invalid) error = %T, want SafeActionFailureProvider", err)
+		}
+		failure := provider.SafeActionFailure()
+		if failure.Code != string(ReasonCodeActionSchemaInvalid) || failure.Cause == "" || failure.Recovery == "" {
+			t.Fatalf("schema failure = %#v, want structured action_schema_invalid guidance", failure)
+		}
 	})
 
 	t.Run("Should normalize nested shorthand schema", func(t *testing.T) {
@@ -252,6 +260,36 @@ func TestActionRenderingInternalsShouldNormalizeValuesAndErrors(t *testing.T) {
 		first, ok := items[0].(map[string]any)
 		if !ok || first["label"] != "Ticket T-1" {
 			t.Fatalf("first item = %#v, want rendered label", items[0])
+		}
+	})
+
+	t.Run("Should preserve direct namespace reference value types", func(t *testing.T) {
+		t.Parallel()
+
+		issues := []any{map[string]any{"id": "issue-1"}}
+		rendered, err := renderNodeParams(dsl.Node{
+			ID: "write_artifacts",
+			Params: dsl.NodeParams{
+				"issues":  "{{ .inputs.issues }}",
+				"enabled": "{{ .inputs.enabled }}",
+				"label":   "Issues: {{ len .inputs.issues }}",
+			},
+		}, map[string]any{
+			"inputs": map[string]any{"issues": issues, "enabled": false},
+		})
+		if err != nil {
+			t.Fatalf("renderNodeParams() error = %v", err)
+		}
+		top := rendered
+		gotIssues, ok := top["issues"].([]any)
+		if !ok || len(gotIssues) != 1 {
+			t.Fatalf("issues = %#v, want typed array", top["issues"])
+		}
+		if got, ok := top["enabled"].(bool); !ok || got {
+			t.Fatalf("enabled = %#v, want typed false", top["enabled"])
+		}
+		if got, want := top["label"], "Issues: 1"; got != want {
+			t.Fatalf("label = %#v, want %#v", got, want)
 		}
 	})
 

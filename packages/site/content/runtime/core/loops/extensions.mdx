@@ -85,9 +85,9 @@ Once a watch Loop starts, its lifecycle differs from a delivery Loop:
   (reason `watch_source_silence`), not `done`. Silence is measured against `last_progress_at` plus
   the source's window.
 
-The default `dev-cycle` `reviews-watch` Loop is a watch Loop: it holds `watching`, fetches and
-remediates each new batch of CodeRabbit review comments as a generation, and reports `no-op` when a
-tick finds nothing unresolved. It requires `gh` to be installed and authenticated.
+The bundled `dev-cycle` Loops do not publish a watch-source kind. Its `review-and-fix` Loop starts
+an agent-authored review directly and uses ordinary actions, branching, fan-out, and collection.
+Extensions can still publish their own watch-source kinds for external signals that need polling.
 
 ## What stays put
 

@@ -7,24 +7,15 @@ import (
 	"fmt"
 	"time"
 
-	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type runtimeProvider struct {
-	coderabbit *codeRabbitProvider
-	git        *gitProvider
+	artifacts *reviewArtifactStore
 }
 
-func newRuntimeProvider() (*runtimeProvider, error) {
-	provider := &runtimeProvider{
-		coderabbit: newCodeRabbitProvider(defaultCommandRunner{}),
-		git:        newGitProvider(defaultCommandRunner{}),
-	}
-	if provider.coderabbit == nil || provider.git == nil {
-		return nil, errors.New("dev-cycle: runtime dependencies are required")
-	}
-	return provider, nil
+func newRuntimeProvider() *runtimeProvider {
+	return &runtimeProvider{artifacts: newReviewArtifactStore()}
 }
 
 func (p *runtimeProvider) ProvideTools() ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
@@ -48,34 +39,24 @@ func (p *runtimeProvider) CallTool(
 			return toolspkg.ToolResult{}, importTasksToolError(req.ToolID, input, err)
 		}
 		payload = result
-	case toolFetchUnresolved:
-		var input codeRabbitFetchInput
+	case toolWriteArtifacts:
+		var input writeReviewArtifactsInput
 		if err := decodeToolInput(req.Input, &input); err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		result, err := p.coderabbit.FetchUnresolved(ctx, input)
+		result, err := p.artifacts.Write(ctx, req.TrustedWorkspace, input)
 		if err != nil {
-			return toolspkg.ToolResult{}, err
+			return toolspkg.ToolResult{}, reviewArtifactToolError(req.ToolID, err)
 		}
 		payload = result
-	case toolResolveThreads:
-		var input codeRabbitResolveInput
+	case toolFinalizeRound:
+		var input finalizeReviewRoundInput
 		if err := decodeToolInput(req.Input, &input); err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		result, err := p.coderabbit.ResolveThreads(ctx, input)
+		result, err := p.artifacts.Finalize(ctx, req.TrustedWorkspace, input)
 		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		payload = result
-	case toolGitPush:
-		var input gitPushInput
-		if err := decodeToolInput(req.Input, &input); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		result, err := p.git.Push(ctx, input)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
+			return toolspkg.ToolResult{}, reviewArtifactToolError(req.ToolID, err)
 		}
 		payload = result
 	default:
@@ -84,15 +65,20 @@ func (p *runtimeProvider) CallTool(
 	return toolResult(payload, started)
 }
 
-func (p *runtimeProvider) Poll(ctx context.Context, req watchpkg.PollRequest) (watchpkg.PollResponse, error) {
-	var spec codeRabbitWatchSpec
-	if err := json.Unmarshal(req.Spec, &spec); err != nil {
-		return watchpkg.PollResponse{}, fmt.Errorf("dev-cycle: decode watch spec: %w", err)
+func reviewArtifactToolError(id toolspkg.ToolID, err error) error {
+	if !errors.Is(err, errReviewArtifactInput) {
+		return err
 	}
-	if spec.Kind != watchKindCodeRabbitPR {
-		return watchpkg.PollResponse{}, fmt.Errorf("dev-cycle: unsupported watch kind %q", spec.Kind)
-	}
-	return p.coderabbit.Poll(ctx, req, spec)
+	cause := err.Error()
+	return toolspkg.NewOperatorToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		cause,
+		errors.Join(toolspkg.ErrToolInvalidInput, err),
+		cause,
+		"Correct the named field and retry the review round.",
+		toolspkg.ReasonSchemaInvalid,
+	)
 }
 
 func decodeToolInput(raw json.RawMessage, target any) error {

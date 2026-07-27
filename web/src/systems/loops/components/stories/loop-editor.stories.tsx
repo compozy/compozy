@@ -67,8 +67,8 @@ function longKindDetail(): LoopDetail {
     node.id === "execute_task"
       ? {
           ...node,
-          id: "resolve_threads",
-          kind: "ext__dev_cycle__coderabbit_resolve_threads",
+          id: "collect_review_artifact_evidence",
+          kind: "ext__example_extension__collect_review_artifact_evidence",
         }
       : node
   );
@@ -145,9 +145,9 @@ export const FanOutError: Story = {
   parameters: { msw: { handlers: editorHandlers(overCeilingDetail()) } },
 };
 
-/** Editing a read-only watch Loop before a workspace fork exists. */
-export const WatchFork: Story = {
-  args: { workspaceId: WS, name: "reviews-watch" },
+/** Editing the packaged review Loop before a workspace fork exists. */
+export const PackagedFork: Story = {
+  args: { workspaceId: WS, name: "review-and-fix" },
 };
 
 /** Canvas node id/kind ellipsis inside the fixed-width card (long extension tool ids). */

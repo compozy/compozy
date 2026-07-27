@@ -15,7 +15,7 @@ import {
 
 const WS = "ws_default";
 const delivery = loopDetailByName.get("software-delivery")!;
-const watch = loopDetailByName.get("reviews-watch")!;
+const watch = loopDetailByName.get("review-and-fix")!;
 
 interface CapturedConfig {
   config: Record<string, unknown>;

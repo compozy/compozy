@@ -76,20 +76,20 @@ describe("loop-overrides model", () => {
   });
 
   it("Should treat 0 as the default on an off-by-default budget field (no redundant override)", () => {
-    // reviews-watch's budgets are off (defaultValue null), so 0 == off == default.
-    const watchEffectiveConfig = {
+    // A bounded Loop can still leave token and wall-clock budgets off.
+    const budgetlessEffectiveConfig = {
       ...effectiveConfig,
       budget_tokens: 0,
       budget_wall_sec: 0,
-      iteration_cap: 0,
+      iteration_cap: 3,
     };
     const zeroTokens = { values: { budget_tokens: 0 }, budgetOnExceeded: "halt" as const };
-    expect(hasActiveOverrides(zeroTokens, watchEffectiveConfig)).toBe(false);
-    expect(buildConfigOverrides(zeroTokens, watchEffectiveConfig)).toBeNull();
+    expect(hasActiveOverrides(zeroTokens, budgetlessEffectiveConfig)).toBe(false);
+    expect(buildConfigOverrides(zeroTokens, budgetlessEffectiveConfig)).toBeNull();
     expect(
       hasActiveOverrides(
         { values: { budget_tokens: 100 }, budgetOnExceeded: "halt" },
-        watchEffectiveConfig
+        budgetlessEffectiveConfig
       )
     ).toBe(true);
   });

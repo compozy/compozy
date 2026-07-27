@@ -10,7 +10,7 @@ import {
 } from "../loop-run-about";
 
 function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
-  return { ...loopRunDetailByRunId.get("looprun_watching")!.run, ...overrides };
+  return { ...loopRunDetailByRunId.get("looprun_review_running")!.run, ...overrides };
 }
 
 function definitionInputs(

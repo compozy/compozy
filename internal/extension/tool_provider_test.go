@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,6 +183,42 @@ func TestExtensionToolProviderDispatch(t *testing.T) {
 		}
 		if got := runtime.calls[0].Handler; got != "search" {
 			t.Fatalf("Call handler = %q, want search", got)
+		}
+	})
+
+	t.Run("Should forward daemon authenticated workspace context outside tool input", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-workspace", true)
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor},
+		)
+		registry := newExtensionToolRegistry(t, env.registry, runtime, extensionToolPolicyAllowAll())
+		scope := toolspkg.Scope{SessionID: "session-1", WorkspaceID: "workspace-identity"}
+		_, err := registry.Call(testutil.Context(t), scope, toolspkg.CallRequest{
+			ToolID:               descriptor.Tool.ID,
+			WorkspaceID:          scope.WorkspaceID,
+			TrustedWorkspaceRoot: "/trusted/workspace",
+			Input:                json.RawMessage(`{"query":"alpha"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call() error = %v", err)
+		}
+		if len(runtime.calls) != 1 || runtime.calls[0].TrustedWorkspace == nil {
+			t.Fatalf("runtime calls = %#v, want trusted workspace context", runtime.calls)
+		}
+		if got, want := runtime.calls[0].TrustedWorkspace.ID, "workspace-identity"; got != want {
+			t.Fatalf("TrustedWorkspace.ID = %q, want %q", got, want)
+		}
+		if got, want := runtime.calls[0].TrustedWorkspace.Root, "/trusted/workspace"; got != want {
+			t.Fatalf("TrustedWorkspace.Root = %q, want %q", got, want)
+		}
+		if strings.Contains(string(runtime.calls[0].Input), "trusted") ||
+			strings.Contains(string(runtime.calls[0].Input), "workspace-identity") {
+			t.Fatalf("tool input leaked trusted workspace context: %s", runtime.calls[0].Input)
 		}
 	})
 

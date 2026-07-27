@@ -7183,7 +7183,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
-	t.Run("Should trust bundled extension read only tools in default runtime policy", func(t *testing.T) {
+	t.Run("Should allow enabled bundled extension tools while enforcing permission ceiling", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -7223,13 +7223,17 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
-		const importTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"
+		const (
+			importTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"
+			writeReviewToolID toolspkg.ToolID = "ext__dev_cycle__write_review_artifacts"
+		)
 
 		views, err := registry.SessionProjection(ctx, toolspkg.Scope{})
 		if err != nil {
 			t.Fatalf("SessionProjection(extension tools) error = %v", err)
 		}
 		requireNativeViewContains(t, views, importTasksToolID)
+		requireNativeViewContains(t, views, writeReviewToolID)
 
 		result, err := registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: importTasksToolID,
@@ -7248,6 +7252,42 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if got := runtime.calls[0].request.ToolID; got != importTasksToolID {
 			t.Fatalf("runtime tool id = %q, want %q", got, importTasksToolID)
 		}
+		_, err = registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: writeReviewToolID,
+			Input:  json.RawMessage(`{"task_name":"review-policy","issues":[]}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(write_review_artifacts) error = %v", err)
+		}
+		if len(runtime.calls) != 2 {
+			t.Fatalf("runtime calls = %d, want 2", len(runtime.calls))
+		}
+
+		cfg.Permissions.Mode = aghconfig.PermissionModeApproveReads
+		views, err = registry.SessionProjection(ctx, toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection(extension tools approve-reads) error = %v", err)
+		}
+		writeView := nativeToolViewByID(views, writeReviewToolID)
+		if writeView == nil {
+			t.Fatalf("projection does not contain %q: %#v", writeReviewToolID, views)
+		}
+		if !writeView.Decision.Callable || !writeView.Decision.ApprovalRequired {
+			t.Fatalf("write review decision = %#v, want callable with approval", writeView.Decision)
+		}
+		_, err = registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: writeReviewToolID,
+			Input:  json.RawMessage(`{"task_name":"review-policy","issues":[]}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf(
+				"Registry.Call(write_review_artifacts approve-reads) error = %v, want ErrToolApprovalRequired",
+				err,
+			)
+		}
+		if len(runtime.calls) != 2 {
+			t.Fatalf("runtime calls after approval-required dispatch = %d, want 2", len(runtime.calls))
+		}
 
 		inputs, err := resolver.Resolve(ctx, toolspkg.Scope{})
 		if err != nil {
@@ -7256,6 +7296,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		bundledGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: devcycle.Name}
 		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
 			t.Fatalf("enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
+		}
+		if !sourceGrantExists(inputs.AllowSources, bundledGrant) {
+			t.Fatalf("enabled allowed sources = %#v, want %#v", inputs.AllowSources, bundledGrant)
 		}
 		if err := extensionRegistry.Disable(devcycle.Name); err != nil {
 			t.Fatalf("Disable(dev-cycle) error = %v", err)
@@ -7267,6 +7310,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if sourceGrantExists(inputs.TrustedSources, bundledGrant) {
 			t.Fatalf("disabled trusted sources = %#v, want bundled grant removed", inputs.TrustedSources)
 		}
+		if sourceGrantExists(inputs.AllowSources, bundledGrant) {
+			t.Fatalf("disabled allowed sources = %#v, want bundled grant removed", inputs.AllowSources)
+		}
 		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
 			t.Fatalf("Enable(dev-cycle) error = %v", err)
 		}
@@ -7276,6 +7322,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		}
 		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
 			t.Fatalf("re-enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
+		}
+		if !sourceGrantExists(inputs.AllowSources, bundledGrant) {
+			t.Fatalf("re-enabled allowed sources = %#v, want %#v", inputs.AllowSources, bundledGrant)
 		}
 	})
 
@@ -7638,6 +7687,11 @@ func (r *nativeBundledDevCycleToolRuntime) CallTool(
 		request:     req,
 	})
 	structured := json.RawMessage(`{"tasks":[],"count":0}`)
+	if req.ToolID == "ext__dev_cycle__write_review_artifacts" {
+		structured = json.RawMessage(
+			`{"task_name":"review-policy","round":1,"files":[],"batches":[],"issues":[],"count":0}`,
+		)
+	}
 	return toolspkg.ToolResult{
 		Structured: structured,
 		Preview:    string(structured),

@@ -1,12 +1,12 @@
 {
     "extension": {
         "name": "dev-cycle",
-        "version": "0.1.0",
-        "description": "First-party developer Loops for task delivery and CodeRabbit review remediation.",
+        "version": "0.3.0",
+        "description": "First-party developer Loops for task delivery and review remediation.",
         "min_compozy_version": "0.0.9"
     },
     "capabilities": {
-        "provides": ["tool.provider", "loop.watch_source"]
+        "provides": ["tool.provider"]
     },
     "resources": {
         "loops": ["loops"],
@@ -82,51 +82,107 @@
                     "handler": "import_tasks"
                 }
             },
-            "coderabbit_fetch_unresolved": {
-                "display_title": "Fetch CodeRabbit unresolved review threads",
-                "description": "Fetch unresolved CodeRabbit PR review threads for a GitHub pull request.",
-                "handler": "coderabbit_fetch_unresolved",
-                "risk": "read",
-                "read_only": true,
+            "write_review_artifacts": {
+                "display_title": "Write review artifacts",
+                "description": "Write agent-authored review issues to a new workspace-scoped review round.",
+                "handler": "write_review_artifacts",
+                "risk": "mutating",
+                "read_only": false,
                 "concurrency_safe": true,
                 "visibility": "model",
                 "input_schema": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["pr"],
+                    "required": ["task_name", "issues"],
                     "properties": {
-                        "pr": {
-                            "oneOf": [
-                                { "type": "integer", "minimum": 1 },
-                                { "type": "string", "minLength": 1 }
-                            ]
-                        },
-                        "include_nitpicks": {
-                            "oneOf": [
-                                { "type": "boolean", "default": false },
-                                { "type": "string", "enum": ["true", "false"] }
-                            ]
+                        "task_name": { "type": "string", "minLength": 1 },
+                        "issues": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/review_issue" }
+                        }
+                    },
+                    "$defs": {
+                        "review_issue": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["title", "body", "severity"],
+                            "properties": {
+                                "title": { "type": "string", "minLength": 1 },
+                                "body": { "type": "string", "minLength": 1 },
+                                "severity": { "type": "string", "minLength": 1 },
+                                "file": { "type": "string" },
+                                "line": { "type": "integer", "minimum": 1 },
+                                "author": { "type": "string" }
+                            }
                         }
                     }
                 },
                 "output_schema": {
                     "type": "object",
-                    "required": ["pr", "unresolved_count", "issues"],
+                    "additionalProperties": false,
+                    "required": ["task_name", "round", "files", "batches", "issues", "count"],
                     "properties": {
-                        "pr": { "type": "string" },
-                        "unresolved_count": { "type": "integer", "minimum": 0 },
-                        "issues": { "type": "array", "items": { "type": "object" } }
+                        "task_name": { "type": "string" },
+                        "round": { "type": "integer", "minimum": 0 },
+                        "round_dir": { "type": "string" },
+                        "files": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["path", "file"],
+                                "properties": {
+                                    "path": { "type": "string" },
+                                    "file": { "type": "string" }
+                                }
+                            }
+                        },
+                        "batches": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["file", "issue_files"],
+                                "properties": {
+                                    "file": { "type": "string" },
+                                    "issue_files": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        },
+                        "issues": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/review_issue" }
+                        },
+                        "count": { "type": "integer", "minimum": 0 }
+                    },
+                    "$defs": {
+                        "review_issue": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["title", "body", "severity"],
+                            "properties": {
+                                "title": { "type": "string" },
+                                "body": { "type": "string" },
+                                "severity": { "type": "string" },
+                                "file": { "type": "string" },
+                                "line": { "type": "integer" },
+                                "author": { "type": "string" }
+                            }
+                        }
                     }
                 },
                 "backend": {
                     "kind": "extension_host",
-                    "handler": "coderabbit_fetch_unresolved"
+                    "handler": "write_review_artifacts"
                 }
             },
-            "coderabbit_resolve_threads": {
-                "display_title": "Resolve CodeRabbit review threads",
-                "description": "Resolve CodeRabbit review threads after fixes have been applied.",
-                "handler": "coderabbit_resolve_threads",
+            "finalize_review_round": {
+                "display_title": "Finalize review round",
+                "description": "Finalize triaged issue statuses in one workspace-scoped review round.",
+                "handler": "finalize_review_round",
                 "risk": "mutating",
                 "read_only": false,
                 "concurrency_safe": false,
@@ -134,64 +190,27 @@
                 "input_schema": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["pr"],
+                    "required": ["task_name", "round"],
                     "properties": {
-                        "pr": {
-                            "oneOf": [
-                                { "type": "integer", "minimum": 1 },
-                                { "type": "string", "minLength": 1 }
-                            ]
-                        },
-                        "issues": { "type": "array", "items": { "type": "object" } },
-                        "results": { "type": "array", "items": { "type": "object" } }
+                        "task_name": { "type": "string", "minLength": 1 },
+                        "round": { "type": "integer", "minimum": 1 }
                     }
                 },
                 "output_schema": {
-                    "type": "object",
-                    "required": ["pr", "resolved_count", "resolved_threads"],
-                    "properties": {
-                        "pr": { "type": "string" },
-                        "resolved_count": { "type": "integer", "minimum": 0 },
-                        "resolved_threads": { "type": "array", "items": { "type": "string" } }
-                    }
-                },
-                "backend": {
-                    "kind": "extension_host",
-                    "handler": "coderabbit_resolve_threads"
-                }
-            },
-            "git_push": {
-                "display_title": "Push current branch",
-                "description": "Push the current or selected branch after verifying that HEAD advanced.",
-                "handler": "git_push",
-                "risk": "open_world",
-                "read_only": false,
-                "open_world": true,
-                "concurrency_safe": false,
-                "visibility": "model",
-                "input_schema": {
                     "type": "object",
                     "additionalProperties": false,
+                    "required": ["task_name", "round", "resolved", "invalid", "pending"],
                     "properties": {
-                        "remote": { "type": "string", "default": "origin" },
-                        "branch": { "type": "string" },
-                        "require_head_advanced": { "type": "boolean", "default": false },
-                        "expected_head": { "type": "string" }
-                    }
-                },
-                "output_schema": {
-                    "type": "object",
-                    "required": ["remote", "branch", "head"],
-                    "properties": {
-                        "remote": { "type": "string" },
-                        "branch": { "type": "string" },
-                        "head": { "type": "string" },
-                        "pushed": { "type": "boolean" }
+                        "task_name": { "type": "string" },
+                        "round": { "type": "integer", "minimum": 1 },
+                        "resolved": { "type": "integer", "minimum": 0 },
+                        "invalid": { "type": "integer", "minimum": 0 },
+                        "pending": { "type": "integer", "minimum": 0 }
                     }
                 },
                 "backend": {
                     "kind": "extension_host",
-                    "handler": "git_push"
+                    "handler": "finalize_review_round"
                 }
             }
         }

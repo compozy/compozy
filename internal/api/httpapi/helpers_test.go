@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	runtimetestutil "github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -761,21 +761,7 @@ func parseSSE(t *testing.T, body string) []sseRecord {
 
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
-
-	var listenConfig net.ListenConfig
-	ln, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen(:0) error = %v", err)
-	}
-	defer func() {
-		_ = ln.Close()
-	}()
-
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		t.Fatalf("listener addr type = %T, want *net.TCPAddr", ln.Addr())
-	}
-	return tcpAddr.Port
+	return runtimetestutil.FreeTCPPort(t)
 }
 
 func mustURL(host string, port int, path string) string {

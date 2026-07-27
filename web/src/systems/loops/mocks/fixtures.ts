@@ -53,27 +53,49 @@ const deliveryGraph = graph(
   ]
 );
 
-const watchGraph = graph(
+const reviewGraph = graph(
   [
-    { id: "watch_pr", class: "source", kind: "watch-source" },
-    { id: "fetch_issues", class: "action", kind: "compozy__network_send" },
-    { id: "remediate", class: "action", kind: "run-agent" },
-    { id: "resolve", class: "control", kind: "gate", verdict_policy: "revise_until_clean" },
+    { id: "review", class: "action", kind: "run-agent" },
+    {
+      id: "has_issues",
+      class: "control",
+      kind: "branch",
+      condition: "size(nodes.review.output.issues) > 0",
+    },
+    { id: "write_artifacts", class: "action", kind: "ext__dev_cycle__write_review_artifacts" },
+    {
+      id: "fix_batches",
+      class: "control",
+      kind: "fan-out",
+      batch_size: 1,
+      max_parallel: 1,
+      max_fan_out: 64,
+    },
+    { id: "fix_batch", class: "action", kind: "run-agent" },
+    { id: "collect_fixes", class: "control", kind: "collect" },
+    {
+      id: "finalize_round",
+      class: "action",
+      kind: "ext__dev_cycle__finalize_review_round",
+    },
   ],
   [
-    { from: "watch_pr", to: "fetch_issues" },
-    { from: "fetch_issues", to: "remediate" },
-    { from: "remediate", to: "resolve" },
+    { from: "review", to: "has_issues" },
+    { from: "has_issues", to: "write_artifacts" },
+    { from: "write_artifacts", to: "fix_batches" },
+    { from: "fix_batches", to: "fix_batch" },
+    { from: "fix_batch", to: "collect_fixes" },
+    { from: "collect_fixes", to: "finalize_round" },
   ]
 );
 
 const graphByName: Record<string, LoopDefinitionGraph> = {
   "software-delivery": deliveryGraph,
-  "reviews-watch": watchGraph,
+  "review-and-fix": reviewGraph,
 };
 
 // Vocabulary matches the canonical design spec (LOOPS-DESIGN-SPEC.md): the two
-// default dev-cycle Loops are `software-delivery` / `reviews-watch` (§4.1); `reattempt_strategy`
+// default dev-cycle Loops are `software-delivery` / `review-and-fix` (§4.1); `reattempt_strategy`
 // is `failed_only | full_body` (§5.5); verification criterion `type` is
 // `command | agent-judge | human | extension` (§5.3). Screens (tasks 19-22) build
 // on these MSW handlers, so the mock stays truthful to what the daemon emits.
@@ -103,12 +125,14 @@ const deliveryContract: LoopContract = {
   ],
 };
 
-const watchContract: LoopContract = {
-  goal: "React to inbound review requests as they arrive.",
-  definition_of_done: "Every queued review request has a recorded verdict.",
-  iteration_cap: 0,
-  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-  no_progress: { window: 5, hash_fields: ["gate_verdict"] },
+const reviewContract: LoopContract = {
+  goal: "Review the work for the named task and remediate every valid finding.",
+  definition_of_done:
+    "A new agent review round returns no issues after earlier findings were triaged, remediated, verified, and finalized.",
+  stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0",
+  iteration_cap: 3,
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "escalate" },
+  no_progress: { window: 2, hash_fields: ["nodes.review.output.issues"] },
 };
 
 function buildRun(
@@ -148,16 +172,22 @@ export const loopRunFixtures: LoopRun[] = [
     inputs: { slug: "loops-catalog-api" },
   }),
   buildRun({
-    id: "looprun_watching",
-    loop_name: "reviews-watch",
-    status: "watching",
-    iteration_cap: 0,
+    id: "looprun_review_running",
+    loop_name: "review-and-fix",
+    status: "running",
+    iteration_cap: 3,
     budget_tokens: 0,
     budget_wall_sec: 0,
-    tokens_used: 2_400_000,
-    generation: 5,
-    started_origin_kind: "webhook",
-    inputs: { pr: "482" },
+    budget_on_exceeded: "escalate",
+    tokens_used: 68_000,
+    generation: 2,
+    started_origin_kind: "cli",
+    inputs: {
+      task_name: "billing-webhooks",
+      reviewer: "reviewer",
+      fixer: "review_fixer",
+      auto_commit: false,
+    },
   }),
   buildRun({
     id: "looprun_needs_approval",
@@ -171,15 +201,16 @@ export const loopRunFixtures: LoopRun[] = [
   }),
   buildRun({
     id: "looprun_paused",
-    loop_name: "reviews-watch",
+    loop_name: "review-and-fix",
     status: "paused",
-    iteration_cap: 0,
+    iteration_cap: 3,
     budget_tokens: 0,
-    tokens_used: 640_000,
+    budget_on_exceeded: "escalate",
+    tokens_used: 74_000,
     generation: 2,
     pause_requested: true,
     started_origin_kind: "manual",
-    inputs: { pr: "493" },
+    inputs: { task_name: "session-auth", reviewer: "reviewer", fixer: "review_fixer" },
   }),
   buildRun({
     id: "looprun_queued",
@@ -204,27 +235,28 @@ export const loopRunFixtures: LoopRun[] = [
     inputs: { slug: "search-reindex" },
   }),
   buildRun({
-    id: "looprun_done_watch",
-    loop_name: "reviews-watch",
+    id: "looprun_done_review",
+    loop_name: "review-and-fix",
     status: "done",
-    iteration_cap: 0,
+    iteration_cap: 3,
     budget_tokens: 0,
-    tokens_used: 380_000,
+    budget_on_exceeded: "escalate",
+    tokens_used: 96_000,
     generation: 3,
-    started_origin_kind: "webhook",
+    started_origin_kind: "native_tool",
     last_progress_at: "2026-07-05T11:02:00Z",
-    inputs: { pr: "475" },
+    inputs: { task_name: "loop-catalog", reviewer: "reviewer", fixer: "review_fixer" },
   }),
   buildRun({
     id: "looprun_no-op",
-    loop_name: "reviews-watch",
+    loop_name: "software-delivery",
     status: "no-op",
-    iteration_cap: 0,
-    budget_tokens: 0,
+    iteration_cap: 50,
+    budget_tokens: 2_000_000,
     tokens_used: 12_000,
     generation: 1,
-    started_origin_kind: "webhook",
-    inputs: { pr: "468" },
+    started_origin_kind: "cli",
+    inputs: { slug: "empty-task-set" },
   }),
   buildRun({
     id: "looprun_blocked",
@@ -278,15 +310,16 @@ export const loopRunFixtures: LoopRun[] = [
     inputs: { slug: "no-progress" },
   }),
   buildRun({
-    id: "looprun_stalled_watch",
-    loop_name: "reviews-watch",
+    id: "looprun_stalled_review",
+    loop_name: "review-and-fix",
     status: "stalled",
-    iteration_cap: 0,
+    iteration_cap: 3,
     budget_tokens: 0,
-    tokens_used: 1_200_000,
+    budget_on_exceeded: "escalate",
+    tokens_used: 152_000,
     generation: 3,
-    started_origin_kind: "webhook",
-    inputs: { pr: "461" },
+    started_origin_kind: "http",
+    inputs: { task_name: "network-bridge", reviewer: "reviewer", fixer: "review_fixer" },
   }),
 ];
 
@@ -332,29 +365,43 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
     success_rate_30d: 0.9,
   },
   {
-    name: "reviews-watch",
+    name: "review-and-fix",
     source: "marketplace",
     version: 1,
-    description: "A watch loop that drains inbound review requests.",
+    description:
+      "Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.",
     catalog: {
-      category: "watch",
-      use_when: "You want continuous, event-driven handling of review requests.",
-      keywords: ["watch", "review"],
+      category: "Engineering",
+      use_when:
+        "You want the work on a task reviewed by an agent and every finding remediated until a round comes back clean.",
+      keywords: ["reviews", "agents", "artifacts", "remediate"],
     },
-    contract: watchContract,
-    inputs: {},
-    // A watch-source is a body node, never a start binding (design §2/§5.6); the run
-    // itself starts via an allowlisted kind (here manual) and then watches.
-    start: [{ kind: "manual" }],
+    contract: reviewContract,
+    inputs: {
+      task_name: { type: "string", required: true },
+      reviewer: { type: "agent", required: false, default: "reviewer" },
+      fixer: { type: "agent", required: false, default: "review_fixer" },
+      auto_commit: { type: "boolean", required: false, default: false },
+    },
+    start: [
+      { kind: "manual" },
+      { kind: "cli" },
+      { kind: "http" },
+      { kind: "uds" },
+      { kind: "native_tool" },
+      { kind: "trigger" },
+      { kind: "webhook" },
+    ],
     last_run: buildRun({
-      id: "looprun_watching",
-      loop_name: "reviews-watch",
-      status: "watching",
-      iteration_cap: 0,
+      id: "looprun_review_running",
+      loop_name: "review-and-fix",
+      status: "running",
+      iteration_cap: 3,
       budget_tokens: 0,
       budget_wall_sec: 0,
-      tokens_used: 0,
-      generation: 1,
+      budget_on_exceeded: "escalate",
+      tokens_used: 68_000,
+      generation: 2,
     }),
     aggregate_30d: { runs: 9, succeeded: 9, failed: 0 },
     success_rate_30d: 1,
@@ -463,23 +510,25 @@ function deliveryGenerations(run: LoopRun): LoopRunDetail["generations"] {
   return run.generation >= 2 ? [g1, g2] : [g1];
 }
 
-function watchGenerations(run: LoopRun): LoopRunDetail["generations"] {
+function reviewGenerations(run: LoopRun): LoopRunDetail["generations"] {
+  const active = run.status === "running";
+  const waiting = active || run.status === "paused";
+  const remainingStatus = waiting ? "pending" : "succeeded";
   return [
     {
       generation: Math.max(1, run.generation),
       outputs: [
-        { node_id: "watch_pr", status: "succeeded", generation: run.generation },
+        { node_id: "review", status: "succeeded", generation: run.generation },
+        { node_id: "has_issues", status: "succeeded", generation: run.generation },
+        { node_id: "write_artifacts", status: "succeeded", generation: run.generation },
         {
-          node_id: "fetch_issues",
-          status: run.status === "no-op" ? "no-op" : "succeeded",
+          node_id: "fix_batch",
+          status: active ? "running" : remainingStatus,
           generation: run.generation,
+          item_index: 0,
         },
-        {
-          node_id: "remediate",
-          status: run.status === "watching" ? "running" : "succeeded",
-          generation: run.generation,
-        },
-        { node_id: "resolve", status: "succeeded", generation: run.generation },
+        { node_id: "collect_fixes", status: remainingStatus, generation: run.generation },
+        { node_id: "finalize_round", status: remainingStatus, generation: run.generation },
       ],
     },
   ];
@@ -493,7 +542,8 @@ export const loopRunDetailFixtures: LoopRunDetail[] = loopRunFixtures.map(run =>
     started_origin_kind: run.started_origin_kind ?? "cli",
   },
   executed_definition: loopDetailByName.get(run.loop_name)!.definition,
-  generations: run.loop_name === "reviews-watch" ? watchGenerations(run) : deliveryGenerations(run),
+  generations:
+    run.loop_name === "review-and-fix" ? reviewGenerations(run) : deliveryGenerations(run),
 }));
 
 export const loopRunDetailByRunId = new Map(

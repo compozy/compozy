@@ -301,7 +301,7 @@ describe("AutomationJobForm", () => {
 
     const select = screen.getByRole("combobox", { name: "Loop" });
     expect(select).toHaveTextContent("software-delivery");
-    expect(select).not.toHaveTextContent("reviews-watch");
+    expect(select).not.toHaveTextContent("review-and-fix");
   });
 
   it("Should preserve the explicit Loop workspace when a Job becomes global", () => {
@@ -357,26 +357,26 @@ describe("AutomationJobForm", () => {
       mode: "edit",
       draft: {
         ...createAutomationJobDraft(WORKSPACE_ID),
-        name: "reviews-watch-daily",
+        name: "review-and-fix-daily",
         agent_name: "",
         prompt: "",
         target_kind: "loop",
         loop_target: {
           workspace_id: WORKSPACE_ID,
-          loop_name: "reviews-watch",
+          loop_name: "review-and-fix",
           inputs: {},
           input_mapping: {},
         },
       },
     });
 
-    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("reviews-watch");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("review-and-fix");
     expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
     expect(screen.getByTestId("job-target-agent")).toBeDisabled();
     expect(screen.getByTestId("job-target-task")).toBeDisabled();
     expect(screen.getByTestId("job-target-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
-      "reviews-watch does not declare the schedule start kind"
+      "review-and-fix does not declare the schedule start kind"
     );
 
     showPreview();

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 	"github.com/compozy/compozy/internal/subprocess"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -24,8 +23,6 @@ const (
 	rpcMethodProvideTools = "provide_tools"
 	rpcMethodShutdown     = "shutdown"
 	rpcMethodToolsCall    = "tools/call"
-	rpcMethodWatchPoll    = "watch/poll"
-	watchKindCodeRabbitPR = "coderabbit_pr_review"
 )
 
 // RunProvider serves the dev-cycle extension subprocess protocol over stdio.
@@ -69,13 +66,9 @@ func newRPCServer(stdout io.Writer) (*rpcServer, error) {
 	if stdout == nil {
 		return nil, errors.New("dev-cycle: stdout is required")
 	}
-	runtime, err := newRuntimeProvider()
-	if err != nil {
-		return nil, err
-	}
 	return &rpcServer{
 		writer:  bufio.NewWriter(stdout),
-		runtime: runtime,
+		runtime: newRuntimeProvider(),
 	}, nil
 }
 
@@ -137,16 +130,6 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 			return false, s.sendToolError(request.ID, -32010, err)
 		}
 		return false, s.sendResult(request.ID, toolspkg.ExtensionToolCallResponse{Result: result})
-	case rpcMethodWatchPoll:
-		var params watchpkg.PollRequest
-		if err := json.Unmarshal(request.Params, &params); err != nil {
-			return false, s.sendError(request.ID, -32602, fmt.Sprintf("decode watch/poll params: %v", err))
-		}
-		response, err := s.runtime.Poll(ctx, params)
-		if err != nil {
-			return false, s.sendError(request.ID, -32020, err.Error())
-		}
-		return false, s.sendResult(request.ID, response)
 	case rpcMethodShutdown:
 		if err := s.sendResult(request.ID, subprocess.ShutdownResponse{Acknowledged: true}); err != nil {
 			return false, err
@@ -158,10 +141,12 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 }
 
 func initializeResponse(req subprocess.InitializeRequest) subprocess.InitializeResponse {
-	methods := []string{rpcMethodHealthCheck, rpcMethodShutdown}
-	methods = append(methods, req.Methods.ExtensionServices...)
-	slices.Sort(methods)
-	methods = slices.Compact(methods)
+	methods := []string{
+		rpcMethodHealthCheck,
+		rpcMethodProvideTools,
+		rpcMethodShutdown,
+		rpcMethodToolsCall,
+	}
 	return subprocess.InitializeResponse{
 		ProtocolVersion: req.ProtocolVersion,
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -175,7 +160,6 @@ func initializeResponse(req subprocess.InitializeRequest) subprocess.InitializeR
 			Security: slices.Clone(req.Capabilities.GrantedSecurity),
 		},
 		ImplementedMethods: methods,
-		WatchSourceKinds:   []string{watchKindCodeRabbitPR},
 		Supports: subprocess.InitializeSupports{
 			HealthCheck: true,
 		},

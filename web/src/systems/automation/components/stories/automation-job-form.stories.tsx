@@ -182,16 +182,16 @@ export const WorkspaceLoopTarget: Story = {
   parameters: storybookMswParameters({
     loops: [
       compozyApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
-        const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
-        if (!reviewsWatch) {
+        const reviewAndFix = loopCatalogFixtures.find(loop => loop.name === "review-and-fix");
+        if (!reviewAndFix) {
           return HttpResponse.json(
-            { error: "reviews-watch fixture is unavailable" },
+            { error: "review-and-fix fixture is unavailable" },
             { status: 500 }
           );
         }
 
         const loop = {
-          ...reviewsWatch,
+          ...reviewAndFix,
           inputs: { pr: { type: "number" as const, required: true } },
           start: [{ kind: "schedule" as const }],
         };
@@ -206,14 +206,14 @@ export const WorkspaceLoopTarget: Story = {
   render: () => (
     <JobFormHarness
       initialDraft={baseDraft({
-        name: "reviews-watch-daily",
+        name: "review-and-fix-daily",
         agent_name: "",
         prompt: "",
         schedule: { mode: "cron", expr: "0 8 * * 1" },
         target_kind: "loop",
         loop_target: {
           workspace_id: storyWorkspaceIds.hq,
-          loop_name: "reviews-watch",
+          loop_name: "review-and-fix",
           inputs: { pr: 312 },
           input_mapping: {},
           network_participation: {
@@ -245,13 +245,13 @@ export const EditIncompatibleLoop: Story = {
   render: () => (
     <JobFormHarness
       initialDraft={baseDraft({
-        name: "reviews-watch-daily",
+        name: "review-and-fix-daily",
         agent_name: "",
         prompt: "",
         target_kind: "loop",
         loop_target: {
           workspace_id: storyWorkspaceIds.hq,
-          loop_name: "reviews-watch",
+          loop_name: "review-and-fix",
           inputs: {},
           input_mapping: {},
         },

@@ -1655,11 +1655,17 @@ export interface ExtensionProvideToolsResponse {
   tools: ExtensionToolRuntimeDescriptor[];
 }
 
+export interface ExtensionToolWorkspaceScope {
+  id: string;
+  root: string;
+}
+
 export interface ExtensionToolCallRequest {
   tool_id: ToolID;
   handler: string;
   session_id?: string;
   invocation_id?: string;
+  trusted_workspace?: ExtensionToolWorkspaceScope;
   input: JSONValue;
 }
 

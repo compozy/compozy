@@ -401,7 +401,7 @@ func skipBranchDependents(
 		nodeID := queue[0]
 		queue = queue[1:]
 		node, ok := graphNode(graph, nodeID)
-		if !ok || isControlKind(node, dsl.ControlCollect) {
+		if !ok {
 			continue
 		}
 		if !allBranchPathDependenciesSkipped(topology, outputMap, nodeID, branchID, itemIndex) {
@@ -416,6 +416,11 @@ func skipBranchDependents(
 			(*outputs)[idx].OutputRef = branchSkippedOutputRef
 			outputMap[key] = (*outputs)[idx]
 			queue = append(queue, topology.dependents[nodeID]...)
+			if isControlKind(node, dsl.ControlFanOut) {
+				for collectID := range topology.fanOutScopes[nodeID].collect {
+					queue = append(queue, collectID)
+				}
+			}
 		}
 	}
 }
@@ -434,6 +439,19 @@ func allBranchPathDependenciesSkipped(
 	for _, dependency := range dependencies {
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
 		if !ok {
+			fanOutID, inFanOutBody := topology.inFanOutBody(dependency)
+			if inFanOutBody {
+				fanOutOutput, fanOutOK := dependencyOutputForNode(
+					topology,
+					outputs,
+					nodeID,
+					fanOutID,
+					itemIndex,
+				)
+				if fanOutOK && fanOutOutput.OutputRef == branchSkippedOutputRef {
+					continue
+				}
+			}
 			return false
 		}
 		if dependency == branchID && dependencyOutput.OutputRef == branchFalseOutputRef {

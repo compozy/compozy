@@ -62,8 +62,7 @@ describe("LoopCatalog", () => {
     expect(screen.getByTestId("loop-group-workspace")).toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
-    expect(screen.getByText("Running")).toBeInTheDocument();
-    expect(screen.getByText("Watching")).toBeInTheDocument();
+    expect(screen.getAllByText("Running")).toHaveLength(2);
   });
 
   it("Should not claim sampled catalog-wide automation bindings", () => {
@@ -75,7 +74,7 @@ describe("LoopCatalog", () => {
     render(<Harness entries={[loopCatalogFixtures[1]]} onRun={() => {}} />);
     expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-group-read-only")).toBeInTheDocument();
-    expect(screen.getByText("reviews-watch")).toBeInTheDocument();
+    expect(screen.getByText("review-and-fix")).toBeInTheDocument();
     expect(screen.queryByText("software-delivery")).not.toBeInTheDocument();
   });
 

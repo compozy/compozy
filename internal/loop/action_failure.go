@@ -22,6 +22,36 @@ type SafeActionFailureProvider interface {
 	SafeActionFailure() ActionFailure
 }
 
+type safeActionFailureError struct {
+	err     error
+	failure ActionFailure
+}
+
+func (e *safeActionFailureError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *safeActionFailureError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func (e *safeActionFailureError) SafeActionFailure() ActionFailure {
+	if e == nil {
+		return ActionFailure{}
+	}
+	return e.failure
+}
+
+func newSafeActionFailureError(err error, failure ActionFailure) error {
+	return &safeActionFailureError{err: err, failure: failure}
+}
+
 // NewActionFailure constructs a normalized action failure payload.
 func NewActionFailure(code string, cause string, recovery string) ActionFailure {
 	return ActionFailure{

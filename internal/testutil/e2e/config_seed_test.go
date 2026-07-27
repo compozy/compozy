@@ -285,7 +285,7 @@ func TestSeedConfigPersistsSandboxProfilesAndDefault(t *testing.T) {
 	}
 }
 
-func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
+func TestWriteSeedConfigFileRewritesOverlayWithPermissionsAndToolPolicy(t *testing.T) {
 	t.Parallel()
 
 	homePaths := NewHomePaths(t)
@@ -293,6 +293,7 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 24242
 	cfg.Permissions.Mode = aghconfig.PermissionModeApproveAll
+	cfg.Tools.Policy.ExternalDefault = aghconfig.ToolsExternalDefaultEnabled
 
 	if err := writeSeedConfigFile(homePaths, &cfg); err != nil {
 		t.Fatalf("writeSeedConfigFile() error = %v", err)
@@ -323,6 +324,9 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
 	}
 	if got, want := reloaded.Permissions.Mode, aghconfig.PermissionModeApproveAll; got != want {
 		t.Fatalf("reloaded.Permissions.Mode = %q, want %q", got, want)
+	}
+	if got, want := reloaded.Tools.Policy.ExternalDefault, aghconfig.ToolsExternalDefaultEnabled; got != want {
+		t.Fatalf("reloaded.Tools.Policy.ExternalDefault = %q, want %q", got, want)
 	}
 }
 

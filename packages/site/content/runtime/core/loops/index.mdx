@@ -73,12 +73,12 @@ default-enrolled `dev-cycle` extension and run directly — supply a couple of i
 - **`software-delivery`** — executes already-authored tasks in dependency order, reviews results
   (agent-judge or human approval), remediates failures, and verifies against the project's own
   checks.
-- **`reviews-watch`** — watches an open change; each time new review comments land, it fetches and
-  remediates them, repeating until nothing is unresolved. CodeRabbit-backed runs require `gh` to be
-  installed and authenticated.
+- **`review-and-fix`** — asks the configured reviewer agent to inspect a named task, records its
+  structured findings as `.compozy/tasks/<task>/reviews-NNN/issue_NNN.md` files, remediates complete
+  artifact batches, and repeats until a new review generation returns no issues.
 
-If you disable `dev-cycle`, those Loops, their default agents, their provider tools, and the
-`coderabbit_pr_review` watch source leave the catalog together; enabling it restores the package.
+If you disable `dev-cycle`, those Loops, their default agents, and their artifact tools leave the
+catalog together; enabling it restores the package.
 
 Authoring, configuring, and forking are an opt-in power ceiling, never the entry toll.
 

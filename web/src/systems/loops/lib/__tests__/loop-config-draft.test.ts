@@ -16,7 +16,7 @@ import {
 import type { LoopConfig } from "../../types";
 
 const delivery = loopDetailByName.get("software-delivery")!;
-const watch = loopDetailByName.get("reviews-watch")!;
+const watch = loopDetailByName.get("review-and-fix")!;
 const contract = delivery.definition.contract;
 const descriptors = buildCheckDescriptors(contract);
 

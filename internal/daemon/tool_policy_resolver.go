@@ -127,6 +127,9 @@ func (r *nativeToolPolicyResolver) applyBundledExtensionTrust(inputs *toolspkg.P
 		if !sourceGrantExists(inputs.TrustedSources, grant) {
 			inputs.TrustedSources = append(inputs.TrustedSources, grant)
 		}
+		if !sourceGrantExists(inputs.AllowSources, grant) {
+			inputs.AllowSources = append(inputs.AllowSources, grant)
+		}
 	}
 	return nil
 }

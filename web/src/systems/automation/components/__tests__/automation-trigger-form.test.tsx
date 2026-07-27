@@ -106,17 +106,17 @@ describe("AutomationTriggerForm", () => {
   beforeEach(async () => {
     const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
     const softwareDelivery = loopCatalogFixtures.find(loop => loop.name === "software-delivery");
-    const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
-    if (!softwareDelivery || !reviewsWatch) throw new Error("Loop fixtures are incomplete");
+    const reviewAndFix = loopCatalogFixtures.find(loop => loop.name === "review-and-fix");
+    if (!softwareDelivery || !reviewAndFix) throw new Error("Loop fixtures are incomplete");
 
     loopsState.current = [
       { ...softwareDelivery, start: [{ kind: "schedule" }, { kind: "trigger" }] },
       {
-        ...reviewsWatch,
+        ...reviewAndFix,
         inputs: { pr: { type: "number", required: true } },
         start: [{ kind: "trigger" }],
       },
-      { ...reviewsWatch, name: "webhook-intake", start: [{ kind: "webhook" }] },
+      { ...reviewAndFix, name: "webhook-intake", start: [{ kind: "webhook" }] },
     ];
   });
 
@@ -397,14 +397,14 @@ describe("AutomationTriggerForm", () => {
 
     let select = screen.getByRole("combobox", { name: "Loop" });
     expect(select).toHaveTextContent("software-delivery");
-    expect(select).toHaveTextContent("reviews-watch");
+    expect(select).toHaveTextContent("review-and-fix");
     expect(select).not.toHaveTextContent("webhook-intake");
 
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
     select = screen.getByRole("combobox", { name: "Loop" });
     expect(select).toHaveTextContent("webhook-intake");
     expect(select).not.toHaveTextContent("software-delivery");
-    expect(select).not.toHaveTextContent("reviews-watch");
+    expect(select).not.toHaveTextContent("review-and-fix");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         loop_target: expect.objectContaining({ loop_name: "" }),
@@ -423,7 +423,7 @@ describe("AutomationTriggerForm", () => {
     fireEvent.click(screen.getByTestId("trigger-event-session.stopped"));
     fireEvent.click(screen.getByTestId("target-mode-loop"));
     fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "reviews-watch" },
+      target: { value: "review-and-fix" },
     });
     fireEvent.change(screen.getByTestId("loop-input-field-pr"), {
       target: { value: "2" },
@@ -436,7 +436,7 @@ describe("AutomationTriggerForm", () => {
       expect.objectContaining({
         loop_target: expect.objectContaining({
           inputs: { pr: 2 },
-          loop_name: "reviews-watch",
+          loop_name: "review-and-fix",
           workspace_id: "ws_beta",
         }),
         scope: "workspace",

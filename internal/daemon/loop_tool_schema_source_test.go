@@ -312,14 +312,18 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 	t.Helper()
 
 	descriptor := toolspkg.Descriptor{
-		ID:           "ext__dev_cycle__git_push",
-		DisplayTitle: "Git Push",
-		Description:  "Push the current branch to a remote.",
-		InputSchema:  json.RawMessage(`{"type":"object","properties":{"remote":{"type":"string"}}}`),
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"pushed":{"type":"boolean"}}}`),
+		ID:           "ext__dev_cycle__finalize_review_round",
+		DisplayTitle: "Finalize review round",
+		Description:  "Resolve triaged review issue artifacts.",
+		InputSchema: json.RawMessage(
+			`{"type":"object","required":["task_name","round"],"properties":{"task_name":{"type":"string"},"round":{"type":"integer"}}}`,
+		),
+		OutputSchema: json.RawMessage(
+			`{"type":"object","properties":{"resolved":{"type":"integer"},"invalid":{"type":"integer"},"pending":{"type":"integer"}}}`,
+		),
 		Backend: toolspkg.BackendRef{
 			Kind:       toolspkg.BackendNativeGo,
-			NativeName: "git_push",
+			NativeName: "finalize_review_round",
 		},
 		Source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,

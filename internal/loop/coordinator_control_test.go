@@ -182,7 +182,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			t.Run("Should route "+tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				loopRun := controlLoopRun("looprun-branch-"+tc.name, map[string]any{"auto_push": tc.autoPush})
+				loopRun := controlLoopRun("looprun-branch-"+tc.name, map[string]any{"route_enabled": tc.autoPush})
 				coordinatorRun := controlCoordinatorRun(loopRun, 1)
 				loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 				runner := newCoordinatorRunnerForControlTest(
@@ -197,7 +197,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 							Status:     generationOutputEnqueued,
 							TaskRunID:  loadRun.ID,
 						},
-						{Generation: 1, NodeID: "should_push", Status: generationOutputPending},
+						{Generation: 1, NodeID: "should_route", Status: generationOutputPending},
 						{Generation: 1, NodeID: "push", Status: generationOutputPending},
 					}}},
 					resolved,
@@ -229,7 +229,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 		t.Parallel()
 
 		resolved := compileCoordinatorControlDefinition(t, branchJoinControlDefinition())
-		loopRun := controlLoopRun("looprun-branch-join", map[string]any{"auto_push": false})
+		loopRun := controlLoopRun("looprun-branch-join", map[string]any{"route_enabled": false})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 		independentRun := controlWorkerRun(loopRun, "independent", 0, task.TaskRunStatusCompleted)
@@ -245,7 +245,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued, TaskRunID: loadRun.ID},
 				{Generation: 1, NodeID: "independent", Status: generationOutputEnqueued, TaskRunID: independentRun.ID},
-				{Generation: 1, NodeID: "should_push", Status: generationOutputPending},
+				{Generation: 1, NodeID: "should_route", Status: generationOutputPending},
 				{Generation: 1, NodeID: "join", Status: generationOutputPending},
 			}}},
 			resolved,
@@ -271,7 +271,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 		t.Parallel()
 
 		resolved := compileCoordinatorControlDefinition(t, branchTailControlDefinition())
-		loopRun := controlLoopRun("looprun-branch-tail", map[string]any{"auto_push": false})
+		loopRun := controlLoopRun("looprun-branch-tail", map[string]any{"route_enabled": false})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 		runner := newCoordinatorRunnerForControlTest(
@@ -281,7 +281,7 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
 			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued, TaskRunID: loadRun.ID},
-				{Generation: 1, NodeID: "should_push", Status: generationOutputPending},
+				{Generation: 1, NodeID: "should_route", Status: generationOutputPending},
 				{Generation: 1, NodeID: "first", Status: generationOutputPending},
 				{Generation: 1, NodeID: "second", Status: generationOutputPending},
 			}}},
@@ -306,11 +306,11 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 		}
 	})
 
-	t.Run("Should skip an unequal-length false branch diamond to a join", func(t *testing.T) {
+	t.Run("Should settle a fan-out collect when a false branch bypasses the fan-out", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := compileCoordinatorControlDefinition(t, branchUnequalDiamondControlDefinition())
-		loopRun := controlLoopRun("looprun-branch-diamond", map[string]any{"auto_push": false})
+		resolved := compileCoordinatorControlDefinition(t, branchFanOutControlDefinition())
+		loopRun := controlLoopRun("looprun-branch-fanout", map[string]any{"has_issues": false})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 		runner := newCoordinatorRunnerForControlTest(
@@ -320,7 +320,48 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
 			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued, TaskRunID: loadRun.ID},
-				{Generation: 1, NodeID: "should_push", Status: generationOutputPending},
+				{Generation: 1, NodeID: "should_fix", Status: generationOutputPending},
+				{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+				{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+				{Generation: 1, NodeID: "finalize", Status: generationOutputPending},
+			}}},
+			resolved,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if len(plan.NodeRuns) != 0 {
+			t.Fatalf("node runs = %d, want no false-branch enqueue", len(plan.NodeRuns))
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusDone) {
+			t.Fatalf("Terminal = %#v, want done; outputs=%#v", plan.Terminal, payload.Outputs)
+		}
+		outputs := outputsByNodeAndItemForTest(payload.Outputs)
+		for _, key := range []string{"fan/0", "collect/0", "finalize/0"} {
+			if got, want := outputs[key].OutputRef, branchSkippedOutputRef; got != want {
+				t.Fatalf("%s output_ref = %q, want %q", key, got, want)
+			}
+		}
+	})
+
+	t.Run("Should skip an unequal-length false branch diamond to a join", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := compileCoordinatorControlDefinition(t, branchUnequalDiamondControlDefinition())
+		loopRun := controlLoopRun("looprun-branch-diamond", map[string]any{"route_enabled": false})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		runner := newCoordinatorRunnerForControlTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued, TaskRunID: loadRun.ID},
+				{Generation: 1, NodeID: "should_route", Status: generationOutputPending},
 				{Generation: 1, NodeID: "short", Status: generationOutputPending},
 				{Generation: 1, NodeID: "long_first", Status: generationOutputPending},
 				{Generation: 1, NodeID: "long_second", Status: generationOutputPending},
@@ -704,17 +745,17 @@ func branchControlDefinition() dsl.Definition {
 		Kind:       dsl.KindLoop,
 		Meta:       dsl.Meta{Name: "delivery"},
 		Inputs: map[string]dsl.Input{
-			"auto_push": {Type: dsl.InputTypeBoolean},
+			"route_enabled": {Type: dsl.InputTypeBoolean},
 		},
 		Contract: dsl.Contract{Goal: "test", DefinitionOfDone: "done", IterationCap: 3},
 		Graph: dsl.Graph{
 			Nodes: []dsl.Node{
-				{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput), InputRef: "auto_push"},
+				{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput), InputRef: "route_enabled"},
 				{
-					ID:        "should_push",
+					ID:        "should_route",
 					Class:     dsl.NodeClassControl,
 					Kind:      string(dsl.ControlBranch),
-					Condition: "inputs.auto_push == true",
+					Condition: "inputs.route_enabled == true",
 				},
 				{
 					ID:    "push",
@@ -726,8 +767,72 @@ func branchControlDefinition() dsl.Definition {
 				},
 			},
 			Edges: []dsl.Edge{
-				{From: "load", To: "should_push"},
-				{From: "should_push", To: "push"},
+				{From: "load", To: "should_route"},
+				{From: "should_route", To: "push"},
+			},
+		},
+	}
+}
+
+func branchFanOutControlDefinition() dsl.Definition {
+	return dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Meta:       dsl.Meta{Name: "review-and-fix"},
+		Inputs: map[string]dsl.Input{
+			"has_issues": {Type: dsl.InputTypeBoolean},
+		},
+		Contract: dsl.Contract{Goal: "test", DefinitionOfDone: "done", IterationCap: 3},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "load",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"items": map[string]any{"value": []any{}}},
+					},
+					Produces: dsl.Schema{"items": []any{map[string]any{"id": "string"}}},
+				},
+				{
+					ID:        "should_fix",
+					Class:     dsl.NodeClassControl,
+					Kind:      string(dsl.ControlBranch),
+					Condition: "inputs.has_issues == true",
+				},
+				{
+					ID:          "fan",
+					Class:       dsl.NodeClassControl,
+					Kind:        string(dsl.ControlFanOut),
+					Collection:  "{{ .nodes.load.output.items }}",
+					BatchSize:   1,
+					MaxParallel: 1,
+					MaxFanOut:   2,
+				},
+				{
+					ID:    "work",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+				{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+				{
+					ID:    "finalize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{
+				{From: "load", To: "should_fix"},
+				{From: "should_fix", To: "fan"},
+				{From: "fan", To: "work"},
+				{From: "work", To: "collect"},
+				{From: "collect", To: "finalize"},
 			},
 		},
 	}
@@ -736,7 +841,7 @@ func branchControlDefinition() dsl.Definition {
 func branchJoinControlDefinition() dsl.Definition {
 	def := branchControlDefinition()
 	def.Graph.Nodes = append(def.Graph.Nodes[:1], append([]dsl.Node{
-		{ID: "independent", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput), InputRef: "auto_push"},
+		{ID: "independent", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput), InputRef: "route_enabled"},
 	}, def.Graph.Nodes[1:]...)...)
 	def.Graph.Nodes[3] = dsl.Node{
 		ID:    "join",
@@ -747,8 +852,8 @@ func branchJoinControlDefinition() dsl.Definition {
 		},
 	}
 	def.Graph.Edges = []dsl.Edge{
-		{From: "load", To: "should_push"},
-		{From: "should_push", To: "join"},
+		{From: "load", To: "should_route"},
+		{From: "should_route", To: "join"},
 		{From: "independent", To: "join"},
 	}
 	return def
@@ -773,8 +878,8 @@ func branchTailControlDefinition() dsl.Definition {
 		},
 	})
 	def.Graph.Edges = []dsl.Edge{
-		{From: "load", To: "should_push"},
-		{From: "should_push", To: "first"},
+		{From: "load", To: "should_route"},
+		{From: "should_route", To: "first"},
 		{From: "first", To: "second"},
 	}
 	return def
@@ -817,10 +922,10 @@ func branchUnequalDiamondControlDefinition() dsl.Definition {
 		},
 	)
 	def.Graph.Edges = []dsl.Edge{
-		{From: "load", To: "should_push"},
-		{From: "should_push", To: "short"},
+		{From: "load", To: "should_route"},
+		{From: "should_route", To: "short"},
 		{From: "short", To: "join"},
-		{From: "should_push", To: "long_first"},
+		{From: "should_route", To: "long_first"},
 		{From: "long_first", To: "long_second"},
 		{From: "long_second", To: "join"},
 	}
