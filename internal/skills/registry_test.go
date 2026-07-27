@@ -1075,7 +1075,7 @@ func TestRegistryVerifyContentBlocksCriticalSkills(t *testing.T) {
 	}
 }
 
-func TestRegistryVerifyContentBlocksCriticalBundledSkills(t *testing.T) {
+func TestRegistryVerifyContentBypassesCriticalBundledSkills(t *testing.T) {
 	t.Parallel()
 
 	registry := newTestRegistry(t, RegistryConfig{
@@ -1099,8 +1099,13 @@ func TestRegistryVerifyContentBlocksCriticalBundledSkills(t *testing.T) {
 		t.Fatalf("LoadAll() error = %v", err)
 	}
 
-	if _, ok := registry.Get("blocked"); ok {
-		t.Fatal("Get(blocked) ok = true, want blocked bundled skill skipped")
+	blocked, ok := registry.Get("blocked")
+	if !ok {
+		t.Fatal("Get(blocked) ok = false, want bundled skill exempt from content scan")
+	}
+	if blocked.Diagnostics.VerificationStatus != SkillVerificationStatusPassed ||
+		len(blocked.Diagnostics.Warnings) != 0 {
+		t.Fatalf("blocked.Diagnostics = %#v, want passed without scan warnings", blocked.Diagnostics)
 	}
 	if _, ok := registry.Get("safe"); !ok {
 		t.Fatal("Get(safe) ok = false, want safe bundled skill loaded")
@@ -1952,6 +1957,46 @@ func TestRegistryLoadContent(t *testing.T) {
 	}
 	if bundledContent != "Bundled body" {
 		t.Fatalf("LoadContent(bundled) = %q, want %q", bundledContent, "Bundled body")
+	}
+
+	extensionSkillDir := filepath.Join(root, "extensions", "dev-cycle", "skills", "extension-bundled")
+	writeSkillFile(
+		t,
+		filepath.Dir(extensionSkillDir),
+		filepath.Join(filepath.Base(extensionSkillDir), skillFileName),
+		skillWithBody("extension-bundled", "Extension bundled skill", "Extension bundled body"),
+	)
+	writeSkillFile(
+		t,
+		extensionSkillDir,
+		filepath.Join("references", "guide.md"),
+		"Extension bundled guide",
+	)
+	extensionSkill, err := ParseSkillFileWithSource(
+		filepath.Join(extensionSkillDir, skillFileName),
+		SourceBundled,
+	)
+	if err != nil {
+		t.Fatalf("ParseSkillFileWithSource(extension bundled) error = %v", err)
+	}
+	extensionSkill.InstalledFromExtension = "dev-cycle"
+	extensionContent, err := registry.LoadContent(context.Background(), extensionSkill)
+	if err != nil {
+		t.Fatalf("LoadContent(extension bundled) error = %v", err)
+	}
+	if extensionContent != "Extension bundled body" {
+		t.Fatalf("LoadContent(extension bundled) = %q, want %q", extensionContent, "Extension bundled body")
+	}
+	extensionResource, err := registry.LoadResource(context.Background(), extensionSkill, "references/guide.md")
+	if err != nil {
+		t.Fatalf("LoadResource(extension bundled) error = %v", err)
+	}
+	if extensionResource != "Extension bundled guide" {
+		t.Fatalf(
+			"LoadResource(extension bundled) = %q, want %q",
+			extensionResource,
+			"Extension bundled guide",
+		)
 	}
 
 	workspaceSkills, err := registry.ForWorkspace(

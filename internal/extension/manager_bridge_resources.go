@@ -183,6 +183,36 @@ func collectMarkdownFiles(root string) ([]string, error) {
 	return files, nil
 }
 
+func collectSkillDefinitionFiles(root string) ([]string, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		if filepath.Base(root) == "SKILL.md" {
+			return []string{root}, nil
+		}
+		return nil, fmt.Errorf("resource path %q is not a SKILL.md file", root)
+	}
+
+	files := make([]string, 0)
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || entry.Name() != "SKILL.md" {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
 func collectLoopDefinitionFiles(root string) ([]string, error) {
 	info, err := os.Stat(root)
 	if err != nil {

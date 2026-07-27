@@ -92,8 +92,8 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		actions:      []string{"sessions/list"},
 		security:     []string{"session.read"},
 	}), map[string]string{
-		"skills/review.md": managerSkillFile("ext-review", "External review workflow"),
-		"agents/coder.md":  managerAgentFile("ext-agent"),
+		"skills/ext-review/SKILL.md": managerSkillFile("ext-review", "External review workflow"),
+		"agents/coder.md":            managerAgentFile("ext-agent"),
 	})
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -1610,7 +1610,12 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", skillsDir, err)
 	}
-	writeFile(t, filepath.Join(skillsDir, "skill.md"), managerSkillFile("missing-registry", "Needs registry"))
+	writeFile(t, filepath.Join(skillsDir, "SKILL.md"), managerSkillFile("missing-registry", "Needs registry"))
+	referencesDir := filepath.Join(skillsDir, "references")
+	if err := os.MkdirAll(referencesDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", referencesDir, err)
+	}
+	writeFile(t, filepath.Join(referencesDir, "context.md"), "# Supporting context\n")
 	skillExt := &managedExtension{
 		info:    ExtensionInfo{Name: "ext-skills", Source: SourceUser},
 		rootDir: rootDir,

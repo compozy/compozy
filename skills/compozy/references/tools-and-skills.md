@@ -162,7 +162,9 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Bundled Skill Resources
 
-Bundled Compozy skills are compiled from the repository skills/<name>/ directories. The canonical Compozy bundled skill is compozy. It includes SKILL.md and flat references/\*.md resource files.
+`skills/compozy/` is the sole owner of bundled skill `compozy`; it ships `SKILL.md` and flat `references/*.md` resources.
+
+Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Each complete source directory comes from `.agents/skills/`. Inspect them with `compozy skill list|view`; workspace definitions shadow only locally. Compozy writes no external agent-CLI home and does not replace retired `compozy setup`.
 
 Resource files are load-bearing. A summary in SKILL.md is never a substitute for reading the referenced file selected by the router.
 

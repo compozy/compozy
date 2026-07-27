@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,10 +15,28 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+// Suite: embedded dev-cycle product contracts.
+// Invariant: shipped loops, agents, tools, and skills remain loadable and mutually consistent.
+// Boundary IN: embedded bytes, managed installation, and runtime parsers.
+// Boundary OUT: daemon publication and workspace projection, owned by internal/daemon integration tests.
+
+var bundledSkillNames = []string{
+	"cy-create-prd",
+	"cy-create-tasks",
+	"cy-create-techspec",
+	"cy-execute-task",
+	"cy-final-verify",
+	"cy-fix-reviews",
+	"cy-review-round",
+	"cy-workflow-memory",
+	"git-rebase",
+}
 
 func TestEmbeddedLoopsShouldCompileWithDevCycleToolSchemas(t *testing.T) {
 	t.Parallel()
@@ -240,6 +260,180 @@ func TestDevCycleManagedInstallShouldPublishManagedManifestTools(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	root, err := materializeEmbeddedExtension(homePaths)
+	if err != nil {
+		t.Fatalf("materializeEmbeddedExtension() error = %v", err)
+	}
+	manifest, err := extensionpkg.LoadManifest(root)
+	if err != nil {
+		t.Fatalf("LoadManifest(%q) error = %v", root, err)
+	}
+
+	t.Run("Should embed exactly the nine manifest-declared skills", func(t *testing.T) {
+		t.Parallel()
+
+		paths, err := fs.Glob(FS(), "skills/*/SKILL.md")
+		if err != nil {
+			t.Fatalf("Glob(skills/*/SKILL.md) error = %v", err)
+		}
+		if got, want := len(paths), len(bundledSkillNames); got != want {
+			t.Fatalf("embedded skill count = %d, want %d; paths=%#v", got, want, paths)
+		}
+		for _, name := range bundledSkillNames {
+			path := "skills/" + name + "/SKILL.md"
+			if !slices.Contains(paths, path) {
+				t.Fatalf("embedded skills = %#v, want %q", paths, path)
+			}
+		}
+		if !slices.Equal(manifest.Resources.Skills, []string{"skills"}) {
+			t.Fatalf("manifest.Resources.Skills = %#v, want [skills]", manifest.Resources.Skills)
+		}
+	})
+
+	t.Run("Should parse every skill with bundled extension classification", func(t *testing.T) {
+		t.Parallel()
+
+		for _, skillName := range bundledSkillNames {
+			t.Run("Should parse "+skillName, func(t *testing.T) {
+				t.Parallel()
+
+				path := filepath.Join(root, "skills", skillName, "SKILL.md")
+				skill, err := skillspkg.ParseSkillFileWithSource(path, skillspkg.SourceBundled)
+				if err != nil {
+					t.Fatalf("ParseSkillFileWithSource(%q) error = %v", path, err)
+				}
+				if skill.Meta.Name != skillName || skill.Source != skillspkg.SourceBundled {
+					t.Fatalf("parsed skill = %#v, want name %q and bundled source", skill, skillName)
+				}
+			})
+		}
+	})
+
+	t.Run("Should exclude retired commands skills and branding", func(t *testing.T) {
+		t.Parallel()
+
+		legacyBrand := regexp.MustCompile(`(?i)\bagh\b`)
+		for _, name := range bundledSkillNames {
+			path := "skills/" + name + "/SKILL.md"
+			data, err := fs.ReadFile(FS(), path)
+			if err != nil {
+				t.Fatalf("ReadFile(%q) error = %v", path, err)
+			}
+			body := strings.ToLower(string(data))
+			for _, retired := range []string{
+				"compozy tasks run",
+				"compozy tasks validate",
+				"compozy reviews fix",
+				"compozy setup",
+				"cy-capture-decisions",
+			} {
+				if strings.Contains(body, retired) {
+					t.Fatalf("%s contains retired surface %q", path, retired)
+				}
+			}
+			if legacyBrand.MatchString(body) {
+				t.Fatalf("%s contains retired AGH branding", path)
+			}
+		}
+		if slices.Contains(bundledSkillNames, "compozy") {
+			t.Fatal("bundled skill names contain retired duplicate compozy skill")
+		}
+	})
+}
+
+func TestDevCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	globalDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Errorf("Close(globalDB) error = %v", err)
+		}
+	})
+	registry := extensionpkg.NewRegistry(globalDB.DB())
+	if err := EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(first) error = %v", err)
+	}
+	installed, err := registry.Get(Name)
+	if err != nil {
+		t.Fatalf("registry.Get(%q) error = %v", Name, err)
+	}
+	root := filepath.Dir(installed.ManifestPath)
+	oldSkillPath := filepath.Join(root, "skills", "cy-execute-task", "SKILL.md")
+	if err := os.WriteFile(oldSkillPath, []byte("old bundled skill bytes\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", oldSkillPath, err)
+	}
+	oldManifestPath := filepath.Join(root, "extension.json")
+	manifestBytes, err := os.ReadFile(oldManifestPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", oldManifestPath, err)
+	}
+	manifestBytes = []byte(strings.Replace(string(manifestBytes), `"version": "0.3.1"`, `"version": "0.3.0"`, 1))
+	if err := os.WriteFile(oldManifestPath, manifestBytes, 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", oldManifestPath, err)
+	}
+	oldManifest, err := extensionpkg.LoadManifest(root)
+	if err != nil {
+		t.Fatalf("LoadManifest(old) error = %v", err)
+	}
+	oldChecksum, err := extensionpkg.ComputeDirectoryChecksum(root)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(old) error = %v", err)
+	}
+	if err := registry.Install(
+		oldManifest,
+		root,
+		oldChecksum,
+		extensionpkg.WithInstallSource(extensionpkg.SourceBundled),
+		extensionpkg.WithInstallReplaceExisting(),
+	); err != nil {
+		t.Fatalf("registry.Install(old bundle) error = %v", err)
+	}
+
+	if err := EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(updated) error = %v", err)
+	}
+	updated, err := registry.Get(Name)
+	if err != nil {
+		t.Fatalf("registry.Get(%q updated) error = %v", Name, err)
+	}
+	if updated.Version != "0.3.1" || strings.EqualFold(updated.Checksum, oldChecksum) {
+		t.Fatalf(
+			"updated identity = version %q checksum %q, want 0.3.1 and checksum != %q",
+			updated.Version,
+			updated.Checksum,
+			oldChecksum,
+		)
+	}
+	wantBody, err := fs.ReadFile(FS(), "skills/cy-execute-task/SKILL.md")
+	if err != nil {
+		t.Fatalf("ReadFile(embedded cy-execute-task) error = %v", err)
+	}
+	gotBody, err := os.ReadFile(
+		filepath.Join(filepath.Dir(updated.ManifestPath), "skills", "cy-execute-task", "SKILL.md"),
+	)
+	if err != nil {
+		t.Fatalf("ReadFile(updated cy-execute-task) error = %v", err)
+	}
+	if !slices.Equal(gotBody, wantBody) {
+		t.Fatal("updated cy-execute-task bytes do not match embedded bundle")
+	}
 }
 
 func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
@@ -613,6 +807,8 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 		prompt := string(data)
 		for _, required := range []string{
+			"cy-review-round",
+			"cy-final-verify",
 			"files, tests, and command output",
 			"source-agnostic `ReviewIssue[]`",
 			"`title`, `body`, and `severity`",

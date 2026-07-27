@@ -164,7 +164,10 @@ func (r *Registry) processSkillWithDiagnostics(
 	r.applyDisabled(skill, disabledSkills)
 
 	verifyErr := r.verifyMarketplaceSkill(skill)
-	warnings := VerifyContent(content)
+	var warnings []Warning
+	if skill.Source != SourceBundled {
+		warnings = VerifyContent(content)
+	}
 	r.logVerificationWarnings(skill, warnings)
 	if verifyErr != nil {
 		appendSkillDiagnostic(diagnostics, skillVerificationFailedDiagnostic(skill, verifyErr, warnings))

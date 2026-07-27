@@ -133,7 +133,7 @@ func TestRPCServerShouldServeLifecycleMethods(t *testing.T) {
 
 		response := runProviderRPC(t, rpcMethodInitialize, subprocess.InitializeRequest{
 			ProtocolVersion: "2026-01-01",
-			Extension:       subprocess.InitializeExtension{Name: Name, Version: "0.3.0"},
+			Extension:       subprocess.InitializeExtension{Name: Name, Version: "0.3.1"},
 			Capabilities:    subprocess.InitializeCapabilities{Provides: []string{"tool.provider"}},
 			Methods: subprocess.InitializeMethods{ExtensionServices: []string{
 				rpcMethodToolsCall, rpcMethodProvideTools, "watch/poll",

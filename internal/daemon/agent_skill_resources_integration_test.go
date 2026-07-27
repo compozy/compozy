@@ -12,20 +12,35 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	aghconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+var devCycleIntegrationSkillNames = []string{
+	"cy-create-prd",
+	"cy-create-tasks",
+	"cy-create-techspec",
+	"cy-execute-task",
+	"cy-final-verify",
+	"cy-fix-reviews",
+	"cy-review-round",
+	"cy-workflow-memory",
+	"git-rebase",
+}
 
 func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	t.Run("Should publish agent and skill resources and rebuild them on boot", func(t *testing.T) {
@@ -250,6 +265,245 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			!mcpCatalogHas(rebuiltMCPCatalog, "ext-agent-mcp") ||
 			!mcpCatalogHas(rebuiltMCPCatalog, "ext-skill-mcp") {
 			t.Fatalf("rebuilt MCP catalog = %#v, want all agent/skill MCP attachments", rebuiltMCPCatalog.Snapshot())
+		}
+	})
+}
+
+func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should publish nine global skills while preserving workspace-local isolation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		agentCodec, err := aghconfig.NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+		}
+		agentStore, err := resources.NewStore(kernel, agentCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(agent) error = %v", err)
+		}
+		skillCodec, err := skillspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("skillspkg.NewResourceCodec() error = %v", err)
+		}
+		skillStore, err := resources.NewStore(kernel, skillCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(skill) error = %v", err)
+		}
+		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+		mcpStore, err := resources.NewStore(kernel, mcpCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(mcp) error = %v", err)
+		}
+
+		homePaths := agentSkillIntegrationHome(t)
+		extensionRegistry := extensionpkg.NewRegistry(db.DB())
+		if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
+			t.Fatalf("devcycle.EnsureManagedInstall() error = %v", err)
+		}
+		extensionSnapshot := agentSkillIntegrationDevCycleExtension(t, extensionRegistry)
+		runtime := &agentSkillIntegrationRuntime{extension: extensionSnapshot}
+
+		workspaceARoot := agentSkillIntegrationSkillWorkspace(t, true)
+		workspaceBRoot := agentSkillIntegrationSkillWorkspace(t, false)
+		now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+		for _, workspace := range []workspacepkg.Workspace{
+			{ID: "ws_dev_cycle_a", RootDir: workspaceARoot, Name: "dev-cycle-a", CreatedAt: now, UpdatedAt: now},
+			{ID: "ws_dev_cycle_b", RootDir: workspaceBRoot, Name: "dev-cycle-b", CreatedAt: now, UpdatedAt: now},
+		} {
+			if err := db.InsertWorkspace(ctx, workspace); err != nil {
+				t.Fatalf("InsertWorkspace(%q) error = %v", workspace.ID, err)
+			}
+		}
+		workspaceResolver, err := workspacepkg.NewResolver(
+			db,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("workspace.NewResolver() error = %v", err)
+		}
+
+		initialSkills := skillspkg.NewRegistry(
+			agentSkillIntegrationSkillConfig(homePaths),
+			skillspkg.WithLogger(discardLogger()),
+		)
+		initialAgents := newResourceCatalog(cloneAgentDef)
+		initialMCP := newResourceCatalog(cloneDaemonMCPServer)
+		initialDriver := newAgentSkillIntegrationDriver(
+			t,
+			kernel,
+			agentCodec,
+			skillCodec,
+			mcpCodec,
+			initialAgents,
+			initialSkills,
+			initialMCP,
+		)
+		syncer := newAgentSkillSourceSyncer(
+			kernel,
+			agentStore,
+			agentCodec,
+			newAgentProjector(initialAgents),
+			skillStore,
+			skillCodec,
+			newSkillProjector(initialSkills),
+			mcpStore,
+			mcpCodec,
+			agentSkillSyncActor(),
+			discardLogger(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				return initialDriver.Trigger(ctx, kind, reason)
+			},
+			daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
+			extensionAgentSkillDeclarationProvider(
+				extensionRegistry,
+				func() extensionRuntime { return runtime },
+				discardLogger(),
+			),
+		)
+		if err := syncer.Sync(ctx); err != nil {
+			t.Fatalf("syncer.Sync() error = %v", err)
+		}
+
+		source := agentSkillSyncActor().Source
+		records, err := skillStore.List(ctx, agentSkillSyncActor(), resources.ResourceFilter{Source: &source})
+		if err != nil {
+			t.Fatalf("skillStore.List() error = %v", err)
+		}
+		globalDevCycleCount := 0
+		for _, record := range records {
+			if record.Scope.Kind == resources.ResourceScopeKindGlobal &&
+				record.Spec.InstalledFromExtension == devcycle.Name {
+				globalDevCycleCount++
+			}
+		}
+		if globalDevCycleCount != len(devCycleIntegrationSkillNames) {
+			t.Fatalf("global dev-cycle skill records = %d, want %d", globalDevCycleCount, len(devCycleIntegrationSkillNames))
+		}
+
+		rebuiltSkills := skillspkg.NewRegistry(
+			agentSkillIntegrationSkillConfig(homePaths),
+			skillspkg.WithLogger(discardLogger()),
+		)
+		bootDriver := newAgentSkillIntegrationDriver(
+			t,
+			kernel,
+			agentCodec,
+			skillCodec,
+			mcpCodec,
+			newResourceCatalog(cloneAgentDef),
+			rebuiltSkills,
+			newResourceCatalog(cloneDaemonMCPServer),
+		)
+		if err := bootDriver.RunBoot(ctx); err != nil {
+			t.Fatalf("bootDriver.RunBoot() error = %v", err)
+		}
+
+		resolvedA, err := workspaceResolver.Resolve(ctx, "ws_dev_cycle_a")
+		if err != nil {
+			t.Fatalf("workspaceResolver.Resolve(A) error = %v", err)
+		}
+		resolvedB, err := workspaceResolver.Resolve(ctx, "ws_dev_cycle_b")
+		if err != nil {
+			t.Fatalf("workspaceResolver.Resolve(B) error = %v", err)
+		}
+		skillsA, err := rebuiltSkills.ForWorkspace(ctx, &resolvedA)
+		if err != nil {
+			t.Fatalf("rebuiltSkills.ForWorkspace(A) error = %v", err)
+		}
+		skillsB, err := rebuiltSkills.ForWorkspace(ctx, &resolvedB)
+		if err != nil {
+			t.Fatalf("rebuiltSkills.ForWorkspace(B) error = %v", err)
+		}
+		for _, name := range devCycleIntegrationSkillNames {
+			if findIntegrationSkill(skillsA, name) == nil || findIntegrationSkill(skillsB, name) == nil {
+				t.Fatalf("skill %q missing: workspace A=%#v workspace B=%#v", name, skillsA, skillsB)
+			}
+		}
+		if findIntegrationSkill(skillsA, "workspace-only-a") == nil {
+			t.Fatal("workspace A missing workspace-only-a")
+		}
+		if findIntegrationSkill(skillsB, "workspace-only-a") != nil {
+			t.Fatal("workspace B contains workspace-only-a from workspace A")
+		}
+		if findIntegrationSkill(skillsA, "cy-capture-decisions") != nil ||
+			findIntegrationSkill(skillsB, "cy-capture-decisions") != nil {
+			t.Fatal("cy-capture-decisions is available, want excluded from dev-cycle bundle")
+		}
+
+		executeA := findIntegrationSkill(skillsA, "cy-execute-task")
+		executeB := findIntegrationSkill(skillsB, "cy-execute-task")
+		if executeA.Source != skillspkg.SourceWorkspace {
+			t.Fatalf("workspace A cy-execute-task source = %v, want workspace", executeA.Source)
+		}
+		if executeB.Source != skillspkg.SourceBundled || executeB.InstalledFromExtension != devcycle.Name {
+			t.Fatalf("workspace B cy-execute-task = %#v, want bundled dev-cycle source", executeB)
+		}
+		contentA, err := rebuiltSkills.LoadContent(ctx, executeA)
+		if err != nil {
+			t.Fatalf("LoadContent(workspace A override) error = %v", err)
+		}
+		contentB, err := rebuiltSkills.LoadContent(ctx, executeB)
+		if err != nil {
+			t.Fatalf("LoadContent(workspace B bundled) error = %v", err)
+		}
+		if strings.TrimSpace(contentA) != "Workspace A execution override." {
+			t.Fatalf("workspace A content = %q, want local override", contentA)
+		}
+		if !strings.Contains(contentB, "# Execute PRD Task") {
+			t.Fatalf("workspace B bundled content = %q, want cy-execute-task body", contentB)
+		}
+
+		augmenter := newSkillsCatalogAugmenter(rebuiltSkills, func() promptSkillsWorkspaceResolver {
+			return workspaceResolver
+		})
+		for _, promptCase := range []struct {
+			name          string
+			session       *session.Session
+			wantLocalOnly bool
+		}{
+			{
+				name: "Should augment workspace A session with its local override",
+				session: &session.Session{
+					ID: "session-a", WorkspaceID: resolvedA.ID, Workspace: resolvedA.RootDir,
+				},
+				wantLocalOnly: true,
+			},
+			{
+				name: "Should augment workspace B session without workspace A resources",
+				session: &session.Session{
+					ID: "session-b", WorkspaceID: resolvedB.ID, Workspace: resolvedB.RootDir,
+				},
+			},
+		} {
+			t.Run(promptCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				prompt, err := augmenter(ctx, promptCase.session, "Continue the task.")
+				if err != nil {
+					t.Fatalf("skills augmenter error = %v", err)
+				}
+				for _, name := range devCycleIntegrationSkillNames {
+					if !strings.Contains(prompt, `name="`+name+`"`) {
+						t.Fatalf("prompt missing dev-cycle skill %q: %s", name, prompt)
+					}
+				}
+				gotLocalOnly := strings.Contains(prompt, `name="workspace-only-a"`)
+				if gotLocalOnly != promptCase.wantLocalOnly {
+					t.Fatalf("prompt workspace-only-a presence = %t, want %t", gotLocalOnly, promptCase.wantLocalOnly)
+				}
+			})
 		}
 	})
 }
@@ -734,6 +988,107 @@ Use extension skill context.
 			Registered: true,
 		},
 	}
+}
+
+func agentSkillIntegrationDevCycleExtension(
+	t *testing.T,
+	registry *extensionpkg.Registry,
+) *extensionpkg.Extension {
+	t.Helper()
+
+	info, err := registry.Get(devcycle.Name)
+	if err != nil {
+		t.Fatalf("registry.Get(%q) error = %v", devcycle.Name, err)
+	}
+	rootDir := filepath.Dir(info.ManifestPath)
+	manifest, err := extensionpkg.LoadManifest(rootDir)
+	if err != nil {
+		t.Fatalf("extensionpkg.LoadManifest(%q) error = %v", rootDir, err)
+	}
+	agents, err := extensionpkg.LoadAgentResources(rootDir, manifest)
+	if err != nil {
+		t.Fatalf("extensionpkg.LoadAgentResources(%q) error = %v", rootDir, err)
+	}
+	skills := make([]*skillspkg.Skill, 0, len(devCycleIntegrationSkillNames))
+	for _, resourcePath := range manifest.Resources.Skills {
+		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
+		if err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || entry.Name() != "SKILL.md" {
+				return nil
+			}
+			skill, err := skillspkg.ParseSkillFileWithSource(path, skillspkg.SourceBundled)
+			if err != nil {
+				return err
+			}
+			skill.InstalledFromExtension = devcycle.Name
+			skills = append(skills, skill)
+			return nil
+		}); err != nil {
+			t.Fatalf("filepath.WalkDir(%q) error = %v", resourceRoot, err)
+		}
+	}
+	slices.SortFunc(skills, func(left, right *skillspkg.Skill) int {
+		return strings.Compare(left.Meta.Name, right.Meta.Name)
+	})
+	if len(skills) != len(devCycleIntegrationSkillNames) {
+		t.Fatalf("loaded dev-cycle skills = %d, want %d", len(skills), len(devCycleIntegrationSkillNames))
+	}
+	return &extensionpkg.Extension{
+		Info:     *info,
+		Manifest: manifest,
+		RootDir:  rootDir,
+		Agents:   agents,
+		Skills:   skills,
+		Status: extensionpkg.ExtensionStatus{
+			Name:       info.Name,
+			Version:    info.Version,
+			Source:     info.Source,
+			Enabled:    info.Enabled,
+			Registered: true,
+		},
+	}
+}
+
+func agentSkillIntegrationSkillWorkspace(t *testing.T, withOverride bool) string {
+	t.Helper()
+
+	root := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
+	}
+	if withOverride {
+		skillsRoot := filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName)
+		writeAgentSkillIntegrationFile(
+			t,
+			filepath.Join(skillsRoot, "cy-execute-task", "SKILL.md"),
+			`---
+name: cy-execute-task
+description: Workspace A execution override
+---
+
+Workspace A execution override.
+`,
+		)
+		writeAgentSkillIntegrationFile(
+			t,
+			filepath.Join(skillsRoot, "workspace-only-a", "SKILL.md"),
+			`---
+name: workspace-only-a
+description: Available only inside workspace A
+---
+
+Workspace A only.
+`,
+		)
+	}
+	canonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q) error = %v", root, err)
+	}
+	return canonical
 }
 
 func writeAgentSkillIntegrationFile(t *testing.T, path string, content string) {

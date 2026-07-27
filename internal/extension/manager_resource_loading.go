@@ -32,7 +32,7 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 		if err != nil {
 			return nil, err
 		}
-		files, err := collectMarkdownFiles(resourceRoot)
+		files, err := collectSkillDefinitionFiles(resourceRoot)
 		if err != nil {
 			return nil, err
 		}

@@ -6,6 +6,8 @@ import (
 
 	"log/slog"
 
+	"strings"
+
 	"sync"
 	"sync/atomic"
 	"time"
@@ -175,6 +177,9 @@ func (r *Registry) LoadContent(ctx context.Context, skill *Skill) (string, error
 
 	switch skill.Source {
 	case SourceBundled:
+		if strings.TrimSpace(skill.InstalledFromExtension) != "" {
+			return ReadSkillContent(skill.FilePath)
+		}
 		if r.cfg.BundledFS == nil {
 			return "", errors.New("skills: bundled skills filesystem is required")
 		}
@@ -198,6 +203,9 @@ func (r *Registry) LoadResource(ctx context.Context, skill *Skill, relativePath 
 
 	switch skill.Source {
 	case SourceBundled:
+		if strings.TrimSpace(skill.InstalledFromExtension) != "" {
+			return ReadSkillResourceContent(skill.Dir, relativePath)
+		}
 		if r.cfg.BundledFS == nil {
 			return "", errors.New("skills: bundled skills filesystem is required")
 		}

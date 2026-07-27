@@ -1,7 +1,7 @@
 {
     "extension": {
         "name": "dev-cycle",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "description": "First-party developer Loops for task delivery and review remediation.",
         "min_compozy_version": "0.0.9"
     },
@@ -9,6 +9,7 @@
         "provides": ["tool.provider"]
     },
     "resources": {
+        "skills": ["skills"],
         "loops": ["loops"],
         "agents": ["agents"],
         "tools": {
