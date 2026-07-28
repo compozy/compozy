@@ -32,9 +32,12 @@ on:
           - stable
           - legacy
 
+# Merges of release PRs (head commit "release:"/"ci(release):") land in their
+# own non-cancellable "-publish" group so a routine push to main can never
+# cancel an in-flight auto-beta publication.
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):'))) && '-publish' || '' }}
+  cancel-in-progress: ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):'))) }}
 
 env:
   CGO_ENABLED: 0
@@ -281,7 +284,13 @@ jobs:
   # Job 5: Resolve the explicit release identity exactly once.
   release-plan:
     name: Explicit Release Plan
-    if: github.event_name == 'workflow_dispatch'
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       (startsWith(github.event.head_commit.message, 'release:') ||
+        startsWith(github.event.head_commit.message, 'ci(release):')) &&
+       vars.RELEASE_AUTO_CHANNEL == 'beta')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -297,7 +306,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_ref }}
+          ref: ${{ inputs.release_ref || github.sha }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -305,12 +314,54 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Plan explicit release
-        id: plan
+      - uses: ./.github/actions/setup-git-cliff
+
+      - name: Resolve release identity
+        id: identity
         env:
           RELEASE_REF_INPUT: ${{ inputs.release_ref }}
           RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
           RELEASE_CHANNEL_INPUT: ${{ inputs.release_channel }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            {
+              echo "ref=${RELEASE_REF_INPUT}"
+              echo "version=${RELEASE_VERSION_INPUT}"
+              echo "channel=${RELEASE_CHANNEL_INPUT}"
+            } >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          # Auto-beta path: propose the same input an operator would type by
+          # hand. git-cliff derives the in-flight line (prerelease tags are
+          # excluded via cliff.toml ignore_tags), the next beta.N comes from
+          # existing tags, and `pr-release plan` below stays the sole identity
+          # authority (HEAD match, tag absence, channel/version shape).
+          bumped="$(git cliff --bumped-version)"
+          base="${bumped#v}"
+          if [[ ! "${base}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::git-cliff bumped version '${bumped}' is not plain SemVer; cannot derive the beta version"
+            exit 1
+          fi
+          last=0
+          for tag in $(git tag --list "v${base}-beta.*"); do
+            n="${tag#v"${base}"-beta.}"
+            if [[ "${n}" =~ ^[0-9]+$ ]] && (( n > last )); then
+              last="${n}"
+            fi
+          done
+          {
+            echo "ref=${GITHUB_SHA}"
+            echo "version=${base}-beta.$((last + 1))"
+            echo "channel=beta"
+          } >>"${GITHUB_OUTPUT}"
+
+      - name: Plan explicit release
+        id: plan
+        env:
+          RELEASE_REF_INPUT: ${{ steps.identity.outputs.ref }}
+          RELEASE_VERSION_INPUT: ${{ steps.identity.outputs.version }}
+          RELEASE_CHANNEL_INPUT: ${{ steps.identity.outputs.channel }}
           PR_RELEASE_LOG_LEVEL: error
         run: |
           set -euo pipefail
@@ -341,7 +392,7 @@ jobs:
   release:
     name: Production Release
     needs: release-plan
-    if: github.event_name == 'workflow_dispatch' && needs.release-plan.result == 'success'
+    if: needs.release-plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
