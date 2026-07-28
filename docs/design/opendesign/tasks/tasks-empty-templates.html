@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS · Tasks — empty state with templates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<style>
+/* ============================================================
+   Tasks — zero-inventory state, aligned with the automation
+   empty-state pattern (automation/jobs-empty-suggestions.html).
+   Runtime truth: web/src/systems/tasks/lib/task-templates.ts —
+   the four curated templates (one_shot, recurring, human_in_loop,
+   remote_peer) with their real labels, descriptions, defaults and
+   preview notices. "Use template" opens the create dialog
+   prefilled; nothing is created from this screen directly.
+   ============================================================ */
+body{
+  min-height:100vh;display:grid;place-items:center;padding:28px;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.03) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(900px 520px at 10% 112%, var(--accent-tint), transparent 60%),
+    radial-gradient(760px 430px at 94% -10%, color-mix(in oklab, var(--teal) 30%, transparent), transparent 62%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 58%);
+  overflow:auto;
+}
+.win{position:relative;resize:none;width:min(1080px,100%);height:min(780px,92vh)}
+
+/* ---- content column — centered on both axes; margin:auto keeps scroll when taller ---- */
+.win-body{display:flex}
+.tsk-col{max-width:720px;margin:auto;width:100%;display:flex;flex-direction:column;gap:22px;padding:28px 24px}
+
+/* compact intro */
+.tsk-intro{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;color:var(--subtle)}
+.tsk-intro__glyph{
+  width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);
+  background:var(--canvas-soft);border:1px solid var(--line);color:var(--muted);box-sizing:content-box;
+}
+.tsk-intro b{font-size:18px;font-weight:500;letter-spacing:-.022em;color:var(--fg-strong)}
+.tsk-intro p{font-size:13px;line-height:1.6;color:var(--muted);max-width:44rem}
+.tsk-intro .btn{margin-top:2px}
+
+/* ---- templates panel (shared anatomy with automation suggestions) ---- */
+.sug-panel{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+.sug-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.sug-head__t{display:flex;align-items:center;gap:8px}
+.sug-head__note{font-size:12px;line-height:1.5;color:var(--muted);margin-top:3px;max-width:56ch}
+.sug-list>li{border-top:1px solid var(--line-soft)}
+.sug-list>li:first-child{border-top:0}
+.sug-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:0 16px}
+.sug-open{
+  display:grid;grid-template-columns:12px 28px minmax(0,1fr);gap:11px;align-items:start;
+  width:100%;text-align:left;padding:13px 0;min-width:0;
+}
+.sug-open .disclosure-icon{margin-top:4px}
+/* toned icon chip — production TasksEmptyState tone language (accent/info/warning/neutral) */
+.sug-ico{
+  width:28px;height:28px;margin-top:1px;border-radius:var(--radius-md);
+  display:grid;place-items:center;background:var(--canvas-tint);color:var(--muted);
+}
+.sug-ico svg{width:14px;height:14px}
+.sug-ico[data-tone="accent"]{background:var(--accent-tint);color:var(--accent)}
+.sug-ico[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+.sug-ico[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+.sug-main{min-width:0}
+.sug-name{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.sug-name b{font-size:13.5px;font-weight:560;letter-spacing:-.012em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sug-desc{font-size:12.5px;line-height:1.5;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.sug-actions{display:flex;align-items:center;gap:6px;flex:none}
+.sug-row:hover{background:var(--row-hover)}
+
+/* expandable detail — collapsed by default */
+.sug-detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s var(--ease)}
+li[data-open="true"] .sug-detail{grid-template-rows:1fr}
+.sug-detail>div{overflow:hidden;min-height:0}
+.sug-detail__inner{display:flex;flex-direction:column;gap:8px;padding:2px 16px 16px 78px}
+.sug-prompt{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill);padding:10px 12px}
+.sug-prompt p{font-size:12.5px;line-height:1.6;color:var(--fg)}
+.sug-facts{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;padding-left:2px}
+
+.sug-foot{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 16px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--subtle);
+}
+.sug-foot code{font-size:11px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+
+@media (max-width:959px){
+  body{padding:0}
+  .win{width:100%;height:100dvh;border-radius:0;border:0}
+  .sug-row{grid-template-columns:minmax(0,1fr)}
+  .sug-actions{padding:0 0 13px 62px;justify-content:flex-start}
+  .sug-detail__inner{padding-left:16px}
+}
+</style>
+</head>
+<body>
+
+<section class="win is-focused" data-od-id="tasks-window" aria-label="Tasks window">
+  <header class="win-head" data-od-id="tasks-window-head">
+    <div class="win-controls">
+      <button class="wc wc-close" aria-label="Close"></button>
+      <button class="wc wc-min" aria-label="Minimize"></button>
+      <button class="wc wc-zoom" aria-label="Zoom"></button>
+    </div>
+    <div class="w2-id">
+      <span class="w2-glyph" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m2.4 4.6 1.2 1.2 2-2.2M2.4 10.4l1.2 1.2 2-2.2M8.4 5h5.2M8.4 11h5.2"/></svg>
+      </span>
+      <span class="w2-title">Tasks</span>
+      <span class="w2-count mono">0</span>
+    </div>
+    <div class="w2-tabs" role="tablist" aria-label="Task views">
+      <button class="w2-tab is-on" role="tab" aria-selected="true" type="button">List</button>
+      <button class="w2-tab" role="tab" aria-selected="false" type="button">Kanban</button>
+    </div>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="win-trail">
+      <div class="w2-actions">
+        <button class="btn btn--primary btn--sm" data-od-id="tasks-new-task" type="button">New task</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="win-toolbar" data-od-id="tasks-toolbar">
+    <label class="field field-search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"/><path d="m13.4 13.4-3.2-3.2"/></svg>
+      <input type="search" placeholder="Search tasks…" aria-label="Search tasks">
+      <span class="kbd">/</span>
+    </label>
+    <span class="w2-flex" aria-hidden="true"></span>
+  </div>
+
+  <div class="win-body">
+    <div class="tsk-col">
+
+      <!-- quiet intro: what a Task is + the blank path -->
+      <section class="tsk-intro" data-od-id="tasks-empty-intro">
+        <span class="tsk-intro__glyph" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m2.4 4.6 1.2 1.2 2-2.2M2.4 10.4l1.2 1.2 2-2.2M8.4 5h5.2M8.4 11h5.2"/></svg>
+        </span>
+        <b data-od-id="tasks-empty-title">No tasks yet</b>
+        <p>A task is a durable contract of work — it spawns runs across agents.</p>
+        <button class="btn" type="button" data-od-id="tasks-create-blank">Blank task</button>
+      </section>
+
+      <!-- templates: same panel anatomy as jobs/triggers suggestions -->
+      <section class="sug-panel" data-od-id="tasks-templates" aria-label="Task templates">
+        <header class="sug-head">
+          <div>
+            <div class="sug-head__t">
+              <span class="eyebrow">Start from a template</span>
+              <span class="count-chip">4</span>
+            </div>
+            <p class="sug-head__note">Curated defaults — everything stays editable.</p>
+          </div>
+        </header>
+
+        <ul class="sug-list">
+
+          <!-- one_shot · accent · Zap -->
+          <li data-od-id="template-one-shot">
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="tpl-detail-1">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="accent" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 1.8 3.4 9h3.8l-.9 5.2L11.7 7H7.9l.9-5.2Z"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>One-shot</b>
+                    <span class="pill">1 run</span>
+                  </span>
+                  <span class="sug-desc">Do it now, once. Best for most things.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button">Use template</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="tpl-detail-1">
+              <div><div class="sug-detail__inner">
+                <div class="sug-prompt">
+                  <p>A single task with one run. Good default for ad-hoc work. Enqueues 1 run
+                  immediately on submit.</p>
+                </div>
+                <div class="sug-facts">priority medium · 1 attempt · enqueues on submit</div>
+              </div></div>
+            </div>
+          </li>
+
+          <!-- recurring · info · RefreshCcw -->
+          <li data-od-id="template-recurring">
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="tpl-detail-2">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="info" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 8A5.2 5.2 0 1 1 11.6 4.3"/><path d="M13.2 1.9v2.7h-2.7"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Recurring via automation</b>
+                    <span class="pill" data-tone="info">Automation</span>
+                  </span>
+                  <span class="sug-desc">Re-enqueues a run every tick of an Automation schedule.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button">Use template</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="tpl-detail-2">
+              <div><div class="sug-detail__inner">
+                <div class="sug-prompt">
+                  <p>Bind a cron or schedule from Automation — re-enqueues a run every tick. Saves
+                  as a draft so Automation can attach the schedule later.</p>
+                </div>
+                <div class="sug-facts">priority medium · saves as draft · schedule attached in Automation</div>
+              </div></div>
+            </div>
+          </li>
+
+          <!-- human_in_loop · warning · UserCheck -->
+          <li data-od-id="template-human-in-loop">
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="tpl-detail-3">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="warning" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.2" cy="5" r="2.6"/><path d="M1.8 13.4c.5-2.4 2.3-3.8 4.4-3.8 1 0 1.9.3 2.6.9"/><path d="m10.2 11.6 1.5 1.5 2.5-2.7"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Human-in-the-loop</b>
+                    <span class="pill" data-tone="warning">Approvals</span>
+                  </span>
+                  <span class="sug-desc">The agent waits for your sign-off before acting.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button">Use template</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="tpl-detail-3">
+              <div><div class="sug-detail__inner">
+                <div class="sug-prompt">
+                  <p>Agent proposes, human approves. Pauses on blocked until approved in Inbox —
+                  the first run waits for approval before claiming.</p>
+                </div>
+                <div class="sug-facts">priority high · approval manual · first run waits in Inbox</div>
+              </div></div>
+            </div>
+          </li>
+
+          <!-- remote_peer · neutral · Globe -->
+          <li data-od-id="template-remote-peer">
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="tpl-detail-4">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8C6.3 12.2 5.4 10.2 5.4 8S6.3 3.8 8 2.2Z"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Remote from peer</b>
+                    <span class="pill" data-tone="info">Network</span>
+                  </span>
+                  <span class="sug-desc">Ingress from a network channel — peers enqueue, you claim.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button">Use template</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="tpl-detail-4">
+              <div><div class="sug-detail__inner">
+                <div class="sug-prompt">
+                  <p>Ingress from a network channel. Remote peers enqueue; the local owner claims
+                  when ready.</p>
+                </div>
+                <div class="sug-facts">priority medium · enqueued by remote peer · enqueues on submit</div>
+              </div></div>
+            </div>
+          </li>
+
+        </ul>
+
+        <footer class="sug-foot" data-od-id="tasks-templates-foot">
+          <span>Or run <code class="mono">compozy tasks new</code> from a session.</span>
+        </footer>
+      </section>
+
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  document.querySelectorAll(".sug-open").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      const open = li.getAttribute("data-open") === "true";
+      li.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+})();
+</script>
+</body>
+</html>

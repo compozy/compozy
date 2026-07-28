@@ -406,6 +406,56 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	}
 }
 
+func TestChangelogConfigPreservesCompozyOSHardCut(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	cliffConfig := readTextFile(t, root, "cliff.toml")
+	firstMessageParser := strings.Index(cliffConfig, `{ message = "^feat"`)
+	if firstMessageParser == -1 {
+		t.Fatal(`cliff.toml missing the first conventional commit parser`)
+	}
+
+	legacyCommits := []struct {
+		name string
+		sha  string
+	}{
+		{
+			name: "Should exclude the leaked test daemon fix from CompozyOS releases",
+			sha:  "00dba6a1c32bc4a032b177961919578b62d62b1f",
+		},
+		{
+			name: "Should exclude the legacy task archive fix from CompozyOS releases",
+			sha:  "c202311c8430fc0d4a7442e2dc715cabfbdc68a1",
+		},
+		{
+			name: "Should exclude the inherited runtime model fix from CompozyOS releases",
+			sha:  "f2f2cf8c2f4b526f726878fcbb732de5ce955ee9",
+		},
+	}
+	for _, legacyCommit := range legacyCommits {
+		t.Run(legacyCommit.name, func(t *testing.T) {
+			t.Parallel()
+
+			parser := `{ sha = "` + legacyCommit.sha + `", skip = true }`
+			parserIndex := strings.Index(cliffConfig, parser)
+			if parserIndex == -1 {
+				t.Fatalf("cliff.toml missing hard-cut parser %q", parser)
+			}
+			if parserIndex > firstMessageParser {
+				t.Fatalf("hard-cut parser %q must precede conventional message parsers", parser)
+			}
+		})
+	}
+
+	t.Run("Should retain the CompozyOS migration commit", func(t *testing.T) {
+		t.Parallel()
+
+		migrationParser := `{ sha = "8eeb8a3813fcc268c7a0d241e5e3f8c7b8c6c1b6", skip = true }`
+		assertNotContainsText(t, "cliff.toml", cliffConfig, migrationParser)
+	})
+}
+
 func findRepoRootForReleaseConfigTest(t *testing.T) string {
 	t.Helper()
 

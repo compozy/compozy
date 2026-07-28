@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "automation/jobs-empty-suggestions.html",
+  "entry": "automation/jobs-empty-suggestions.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-28T18:40:13.182Z",
+  "updatedAt": "2026-07-28T18:40:13.182Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

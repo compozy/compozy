@@ -29,8 +29,8 @@
         "typecheck:raw": "node ../node_modules/@typescript/native/bin/tsc --noEmit"
     },
     "dependencies": {
-        "@assistant-ui/react": "^0.14.27",
-        "@assistant-ui/react-ai-sdk": "^1.3.41",
+        "@assistant-ui/react": "^0.15.0",
+        "@assistant-ui/react-ai-sdk": "^1.4.1",
         "@base-ui/react": "^1.6.0",
         "@compozy/ui": "workspace:*",
         "@dagrejs/dagre": "^3.0.0",
@@ -40,10 +40,10 @@
         "@tanstack/react-query": "^5.101.4",
         "@tanstack/react-router": "^1.170.18",
         "@xyflow/react": "^12.11.2",
-        "ai": "^7.0.37",
+        "ai": "^7.0.41",
         "date-fns": "^4.4.0",
-        "lucide-react": "^1.26.0",
-        "motion": "^12.42.2",
+        "lucide-react": "^1.27.0",
+        "motion": "^12.43.0",
         "openapi-fetch": "^0.17.0",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -55,13 +55,13 @@
         "zustand": "^5.0.14"
     },
     "devDependencies": {
-        "@modelcontextprotocol/sdk": "^1.29.0",
-        "@playwright/test": "^1.61.1",
+        "@modelcontextprotocol/sdk": "^1.30.0",
+        "@playwright/test": "^1.62.0",
         "@rolldown/plugin-babel": "^0.2.3",
-        "@storybook/addon-a11y": "^10.5.4",
-        "@storybook/addon-docs": "^10.5.4",
-        "@storybook/addon-themes": "^10.5.4",
-        "@storybook/react-vite": "^10.5.4",
+        "@storybook/addon-a11y": "^10.5.5",
+        "@storybook/addon-docs": "^10.5.5",
+        "@storybook/addon-themes": "^10.5.5",
+        "@storybook/react-vite": "^10.5.5",
         "@tanstack/devtools-vite": "^0.8.3",
         "@tanstack/router-plugin": "^1.168.23",
         "@testing-library/jest-dom": "^7.0.0",
@@ -75,7 +75,7 @@
         "msw": "^2.15.0",
         "msw-storybook-addon": "^3.0.0",
         "openapi-msw": "2.0.0",
-        "storybook": "^10.5.4",
+        "storybook": "^10.5.5",
         "vite": "^8.1.5",
         "vitest": "^4.1.10"
     }

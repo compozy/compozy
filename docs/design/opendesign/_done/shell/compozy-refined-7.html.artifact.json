@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "_done/shell/compozy-refined-7.html",
+  "entry": "_done/shell/compozy-refined-7.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-28T18:24:28.162Z",
+  "updatedAt": "2026-07-28T18:24:28.162Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "tasks/tasks-empty-templates.html",
+  "entry": "tasks/tasks-empty-templates.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-28T18:53:12.855Z",
+  "updatedAt": "2026-07-28T18:53:12.855Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

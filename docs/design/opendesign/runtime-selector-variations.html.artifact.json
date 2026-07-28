@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "runtime-selector-variations.html",
+  "entry": "runtime-selector-variations.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-28T18:27:32.512Z",
+  "updatedAt": "2026-07-28T18:27:32.512Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

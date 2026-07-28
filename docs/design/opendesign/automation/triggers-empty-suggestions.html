@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS · Triggers — empty state with suggestions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<style>
+/* ============================================================
+   Triggers — zero-inventory state, suggestions-led redesign.
+   PROPOSED SURFACE: the daemon today serves consent-first
+   suggestions for Jobs only. This screen extends the same
+   contract to Triggers (accept → createAutomationTrigger,
+   dismiss → durable). Events, filters, templates, and targets
+   below map 1:1 to the real trigger catalog: session.created,
+   session.stopped, memory.consolidated, hook.<name>.completed,
+   webhook, ext.<ext>.<event>.
+   ============================================================ */
+body{
+  min-height:100vh;display:grid;place-items:center;padding:28px;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.03) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(900px 520px at 10% 112%, var(--accent-tint), transparent 60%),
+    radial-gradient(760px 430px at 94% -10%, color-mix(in oklab, var(--teal) 30%, transparent), transparent 62%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 58%);
+  overflow:auto;
+}
+.win{position:relative;resize:none;width:min(1080px,100%);height:min(780px,92vh)}
+
+/* ---- content column — centered on both axes; margin:auto keeps scroll when taller ---- */
+.win-body{display:flex}
+.trg-col{max-width:720px;margin:auto;width:100%;display:flex;flex-direction:column;gap:22px;padding:28px 24px}
+
+/* compact intro */
+.trg-intro{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;color:var(--subtle)}
+.trg-intro__glyph{
+  width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);
+  background:var(--canvas-soft);border:1px solid var(--line);color:var(--muted);box-sizing:content-box;
+}
+.trg-intro b{font-size:18px;font-weight:500;letter-spacing:-.022em;color:var(--fg-strong)}
+.trg-intro p{font-size:13px;line-height:1.6;color:var(--muted);max-width:44rem}
+.trg-intro .btn{margin-top:2px}
+
+/* ---- suggestions panel (shared anatomy with jobs-empty-suggestions) ---- */
+.sug-panel{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+.sug-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.sug-head__t{display:flex;align-items:center;gap:8px}
+.sug-head__note{font-size:12px;line-height:1.5;color:var(--muted);margin-top:3px;max-width:56ch}
+.sug-list>li{border-top:1px solid var(--line-soft)}
+.sug-list>li:first-child{border-top:0}
+.sug-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:0 16px}
+.sug-open{
+  display:grid;grid-template-columns:12px 28px minmax(0,1fr);gap:11px;align-items:start;
+  width:100%;text-align:left;padding:13px 0;min-width:0;
+}
+.sug-open .disclosure-icon{margin-top:4px}
+/* toned icon chip — mirrors the Tasks template-card tone language */
+.sug-ico{
+  width:28px;height:28px;margin-top:1px;border-radius:var(--radius-md);
+  display:grid;place-items:center;background:var(--canvas-tint);color:var(--muted);
+}
+.sug-ico svg{width:14px;height:14px}
+.sug-ico[data-tone="accent"]{background:var(--accent-tint);color:var(--accent)}
+.sug-ico[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+.sug-ico[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+.sug-main{min-width:0}
+.sug-name{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.sug-name b{font-size:13.5px;font-weight:560;letter-spacing:-.012em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sug-desc{font-size:12.5px;line-height:1.5;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.sug-actions{display:flex;align-items:center;gap:6px;flex:none}
+.sug-row:hover{background:var(--row-hover)}
+li[data-state="accepted"] .sug-row:hover,li[data-state="dismissed"] .sug-row:hover{background:transparent}
+
+/* expandable review — When / If / Then, the trigger's native shape */
+.sug-detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s var(--ease)}
+li[data-open="true"] .sug-detail{grid-template-rows:1fr}
+.sug-detail>div{overflow:hidden;min-height:0}
+.sug-detail__inner{display:flex;flex-direction:column;gap:0;padding:2px 16px 16px 78px}
+.wit{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill);overflow:hidden}
+.wit__row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;padding:10px 12px;border-top:1px solid var(--line-soft)}
+.wit__row:first-child{border-top:0}
+.wit__k{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);padding-top:2px}
+.wit__v{font-size:12.5px;line-height:1.55;color:var(--fg);min-width:0}
+.wit__v .sub{display:block;font-size:11px;color:var(--subtle);margin-top:2px}
+.wit__v .bindbadge{vertical-align:-1px}
+.wit-guard{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-top:10px;font-variant-numeric:tabular-nums}
+
+/* accepted / dismissed morphs */
+.sug-done{display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:12.5px;color:var(--muted)}
+.sug-done b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong)}
+.sug-done .row-meta{margin-left:0}
+.sug-done .btn{margin-left:auto}
+li[data-state]{transition:opacity .2s var(--ease)}
+li .sug-live{display:grid;grid-template-rows:1fr;transition:grid-template-rows .24s var(--ease)}
+li .sug-live>div{overflow:hidden;min-height:0}
+li[data-state="dismissed"] .sug-live{grid-template-rows:0fr}
+li[data-state="dismissed"]{border-top-color:transparent}
+
+.sug-foot{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 16px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--subtle);
+}
+.sug-foot .linkish{color:var(--muted);font-weight:500;text-decoration:none;cursor:pointer}
+.sug-foot .linkish:hover{color:var(--fg-strong)}
+.sug-undo{display:none;align-items:center;gap:8px;margin-left:auto}
+.sug-undo.is-on{display:inline-flex}
+
+@media (max-width:959px){
+  body{padding:0}
+  .win{width:100%;height:100dvh;border-radius:0;border:0}
+  .sug-row{grid-template-columns:minmax(0,1fr)}
+  .sug-actions{padding:0 0 13px 62px;justify-content:flex-start}
+  .sug-detail__inner{padding-left:16px}
+  .wit__row{grid-template-columns:44px minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+
+<section class="win is-focused" data-od-id="triggers-window" aria-label="Triggers window">
+  <header class="win-head" data-od-id="triggers-window-head">
+    <div class="win-controls">
+      <button class="wc wc-close" aria-label="Close"></button>
+      <button class="wc wc-min" aria-label="Minimize"></button>
+      <button class="wc wc-zoom" aria-label="Zoom"></button>
+    </div>
+    <div class="w2-id">
+      <span class="w2-glyph" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 1.8 3.4 9h3.8l-.9 5.2L11.7 7H7.9l.9-5.2Z"/></svg>
+      </span>
+      <span class="w2-title">Triggers</span>
+      <span class="w2-count mono" id="triggers-count">0</span>
+    </div>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="win-trail">
+      <div class="w2-actions">
+        <button class="btn btn--primary btn--sm" data-od-id="triggers-new-trigger" type="button">New trigger</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="win-toolbar" data-od-id="triggers-toolbar">
+    <label class="field field-search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.4"/><path d="m13.4 13.4-3.2-3.2"/></svg>
+      <input type="search" placeholder="Search triggers…" aria-label="Search triggers">
+      <span class="kbd">/</span>
+    </label>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="pill-group pill-group--sm" role="group" aria-label="View mode">
+      <button class="pill-group__item is-on" aria-pressed="true" type="button">Rows</button>
+      <button class="pill-group__item" aria-pressed="false" type="button" data-view="cards">Cards</button>
+    </div>
+  </div>
+
+  <div class="win-body">
+    <div class="trg-col">
+
+      <!-- quiet intro: what a Trigger is + the from-scratch path -->
+      <section class="trg-intro" data-od-id="triggers-empty-intro">
+        <span class="trg-intro__glyph" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 1.8 3.4 9h3.8l-.9 5.2L11.7 7H7.9l.9-5.2Z"/></svg>
+        </span>
+        <b data-od-id="triggers-empty-title">No triggers yet</b>
+        <p>A trigger reacts to a daemon event and runs its target.</p>
+        <button class="btn" type="button" data-od-id="triggers-create-scratch">Create from scratch</button>
+      </section>
+
+      <!-- suggestions: event-led rows, When / If / Then review before consent -->
+      <section class="sug-panel" data-od-id="triggers-suggestions" aria-label="Suggested triggers">
+        <header class="sug-head">
+          <div>
+            <div class="sug-head__t">
+              <span class="eyebrow">Suggested triggers</span>
+              <span class="count-chip" id="sug-count">3</span>
+            </div>
+            <p class="sug-head__note">Drafted by Dream — nothing fires until you accept.</p>
+          </div>
+        </header>
+
+        <ul class="sug-list">
+
+          <!-- 1 · session.stopped + filter · agent target -->
+          <li data-od-id="suggestion-triage-failed">
+            <div class="sug-live"><div>
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="trg-detail-1">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="warning" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.4 14.2 13H1.8L8 2.4Z"/><path d="M8 6.6v2.8M8 11.5v.1"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Triage failed sessions</b>
+                    <span class="pill" data-mono="true">session.stopped</span>
+                  </span>
+                  <span class="sug-desc">Investigates sessions that end failed and files a task.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button" data-accept data-trigger-slug="triage-failed-sessions">Create trigger</button>
+                <button class="btn btn--ghost" type="button" data-dismiss>Dismiss</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="trg-detail-1">
+              <div><div class="sug-detail__inner">
+                <div class="wit">
+                  <div class="wit__row">
+                    <span class="wit__k">When</span>
+                    <span class="wit__v"><code class="mono">session.stopped</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">If</span>
+                    <span class="wit__v"><code class="mono">status = failed</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">Then</span>
+                    <span class="wit__v">Run agent <b>core</b>
+                      <span class="sub">Session <span class="bindbadge">{{event.session_id}}</span> failed:
+                      <span class="bindbadge">{{event.reason}}</span>. Find the root cause and file a task
+                      if actionable.</span></span>
+                  </div>
+                </div>
+                <div class="wit-guard">6 fires / 24h · starts enabled</div>
+              </div></div>
+            </div>
+            </div></div>
+          </li>
+
+          <!-- 2 · hook.<name>.completed · agent target -->
+          <li data-od-id="suggestion-post-deploy">
+            <div class="sug-live"><div>
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="trg-detail-2">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="accent" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 10.8V5.6M5.8 7.8 8 5.6l2.2 2.2"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Post-deploy smoke report</b>
+                    <span class="pill" data-mono="true">hook.deploy.completed</span>
+                  </span>
+                  <span class="sug-desc">Smoke pass after the deploy hook succeeds.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button" data-accept data-trigger-slug="post-deploy-smoke-report">Create trigger</button>
+                <button class="btn btn--ghost" type="button" data-dismiss>Dismiss</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="trg-detail-2">
+              <div><div class="sug-detail__inner">
+                <div class="wit">
+                  <div class="wit__row">
+                    <span class="wit__k">When</span>
+                    <span class="wit__v"><code class="mono">hook.deploy.completed</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">If</span>
+                    <span class="wit__v"><code class="mono">outcome = succeeded</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">Then</span>
+                    <span class="wit__v">Run agent <b>core</b>
+                      <span class="sub">Deploy hook <span class="bindbadge">{{event.hook}}</span> finished.
+                      Run the smoke checklist and report anything broken.</span></span>
+                  </div>
+                </div>
+                <div class="wit-guard">3 fires / 24h · starts enabled</div>
+              </div></div>
+            </div>
+            </div></div>
+          </li>
+
+          <!-- 3 · webhook endpoint · loop target -->
+          <li data-od-id="suggestion-route-issues">
+            <div class="sug-live"><div>
+            <div class="sug-row">
+              <button class="sug-open" type="button" aria-expanded="false" aria-controls="trg-detail-3">
+                <svg class="disclosure-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>
+                <span class="sug-ico" data-tone="info" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8C6.3 12.2 5.4 10.2 5.4 8S6.3 3.8 8 2.2Z"/></svg>
+                </span>
+                <span class="sug-main">
+                  <span class="sug-name">
+                    <b>Route incoming GitHub issues</b>
+                    <span class="pill" data-mono="true">webhook:gh-issues</span>
+                  </span>
+                  <span class="sug-desc">Runs the issue-triage loop for each new GitHub issue.</span>
+                </span>
+              </button>
+              <div class="sug-actions">
+                <button class="btn" type="button" data-accept data-trigger-slug="route-incoming-gh-issues">Create trigger</button>
+                <button class="btn btn--ghost" type="button" data-dismiss>Dismiss</button>
+              </div>
+            </div>
+            <div class="sug-detail" id="trg-detail-3">
+              <div><div class="sug-detail__inner">
+                <div class="wit">
+                  <div class="wit__row">
+                    <span class="wit__k">When</span>
+                    <span class="wit__v"><code class="mono">webhook · /hooks/gh-issues</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">If</span>
+                    <span class="wit__v"><code class="mono">action = opened</code></span>
+                  </div>
+                  <div class="wit__row">
+                    <span class="wit__k">Then</span>
+                    <span class="wit__v">Run loop <b>issue-triage</b>
+                      <span class="sub"><span class="bindbadge">issue ← {{event.body.issue}}</span>
+                      <span class="bindbadge">repo ← {{event.body.repository}}</span></span></span>
+                  </div>
+                </div>
+                <div class="wit-guard">20 fires / 24h · starts enabled</div>
+              </div></div>
+            </div>
+            </div></div>
+          </li>
+
+        </ul>
+
+        <footer class="sug-foot" data-od-id="triggers-suggestions-foot">
+          <span>Tune suggestions in <span class="linkish">Automation settings</span>.</span>
+          <span class="sug-undo" id="sug-undo">
+            <span id="sug-undo-label">1 dismissed</span>
+            <button class="btn btn--ghost btn--sm" type="button" id="sug-undo-btn">Undo</button>
+          </span>
+        </footer>
+      </section>
+
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  const triggersCount = document.getElementById("triggers-count");
+  const sugCount = document.getElementById("sug-count");
+  const undoWrap = document.getElementById("sug-undo");
+  const undoLabel = document.getElementById("sug-undo-label");
+  const undoBtn = document.getElementById("sug-undo-btn");
+  const dismissed = [];
+
+  function livePending() {
+    return document.querySelectorAll(".sug-list > li:not([data-state])").length;
+  }
+  function refreshCounts() {
+    sugCount.textContent = String(livePending());
+  }
+
+  document.querySelectorAll(".sug-open").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      const open = li.getAttribute("data-open") === "true";
+      li.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-accept]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      const slug = btn.getAttribute("data-trigger-slug");
+      li.setAttribute("data-state", "accepted");
+      li.querySelector(".sug-live > div").innerHTML =
+        '<div class="sug-done" role="status">' +
+        '<span class="d d--ok" aria-hidden="true"></span>' +
+        '<span>Created — <b>' + slug + '</b></span>' +
+        '<span class="row-meta">just now</span>' +
+        '<button class="btn btn--ghost btn--sm" type="button">Open trigger</button>' +
+        "</div>";
+      triggersCount.textContent = String(Number(triggersCount.textContent) + 1);
+      refreshCounts();
+    });
+  });
+
+  document.querySelectorAll("[data-dismiss]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      li.setAttribute("data-state", "dismissed");
+      li.querySelector(".sug-open").setAttribute("tabindex", "-1");
+      dismissed.push(li);
+      undoLabel.textContent = dismissed.length + " dismissed";
+      undoWrap.classList.add("is-on");
+      refreshCounts();
+    });
+  });
+
+  undoBtn.addEventListener("click", () => {
+    const li = dismissed.pop();
+    if (li) {
+      li.removeAttribute("data-state");
+      li.querySelector(".sug-open").removeAttribute("tabindex");
+    }
+    if (dismissed.length === 0) undoWrap.classList.remove("is-on");
+    else undoLabel.textContent = dismissed.length + " dismissed";
+    refreshCounts();
+  });
+})();
+</script>
+</body>
+</html>
