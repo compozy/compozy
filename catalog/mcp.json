@@ -1,0 +1,25 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-17T00:40:00Z",
+    "entries": [
+        {
+            "entry_id": "context7",
+            "name": "Context7",
+            "description": "Fetch current, version-specific library documentation and code examples",
+            "version": "3.2.3",
+            "published_at": "2026-07-06T12:32:14Z",
+            "transport": "stdio",
+            "command": "npx",
+            "args": ["-y", "@upstash/context7-mcp@3.2.3"],
+            "env": [
+                {
+                    "name": "CONTEXT7_API_KEY",
+                    "prompt": "Context7 API key (optional)",
+                    "required": false,
+                    "secret": true
+                }
+            ],
+            "default_scope": "global"
+        }
+    ]
+}

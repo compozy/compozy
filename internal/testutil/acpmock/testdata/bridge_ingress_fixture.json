@@ -1,0 +1,94 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "bridge-runner",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You answer runtime bridge ingress prompts in daemon E2E tests.",
+            "turns": [
+                {
+                    "name": "initial-bridge-summary",
+                    "match": {
+                        "turn_source": "network",
+                        "user_text": "Need a runtime bridge summary",
+                        "network": {
+                            "message_id": "321",
+                            "kind": "message",
+                            "from": "777"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-terminal-1",
+                            "title": "compozy__terminal",
+                            "tool_kind": "read",
+                            "raw_input": {
+                                "command": "echo sk-e2e-progress-secret"
+                            },
+                            "status": "completed",
+                            "content_text": "terminal command completed"
+                        },
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-tools-2",
+                            "title": "compozy__tool_list",
+                            "tool_kind": "read",
+                            "raw_input": {},
+                            "status": "completed",
+                            "content_text": "tool catalog listed"
+                        },
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-skills-3",
+                            "title": "compozy__skill_list",
+                            "tool_kind": "read",
+                            "raw_input": {},
+                            "status": "failed",
+                            "content_text": "fixture permission denied"
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Bridge summary: ", "initial route handled."]
+                        }
+                    ]
+                },
+                {
+                    "name": "edited-bridge-summary",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "321",
+                            "kind": "edit",
+                            "from": "777"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Bridge summary: ", "edit reused the existing session."]
+                        }
+                    ]
+                },
+                {
+                    "name": "reply-bridge-summary",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "322",
+                            "kind": "message",
+                            "from": "777"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Bridge summary: ", "follow-up reused the existing session."]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

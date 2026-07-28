@@ -1,0 +1,21 @@
+{
+    "name": "@compozy/example-prompt-enhancer",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/index.js serve",
+        "hook": "node dist/index.js hook prompt_post_assemble"
+    },
+    "dependencies": {
+        "@compozy/extension-sdk": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^26.1.1",
+        "typescript": "^7.0.2"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

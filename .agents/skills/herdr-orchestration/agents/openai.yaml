@@ -1,0 +1,4 @@
+interface:
+  display_name: "herdr Orchestration"
+  short_description: "Coordinate Claude and Codex worker TUIs in herdr"
+  default_prompt: "Use $herdr-orchestration to coordinate Claude Opus and Codex GPT-5.5 worker TUIs for this task."

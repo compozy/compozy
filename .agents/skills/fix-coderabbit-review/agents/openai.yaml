@@ -1,3 +1,0 @@
-display_name: Fix CodeRabbit Review
-short_description: Export CodeRabbit issues, fix all, commit once, resolve threads.
-default_prompt: Remediate PR #{pr_number}: export CodeRabbit review issues, fix every issue completely, commit all fixes in a single commit, and resolve review threads.

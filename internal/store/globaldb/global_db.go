@@ -5,94 +5,76 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
+	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-var closeGlobalSQLiteDatabase = store.CloseSQLiteDatabase
+var _ compozyworkspace.Store = (*WorkspaceRepo)(nil)
+var _ compozyworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
 
-type openOptions struct {
-	now   func() time.Time
-	newID func(string) string
-}
-
-// GlobalDB owns the durable home-scoped catalog used by the daemon.
-type GlobalDB struct {
-	db      *sql.DB
-	path    string
-	now     func() time.Time
-	newID   func(string) string
-	closeMu sync.Mutex
-	closed  atomic.Bool
-}
-
-// Open opens or creates the daemon global catalog at path and applies migrations.
-func Open(ctx context.Context, path string) (*GlobalDB, error) {
-	return openWithOptions(ctx, path, openOptions{})
-}
-
-func openWithOptions(ctx context.Context, path string, opts openOptions) (*GlobalDB, error) {
+// OpenGlobalDB opens or creates the global Compozy index database.
+func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*GlobalDB, error) {
 	if ctx == nil {
-		return nil, errors.New("globaldb: open context is required")
+		return nil, errors.New("store: open global database context is required")
 	}
 
-	g := &GlobalDB{
+	db, err := openGlobalSQLite(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if err := enforcePrivateGlobalDBFiles(path); err != nil {
+		closeErr := db.Close()
+		return nil, errors.Join(err, closeErr)
+	}
+
+	globalDB := &GlobalDB{
+		db:   db,
 		path: strings.TrimSpace(path),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		newID: store.NewID,
 	}
-	if opts.now != nil {
-		g.now = opts.now
+	globalDB.initializeRepositories(newOpenConfig(options))
+	if err := globalDB.EnsureBuiltInPresets(ctx, presetspkg.BuiltInPresets(globalDB.now())); err != nil {
+		closeErr := db.Close()
+		return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)
 	}
-	if opts.newID != nil {
-		g.newID = opts.newID
-	}
-
-	db, err := store.OpenSQLiteDatabase(ctx, g.path, func(ctx context.Context, db *sql.DB) error {
-		return applyMigrations(ctx, db, g.now)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("globaldb: open %q: %w", g.path, err)
-	}
-	g.db = db
-	return g, nil
+	return globalDB, nil
 }
 
-// Close releases the underlying SQLite handle.
-func (g *GlobalDB) Close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), store.DefaultDrainTimeout)
-	defer cancel()
-	return g.CloseContext(ctx)
-}
-
-// CloseContext checkpoints the SQLite WAL and closes the underlying handle.
-func (g *GlobalDB) CloseContext(ctx context.Context) error {
-	if g == nil || g.db == nil {
+func enforcePrivateGlobalDBFiles(path string) error {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
 		return nil
 	}
-	if ctx == nil {
-		return errors.New("globaldb: close context is required")
+	for _, candidate := range []string{trimmed, trimmed + "-wal", trimmed + "-shm"} {
+		info, err := os.Stat(candidate)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("store: stat global database file %q: %w", candidate, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+		mode := info.Mode().Perm()
+		if mode&0o077 == 0 {
+			continue
+		}
+		if err := os.Chmod(candidate, mode&0o700); err != nil {
+			return fmt.Errorf("store: restrict global database file permissions %q: %w", candidate, err)
+		}
 	}
-	g.closeMu.Lock()
-	defer g.closeMu.Unlock()
-
-	if g.closed.Load() {
-		return nil
-	}
-	if err := closeGlobalSQLiteDatabase(ctx, g.db); err != nil {
-		return err
-	}
-	g.closed.Store(true)
 	return nil
 }
 
-// Path reports the on-disk database path.
+// Path reports the on-disk path for the global database file.
 func (g *GlobalDB) Path() string {
 	if g == nil {
 		return ""
@@ -100,12 +82,34 @@ func (g *GlobalDB) Path() string {
 	return g.path
 }
 
-func (g *GlobalDB) requireContext(ctx context.Context, action string) error {
-	if g == nil || g.db == nil || g.closed.Load() {
-		return errors.New("globaldb: database is required")
+// DB exposes the underlying SQL connection for composition-root adapters such
+// as the extension registry.
+func (g *GlobalDB) DB() *sql.DB {
+	if g == nil {
+		return nil
+	}
+	return g.db
+}
+
+// Close checkpoints the WAL and closes the database.
+func (g *GlobalDB) Close(ctx context.Context) error {
+	if g == nil {
+		return nil
 	}
 	if ctx == nil {
-		return fmt.Errorf("globaldb: %s context is required", strings.TrimSpace(action))
+		return errors.New("store: close global database context is required")
 	}
-	return nil
+	if !g.closed.CompareAndSwap(0, 1) {
+		return nil
+	}
+
+	checkpointErr := store.Checkpoint(ctx, g.db)
+	closeErr := g.db.Close()
+	return errors.Join(checkpointErr, closeErr)
+}
+
+func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
+	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+		return store.Apply(ctx, db, MigrationStream())
+	})
 }

@@ -1,0 +1,98 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "faulty",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are a fault injection fixture.",
+            "turns": [
+                {
+                    "name": "crash-mid-stream",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "trigger crash mid-stream"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "partial before crash"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "disconnect"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "invalid-frame",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "trigger invalid frame"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "partial before invalid frame"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "disconnect"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "permission-then-disconnect",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "trigger permission disconnect"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "disconnect",
+                                "async": true,
+                                "delay_ms": 250
+                            }
+                        },
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-fault-1",
+                            "title": "Need approval before disconnect",
+                            "tool_kind": "edit",
+                            "path": "fault.txt",
+                            "status": "pending"
+                        }
+                    ]
+                },
+                {
+                    "name": "block-until-cancel",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "block until canceled"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

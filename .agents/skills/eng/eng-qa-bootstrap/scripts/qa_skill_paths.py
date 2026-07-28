@@ -1,0 +1,10 @@
+"""Repository-relative paths shared by the Compozy QA bootstrap helpers."""
+
+from pathlib import Path
+
+
+REAL_SCENARIO_QA_REL = Path(".agents/skills/eng/eng-real-scenario-qa")
+
+
+def real_scenario_script(repo_root: Path, name: str) -> Path:
+    return repo_root / REAL_SCENARIO_QA_REL / "scripts" / name

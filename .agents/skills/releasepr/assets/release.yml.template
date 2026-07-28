@@ -34,7 +34,7 @@ permissions:
 
 env:
   # Pin an explicit tag — never @latest — for reproducible releases.
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.24
   GO_VERSION: "1.25.9"
   # Set for a project's first release when no git tags exist yet.
   INITIAL_VERSION: v0.0.1
@@ -106,7 +106,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
           GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 

@@ -1,0 +1,26 @@
+release_artifacts:
+  - name: sync-web-assets-module
+    command: go
+    args:
+      - run
+      - github.com/magefile/mage@v1.17.0
+      - releaseWebAssetsSync
+    add:
+      - go.mod
+      - go.sum
+    timeout_seconds: 900
+  - name: format-release-artifacts
+    command: bun
+    args:
+      - x
+      - oxfmt
+      - CHANGELOG.md
+      - RELEASE_BODY.md
+      - RELEASE_NOTES.md
+      - package.json
+    add:
+      - CHANGELOG.md
+      - RELEASE_BODY.md
+      - RELEASE_NOTES.md
+      - package.json
+    timeout_seconds: 120

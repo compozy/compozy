@@ -1,55 +1,68 @@
 {
-  "devDependencies": {
-    "@commitlint/cli": "^20.5.0",
-    "@commitlint/config-conventional": "^20.5.0",
-    "@types/node": "^25.6.0",
-    "@vitest/coverage-v8": "^4.1.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
-    "oxfmt": "^0.46.0",
-    "oxlint": "^1.60.0",
-    "turbo": "^2.8.20",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.3",
-    "vitest": "^4.1.0"
-  },
-  "lint-staged": {
-    "*.go": "make fmt",
-    "*.{css,html,json,jsonc,yaml,yml,md}": [
-      "oxfmt --no-error-on-unmatched-pattern"
+    "name": "compozy",
+    "version": "0.3.0",
+    "private": true,
+    "workspaces": [
+        "packages/ui",
+        "packages/site",
+        "web",
+        "sdk/typescript",
+        "sdk/create-extension",
+        "sdk/examples/prompt-enhancer"
     ],
-    "*.{js,jsx,ts,tsx}": [
-      "oxfmt --no-error-on-unmatched-pattern",
-      "oxlint --no-error-on-unmatched-pattern"
-    ]
-  },
-  "name": "compozy",
-  "packageManager": "bun@1.3.11",
-  "private": true,
-  "scripts": {
-    "build": "turbo run build",
-    "codegen": "node scripts/codegen.mjs",
-    "codegen-check": "node scripts/codegen.mjs --check",
-    "dev:web": "bun run --cwd web dev",
-    "format": "bunx oxfmt",
-    "format:check": "bunx oxfmt --check",
-    "frontend:bootstrap": "bun ci",
-    "frontend:build": "bun run build",
-    "frontend:e2e": "bun run --cwd web test:e2e",
-    "frontend:lint": "bun run lint",
-    "frontend:test": "bun run test:config \u0026\u0026 bun run --cwd packages/ui test \u0026\u0026 bun run --cwd web test",
-    "frontend:typecheck": "bun run typecheck",
-    "lint": "bun run format \u0026\u0026 bunx oxlint",
-    "postinstall": "bash scripts/link-skills.sh",
-    "prepare": "husky",
-    "test": "bun run test:config",
-    "test:config": "bunx vitest run --config vitest.config.ts test/*.test.ts",
-    "typecheck": "turbo run typecheck"
-  },
-  "version": "0.2.11",
-  "workspaces": [
-    "packages/ui",
-    "web",
-    "sdk/*"
-  ]
+    "scripts": {
+        "build": "turbo run build",
+        "codegen": "make codegen",
+        "codegen-check": "bash scripts/codegen-check.sh",
+        "dev": "turbo run dev --filter=./web",
+        "doctor": "npx react-doctor@latest",
+        "format": "oxfmt",
+        "format:check": "bunx oxfmt --check",
+        "lint": "bun run format:check && bunx oxlint --deny-warnings",
+        "msw:update": "bun --cwd web msw init public --no-save && bunx oxfmt web/public/mockServiceWorker.js",
+        "postinstall": "bash scripts/postinstall.sh",
+        "prepare": "husky",
+        "prs:scrape": "bun run scripts/scrape-prs.ts",
+        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts",
+        "test": "turbo run test",
+        "test:cold": "turbo run test --force",
+        "test:e2e": "make test-e2e",
+        "test:e2e:nightly": "make test-e2e-nightly",
+        "test:e2e:runtime": "make test-e2e-runtime",
+        "test:e2e:web": "make test-e2e-web",
+        "typecheck": "turbo run typecheck"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "^21.2.1",
+        "@commitlint/config-conventional": "^21.2.0",
+        "@octokit/rest": "^22.0.1",
+        "@types/node": "^26.1.1",
+        "@typescript/native": "npm:typescript@^7.0.2",
+        "@vitest/coverage-v8": "^4.1.10",
+        "husky": "^9.1.7",
+        "lint-staged": "^17.2.0",
+        "openapi-typescript": "^7.13.0",
+        "oxfmt": "^0.60.0",
+        "oxlint": "^1.75.0",
+        "oxlint-plugin-react-doctor": "^0.9.1",
+        "react-doctor": "^0.9.1",
+        "shadcn": "^4.14.1",
+        "tailwindcss": "^4.3.3",
+        "turbo": "^2.10.6",
+        "tw-animate-css": "^1.4.0",
+        "typescript": "^5.9.3",
+        "vite": "^8.1.5",
+        "vitest": "^4.1.10"
+    },
+    "lint-staged": {
+        "*.go": "sh -c 'make fmt'",
+        "*.{css,html,json,jsonc,yaml,yml,md}": [
+            "oxfmt --no-error-on-unmatched-pattern"
+        ],
+        "*.{js,jsx,ts,tsx}": [
+            "oxfmt --no-error-on-unmatched-pattern",
+            "oxlint --deny-warnings"
+        ]
+    },
+    "packageManager": "bun@1.3.4"
 }

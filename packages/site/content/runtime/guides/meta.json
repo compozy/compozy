@@ -1,0 +1,10 @@
+{
+    "title": "Guides",
+    "icon": "Book",
+    "pages": [
+        "index",
+        "choose-an-operator-surface",
+        "debug-a-failed-session",
+        "coordinate-agents-over-network"
+    ]
+}

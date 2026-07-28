@@ -2,13 +2,15 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "target": "ES2022",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "rootDir": ".",
-        "outDir": "dist",
-        "noEmit": false,
-        "types": ["node"]
+        "lib": ["ES2022"],
+        "module": "Node16",
+        "moduleResolution": "Node16",
+        "rootDir": "./src",
+        "outDir": "./dist",
+        "types": ["node"],
+        "exactOptionalPropertyTypes": true,
+        "verbatimModuleSyntax": false
     },
-    "include": ["src/**/*.ts", "bin/**/*.ts"],
-    "exclude": ["dist/**"]
+    "include": ["src/**/*.ts"],
+    "exclude": ["dist/**", "**/node_modules/**"]
 }

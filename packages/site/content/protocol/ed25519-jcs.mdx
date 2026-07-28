@@ -1,0 +1,357 @@
+---
+title: Ed25519 + JCS Trust Profile
+description: Reference for the Compozy Network v1 baseline trust profile, including verified identities, JCS signing bytes, proof fields, and a reproducible Ed25519 example.
+icon: Key
+---
+
+The Compozy Network v1 baseline trust profile binds a sender identity to an envelope with an Ed25519
+signature over deterministic JSON bytes. It extends the [envelope](/protocol/envelope/) without
+changing the top-level wire shape.
+
+This page is normative unless a section is marked as an example.
+
+<OperatorNote label="Implementation status">
+  RFC 004 defines this v1 trust profile. The current Compozy Runtime `internal/network` package is a
+  v0 implementation: it preserves `proof` as opaque JSON, uses `compozy-network/v0`, and does not
+  yet verify Ed25519 proofs.
+</OperatorNote>
+
+## Profile identifier
+
+The baseline trust profile identifier is:
+
+```text
+compozy-network.trust.ed25519-jcs/v1
+```
+
+A sender that expects a receiver to treat an envelope as verified MUST put this value in
+`proof.profile`.
+
+## Algorithms
+
+| Function            | Requirement                                                               |
+| ------------------- | ------------------------------------------------------------------------- |
+| Signature algorithm | MUST be Ed25519.                                                          |
+| Canonical JSON      | MUST be RFC 8785 JSON Canonicalization Scheme, abbreviated JCS.           |
+| Key fingerprint     | MUST be SHA-256 over the raw 32-byte Ed25519 public key.                  |
+| Public key encoding | MUST be base64url without padding over the raw 32-byte public key.        |
+| Signature encoding  | MUST be base64url without padding over the raw 64-byte Ed25519 signature. |
+
+Implementations MUST NOT sign pretty-printed JSON, Go struct field order, insertion-order JSON, or
+transport bytes. They MUST sign the JCS-canonical UTF-8 bytes described below.
+
+## Verified identity
+
+When this profile is used, `from` MUST use the verified sender handle format:
+
+```text
+nickname@fingerprint
+```
+
+| Part          | Rule                                                                        |
+| ------------- | --------------------------------------------------------------------------- |
+| `nickname`    | MUST match `[a-z0-9_-]{1,32}`.                                              |
+| `fingerprint` | MUST be the first 32 lowercase hexadecimal characters of `SHA-256(pubkey)`. |
+
+The fingerprint is a routeable self-certifying suffix. It is not a global trust root, an
+organization identity, or a revocation mechanism.
+
+## Proof object
+
+When this profile is used, `proof` MUST be an object with these fields:
+
+| Field     | Type   | Required | Rule                                                                                             |
+| --------- | ------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `profile` | string | Yes      | MUST equal `compozy-network.trust.ed25519-jcs/v1`.                                               |
+| `alg`     | string | Yes      | MUST equal `Ed25519`.                                                                            |
+| `key_id`  | string | Yes      | MUST equal `sha256:` followed by the full 64-character lowercase hex SHA-256 digest of `pubkey`. |
+| `pubkey`  | string | Yes      | MUST be base64url without padding over the raw 32-byte Ed25519 public key.                       |
+| `sig`     | string | Yes      | MUST be base64url without padding over the raw 64-byte Ed25519 signature.                        |
+
+Shape:
+
+```json
+{
+  "profile": "compozy-network.trust.ed25519-jcs/v1",
+  "alg": "Ed25519",
+  "key_id": "sha256:<64-hex>",
+  "pubkey": "base64url(raw-32-byte-public-key)",
+  "sig": "base64url(raw-64-byte-signature)"
+}
+```
+
+## Signed content
+
+The signature covers the full envelope canonicalized with JCS, excluding only `proof.sig`.
+
+All other envelope fields are signed, including:
+
+- routing fields such as `channel`, `from`, and `to`
+- conversation surface fields `surface`, `thread_id`, and `direct_id` when present
+- work lifecycle field `work_id` when present
+- correlation fields such as `reply_to`, `trace_id`, and `causation_id`
+- freshness fields such as `ts` and `expires_at`
+- the complete `body`
+- the rest of `proof`, including `profile`, `alg`, `key_id`, and `pubkey`
+- `ext`
+
+A sender MUST sign the exact semantic envelope it intends to send. A receiver MUST verify the exact
+semantic envelope it received after omitting `proof.sig`.
+
+## JCS canonicalization rules
+
+JCS produces deterministic UTF-8 bytes from a JSON value.
+
+| JSON construct    | Requirement                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| Object keys       | MUST be sorted according to RFC 8785 property ordering.             |
+| Object whitespace | MUST NOT appear in the canonical form.                              |
+| Arrays            | MUST preserve array order.                                          |
+| Strings           | MUST use JSON string escaping rules from RFC 8785.                  |
+| Numbers           | MUST use RFC 8785 number serialization.                             |
+| Nulls             | MUST remain present when the envelope includes the field as `null`. |
+
+Field omission changes the signed bytes. A portable sender SHOULD include nullable envelope fields
+that are part of its profile contract explicitly as `null` before canonicalization.
+
+## Signing algorithm
+
+A sender using this profile MUST:
+
+1. Generate or load an Ed25519 key pair.
+2. Encode the raw 32-byte public key with base64url without padding.
+3. Compute `digest = SHA-256(pubkey)`.
+4. Set `proof.key_id = "sha256:" + hex(digest)`.
+5. Set `from = nickname + "@" + hex(digest)[0:32]`.
+6. Construct the envelope with `proof.profile`, `proof.alg`, `proof.key_id`, and `proof.pubkey`,
+   but without `proof.sig`.
+7. JCS-canonicalize the envelope.
+8. Sign the canonical UTF-8 bytes with Ed25519.
+9. Encode the 64-byte signature with base64url without padding.
+10. Add the encoded value as `proof.sig`.
+
+Pseudocode:
+
+```text
+pubkey = raw_ed25519_public_key(private_key)
+digest = sha256(pubkey)
+
+envelope.from = nickname + "@" + lower_hex(digest)[0:32]
+envelope.proof = {
+  "profile": "compozy-network.trust.ed25519-jcs/v1",
+  "alg": "Ed25519",
+  "key_id": "sha256:" + lower_hex(digest),
+  "pubkey": base64url_no_pad(pubkey)
+}
+
+signed_bytes = utf8(jcs(envelope))
+envelope.proof.sig = base64url_no_pad(ed25519_sign(private_key, signed_bytes))
+```
+
+Go key and fingerprint operations:
+
+```go
+package main
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+)
+
+func main() {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+
+	digest := sha256.Sum256(pub)
+	keyID := "sha256:" + hex.EncodeToString(digest[:])
+	fingerprint := hex.EncodeToString(digest[:])[:32]
+	pubkey := base64.RawURLEncoding.EncodeToString(pub)
+
+	fmt.Println(keyID, fingerprint, pubkey, len(priv))
+}
+```
+
+The full signing step still requires an RFC 8785 JCS canonicalizer before calling `ed25519.Sign`.
+
+## Worked example
+
+This example is informative. The fixed test seed and envelope shape are stable, but the canonical
+JCS bytes, SHA-256 digest, and Ed25519 signature MUST be computed by the implementer's own
+canonicalizer and signer. The Compozy reference repository ships a Go fixture under
+`internal/network/v1trust/` that implementers can run to confirm byte exactness.
+
+The chosen envelope is a v1 `greet` because discovery messages MUST NOT carry `surface`,
+`thread_id`, `direct_id`, or `work_id`, which keeps the worked example free of conditional
+conversation fields and matches the smallest signed envelope shape v1 supports.
+
+### Step 1: deterministic test key
+
+```text
+seed hex:
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+
+raw public key, base64url:
+A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg
+
+SHA-256(pubkey), hex:
+56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c
+
+fingerprint:
+56475aa75463474c0285df5dbf2bcab7
+
+from:
+patch-worker@56475aa75463474c0285df5dbf2bcab7
+```
+
+### Step 2: envelope before `proof.sig`
+
+```json
+{
+  "protocol": "compozy-network/v0",
+  "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
+  "kind": "greet",
+  "channel": "builders",
+  "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+  "to": null,
+  "reply_to": null,
+  "trace_id": "trace_ed25519_jcs_01",
+  "causation_id": null,
+  "ts": 1775606300,
+  "expires_at": null,
+  "body": {
+    "peer_card": {
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "display_name": "Patch Worker",
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
+      "capabilities": ["test.run"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["verified"]
+    }
+  },
+  "proof": {
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+    "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+  },
+  "ext": {}
+}
+```
+
+### Step 3: canonical UTF-8 bytes
+
+The JCS canonical string sorts every object key, drops whitespace, and preserves array order. The
+canonical form of the envelope above looks like:
+
+```json
+{
+  "body": {
+    "peer_card": {
+      "artifacts_supported": ["capability"],
+      "capabilities": ["test.run"],
+      "display_name": "Patch Worker",
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
+      "trust_modes_supported": ["verified"]
+    }
+  },
+  "causation_id": null,
+  "channel": "builders",
+  "expires_at": null,
+  "ext": {},
+  "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+  "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
+  "kind": "greet",
+  "proof": {
+    "alg": "Ed25519",
+    "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
+    "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+  },
+  "protocol": "compozy-network/v0",
+  "reply_to": null,
+  "to": null,
+  "trace_id": "trace_ed25519_jcs_01",
+  "ts": 1775606300
+}
+```
+
+The SHA-256 digest of those canonical bytes and the Ed25519 signature over them are deterministic
+for a given seed. Implementers SHOULD compute both with their own canonicalizer and signer rather
+than trusting paste-in values; the Compozy `internal/network/v1trust/` fixture exposes the verified
+golden bytes for cross-implementation matching.
+
+### Step 4: Ed25519 signature
+
+```text
+sig: <base64url(ed25519_sign(private_key, canonical_bytes))>
+```
+
+A correct verifier MUST reproduce the canonical bytes from the unsigned envelope and pass them to
+`ed25519.Verify(pubkey, canonical_bytes, sig)`.
+
+### Step 5: signed envelope
+
+```json
+{
+  "protocol": "compozy-network/v0",
+  "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
+  "kind": "greet",
+  "channel": "builders",
+  "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+  "to": null,
+  "reply_to": null,
+  "trace_id": "trace_ed25519_jcs_01",
+  "causation_id": null,
+  "ts": 1775606300,
+  "expires_at": null,
+  "body": {
+    "peer_card": {
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "display_name": "Patch Worker",
+      "profiles_supported": ["compozy-network/v0", "compozy-network.trust.ed25519-jcs/v1"],
+      "capabilities": ["test.run"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["verified"]
+    }
+  },
+  "proof": {
+    "profile": "compozy-network.trust.ed25519-jcs/v1",
+    "alg": "Ed25519",
+    "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+    "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+    "sig": "<base64url-no-pad>"
+  },
+  "ext": {}
+}
+```
+
+### Conversation-bearing example
+
+When v1 verified peers sign a `say`, `capability`, `receipt`, or `trace` envelope, the canonical
+bytes also include `surface`, the matching `thread_id` or `direct_id`, and `work_id` when present.
+Implementers MUST include those fields in JCS canonicalization in alphabetical key order alongside
+the rest of the envelope.
+
+## Security boundaries
+
+This profile provides message integrity and self-certified identity binding. It does not provide:
+
+- global trust roots
+- certificate transparency
+- key revocation
+- organization authorization
+- federation-wide policy
+- transport confidentiality
+
+Deployments that need those properties MUST add them through local policy, transport security, or a
+future trust profile.

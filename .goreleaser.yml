@@ -7,11 +7,11 @@ project_name: compozy
 
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
-  license: "BSL-1.1"
-  homepage: "https://github.com/compozy/compozy"
-  description: "Compozy CLI"
+  license: "MIT"
+  homepage: "https://compozy.com"
+  description: "A local-first operating system for agent work."
   maintainers:
-    - "Compozy Team <support@compozy.com>"
+    - "Compozy Team"
 
 env:
   - GO111MODULE=on
@@ -22,11 +22,13 @@ git:
 
 before:
   hooks:
-    - make frontend-build
+    - go run github.com/magefile/mage@v1.17.2 daytonaSidecarsCheck
+    - go run github.com/magefile/mage@v1.17.2 webBuild
+    - go run github.com/magefile/mage@v1.17.2 webAssetsCheck
 
 builds:
   - id: compozy
-    main: ./cmd/compozy
+    main: .
     binary: compozy
     goos:
       - linux
@@ -42,7 +44,7 @@ builds:
       - -s -w
       - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
       - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/compozy/compozy/internal/version.Date={{ .Date }}
+      - -X github.com/compozy/compozy/internal/version.BuildDate={{ .Date }}
     env:
       - CGO_ENABLED=0
     flags:
@@ -54,7 +56,7 @@ archives:
     ids:
       - compozy
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{ .ProjectName }}_{{ .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
@@ -63,10 +65,38 @@ archives:
       - goos: windows
         formats:
           - zip
-    files:
-      - README.md
-      - LICENSE*
-    # Keep the binary at the archive root so Homebrew formulas can install it directly.
+
+nfpms:
+  - id: compozy-linux-packages
+    package_name: compozy
+    file_name_template: "{{ .ConventionalFileName }}"
+    ids:
+      - compozy
+    if: '{{ eq .Os "linux" }}'
+    vendor: Compozy
+    homepage: "https://compozy.com"
+    maintainer: "Compozy Team"
+    description: "A local-first operating system for agent work."
+    license: "MIT"
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    formats:
+      - deb
+      - rpm
+
+npms:
+  - name: "@compozy/cli"
+    ids:
+      - compozy-archive
+    description: "A local-first operating system for agent work."
+    repository: "git+https://github.com/compozy/compozy.git"
+    bugs: "https://github.com/compozy/compozy/issues"
+    access: public
+    tag: "{{ .Env.NPM_TAG }}"
+    format: tar.gz
+    license: "MIT"
+    homepage: "https://compozy.com"
 
 checksum:
   name_template: "checksums.txt"
@@ -74,11 +104,10 @@ checksum:
 
 signs:
   - cmd: cosign
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
-      - "--output-certificate=${certificate}"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
       - "--yes"
     artifacts: checksum
@@ -91,7 +120,6 @@ source:
   enabled: true
 
 changelog:
-  # Use git history so the first release works before a previous tag exists on GitHub.
   use: git
   sort: asc
   abbrev: 7
@@ -149,79 +177,22 @@ release:
   github:
     owner: compozy
     name: compozy
-  name_template: "Release {{ .Version }}"
+  target_commitish: "{{ .Commit }}"
+  name_template: "CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}"
   mode: replace
   draft: false
+  # This field does not support templates. The release planner enforces that
+  # beta versions carry prerelease data while stable and legacy versions do not.
   prerelease: auto
+  make_latest: "{{ .Env.GITHUB_MAKE_LATEST }}"
+  extra_files:
+    - glob: ./packages/site/public/install.sh
+      name_template: install.sh
 
 sboms:
-  - artifacts: archive
+  - id: archive
+    artifacts: archive
+  - id: package
+    artifacts: package
   - id: source
     artifacts: source
-
-# Homebrew formula configuration
-brews:
-  - name: compozy
-    ids:
-      - compozy-archive
-    repository:
-      owner: compozy
-      name: homebrew-compozy
-      branch: main
-      token: "{{ .Env.RELEASE_TOKEN }}"
-
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    directory: Formula
-    caveats: |
-      To get started with Compozy, see https://github.com/compozy/compozy
-    homepage: "https://github.com/compozy/compozy"
-    description: "Compozy CLI"
-    license: "BSL-1.1"
-    test: |
-      system "#{bin}/compozy", "--version"
-    skip_upload: auto
-
-# NPM package configuration
-npms:
-  - name: "@compozy/cli"
-    description: "Compozy CLI"
-    repository: "git+https://github.com/compozy/compozy.git"
-    bugs: https://github.com/compozy/compozy/issues
-    access: public
-    license: BSL-1.1
-    homepage: "https://compozy.com"
-
-# Arch User Repository (AUR) configuration
-# Temporarily disabled until the AUR package exists and `AUR_KEY` is configured.
-# Uncomment this block to re-enable AUR publishing.
-# aurs:
-#   - name: compozy-bin
-#     homepage: "https://github.com/compozy/compozy"
-#     description: "Compozy CLI"
-#     maintainers:
-#       - "Compozy Team <support@compozy.com>"
-#     license: "MIT"
-#     private_key: '{{ .Env.AUR_KEY }}'
-#     git_url: 'ssh://aur@aur.archlinux.org/compozy-bin.git'
-#     provides:
-#       - compozy
-#     conflicts:
-#       - compozy
-#       - compozy-git
-#     package: |-
-#       # Binaries
-#       install -Dm755 "${srcdir}/${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
-#
-#       # License
-#       install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-#
-#       # README
-#       install -Dm644 "${srcdir}/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
-#     commit_author:
-#       name: goreleaserbot
-#       email: bot@goreleaser.com
-#     commit_msg_template: "AUR package update for {{ .ProjectName }} version {{ .Tag }}"

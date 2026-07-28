@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/edit-mcp-server.html",
+  "entry": "modals/edit-mcp-server.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T17:12:12.686Z",
+  "updatedAt": "2026-07-14T17:12:12.686Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

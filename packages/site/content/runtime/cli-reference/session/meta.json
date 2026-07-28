@@ -1,0 +1,24 @@
+{
+    "title": "Session",
+    "pages": [
+        "index",
+        "approve",
+        "events",
+        "health",
+        "history",
+        "inspect",
+        "list",
+        "new",
+        "prompt",
+        "recap",
+        "remove",
+        "repair",
+        "resume",
+        "status",
+        "stop",
+        "usage",
+        "wait",
+        "clarify",
+        "soul"
+    ]
+}

@@ -1,0 +1,45 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "tool-approval-grants",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are a durable native-tool approval integration fixture.",
+            "turns": [
+                {
+                    "name": "unused",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "noop"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["noop"]
+                        }
+                    ]
+                },
+                {
+                    "name": "hold-native-approval",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "hold native approval"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["native approval ready"]
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

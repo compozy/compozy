@@ -1,0 +1,4 @@
+{
+    "title": "Resource",
+    "pages": ["index", "delete", "get", "list", "put"]
+}

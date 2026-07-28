@@ -9,8 +9,8 @@ These flags are shared by `tasks run`, `exec`, and `reviews fix`:
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--ide` | string | `codex` | ACP runtime: claude, codex, copilot, cursor-agent, droid, gemini, opencode, pi |
-| `--model` | string | per-IDE | Model override (codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
-| `--reasoning-effort` | string | | Reasoning effort: low, medium, high, xhigh |
+| `--model` | string | per-IDE | Model override (codex/droid=gpt-5.6-sol, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
+| `--reasoning-effort` | string | | Reasoning effort: low, medium, high, xhigh, max, ultra; applied only when the ACP runtime advertises the value |
 | `--add-dir` | string[] | | Additional directories for ACP runtimes (claude and codex only; repeatable or comma-separated) |
 | `--auto-commit` | bool | false | Include automatic commit instructions at task/batch completion |
 | `--dry-run` | bool | false | Generate prompts without running IDE tool |
@@ -51,11 +51,15 @@ Update the Compozy CLI to the latest release. No flags.
 
 ### `compozy tasks run`
 
-Execute PRD task files sequentially from a workflow directory through the shared daemon.
+Execute PRD task files from a workflow directory through the shared daemon. By default one workflow runs sequentially; `--parallel-tasks` runs a single workflow by dependency waves from `_tasks.md` graph edges.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--name` | string | | Task workflow name (resolves to `.compozy/tasks/<name>`) |
+| `--multiple` | string | | Comma-separated task workflow slugs to run through one daemon-owned parent queue |
+| `--parallel` | bool | false | With `--multiple`, run child workflows concurrently instead of as an ordered queue |
+| `--parallel-limit` | int | 2 | With `--multiple --parallel`, maximum child workflows running at once |
+| `--parallel-tasks` | bool | false | Run one workflow by dependency waves from `_tasks.md` graph edges |
 | `--include-completed` | bool | false | Include tasks already marked as completed |
 | `--recursive`, `-r` | bool | false | Discover `task_NNN.md` files in nested subdirectories of the workflow root |
 | `--skip-validation` | bool | false | Skip task metadata preflight check |
@@ -70,6 +74,9 @@ Execute PRD task files sequentially from a workflow directory through the shared
 ```
 compozy tasks run multi-repo --ide claude
 compozy tasks run --name multi-repo --ide codex --auto-commit
+compozy tasks run --multiple alpha,beta --stream
+compozy tasks run --multiple alpha,beta --parallel --parallel-limit 2
+compozy tasks run multi-repo --parallel-tasks
 compozy tasks run multi-repo --stream
 ```
 

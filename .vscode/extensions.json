@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "bradlc.vscode-tailwindcss",
+        "typescriptteam.native-preview",
+        "oxc.oxc-vscode",
+        "golang.go"
+    ]
+}

@@ -1,0 +1,73 @@
+---
+title: "compozy session new"
+description: "Create a new session"
+---
+
+## compozy session new
+
+Create a new session
+
+```
+compozy session new [flags]
+```
+
+### Examples
+
+```
+  # Start a session in the current workspace using the configured default agent
+  compozy session new
+
+  # Start a named session for a specific registered workspace and agent
+  compozy session new --workspace checkout-api --agent reviewer --name review-api
+
+  # Override provider, model, reasoning effort, and speed for this session only
+  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max --speed fast
+
+  # Create the session and dispatch its first prompt after runtime activation
+  compozy session new --prompt "Inspect the failing build and propose a fix"
+
+  # Auto-register an absolute workspace path before creating the session
+  compozy session new --cwd "$PWD" --agent reviewer
+```
+
+### Options
+
+```
+      --agent string                      Agent definition name (defaults to config default)
+      --cwd string                        Absolute workspace directory to auto-register
+  -h, --help                              help for new
+      --model string                      Optional model override for this session
+      --name string                       Optional session label
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named
+      --no-wait                           Return after the durable starting session is accepted
+      --prompt string                     Initial prompt to dispatch after the session becomes active
+      --provider string                   Optional provider override for this session
+      --reasoning-effort string           Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it
+      --speed string                      Runtime speed (normal|fast) (default "normal")
+      --workspace string                  Registered workspace name or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy session new -o json
+```

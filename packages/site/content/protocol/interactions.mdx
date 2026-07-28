@@ -1,0 +1,188 @@
+---
+title: Work Lifecycle
+description: Reference for Compozy Network v0 work_id semantics, opening directed work, progress streaming, lifecycle states, conversation-container binding, and timeout rules.
+icon: Workflow
+---
+
+A unit of work is a correlated piece of directed agent activity inside one conversation container.
+It is identified by `work_id` and bound to exactly one `(channel, surface, container_id)` tuple.
+A work unit never spans multiple conversation containers.
+
+This page is normative unless a section is marked as an example.
+
+`work_id` is a network-level lifecycle marker. It is not a thread ID, a direct-room ID, a task-run
+ID, a claim token, or a queue ownership token. The runtime [task domain](/runtime/core/autonomy/task-runs-and-leases)
+is still the only durable owner of claim, lease, heartbeat, complete, fail, and release transitions.
+
+## Lifecycle states
+
+| State         | Meaning                                                         | Terminal |
+| ------------- | --------------------------------------------------------------- | -------- |
+| `submitted`   | The work has been opened and is waiting for acceptance or work. | No       |
+| `working`     | The target has accepted responsibility and is doing work.       | No       |
+| `needs_input` | The target needs more input from the initiator.                 | No       |
+| `completed`   | The target completed the work.                                  | Yes      |
+| `failed`      | The target or lifecycle rules marked the work failed.           | Yes      |
+| `canceled`    | The initiator or target canceled the work.                      | Yes      |
+
+Terminal states are authoritative. After work reaches `completed`, `failed`, or `canceled`, later
+non-terminal updates MUST NOT move it back to an active state. Late lifecycle messages MAY be
+rejected with `reason_code = work_closed`.
+
+<Mermaid
+  chart={`stateDiagram-v2
+    [*] --> submitted
+    submitted --> working: receipt accepted or trace working
+    submitted --> failed: receipt rejected or trace failed
+    submitted --> canceled: receipt canceled or trace canceled
+    working --> needs_input: trace needs_input
+    working --> completed: trace completed
+    working --> failed: trace failed
+    working --> canceled: receipt canceled or trace canceled
+    needs_input --> working: say or capability with same work_id
+    needs_input --> completed: trace completed
+    needs_input --> failed: trace failed
+    needs_input --> canceled: receipt canceled or trace canceled
+    completed --> [*]
+    failed --> [*]
+    canceled --> [*]`}
+  caption="Only active states can transition. Terminal states close the lifecycle."
+/>
+
+## Opening work inside a conversation container
+
+A `say` or `capability` message that introduces a new `work_id` opens a unit of work bound to its
+own conversation container. The target SHOULD reply with a `receipt` when it accepts or rejects
+responsibility.
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant A as ops-coordinator
+    participant B as patch-worker
+
+    A->>B: say surface=thread thread_id=thread_launch work_id=work_123
+    B-->>A: receipt accepted (same surface, thread_id, work_id)
+    B-->>A: trace working
+    B-->>A: trace completed with result`}
+
+caption="A request-response work unit uses say or capability to open, then receipt and trace messages bound to the same conversation container."
+/>
+
+### Directed work rules
+
+- A `say` or `capability` envelope that introduces a new `work_id` establishes the initiator and
+  target.
+- The initiator and target are derived from the opening envelope's `from` and `to` fields. Only those
+  two peers MAY emit lifecycle messages for that work unit.
+- Every conversation-bearing envelope inside the same work MUST carry the same `surface` and the
+  same matching container ID (`thread_id` for thread-surface work, `direct_id` for direct-surface
+  work).
+- A `receipt` or `trace` envelope MUST carry `surface`, the matching container ID, and the same
+  `work_id`.
+- A receiver SHOULD emit `receipt(accepted)` when it accepts responsibility.
+- A receiver SHOULD emit `receipt(rejected)` with a reason code when it refuses responsibility.
+
+## Conversation-container binding
+
+A work unit is permanently bound to exactly one `(channel, surface, container_id)` tuple. The
+runtime MUST reject lifecycle messages for the same `work_id` whose conversation fields do not
+match the opening envelope. The reference implementation uses `reason_code = work_container_mismatch`
+for this rejection class.
+
+| Opening envelope                                     | Continuation envelope MUST carry                     |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| `surface:"thread"` with `thread_id:"thread_example"` | `surface:"thread"` and `thread_id:"thread_example"`. |
+| `surface:"direct"` with `direct_id:"direct_<...>"`   | `surface:"direct"` and the same `direct_id`.         |
+
+A handoff that crosses surfaces — for example, opening follow-up work in a direct room after a
+public thread asked for restricted review — opens a new `work_id`. The new envelope MAY use
+`reply_to`, `trace_id`, and `causation_id` to link back to the original public message.
+
+## Conversation messages without lifecycle
+
+Use `say` without `work_id` for free-form discussion that does not need lifecycle state. A
+`capability` always carries the lifecycle work it transfers. A receiver MUST NOT synthesize a
+`work_id` from `say` text alone.
+
+## Progress streaming
+
+`trace` messages allow the target to stream progress without opening a separate channel. Each trace
+updates the same `work_id` inside the same conversation container.
+
+<Mermaid
+  chart={`sequenceDiagram
+    participant A as release-bot
+    participant B as migration-agent
+
+    A->>B: say surface=thread work_id=work-mig run migration check
+    B-->>A: receipt accepted
+    B-->>A: trace working schema check started
+    B-->>A: trace needs_input provide database snapshot
+    A->>B: say surface=thread work_id=work-mig snapshot uri
+    B-->>A: trace working replaying migration
+    B-->>A: trace completed report uri`}
+
+caption="Multiple trace messages can report progress and request input before completion."
+/>
+
+### Progress rules
+
+- `trace(working)` SHOULD mean work is active.
+- `trace(needs_input)` SHOULD include a `message` that explains the missing input.
+- The initiator MAY answer `needs_input` with another `say` or `capability` that carries the same
+  `work_id` inside the same conversation container.
+- `trace(completed)` SHOULD include result data or artifact references when the output is not fully
+  described by `message`.
+- `trace(failed)` SHOULD include a human-readable `message` and MAY include structured failure data
+  in `result`.
+
+## Cancellations
+
+Cancellation can come from either side, but the meaning differs:
+
+| Message                             | Typical sender | Meaning                                             |
+| ----------------------------------- | -------------- | --------------------------------------------------- |
+| `receipt` with `status: "canceled"` | Initiator      | The initiator no longer wants the work to continue. |
+| `trace` with `state: "canceled"`    | Target         | The worker has stopped the work.                    |
+
+Implementations SHOULD make cancellation idempotent. If both peers cancel, the work remains
+canceled.
+
+## Timeout and expiration semantics
+
+There are two timeout layers:
+
+| Layer               | Field or policy                            | Effect                                                                            |
+| ------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| Envelope freshness  | `expires_at` or receiver replay-age policy | Stale messages are rejected before routing or lifecycle processing.               |
+| Application timeout | Local runtime policy                       | A runtime may mark a work unit failed or canceled if no progress arrives in time. |
+
+Senders SHOULD set `expires_at` on time-sensitive requests. Receivers MUST reject expired messages.
+When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The Compozy
+reference implementation defaults to 300 seconds.
+
+The protocol does not define a global work timeout. Runtimes MAY apply local deadlines and report
+the result with `trace(failed)`, `trace(canceled)`, or `receipt(canceled)`.
+
+## Work scope
+
+A `work_id` is unique inside one workspace. The first valid conversation envelope binds it to one
+channel and one conversation container. Reusing that value in another channel, thread, or direct
+room is invalid; implementations MUST treat `(workspace_id, work_id)` as the lifecycle identity and
+persist the original container binding.
+
+The first valid conversation envelope that introduces the `work_id` fixes the participants and the
+container binding. A message from a non-participant or from a different container MUST NOT change
+the lifecycle state. A cross-container reuse MUST be rejected as `work_container_mismatch`; opening
+work in another container requires a new `work_id`.
+
+## Related pages
+
+- [Message Kinds](/protocol/message-kinds) defines the `say`, `capability`, `receipt`, and `trace`
+  body shapes plus their conversation-surface rules.
+- [Envelope](/protocol/envelope) defines the shared envelope fields including `surface`,
+  `thread_id`, `direct_id`, and `work_id`.
+- [Delivery](/protocol/delivery) explains deduplication, freshness, and delivery outcomes.
+- [Examples](/protocol/examples) shows complete envelope flows using these lifecycle rules.
+- [Task Promotion](/runtime/core/network/task-promotion) shows the explicit transition from a
+  Network thread into durable task intent without peer mutation authority.

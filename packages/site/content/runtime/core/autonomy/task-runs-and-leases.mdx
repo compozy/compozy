@@ -1,0 +1,470 @@
+---
+title: Task Runs and Leases
+description: How agents claim work, renew leases, finish runs, and release session-bound ownership safely.
+---
+
+Task runs are the durable execution records for tasks. A run becomes claimable only after publish,
+start, approval, UI start, automation approval, or an equivalent API enqueues it. The task service
+is the only authority for run ownership and terminal state.
+
+## Claiming the next run
+
+A managed agent session claims work either through the dedicated autonomy tool family or the
+parallel CLI. Both routes call the same task service writers and obey the same session-bound
+contract.
+
+Tool path:
+
+```text
+compozy__task_run_claim_next  { "wait": true, "lease_seconds": 300 }
+```
+
+CLI path:
+
+```bash
+compozy task next --wait --lease-seconds 300 -o json
+```
+
+The claim is atomic. Compozy selects one eligible queued run, binds it to the current managed session,
+sets a lease deadline, and returns a synchronous claim response that includes:
+
+- task summary
+- run summary
+- safe lease summary
+- `claim_token_hash` for observability
+- coordination channel metadata when the run has a bound channel
+
+The raw bearer lease token is internal to Compozy. Public CLI, HTTP, UDS, native-tool, web, stream,
+log, channel, and memory payloads use the calling session plus `run_id` and expose at most
+`claim_token_hash`. Tools belonging to the `compozy__autonomy` toolset reject any input or response
+field that would carry a raw claim token.
+
+## Lease rules
+
+The MVP lease contract is intentionally narrow:
+
+| Rule                         | Behavior                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| One owner                    | Exactly one managed session may own a non-terminal run lease.                                                           |
+| One active lease per session | A managed session may hold at most one active task-run lease in the MVP.                                                |
+| Session fencing              | Heartbeat, complete, fail, and release resolve the internal lease from the caller session and `run_id`.                 |
+| Bounded renewal              | `--lease-seconds` must be zero or positive and is capped by the task service. Omitted or zero uses the service default. |
+| Expiry recovery              | Expired leases are recovered by boot recovery or scheduler sweeps through the task service.                             |
+| Stale holders fail           | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim.      |
+
+Each expired-lease recovery increments the run's durable `recovery_count`. Compozy exhausts the run
+when `attempt + recovery_count >= max_attempts`; otherwise it returns the run to the queue. An
+exhausted recovery emits `task.run.lease_recovery_exhausted` and moves the run to
+`needs_attention`. Recovery state and its canonical events commit atomically, so a failed event
+append cannot leave the run advanced without matching history.
+
+## Heartbeat
+
+Use heartbeat when work is still active and the session still owns the run.
+
+Tool path:
+
+```text
+compozy__task_run_heartbeat  { "run_id": "run-123", "lease_seconds": 300 }
+```
+
+CLI path:
+
+```bash
+compozy task heartbeat run-123 --lease-seconds 300
+```
+
+Heartbeats are task-service operations. Do not mirror routine heartbeats into coordination channel
+messages unless a human-readable update is useful.
+
+## Completing a run
+
+Use `complete` for successful terminal state.
+
+Tool path:
+
+```text
+compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "tests passed" } }
+```
+
+CLI path:
+
+```bash
+compozy task complete run-123 \
+  --result '{"summary":"tests passed"}'
+```
+
+The optional result JSON must not contain raw lease credentials.
+
+### Parent task rollup
+
+A parent task remains nonterminal until every direct child completes successfully. Completing the
+final direct child completes the parent exactly once and settles an eligible parent run parked in
+`needs_attention`. Concurrent completion or replay does not emit another parent transition or
+wake. A failed or canceled child does not satisfy successful rollup; recover or resolve that child
+through its existing terminal-state path.
+
+### Auto-enqueue on ready
+
+Tasks are opt-in for dependency-driven auto-enqueue. When a task carries
+`auto_enqueue_on_ready`, Compozy enqueues its next run automatically as soon as a blocking dependency
+completes and the task becomes `ready` — no manual `enqueue` is required to advance the DAG.
+
+Set it at create time, or toggle it later on an assembled tree:
+
+```bash
+compozy task create --scope global --title "Deploy" --auto-enqueue-on-ready
+compozy task update task-123 --auto-enqueue-on-ready          # turn on
+compozy task update task-123 --auto-enqueue-on-ready=false    # turn off
+```
+
+The behavior is deliberately conservative:
+
+- **Readiness gates it.** Only a successful completion reconciles dependents to `ready`; a failed or
+  expired blocker does not satisfy a `blocks` edge, so it never triggers a premature enqueue.
+- **Paused dependents are skipped.** An effectively paused dependent is left untouched until it
+  resumes.
+- **At most one open run.** Enqueue reuses the canonical `task_runs` path. The store's queued-run
+  reservation rejects a second open run, so concurrent completions of different blockers — or a
+  retried completion — converge on exactly one queued run, never duplicates.
+- **Completion never rolls back.** Auto-enqueue runs after the completion has durably committed and
+  is best-effort: it survives request cancellation and a failed enqueue is logged, not propagated
+  back to the completing caller.
+
+## Failing a claimed run
+
+Use the session-bound fail path when the current claim cannot complete successfully. This path is
+token-fenced server-side: the caller supplies a `run_id`, and Compozy resolves the managed session's
+active lease before mutating the run.
+
+Tool path:
+
+```text
+compozy__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadata": { "command": "make test" } }
+```
+
+CLI path:
+
+```bash
+compozy task run fail run-123 \
+  --error "tests failed" \
+  --metadata '{"command":"make test"}'
+```
+
+Failure metadata must not contain raw lease credentials.
+
+## Releasing a claimed run
+
+Use session-bound release when the current managed session should give up ownership without making
+the run terminal. The autonomy tool resolves the internal lease from the caller session and
+`run_id`; raw claim tokens never cross the public surface.
+
+Tool path:
+
+```text
+compozy__task_run_release  { "run_id": "run-123", "reason": "handoff" }
+```
+
+Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
+parent stops, Compozy releases active child leases with structured reasons such as `ttl_expired` or
+`parent_stopped` before stopping the child session.
+
+## Force operations
+
+Use force operations when a run needs operator recovery and the normal session-bound lease path is
+not available or should not be trusted. Force operations still mutate `task_runs` only through
+`task.Service`; they do not accept raw claim tokens, and they apply compare-and-swap state
+preconditions before committing.
+
+| Operation     | CLI path                                        | API route                     | Valid source state    |
+| ------------- | ----------------------------------------------- | ----------------------------- | --------------------- |
+| Force release | `compozy task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
+| Force fail    | `compozy task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
+| Retry         | `compozy task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
+
+Bulk force release and force fail use bounded batches of run IDs:
+
+```bash
+compozy task release run-123 run-456 --reason handoff -o json
+compozy task fail run-123 run-456 --reason "provider credentials revoked" -o json
+```
+
+The HTTP and UDS bulk routes are `POST /api/runs/bulk/release` and
+`POST /api/runs/bulk/fail`. Bulk responses report one row per run so an agent can retry only the
+failed rows.
+
+Force fail requires a non-empty `reason` and records `failure_kind = "operator_forced"` on the
+run. Retry creates a new queued run linked through `previous_run_id` and refuses chains deeper
+than the runtime cap. Force release and force fail invalidate queued input generations for the
+previously bound session when that session exists, so stale prompts cannot be delivered after a
+recovery action.
+
+`task_runs.failure_kind` is task-run recovery metadata. In v1 its public value is
+`"operator_forced"`; provider authentication failures are recorded on the session failure fields
+and provider diagnostics instead of on task-run rows.
+
+Every force operation emits canonical audit events:
+
+| Event                           | When Compozy emits it                                             |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `task.run_released`             | A claimed run is force released back to the queue.                |
+| `task.run_operator_forced_fail` | A queued or claimed run is force failed with operator evidence.   |
+| `task.run_operator_retry`       | A failed run creates a new queued retry linked to the source run. |
+
+Agents may call these surfaces when `[task.recovery].allow_agent_force = true`. Set it to
+`false` when only non-agent operator identities should perform recovery.
+
+## Scheduler and task pause
+
+Pause controls stop new scheduler claims without freezing active ownership. In-flight runs keep
+heartbeating, completing, failing, releasing, and expiring through the normal lease recovery path.
+Use scheduler-wide pause when dispatch must stop globally, and task pause when one task or a task
+subtree must stop receiving new claims.
+
+| Operation         | CLI path                                          | API route                     | Effect                                       |
+| ----------------- | ------------------------------------------------- | ----------------------------- | -------------------------------------------- |
+| Scheduler status  | `compozy scheduler status`                        | `GET /api/scheduler`          | Shows pause state and queue pressure.        |
+| Scheduler pause   | `compozy scheduler pause --reason "incident"`     | `POST /api/scheduler/pause`   | Stops new dispatch and claim eligibility.    |
+| Scheduler resume  | `compozy scheduler resume`                        | `POST /api/scheduler/resume`  | Re-enables new dispatch and claims.          |
+| Scheduler drain   | `compozy scheduler drain --timeout 30s`           | `POST /api/scheduler/drain`   | Pauses dispatch and waits for active claims. |
+| Scheduler backlog | `compozy scheduler backlog --include-paused`      | `GET /api/scheduler/backlog`  | Lists queued runs in scheduler order.        |
+| Task pause        | `compozy task pause task-123 --reason "incident"` | `POST /api/tasks/{id}/pause`  | Stops new claims for that task subtree.      |
+| Task resume       | `compozy task resume task-123`                    | `POST /api/tasks/{id}/resume` | Clears the direct task pause.                |
+
+Task pause is inherited by descendants through typed task columns. Backlog responses expose
+`effective_paused` and `paused_by_task_id` so agents can tell whether a queued run is blocked by
+its own task or by an ancestor. Scheduler backlog excludes paused tasks by default; pass
+`include_paused=true` when diagnosing why a queued run is not claimable.
+
+Every pause mutation records actor evidence and emits canonical events:
+
+Scheduler drain returns a final JSON result over CLI, HTTP, and UDS. The v1 runtime does not expose
+a scheduler-drain SSE progress stream; clients should poll scheduler status or backlog separately
+when they need an independent progress view.
+
+### Capacity waits and starvation
+
+Queued work does not become starved just because every compatible session is busy. A compatible
+session that is starting, waiting at a prompt, processing another run, or already reserved for an
+earlier run in the same scheduler cycle is still usable capacity. Compozy keeps later work queued and
+freezes its escalation budget until that capacity becomes available. The daemon records structured
+`scheduler.capacity_waiting` diagnostics for this condition.
+
+True starvation begins only when a claimable run enters the scheduler's durable escalation ladder.
+`starved_run_count` therefore counts active escalation episodes for queued, claimable runs rather
+than every run older than `[autonomy.scheduler].min_queued_age`. Capacity-waiting work remains part
+of `queued_run_count`; a run appears in `needs_attention_run_count` only after the bounded ladder
+parks it for recovery. The same projection is returned by CLI, HTTP, and UDS scheduler status.
+
+| Event                       | When Compozy emits it                                 |
+| --------------------------- | ----------------------------------------------------- |
+| `scheduler.paused`          | Scheduler dispatch was paused or drain was requested. |
+| `scheduler.resumed`         | Scheduler dispatch was resumed.                       |
+| `scheduler.drain_started`   | Drain requested a scheduler pause and began waiting.  |
+| `scheduler.drain_completed` | Drain reached zero active claims or timed out.        |
+| `task.paused`               | A task was paused for future scheduler claims.        |
+| `task.resumed`              | A task's direct pause was cleared.                    |
+
+## Typed task blocks and the unblock-loop breaker
+
+A worker agent can declare _why_ a task cannot proceed with a typed block. Blocks are a side model
+next to task runs: a task may hold several open blocks at once, each with a machine- and
+human-readable reason.
+
+| Kind          | Meaning                                                                           |
+| ------------- | --------------------------------------------------------------------------------- |
+| `needs_input` | Waiting on a human or another agent to supply missing information.                |
+| `capability`  | Missing a skill, tool, or credential the task requires.                           |
+| `transient`   | A recoverable external failure; may carry an `expires_at` for lazy self-clearing. |
+
+Dependency waits, pending approval, and operator pause are **not** block kinds — they stay separate
+mechanisms and surface only in the unified `blocked_reasons` read projection.
+
+Tool path:
+
+```text
+compozy__task_block    { "task_id": "task-123", "kind": "transient", "reason": "provider 503" }
+compozy__task_unblock  { "task_id": "task-123", "block_id": "block-abc" }
+```
+
+CLI path:
+
+```bash
+compozy task block task-123 --kind transient --reason "provider 503" --expires-in 5m -o json
+compozy task blocks task-123 --all -o json
+compozy task unblock task-123 --block block-abc --note "provider recovered" -o json
+```
+
+The HTTP and UDS surfaces are `POST /api/tasks/{id}/blocks`, `GET /api/tasks/{id}/blocks`, and
+`POST /api/tasks/{id}/blocks/{block_id}/clear`.
+
+Blocking a running task in one step passes `--run-id` (with `--as-agent`, so Compozy resolves the active
+lease token server-side). Compozy records the block, increments the recurrence counter, and releases the
+lease in one atomic transaction. The run returns to `queued` with no attempt consumed and emits
+`task.run_released`.
+
+### Blocked reasons projection
+
+Task read payloads carry a read-only `blocked_reasons` array that unifies every current cause under
+one shape. Each entry names a `source` — `dependency`, `approval`, `paused`, or `block` — and block
+entries add the `kind`, `reason`, and `block_id`; dependency entries carry `depends_on_task_ids`. The
+array is derived on every read and is never stored, so it cannot drift from the underlying blocks,
+edges, and flags. The web task detail renders one chip per entry.
+
+### Auto-resume
+
+Clearing the last blocking cause returns a task to `ready`. For tasks that opted into
+`auto_enqueue_on_ready`, Compozy enqueues the next run automatically on block-clear, transient-expiry, and
+approval-granted — the same idempotent, at-most-one-open-run path used for dependency completion.
+Transient blocks expire lazily: an expired block stops counting toward `blocked` immediately for read
+and claim correctness, and a scheduler sweep finalizes the clear through the task service.
+
+### The unblock-loop breaker
+
+An automation that keeps clearing a block the worker keeps re-declaring is an unbounded thrash loop.
+Compozy counts re-blocks of the same kind on the same task and, when the count reaches
+`[autonomy] block_recurrence_limit` (default `2`; `0` disables the breaker), escalates the task out of
+the block lane to a first-class `needs_attention` task status. The counter resets only on successful
+task completion — never on unblock or expiry.
+
+`needs_attention` is excluded from claim selection exactly like `blocked`, so an escalated task stops
+receiving new claims until an operator or agent recovers it:
+
+Tool path:
+
+```text
+compozy__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
+```
+
+CLI path:
+
+```bash
+compozy task recover task-123 --note "fixed the credential" -o json
+```
+
+The HTTP and UDS route is `POST /api/tasks/{id}/recover`. Recover clears the escalation, records the
+actor, and flows through the same auto-enqueue path, so an opted-in task re-enters the claimable set.
+Recovering a task that is not escalated is rejected as an invalid status transition.
+
+### Wake-creator
+
+When an `agent_session` creates a task (delegation), Compozy wakes the creating session on the child's
+terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn —
+never an interrupt or steer. Opt out per task at create time:
+
+```bash
+compozy task create --scope global --title "Deploy" --no-wake-creator
+```
+
+Wake is delivered at most once per transition, suppressed for a dead creator session and for a
+self-wake (the creator session is the one executing the run), and never carries a raw claim token. The
+flag is meaningful only for agent-created tasks; it never fires for human, automation, or daemon
+creators.
+
+### Completion claim gate
+
+When a run completes, the worker may list the tasks it created during that run in `created_task_ids`.
+Compozy verifies each id before the terminal write: the task must exist, belong to the same workspace, and
+have been created by the completing session. A phantom or cross-session id rejects the completion,
+leaves the run `running` with its lease intact for a corrected resubmission, and records
+`task.completion.hallucination_blocked`. A second advisory scan of the result prose emits
+`task.completion.hallucination_suspected` for task-id-shaped tokens absent from the store, but never
+blocks the completion.
+
+```text
+compozy__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawned 2 children" }, "created_task_ids": ["task-456", "task-789"] }
+```
+
+`created_task_ids` means "tasks I created this run" — do not list tasks created by other sessions.
+
+### Run usage and cost
+
+`compozy task run show <run-id> -o json` and the task-run detail API include an operational summary with
+token totals plus `total_cost`, `cost_currency`, `cost_status`, and `cost_source`.
+
+- `actual` is agent-reported cost.
+- `estimated` is a catalog-rate projection and remains labeled as estimated.
+- `included` means the native provider owns subscription billing; no amount is shown.
+- `unknown` means Compozy cannot make one compatible monetary claim; no amount is shown.
+
+Task-run aggregation never mixes reported and estimated amounts. If currency, status, or source
+differs across contributing rows, the monetary summary becomes `unknown`/`none` while token totals
+remain available. Treat `included` as a subscription classification, not a confirmed account balance.
+Estimated rows require independent finite, non-negative rates for every nonzero input, output,
+cache-read, cache-write, and reasoning bucket; missing bucket rates never fall back to another rate.
+
+### Block and escalation events
+
+| Event                  | When Compozy emits it                                  |
+| ---------------------- | ------------------------------------------------------ |
+| `task.blocked`         | A typed block was created on a task.                   |
+| `task.unblocked`       | A block was cleared explicitly or by transient expiry. |
+| `task.needs_attention` | The unblock-loop breaker escalated a task.             |
+| `task.recovered`       | An operator or agent recovered an escalated task.      |
+
+Blocking a running task also emits `task.run_released` for the parked run. See the
+[Hook Event Catalog](/runtime/core/hooks/event-catalog) for payload shapes.
+
+## Task inspect diagnostics
+
+Use inspect when an operator or agent needs a read-only triage snapshot before mutating a task run.
+The CLI auto-detects task and run IDs:
+
+```bash
+compozy task inspect task-123 -o json
+compozy task inspect run-123 -o json
+```
+
+The same snapshot is available over HTTP and UDS:
+
+| Target | Route                         |
+| ------ | ----------------------------- |
+| Task   | `GET /api/tasks/{id}/inspect` |
+| Run    | `GET /api/runs/{id}/inspect`  |
+
+Inspect reads task runs, bound-session summary, scheduler pause state, and recent event summaries.
+It does not read transcripts and it does not expose raw claim tokens. Claim evidence is limited to
+the 8-character `claim_token_hash_truncated` field.
+
+The response includes `task`, `current_run`, `bound_session`, `recent_runs`,
+`recent_events`, `scheduler`, `diagnostics`, `next_action`, and `as_of`. The web task and
+run detail surfaces render the same diagnostics card as the CLI/API payload.
+
+| Diagnostic code        | Meaning                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `task_run_stuck`       | A claimed run has a stale heartbeat and may need release.                         |
+| `task_run_orphan`      | A claimed run points at a missing or terminal session.                            |
+| `task_run_stranded`    | A queued run is old, the scheduler is active, and no eligible session is visible. |
+| `task_run_crashed`     | The latest run failed without a later retry.                                      |
+| `task_run_stale_lease` | The run still looks claimed after its lease deadline.                             |
+
+`next_action` is a derived enum for agents: `claim_available`, `waiting_for_session`,
+`stranded`, `running`, `recovery_required`, or `terminal`. It is guidance, not a writer; use
+the task service commands to release, fail, retry, pause, or resume.
+
+## Deterministic autonomy errors
+
+Lease writers and the autonomy tool bridge return the same deterministic reason codes:
+
+| Code                          | When it fires                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `AUTONOMY_SESSION_REQUIRED`   | The caller had no session scope; tool/CLI/HTTP/UDS reject the call before lease lookup. |
+| `AUTONOMY_NO_ACTIVE_LEASE`    | The session does not currently own a run lease; nothing to extend or finalize.          |
+| `AUTONOMY_FOREIGN_RUN`        | The supplied `run_id` does not match the session's active lease.                        |
+| `AUTONOMY_LEASE_EXPIRED`      | The lookup found a stale or expired lease and refused to mutate it.                     |
+| `AUTONOMY_LEASE_ALREADY_HELD` | `claim_next` was called while the session already owns an active lease.                 |
+
+## Lease credentials and channels
+
+Never send raw lease credentials through `compozy ch send`, `compozy ch reply`, `compozy__network_send`,
+network envelopes, logs, or memory. If another participant needs to know progress, send a
+coordination message. If a session needs to prove ownership, it calls one of the `compozy__autonomy`
+tools or the matching `compozy task` command for the owned `run_id`; Compozy resolves the internal lease
+server-side.
+
+## Related pages
+
+- [Coordination Channels](/runtime/core/autonomy/coordination-channels) explains channel metadata and message kinds.
+- [Task CLI Reference](/runtime/cli-reference/task) lists exact command flags for the parallel CLI surface.
+- [Tool CLI Reference](/runtime/cli-reference/tool) lists the operator commands for inspecting the registry, including the `compozy__autonomy` family.
+- [Hooks](/runtime/core/hooks/event-catalog) lists task-run hook events.

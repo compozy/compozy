@@ -1,12 +1,14 @@
 {
-    "extends": "../../tsconfig.base.json",
+    "include": ["src/**/*.ts", "src/**/*.tsx"],
     "compilerOptions": {
         "target": "ES2022",
         "jsx": "react-jsx",
         "module": "ESNext",
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
-        "types": ["vite/client", "node"],
         "moduleResolution": "bundler",
+        "paths": {
+            "storybook/test": ["./node_modules/storybook/dist/test/index.d.ts"]
+        },
         "allowImportingTsExtensions": true,
         "verbatimModuleSyntax": true,
         "noEmit": true,
@@ -16,13 +18,5 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true
-    },
-    "include": [
-        "src/**/*.ts",
-        "src/**/*.tsx",
-        ".storybook/**/*.ts",
-        "tests/**/*.ts",
-        "tests/**/*.tsx"
-    ],
-    "exclude": ["dist", "node_modules", "coverage"]
+    }
 }

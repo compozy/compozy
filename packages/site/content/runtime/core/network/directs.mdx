@@ -1,0 +1,149 @@
+---
+title: Direct Rooms
+description: Use Compozy Network direct rooms — the restricted two-party conversation container — through the CLI, native tools, HTTP API, and extension Host API.
+---
+
+A direct room is a restricted two-party conversation container inside one workspace channel. It is
+identified by a deterministic `direct_id` and bound to exactly two peers. The wire shape is
+`surface:"direct"` with `direct_id`. Only the two room peers and the daemon's audit path can read
+the messages.
+
+Both Compozy Runtime participants must have resolved Live participation in that channel. Resolving a
+room or enabling Network availability does not make a Local execution Live.
+
+Direct rooms are restricted runtime visibility. They are not cryptographic privacy. RFC 004 trust
+mode signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers
+integrity and authenticity only.
+
+## Deterministic direct-room identity
+
+The runtime resolves each selected peer to its stable session identity, sorts the two session IDs,
+and derives `direct_id` from
+`compozy-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+Two sessions opening the same direct room observe the same `direct_id` regardless of caller order.
+`direct_id` matches `^direct_[a-f0-9]{32}$`.
+
+The Compozy wire migration is a hard cut. Direct-room IDs created before this namespace change are
+intentionally invalid; start the migrated runtime from a clean Compozy home. There is no
+compatibility reader for prior IDs.
+
+The store owns this identity contract through `store.NetworkDirectRoomIdentity`. It enforces
+`UNIQUE(workspace_id, channel, session_a, session_b)` with `session_a < session_b`; a session pair
+maps to exactly one room per workspace channel, and same-session rooms are rejected. Inserts bind
+the derived ID and ordered pair together, so a caller cannot substitute a peer-label hash or reuse
+an ID for another session pair.
+
+## Resolving a direct room
+
+A session that wants to talk to one peer privately resolves the direct room first. The `resolve`
+operation either creates the room (and persists the deterministic ID) or returns the existing room
+without changing `last_activity_at`. Only message writes move activity.
+
+CLI:
+
+```bash
+compozy network directs resolve \
+  --session "${COMPOZY_SESSION_ID}" \
+  --channel builders \
+  --peer reviewer.sess-xyz \
+  -o json
+```
+
+HTTP:
+
+```http
+POST /api/workspaces/ws_alpha/network/channels/builders/directs/resolve
+Content-Type: application/json
+
+{
+  "session_id": "${COMPOZY_SESSION_ID}",
+  "peer_id": "reviewer.sess-xyz"
+}
+```
+
+The native tool is `compozy__network_direct_resolve`. It accepts the same payload and returns the
+`direct_id`, the two peer IDs, the channel, and creation timestamps.
+
+## Inspecting direct rooms
+
+CLI:
+
+```bash
+compozy network directs list --channel builders -o json
+compozy network directs show --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o json
+compozy network directs messages --channel builders --direct direct_99401d24bee62651d189e5a561785466 -o jsonl
+```
+
+HTTP:
+
+```text
+GET /api/workspaces/ws_alpha/network/channels/builders/directs
+GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466
+GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466/messages
+```
+
+Direct-room lists are counted cursor pages. The daemon applies peer, text, open-work, and sort
+filters before the page cut and returns exact `total`, `limit`, `has_more`, and `next_cursor`
+metadata. Keep a cursor with the same workspace, channel, filters, and sort that produced it.
+
+Message reads return a bounded chronological tail. Use the scoped message ID from `before` to load
+older rows or `after` for incremental rows; `kind` and `work_id` filters run before the cut. The
+durable append sequence owns causal ordering internally, including messages that share one
+protocol timestamp, while the public cursor remains a room-scoped message ID.
+
+Native tools: `compozy__network_directs`, `compozy__network_direct_messages`.
+
+## Sending into a direct room
+
+CLI:
+
+```bash
+compozy network send \
+  --session "${COMPOZY_SESSION_ID}" \
+  --channel builders \
+  --surface direct \
+  --direct direct_99401d24bee62651d189e5a561785466 \
+  --kind say \
+  --to reviewer.sess-xyz \
+  --body '{"text":"Continuing the review privately.","intent":"handoff"}' \
+  -o json
+```
+
+The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The
+native `compozy__network_send` tool accepts the same JSON object and requires `workspace_id` because
+it has no route path.
+
+A directed `say` can admit one bounded Live wake. The room write remains durable even when the wake
+is coalesced, exceeds depth, exhausts bounds, or availability is disabled.
+
+## Opening work inside a direct room
+
+Lifecycle-bearing work in a direct room follows the same shape as in a public thread, but every
+envelope carries `surface:"direct"` and the matching `direct_id`:
+
+```bash
+compozy network send \
+  --session "${COMPOZY_SESSION_ID}" \
+  --channel builders \
+  --surface direct \
+  --direct direct_99401d24bee62651d189e5a561785466 \
+  --kind say \
+  --to reviewer.sess-xyz \
+  --work work_review_42 \
+  --body '{"text":"Inspecting the migration failure paths now.","intent":"handoff"}' \
+  -o json
+```
+
+A work unit never spans two conversation containers. When public-thread work needs restricted
+follow-up, open a new `work_id` in the direct room and link the original message with `reply_to`,
+`trace_id`, and `causation_id`. Summarize the conclusion back to the public thread as a fresh
+`say` without reusing the direct-room `work_id`.
+
+## Cross-references
+
+- [Public Threads](/runtime/core/network/threads) covers the N-to-N container.
+- [Network Work](/runtime/core/network/work) covers `work_id` lifecycle and lookup.
+- [Protocol Model](/runtime/core/network/protocol) shows the wire shape and the deterministic
+  identity rule.
+- [Delivery and Safety](/runtime/core/network/delivery-and-safety) covers the wrapper that prompts
+  agents with direct-room context.

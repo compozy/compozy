@@ -1,0 +1,5 @@
+{
+    "title": "Tools",
+    "icon": "Plug",
+    "pages": ["index", "toolsets", "policy-and-invocation", "result-artifacts"]
+}

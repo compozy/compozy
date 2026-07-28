@@ -1,0 +1,49 @@
+---
+title: "compozy memory decisions list"
+description: "List Memory v2 controller decisions"
+---
+
+## compozy memory decisions list
+
+List Memory v2 controller decisions
+
+```
+compozy memory decisions list [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+      --filename string     Target memory filename filter
+  -h, --help                help for list
+      --limit int           Maximum number of decisions to return
+      --op string           Decision operation filter
+      --reason string       Reason substring filter
+      --scope string        Memory scope: global, workspace, or agent
+      --since string        Show decisions since an RFC3339 timestamp or relative duration
+      --workspace string    Workspace ID or path for workspace-bound memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy memory decisions list -o json
+```

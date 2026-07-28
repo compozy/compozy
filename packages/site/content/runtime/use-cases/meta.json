@@ -1,0 +1,11 @@
+{
+    "title": "Use Cases",
+    "icon": "Workflow",
+    "pages": [
+        "index",
+        "prepare-a-project-workspace",
+        "review-a-change",
+        "release-readiness-sweep",
+        "handoff-between-agents"
+    ]
+}

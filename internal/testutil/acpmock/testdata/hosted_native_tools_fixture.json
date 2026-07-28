@@ -1,0 +1,26 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "hosted-native",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are hosted native.",
+            "turns": [
+                {
+                    "name": "unused",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "noop"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["noop"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

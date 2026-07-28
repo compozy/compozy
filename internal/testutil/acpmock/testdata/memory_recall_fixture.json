@@ -1,0 +1,25 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "memory-recall-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You acknowledge recalled durable memory in daemon E2E tests.",
+            "turns": [
+                {
+                    "name": "remember-me",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "qa-memory acknowledged"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

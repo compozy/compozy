@@ -1,0 +1,4 @@
+{
+    "title": "Desktop",
+    "pages": ["index", "create", "delete", "list", "reorder", "switch", "update", "clients"]
+}

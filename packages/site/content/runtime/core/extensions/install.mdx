@@ -1,0 +1,335 @@
+---
+title: Install Extensions
+description: Install, discover, enable, disable, update, and inspect Compozy extensions from local directories or configured registries.
+---
+
+Extensions are installable packages that add static resources or runtime capabilities to Compozy. An
+extension can bundle skills, agent definitions, hooks, bundles, MCP servers, bridge adapters, memory
+backends, and subprocess services.
+
+Compozy stores installed extensions in the global registry and copies managed installs into
+`<COMPOZY_HOME>/extensions/<name>`.
+
+<OperatorNote>
+  Extension marketplace operations are daemon-owned. Search, registry install, update, remove,
+  enable, disable, status, and provenance calls require the daemon over UDS or HTTP. The only
+  daemon-down fallback paths are local `compozy extension list` and local-directory `compozy
+  extension install --allow-unverified --yes`.
+</OperatorNote>
+
+Extension lifecycle is agent-manageable. The `compozy__extensions` toolset and the parallel
+`compozy extension` CLI reach the same registry, marketplace, install, update, remove, enable, and
+disable services:
+
+| Action             | Tool                                    | CLI                                |
+| ------------------ | --------------------------------------- | ---------------------------------- |
+| Search marketplace | `compozy__marketplace_search`           | `compozy extension search`         |
+| List installed     | `compozy__extensions_list`              | `compozy extension list`           |
+| Inspect one        | `compozy__extensions_info`              | `compozy extension status`         |
+| Inspect provenance | `compozy__extensions_info`              | `compozy extension provenance`     |
+| Install            | `compozy__extensions_install`           | `compozy extension install`        |
+| Update             | `compozy__extensions_update`            | `compozy extension update`         |
+| Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
+| Enable / disable   | `compozy__extensions_enable`/`_disable` | `compozy extension enable/disable` |
+
+Tool mutations require approval and pass through the same source-trust filter as the CLI.
+Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`,
+`EXTENSION_NOT_INSTALLED`, and `EXTENSION_VALIDATION_FAILED`. Marketplace trust roots and raw
+marketplace credentials stay on control surfaces and are not exposed as tool inputs.
+
+Every install records provenance and a trust report in the extension registry. The payload includes
+the source tier, slug or local path, checksum, checksum verification result, `allow_unverified`, the
+install actor, and deterministic diagnostics when capability or trust checks reject the package.
+The HTTP/UDS API, native tools, CLI, and settings page all surface the same trust decision.
+
+Extension bundles have their own UDS-backed CLI surface. After installing an extension, agents can
+inspect and manage preset activations with `compozy bundle catalog`, `compozy bundle preview`,
+`compozy bundle activate`, `compozy bundle list`, `compozy bundle get`, `compozy bundle update`,
+`compozy bundle deactivate`, and `compozy bundle network-settings`.
+The same daemon service is exposed to agents through `compozy__bundles_list`, `compozy__bundles_info`,
+`compozy__bundles_activate`, `compozy__bundles_deactivate`, and `compozy__bundles_status`. Desired-state
+resources published by extensions are inspectable through `compozy__resources_list`,
+`compozy__resources_info`, and `compozy__resources_snapshot`; the old singular `resource.read` and
+`resource.write` capability names are not accepted.
+
+## Install From A Local Directory
+
+A local extension directory must contain `extension.toml` or `extension.json`.
+
+```text
+prompt-enhancer/
+  extension.toml
+  package.json
+  dist/
+    index.js
+```
+
+Install it:
+
+```bash
+compozy extension install ./prompt-enhancer --allow-unverified
+```
+
+If the daemon is running, the CLI sends the path and checksum to the daemon over UDS. The daemon
+copies the directory into the managed extension root, persists the registry row, reloads extensions,
+rebuilds hooks, reconciles bundles, and returns the current status.
+
+If the daemon is not running, local-directory install is allowed only with
+`--allow-unverified --yes`. That fallback writes the local registry directly and records
+`allow_unverified=true` in provenance. The extension is discovered on the next daemon start.
+
+## Declare Required Environment
+
+Extensions that need process environment variables declare the variable names in their manifest:
+
+```toml
+[extension]
+name = "daytona"
+version = "1.2.3"
+min_compozy_version = "0.5.0"
+requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
+```
+
+Compozy validates `requires_env` as environment variable names during install and status loading.
+Diagnostics report only names, never values. If a required variable is unset or empty,
+`compozy extension list`, `compozy extension status`, the API, and the settings page surface it through
+`missing_env`.
+
+## List And Inspect Installed Extensions
+
+```bash
+compozy extension list
+compozy extension status prompt-enhancer
+```
+
+`status` returns both registry and runtime information:
+
+| Field                       | Meaning                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`, `version`, `source` | Registry identity and install source.                                                                                    |
+| `type`                      | `resource` when no subprocess is required; `subprocess` when runtime capabilities, actions, or subprocess command exist. |
+| `enabled`                   | Registry flag. Disabled extensions are skipped by the manager.                                                           |
+| `state`                     | `disabled`, `enabled`, `registered`, `active`, or `error`.                                                               |
+| `health`                    | `unknown`, `healthy`, or `unhealthy`.                                                                                    |
+| `capabilities`, `actions`   | Manifest-declared provide surfaces and Host API methods.                                                                 |
+| `requires_env`              | Manifest-declared environment variable names required by the extension.                                                  |
+| `missing_env`               | Required environment variable names that are unset or empty in the current Compozy process environment.                  |
+| `bundles`                   | Bundle summaries packaged by the extension.                                                                              |
+| `provenance`                | Install source, checksum, registry tier, `allow_unverified`, installer identity, and trust report.                       |
+| `trust`                     | Current trust decision, checksum verification, capability diagnostics, warnings, and denials.                            |
+
+`list` uses the daemon when it is running and falls back to the local registry when it is offline.
+`status` and `provenance` require the daemon so they can include runtime truth and trust evidence.
+
+## Enable Or Disable
+
+```bash
+compozy extension disable prompt-enhancer
+compozy extension enable prompt-enhancer
+```
+
+Enable and disable require the daemon. The daemon updates the registry flag, reloads the extension
+manager, rebuilds the hook registry, reconciles bundles, and writes an `extension.enabled` or
+`extension.disabled` event.
+
+Disabling is rejected while the extension has active bundle activations. Remove or deactivate those
+bundle activations first, then disable the extension.
+
+## Remove An Extension
+
+```bash
+compozy extension remove prompt-enhancer
+```
+
+Removal deletes the managed install directory and registry row with rollback handling. Like disable,
+removal is rejected while active bundle activations still depend on the extension. Once the registry,
+managed directory, and runtime reload confirm removal, backup cleanup is post-commit. A cleanup
+failure returns `status: "removed"` with an `extension_remove_cleanup_failed` warning and residual
+path; remove that residue separately instead of treating the extension as active.
+
+## Configure Marketplace And Side-Load Policy
+
+`[marketplace.catalog]` selects the curated discovery feed. `[extensions.marketplace]` configures
+the registry downloader and the independent non-curated side-load gate:
+
+```toml
+[marketplace.catalog]
+base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
+ttl = "1h"
+timeout = "10s"
+
+[extensions.marketplace]
+registry = "github"
+# Optional. Empty uses the GitHub API default.
+base_url = "https://api.github.com"
+allow_unverified = false
+```
+
+`registry = "github"` is the only accepted registry value today. `base_url` may use `https` or
+`http`; `http` logs an insecure-scheme warning. The GitHub client reads `GITHUB_TOKEN` from the
+daemon environment for authenticated release access. `allow_unverified` applies live and controls
+non-curated side-loads only. It does not weaken the digest check for curated entries.
+
+After changing `marketplace.catalog.*` or `extensions.marketplace.allow_unverified`, reconcile and
+inspect the daemon's apply record:
+
+```bash
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
+```
+
+## Search Marketplace Sources
+
+The CLI searches the daemon-owned curated projection:
+
+```bash
+compozy extension search prompt --limit 20
+```
+
+Use the unified discovery command when another agent needs installed state and trust fields in the
+same structured result:
+
+```bash
+compozy marketplace search bridge --kind extension -o json
+```
+
+Both commands read `GET /api/marketplace/extension`. Curated entries name an exact HTTPS artifact
+and digest; GitHub remains the release source for manual registry installs, not curated acquisition.
+
+## Install From A Registry
+
+Install the `install_slug` from a curated detail record:
+
+```bash
+compozy marketplace info extension acme-linear-bridge -o json
+compozy extension install acme/linear-bridge -o json
+```
+
+Curated installs pin the catalog version, exact `artifact_url`, and archive digest. `--version` and
+`--asset` remain available for non-curated registry installs:
+
+```bash
+compozy extension install acme/private-extension --version v0.3.1 --allow-unverified --yes
+compozy extension install acme/private-extension --asset compozy-extension-linux-amd64.tar.gz --allow-unverified --yes
+```
+
+Registry flags are valid only for registry installs. If the argument is an existing local directory,
+`--from`, `--version`, and `--asset` are rejected.
+
+Marketplace install flow:
+
+1. The CLI, HTTP client, web app, or native tool sends the install request to the daemon.
+2. Compozy resolves curated evidence for the requested slug and version when a matching catalog entry
+   exists.
+3. Compozy downloads the catalog entry's exact HTTPS artifact into a staging directory and verifies the
+   catalog-pinned SHA-256 digest before extraction. Non-curated installs resolve a registry release
+   instead.
+4. The installer extracts the archive and locates `extension.toml` at archive root or inside one
+   top-level directory.
+5. Compozy validates the manifest, computes the extracted-tree checksum, and evaluates the trust
+   report.
+6. Compozy moves the package to `<COMPOZY_HOME>/extensions/<name>`.
+7. Compozy persists catalog identity, archive digest, extracted checksum, registry tier, install actor,
+   trust report, and diagnostics.
+8. Compozy reloads extension runtime resources and writes an `extension.installed` event.
+
+Managed installs do not allow runtime dependency symlinks to escape the extracted extension root.
+If a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
+fails instead of copying content from the host filesystem.
+
+For a non-curated side-load, `extensions.marketplace.allow_unverified` must be `true` and the request
+must still include `--allow-unverified`. Machine-readable output also requires `--yes`, so agents
+cannot hide an interactive trust prompt. A disabled policy returns
+`extension_unverified_policy_blocked` with `/settings/extensions` and the config key in its
+diagnostic evidence.
+
+A curated archive mismatch returns `extension_archive_digest_mismatch`, installs nothing, and
+cannot be bypassed with `--allow-unverified`.
+
+## Check For Updates
+
+Check one marketplace extension:
+
+```bash
+compozy extension update prompt-enhancer --check
+```
+
+Update one marketplace extension:
+
+```bash
+compozy extension update prompt-enhancer
+```
+
+Check or update all marketplace-installed extensions:
+
+```bash
+compozy extension update --all --check
+compozy extension update --all
+```
+
+Update only works for extensions installed from a registry with slug metadata. Local extensions are
+not update targets. A successful update replaces the managed install directory, updates the registry
+row and provenance, reloads runtime resources, and writes an `extension.updated` event. Curated
+updates resolve and verify the digest for the selected version again. Non-curated updates follow the
+same policy-plus-request gate as installs.
+
+The runtime activation is the update commit point. If the new version is active but Compozy cannot
+remove its staging directory or previous-version backup, the update still returns `status: "updated"`
+with an `extension_update_cleanup_failed` warning. The warning identifies the cleanup target and
+residual path; verify the active version before an operator removes that residue. The same warning is
+preserved in the `extension.updated` event and in CLI/native structured output.
+
+## Inspect Provenance And Trust
+
+```bash
+compozy extension provenance prompt-enhancer
+```
+
+The provenance response is the audit record for the installed package. It includes the install
+source, registry tier, slug or path, selected version, checksum, checksum verification result,
+`allow_unverified`, install actor, install time, trust decision, warnings, and deterministic
+diagnostics. Use it before enabling a package from an untrusted source or when an agent needs to
+justify why an install was accepted or rejected.
+
+## Registry Tiers And Provenance
+
+Marketplace registry entries have one registry tier. Local and bundled extension sources still
+exist, but registry trust is recorded separately in the provenance payload. A tier describes source
+provenance; it is not a safety guarantee.
+
+| Tier         | Meaning                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `official`   | The catalog classifies the publisher as an official source.                                    |
+| `community`  | The catalog classifies the publisher as a community source.                                    |
+| `unverified` | The catalog does not assign a trusted publisher tier; inspect the warning and policy decision. |
+
+Trust reports include `decision`, `registry_tier`, `checksum_verified`, `allow_unverified`, and
+warning diagnostics. Before download, `checksum_verified` is false because no archive has been
+checked yet. A successful curated install records both the verified archive digest and the separate
+extracted-tree checksum. Marketplace extensions are constrained to a read-oriented ceiling:
+`logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`. Host API
+actions are filtered to methods whose required capability fits that ceiling.
+
+If an extension requests capabilities outside its trust tier, the install returns deterministic
+diagnostics in the trust report instead of silently dropping the request. Operators can make an
+unverified checksum decision with `allow_unverified`, but capability ceilings still apply.
+
+## Troubleshooting
+
+| Symptom                                            | Cause                                                                                      | Fix                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `extensions marketplace is not configured`         | `[extensions.marketplace]` is absent or empty.                                             | Add `registry = "github"` or install from a local path.                                                    |
+| `extensions.marketplace.registry must be "github"` | Unsupported registry value.                                                                | Use `github`.                                                                                              |
+| Extension appears as `enabled` but not `active`    | Daemon is offline, disabled, or runtime failed before activation.                          | Start the daemon and inspect `compozy extension status <name>`.                                            |
+| Disable/remove returns a conflict                  | Active bundle activations depend on the extension.                                         | Remove or deactivate those bundle activations first.                                                       |
+| `extension_unverified_policy_blocked`              | A non-curated side-load is disabled by live policy.                                        | Review the source, enable `extensions.marketplace.allow_unverified`, reload, then confirm the one request. |
+| `extension_archive_digest_mismatch`                | A curated archive differs from the catalog-pinned bytes.                                   | Stop. Refresh the catalog or wait for the curated entry to be corrected; do not bypass the check.          |
+| Marketplace command says the daemon is required    | Search, registry install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry, or use the documented local-directory install fallback.                        |
+
+Related references:
+
+- [Develop Extensions](/runtime/core/extensions/develop)
+- [Extension CLI Reference](/runtime/cli-reference/extension)
+- [Hook Declaration Format](/runtime/core/hooks/declaration)
+- [Skills Marketplace](/runtime/core/skills/marketplace)
+- [Unified Marketplace](/runtime/core/marketplace)

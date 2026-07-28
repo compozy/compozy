@@ -1,0 +1,18 @@
+{
+    "title": "Skill",
+    "pages": [
+        "index",
+        "create",
+        "disable",
+        "enable",
+        "info",
+        "inspect",
+        "install",
+        "list",
+        "remove",
+        "search",
+        "update",
+        "view",
+        "where"
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-13T00:00:00Z",
+    "entries": [
+        {
+            "entry_id": "fixture-skill",
+            "name": "Fixture skill",
+            "description": "Validates the skill publication contract",
+            "install_slug": "fixture-skill"
+        }
+    ]
+}

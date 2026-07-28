@@ -1,20 +1,105 @@
 {
     "$schema": "https://turbo.build/schema.json",
-    "globalDependencies": ["bun.lock", "package.json", "tsconfig.base.json", "tsconfig.json"],
     "tasks": {
+        "//#codegen-check": {
+            "cache": false,
+            "inputs": ["scripts/codegen-check.sh"],
+            "outputs": [],
+            "passThroughEnv": ["COMPOZY_CODEGEN_CHECKED"]
+        },
         "build": {
+            "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": ["dist/**"],
+            "env": ["VITE_COMPOZY_API_URL"]
+        },
+        "compozy-web#build": {
+            "dependsOn": ["//#codegen-check", "typecheck", "^build"],
+            "outputs": ["dist/**"],
+            "env": ["VITE_COMPOZY_API_URL"]
+        },
+        "@compozy/ui#build": {
+            "dependsOn": [],
+            "outputs": []
+        },
+        "build-storybook": {
             "dependsOn": ["^build"],
-            "outputs": ["dist/**"]
+            "outputs": ["storybook-static/**"]
+        },
+        "@compozy/site#generate:openapi": {
+            "inputs": [
+                "scripts/generate-openapi.ts",
+                "lib/openapi.ts",
+                "lib/runtime-navigation.ts",
+                "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
+                "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
+                "$TURBO_ROOT$/openapi/compozy.json"
+            ],
+            "outputs": [
+                "content/runtime/api-reference/*.mdx",
+                "!content/runtime/api-reference/index.mdx",
+                "content/runtime/api-reference/meta.json"
+            ]
+        },
+        "@compozy/site#generate:content": {
+            "dependsOn": ["generate:openapi"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!content/runtime/api-reference/meta.json",
+                "!content/runtime/api-reference/support.mdx"
+            ],
+            "outputs": [".source/**", ".velite/**"]
+        },
+        "@compozy/site#build": {
+            "dependsOn": ["generate:content", "^build"],
+            "outputs": ["out/**", ".next/**", "!.next/cache/**"]
+        },
+        "@compozy/site#typecheck": {
+            "dependsOn": ["//#codegen-check", "generate:content", "transit"],
+            "outputs": []
+        },
+        "@compozy/site#test": {
+            "dependsOn": ["//#codegen-check", "generate:content", "transit"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!content/runtime/api-reference/meta.json",
+                "!content/runtime/api-reference/support.mdx",
+                "$TURBO_ROOT$/docs/_memory/glossary.md",
+                "$TURBO_ROOT$/docs/rfcs/003_compozy-network-v0.md",
+                "$TURBO_ROOT$/docs/rfcs/004_compozy-network-v1.md",
+                "$TURBO_ROOT$/internal/api/core/errors.go",
+                "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
+                "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
+                "$TURBO_ROOT$/internal/config/config.go",
+                "$TURBO_ROOT$/internal/config/mcp_resource.go",
+                "$TURBO_ROOT$/internal/config/provider.go",
+                "$TURBO_ROOT$/internal/tools/builtin_ids.go",
+                "$TURBO_ROOT$/openapi/compozy.json"
+            ],
+            "outputs": []
         },
         "dev": {
             "cache": false,
             "persistent": true
         },
+        "lint": {
+            "dependsOn": ["^lint"],
+            "outputs": []
+        },
+        "storybook": {
+            "cache": false,
+            "persistent": true
+        },
+        "transit": {
+            "dependsOn": ["^transit"],
+            "outputs": []
+        },
         "typecheck": {
-            "dependsOn": ["^typecheck"]
+            "dependsOn": ["//#codegen-check", "transit"],
+            "outputs": []
         },
         "test": {
-            "cache": false
+            "dependsOn": ["//#codegen-check", "transit"],
+            "outputs": []
         }
     }
 }

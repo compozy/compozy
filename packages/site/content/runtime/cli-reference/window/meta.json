@@ -1,0 +1,15 @@
+{
+    "title": "Window",
+    "pages": [
+        "index",
+        "close",
+        "float",
+        "focus",
+        "list",
+        "move",
+        "navigate",
+        "open",
+        "swap",
+        "zoom"
+    ]
+}

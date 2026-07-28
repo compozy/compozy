@@ -1,0 +1,4 @@
+{
+    "title": "Notification",
+    "pages": ["index", "delete", "list", "show", "subscribe"]
+}

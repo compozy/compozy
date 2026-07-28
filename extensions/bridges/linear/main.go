@@ -1,0 +1,23 @@
+package main
+
+import (
+	"io"
+
+	"github.com/compozy/compozy/internal/bridgesdk"
+)
+
+func main() {
+	bridgesdk.Main("linear", runServe)
+}
+
+func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	return bridgesdk.RunProviderCommand("linear", args, stdin, stdout, stderr, runServe)
+}
+
+func runServe(stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	provider, err := newLinearProvider(stderr)
+	if err != nil {
+		return err
+	}
+	return provider.serve(stdin, stdout)
+}

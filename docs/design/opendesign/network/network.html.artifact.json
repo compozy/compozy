@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "network/network.html",
+  "entry": "network/network.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-21T02:28:50.396Z",
+  "updatedAt": "2026-07-21T02:28:50.396Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

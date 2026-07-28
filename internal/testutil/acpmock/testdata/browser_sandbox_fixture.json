@@ -1,0 +1,79 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "browser-sandbox-allowed",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are a sandbox browser E2E fixture.",
+            "turns": [
+                {
+                    "name": "sandbox-allowed-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise sandbox allowed path"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Sandbox allowed started."
+                        },
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "browser-sandbox-allowed-command",
+                            "title": "Write sandbox browser marker",
+                            "command": "cp",
+                            "args": ["browser-allowed-source.txt", "browser-allowed.txt"]
+                        },
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "browser-sandbox-allowed-read",
+                            "title": "Read sandbox browser marker",
+                            "command": "cat",
+                            "args": ["browser-allowed.txt"],
+                            "expect_output_contains": "sandbox-browser-allowed",
+                            "emit_output": true
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Sandbox allowed complete."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "browser-sandbox-blocked",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are a blocked sandbox browser E2E fixture.",
+            "turns": [
+                {
+                    "name": "sandbox-blocked-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise sandbox blocked path"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Sandbox blocked started."
+                        },
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "browser-sandbox-blocked-command",
+                            "title": "Attempt blocked terminal write",
+                            "command": "sh",
+                            "args": [
+                                "-c",
+                                "mkdir -p toolhost && printf sandbox-browser-blocked > toolhost/browser-blocked.txt"
+                            ],
+                            "expect_error_contains": "terminal/create",
+                            "emit_text": "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+{
+  "kind": "critique-panel",
+  "artifact": "shell/sidebar-sessions-02.html",
+  "score": 4,
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "All-sessions view now reads as an index: sticky 28px agent headers with neutral initials chips and bare mono counts, hairline dividers between groups, one-line session rows with title + relative time. Status is carried by the dot shapes; the repeated colored state words are gone."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Group header (11.5px/500 name, faint count, chevron) sits below session titles (12px fg) in weight of attention; indentation aligns row titles to the header name x-position (33px). Accent appears only on the current-session bar and running dot."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "Compact scale holds the token stack: 11.5px header, 12px row title, 9px mono time/count. No display faces, no new sizes outside the existing ramp."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "Collapse is a 200ms grid-template-rows ease-out with visibility handoff, chevron rotates in 140ms; both are killed by the global prefers-reduced-motion guard. Root cause of the dead toggle (author .session-list display beating UA [hidden]) replaced by data-collapsed state."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Decorative nth-of-type avatar tints (success/warning/info) removed — agent chips use elevated+muted like event avatars and workspace marks; signal palette is back to state-only. Collapsed groups persist to localStorage like the rail state."
+    }
+  }
+}

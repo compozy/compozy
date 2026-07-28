@@ -1,0 +1,4 @@
+{
+    "title": "Triggers",
+    "pages": ["index", "create", "delete", "get", "history", "update"]
+}

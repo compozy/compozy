@@ -1,0 +1,48 @@
+---
+title: "compozy task profile"
+description: "Manage task execution profiles"
+---
+
+## compozy task profile
+
+Manage task execution profiles
+
+```
+compozy task profile [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task profile -o json
+```
+
+## Subcommands
+
+| Command                                                                     | Description                        |
+| --------------------------------------------------------------------------- | ---------------------------------- |
+| [compozy task profile delete](/runtime/cli-reference/task/profile/delete)   | Delete one task execution profile  |
+| [compozy task profile inspect](/runtime/cli-reference/task/profile/inspect) | Show one task execution profile    |
+| [compozy task profile update](/runtime/cli-reference/task/profile/update)   | Replace one task execution profile |

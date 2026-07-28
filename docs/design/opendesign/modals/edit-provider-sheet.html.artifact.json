@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/edit-provider-sheet.html",
+  "entry": "modals/edit-provider-sheet.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:58:18.221Z",
+  "updatedAt": "2026-07-14T16:58:18.221Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

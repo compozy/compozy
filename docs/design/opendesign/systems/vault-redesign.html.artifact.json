@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "vault-redesign.html",
+  "entry": "vault-redesign.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-08T20:00:16.767Z",
+  "updatedAt": "2026-07-08T20:00:16.767Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

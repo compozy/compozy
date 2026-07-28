@@ -1,0 +1,44 @@
+---
+title: "compozy task run list"
+description: "List runs for a task"
+---
+
+## compozy task run list
+
+List runs for a task
+
+```
+compozy task run list <task-id> [flags]
+```
+
+### Options
+
+```
+  -h, --help                           help for list
+      --last int                       Show only the most recent N runs
+      --participation-channel string   Filter by resolved Network participation channel
+      --session string                 Filter by attached session ID
+      --status string                  Filter by run status
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task run list <task-id> -o json
+```

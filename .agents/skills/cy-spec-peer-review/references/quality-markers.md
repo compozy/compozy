@@ -1,33 +1,40 @@
 # TechSpec Quality Markers
 
-When the user opts into peer review, a TechSpec is "ready for peer review" only when all six markers below are present. These correlate with high-signal Opus output (tight blockers, actionable nits) versus shallow noise (Opus rediscovering missing sections or vague design). Markers align with the canonical template in `.agents/skills/cy-create-techspec/references/techspec-template.md`.
+When the user opts into peer review, a TechSpec is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
 
-If any marker is missing, abort the requested peer review and ask the user to amend the spec first. Opus review on incomplete specs wastes credit and produces noise.
+## Marker 1: MVP Boundary Statement
 
-## Marker 1: Scope Boundary
+The spec opens with an explicit MVP boundary in plain language: which numbered tasks compose the MVP, which post-MVP work is deferred, and which features are explicitly out of scope.
 
-The `Executive Summary` (or equivalent opening section) explicitly states what is in scope, what is deferred, and what is out of scope for this TechSpec. A reader can tell where implementation ends without reading the full document.
+Example (autonomy):
+> "MVP boundary: tasks 01-16 implement the autonomy kernel. Tasks 17-18 prepare and execute QA. Post-MVP network evolution, broad memory scopes, self-correction telemetry, eval/replay, and broad web visibility remain follow-up TechSpecs unless explicitly pulled into scope later."
 
-Example:
+## Marker 2: Architectural Boundaries Section
 
-> "MVP boundary: recovery orchestration, agentic remediation, and workspace config ship in this task. Post-MVP consumer-triggered automatic runs and multi-attempt budgets remain follow-up work unless explicitly pulled into scope later."
+A first-class `## Architectural Boundaries` section enumerates which packages can/cannot import which. Names new internal packages explicitly. References the `daemon/` composition root rule.
 
-## Marker 2: Component Boundaries
+## Marker 3: Concrete Go Interface Signatures
 
-The `System Architecture` section (including `Component Overview` when used as a subsection) names each component, its responsibility, and its boundary. New packages or modules are named explicitly. Cross-component dependencies are visible — not buried in prose elsewhere.
+Critical Go interfaces (e.g., `TaskClaimer`, `SpawnOpts`, `PermissionNarrower`) are pasted as code blocks, not described in prose. Every method signature is final.
 
-## Marker 3: Concrete Interface Signatures
+## Marker 4: Data-Model Field Rationale
 
-Critical interfaces appear as code blocks with final method/function signatures — not described only in prose. Error handling conventions are stated or visible in the signatures. Every signature the implementer will code against is present.
+Any new SQLite columns, frontmatter fields, or config keys are listed with their purpose and shape. The spec explicitly forbids adding ownership state to JSON metadata blobs when a column or side table is appropriate.
 
-## Marker 4: Data Model Rationale
+## Marker 5: Side-Table vs JSON Decision
 
-The `Data Models` section (or equivalent under `Implementation Design`) lists entities, fields, storage shapes, and the purpose of each. When schema or config keys change, the spec states what changes and why — not just "add a column."
+For every new domain entity that could be either a typed column/side-table or a JSON-bag entry, the spec names which choice and why. Side tables for matchable state; JSON for opaque metadata only.
 
-## Marker 5: Testing Strategy
+## Marker 6: Lease / Safety Invariants Numbered
 
-The `Testing Approach` section covers unit and integration testing with enough detail to implement tests: key scenarios, mock boundaries, environment dependencies, and edge cases tied to the risks described in the spec. A vague "we will add tests" paragraph does not satisfy this marker.
+Concurrency- or ownership-sensitive code paths spell out invariants as a numbered list rather than prose. Example (autonomy lease invariants):
 
-## Marker 6: Build Order and Dependencies
+1. Exactly one active claim token per non-terminal run.
+2. Heartbeat compares both run owner and claim token.
+3. Stale/late after recovery fails explicitly.
+4. Sweep + heartbeat serialize via SQLite tx.
+5. Boot recovery before scheduler accepts wake/claim traffic.
+6. Lease extension bounded by config.
+7. One active lease per session in MVP.
 
-The `Development Sequencing` section (including `Build Order` when used as a subsection) lists an ordered implementation sequence with blocking dependencies. The reader can tell which step must land before the next and which external or team deliverables block progress.
+If any of these markers is missing, abort the requested peer review and ask the user to amend the spec first. External review on incomplete specs wastes credit and produces noise.

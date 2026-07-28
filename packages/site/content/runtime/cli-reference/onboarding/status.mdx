@@ -1,0 +1,50 @@
+---
+title: "compozy onboarding status"
+description: "Show whether first-run onboarding has been completed"
+---
+
+## compozy onboarding status
+
+Show whether first-run onboarding has been completed
+
+```
+compozy onboarding status [flags]
+```
+
+### Examples
+
+```
+  # Show onboarding status
+  compozy onboarding status
+
+  # Return machine-readable status for agents
+  compozy onboarding status -o json
+```
+
+### Options
+
+```
+  -h, --help   help for status
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy onboarding status -o json
+```

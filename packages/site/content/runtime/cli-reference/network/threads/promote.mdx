@@ -1,0 +1,48 @@
+---
+title: "compozy network threads promote"
+description: "Promote one thread message into a durable task"
+---
+
+## compozy network threads promote
+
+Promote one thread message into a durable task
+
+```
+compozy network threads promote [flags]
+```
+
+### Options
+
+```
+      --channel string          Target channel
+      --description string      Optional task description
+  -h, --help                    help for promote
+      --metadata string         Optional JSON metadata for the promoted task
+      --origin-message string   Origin message id to promote
+      --priority string         Optional task priority
+      --thread string           Public thread id
+      --title string            Optional task title
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy network threads promote -o json
+```

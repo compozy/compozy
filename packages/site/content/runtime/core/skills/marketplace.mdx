@@ -1,0 +1,268 @@
+---
+title: Skills Marketplace
+description: How to discover, install, update, and remove marketplace skills with Compozy.
+---
+
+Compozy can install community skills from a marketplace registry into the same local skill hierarchy as
+manual skills. The default registry adapter is ClawHub.
+
+Marketplace operations are available through the CLI and the daemon API. The web Skills page shows
+installed skills; use the discovery CLI or API when you need the remote catalog. The skill-specific
+CLI can perform its registry operations without requiring the daemon to be running.
+
+<OperatorNote>
+  Marketplace skills are installed into `$COMPOZY_HOME/skills/`. Compozy marks them as
+  marketplace-sourced by writing `.compozy-meta.json` next to `SKILL.md`.
+</OperatorNote>
+
+## Configure the Registry
+
+The default marketplace registry is `clawhub`. You can leave it implicit, or set it explicitly:
+
+```toml
+[skills.marketplace]
+registry = "clawhub"
+```
+
+Use `base_url` only when you are pointing Compozy at a compatible mirror or test registry:
+
+```toml
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://clawhub.ai/api/v1"
+```
+
+Validation rules:
+
+| Setting                           | Behavior                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| no `[skills.marketplace]` section | Compozy uses the built-in ClawHub default when a marketplace command runs. |
+| `base_url` without `registry`     | Invalid. The registry name is required when overriding the URL.            |
+| registry other than `clawhub`     | Invalid today.                                                             |
+| `base_url` scheme                 | Must be `http` or `https`, and must include a host.                        |
+
+## Search
+
+Search the registry:
+
+```bash
+compozy skill search "database migration" --limit 5
+```
+
+The default search limit is 20. Results include the slug, name, description, author, version,
+downloads, source, and package type when the registry returns those fields.
+
+Use the slug for install commands:
+
+```text
+@author/skill-name
+```
+
+Slugs must match `@author/name`. Version suffixes are not accepted in the user-facing slug syntax.
+
+The grouped discovery namespace returns a curated skill slice for an empty query. A non-empty skill
+query uses the configured registry; the ClawHub client itself still rejects empty searches.
+
+## Install
+
+Install a marketplace skill:
+
+```bash
+compozy skill install @author/refactor-checklist
+```
+
+Install behavior:
+
+1. Compozy resolves the configured registry.
+2. It fetches marketplace detail for the slug.
+3. It downloads the archive into a temporary staging directory under `$COMPOZY_HOME/skills/`.
+4. It verifies the archive shape and scans content before install.
+5. It computes a deterministic directory hash.
+6. It writes `.compozy-meta.json`.
+7. It moves the skill into `$COMPOZY_HOME/skills/<parsed-skill-name>`.
+
+Installed marketplace skills then load from the global registry. If the same skill name already
+exists in a lower source, the higher-precedence source wins according to the normal skill hierarchy.
+
+When installation runs through the daemon API, Compozy refreshes the global skills registry before
+returning so `/api/skills` and the web Installed tab can reflect the new skill immediately.
+
+After writing the files, Compozy verifies that skill discovery can resolve the installed skill as a
+marketplace skill with matching provenance and an enabled state. If that verification fails, the CLI
+returns a classified marketplace unavailable error and the daemon API returns an unavailable
+response. Treat this as a local state problem, not a retry signal: enable a disabled skill, remove or
+rename a higher-precedence declaration, or remove the broken install directory and install again.
+
+## Daemon API
+
+Discovery uses the shared `/api/marketplace` namespace on both HTTP and UDS. Rows include a stable
+`entry_id` plus server-computed installed and update state:
+
+| Operation      | Endpoint                                         | Behavior                                                          |
+| -------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Grouped search | `GET /api/marketplace/search?q=<text>&limit=<n>` | Returns MCP, extension, skill, and bundle groups.                 |
+| Skill browse   | `GET /api/marketplace/skill?q=<text>&limit=<n>`  | Returns only skill rows; empty `q` uses the curated slice.        |
+| Skill detail   | `GET /api/marketplace/skill/{entry_id}`          | Resolves full metadata by stable entry ID, never by display name. |
+| Refresh        | `POST /api/marketplace/refresh?kind=skill`       | Refreshes the feed-backed skill projection.                       |
+
+The existing lifecycle routes remain under `/api/skills/marketplace`:
+
+| Operation | Endpoint                                | Behavior                                                                     |
+| --------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Install   | `POST /api/skills/marketplace/install`  | Installs a remote skill into `$COMPOZY_HOME/skills/`.                        |
+| Update    | `POST /api/skills/marketplace/update`   | Checks or applies updates for one skill or all marketplace-installed skills. |
+| Remove    | `DELETE /api/skills/marketplace/{name}` | Removes one installed marketplace skill by local skill name.                 |
+
+Install, update, and remove mutations reject manual skills without marketplace provenance. Successful
+mutations refresh the daemon skills registry before returning.
+
+## Provenance And Verification
+
+Marketplace provenance looks like this:
+
+```json
+{
+  "hash": "7c0f...",
+  "registry": "clawhub",
+  "slug": "@author/refactor-checklist",
+  "version": "1.0.0",
+  "installed_at": "2026-04-16T12:00:00Z"
+}
+```
+
+All fields are required. Compozy recomputes the installed directory hash on load. If the hash differs,
+the skill is treated as unsafe and does not enter the registry.
+
+Marketplace content also goes through the same load-time scanner as local skills:
+
+| Finding                                                                          | Outcome                            |
+| -------------------------------------------------------------------------------- | ---------------------------------- |
+| critical prompt injection, destructive command, or credential extraction pattern | Skill is blocked.                  |
+| sensitive path reference or suspicious tool chaining                             | Warning is logged; skill may load. |
+| body over 50,000 characters                                                      | Info warning is logged.            |
+
+## MCP Consent
+
+Marketplace skill MCP servers are blocked unless they are allowed in config.
+
+```toml
+[skills]
+allowed_marketplace_mcp = [
+  "@author/postgres-tools",
+  "clawhub:@author/filesystem-tools"
+]
+```
+
+Accepted consent keys are:
+
+| Key               | Example                          |
+| ----------------- | -------------------------------- |
+| slug              | `@author/postgres-tools`         |
+| registry and slug | `clawhub:@author/postgres-tools` |
+| installed hash    | `7c0f...`                        |
+
+There is no interactive consent prompt today. Add allowlist entries deliberately, review the skill's
+`SKILL.md`, and inspect any `mcp.json` sidecar before allowing marketplace MCP servers.
+
+Marketplace hooks use the same static model with `skills.allowed_marketplace_hooks`.
+
+## Update
+
+Check one installed marketplace skill:
+
+```bash
+compozy skill update refactor-checklist --check
+```
+
+Install the latest available version for one skill:
+
+```bash
+compozy skill update refactor-checklist
+```
+
+Check every installed marketplace skill:
+
+```bash
+compozy skill update --all --check
+```
+
+Update every installed marketplace skill:
+
+```bash
+compozy skill update --all
+```
+
+Update behavior:
+
+| Case                                | Behavior                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| skill has no `.compozy-meta.json`   | It is not treated as marketplace-installed and cannot be updated by this command. |
+| `--check`                           | Compozy reports whether an update is available but does not replace files.        |
+| no update                           | Status is `already up to date`.                                                   |
+| update available and not check-only | Compozy installs the latest version through the same install pipeline.            |
+
+## Version Pinning
+
+Use `--version` to request a specific marketplace archive version:
+
+```bash
+compozy skill install @author/refactor-checklist --version 1.2.0
+```
+
+Compozy records the installed version in `.compozy-meta.json` for audit and update checks. Version suffixes
+are still not accepted in slugs; keep the slug as `@author/name` and pass the version with the flag.
+
+## Remove
+
+Remove a marketplace-installed skill:
+
+```bash
+compozy skill remove refactor-checklist
+```
+
+Remove only deletes skills with a valid `.compozy-meta.json` sidecar. Manual user or workspace skills
+are rejected so the CLI does not silently delete locally authored work.
+
+## Inspect Installed Skills
+
+List all visible skills:
+
+```bash
+compozy skill list
+```
+
+List only marketplace skills:
+
+```bash
+compozy skill list --source marketplace
+```
+
+Read full instructions:
+
+```bash
+compozy skill view refactor-checklist
+```
+
+Inspect the winning path, resolver tier, and any shadowed declarations:
+
+```bash
+compozy skill where refactor-checklist
+```
+
+Read one resource file inside the skill directory:
+
+```bash
+compozy skill view refactor-checklist --file references/review-template.md
+```
+
+Resource reads must stay inside the skill directory. Compozy rejects traversal and symlink escape
+attempts.
+
+## Related Pages
+
+- [Unified Marketplace](/runtime/core/marketplace) covers cross-kind discovery and per-kind install flows.
+- [SKILL.md Format](/runtime/core/skills/skill-md) documents `.compozy-meta.json`, MCP declarations, and hooks.
+- [Bundled Skill](/runtime/core/skills/bundled) documents the trusted `compozy` skill shipped with Compozy.
+- [Skill CLI Reference](/runtime/cli-reference/skill) lists every generated skill command.
+- [Skill Search Reference](/runtime/cli-reference/skill/search) shows generated search flags.
+- [Skill Install Reference](/runtime/cli-reference/skill/install) shows generated install syntax.

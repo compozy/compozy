@@ -1,0 +1,52 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "permission-hardening-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are the browser session hardening permission agent.",
+            "turns": [
+                {
+                    "name": "permission-reject-and-tool-rendering",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "exercise permission hardening"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Permission hardening ", "started."]
+                        },
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "tool-hardening-read-1",
+                            "title": "Inspect hardening fixture",
+                            "tool_kind": "read",
+                            "path": "hardening.txt",
+                            "raw_input": {
+                                "file_path": "hardening.txt"
+                            },
+                            "status": "completed",
+                            "content_text": "hardening read complete"
+                        },
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-hardening-reject-1",
+                            "title": "Change hardening fixture",
+                            "tool_kind": "edit",
+                            "path": "hardening.txt",
+                            "raw_input": {
+                                "path": "hardening.txt",
+                                "instruction": "reject this edit during browser hardening"
+                            },
+                            "status": "pending",
+                            "expect_decision": "reject-always",
+                            "emit_decision": true
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

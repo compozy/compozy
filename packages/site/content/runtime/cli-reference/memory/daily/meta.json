@@ -1,0 +1,4 @@
+{
+    "title": "Daily",
+    "pages": ["index", "archive", "ls", "purge", "restore", "show"]
+}

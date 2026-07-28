@@ -1,0 +1,59 @@
+---
+title: "compozy automation jobs"
+description: "Manage automation jobs"
+---
+
+## compozy automation jobs
+
+Manage automation jobs
+
+```
+compozy automation jobs [flags]
+```
+
+### Options
+
+```
+      --cursor string      Continue after this automation job cursor
+      --enabled            Filter by enabled state; use --enabled=false for disabled jobs
+  -h, --help               help for jobs
+      --limit int          Maximum jobs per page (default 50)
+      --loop string        Filter by loop target name
+      --query string       Search jobs by name, agent, prompt, scope, source, or schedule
+      --scope string       Filter by scope: global or workspace
+      --source string      Filter by definition source: config, package, or dynamic
+      --workspace string   Filter by workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy automation jobs -o json
+```
+
+## Subcommands
+
+| Command                                                                           | Description                             |
+| --------------------------------------------------------------------------------- | --------------------------------------- |
+| [compozy automation jobs create](/runtime/cli-reference/automation/jobs/create)   | Create an automation job                |
+| [compozy automation jobs delete](/runtime/cli-reference/automation/jobs/delete)   | Delete an automation job                |
+| [compozy automation jobs get](/runtime/cli-reference/automation/jobs/get)         | Show one automation job                 |
+| [compozy automation jobs history](/runtime/cli-reference/automation/jobs/history) | Show run history for one automation job |
+| [compozy automation jobs trigger](/runtime/cli-reference/automation/jobs/trigger) | Force an immediate automation job run   |
+| [compozy automation jobs update](/runtime/cli-reference/automation/jobs/update)   | Update an automation job                |

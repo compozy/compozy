@@ -1,0 +1,38 @@
+---
+version: "v0.3.0-beta.1"
+date: "2026-07-28T13:50:16.000Z"
+status: "beta"
+summary: "introducing CompozyOS beta"
+added: []
+changed:
+  - "Auto-publish beta releases on release PR merge"
+  - "Update readme"
+  - "Push release branch updates with RELEASE_TOKEN"
+  - "Publish site changelog receipts from the release job"
+  - "Delete not need things"
+  - "Fix tests"
+  - "Align release body heading with the published version"
+  - "Fix beta release recovery"
+  - "Change copy"
+  - "Restore beta release recovery"
+fixed:
+  - "cli: Reap leaked test daemons and artifacts (#253)"
+  - "Archive without tasks"
+  - "Resolve inherited cross-runtime models against runtime defaults (#259)"
+breaking:
+  - "introducing CompozyOS beta"
+compareUrl: "https://github.com/compozy/compozy/compare/v0.2.15...v0.3.0-beta.1"
+---
+
+Generated from release artifacts for v0.3.0-beta.1.
+
+## Verification posture
+
+This generated release entry names the release gates and artifact guarantees that the Compozy release workflow owns:
+
+- Repository gate: `make verify` covers codegen drift, Bun lint/typecheck/test/build, Go fmt/lint/test/build, and import boundaries.
+- Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.
+- Production release: generated release assets are validated before `goreleaser release --clean` publishes the release.
+- Artifact provenance: GoReleaser signs `checksums.txt` with cosign, publishes the Sigstore bundle `checksums.txt.sigstore.json`, and generates Syft SBOMs for archives, packages, and source.
+
+Known limitation: this generated changelog does not claim a manual post-release install smoke or live-provider QA run unless a release note in this entry names that evidence.

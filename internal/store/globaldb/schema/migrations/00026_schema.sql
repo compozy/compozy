@@ -1,0 +1,5 @@
+-- +goose Up
+-- create "token_usage_daily" table
+CREATE TABLE `token_usage_daily` (`day` text NOT NULL, `workspace_id` text NOT NULL DEFAULT '', `agent_name` text NOT NULL DEFAULT '', `input_tokens` integer NOT NULL DEFAULT 0, `output_tokens` integer NOT NULL DEFAULT 0, `total_tokens` integer NOT NULL DEFAULT 0, `total_cost` real NULL, `cost_currency` text NULL, `cost_status` text NOT NULL DEFAULT 'unknown', `cost_source` text NOT NULL DEFAULT 'none', `turn_count` integer NOT NULL DEFAULT 0, `updated_at` text NOT NULL, PRIMARY KEY (`day`, `workspace_id`, `agent_name`), CHECK (length(day) = 10), CHECK (input_tokens >= 0), CHECK (output_tokens >= 0), CHECK (total_tokens >= 0), CHECK (cost_status IN ('actual', 'estimated', 'included', 'unknown')), CHECK (cost_source IN ('agent_reported', 'catalog_config', 'models_dev', 'builtin', 'none')), CHECK (turn_count >= 0));
+-- create index "idx_token_usage_daily_workspace" to table: "token_usage_daily"
+CREATE INDEX `idx_token_usage_daily_workspace` ON `token_usage_daily` (`workspace_id`, `day`);

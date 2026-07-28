@@ -1,0 +1,74 @@
+---
+title: Configuration Overview
+description: Decide which Compozy file, overlay, or environment variable should change when you need to configure one machine, one workspace, one agent, or one skill.
+---
+
+Configuration is where Compozy stops being generic and starts matching one machine, one workspace, one
+team default, or one agent role. The key to using this section well is choosing the right surface
+for the change you actually want.
+
+## Start with the decision table
+
+| If you want to change...            | Primary surface                                                            | Reach for this when...                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Machine-wide defaults               | `~/.compozy/config.toml`                                                   | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
+| One workspace                       | `<workspace>/.compozy/config.toml`                                         | A repository needs different defaults, limits, or permissions than the rest of the machine.                                                                    |
+| One agent                           | `AGENT.md`                                                                 | A specific agent needs a different prompt, provider, permission mode, or MCP attachment.                                                                       |
+| One agent's advertised capabilities | [capability catalog](/runtime/core/agents/capabilities) next to `AGENT.md` | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
+| One skill                           | `SKILL.md`                                                                 | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
+| MCP server configuration            | `mcp.json`                                                                 | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
+| Encrypted Compozy-managed secrets   | [Vault](/runtime/core/configuration/vault)                                 | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
+| Provider authentication             | provider settings, native CLI login, `credential_slots`, or Vault          | Let native ACP providers use their own CLI login state, and bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs.            |
+| Filesystem locations and precedence | file-locations reference                                                   | You need to know where Compozy looks for agents, skills, sessions, memory, or overlays.                                                                        |
+
+## Read in this order
+
+1. [config.toml](/runtime/core/configuration/config-toml)
+2. [Config Lifecycle Matrix](/runtime/core/configuration/lifecycle-matrix)
+3. [Vault](/runtime/core/configuration/vault)
+4. [File Locations](/runtime/core/configuration/file-locations)
+5. [AGENT.md](/runtime/core/configuration/agent-md)
+6. [Agent Capabilities](/runtime/core/agents/capabilities)
+7. [SKILL.md](/runtime/core/configuration/skill-md)
+8. [mcp.json](/runtime/core/configuration/mcp-json)
+9. [Environment Variables](/runtime/core/configuration/env-vars)
+
+That order mirrors how operators usually troubleshoot Compozy: global defaults first, path resolution
+second, then file-format specifics and agent sidecars.
+
+## CLI Inspection and Mutation
+
+Use `compozy config path` before editing to confirm the selected global or workspace overlay. Prefer
+`compozy config set <path> <value>` for supported scalar and list settings because it writes through the
+same validated persistence path as the settings API. `config.toml` is desired state; the daemon's
+active generation is runtime truth. Every settings write, boot reconcile, and explicit reload is
+recorded in `config_apply_records`.
+
+Use `compozy config reload` after hand edits to reconcile desired state with the active generation. The
+same operation is available through `POST /api/settings/reload`; agents can inspect history through
+`compozy config apply-history` or `GET /api/settings/apply`.
+
+Inspection commands are redacted by default. `compozy config show`, `compozy config list`, and
+`compozy config get <path>` replace MCP and environment map values with `[redacted]` so copied
+diagnostics do not leak runtime credentials.
+
+## Apply History and Recovery
+
+`compozy config apply-history` lists each apply attempt with desired and active hashes, generation,
+actor, lifecycle, status, diagnostics, and next action. Use `--status blocked` to find changes that
+were written to desired state but could not become runtime truth without a daemon restart. Use
+`--status failed` to find validation or subsystem reload failures that should be fixed and retried
+with `compozy config reload`.
+
+Status values are intentionally small:
+
+| Status          | Meaning                                                                       |
+| --------------- | ----------------------------------------------------------------------------- |
+| `pending_apply` | The daemon has created an audit row and is still trying to reconcile runtime. |
+| `applied`       | Desired state became the daemon active generation.                            |
+| `blocked`       | Desired state was written, but runtime truth needs a restart or new session.  |
+| `failed`        | Validation or a subsystem reload failed; diagnostics describe the retry path. |
+
+`next_action` tells operators what to do next: `none`, `restart-daemon`, `new-session`, or `retry`.
+Compozy does not roll back `config.toml` after a reload failure; the apply record is the audit surface
+that explains why the active generation did or did not advance.

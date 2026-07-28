@@ -1,43 +1,83 @@
 .DS_Store
 .env
+.env.local
+.env.*.local
 .tmp/
 .cache/
+.turbo/
+.tanstack/
 bin/
 dist/
-!web/dist/
-web/dist/*
-!web/dist/.keep
-RELEASE_NOTES.md
+web/embed/
+storybook-static/
 coverage.out
 coverage.html
+.codex/hooks/
+.codex/loops/
 .codex/CONTINUITY*
-.peer-reviews/
+.codex/security-reports/*
+.codex/prompts
+.codex/artifacts
 .resources/
-.factory/skills
-skills/*/autoresearch-*/
-skills-lock.json
-.claude/skills
-ai-docs
-**/**/node_modules
+.old_project/
 node_modules/
-.compozy/runs
-.compozy/tasks/daemon-improvs/analysis/qa/logs/live-daemon-run-id.txt
-.turbo/
 coverage/
-*.tsbuildinfo
-.agh
+.claude/skills
+.compozy/runs
+.compoz/runs
+$COMPOZY_HOME
+COMPOZY_HOME
+ai-docs/
+.firecrawl
+.kodebase
+.compozy/tasks/final-qa/_runs
+# deep-review artifacts stay local; learnings.md is team review doctrine and ships with the repo
+.deep-review/*
+!.deep-review/learnings.md
+.peer-reviews
+.clawpatch
+.claude/analysis
+.claude/ledger
+.impeccable
+.coderabbit/reviews/
 
-# TanStack Router generated tree — regenerated at build/dev time.
-web/src/routeTree.gen.ts
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Fumadocs
+.source/
+
+# Velite
+.velite/
+
+# Vercel
+.vercel
 
 # >>> skeeper ignored specs >>>
 .skeeper/
-.compozy/**
+.compozy/tasks/**/*
+docs/rfcs/**
+docs/_refacs/**
+docs/prs/**
+docs/ideas/**
+docs/proposals/**
+docs/prompts/**
 .codex/ledger/**
 .codex/plans/**
+.codex/loop/**
 .codex/qa/**
-.codex/release-021-qa/**
-.codex/tmp/**
-.claude/ledger/**
-!.compozy/runs/**
+.compozy/_archived/**
+.compozy/_research/**
+# QA living docs — generated views and bulky evidence (source: docs/qa/scenarios/)
+docs/qa/state.csv
+docs/qa/evidence/**
+docs/tweets/**
 # <<< skeeper ignored specs <<<

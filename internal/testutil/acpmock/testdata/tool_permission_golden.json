@@ -1,0 +1,41 @@
+[
+    {
+        "type": "agent_message",
+        "text": "hello "
+    },
+    {
+        "type": "agent_message",
+        "text": "from golden"
+    },
+    {
+        "type": "tool_call",
+        "title": "Inspect fixture",
+        "tool_call_id": "tool-1"
+    },
+    {
+        "type": "tool_result",
+        "title": "Inspect fixture",
+        "tool_call_id": "tool-1"
+    },
+    {
+        "type": "permission",
+        "title": "Need approval",
+        "tool_call_id": "perm-1",
+        "resource": "danger.txt"
+    },
+    {
+        "type": "permission",
+        "title": "Need approval",
+        "tool_call_id": "perm-1",
+        "resource": "danger.txt",
+        "decision": "allow-always"
+    },
+    {
+        "type": "agent_message",
+        "text": "allow-always"
+    },
+    {
+        "type": "done",
+        "stop_reason": "end_turn"
+    }
+]

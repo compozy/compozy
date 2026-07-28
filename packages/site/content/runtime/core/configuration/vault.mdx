@@ -1,0 +1,195 @@
+---
+title: Vault
+description: Store Compozy-managed encrypted secrets with redacted CLI, HTTP, UDS, web, and session-scoped metadata surfaces.
+---
+
+The Vault is Compozy's encrypted store for daemon-managed secret material. Use it when Compozy should own
+the value lifecycle instead of reading a value from the daemon process environment.
+
+<OperatorNote>
+  Vault reads are metadata-only. CLI, HTTP, UDS, and web surfaces can list, inspect, write, and
+  delete refs, but they never resolve plaintext secret values back to callers.
+</OperatorNote>
+
+## Ref Model
+
+Compozy accepts two secret ref families:
+
+| Ref family                 | Owner                | Runtime behavior                                                                                                              |
+| -------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `env:NAME`                 | Operator environment | Compozy reads `NAME` from the daemon process environment when a runtime boundary needs it.                                    |
+| `vault:<namespace>/<path>` | Compozy Vault        | Compozy stores the secret encrypted, resolves it only at internal launch/materialization boundaries, and redacts diagnostics. |
+
+Supported Vault namespaces are:
+
+| Namespace    | Typical refs                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `providers`  | `vault:providers/openrouter/api-key`                                                       |
+| `bridges`    | `vault:bridges/brg_123/bot_token`                                                          |
+| `automation` | `vault:automation/deploy-webhook/signing-secret`                                           |
+| `mcp`        | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
+| `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
+| `extensions` | `vault:extensions/slack/app-token`                                                         |
+| `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                                      |
+| `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
+
+Session Vault entries are normal Vault records under the `sessions` namespace. Compozy filters them by
+the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.
+
+## Public Surfaces
+
+Vault is agent-manageable through the same daemon surfaces as the rest of Compozy:
+
+| Surface           | Operations                                             | Notes                                                                                                             |
+| ----------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| CLI over UDS      | `compozy vault list`, `get`, `put`, `delete`           | `put` accepts secret material only through `--value-stdin`.                                                       |
+| HTTP API          | `/api/vault/secrets` and `/api/vault/secrets/metadata` | Web UI and external local clients use these routes. HTTP Vault routes use the daemon's privileged loopback guard. |
+| UDS API           | Same route shapes as HTTP                              | CLI and local agents use the Unix domain socket surface.                                                          |
+| Web UI            | Vault page                                             | Lists metadata, filters by namespace or prefix, writes new values, and deletes refs.                              |
+| Session inspector | Session Vault panel                                    | Lists metadata for `vault:sessions/<session_id>/` refs.                                                           |
+
+The response shape is always redacted:
+
+```json
+{
+  "secret": {
+    "ref": "vault:sessions/sess_123/github-token",
+    "namespace": "sessions",
+    "kind": "token",
+    "present": true,
+    "created_at": "2026-05-02T10:00:00Z",
+    "updated_at": "2026-05-02T10:00:00Z"
+  }
+}
+```
+
+Fields such as `secret_value`, `encrypted_value`, tokens, and API keys are never returned by list,
+get, delete, settings read, CLI output, or web views.
+
+## MCP Catalog Bindings
+
+`compozy mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
+terminal prompt and creates a scope-qualified canonical ref. A
+`--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the `mcp`
+namespace.
+
+| Install scope | Canonical environment ref                             |
+| ------------- | ----------------------------------------------------- |
+| Global        | `vault:mcp/global/<server>/env/<KEY>`                 |
+| Workspace     | `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` |
+
+OAuth client secrets use the same owner prefix with `oauth/client-secret`. Compozy encodes workspace
+IDs that do not fit the Vault ref grammar, so two workspaces installing the same server do not
+share credential identity.
+
+Catalog uninstall removes only canonical refs created and owned by that install. It retains a
+shared ref supplied through `--vault-ref`. Settings reads expose configured field names and OAuth
+client-secret presence, never bound refs or stored plaintext.
+
+## CLI Usage
+
+List all redacted metadata:
+
+```bash
+compozy vault list
+```
+
+Filter by namespace:
+
+```bash
+compozy vault list --namespace providers -o json
+```
+
+Filter one session:
+
+```bash
+compozy vault list --prefix vault:sessions/sess_123/
+```
+
+Store a secret without putting it in shell history:
+
+```bash
+printf "%s" "$TOKEN" |
+  compozy vault put vault:sessions/sess_123/github-token --kind token --value-stdin
+```
+
+Read metadata for one ref:
+
+```bash
+compozy vault get vault:sessions/sess_123/github-token
+```
+
+Delete one ref:
+
+```bash
+compozy vault delete vault:sessions/sess_123/github-token
+```
+
+`compozy vault put` intentionally does not have a `--value` flag. Passing secret values through argv can
+leak them through shell history or process inspection.
+
+When `--kind` is omitted during rotation, Compozy preserves the existing kind metadata for that ref.
+
+## API Usage
+
+HTTP and UDS expose the same route model:
+
+| Method   | Route                                   | Purpose                                       |
+| -------- | --------------------------------------- | --------------------------------------------- |
+| `GET`    | `/api/vault/secrets?prefix=&namespace=` | List redacted metadata.                       |
+| `GET`    | `/api/vault/secrets/metadata?ref=...`   | Read redacted metadata for one ref.           |
+| `PUT`    | `/api/vault/secrets`                    | Store or replace one write-only secret value. |
+| `DELETE` | `/api/vault/secrets?ref=...`            | Delete one ref.                               |
+
+Write request:
+
+```json
+{
+  "ref": "vault:sessions/sess_123/github-token",
+  "kind": "token",
+  "secret_value": "..."
+}
+```
+
+The daemon validates the ref grammar, namespace, and non-empty `secret_value`. After a successful
+write it returns the persisted metadata row. The submitted value is registered with dynamic
+redaction before storage, then unregistered when the same ref is deleted or replaced.
+
+HTTP Vault routes are intended for the local web UI and local integrations, so Compozy applies the
+privileged loopback guard to metadata reads and mutations. Agents and local tools can use the UDS
+surface for the same route shapes without exposing the HTTP listener.
+
+## Web UI
+
+Use the Vault page for global metadata inspection and write-only updates. The page supports:
+
+- namespace filtering
+- prefix filtering
+- namespace changes clear a prefix that belongs to a different namespace
+- create/update by ref
+- delete by ref
+- replacement and deletion of the same selected ref are serialized
+- loading, empty, error, pending-write, and pending-delete states
+
+Session pages include a Vault tab in the inspector. It shows only entries below
+`vault:sessions/<session_id>/` and shortens the display label to the session-local suffix.
+
+## Operational Notes
+
+`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, Compozy creates
+`$COMPOZY_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
+secret.
+
+Deleting a Vault ref removes the stored value. It does not rewrite existing configuration that still
+points at that ref, so dependent providers, bridges, MCP servers, hooks, automation triggers,
+sandbox profiles, or session-scoped consumers may report missing credentials until a new value is
+stored.
+
+## Related Pages
+
+- [config.toml](/runtime/core/configuration/config-toml) documents refs used by provider, MCP,
+  automation, hook, extension, and sandbox configuration.
+- [mcp.json](/runtime/core/configuration/mcp-json) documents MCP `secret_env` and OAuth
+  `client_secret_ref`.
+- [API Reference](/runtime/api-reference) lists the Vault route family.
+- [CLI Reference](/runtime/cli-reference/vault) contains the generated `compozy vault` command pages.

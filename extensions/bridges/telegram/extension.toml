@@ -1,0 +1,53 @@
+[extension]
+name = "telegram"
+version = "0.1.0"
+description = "Production Telegram bridge provider built on internal/bridgesdk"
+min_compozy_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "telegram"
+display_name = "Telegram"
+
+[[bridge.secret_slots]]
+name = "bot_token"
+description = "Telegram Bot API token"
+required = true
+
+[[bridge.secret_slots]]
+name = "webhook_secret"
+description = "Optional Telegram webhook secret token"
+required = false
+
+[bridge.config_schema]
+schema = "compozy.bridge.telegram"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/telegram"
+args = ["serve"]
+
+[subprocess.env]
+COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STATE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STATE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_INGEST_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_INGEST_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STARTS_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STARTS_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_TELEGRAM_LISTEN_ADDR}}"
+COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL = "{{env:COMPOZY_BRIDGE_TELEGRAM_API_BASE_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

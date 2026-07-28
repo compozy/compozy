@@ -1,0 +1,51 @@
+---
+title: "compozy loop run"
+description: "Start or dry-run one Loop"
+---
+
+## compozy loop run
+
+Start or dry-run one Loop
+
+```
+compozy loop run [flags]
+```
+
+### Options
+
+```
+      --config-file string                Per-run config override YAML or JSON file
+      --dry-run                           Preview the plan without creating a run
+  -h, --help                              help for run
+      --input stringArray                 Input key=value (repeatable; JSON values supported)
+      --name string                       Loop name
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+      --parent-loop-run-id string         Parent Loop run ID
+      --runtime stringArray               Runtime worker|judge|id|type|complexity selector (repeatable)
+      --workspace string                  Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy loop run -o json
+```

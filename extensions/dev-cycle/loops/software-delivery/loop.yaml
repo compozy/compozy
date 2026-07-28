@@ -1,0 +1,218 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: software-delivery
+  description: Deliver pending Compozy task files for one slug with a configurable verification gate.
+  catalog:
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them shipped unattended."
+    keywords: [delivery, tasks, implement, verify]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  slug:
+    type: string
+    required: true
+  implementer:
+    type: agent
+    default: code_implementer
+  verify_command:
+    type: string
+    default: ""
+  auto_commit:
+    type: boolean
+    default: false
+  target_branch:
+    type: string
+    default: main
+
+contract:
+  goal: >
+    Ship every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order,
+    reviewed to acceptance and verified by the project's own checks.
+  definition_of_done: >
+    All loaded tasks were handled, the acceptance judge approved with evidence, and the optional
+    project verification command passed when configured.
+  iteration_cap: 50
+  no_progress:
+    window: 3
+    hash_fields: [delivery_artifact, gate_verdict]
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: slug_input
+      class: source
+      kind: input
+      input_ref: slug
+
+    - id: load_tasks
+      class: action
+      kind: ext__dev_cycle__import_tasks
+      params:
+        pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
+      produces:
+        tasks: array
+
+    - id: implement
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.load_tasks.output.tasks }}"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: execute_task
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.implementer }}"
+        prompt: |
+          Kickoff directive:
+          Begin work on {{ .item.title }} immediately. This run is the operator's authorization
+          to implement exactly this pending task — do NOT ask for confirmation, do NOT wait for
+          further instructions, and do NOT reply with a greeting before starting.
+
+          Required skills:
+          - cy-workflow-memory: use before editing code; the memory paths are listed below.
+          - cy-execute-task: the end-to-end execution workflow for this task.
+          - cy-final-verify: required before any completion claim or automatic commit; use it to
+            identify and run the repository's real verification commands.
+
+          Task context:
+          Task file: {{ .item.path }}
+          Task id: {{ .item.id }}
+          Slug: {{ .inputs.slug }}
+          {{ if .item.blocks }}Depends on: {{ join ", " .item.blocks }}{{ end }}
+
+          Workflow memory:
+          - Memory directory: .compozy/tasks/{{ .inputs.slug }}/memory
+          - Shared memory: .compozy/tasks/{{ .inputs.slug }}/memory/MEMORY.md
+          - Task memory: .compozy/tasks/{{ .inputs.slug }}/memory/{{ .item.id }}.md
+          - Read both memory files before implementation and update them before finishing.
+          - Keep task-local decisions, learnings, touched surfaces, and corrections in the task
+            memory file; promote only durable cross-task context into shared memory.
+
+          Scope and tracking:
+          - Read repository AGENTS.md/CLAUDE.md and surface-specific instructions before editing.
+          - Read .compozy/tasks/{{ .inputs.slug }}/_techspec.md and _tasks.md when present and
+            treat them plus the task body below as the source of truth.
+          - Keep scope tight to this task; record meaningful follow-up work instead of expanding
+            scope silently.
+          - Preserve unrelated worktree changes.
+          - Fix production code for real; do not weaken tests or add compatibility shims.
+
+          Verification:
+          - Run focused checks for each changed surface.
+          - Execute every explicit Validation, Test Plan, or Testing item from the task body.
+          - If `verify_command` is configured, the loop gate runs it after review.
+          - Report exact commands and outcomes in the structured output.
+
+          Tracking and commits:
+          - Update task checkboxes and status in {{ .item.path }} only after implementation,
+            verification evidence, and self-review are complete.
+          - Update .compozy/tasks/{{ .inputs.slug }}/_tasks.md only when this task is complete.
+          - Keep tracking-only files out of automatic commits.
+          {{ if .inputs.auto_commit -}}
+          - Create exactly one commit for this task after clean verification, self-review, and
+            tracking updates. Do not push.
+          {{ else -}}
+          - Leave changes uncommitted for manual review. Do not push.
+          {{ end }}
+          Task body:
+          {{ .item.body }}
+
+          Closing directive:
+          You have the full brief above — start work on {{ .item.title }} now instead of
+          summarizing the plan back. Return `status`, `summary`, and `files_changed`. Use
+          `blocked` only for concrete external blockers after systematic debugging.
+        output_schema:
+          type: object
+          required: [status, summary]
+          properties:
+            status:
+              enum: [completed, blocked]
+            summary:
+              type: string
+            files_changed:
+              type: array
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: collect
+      class: control
+      kind: collect
+
+    - id: review
+      class: control
+      kind: gate
+      criteria:
+        - id: acceptance
+          type: agent-judge
+          agent: reviewer
+          rubric: >
+            Judge the aggregate diff for {{ .inputs.slug }} against each task's acceptance
+            criteria and the definition of done. Cite evidence (files, tests, command output)
+            for every pass and emit stable blocking issue ids for every failure.
+      verdict_policy: revise_until_clean
+      on_result:
+        pass: verify
+        fail: next_generation
+      max_revisions: 3
+
+    - id: verify
+      class: control
+      kind: gate
+      criteria:
+        - id: project_check
+          type: command
+          check: "{{ .inputs.verify_command }}"
+          expect: exit_zero
+      verdict_policy: fixed_passes
+      on_result:
+        pass: approve
+        fail: next_generation
+
+    - id: approve
+      class: control
+      kind: gate
+      criteria:
+        - id: ship
+          type: human
+          prompt: "Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"
+      verdict_policy: fixed_passes
+      on_result:
+        pass: done
+        fail: next_generation
+
+  edges:
+    - from: slug_input
+      to: load_tasks
+    - from: load_tasks
+      to: implement
+    - from: implement
+      to: execute_task
+    - from: execute_task
+      to: collect
+    - from: collect
+      to: review
+    - from: review
+      to: verify
+    - from: verify
+      to: approve
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: schedule

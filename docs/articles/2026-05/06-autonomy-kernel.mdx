@@ -1,0 +1,191 @@
+---
+title: "The autonomy kernel: leases, hash-only tokens, and safe spawn"
+description: "Long-running agents need supervision that does not leak credentials. The Compozy autonomy kernel provides three primitives — leases, hash-only claim tokens, and safe spawn — so agents can take initiative without dropping safety."
+date: 2026-05-20
+category: runtime
+tags:
+  - runtime
+  - autonomy
+  - security
+  - long-running-agents
+  - launch
+author: pedronauck
+archetype:
+  primary: ai-agent
+  absorbed: security
+  hybrid-note: "AI/agent post with security flavor on the token redaction discipline"
+audience: peer-engineer-deep
+depth:
+  opening: R1
+  body: R3-R4 spiral with R5 dive
+  closing: R2
+  traversal: spiral
+status: publishable
+---
+
+## An hour into a four-hour run
+
+An agent claims a refactor task at 09:00 UTC. The work spans roughly four hours: read the codebase, write a migration plan, hand parts to two specialist helpers, collect their receipts, run the test suite, file the PR. At 11:47 the daemon restarts. At 12:14 a second agent — same role, different session — picks up the task. The migration finishes on time.
+
+For that recovery to hold, three properties must be true the entire time. Ownership of the task must be bounded so another session can pick it up after a crash. The credential that proves ownership must never reach a log line, an SSE frame, the web UI, or another agent's inbox. Helper sessions the original agent spawned must not survive past their budget. Drop any one and the system either loses work, leaks tokens, or grows orphaned children.
+
+This is how the Compozy autonomy kernel keeps the three properties simultaneously. The kernel is three primitives — a lease, a hash-backed claim token, and a safe spawn contract — and a single redaction chokepoint that the rest of the daemon routes through. Leases and claim tokens are shipped. Safe spawn is alpha and intentionally narrow in the MVP.
+
+## Three primitives, one supervisor
+
+The autonomy kernel exists because long-running agent work needs supervision a single function call cannot model. A lock primitive is not enough — it has no TTL or heartbeat. An access token alone is not enough — it has no notion of bounded ownership over a unit of work. A subprocess fork is not enough — it has no permission narrowing and no lineage.
+
+Compozy names the three primitives explicitly:
+
+- A **lease** is a bounded ownership interval over one task run. It expires unless the holder renews it.
+- A **claim token** is the bearer credential that proves the lease. Compozy keeps it internally as a raw secret and externally as a SHA-256 hash; the two forms never cross.
+- A **safe spawn** is a daemon-issued child session. It carries a required TTL, a maximum depth and child count, and a permission set that must be a subset of the parent's.
+
+A fourth element holds them together: one redaction function every public surface routes through before emitting an event. The next four sections take each piece apart, then section seven shows them composing.
+
+## The lease: a bounded interval with a heartbeat
+
+A lease is not a lock. A lock holds until released; a process that crashes mid-lock either deadlocks the resource or requires a manual unlock. Compozy's lease holds until either the holder renews it or its deadline passes.
+
+The internal handle the daemon resolves on every mutation carries the deadline explicitly:
+
+```go
+type AutonomyLeaseHandle struct {
+    RunID          string
+    SessionID      string
+    Status         RunStatus
+    ClaimedBy      *ActorIdentity
+    ClaimToken     string
+    ClaimTokenHash string
+    LeaseUntil     time.Time
+    HeartbeatAt    time.Time
+    // ... TaskID, WorkspaceID elided
+}
+```
+
+The handle lives in `internal/task/autonomy.go:74-86`. `LeaseUntil` is the deadline; `HeartbeatAt` is the timestamp of the last renewal. The default renewal interval is five minutes; the maximum any single extension may take is twenty-four hours. Both come from `internal/task/lease.go:22-26` — `DefaultRunLeaseDuration` and `MaxRunLeaseDuration`.
+
+The session that owns the lease calls `compozy task heartbeat <run_id>` while the work is still in flight. A heartbeat against a missing or expired lease returns a deterministic reason code — `AUTONOMY_LEASE_EXPIRED` or `AUTONOMY_FOREIGN_RUN` — instead of silently succeeding. After a crash, daemon recovery sweeps expired leases and makes the run claimable again. The next session that calls `compozy task next` takes ownership cleanly; there is no overlap window where two sessions believe they hold the same run.
+
+Five terminal verbs are defined: `heartbeat`, `complete`, `fail`, `release`, plus the structural session release the reaper uses when a child is torn down. Each carries a `run_id` and the raw claim token; the daemon resolves both into the internal handle before mutating state. The structure makes the same code path the source of truth for every transition.
+
+## The claim token: dual representation
+
+The claim token is a bearer credential. Whoever holds it can extend, complete, fail, or release the run. That gives it the blast radius of a session secret — and the same disclosure problem. Logs are read by humans; SSE frames are read by browsers; channel messages are read by other agents. None of those surfaces should ever see the raw token.
+
+Compozy solves this with a dual representation that is structural, not optional. The handle in the previous section has two fields side by side: `ClaimToken` (the raw `compozy_claim_*` bearer) and `ClaimTokenHash` (a `sha256:` digest). Internal writers that mutate lease state take the raw form. Everything else takes the hash.
+
+The hash function is exact:
+
+```go
+func ClaimTokenHash(rawToken string) (string, error) {
+    token := strings.TrimSpace(rawToken)
+    if token == "" {
+        return "", fmt.Errorf("%w: claim_token is required", ErrValidation)
+    }
+    sum := sha256.Sum256([]byte(token))
+    return claimTokenHashPrefix + hex.EncodeToString(sum[:]), nil
+}
+```
+
+`internal/task/lease.go:174-181`. Verification uses `subtle.ConstantTimeCompare` against the persisted hash to defeat timing oracles. A raw token never returns from a public handler; only the hash does. A coordination channel message that names a claim attaches `claim_token_hash: sha256:af3c…` and nothing else.
+
+The format itself is a tell. The raw bearer begins with the literal prefix `compozy_claim_`. Compozy ships a regular expression — `rawClaimTokenPattern` in the same file — that matches the prefix and replaces it with `compozy_claim_[REDACTED]` before any free-form string crosses a boundary. The pattern is the safety net for a log line whose individual fields were not all routed through the typed redactor.
+
+## The redaction invariant: one chokepoint, every surface
+
+Three transports could in principle leak a token: the CLI streaming JSON to a terminal, the HTTP/SSE API sending events to the web UI, and the UDS API serving local tools. They all share one input — the canonical event the daemon persisted — and one output — a transcript message a caller reads.
+
+The function that sits between them is small enough to read in full:
+
+```go
+func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
+    redacted := event
+    redacted.Text = redactDisplayString(event.Text)
+    redacted.Title = redactDisplayString(event.Title)
+    redacted.ToolCallID = redactDisplayString(event.ToolCallID)
+    redacted.StopReason = redactDisplayString(event.StopReason)
+    // ... Action, Resource, Decision, Error fields elided
+    redacted.Runtime = redactRuntimeActivity(event.Runtime)
+    redacted.Raw = redactRawMessage(event.Raw)
+    return redacted
+}
+```
+
+`internal/transcript/redaction.go:14-29`. The structure is deliberate. Every displayable string runs through `redactDisplayString`. Every structured payload — synthetic prompt metadata, runtime activity, tool results, the raw JSON envelope — runs through its own typed redactor. The `Raw` JSON blob is parsed and walked; any key whose normalized form contains `claim_token`, `lease_token`, `api_key`, `access_token`, `mcp_auth_token`, `pkce_verifier`, `secret_binding`, or one of the other listed substrings is replaced with `[REDACTED]`.
+
+The invariant that makes this work is not the function itself; it is that the function is the _only_ path. Transcript assembly, SSE broadcast, the CLI replay command, and the web UI all consume the redacted event, never the persisted one. A transport added tomorrow does not get a chance to forget to redact, because the only event type it can receive is already redacted. The threat being modeled is not a malicious operator; it is the boring case of a future contributor who adds a new event field, forgets to update one of three transports, and ships a regression. The single chokepoint absorbs that mistake before it leaves the daemon.
+
+A live trace makes the discipline visible. A coordination channel message that references a claim shows `claim_token_hash: sha256:af3c…`. The corresponding event in `runtime.db` shows the same hash. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `compozy_claim_…` bearer.
+
+## Safe spawn: TTL, caps, and a permission subset
+
+A coordinator that holds a lease for four hours often needs help. It may want a reviewer agent to read a diff while it continues planning, or it may hand a focused subtask to a specialist that closes faster than the coordinator itself. That delegation is the third primitive: `compozy spawn`.
+
+The spawn contract is narrow on purpose. Four bounds apply to every child:
+
+| Bound                   | Default            | Where                                                                           |
+| ----------------------- | ------------------ | ------------------------------------------------------------------------------- |
+| TTL                     | required, positive | `SpawnOpts.TTL` validation, `internal/session/spawn.go:164`                     |
+| Max depth               | `1`                | `DefaultSpawnMaxDepth`, `internal/session/spawn.go:18`                          |
+| Max children per parent | `5`                | `DefaultSpawnMaxChildren`, `internal/session/spawn.go:16`                       |
+| Permission set          | subset of parent   | `ValidatePermissionSubset`, called before and after the `spawn.pre_create` hook |
+
+The MVP rejects three classes of request outright: a child with no TTL, a child whose role is `coordinator` (coordinators are daemon-managed roots, never spawned), and a child whose tools, skills, MCP servers, workspace paths, network channels, or sandbox profiles include any atom the parent does not hold. Unknown permission atoms count as widening and reject the spawn.
+
+The permission subset check runs twice: once after the request is normalized, once after the `spawn.pre_create` hook has had a chance to narrow or deny it. Hook patches can shrink permissions; they cannot widen them. The validator runs again on the post-hook value so a hook that tried to widen is caught the same way a malformed request would be.
+
+Cleanup is the reciprocal property. When a child's TTL expires or its parent stops, the reaper releases any active task-run leases the child still holds — with a structured reason such as `ttl_expired` or `parent_stopped` — before tearing down the session. A stale child cannot heartbeat or complete recovered work; its claim token no longer matches the persisted hash, and the lease writer fails with `AUTONOMY_LEASE_EXPIRED`.
+
+## Composing the three: a coordinator handoff
+
+A multi-step run uses all three primitives in sequence. The shape below is the implemented handoff for a workspace-scoped coordinated run.
+
+```mermaid
+sequenceDiagram
+participant Op as Operator
+participant D as Daemon
+participant C as Coordinator session
+participant W as Worker child
+participant T as Task service
+participant L as Event ledger
+
+Op->>D: compozy task start task-123
+D->>T: enqueue run; bind coord-channel
+D->>C: bootstrap coordinator (TTL 2h)
+C->>T: claim_next
+T-->>C: ClaimResult { raw token, hash, lease_until }
+C->>L: emit event with claim_token_hash only
+C->>D: spawn reviewer (TTL 30m, narrowed perms)
+D->>W: create child with lineage + caps
+W->>C: review verdict over coord-channel
+C->>T: complete run-123 (raw token, server-side)
+T->>L: terminal event with claim_token_hash
+W-->>D: TTL expires; reaper releases held leases; child stops
+```
+
+The shape worth attending to is what the operator and ledger see versus what the daemon resolves internally. The operator sees a coordinator and a worker, both bounded by TTL, and a ledger of events that names the run by `run_id` and the lease by `claim_token_hash`. The daemon resolves the raw token into the internal handle on every mutation, then drops the raw form before any event reaches a public surface.
+
+The coordinator's own permission set illustrates the same principle at a coarser grain. `internal/coordinator/coordinator.go:50-61` defines a tool allowlist that grants the coordinator orchestration verbs — `task_run_claim_next`, `task_run_heartbeat`, `network_send` — and intentionally omits operator lifecycle verbs and coordinator-to-coordinator spawn. A coordinator cannot spawn a coordinator; that rule is enforced both by the allowlist and by the `coordinator spawn role is not supported in MVP` check inside `normalizeSpawnOpts`.
+
+## Where the kernel is intentionally early
+
+The kernel is small on purpose. Several behaviors a mature runtime might assume are absent in the MVP, and the runtime docs label them explicitly.
+
+The lease contract is one-active-lease-per-session. A session that already owns a run cannot atomically claim a second one; the writer returns `AUTONOMY_LEASE_ALREADY_HELD`. The constraint is intentional — it prevents one session from accumulating ownership of unrelated work and shortens the recovery path. Relaxing it requires a new techspec.
+
+Safe spawn caps depth at one. A spawned reviewer cannot itself spawn a specialist. The depth-one rule keeps the lineage and reap path short in the alpha; future deeper trees require explicit budget accounting and reaper rules the MVP does not implement.
+
+Coordinator handoff is workspace-scoped. A global-scope run does not auto-spawn a coordinator. Cross-daemon coordination, leader election across multiple daemons, and autonomy dashboards in the web UI are not in the alpha; the autonomy index lists them as out of scope.
+
+These constraints are visible because the autonomy surface is agent-manageable. `compozy me context` returns the calling session, active leases, and active coordination channel as structured JSON. `compozy task next` returns the claim result with `claim_token_hash`. The deterministic reason codes — `AUTONOMY_SESSION_REQUIRED`, `AUTONOMY_NO_ACTIVE_LEASE`, `AUTONOMY_FOREIGN_RUN`, `AUTONOMY_LEASE_EXPIRED`, `AUTONOMY_LEASE_ALREADY_HELD` — let an agent distinguish "I have no claim" from "my claim expired" from "this is not my run" without parsing prose.
+
+## What any agent runtime needs
+
+Any runtime that hosts long-running agent work eventually has to answer the same three questions. The autonomy kernel's answers are concrete enough to copy.
+
+- **A bounded ownership interval, not a lock.** Pick a renewal cadence (Compozy uses five minutes), a hard ceiling (Compozy uses twenty-four hours), and a recovery path that sweeps stale holders without overwriting newer claims. The reason codes are part of the contract: a stale heartbeat must fail explicitly, never silently extend.
+- **A bearer credential with a dual representation.** Generate a raw token; persist a hash; verify with constant-time compare; ensure every public surface — logs, SSE, web UI, tool output, channel messages — receives only the hash. Add a regular-expression net for free-form strings so a missing field-level redaction does not become a leak.
+- **A child-session contract with a TTL, caps, and a permission subset.** Require the TTL. Cap the depth and child count. Enforce permission narrowing before and after hook dispatch. Make the reaper release leases before it stops the child, so recovered work cannot be touched by a stale token.
+
+The autonomy kernel is the load-bearing piece of Compozy that lets an agent claim a four-hour task, spawn a helper, and finish on time — without a leaked token, an orphaned child, or a lease that drifted past its budget. Read the runtime docs at `compozy.com/runtime/core/autonomy` for the control surface; read `internal/task/autonomy.go` and `internal/transcript/redaction.go` for the chokepoints. The primitives are small enough to audit, and that is the point.

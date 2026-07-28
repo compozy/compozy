@@ -1,10 +1,16 @@
 package skills
 
-import "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-// FS holds every file under the skills/ directory (SKILL.md and references/).
-// The go:embed directive intentionally uses explicit patterns to exclude
-// non-skill artifacts such as autoresearch result directories.
+// embeddedSkills stores the bundled skills compiled into the Compozy binary.
 //
-//go:embed */SKILL.md */references/*
-var FS embed.FS
+//go:embed compozy
+var embeddedSkills embed.FS
+
+// FS returns the bundled skills filesystem compiled into the Compozy binary.
+func FS() fs.FS {
+	return embeddedSkills
+}

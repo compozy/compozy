@@ -1,0 +1,61 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import { Logo } from "../logo";
+
+describe("Logo", () => {
+  it("renders the full logo variant by default", () => {
+    render(<Logo data-testid="logo" />);
+
+    const logo = screen.getByRole("img", { name: "Compozy" });
+    expect(logo).toHaveAttribute("data-slot", "logo");
+    expect(logo).toHaveAttribute("data-variant", "logo");
+    expect(logo).toHaveAttribute("viewBox", "0 0 1965 355");
+    expect(logo.querySelector("g")).not.toBeNull();
+    expect(logo.querySelector('g[transform="translate(430 10.5)"]')).not.toBeNull();
+  });
+
+  it("renders the symbol variant with the square symbol viewBox", () => {
+    const { container } = render(<Logo variant="symbol" label="Compozy symbol" />);
+
+    const logo = screen.getByRole("img", { name: "Compozy symbol" });
+    expect(logo).toHaveAttribute("data-variant", "symbol");
+    expect(logo).toHaveAttribute("viewBox", "0 0 355 355");
+    expect(container.querySelector('rect[fill="#E8572A"]')).not.toBeNull();
+  });
+
+  it("renders the lettering variant with the lettering viewBox", () => {
+    render(<Logo variant="lettering" label="Compozy lettering" />);
+
+    const logo = screen.getByRole("img", { name: "Compozy lettering" });
+    expect(logo).toHaveAttribute("data-variant", "lettering");
+    expect(logo).toHaveAttribute("viewBox", "0 0 1535 334");
+    expect(logo.querySelector('path[fill="currentColor"]')).not.toBeNull();
+    expect(logo.querySelector('path[fill="#E8572A"]')).not.toBeNull();
+    expect(logo.querySelector("rect")).toBeNull();
+    expect(logo.querySelector("text")).toBeNull();
+  });
+
+  it("uses an explicit aria-label when provided", () => {
+    render(<Logo aria-label="Compozy home" />);
+
+    expect(screen.getByRole("img", { name: "Compozy home" })).toBeInTheDocument();
+  });
+
+  it("can render as decorative artwork", () => {
+    render(<Logo decorative data-testid="logo" />);
+
+    const logo = screen.getByTestId("logo");
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(logo).toHaveAttribute("aria-hidden", "true");
+    expect(logo).not.toHaveAttribute("aria-label");
+  });
+
+  it("passes className and style through to the svg", () => {
+    render(<Logo className="size-7 opacity-80" style={{ opacity: 0.5 }} data-testid="logo" />);
+
+    const logo = screen.getByTestId("logo");
+    expect(logo.getAttribute("class")).toContain("size-7");
+    expect(logo).toHaveStyle({ opacity: "0.5" });
+  });
+});

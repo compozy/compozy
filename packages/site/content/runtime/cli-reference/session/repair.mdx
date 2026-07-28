@@ -1,0 +1,52 @@
+---
+title: "compozy session repair"
+description: "Inspect and repair an interrupted session transcript"
+---
+
+## compozy session repair
+
+Inspect and repair an interrupted session transcript
+
+```
+compozy session repair <id> [flags]
+```
+
+### Examples
+
+```
+  # Report the repair actions without writing new events
+  compozy session repair sess_1234 --dry-run
+
+  # Force repair for a stopped session whose stop reason is not crash or error
+  compozy session repair sess_1234 --force
+```
+
+### Options
+
+```
+      --dry-run   Report planned repairs without persisting events
+      --force     Allow repair for stopped non-crash sessions
+  -h, --help      help for repair
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy session repair <id> -o json
+```

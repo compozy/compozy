@@ -25,12 +25,12 @@ Expands a raw feature idea into a structured, research-backed specification thro
 
 **Trigger:** `/cy-create-prd [feature-name-or-idea] [idea-file]`
 
-Creates a business-focused Product Requirements Document through structured brainstorming with parallel codebase and web research.
+Creates a business-focused Product Requirements Document plus its companion user-story catalog through structured brainstorming with parallel codebase and web research.
 
 - **Inputs:** Feature name or idea. Optional existing `_idea.md` or `_prd.md` for update mode.
-- **Outputs:** `.compozy/tasks/<slug>/_prd.md`, ADRs in `adrs/`.
+- **Outputs:** `.compozy/tasks/<slug>/_prd.md`, `_user_stories.md` (story catalog with acceptance criteria and edge cases), ADRs in `adrs/`.
 - **Pipeline position:** After ideation (optional). Feeds into `cy-create-techspec`.
-- **Process:** Context discovery (codebase + web) -> clarifying questions -> decide direction + ADR -> write PRD directly.
+- **Process:** Context discovery (codebase + web) -> clarifying questions -> decide direction + ADR -> write `_user_stories.md` -> write PRD directly.
 - **Use when:** Starting a new feature or product, building or updating a PRD.
 - **Do not use for:** Technical specifications, task breakdowns, or code implementation.
 
@@ -40,12 +40,12 @@ Creates a business-focused Product Requirements Document through structured brai
 
 **Trigger:** `/cy-create-techspec [feature-name]`
 
-Translates PRD business requirements into a technical implementation design.
+Translates PRD business requirements into a technical implementation design plus its companion test contract.
 
-- **Inputs:** Existing `_prd.md` from the previous stage.
-- **Outputs:** `.compozy/tasks/<slug>/_techspec.md`, ADRs in `adrs/`.
+- **Inputs:** Existing `_prd.md` and `_user_stories.md` from the previous stage.
+- **Outputs:** `.compozy/tasks/<slug>/_techspec.md`, `_tests.md` (test contract with every unit, integration, and e2e case), ADRs in `adrs/`.
 - **Pipeline position:** After PRD. Feeds into `cy-create-tasks`.
-- **Process:** Codebase architecture exploration -> technical questions -> technical ADRs -> write TechSpec directly.
+- **Process:** Codebase architecture exploration -> technical questions -> technical ADRs -> write TechSpec -> write `_tests.md` directly.
 - **Use when:** A PRD exists and needs a technical implementation plan.
 - **Do not use for:** PRD creation, task execution, or code implementation.
 
@@ -55,13 +55,13 @@ Translates PRD business requirements into a technical implementation design.
 
 **Trigger:** `/cy-create-tasks [feature-name]`
 
-Decomposes PRDs and TechSpecs into detailed, independently implementable task files with codebase-informed enrichment.
+Decomposes PRDs and TechSpecs into robust, independently implementable task files with codebase-informed enrichment.
 
-- **Inputs:** Existing `_prd.md` and `_techspec.md`.
-- **Outputs:** Individual task files (`task_01.md`, `task_02.md`, etc.), `_tasks.md` master list.
+- **Inputs:** Existing `_prd.md` and `_techspec.md`; `_user_stories.md` and `_tests.md` when present.
+- **Outputs:** Individual task files (`task_01.md`, `task_02.md`, etc.), `_tasks.md` task graph manifest.
 - **Pipeline position:** After TechSpec. Feeds into `compozy tasks run`.
-- **Process:** Load PRD+TechSpec context -> break into granular tasks -> user approval -> generate task files -> enrich with codebase patterns -> validate with `compozy tasks validate`.
-- **Task metadata:** Each task has YAML frontmatter with `status` (pending/in_progress/completed), `title`, `type`, `complexity`, and `dependencies`.
+- **Process:** Load PRD+TechSpec+catalog context -> break into robust tasks (complete vertical slices) -> assign every `_tests.md` case to exactly one task -> user approval -> generate task files -> enrich with codebase patterns -> validate with `compozy tasks validate`.
+- **Task metadata:** Each task has YAML frontmatter with `status` (pending/in_progress/completed), `title`, `type`, and `complexity`. Dependency relationships live only in `_tasks.md` under `graph.edges`.
 - **Use when:** A PRD and TechSpec exist and need to be broken into executable tasks.
 - **Do not use for:** Execution, review, or code implementation.
 
@@ -71,12 +71,12 @@ Decomposes PRDs and TechSpecs into detailed, independently implementable task fi
 
 **Trigger:** Internal (called by `compozy tasks run`). Do not invoke directly.
 
-Executes one PRD task end-to-end using the provided task file, PRD directory, and tracking file paths.
+Executes one PRD task end-to-end uninterrupted using the provided task file, PRD directory, and tracking file paths. Resolves TechSpec/ADR/catalog conflicts autonomously — never pauses for clarification.
 
-- **Inputs:** Task specification, PRD directory path, task file path, master tasks file path, auto-commit mode. Optional workflow memory paths.
+- **Inputs:** Task specification, PRD directory path, task file path, `_tasks.md` task graph manifest path, auto-commit mode. Optional workflow memory paths.
 - **Outputs:** Implemented code changes, updated task tracking files, optional commit.
 - **Pipeline position:** Called by `compozy tasks run` for each task in sequence.
-- **Process:** Ground in PRD/TechSpec context -> build execution checklist -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
+- **Process:** Ground in PRD/TechSpec context -> resolve conflicts via precedence ladder -> build execution checklist -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
 - **Use when:** Invoked internally by the execution pipeline.
 - **Do not use for:** Direct invocation, PR review batches, or standalone verification.
 

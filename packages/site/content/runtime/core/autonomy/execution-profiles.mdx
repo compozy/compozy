@@ -1,0 +1,322 @@
+---
+title: Task Execution Profiles
+description: Typed task-owned overlays for coordinator guidance, worker selection, reviewer routing, Local or Live participation, sandbox mode, and runtime evidence.
+---
+
+A task execution profile is a typed, task-owned overlay that shapes how the runtime executes one
+task without giving the profile any new authority. Profiles steer coordinator guidance, narrow which
+workers and reviewers are eligible, bound participant routing, and pick the session sandbox.
+Profiles can also request Local or bounded Live participation for future runs and opt into runtime
+evidence mode for browser, simulator, and local-app validation.
+Ownership, lease authority, terminal state, and review verdicts stay in `task.Service` exactly as
+described in [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) and
+[Coordinator Handoff](/runtime/core/autonomy/coordinator).
+
+<OperatorNote>
+  Execution profiles are selection input first. Runtime evidence mode is the only field that can
+  affect the session permission mode, and Compozy widens it only when the same profile selects an
+  explicit sandbox reference.
+</OperatorNote>
+
+## What a profile contains
+
+Every task has at most one execution profile. The shape is fixed and persists through typed columns
+and selector side tables (no `metadata_json`):
+
+```json
+{
+  "task_id": "task-123",
+  "coordinator": {
+    "mode": "inherit",
+    "agent_name": "",
+    "provider": "",
+    "model": "",
+    "guidance": ""
+  },
+  "worker": {
+    "mode": "inherit",
+    "agent_name": "",
+    "provider": "",
+    "model": "",
+    "allowed_agent_names": [],
+    "preferred_agent_names": [],
+    "required_capabilities": [],
+    "preferred_capabilities": []
+  },
+  "review": {
+    "agent_name": "",
+    "provider": "",
+    "model": "",
+    "allowed_agent_names": [],
+    "preferred_agent_names": [],
+    "allowed_channel_ids": [],
+    "preferred_channel_ids": [],
+    "allowed_peer_ids": [],
+    "preferred_peer_ids": [],
+    "required_capabilities": [],
+    "preferred_capabilities": []
+  },
+  "participants": {
+    "allowed_channel_ids": [],
+    "preferred_channel_ids": [],
+    "allowed_peer_ids": [],
+    "preferred_peer_ids": [],
+    "allowed_agent_names": [],
+    "preferred_agent_names": [],
+    "required_capabilities": [],
+    "preferred_capabilities": []
+  },
+  "sandbox": {
+    "mode": "inherit",
+    "sandbox_ref": ""
+  },
+  "runtime": {
+    "mode": "default"
+  },
+  "network_participation": {
+    "mode": "live",
+    "channel_strategy": "run",
+    "bounds": {
+      "max_wakes": 6,
+      "max_wake_depth": 2
+    }
+  }
+}
+```
+
+| Block                   | Purpose                                                                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coordinator`           | `inherit` keeps the workspace coordinator behavior. `guided` keeps the same daemon-managed coordinator but injects task-specific `agent_name`/`provider`/`model`/`guidance`.  |
+| `worker`                | `inherit` keeps workspace defaults. `select` narrows worker eligibility through `allowed_agent_names`, `preferred_agent_names`, and capability selectors.                     |
+| `review`                | Reviewer hints (agent/provider/model) plus reviewer routing selectors (channels, peers, agents, capabilities) consumed by the review gate.                                    |
+| `participants`          | Upper-bound routing policy for coordination surfaces and review routing. Allowed lists narrow; preferred lists rank. Never a permission grant.                                |
+| `sandbox`               | `inherit` falls through to workspace defaults. `none` skips sandbox startup when the runtime allows it. `ref` resolves a named `[sandboxes.<name>]` profile at session start. |
+| `runtime`               | `default` keeps normal task-session behavior. `evidence` injects runtime evidence guidance and can widen approvals only with `sandbox.mode = "ref"`.                          |
+| `network_participation` | Optional Local/Live request for future runs. Live requires a channel strategy and resolves finite bounds under administrative ceilings.                                       |
+
+Persistence and validation live in `internal/task/profile.go` and `internal/store/globaldb`.
+Selectors use typed tables; the participation request uses typed profile projections plus its
+canonical request JSON. A run persists a separate immutable resolved snapshot at enqueue time.
+
+## Selector precedence and runtime selection
+
+Effective behavior at runtime is the result of layering, not negotiation. The order is:
+
+1. **Config defaults.** `[task.orchestration.profile]` and `[task.orchestration.review]` define the
+   default coordinator mode, default worker mode, default sandbox mode, provider-override gate,
+   sandbox-`none` gate, and review policy defaults. See the
+   [config-toml reference](/runtime/core/configuration/config-toml).
+2. **Persisted profile (write time).** When an operator or agent calls
+   `task.Service.SetExecutionProfile`, the service trims, deduplicates, and normalizes selectors,
+   defaults missing modes to `inherit`, and validates the result against the config gates. The
+   normalized profile is stored in `task_execution_profiles` plus the typed selector tables.
+3. **Participation resolution.** At enqueue, an explicit run request wins over the profile, then
+   workspace coordination, then built-in Local. The run stores the resolved mode, channel, source,
+   and finite bounds. Later profile edits do not mutate it.
+4. **Claim eligibility.** `ClaimNextRun` consults the worker side of the persisted profile to
+   filter eligible sessions: exact `worker.agent_name`, `worker.allowed_agent_names`, and required
+   capabilities are enforced as store-level claim filters before a session is allowed to claim the
+   run.
+5. **Session start (load only).** When task service starts a worker session it loads the persisted
+   normalized profile (or the default `inherit` profile when none is stored) and passes it into
+   `StartTaskSession`. The daemon session bridge then maps `worker.agent_name`, `worker.provider`,
+   `worker.model`, the sandbox policy, and the runtime policy into `session.CreateOpts`. Session
+   start does not re-run profile validation; provider and model still flow through
+   `config.ResolveSessionAgentWithRuntime`, so profile values never bypass provider authorization,
+   credential slots, or session validation.
+6. **Coordinator routing.** The daemon `ReviewRouter` and coordinator runtime read review and
+   participant policies to pick reviewer sessions. The original worker is excluded; persisted
+   `task.Service` is the only authority that records routing diagnostics or no-route verdicts.
+7. **Continuation runs.** When a review rejects a run, the continuation run uses the task's current
+   profile at enqueue time. Reviewed-run worker/participant fields are copied only when the new
+   profile leaves the equivalent selector empty.
+
+`task.Service` rejects profile mutation while `tasks.current_run_id` is set. Profile edits are
+control-plane changes; they must not rewrite an active execution.
+
+### Sandbox mode behavior
+
+| Mode      | Effect at session start                                                                                                                                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inherit` | The session keeps the workspace/global sandbox path. No task-level override is applied.                                                                                                                                                      |
+| `none`    | The session starts with no sandbox. The gate is enforced at profile write time when `task.orchestration.profile.allow_task_sandbox_none = false`. Tool policy, approval policy, provider authorization, and session authorization still run. |
+| `ref`     | `sandbox.sandbox_ref` resolves through workspace `[sandboxes.<name>]` validation. Unknown or invalid refs fail with a typed validation error before session start.                                                                           |
+
+Sandbox selection never bypasses tool allowlists, approval policy, or provider authorization. It
+only chooses which sandbox profile (if any) the session boots with.
+
+### Runtime mode behavior
+
+| Mode       | Effect at session start                                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                             |
+| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. Compozy sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
+
+Evidence mode does not create task authority. The agent still has to claim the run through
+`compozy task next --wait -o json`, keep the lease alive, and complete or fail the run through the task
+lease APIs. It only changes the session runtime envelope used to gather evidence.
+
+### Worker runtime selection
+
+The worker block resolves at session start as follows:
+
+- `agent_name` (when set and allowed) becomes the session agent.
+- `provider` and `model` overlay the agent definition. The
+  `task.orchestration.profile.allow_task_provider_override` gate is enforced at profile write time;
+  if the gate is `false`, `task.Service` rejects any profile that sets a non-empty provider or model
+  on the coordinator, worker, or review block. Persisted overrides flow through
+  `config.ResolveSessionAgentWithRuntime` at session start so provider authorization, credential
+  slots, and session validation apply unchanged.
+- `allowed_agent_names` and capability selectors filter `ClaimNextRun` candidates so an
+  agent/session that does not match cannot claim the run.
+
+If the resulting selector matches no eligible session, the run stays queued. The runtime exposes the
+state through dashboard, scheduler health, and active-run diagnostics rather than auto-relaxing the
+profile.
+
+## Manage a profile from the CLI
+
+The `compozy task profile` command group operates against a single task id and shares its UDS surface
+with the matching HTTP endpoints. Every subcommand supports `-o json|jsonl|toon` for agent
+consumption.
+
+```bash
+compozy task profile inspect task-123 -o json
+compozy task profile update  task-123 --profile "$(cat profile.json)" -o json
+compozy task profile delete  task-123 -o json
+```
+
+Generated reference for each verb:
+
+- [compozy task profile](/runtime/cli-reference/task/profile)
+- [compozy task profile inspect](/runtime/cli-reference/task/profile/inspect)
+- [compozy task profile update](/runtime/cli-reference/task/profile/update)
+- [compozy task profile delete](/runtime/cli-reference/task/profile/delete)
+
+Update is a full replace, not a patch. The request body must carry the entire profile; any section
+that is omitted, sent as `{}`, or sent with an empty selector list normalizes to its default
+(missing modes become `inherit`, missing selector arrays become empty). To preserve a previously
+persisted selector, re-send it in the new body. Service-level normalization trims fields,
+deduplicates selectors, sorts them deterministically, and rejects values outside the
+`[task.orchestration]` gates with a typed validation error.
+
+## Manage a profile through HTTP and UDS
+
+Both transports mount the same shared core handlers, so HTTP and UDS responses are identical and
+refer to the same authority.
+
+| Method   | Path                                | Purpose                                                                                                                                                               |
+| -------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/tasks/{id}/execution-profile` | Read the persisted profile or the default `inherit` profile if none is stored.                                                                                        |
+| `PUT`    | `/api/tasks/{id}/execution-profile` | Replace the profile. Body must satisfy `task_execution_profile.task_id == {id}` (or omit the field). Omitted blocks normalize to defaults; PUT does not patch fields. |
+| `DELETE` | `/api/tasks/{id}/execution-profile` | Remove the profile. The task falls back to the default `inherit` profile.                                                                                             |
+
+Operation IDs in `openapi/compozy.json`: `getTaskExecutionProfile`, `setTaskExecutionProfile`, and
+`deleteTaskExecutionProfile`. The OpenAPI document is the source of truth for request/response
+shapes; do not paraphrase fields. Generated TypeScript types live under
+`web/src/generated/compozy-openapi.d.ts`.
+
+`PUT` and `DELETE` return `409 Conflict` when the task has an active run
+(`tasks.current_run_id` is set). Resolve or release the active run before retrying.
+
+## Native tools for in-session agents
+
+Worker, coordinator, and reviewer sessions can manage profiles through the task toolset. The
+model-facing names live in the `tasks` toolset; Compozy registers them internally with the `compozy__`
+prefix so toolset routing can hide them when policy denies the call.
+
+| Model-facing name               | Internal id                              | Authority                                                                  |
+| ------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
+| `task_execution_profile_get`    | `compozy__task_execution_profile_get`    | Reads the profile through `task.Service`. Read-risk, hidden when off.      |
+| `task_execution_profile_set`    | `compozy__task_execution_profile_set`    | Updates the profile through `task.Service`. Mutating, active-run guard.    |
+| `task_execution_profile_delete` | `compozy__task_execution_profile_delete` | Deletes the profile through `task.Service`. Destructive, active-run guard. |
+
+Native tools delegate every read and mutation to the task service. They do not bypass active-run
+mutation rejection, normalization, audit events, default-profile behavior, or claim-token fencing.
+Reviewer-bound submission of a verdict still uses the dedicated reviewer tool described in the
+review-gate documentation; the profile tools never assert reviewer authority.
+
+## Inspect and edit from the operator web UI
+
+Open a task on the web UI and choose **Edit setup** in the properties rail. The **Task setup** sheet
+shows the effective profile, or the inherited workspace defaults when no task profile is persisted.
+Its form covers worker policy and runtime, coordinator guidance, review routing, sandbox selection,
+participants, and required capabilities. **View JSON** is a read-only operator aid; profile writes
+remain form-first and call the same `PUT /api/tasks/{id}/execution-profile` endpoint as the CLI and
+the native `task_execution_profile_set` tool.
+
+Editing and clearing are unavailable while the task has an active run. Clearing a persisted profile
+requires confirmation. The UI mirrors the runtime's mutation guard rather than inventing a parallel
+rule.
+
+Task detail keeps operational data outside Setup: reviews appear with their attempts under **Runs**,
+while bridge subscriptions and SSE resume state live behind **Inspect**.
+
+Server rejections (validation errors, active-run guard, missing task) surface as toasts. The web UI
+does not infer authority locally; it reflects what `task.Service` returns.
+
+## Config lifecycle
+
+Defaults and gates live under `[task.orchestration]`. The complete reference is in
+[config.toml](/runtime/core/configuration/config-toml); the relevant subset for profiles is:
+
+```toml
+[task.orchestration.profile]
+default_coordinator_mode    = "inherit"   # inherit | guided
+default_worker_mode         = "inherit"   # inherit only
+default_sandbox_mode        = "inherit"   # inherit | none
+allow_task_provider_override = true       # gates worker.provider/model and review.provider/model
+allow_task_sandbox_none      = true       # required when default_sandbox_mode = "none" or task.sandbox.mode = "none"
+```
+
+Behavior to keep in mind:
+
+- Unknown TOML keys are errors. The config loader rejects typos at startup; profiles inherit the
+  same strictness.
+- `<workspace>/.compozy/config.toml` overlays the global file. Workspace overlays can flip
+  `allow_task_provider_override` or `allow_task_sandbox_none` for one workspace.
+- `task.orchestration.profile.*` paths are agent-mutable through the existing config tool surface
+  (`compozy config set` and the `compozy__config_*` native tools). Secret-shaped paths and trust-rooted
+  sections remain off-limits; see the config tool surface invariants in
+  [config.toml](/runtime/core/configuration/config-toml).
+- Sandbox `none` is rejected at validation time when `allow_task_sandbox_none = false`, even if a
+  task explicitly sets `sandbox.mode = "none"`.
+- Provider/model overrides set on the profile are rejected at validation time when
+  `allow_task_provider_override = false`. The same gate applies to `coordinator`, `worker`, and
+  `review` blocks.
+- Runtime mode is not a config default. A task profile uses `runtime.mode = "default"` unless the
+  profile explicitly stores `runtime.mode = "evidence"`.
+
+The review-policy defaults under `[task.orchestration.review]` are documented with the review gate;
+they shape `task.review_policy` and the reviewer routing applied through `ReviewProfile`.
+
+## Authority boundary
+
+Profiles are configuration and selection input. They never become authority on their own:
+
+- `task_runs` remains the only durable execution queue and ownership source.
+- `ClaimNextRun` is the only authoritative claim primitive. Profile selectors narrow it; they cannot
+  grant a claim that lease/scope rules would deny.
+- `task.Service` owns task/run transitions, profile validation, terminal state, review verdicts, and
+  continuation-run creation.
+- `ParticipantPolicy` constrains routing only. Channel membership, peer authorization, and tool
+  policy are still enforced by the network, bridge, tool, and review subsystems.
+- `network_participation` is selection input only. Availability, finite limits, admission, and the
+  immutable run snapshot remain runtime authority; the profile cannot make an existing run Live.
+- `SandboxPolicy` selects a sandbox; it never bypasses approval policy, tool allowlists, provider
+  authorization, or session authorization.
+- `CoordinatorProfile.mode = "guided"` keeps the daemon-managed workspace coordinator and respects
+  `max_active_sessions_per_workspace`. There is no dedicated per-task coordinator in this MVP.
+
+## Related pages
+
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains the claim/lease
+  contract that profile selectors narrow.
+- [Coordinator Handoff](/runtime/core/autonomy/coordinator) explains coordinator bootstrap and how
+  `guided` mode injects task-specific guidance.
+- [Coordination Channels](/runtime/core/autonomy/coordination-channels) explains why channels carry
+  conversation but never own task state.
+- [config.toml](/runtime/core/configuration/config-toml) lists every `[task.orchestration]` field,
+  default, and validation rule.
+- [compozy task profile](/runtime/cli-reference/task/profile) is the generated CLI reference for the
+  profile commands.

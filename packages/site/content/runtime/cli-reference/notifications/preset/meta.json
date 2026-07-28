@@ -1,0 +1,4 @@
+{
+    "title": "Preset",
+    "pages": ["index", "create", "delete", "disable", "enable", "show", "update"]
+}

@@ -1,1768 +1,250 @@
 package core
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
+	"io"
+
 	"net/http"
-	"strconv"
+
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/coder/websocket"
-	"github.com/gin-gonic/gin"
-
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/store/globaldb"
-	"github.com/compozy/compozy/pkg/compozy/events"
+
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+
+	"github.com/gin-gonic/gin"
 )
 
-const maxPageLimit = 500
+const (
+	handlersErrorKey     = "error"
+	handlersOperationKey = "operation"
+)
 
-const workspaceSocketWriteTimeout = 5 * time.Second
+const defaultPollInterval = 100 * time.Millisecond
 
-var workspaceSocketOriginPatterns = []string{
-	"localhost",
-	"127.0.0.1",
-	"::1",
-}
+const (
+	defaultSessionAttachTTL        = 15 * time.Minute
+	maxSessionAttachTTL            = 24 * time.Hour
+	defaultSessionRecapLimit       = 20
+	maxSessionRecapLimit           = 100
+	pendingTranscriptMarkerLimit   = maxSessionRecapLimit * 5
+	recapConsistencyPersistedReads = "persisted_reads"
+)
 
-// Handlers contains the shared daemon API handler logic used by both transports.
-type Handlers struct {
-	TransportName     string
-	Logger            *slog.Logger
-	Now               func() time.Time
-	HeartbeatInterval time.Duration
-
-	Daemon          DaemonService
-	Workspaces      WorkspaceService
-	WorkspaceEvents WorkspaceEventService
-	Tasks           TaskService
-	Reviews         ReviewService
-	Runs            RunService
-	Sync            SyncService
-	Exec            ExecService
-
-	settingsMu                    sync.RWMutex
-	streamDone                    <-chan struct{}
-	workspaceSocketOriginPatterns []string
-	httpPort                      *atomic.Int64
-}
-
-// NewHandlers builds the shared handler set with transport-specific defaults applied.
-func NewHandlers(cfg *HandlerConfig) *Handlers {
-	if cfg == nil {
-		cfg = &HandlerConfig{}
-	}
-
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-
-	now := cfg.Now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-
-	interval := cfg.HeartbeatInterval
-	if interval <= 0 {
-		interval = defaultHeartbeatInterval
-	}
-
-	done := cfg.StreamDone
-	if done == nil {
-		done = make(chan struct{})
-	}
-	originPatterns := normalizeWorkspaceSocketOriginPatterns(cfg.WorkspaceSocketOriginPatterns)
-
-	return &Handlers{
-		TransportName:                 strings.TrimSpace(cfg.TransportName),
-		Logger:                        logger,
-		Now:                           now,
-		HeartbeatInterval:             interval,
-		Daemon:                        cfg.Daemon,
-		Workspaces:                    cfg.Workspaces,
-		WorkspaceEvents:               cfg.WorkspaceEvents,
-		Tasks:                         cfg.Tasks,
-		Reviews:                       cfg.Reviews,
-		Runs:                          cfg.Runs,
-		Sync:                          cfg.Sync,
-		Exec:                          cfg.Exec,
-		streamDone:                    done,
-		workspaceSocketOriginPatterns: originPatterns,
-		httpPort:                      &atomic.Int64{},
-	}
-}
-
-// Clone copies the handler set so each transport can own its runtime state independently.
-func (h *Handlers) Clone() *Handlers {
-	if h == nil {
-		return nil
-	}
-
-	clone := NewHandlers(&HandlerConfig{
-		TransportName:                 h.TransportName,
-		Logger:                        h.Logger,
-		Now:                           h.Now,
-		HeartbeatInterval:             h.HeartbeatInterval,
-		StreamDone:                    h.streamDoneChannel(),
-		WorkspaceSocketOriginPatterns: h.workspaceSocketOrigins(),
-		Daemon:                        h.Daemon,
-		Workspaces:                    h.Workspaces,
-		WorkspaceEvents:               h.WorkspaceEvents,
-		Tasks:                         h.Tasks,
-		Reviews:                       h.Reviews,
-		Runs:                          h.Runs,
-		Sync:                          h.Sync,
-		Exec:                          h.Exec,
-	})
-	clone.httpPort = h.httpPort
-	return clone
-}
-
-func normalizeWorkspaceSocketOriginPatterns(patterns []string) []string {
-	if len(patterns) == 0 {
-		return append([]string(nil), workspaceSocketOriginPatterns...)
-	}
-	normalized := make([]string, 0, len(patterns))
-	for _, pattern := range patterns {
-		if trimmed := strings.TrimSpace(pattern); trimmed != "" {
-			normalized = append(normalized, trimmed)
-		}
-	}
-	if len(normalized) == 0 {
-		return append([]string(nil), workspaceSocketOriginPatterns...)
-	}
-	return normalized
-}
-
-// SetStreamDone updates the transport shutdown bridge used by streaming handlers.
-func (h *Handlers) SetStreamDone(done <-chan struct{}) {
-	if h == nil {
-		return
-	}
-	if done == nil {
-		done = make(chan struct{})
-	}
-	h.settingsMu.Lock()
-	h.streamDone = done
-	h.settingsMu.Unlock()
-}
+var errCreateAgentRequestInvalid = errors.New("api: invalid create agent request")
 
 // SetHTTPPort overrides the reported HTTP port for daemon status responses.
-func (h *Handlers) SetHTTPPort(port int) {
+func (h *BaseHandlers) SetHTTPPort(port int) {
 	if h == nil || port <= 0 {
 		return
-	}
-	if h.httpPort == nil {
-		h.httpPort = &atomic.Int64{}
 	}
 	h.httpPort.Store(int64(port))
 }
 
-func (h *Handlers) transportName() string {
-	if h == nil || strings.TrimSpace(h.TransportName) == "" {
-		return "api"
-	}
-	return h.TransportName
-}
-
-func (h *Handlers) now() time.Time {
-	if h == nil || h.Now == nil {
-		return time.Now().UTC()
-	}
-	return h.Now().UTC()
-}
-
-func (h *Handlers) streamDoneChannel() <-chan struct{} {
-	if h == nil {
-		return nil
-	}
-	h.settingsMu.RLock()
-	defer h.settingsMu.RUnlock()
-	return h.streamDone
-}
-
-func (h *Handlers) workspaceSocketOrigins() []string {
-	if h == nil {
-		return append([]string(nil), workspaceSocketOriginPatterns...)
-	}
-	h.settingsMu.RLock()
-	defer h.settingsMu.RUnlock()
-	return append([]string(nil), h.workspaceSocketOriginPatterns...)
-}
-
-func (h *Handlers) respondError(c *gin.Context, err error) {
-	RespondError(c, err)
-}
-
-func (h *Handlers) bindJSON(c *gin.Context, action string, dst any) bool {
-	if err := c.ShouldBindJSON(dst); err != nil {
-		h.respondError(c, invalidJSONProblem(h.transportName(), action, err))
-		return false
-	}
-	return true
-}
-
-func (h *Handlers) requireWorkspaceRef(c *gin.Context, value string) (string, bool) {
-	workspace := strings.TrimSpace(value)
-	if workspace == "" {
-		h.respondError(c, validationProblem("workspace_required", "workspace is required", nil))
-		return "", false
-	}
-	return workspace, true
-}
-
-func (h *Handlers) optionalWorkspaceContext(c *gin.Context, value string) string {
-	workspace := strings.TrimSpace(value)
-	if c == nil || c.Request == nil {
-		return workspace
-	}
-	if active := ActiveWorkspaceIDFromContext(c.Request.Context()); active != "" {
-		return active
-	}
-	return workspace
-}
-
-func (h *Handlers) requireWorkspaceContext(c *gin.Context, value string) (string, bool) {
-	workspace := h.optionalWorkspaceContext(c, value)
-	if workspace == "" {
-		h.respondError(c, workspaceContextProblem(
-			"workspace_context_missing",
-			"active workspace context is required",
-			nil,
-			nil,
-		))
-		return "", false
-	}
-	return workspace, true
-}
-
-func (h *Handlers) respondWorkspaceContextError(c *gin.Context, workspaceRef string, err error) {
-	if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
-		h.respondError(c, workspaceContextProblem(
-			"workspace_context_stale",
-			"active workspace context is stale",
-			map[string]any{"workspace": strings.TrimSpace(workspaceRef)},
-			err,
-		))
+// CreateSession creates a new runtime session.
+func (h *BaseHandlers) CreateSession(c *gin.Context) {
+	var req contract.CreateSessionRequest
+	if err := decodeStrictJSONBody(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode create session request: %w", h.transportName(), err),
+		)
 		return
 	}
-	h.respondError(c, err)
+	if err := h.validateCreateSessionRequest(req); err != nil {
+		h.respondError(c, statusForCreateSessionValidationError(err), err)
+		return
+	}
+
+	opts := session.CreateOpts{
+		AgentName:            req.AgentName,
+		Provider:             strings.TrimSpace(req.Provider),
+		Model:                strings.TrimSpace(req.Model),
+		ReasoningEffort:      strings.TrimSpace(string(req.ReasoningEffort)),
+		Speed:                req.Speed,
+		Name:                 req.Name,
+		Workspace:            strings.TrimSpace(req.Workspace),
+		WorkspacePath:        strings.TrimSpace(req.WorkspacePath),
+		NetworkParticipation: req.NetworkParticipation,
+		Type:                 session.SessionTypeUser,
+	}
+	if h.SessionAcceptance == nil {
+		h.respondError(
+			c,
+			http.StatusServiceUnavailable,
+			errors.New("api: asynchronous session acceptance is unavailable"),
+		)
+		return
+	}
+	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{
+		Session:       opts,
+		InitialPrompt: strings.TrimSpace(req.Prompt),
+	})
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
 }
 
-func requireNonEmptyString(field string, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return validationProblem(
-			field+"_required",
-			fmt.Sprintf("%s is required", strings.ReplaceAll(field, "_", " ")),
-			map[string]any{"field": field},
-		)
+// GetSession returns one session snapshot.
+func (h *BaseHandlers) GetSession(c *gin.Context) {
+	_, _, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	includeHealth, err := parseBoolQuery(c, "include_health")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, includeHealth)
+	if err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
+}
+
+// DeleteSession removes one session from the runtime catalog and persisted history.
+func (h *BaseHandlers) DeleteSession(c *gin.Context) {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// StopSession stops a running session without deleting persisted history.
+func (h *BaseHandlers) StopSession(c *gin.Context) {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// ResumeSession attaches a caller to an eligible live session.
+func (h *BaseHandlers) ResumeSession(c *gin.Context) {
+	h.AttachSession(c)
+}
+
+// AttachSession acquires a short-lived attach lease without starting a new runtime authority.
+func (h *BaseHandlers) AttachSession(c *gin.Context) {
+	attacher, ok := h.Sessions.(SessionAttachManager)
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session attach manager is required"))
+		return
+	}
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	var req contract.AttachSessionRequest
+	if err := decodeOptionalJSONBody(c, &req); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	ttl := defaultSessionAttachTTL
+	if req.TTLSeconds > 0 {
+		ttl = time.Duration(req.TTLSeconds) * time.Second
+	}
+	if ttl > maxSessionAttachTTL {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("attach ttl must be <= %s", maxSessionAttachTTL))
+		return
+	}
+	attachedTo := strings.TrimSpace(req.AttachedTo)
+	if attachedTo == "" {
+		attachedTo = fmt.Sprintf("%s:%d", h.transportName(), h.PID())
+	}
+	attach, err := attacher.AttachSession(c.Request.Context(), store.SessionAttachRequest{
+		SessionID:  sessionID,
+		AttachedTo: attachedTo,
+		Now:        h.Now(),
+		TTL:        ttl,
+	})
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+
+	info, err := h.Sessions.Status(c.Request.Context(), sessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	payload := sessionPayloadFromInfoAt(info, attach.AttachedAt)
+	c.JSON(http.StatusOK, contract.SessionAttachResponse{
+		Session: payload,
+		Attach: contract.SessionAttachPayload{
+			SessionID:       attach.SessionID,
+			AttachedTo:      attach.AttachedTo,
+			AttachExpiresAt: attach.AttachExpiresAt,
+			AttachedAt:      attach.AttachedAt,
+		},
+	})
+}
+
+func decodeOptionalJSONBody(c *gin.Context, dest any) error {
+	if c.Request.Body == nil {
+		return nil
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return fmt.Errorf("read request body: %w", err)
+	}
+	if strings.TrimSpace(string(body)) == "" {
+		return nil
+	}
+	if err := json.Unmarshal(body, dest); err != nil {
+		return fmt.Errorf("decode request body: %w", err)
 	}
 	return nil
 }
 
-func normalizeRequiredSlugs(values []string) ([]string, error) {
-	if len(values) == 0 {
-		return nil, validationProblem(
-			"slugs_required",
-			"slugs is required",
-			map[string]any{"field": "slugs"},
-		)
-	}
-	seen := make(map[string]struct{}, len(values))
-	slugs := make([]string, 0, len(values))
-	for idx, raw := range values {
-		slug := strings.TrimSpace(raw)
-		if slug == "" {
-			return nil, validationProblem(
-				"slug_required",
-				"slugs must not contain empty entries",
-				map[string]any{"field": "slugs", "index": idx},
-			)
-		}
-		if _, ok := seen[slug]; ok {
-			return nil, validationProblem(
-				"slug_duplicate",
-				fmt.Sprintf("duplicate slug %q", slug),
-				map[string]any{"field": "slugs", "slug": slug},
-			)
-		}
-		seen[slug] = struct{}{}
-		slugs = append(slugs, slug)
-	}
-	return slugs, nil
-}
-
-func parsePositiveInt(value string, field string) (int, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return 0, nil
-	}
-	parsed, err := strconv.Atoi(trimmed)
-	if err != nil || parsed <= 0 {
-		return 0, validationProblem(
-			field+"_invalid",
-			fmt.Sprintf("%s must be a positive integer", strings.ReplaceAll(field, "_", " ")),
-			map[string]any{"field": field},
-		)
-	}
-	return parsed, nil
-}
-
-func parseOptionalBool(value string, field string) (bool, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return false, nil
-	}
-	parsed, err := strconv.ParseBool(trimmed)
-	if err != nil {
-		return false, validationProblem(
-			field+"_invalid",
-			fmt.Sprintf("%s must be a boolean", strings.ReplaceAll(field, "_", " ")),
-			map[string]any{"field": field},
-		)
-	}
-	return parsed, nil
-}
-
-func parseCursorHeader(raw string) (StreamCursor, error) {
-	cursor, err := ParseCursor(raw)
-	if err != nil {
-		return StreamCursor{}, validationProblem(
-			"invalid_cursor",
-			err.Error(),
-			map[string]any{"header": "Last-Event-ID"},
-		)
-	}
-	return cursor, nil
-}
-
-func parseCursorQuery(raw string) (StreamCursor, error) {
-	cursor, err := ParseCursor(raw)
-	if err != nil {
-		return StreamCursor{}, validationProblem(
-			"invalid_cursor",
-			err.Error(),
-			map[string]any{"field": "after"},
-		)
-	}
-	return cursor, nil
-}
-
-func parseStreamCursorQuery(raw string) (StreamCursor, error) {
-	cursor, err := ParseCursor(raw)
-	if err != nil {
-		return StreamCursor{}, validationProblem(
-			"invalid_cursor",
-			err.Error(),
-			map[string]any{"field": "cursor"},
-		)
-	}
-	return cursor, nil
-}
-
-type workspaceRegisterBody = contract.WorkspaceRegisterRequest
-type workspaceUpdateBody = contract.WorkspaceUpdateRequest
-type workspaceResolveBody = contract.WorkspaceResolveRequest
-type workflowRefBody = contract.WorkflowRefRequest
-type workflowArchiveBody = contract.WorkflowArchiveRequest
-type taskRunBody = contract.TaskRunRequest
-type taskRunMultipleBody = contract.TaskRunMultipleRequest
-type reviewFetchBody = contract.ReviewFetchRequest
-type reviewRunBody = contract.ReviewRunRequest
-type reviewWatchBody = contract.ReviewWatchRequest
-type syncBody = contract.SyncRequest
-type execBody = contract.ExecRequest
-
-// DaemonStatus returns the primary daemon status view.
-func (h *Handlers) DaemonStatus(c *gin.Context) {
-	if h.Daemon == nil {
-		h.respondError(c, serviceUnavailableProblem("daemon service"))
-		return
-	}
-
-	status, err := h.Daemon.Status(c.Request.Context())
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	if h.httpPort != nil {
-		if httpPort := int(h.httpPort.Load()); httpPort > 0 {
-			status.HTTPPort = httpPort
-		}
-	}
-
-	c.JSON(http.StatusOK, contract.DaemonStatusResponse{Daemon: status})
-}
-
-// DaemonHealth returns daemon readiness and degraded-state details.
-func (h *Handlers) DaemonHealth(c *gin.Context) {
-	if h.Daemon == nil {
-		h.respondError(c, serviceUnavailableProblem("daemon service"))
-		return
-	}
-
-	health, err := h.Daemon.Health(c.Request.Context())
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	status := http.StatusOK
-	if !health.Ready {
-		status = http.StatusServiceUnavailable
-	}
-	c.JSON(status, contract.DaemonHealthResponse{Health: health})
-}
-
-// DaemonMetrics returns the daemon metrics in Prometheus text format.
-func (h *Handlers) DaemonMetrics(c *gin.Context) {
-	if h.Daemon == nil {
-		h.respondError(c, serviceUnavailableProblem("daemon service"))
-		return
-	}
-
-	metrics, err := h.Daemon.Metrics(c.Request.Context())
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	contentType := strings.TrimSpace(metrics.ContentType)
-	if contentType == "" {
-		contentType = "text/plain; version=0.0.4; charset=utf-8"
-	}
-	c.Data(http.StatusOK, contentType, []byte(metrics.Body))
-}
-
-// StopDaemon requests a graceful daemon shutdown.
-func (h *Handlers) StopDaemon(c *gin.Context) {
-	if h.Daemon == nil {
-		h.respondError(c, serviceUnavailableProblem("daemon service"))
-		return
-	}
-
-	force, err := parseOptionalBool(c.Query("force"), "force")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	if err := h.Daemon.Stop(c.Request.Context(), force); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusAccepted, contract.MutationAcceptedResponse{Accepted: true})
-}
-
-// RegisterWorkspace registers a workspace explicitly.
-func (h *Handlers) RegisterWorkspace(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	var body workspaceRegisterBody
-	if !h.bindJSON(c, "decode register workspace request", &body) {
-		return
-	}
-	if err := requireNonEmptyString("path", body.Path); err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	result, err := h.Workspaces.Register(c.Request.Context(), body.Path, body.Name)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	status := http.StatusOK
-	if result.Created {
-		status = http.StatusCreated
-	}
-	c.JSON(status, contract.WorkspaceResponse{Workspace: result.Workspace})
-}
-
-// ListWorkspaces lists registered workspaces.
-func (h *Handlers) ListWorkspaces(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	workspaces, err := h.Workspaces.List(c.Request.Context())
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.WorkspaceListResponse{Workspaces: workspaces})
-}
-
-// SyncWorkspaces refreshes registered workspace filesystem state and artifact mirrors.
-func (h *Handlers) SyncWorkspaces(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	result, err := h.Workspaces.Sync(c.Request.Context())
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-// GetWorkspace returns one workspace by ID or normalized path key.
-func (h *Handlers) GetWorkspace(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	workspace, err := h.Workspaces.Get(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
-}
-
-// UpdateWorkspace updates mutable workspace metadata.
-func (h *Handlers) UpdateWorkspace(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	var body workspaceUpdateBody
-	if !h.bindJSON(c, "decode update workspace request", &body) {
-		return
-	}
-	if err := requireNonEmptyString("name", body.Name); err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	workspace, err := h.Workspaces.Update(
-		c.Request.Context(),
-		c.Param("id"),
-		WorkspaceUpdateInput(body),
-	)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
-}
-
-// DeleteWorkspace unregisters one workspace.
-func (h *Handlers) DeleteWorkspace(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	if err := h.Workspaces.Delete(c.Request.Context(), c.Param("id")); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
-
-// ResolveWorkspace resolves or lazily registers a workspace path.
-func (h *Handlers) ResolveWorkspace(c *gin.Context) {
-	if h.Workspaces == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace service"))
-		return
-	}
-
-	var body workspaceResolveBody
-	if !h.bindJSON(c, "decode resolve workspace request", &body) {
-		return
-	}
-	if err := requireNonEmptyString("path", body.Path); err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	workspace, err := h.Workspaces.Resolve(c.Request.Context(), body.Path)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
-}
-
-// GetDashboard returns the active-workspace dashboard aggregate.
-func (h *Handlers) GetDashboard(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+// RepairSession inspects and optionally repairs an interrupted persisted session transcript.
+func (h *BaseHandlers) RepairSession(c *gin.Context) {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-
-	dashboard, err := h.Tasks.Dashboard(c.Request.Context(), workspace)
+	dryRun, err := repairBoolQuery(c, "dry_run", "dry-run")
 	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
+		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"dashboard": dashboard})
-}
-
-// ListTaskWorkflows lists task workflows for one workspace.
-func (h *Handlers) ListTaskWorkflows(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	workflows, err := h.Tasks.ListWorkflows(c.Request.Context(), workspace)
+	force, err := repairBoolQuery(c, "force")
 	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.TaskWorkflowListResponse{Workflows: workflows})
-}
-
-// GetTaskWorkflow returns the richer workflow overview payload.
-func (h *Handlers) GetTaskWorkflow(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
+		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	workflow, err := h.Tasks.WorkflowOverview(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"workflow": workflow})
-}
-
-// ListTaskItems lists parsed task items for one workflow.
-func (h *Handlers) ListTaskItems(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	items, err := h.Tasks.ListItems(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.TaskItemsResponse{Items: items})
-}
-
-// GetTaskBoard returns the workflow task-board read model.
-func (h *Handlers) GetTaskBoard(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	board, err := h.Tasks.TaskBoard(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"board": board})
-}
-
-// GetWorkflowSpec returns the workflow PRD, TechSpec, and ADR documents.
-func (h *Handlers) GetWorkflowSpec(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	spec, err := h.Tasks.WorkflowSpec(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"spec": spec})
-}
-
-// GetWorkflowMemory returns the memory index for one workflow.
-func (h *Handlers) GetWorkflowMemory(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	memory, err := h.Tasks.WorkflowMemoryIndex(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"memory": memory})
-}
-
-// GetWorkflowMemoryFile returns one workflow memory document by opaque daemon-issued ID.
-func (h *Handlers) GetWorkflowMemoryFile(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	document, err := h.Tasks.WorkflowMemoryFile(
-		c.Request.Context(),
-		workspace,
-		c.Param("slug"),
-		c.Param("file_id"),
-	)
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"document": document})
-}
-
-// GetTaskItemDetail returns the richer workflow task detail payload.
-func (h *Handlers) GetTaskItemDetail(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	taskDetail, err := h.Tasks.TaskDetail(
-		c.Request.Context(),
-		workspace,
-		c.Param("slug"),
-		c.Param("task_id"),
-	)
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"task": taskDetail})
-}
-
-// ValidateTaskWorkflow validates task files for one workflow.
-func (h *Handlers) ValidateTaskWorkflow(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	var body workflowRefBody
-	if !h.bindJSON(c, "decode validate task request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceRef(c, body.Workspace)
-	if !ok {
-		return
-	}
-
-	result, err := h.Tasks.Validate(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-// StartTaskRun starts one task workflow run.
-func (h *Handlers) StartTaskRun(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	var body taskRunBody
-	if !h.bindJSON(c, "decode task run request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
-	if !ok {
-		return
-	}
-
-	run, err := h.Tasks.StartRun(c.Request.Context(), workspace, c.Param("slug"), TaskRunRequest{
-		Workspace:        workspace,
-		PresentationMode: strings.TrimSpace(body.PresentationMode),
-		RuntimeOverrides: body.RuntimeOverrides,
+	result, err := h.Sessions.RepairSession(c.Request.Context(), session.RepairOpts{
+		SessionID: sessionID,
+		DryRun:    dryRun,
+		Force:     force,
 	})
 	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
+		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
-}
 
-// StartTaskRunMultiple starts a daemon-owned parent for an ordered task workflow queue.
-func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	var body taskRunMultipleBody
-	if !h.bindJSON(c, "decode multi-run task request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
-	if !ok {
-		return
-	}
-	slugs, err := normalizeRequiredSlugs(body.Slugs)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	run, err := h.Tasks.StartRunMultiple(c.Request.Context(), workspace, TaskRunMultipleRequest{
-		Workspace:        workspace,
-		Slugs:            slugs,
-		Mode:             strings.TrimSpace(body.Mode),
-		ParallelLimit:    body.ParallelLimit,
-		PresentationMode: strings.TrimSpace(body.PresentationMode),
-		RuntimeOverrides: body.RuntimeOverrides,
-	})
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
-}
-
-// GetTaskRunMultipleSnapshot returns the parent multi-run state for attach or reattach flows.
-func (h *Handlers) GetTaskRunMultipleSnapshot(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	runID := strings.TrimSpace(c.Param("run_id"))
-	if err := requireNonEmptyString("run_id", runID); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	snapshot, err := h.Tasks.RunMultipleSnapshot(c.Request.Context(), runID)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskRunMultipleSnapshotResponseFromSnapshot(snapshot))
-}
-
-// ArchiveTaskWorkflow archives a completed workflow.
-func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
-	if h.Tasks == nil {
-		h.respondError(c, serviceUnavailableProblem("task service"))
-		return
-	}
-
-	var body workflowArchiveBody
-	if !h.bindJSON(c, "decode archive workflow request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
-	if !ok {
-		return
-	}
-
-	result, err := h.Tasks.Archive(c.Request.Context(), workspace, c.Param("slug"), ArchiveRequest{
-		Workspace: workspace,
-		Force:     body.Force,
-	})
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-// FetchReview imports provider feedback into a review round.
-func (h *Handlers) FetchReview(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	var body reviewFetchBody
-	if !h.bindJSON(c, "decode review fetch request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceRef(c, body.Workspace)
-	if !ok {
-		return
-	}
-	if body.Round != nil && *body.Round <= 0 {
-		h.respondError(c, validationProblem(
-			"round_invalid",
-			"round must be a positive integer",
-			map[string]any{"field": "round"},
-		))
-		return
-	}
-
-	result, err := h.Reviews.Fetch(c.Request.Context(), workspace, c.Param("slug"), ReviewFetchRequest{
-		Workspace: workspace,
-		Provider:  strings.TrimSpace(body.Provider),
-		PRRef:     strings.TrimSpace(body.PRRef),
-		Round:     body.Round,
-	})
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	status := http.StatusOK
-	if result.Created {
-		status = http.StatusCreated
-	}
-	c.JSON(status, contract.ReviewFetchResponse{Review: result.Summary})
-}
-
-// GetLatestReview returns the latest review summary for one workflow.
-func (h *Handlers) GetLatestReview(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-
-	review, err := h.Reviews.GetLatest(c.Request.Context(), workspace, c.Param("slug"))
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ReviewSummaryResponse{Review: review})
-}
-
-// GetReviewRound returns one review round summary.
-func (h *Handlers) GetReviewRound(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-	round, err := parsePositiveInt(c.Param("round"), "round")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	reviewRound, err := h.Reviews.GetRound(c.Request.Context(), workspace, c.Param("slug"), round)
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ReviewRoundResponse{Round: reviewRound})
-}
-
-// ListReviewIssues returns one review round issue list.
-func (h *Handlers) ListReviewIssues(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-	round, err := parsePositiveInt(c.Param("round"), "round")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	issues, err := h.Reviews.ListIssues(c.Request.Context(), workspace, c.Param("slug"), round)
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ReviewIssuesResponse{Issues: issues})
-}
-
-// GetReviewIssue returns the richer review issue detail payload.
-func (h *Handlers) GetReviewIssue(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
-	if !ok {
-		return
-	}
-	round, err := parsePositiveInt(c.Param("round"), "round")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	review, err := h.Reviews.ReviewDetail(
-		c.Request.Context(),
-		workspace,
-		c.Param("slug"),
-		round,
-		c.Param("issue_id"),
-	)
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"review": review})
-}
-
-// StartReviewRun starts one review-fix run.
-func (h *Handlers) StartReviewRun(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, serviceUnavailableProblem("review service"))
-		return
-	}
-
-	var body reviewRunBody
-	if !h.bindJSON(c, "decode review run request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
-	if !ok {
-		return
-	}
-	round, err := parsePositiveInt(c.Param("round"), "round")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	run, err := h.Reviews.StartRun(c.Request.Context(), workspace, c.Param("slug"), round, ReviewRunRequest{
-		Workspace:        workspace,
-		PresentationMode: strings.TrimSpace(body.PresentationMode),
-		RuntimeOverrides: body.RuntimeOverrides,
-		Batching:         body.Batching,
-	})
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
-}
-
-// StartReviewWatch starts one daemon-owned review-watch parent run.
-func (h *Handlers) StartReviewWatch(c *gin.Context) {
-	if h.Reviews == nil {
-		h.respondError(c, NewProblem(
-			http.StatusServiceUnavailable,
-			"review_service_unavailable",
-			"review watch is not available in this daemon build",
-			nil,
-			nil,
-		))
-		return
-	}
-
-	var body reviewWatchBody
-	if !h.bindJSON(c, "decode review watch request", &body) {
-		return
-	}
-	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
-	if !ok {
-		return
-	}
-
-	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, c.Param("slug"), ReviewWatchRequest{
-		Workspace:        workspace,
-		PresentationMode: strings.TrimSpace(body.PresentationMode),
-		Provider:         strings.TrimSpace(body.Provider),
-		PRRef:            strings.TrimSpace(body.PRRef),
-		UntilClean:       body.UntilClean,
-		MaxRounds:        body.MaxRounds,
-		AutoPush:         body.AutoPush,
-		PushRemote:       strings.TrimSpace(body.PushRemote),
-		PushBranch:       strings.TrimSpace(body.PushBranch),
-		PollInterval:     strings.TrimSpace(body.PollInterval),
-		ReviewTimeout:    strings.TrimSpace(body.ReviewTimeout),
-		QuietPeriod:      strings.TrimSpace(body.QuietPeriod),
-		RuntimeOverrides: body.RuntimeOverrides,
-		Batching:         body.Batching,
-	})
-	if err != nil {
-		h.respondWorkspaceContextError(c, workspace, err)
-		return
-	}
-	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
-}
-
-// ListRuns lists runs across workspaces or for one workspace.
-func (h *Handlers) ListRuns(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	limit, err := parsePositiveInt(c.Query("limit"), "limit")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	if limit == 0 {
-		limit = 100
-	}
-	if limit > maxPageLimit {
-		h.respondError(c, validationProblem(
-			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
-			map[string]any{"field": "limit"},
-		))
-		return
-	}
-
-	runs, err := h.Runs.List(c.Request.Context(), RunListQuery{
-		Workspace: h.optionalWorkspaceContext(c, c.Query("workspace")),
-		Status:    strings.TrimSpace(c.Query("status")),
-		Statuses:  runListStatusFilters(c.QueryArray("status")),
-		Mode:      strings.TrimSpace(c.Query("mode")),
-		Limit:     limit,
-	})
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.RunListResponse{Runs: runs})
-}
-
-func runListStatusFilters(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	filters := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, candidate := range strings.Split(value, ",") {
-			trimmed := strings.TrimSpace(candidate)
-			if trimmed == "" {
-				continue
-			}
-			if _, ok := seen[trimmed]; ok {
-				continue
-			}
-			seen[trimmed] = struct{}{}
-			filters = append(filters, trimmed)
-		}
-	}
-	return filters
-}
-
-// GetRun returns one run summary.
-func (h *Handlers) GetRun(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	run, err := h.Runs.Get(c.Request.Context(), c.Param("run_id"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.RunResponse{Run: run})
-}
-
-// GetRunSnapshot returns the attach snapshot for one run.
-func (h *Handlers) GetRunSnapshot(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	snapshot, err := h.Runs.Snapshot(c.Request.Context(), c.Param("run_id"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.RunSnapshotResponseFromSnapshot(snapshot))
-}
-
-// GetRunTranscript returns the canonical structured transcript for one run.
-func (h *Handlers) GetRunTranscript(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	transcript, err := h.Runs.Transcript(c.Request.Context(), c.Param("run_id"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.RunTranscriptResponseFromTranscript(transcript))
-}
-
-// ListRunEvents pages through persisted run events.
-func (h *Handlers) ListRunEvents(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	after, err := parseCursorQuery(c.Query("after"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	limit, err := parsePositiveInt(c.Query("limit"), "limit")
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	if limit == 0 {
-		limit = 100
-	}
-	if limit > maxPageLimit {
-		h.respondError(c, validationProblem(
-			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
-			map[string]any{"field": "limit"},
-		))
-		return
-	}
-
-	page, err := h.Runs.Events(c.Request.Context(), c.Param("run_id"), RunEventPageQuery{
-		After: after,
-		Limit: limit,
-	})
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.RunEventPageResponseFromPage(page))
-}
-
-// StreamWorkspaceSocket streams workspace-scoped invalidation messages for the browser UI.
-func (h *Handlers) StreamWorkspaceSocket(c *gin.Context) {
-	stream, workspaceID, ok := h.prepareWorkspaceSocketStream(c)
-	if !ok {
-		return
-	}
-	defer h.closeWorkspaceSocketStream(stream, workspaceID)
-
-	conn, ok := h.acceptWorkspaceSocket(c, workspaceID)
-	if !ok {
-		return
-	}
-	defer h.closeWorkspaceSocketNow(conn, workspaceID)
-
-	socketCtx := conn.CloseRead(c.Request.Context())
-	status, reason := h.streamWorkspaceSocketLoop(c.Request.Context(), socketCtx, conn, stream, workspaceID)
-	h.closeWorkspaceSocket(conn, workspaceID, status, reason)
-}
-
-func (h *Handlers) prepareWorkspaceSocketStream(c *gin.Context) (WorkspaceEventStream, string, bool) {
-	if h.WorkspaceEvents == nil {
-		h.respondError(c, serviceUnavailableProblem("workspace event service"))
-		return nil, "", false
-	}
-
-	workspaceID := strings.TrimSpace(c.Param("id"))
-	if workspaceID == "" {
-		h.respondError(c, validationProblem("workspace_id_required", "workspace id is required", nil))
-		return nil, "", false
-	}
-
-	stream, err := h.WorkspaceEvents.OpenWorkspaceStream(c.Request.Context(), workspaceID)
-	if err != nil {
-		h.respondError(c, err)
-		return nil, "", false
-	}
-	return stream, workspaceID, true
-}
-
-func (h *Handlers) acceptWorkspaceSocket(c *gin.Context, workspaceID string) (*websocket.Conn, bool) {
-	conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
-		OriginPatterns: h.workspaceSocketOrigins(),
-	})
-	if err != nil {
-		if h != nil && h.Logger != nil {
-			h.Logger.Warn("accept workspace websocket", "workspace_id", workspaceID, "error", err)
-		}
-		return nil, false
-	}
-	return conn, true
-}
-
-func (h *Handlers) closeWorkspaceSocketStream(stream WorkspaceEventStream, workspaceID string) {
-	if closeErr := stream.Close(); closeErr != nil && h != nil && h.Logger != nil {
-		h.Logger.Warn("close workspace websocket stream", "workspace_id", workspaceID, "error", closeErr)
-	}
-}
-
-func (h *Handlers) closeWorkspaceSocketNow(conn *websocket.Conn, workspaceID string) {
-	if closeErr := conn.CloseNow(); closeErr != nil && h != nil && h.Logger != nil {
-		h.Logger.Debug("close workspace websocket transport", "workspace_id", workspaceID, "error", closeErr)
-	}
-}
-
-func (h *Handlers) closeWorkspaceSocket(
-	conn *websocket.Conn,
-	workspaceID string,
-	status websocket.StatusCode,
-	reason string,
-) {
-	if err := conn.Close(status, reason); err != nil && h != nil && h.Logger != nil {
-		h.Logger.Debug("close workspace websocket", "workspace_id", workspaceID, "error", err)
-	}
-}
-
-func (h *Handlers) streamWorkspaceSocketLoop(
-	requestCtx context.Context,
-	socketCtx context.Context,
-	conn *websocket.Conn,
-	stream WorkspaceEventStream,
-	workspaceID string,
-) (websocket.StatusCode, string) {
-	timer := time.NewTimer(h.HeartbeatInterval)
-	defer timer.Stop()
-
-	streamDone := h.streamDoneChannel()
-	eventCh := stream.Events()
-	errCh := stream.Errors()
-	for {
-		select {
-		case <-socketCtx.Done():
-			return websocket.StatusNormalClosure, "workspace websocket closed"
-		case <-streamDone:
-			return websocket.StatusNormalClosure, "daemon shutting down"
-		case err, ok := <-errCh:
-			if !ok {
-				errCh = nil
-				continue
-			}
-			if err == nil {
-				continue
-			}
-			if writeErr := h.writeWorkspaceSocketError(socketCtx, requestCtx, conn, err); writeErr != nil {
-				return websocket.StatusInternalError, "workspace stream error"
-			}
-			return websocket.StatusInternalError, "workspace stream error"
-		case item, ok := <-eventCh:
-			if !ok {
-				return websocket.StatusNormalClosure, "workspace stream closed"
-			}
-			stop, err := h.writeWorkspaceSocketItem(socketCtx, conn, workspaceID, item)
-			if err != nil || stop {
-				if stop {
-					return websocket.StatusTryAgainLater, "workspace event overflow"
-				}
-				return websocket.StatusInternalError, "write workspace event"
-			}
-			resetTimer(timer, h.HeartbeatInterval)
-		case <-timer.C:
-			if err := h.writeWorkspaceSocketHeartbeat(socketCtx, conn, workspaceID); err != nil {
-				return websocket.StatusInternalError, "write workspace heartbeat"
-			}
-			resetTimer(timer, h.HeartbeatInterval)
-		}
-	}
-}
-
-// StreamRun streams live run events with cursor resume, heartbeat, and overflow semantics.
-func (h *Handlers) StreamRun(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	after, err := parseCursorHeader(c.GetHeader("Last-Event-ID"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	if after.Sequence == 0 {
-		after, err = parseStreamCursorQuery(c.Query("cursor"))
-		if err != nil {
-			h.respondError(c, err)
-			return
-		}
-	}
-
-	stream, err := h.Runs.OpenStream(c.Request.Context(), c.Param("run_id"), after)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	defer func() {
-		if closeErr := stream.Close(); closeErr != nil && h != nil && h.Logger != nil {
-			h.Logger.Warn("close run stream", "run_id", c.Param("run_id"), "error", closeErr)
-		}
-	}()
-
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, NewProblem(http.StatusInternalServerError, "stream_unavailable", err.Error(), nil, err))
-		return
-	}
-	h.streamRunLoop(c, writer, stream, after)
-}
-
-func (h *Handlers) streamRunLoop(c *gin.Context, writer FlushWriter, stream RunStream, after StreamCursor) {
-	timer := time.NewTimer(h.HeartbeatInterval)
-	defer timer.Stop()
-
-	lastCursor := after
-	runID := c.Param("run_id")
-	requestCtx := c.Request.Context()
-	streamDone := h.streamDoneChannel()
-	eventCh := stream.Events()
-	errCh := stream.Errors()
-	for {
-		select {
-		case <-requestCtx.Done():
-			return
-		case <-streamDone:
-			return
-		case err, ok := <-errCh:
-			if !ok {
-				errCh = nil
-				continue
-			}
-			if err == nil {
-				continue
-			}
-			if err := h.writeStreamError(requestCtx, writer, err); err != nil {
-				return
-			}
-			return
-		case item, ok := <-eventCh:
-			if !ok {
-				return
-			}
-			outcome, err := h.writeStreamItem(writer, runID, lastCursor, item)
-			if err != nil {
-				return
-			}
-			lastCursor = outcome.Cursor
-			if outcome.ResetHeartbeat {
-				resetTimer(timer, h.HeartbeatInterval)
-			}
-			if outcome.Stop {
-				return
-			}
-		case <-timer.C:
-			if err := h.writeStreamHeartbeat(writer, runID, lastCursor); err != nil {
-				return
-			}
-			resetTimer(timer, h.HeartbeatInterval)
-		}
-	}
-}
-
-// CancelRun requests cancellation for one run.
-func (h *Handlers) CancelRun(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	if err := h.Runs.Cancel(c.Request.Context(), c.Param("run_id")); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusAccepted, contract.MutationAcceptedResponse{Accepted: true})
-}
-
-// PauseRunJob requests a pause for one active job in a run.
-func (h *Handlers) PauseRunJob(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	response, err := h.Runs.PauseRunJob(c.Request.Context(), c.Param("run_id"), c.Param("job_id"))
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusAccepted, response)
-}
-
-// SendRunJobMessage sends a user message into a paused job's current ACP session.
-func (h *Handlers) SendRunJobMessage(c *gin.Context) {
-	if h.Runs == nil {
-		h.respondError(c, serviceUnavailableProblem("run service"))
-		return
-	}
-
-	var body contract.RunJobMessageRequest
-	if !h.bindJSON(c, "decode run job message request", &body) {
-		return
-	}
-	response, err := h.Runs.SendRunJobMessage(
-		c.Request.Context(),
-		c.Param("run_id"),
-		c.Param("job_id"),
-		body,
-	)
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusAccepted, response)
-}
-
-// SyncWorkflow runs explicit daemon reconciliation for a workspace or workflow.
-func (h *Handlers) SyncWorkflow(c *gin.Context) {
-	if h.Sync == nil {
-		h.respondError(c, serviceUnavailableProblem("sync service"))
-		return
-	}
-
-	var body syncBody
-	if !h.bindJSON(c, "decode sync request", &body) {
-		return
-	}
-
-	workspace := h.optionalWorkspaceContext(c, body.Workspace)
-	if workspace == "" && strings.TrimSpace(body.Path) == "" {
-		h.respondError(c, workspaceContextProblem(
-			"workspace_context_missing",
-			"active workspace context is required",
-			nil,
-			nil,
-		))
-		return
-	}
-
-	result, err := h.Sync.Sync(c.Request.Context(), SyncRequest{
-		Workspace:    workspace,
-		Path:         strings.TrimSpace(body.Path),
-		WorkflowSlug: strings.TrimSpace(body.WorkflowSlug),
-	})
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-// StartExecRun starts one ad-hoc daemon-backed exec run.
-func (h *Handlers) StartExecRun(c *gin.Context) {
-	if h.Exec == nil {
-		h.respondError(c, serviceUnavailableProblem("exec service"))
-		return
-	}
-
-	var body execBody
-	if !h.bindJSON(c, "decode exec request", &body) {
-		return
-	}
-	if err := requireNonEmptyString("workspace_path", body.WorkspacePath); err != nil {
-		h.respondError(c, err)
-		return
-	}
-	if err := requireNonEmptyString("prompt", body.Prompt); err != nil {
-		h.respondError(c, err)
-		return
-	}
-
-	run, err := h.Exec.Start(c.Request.Context(), ExecRequest{
-		WorkspacePath:    strings.TrimSpace(body.WorkspacePath),
-		Prompt:           strings.TrimSpace(body.Prompt),
-		PresentationMode: strings.TrimSpace(body.PresentationMode),
-		RuntimeOverrides: body.RuntimeOverrides,
-	})
-	if err != nil {
-		h.respondError(c, err)
-		return
-	}
-	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
-}
-
-func (h *Handlers) writeStreamError(ctx context.Context, writer FlushWriter, err error) error {
-	status := statusForError(err)
-	return WriteSSE(writer, SSEMessage{
-		Event: "error",
-		Data: contract.TransportErrorEnvelope(
-			RequestIDFromContext(ctx),
-			status,
-			err,
-			detailsForError(err),
-			true,
-		),
-	})
-}
-
-type streamItemOutcome struct {
-	Cursor         StreamCursor
-	ResetHeartbeat bool
-	Stop           bool
-}
-
-func (h *Handlers) writeStreamItem(
-	writer FlushWriter,
-	runID string,
-	lastCursor StreamCursor,
-	item RunStreamItem,
-) (streamItemOutcome, error) {
-	switch {
-	case item.Overflow != nil:
-		return streamItemOutcome{Cursor: lastCursor, Stop: true}, WriteSSE(
-			writer,
-			OverflowMessage(runID, lastCursor, h.now(), item.Overflow.Reason),
-		)
-	case item.Event == nil:
-		return streamItemOutcome{Cursor: lastCursor}, nil
-	default:
-		cursor := CursorFromEvent(*item.Event)
-		message := EventMessage(*item.Event)
-		if err := WriteSSE(writer, message); err != nil {
-			return streamItemOutcome{}, err
-		}
-		return streamItemOutcome{
-			Cursor:         cursor,
-			ResetHeartbeat: true,
-			Stop:           isTerminalRunEvent(item.Event.Kind),
-		}, nil
-	}
-}
-
-func (h *Handlers) writeWorkspaceSocketError(
-	socketCtx context.Context,
-	requestCtx context.Context,
-	conn *websocket.Conn,
-	err error,
-) error {
-	status := statusForError(err)
-	message, buildErr := WorkspaceErrorSocketMessage(contract.TransportErrorEnvelope(
-		RequestIDFromContext(requestCtx),
-		status,
-		err,
-		detailsForError(err),
-		true,
-	))
-	if buildErr != nil {
-		return buildErr
-	}
-	return h.writeWorkspaceSocketMessage(socketCtx, conn, message)
-}
-
-func (h *Handlers) writeWorkspaceSocketItem(
-	socketCtx context.Context,
-	conn *websocket.Conn,
-	workspaceID string,
-	item WorkspaceStreamItem,
-) (bool, error) {
-	switch {
-	case item.Overflow != nil:
-		message, err := WorkspaceOverflowSocketMessage(workspaceID, h.now(), item.Overflow.Reason)
-		if err != nil {
-			return false, err
-		}
-		return true, h.writeWorkspaceSocketMessage(socketCtx, conn, message)
-	case item.Event == nil:
-		return false, nil
-	default:
-		message, err := WorkspaceEventSocketMessage(*item.Event)
-		if err != nil {
-			return false, err
-		}
-		return false, h.writeWorkspaceSocketMessage(socketCtx, conn, message)
-	}
-}
-
-func (h *Handlers) writeWorkspaceSocketHeartbeat(
-	socketCtx context.Context,
-	conn *websocket.Conn,
-	workspaceID string,
-) error {
-	message, err := WorkspaceHeartbeatSocketMessage(workspaceID, h.now())
-	if err != nil {
-		return err
-	}
-	return h.writeWorkspaceSocketMessage(socketCtx, conn, message)
-}
-
-func (h *Handlers) writeWorkspaceSocketMessage(
-	socketCtx context.Context,
-	conn *websocket.Conn,
-	message WorkspaceSocketMessage,
-) error {
-	writeCtx, cancel := context.WithTimeout(socketCtx, workspaceSocketWriteTimeout)
-	defer cancel()
-	return WriteWorkspaceSocketMessage(writeCtx, conn, message)
-}
-
-func (h *Handlers) writeStreamHeartbeat(writer FlushWriter, runID string, lastCursor StreamCursor) error {
-	return WriteSSE(writer, HeartbeatMessage(runID, lastCursor, h.now()))
-}
-
-func isTerminalRunEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindShutdownRequested,
-		events.EventKindShutdownDraining,
-		events.EventKindShutdownTerminated:
-		return true
-	default:
-		return false
-	}
+	c.JSON(http.StatusOK, contract.SessionRepairResponse{Repair: SessionRepairPayloadFromResult(result)})
 }

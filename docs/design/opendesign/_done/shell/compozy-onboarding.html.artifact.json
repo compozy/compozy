@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Compozy · First-run onboarding",
+  "entry": "compozy-onboarding.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-25T18:14:31.898Z",
+  "updatedAt": "2026-05-25T18:14:31.919Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "compozy-onboarding",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

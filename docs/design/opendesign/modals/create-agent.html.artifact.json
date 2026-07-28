@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/create-agent.html",
+  "entry": "modals/create-agent.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:44:51.784Z",
+  "updatedAt": "2026-07-14T16:44:51.784Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

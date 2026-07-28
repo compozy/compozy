@@ -1,0 +1,345 @@
+---
+title: Agent Definitions
+description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by Compozy.
+---
+
+An agent definition tells Compozy which agent to start and what startup prompt to give it. The
+definition is a directory with an `AGENT.md` file and optional sidecars:
+
+```text
+~/.compozy/agents/code-reviewer/
+  AGENT.md
+  mcp.json
+  capabilities.toml
+```
+
+`mcp.json` declares MCP servers in JSON form, and `capabilities.toml` (or a `capabilities/`
+directory) declares the unified capability catalog the runtime projects into brief discovery, rich
+discovery, and explicit `kind:"capability"` transfer. See
+[Agent Capabilities](/runtime/core/agents/capabilities) for the catalog format.
+
+`AGENT.md` is a Markdown file with required frontmatter and a required body. Compozy parses the
+frontmatter into runtime configuration, then uses the Markdown body as the agent-owned role portion
+of the assembled startup prompt. The runtime adds its own Compozy envelope and context around that body
+when it starts a session.
+
+<OperatorNote>
+  RFC 001 is a draft and is ahead of the current parser. This page documents what the current
+  runtime accepts today. Proposed RFC fields that the parser rejects are listed separately so you
+  can avoid writing definitions that fail at startup.
+</OperatorNote>
+
+## Minimal valid file
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-5
+reasoning_effort: max
+permissions: approve-reads
+---
+You are a senior code reviewer.
+
+Review code for correctness, security, and maintainability. Be direct, cite the relevant file or
+symbol, and separate blocking defects from suggestions.
+```
+
+The body after the second `---` is trimmed and stored as the agent prompt. An empty body is a
+validation error.
+
+## Discovery paths
+
+Compozy resolves agents from the workspace snapshot attached to the session.
+
+| Scope           | Directory Compozy scans                                                       | Applies when                                                 |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Workspace root  | `<workspace>/.compozy/agents/<name>/AGENT.md`                                 | The session is created in that workspace.                    |
+| Additional root | `<additional-dir>/.compozy/agents/<name>/AGENT.md`                            | The workspace has additional roots registered.               |
+| Global home     | `~/.compozy/agents/<name>/AGENT.md` or `$COMPOZY_HOME/agents/<name>/AGENT.md` | A user-authored agent should be available across workspaces. |
+
+Discovery order is first-wins:
+
+1. Workspace root
+2. Additional roots, in the registered order
+3. Global Compozy home
+
+If two definitions use the same `name`, Compozy keeps the first one it found. It does not merge or
+inherit from the lower-precedence definition.
+
+Extensions can also provide global agent candidates. Those agents keep their extension-local
+`AGENT.md` as the effective authored definition, so definition updates reconcile the extension file
+into the same catalog used by agent reads.
+
+## Effective origin and shadowing
+
+Agent list and detail responses identify the effective definition with `origin` (`global` or
+`workspace`) and `workspace_id` when the winner is workspace-local. They also return the resolved
+`skills` policy, a canonical `definition_digest`, and a workspace-scoped `effective_runtime`
+projection. That projection reports the provider, model, reasoning effort, and the source of each
+value (`agent`, `project_default`, `provider_default`, or `model_default`) without rewriting the
+authored fields. Use those fields instead of inferring the winner or runtime from a filesystem path.
+
+A workspace definition shadows a global definition with the same name. Updates, duplicates, and
+deletes target the effective winner. Deleting the workspace winner can therefore reveal the global
+definition immediately; the delete response reports that transition in `unshadowed_origin`. Compozy
+does not merge either definition before or after the delete.
+
+## Browse a workspace fleet
+
+Use the workspace catalog when a client needs a bounded fleet view instead of the complete
+definition list:
+
+```http
+GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
+```
+
+The daemon applies exact `name`, substring `q`, `category`, and `status` filters before the cursor
+page is cut. Each result combines
+the effective agent definition with exact metrics over every visible retained session for that
+workspace and agent. The `sessions` object reports `total`, currently `active`, terminal `failed`,
+summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for an
+active session and creation to the last persisted update for a stopped session. Failed includes
+stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason.
+
+`last_activity_at` follows the session catalog's canonical activity timestamp. `facets.total` and
+`facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
+exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
+to load another page.
+
+If the session authority is unavailable, the endpoint still returns definitions with
+`sessions_available: false` and no per-agent `sessions` value. Clients must show session state as
+unavailable instead of inferring zero, idle state, runtime, failure count, or last activity. HTTP
+and UDS expose the same catalog contract.
+
+## Edit with compare-and-swap
+
+Read the current definition before editing and retain its `definition_digest`. A full-definition
+update sends that value as `expected_digest`; Compozy returns `409 Conflict` if another writer changed
+the definition first. Reload the current definition, reapply the intended edit, and retry with the
+new digest. Do not retry a stale payload unchanged.
+
+The CLI exposes the same contract:
+
+```bash
+compozy agent info code-reviewer --workspace ~/dev/project -o json
+compozy agent update code-reviewer \
+  --workspace ~/dev/project \
+  --expected-digest <definition-digest> \
+  --model claude-sonnet-5 \
+  -o json
+```
+
+See [`compozy agent update`](/runtime/cli-reference/agent/update) for the generated flag reference. The
+HTTP equivalent is `PUT /api/agents/:name` with the full `agent` payload, `workspace`, and
+`expected_digest`. The same mutation targets an extension-local definition when that definition is
+the effective global winner.
+
+## Duplicate and delete definitions
+
+`compozy agent duplicate <source> <new-name>` copies the complete authored agent directory on the
+daemon side, including `AGENT.md`, `SOUL.md`, `HEARTBEAT.md`, `mcp.json`, and other sidecars. Field
+overrides are applied to the copied `AGENT.md`; the target must not already exist. Because the
+daemon performs the copy, clients do not need to read or re-submit sidecar secrets. See
+[`compozy agent duplicate`](/runtime/cli-reference/agent/duplicate).
+
+`compozy agent delete <name>` removes the effective authored directory and its sidecars. It does not
+delete existing session records or their event history. The CLI prompts for confirmation unless
+`--yes` is supplied; automation should use structured output and inspect `unshadowed_origin`. Keep
+authored agent directories in version control when you need recovery after deletion. See
+[`compozy agent delete`](/runtime/cli-reference/agent/delete).
+
+The HTTP lifecycle endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and
+`POST /api/agents/:name/duplicate`. HTTP and UDS use the same daemon-owned semantics.
+
+## Resolution cascade
+
+Session creation first resolves the agent name, then resolves the provider and runtime fields.
+
+| Value            | Resolution order                                                                                        | Failure mode                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Agent name       | explicit `--agent` or API `agent_name` -> `defaults.agent`                                              | `agent name is required`; run `compozy install` or set `defaults.agent`                         |
+| Provider         | `agent.provider` -> `defaults.provider`                                                                 | `agent provider is required`; run `compozy install` or set `agent.provider`/`defaults.provider` |
+| Command          | `agent.command` -> provider `command`                                                                   | `provider "<name>" command is required`                                                         |
+| Model            | `agent.model` -> provider `models.default`                                                              | Empty is allowed when the provider has no default.                                              |
+| Reasoning effort | session override -> `agent.reasoning_effort` -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.                   |
+| Tools            | `agent.tools`                                                                                           | Must be exact canonical ToolIDs or namespace-prefix wildcards.                                  |
+| Toolsets         | `agent.toolsets`                                                                                        | Must be canonical ToolsetIDs.                                                                   |
+| Deny tools       | `agent.deny_tools`                                                                                      | Same grammar as `tools`; denies narrow later policy evaluation.                                 |
+| Permissions      | `agent.permissions` -> `[permissions].mode`                                                             | Must be one of the supported permission modes.                                                  |
+| Category path    | `agent.category_path`                                                                                   | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.           |
+
+The managed public `general` agent created by daemon boot and `compozy install` intentionally contains
+only `name: general` and a prompt. Its provider and model come from `~/.compozy/config.toml`, and it is
+the default public agent (`defaults.agent`) operators see in agent lists and workspace navigation
+unless a workspace-local `general` overrides it.
+
+Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields start empty; empty
+means no agent-local allowlist. For a bare managed session, hosted MCP projects the full
+availability-gated callable catalog. Populate `tools` or `toolsets` only when the agent should be
+limited to that explicit surface.
+Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; Compozy just no longer
+injects those toolsets as a default cap for every bare hosted session. Denies, session lineage,
+disabled sources, and approval/risk gates still narrow or block invocation.
+Agents resolve canonical `compozy__tool_search` and inspect canonical `compozy__tool_info`.
+Invoke the harness-returned tool reference for Compozy-native capabilities.
+Skill loading resolves canonical `compozy__skill_search` and `compozy__skill_view`.
+Operator-only management — daemon lifecycle, MCP OAuth login/logout, trust-root config, raw secret
+writes, and cross-session terminal-state mutation — stays on the CLI/HTTP/UDS surfaces and is
+intentionally absent from the tool family.
+
+## Frontmatter reference
+
+These are the frontmatter fields accepted by the current `internal/config` parser.
+
+| Field              | Type                        | Required | Default or resolution                                | Valid values and notes                                                                                                                                                                                                                       |
+| ------------------ | --------------------------- | -------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`             | string                      | yes      | none                                                 | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                                                                               |
+| `provider`         | string                      | no       | `defaults.provider`                                  | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                                                                                       |
+| `command`          | string                      | no       | provider `command`                                   | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                                                                                         |
+| `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, Compozy applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                          |
+| `reasoning_effort` | string                      | no       | curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; session creation overrides the agent value.                                                                                                                                   |
+| `tools`            | string array                | no       | empty                                                | Optional agent-local allowlist of exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. Empty leaves the hosted projection uncapped by the agent definition. |
+| `toolsets`         | string array                | no       | empty                                                | Optional agent-local allowlist of canonical ToolsetIDs such as `compozy__tasks` or `linear__read`. Empty leaves the hosted projection uncapped by the agent definition.                                                                      |
+| `deny_tools`       | string array                | no       | empty                                                | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                                                                              |
+| `permissions`      | string                      | no       | `[permissions].mode`                                 | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                                                                                               |
+| `skills`           | object                      | no       | empty                                                | Currently supports `disabled`, a string array of logical skill names disabled for this agent after precedence resolution.                                                                                                                    |
+| `category_path`    | string array                | no       | empty                                                | Ordered display-only path such as `["Marketing", "Sales"]`. Segments are trimmed and must not be blank, `.`, `..`, or contain `/` or `\`.                                                                                                    |
+| `mcp_servers`      | array of MCP server objects | no       | merged with config/provider servers                  | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                                                                                    |
+| `hooks`            | array of hook declarations  | no       | none                                                 | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                                                                                          |
+
+The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
+both formats, unknown fields fail validation.
+`category_path` has one canonical shape: an array of path segments. Compozy rejects `categories` and
+slash-string values such as `"Marketing/Sales"`.
+
+ACP session creation/load happens first. Compozy then applies the resolved model through the advertised
+model option, replaces its option snapshot with the response, and applies the resolved reasoning
+effort before the first prompt. Empty effort sends no RPC; explicit `none` does when advertised.
+
+## MCP servers
+
+Inline MCP servers are useful when a tool belongs to one agent:
+
+```yaml
+---
+name: pr-reviewer
+provider: claude
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "replace-with-token"
+---
+You review pull requests and use GitHub context when it is available.
+```
+
+You can also place an `mcp.json` sidecar next to `AGENT.md`:
+
+```json
+{
+  "mcp_servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "replace-with-token"
+      }
+    }
+  }
+}
+```
+
+Sidecar behavior is precise:
+
+- `mcp.json` may use either `mcp_servers` or `mcpServers`.
+- Server names are map keys in `mcp.json`.
+- `env` values are sent as literal strings; Compozy does not expand shell placeholders inside MCP
+  server definitions.
+- When an inline server and sidecar server have the same name, the sidecar replaces the whole
+  server object.
+- Across runtime scopes, MCP servers merge in this order: top-level config, provider, agent,
+  then active skills.
+
+## Complete examples
+
+### Claude Code reviewer
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+model: claude-sonnet-5
+reasoning_effort: max
+tools: ["mcp__github__*"]
+toolsets: ["compozy__coordination"]
+deny_tools: ["compozy__network_send"]
+permissions: approve-reads
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "replace-with-token"
+---
+
+You are a senior code reviewer.
+
+Focus on defects that can change runtime behavior: incorrect error handling, security boundaries,
+data loss, races, and missing tests. Put blocking findings first. Use short, direct comments with
+file and symbol references.
+```
+
+### Codex implementation agent
+
+```yaml
+---
+name: implementation
+provider: codex
+model: gpt-5.6-sol
+permissions: approve-all
+---
+You implement scoped software changes end to end.
+
+Read the task, inspect the repository before editing, keep changes limited to the requested
+surface, run the relevant verification commands, and summarize the exact files changed.
+```
+
+## RFC 001 drift
+
+RFC 001 proposes a larger portable agent format. The current parser and runtime diverge from that
+draft in these ways today:
+
+| RFC field                 | Proposed type | Current behavior                                                                                     |
+| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------- |
+| `description`             | string        | Rejected as an unknown field.                                                                        |
+| `skills.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
+| `skills.disabled`         | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy. |
+| `skills.extra_sources`    | string array  | Rejected as an unknown field.                                                                        |
+| `memory.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
+| `memory.scope`            | string        | Rejected as an unknown field.                                                                        |
+| `memory.auto_consolidate` | boolean       | Rejected as an unknown field.                                                                        |
+
+Agent-scoped memory is still part of the design direction. Skill resolution remains runtime-owned,
+but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombstone list.
+
+## Common validation failures
+
+| Failure                                 | Cause                                                              | Fix                                                               |
+| --------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `config: missing YAML frontmatter`      | The file starts with plain Markdown instead of `---`.              | Add a frontmatter block.                                          |
+| `config: unterminated YAML frontmatter` | The opening `---` has no closing delimiter.                        | Close the frontmatter before the prompt body.                     |
+| `unknown field`                         | The frontmatter includes a field the current parser does not know. | Remove draft RFC fields or move data into supported config files. |
+| `agent prompt is required`              | The Markdown body is empty after trimming.                         | Add a prompt body after the closing frontmatter delimiter.        |
+| `agent.permissions must be one of ...`  | The permission value is not supported.                             | Use `deny-all`, `approve-reads`, or `approve-all`.                |
+
+## Related pages
+
+- [Agent Capabilities](/runtime/core/agents/capabilities) covers the optional capability catalog
+  sidecar that sits next to `AGENT.md` and feeds network discovery.
+- [Providers](/runtime/core/agents/providers) lists every built-in provider and the provider config
+  shape.
+- [Spawning](/runtime/core/agents/spawning) follows the ACP subprocess startup path.
+- [Session Lifecycle](/runtime/core/sessions/lifecycle) explains the durable session that wraps each
+  spawned agent.

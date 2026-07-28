@@ -15,9 +15,9 @@ Runtime defaults applied to all commands unless overridden.
 | Field | Type | Description |
 | --- | --- | --- |
 | `ide` | string | ACP runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `model` | string | Model override. Per-IDE defaults: codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro |
+| `model` | string | Model override. Per-IDE defaults: codex/droid=gpt-5.6-sol, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro |
 | `output_format` | string | Output format: `text`, `json`, `raw-json` |
-| `reasoning_effort` | string | Reasoning effort level: `low`, `medium`, `high`, `xhigh` |
+| `reasoning_effort` | string | Reasoning effort level: `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 | `access_mode` | string | Access mode: `default`, `full` |
 | `timeout` | string | Execution timeout in Go duration format (e.g., `30m`, `1h`) |
 | `tail_lines` | int | Number of tail lines to display from agent output |
@@ -45,7 +45,7 @@ Per-task runtime rules let `compozy tasks run` change the runtime for tasks that
 | `type` | string | Task type selector such as `frontend`, `backend`, or any custom type from `[tasks].types` |
 | `ide` | string | Runtime override for matching tasks |
 | `model` | string | Model override for matching tasks |
-| `reasoning_effort` | string | Reasoning effort override: `low`, `medium`, `high`, `xhigh` |
+| `reasoning_effort` | string | Reasoning effort override: `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 
 Rules are applied in declaration order within config, with later rules for the same `type` replacing earlier ones when workspace and global config are merged. At execution time, the effective precedence is:
 
@@ -59,12 +59,12 @@ Example:
 ```toml
 [defaults]
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 
 [[tasks.run.task_runtime_rules]]
 type = "frontend"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "high"
 
 [[tasks.run.task_runtime_rules]]

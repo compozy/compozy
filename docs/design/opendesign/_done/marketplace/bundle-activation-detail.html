@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bundle activation · Compozy</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-line:rgba(255,255,255,.5);
+    --focus-ring:0 0 0 2px var(--focus-line);
+    --focus-ring-inset:inset 0 0 0 2px var(--focus-line);
+    --size-catalog-logo:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea,select{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.pill[data-mono="true"],.kv__v code,.toast,.listing-row__name b,.listing-row__meta .k{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.head-close,.switch,.menu button):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0;overflow:hidden}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--danger{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn:disabled,.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--spin svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .switch{position:relative;width:32px;height:18px;border-radius:999px;background:var(--elevated);border:1px solid var(--line);cursor:pointer;flex:none}
+  .switch[aria-checked="true"]{background:var(--success-tint);border-color:color-mix(in srgb,var(--success) 35%,transparent)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--success)}
+  .switch:disabled{opacity:.5;cursor:default}
+  .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px;z-index:40}
+  .modal{width:min(560px,100%);max-height:min(720px,92vh);background:var(--canvas-soft);border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-overlay);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast a{color:var(--accent-strong);font-weight:500}
+  .kv{display:flex;flex-direction:column}
+  .kv__row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__k{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .kv__v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__v code{font-family:var(--font-mono);font-size:12px}
+  .menu{position:fixed;z-index:60;min-width:190px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay)}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:var(--fg);font-size:12.5px;text-align:left;border-radius:var(--radius-sm);cursor:pointer}
+  .menu button:hover{background:var(--row-hover)}
+  .menu button svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .menu button.is-danger{color:var(--danger)}
+  .menu button.is-danger svg{color:var(--danger)}
+  .spin-inline{width:16px;height:16px;flex:none;color:var(--subtle);animation:spin .8s linear infinite}
+  .dh{display:flex;align-items:flex-start;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__icon{width:42px;height:42px;border-radius:var(--radius-lg);display:grid;place-items:center;flex:none;background:var(--elevated);color:var(--muted)}
+  .dh__icon svg{width:21px;height:21px}
+  .dh__main{min-width:0;flex:1}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .section{margin-bottom:28px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .section__count{font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prose{padding:16px 18px;font-size:13.5px;line-height:1.65;color:var(--muted)}
+  .prose + .prose{border-top:1px solid var(--line-soft);padding-top:14px}
+  .prose b{display:block;font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;letter-spacing:-.005em}
+  .empty-inline{padding:16px 18px;font-size:12.5px;color:var(--subtle)}
+  .list{border:0;border-radius:0;overflow:hidden;background:transparent}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;
+    border-top:1px solid var(--line-soft);transition:background var(--dur) var(--ease);color:inherit}
+  .listing-row:first-child{border-top:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:16px;height:16px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:4px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .listing-row__trail{display:flex;align-items:center;gap:12px;flex:none}
+  .tag{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;background:var(--neutral-tint);color:var(--muted);flex:none}
+  .bind-row{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .bind-row__txt{min-width:0;flex:1}
+  .bind-row__label{font-size:13px;font-weight:500;color:var(--fg);margin-bottom:4px}
+  .bind-row__hint{font-size:12px;color:var(--subtle);line-height:1.45}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .layout{grid-template-columns:1fr}
+    .dh{flex-direction:column}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="bun-detail-topbar">
+      <div class="crumb" id="crumb">
+        <a href="marketplace.html?kind=bundles">Marketplace</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <a href="marketplace.html?kind=bundles&tab=installed">Bundles</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <b id="crumb-name">…</b>
+      </div>
+      <div class="topbar__trailing" id="top-trailing"></div>
+    </header>
+    <div class="scroll">
+      <div class="page" id="root" data-od-id="bun-detail-page"></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="deactivate-scrim" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
+  <div class="modal">
+    <div class="modal__head">
+      <div class="head-icon" style="background:var(--danger-tint);color:var(--danger)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Destructive</div>
+        <h2 class="modal__title" id="deactivate-title">Deactivate bundle</h2>
+        <p class="modal__sub">Stops this activation. Installed skills and extensions stay on disk; only the activation binding is removed.</p>
+      </div>
+      <button type="button" class="head-close" id="deactivate-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body">
+      <div style="font-size:12.5px;line-height:1.55;color:var(--subtle);padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-tint)" id="deactivate-body">Agents, jobs, and triggers from this profile will stop receiving new work from this activation.</div>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="deactivate-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--danger" id="deactivate-submit">Deactivate</button>
+    </div>
+  </div>
+</div>
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+(function(){
+
+  var ACTIVATIONS = [
+    { id:"ops-starter", name:"ops-starter", version:"0.8.0", contents:"2 skills · 1 extension · 1 mcp", activated:"5d ago", update:false,
+      profile:"triage", scope:"workspace", workspace_id:"ws_ops", active:true, bind_primary_channel_as_default:true,
+      description:"MCP servers and skills for incident triage and status page updates.",
+      profile_description:"Triage-only: the incident skill plus GitHub and Postgres MCP.",
+      agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-4"}],
+      jobs:[], triggers:[{name:"on-incident", agent:"oncall", enabled:true}],
+      bridges:[{name:"slack-ops", platform:"slack", secret_slots:["SLACK_BOT_TOKEN"]}],
+      channels:[{name:"slack", primary:true}],
+      inventory:[{resource_kind:"skill", resource_name:"incident-triage"},{resource_kind:"extension", resource_name:"cost-guard"},{resource_kind:"mcp", resource_name:"github"}],
+      created_at:"2026-07-03T11:00:00Z", updated_at:"2026-07-03T11:00:00Z" },
+    { id:"qa-pack", name:"qa-pack", version:"0.2.0", contents:"2 skills", activated:"3w ago", update:true, updateTo:"0.3.0",
+      profile:"default", scope:"global", workspace_id:null, active:true, bind_primary_channel_as_default:false,
+      description:"QA skills for regression triage and flake classification.",
+      profile_description:"Default QA profile with two skills.",
+      agents:[], jobs:[], triggers:[], bridges:[], channels:[],
+      inventory:[{resource_kind:"skill", resource_name:"flake-triage"},{resource_kind:"skill", resource_name:"regression-bisect"}],
+      created_at:"2026-06-17T08:30:00Z", updated_at:"2026-06-17T08:30:00Z" }
+  ];
+
+  var p = new URLSearchParams(location.search);
+  var idQ = p.get("id") || "ops-starter";
+  var item = ACTIVATIONS.find(function(x){ return x.id === idQ || x.name === idQ; }) || ACTIVATIONS[0];
+  var menuEl = null;
+  var root = document.getElementById("root");
+
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function showToast(msg){
+    var t=document.getElementById("toast"); if(!t) return;
+    t.innerHTML=esc(msg); t.classList.remove("hide");
+    clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(function(){ t.classList.add("hide"); }, 4200);
+  }
+  function section(label, body, count){
+    return '<section class="section" data-od-id="sec-'+label.toLowerCase().replace(/\s+/g,"-")+'"><div class="section__label">'+esc(label)+(count!=null?' <span class="section__count">'+count+'</span>':'')+'</div>'+body+'</section>';
+  }
+  function kvRow(k,v){ return '<div class="kv__row"><div class="kv__k">'+esc(k)+'</div><div class="kv__v">'+v+'</div></div>'; }
+  function iconSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg>';
+  }
+
+  function closeMenu(){ if(menuEl){ menuEl.remove(); menuEl=null; } }
+  function openMenu(anchor){
+    closeMenu();
+    menuEl=document.createElement("div");
+    menuEl.className="menu"; menuEl.setAttribute("role","menu");
+    menuEl.innerHTML='<button type="button" role="menuitem" class="is-danger" data-mi="deactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>Deactivate…</button>';
+    document.body.appendChild(menuEl);
+    var rect=anchor.getBoundingClientRect();
+    menuEl.style.top=(rect.bottom+4)+"px";
+    menuEl.style.left=Math.max(8, rect.right-menuEl.offsetWidth)+"px";
+    menuEl.querySelector('[data-mi="deactivate"]').onclick=function(){ closeMenu(); openDeactivate(); };
+    var first=menuEl.querySelector("button"); if(first) first.focus();
+  }
+
+  function openDeactivate(){
+    document.getElementById("deactivate-title").textContent="Deactivate "+item.name;
+    document.getElementById("deactivate-body").textContent="Stops the "+item.profile+" profile ("+item.scope+"). Installed skills and extensions stay on disk; only this activation binding is removed.";
+    document.getElementById("deactivate-scrim").classList.remove("hide");
+    setTimeout(function(){ document.getElementById("deactivate-submit").focus(); }, 30);
+  }
+  function closeDeactivate(){ document.getElementById("deactivate-scrim").classList.add("hide"); }
+
+  function runUpdate(){
+    if(!item.update || item._busy) return;
+    item._busy=true;
+    render();
+    setTimeout(function(){
+      item._busy=false;
+      item.update=false;
+      item.version=item.updateTo||item.version;
+      item.updated_at=new Date().toISOString().replace(/\.\d{3}Z$/,"Z");
+      render();
+      showToast(item.name+" updated to v"+item.version);
+    }, 700);
+  }
+
+  function toggleBind(){
+    if(item._busy) return;
+    item.bind_primary_channel_as_default=!item.bind_primary_channel_as_default;
+    item._busy=true;
+    render();
+    setTimeout(function(){
+      item._busy=false;
+      render();
+      showToast(item.bind_primary_channel_as_default
+        ? "Primary channel bound as default"
+        : "Primary channel unbound");
+    }, 500);
+  }
+
+  function groupBlock(label, arr, subFn){
+    if(!arr || !arr.length){
+      return section(label, '<div class="panelbox"><div class="empty-inline">None in this activation.</div></div>', 0);
+    }
+    var kind = label.replace(/s$/,"").toLowerCase();
+    var rows=arr.map(function(x){
+      return '<div class="listing-row" data-od-id="bun-'+kind+'-'+esc(x.name)+'">'
+        +'<div class="listing-row__icon" aria-hidden="true">'+kindIcon(kind)+'</div>'
+        +'<div class="listing-row__main"><div class="listing-row__name"><b>'+esc(x.name)+'</b></div>'
+        +'<div class="listing-row__meta"><span class="k">'+esc(subFn(x))+'</span></div></div>'
+        +'<div class="listing-row__trail"><span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">'+esc(kind)+'</span></div></div>';
+    }).join("");
+    return section(label, '<div class="panelbox"><div class="list">'+rows+'</div></div>', arr.length);
+  }
+
+  function kindIcon(kind){
+    if(kind==="agent") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>';
+    if(kind==="job") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></svg>';
+    if(kind==="trigger") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+    if(kind==="bridge") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+    if(kind==="channel") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    if(kind==="skill") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+    if(kind==="extension") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>';
+    if(kind==="mcp") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01M12 7h.01M17 7h.01M7 12h10M7 17h10"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
+  }
+
+  function mainBlock(){
+    var desc='<div class="panelbox">'
+      +'<div class="prose">'+esc(item.description)+'</div>'
+      +'<div class="prose"><b>Profile · '+esc(item.profile)+'</b>'+esc(item.profile_description)+'</div>'
+      +'</div>';
+
+    var inv=(item.inventory||[]);
+    var invBody;
+    if(!inv.length){
+      invBody='<div class="panelbox"><div class="empty-inline">No inventory resources.</div></div>';
+    } else {
+      invBody='<div class="panelbox"><div class="list">'
+        +inv.map(function(r){
+          var kind=r.resource_kind||"resource";
+          return '<div class="listing-row" data-od-id="bun-inv-'+esc(r.resource_name)+'">'
+            +'<div class="listing-row__icon" aria-hidden="true">'+kindIcon(kind)+'</div>'
+            +'<div class="listing-row__main"><div class="listing-row__name"><b>'+esc(r.resource_name)+'</b></div></div>'
+            +'<div class="listing-row__trail"><span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">'+esc(kind)+'</span></div></div>';
+        }).join("")
+        +'</div></div>';
+    }
+
+    return section("Description", desc)
+      + groupBlock("Agents", item.agents, function(a){ return (a.provider||"")+(a.model?" · "+a.model:""); })
+      + groupBlock("Jobs", item.jobs, function(j){ return (j.agent||j.agent_name||"—")+(j.enabled===false?" · off":" · enabled"); })
+      + groupBlock("Triggers", item.triggers, function(t){ return (t.agent||t.agent_name||"—")+(t.enabled===false?" · off":" · enabled"); })
+      + groupBlock("Bridges", item.bridges, function(b){ return (b.platform||"—")+(b.secret_slots&&b.secret_slots.length?" · "+b.secret_slots.length+" secrets":""); })
+      + groupBlock("Channels", item.channels, function(c){ return c.primary?"primary":"secondary"; })
+      + section("Inventory", invBody, inv.length);
+  }
+
+  function railBlock(){
+    var scopeKv = kvRow("Scope", '<span class="pill" data-mono="true">'+esc(item.scope)+'</span>')
+      + kvRow("Workspace", item.workspace_id ? '<code>'+esc(item.workspace_id)+'</code>' : '<code>—</code>');
+
+    var bind='<div class="bind-row">'
+      +'<div class="bind-row__txt"><div class="bind-row__label">Bind primary channel as default</div>'
+      +'<div class="bind-row__hint">When on, the activation’s primary channel becomes the workspace default for outbound messages.</div></div>'
+      +(item._busy
+        ? '<svg class="spin-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>'
+        : '<button type="button" class="switch" role="switch" aria-checked="'+(item.bind_primary_channel_as_default?"true":"false")+'" id="bind-switch" aria-label="Bind primary channel as default"></button>')
+      +'</div>';
+
+    var times = kvRow("Created", '<code>'+esc(item.created_at)+'</code>')
+      + kvRow("Updated", '<code>'+esc(item.updated_at)+'</code>')
+      + kvRow("Activated", '<code>'+esc(item.activated)+'</code>');
+
+    return section("Scope", '<div class="panelbox"><div class="kv">'+scopeKv+'</div></div>')
+      + section("Channel binding", '<div class="panelbox">'+bind+'</div>')
+      + section("Timestamps", '<div class="panelbox"><div class="kv">'+times+'</div></div>');
+  }
+
+  function renderTop(){
+    document.getElementById("crumb-name").textContent=item.name;
+    document.title=item.name+" · Bundle · Compozy";
+    var trail=document.getElementById("top-trailing");
+    var html="";
+    if(item._busy){
+      html='<svg class="spin-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>';
+    } else {
+      if(item.update) html+='<button type="button" class="btn btn--sm" id="btn-update">Update</button>';
+      html+='<a class="btn btn--ghost btn--sm" href="marketplace-detail.html?kind=bundles&name='+encodeURIComponent(item.name)+'">View in marketplace →</a>';
+      html+='<button type="button" class="btn btn--ghost btn--icon" id="btn-more" aria-haspopup="menu" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>';
+    }
+    trail.innerHTML=html;
+    var up=document.getElementById("btn-update"); if(up) up.onclick=runUpdate;
+    var more=document.getElementById("btn-more"); if(more) more.onclick=function(e){ e.stopPropagation(); openMenu(more); };
+  }
+
+  function render(){
+    closeMenu();
+    renderTop();
+    root.innerHTML=
+      '<div class="dh" data-od-id="bun-detail-header">'
+      +'<div class="dh__icon">'+iconSvg()+'</div>'
+      +'<div class="dh__main"><div class="dh__namerow">'
+      +'<h1 class="dh__name">'+esc(item.name)+'</h1>'
+      +'<span class="pill" data-mono="true">'+esc(item.profile)+'</span>'
+      +'<span class="pill" data-mono="true">'+esc(item.scope)+'</span>'
+      +(item.active?'<span class="pill" data-tone="success" data-mono="true">active</span>':'<span class="pill" data-mono="true">inactive</span>')
+      +'<span class="pill" data-mono="true">v'+esc(item.version)+'</span>'
+      +'</div>'
+      +'<div class="dh__meta"><span>'+esc(item.contents)+'</span><span class="dotsep"></span><span>activated '+esc(item.activated)+'</span></div>'
+      +'</div></div>'
+      +'<div class="layout" data-od-id="bun-detail-body"><div data-od-id="bun-detail-main">'+mainBlock()+'</div><aside data-od-id="bun-detail-rail">'+railBlock()+'</aside></div>';
+
+    var sw=document.getElementById("bind-switch");
+    if(sw) sw.onclick=toggleBind;
+  }
+
+  document.getElementById("deactivate-close").onclick=closeDeactivate;
+  document.getElementById("deactivate-cancel").onclick=closeDeactivate;
+  document.getElementById("deactivate-scrim").addEventListener("click", function(e){ if(e.target.id==="deactivate-scrim") closeDeactivate(); });
+  document.getElementById("deactivate-submit").onclick=function(){
+    var n=item.name;
+    closeDeactivate();
+    location.href="marketplace.html?kind=bundles&tab=installed";
+  };
+
+  document.addEventListener("click", function(e){ if(menuEl && !menuEl.contains(e.target) && !e.target.closest("#btn-more")) closeMenu(); });
+  window.addEventListener("resize", closeMenu);
+  document.querySelector(".scroll").addEventListener("scroll", closeMenu);
+  document.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){ closeMenu(); closeDeactivate(); }
+  });
+
+  render();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+    "title": "Heartbeat",
+    "pages": [
+        "index",
+        "delete",
+        "history",
+        "inspect",
+        "rollback",
+        "status",
+        "validate",
+        "wake",
+        "write"
+    ]
+}

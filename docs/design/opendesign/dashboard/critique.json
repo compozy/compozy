@@ -1,0 +1,33 @@
+{
+  "kind": "critique-panel",
+  "artifact": "dashboard/dashboard.html",
+  "date": "2026-07-21",
+  "head_contract": "os-v2 unified head (os/pagehead-redesign.html): 48px 3-zone topbar + icon-tile page head replaced by root-variant w2head (neutral 22px glyph + 13px title 'Home', live indicator as .w2-status[data-tone=ok], single primary 'New session' in .w2-actions); old head meta demoted to a 12px .pagemeta line at top of .page (named .pagemeta because .subhead was already taken by an in-content section label). Legacy topbar/breadcrumb/head CSS and selector references removed; rg sweep clean.",
+  "score": 4,
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "Seven zones ordered by the end user's questions (needs me → glance → live → evidence → cost → fleet → system). Plain-language copy throughout; operator depth collapsed behind the System row and the CLI echo."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Attention strip is the single entry point; one headline figure per chart panel; accent restricted to route icon, live dots, and the one primary Approve action. Uppercase 10.5px section labels carry the scan rhythm."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "Token stack verbatim from agent-detail.html lineage; Inter for UI, JetBrains Mono strictly for numerics/ids/CLI; tabular-nums on every counter and timer."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "KPI count-up (550ms, cubic ease-out), live pulse dots, ticking elapsed timers — all gated by prefers-reduced-motion. No decorative animation."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Signal palette used only as information: status colors in outcomes stack (color IS the data, neutral separator between green/red for CVD), monochrome data ink for magnitude charts (usage, heatmap, runtime bars). Cost labeled estimated; retention window labeled on 90d."
+    }
+  },
+  "checks": {
+    "p0_checklist": "pass — tags balanced, no scrollIntoView, hex only in :root, data-od-id on all sections, mobile reflow at 1080/760/520, no filler or invented metrics",
+    "dataviz_validator": "status palette adjacent pair danger↔neutral fails CVD as categorical; mitigated by stack order completed→canceled→failed (neutral separates hues), 2px segment gaps, legend with counts, per-day tooltips"
+  }
+}

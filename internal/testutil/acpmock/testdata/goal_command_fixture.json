@@ -1,0 +1,219 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "goal_rejections",
+            "provider": "claude",
+            "model": "goal-e2e-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic Goal lifecycle worker and judge.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "goal-rejections-work-1",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-work-2",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-work-3",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 3 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-judge-1",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 1 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_1\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":1}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-judge-2",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 2 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_2\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":2}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-judge-3",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 3 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"attempt\":3}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "goal_pause",
+            "provider": "claude",
+            "model": "goal-e2e-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic pause and resume Goal worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "goal-pause-work-1",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "goal-pause-delay",
+                            "title": "Hold the first Goal boundary",
+                            "command": "sh",
+                            "args": ["-c", "sleep 1; printf '%s' '{\"status\":\"complete\"}'"],
+                            "emit_output": true
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-pause-work-2",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-pause-judge",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": {
+                            "role": "agent-judge",
+                            "gate_id": "goal:goal-judge",
+                            "criterion_id": "objective_satisfied"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "goal_approval",
+            "provider": "claude",
+            "model": "goal-e2e-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic Goal approval-grant worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "goal-approval-refusal",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ],
+                    "stop_reason": "refusal"
+                },
+                {
+                    "name": "goal-approval-reentry",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-approval-judge",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 2 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "goal_clear",
+            "provider": "claude",
+            "model": "goal-e2e-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic active-prompt clear-fence worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "goal-clear-completed-work",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "steps": [
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                    ]
+                },
+                {
+                    "name": "goal-clear-judge",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 1 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "block_until_cancel" }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

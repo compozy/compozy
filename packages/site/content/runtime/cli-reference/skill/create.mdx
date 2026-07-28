@@ -1,0 +1,47 @@
+---
+title: "compozy skill create"
+description: "Scaffold a new workspace skill"
+---
+
+## compozy skill create
+
+Scaffold a new workspace skill
+
+```
+compozy skill create [name] [flags]
+```
+
+### Examples
+
+```
+  # Create .compozy/skills/api-review/SKILL.md in the current workspace
+  compozy skill create api-review
+```
+
+### Options
+
+```
+  -h, --help   help for create
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy skill create [name] -o json
+```

@@ -1,0 +1,85 @@
+---
+title: Task-Run Coordination Conversations
+description: How future coordinated task runs opt into bounded Live conversations without moving task ownership into Network.
+---
+
+Coordination conversations are optional. A task run resolves Local unless an explicit request, its
+task execution profile, or the workspace coordination record selects Live.
+
+There is no channel bound to every run. The rule is: resolve once, persist the snapshot, and create
+conversation state only for Live.
+
+## Resolution precedence
+
+For a new task run, Compozy resolves participation in this order:
+
+1. explicit start, enqueue, or fan-out request
+2. the task's `network_participation` execution-profile block
+3. the workspace coordination record
+4. built-in Local
+
+The result is stored on the run as `resolved_network_participation`. Existing runs never change
+when a profile, workspace setting, or config default changes.
+
+## Workspace opt-in
+
+Inspect or change the default for future coordinated runs:
+
+```bash
+compozy network coordination status --workspace checkout-api -o json
+compozy network coordination enable --workspace checkout-api -o json
+compozy network coordination disable --workspace checkout-api -o json
+```
+
+The web invitation writes the same versioned record. Accepting it affects future coordinated runs,
+not the run currently on screen. Dismissal is invitation state, not participation state; resetting
+the invitation does not enable coordination.
+
+## Explicit run opt-in
+
+Choose Live for one run without changing the workspace default:
+
+```bash
+compozy task start task-123 \
+  --network live \
+  --network-channel-strategy run \
+  --network-bounds '{"max_wakes":6,"max_wake_depth":2}' \
+  -o json
+```
+
+`run` derives one stable workspace channel from the run identity. A named channel uses
+`--network-channel-strategy named --network-channel <id>` instead.
+
+## Conversation is not ownership
+
+| Network conversation evidence             | Task-service authority                      |
+| ----------------------------------------- | ------------------------------------------- |
+| requests, replies, blockers, and handoffs | claim through `ClaimNextRun`                |
+| public-thread and direct-room history     | heartbeat with the fenced claim token       |
+| receipts and progress traces              | complete, fail, release, or recover the run |
+| admitted-wake and usage ledger            | review request and reviewer-bound verdict   |
+
+A message can describe progress but cannot change task or run state. The task service remains the
+only authority even when every participant can see the conversation.
+
+## Live admission in a coordinated run
+
+Coordinator and worker sessions bind the run's immutable Live snapshot. A `say` can wake one of
+them only when it is directly addressed or explicitly mentioned and the finite bounds still allow
+the turn. Unaddressed history, capability claims, receipts, and traces do not fan out model turns.
+
+The run detail view shows:
+
+- the resolved mode, source, strategy, and channel
+- conversation history for Live runs
+- bound consumption and exhaustion evidence
+- actual aggregate token usage or `usage_unavailable`
+
+Local runs show an oriented empty state instead of a plausible empty conversation.
+
+## Related pages
+
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases)
+- [Task Execution Profiles](/runtime/core/autonomy/execution-profiles)
+- [Delivery, Admission, and Usage](/runtime/core/network/delivery-and-safety)
+- [Coordinator Handoff](/runtime/core/autonomy/coordinator)
