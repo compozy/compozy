@@ -48,6 +48,23 @@ summary := run.Summary()
 fmt.Printf("%s %s %s\n", summary.RunID, summary.Mode, summary.Status)
 ```
 
+## Inspect speed outcomes
+
+`RunSummary.Speed` is the run-wide requested preference (`normal` or `fast`). `RunSummary.SpeedResolutions` stores confirmed outcomes per job index because one multi-job run can contain different ACP capabilities:
+
+```go
+summary := run.Summary()
+fmt.Printf("requested: %s\n", summary.Speed)
+
+jobZero := summary.SpeedResolutions[0]
+fmt.Printf("job 0: %s\n", jobZero.Status)
+
+jobOne := summary.SpeedResolutions[1]
+fmt.Printf("job 1: %s (%s)\n", jobOne.Status, jobOne.Reason)
+```
+
+The reader does not aggregate per-job outcomes into a single applied, unsupported, or rejected state. Inspect each map entry independently; a run may be applied for one job and unsupported for another. Historical runs created before speed fields were added remain readable with an empty `RunSummary.Speed` and a nil `RunSummary.SpeedResolutions`.
+
 ## Replay
 
 Use `Replay` to iterate historical events from a sequence number.

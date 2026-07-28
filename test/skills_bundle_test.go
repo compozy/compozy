@@ -173,6 +173,59 @@ func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
 	}
 }
 
+func TestCompozySkillBundleDocumentsSpeedContract(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	testCases := []struct {
+		path     string
+		required []string
+	}{
+		{
+			path: "skills/compozy/SKILL.md",
+			required: []string{
+				"`--speed normal|fast`",
+				"`normal` is the product default",
+				"`applied`, `unsupported`, or `rejected`",
+			},
+		},
+		{
+			path: "skills/compozy/references/config-reference.md",
+			required: []string{
+				"`normal` (product default) or `fast`",
+				`speed = "normal"`,
+				`speed = "fast"`,
+				"explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`",
+			},
+		},
+		{
+			path: "skills/compozy/references/cli-reference.md",
+			required: []string{
+				"| `--speed` | string | `normal` |",
+				"conflicting explicit `--speed`",
+				"`capability_absent`, `capability_ambiguous`, `value_ambiguous`, and `provider_rejected`",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			content, err := os.ReadFile(filepath.Join(root, tc.path))
+			if err != nil {
+				t.Fatalf("read %s: %v", tc.path, err)
+			}
+			for _, snippet := range tc.required {
+				if !strings.Contains(string(content), snippet) {
+					t.Fatalf("expected %s to include %q", tc.path, snippet)
+				}
+			}
+		})
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 

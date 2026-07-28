@@ -4,7 +4,9 @@ Complete reference for `.compozy/config.toml` workspace configuration.
 
 ## File Location
 
-Place the configuration file at `.compozy/config.toml` in the workspace root. CLI flags always override config values.
+Place workspace configuration at `.compozy/config.toml`; global configuration lives at `~/.compozy/config.toml`. CLI flags always override config values.
+
+Speed precedence is explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`. Commands without a command-specific speed field skip that layer.
 
 ## Sections
 
@@ -18,6 +20,7 @@ Runtime defaults applied to all commands unless overridden.
 | `model` | string | Model override. Per-IDE defaults: codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro |
 | `output_format` | string | Output format: `text`, `json`, `raw-json` |
 | `reasoning_effort` | string | Reasoning effort level: `low`, `medium`, `high`, `xhigh` |
+| `speed` | string | Provider-neutral speed preference: `normal` (product default) or `fast` |
 | `access_mode` | string | Access mode: `default`, `full` |
 | `timeout` | string | Execution timeout in Go duration format (e.g., `30m`, `1h`) |
 | `tail_lines` | int | Number of tail lines to display from agent output |
@@ -170,6 +173,8 @@ fields.
 
 Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:
 
+Any inherited runtime field, including `speed`, may be overridden here for exec only. Both `[defaults].speed` and `[exec].speed` accept `normal` or `fast`.
+
 | Field | Type | Description |
 | --- | --- | --- |
 | `verbose` | bool | Emit operational runtime logs to stderr |
@@ -216,6 +221,7 @@ on_failed = "/Users/me/sounds/custom-fail.wav"
 ide = "claude"
 model = "opus"
 reasoning_effort = "high"
+speed = "normal"
 auto_commit = true
 add_dirs = ["../shared-lib", "../docs"]
 timeout = "45m"
@@ -247,6 +253,7 @@ quiet_period = "20s"
 auto_push = false
 
 [exec]
+speed = "fast"
 verbose = false
 tui = false
 persist = false

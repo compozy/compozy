@@ -11,9 +11,12 @@ These flags are shared by `tasks run`, `exec`, and `reviews fix`:
 | `--ide` | string | `codex` | ACP runtime: claude, codex, copilot, cursor-agent, droid, gemini, opencode, pi |
 | `--model` | string | per-IDE | Model override (codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
 | `--reasoning-effort` | string | | Reasoning effort: low, medium, high, xhigh |
+| `--speed` | string | `normal` | Provider-neutral runtime speed preference: `normal` or `fast` |
 | `--add-dir` | string[] | | Additional directories for ACP runtimes (claude and codex only; repeatable or comma-separated) |
 | `--auto-commit` | bool | false | Include automatic commit instructions at task/batch completion |
 | `--dry-run` | bool | false | Generate prompts without running IDE tool |
+
+The common speed contract is identical for `tasks run`, `exec`, and `reviews fix`. Speed precedence is explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`. Runtime capability detection may resolve the request as `applied`, `unsupported`, or `rejected`; unsupported continues with the runtime default, while rejected stops before prompting. Stable non-applied reasons are `capability_absent`, `capability_ambiguous`, `value_ambiguous`, and `provider_rejected`.
 
 ---
 
@@ -69,11 +72,12 @@ Execute PRD task files from a workflow directory through the shared daemon. By d
 | `--stream` | bool | false | Force textual stream attach mode |
 | `--detach` | bool | false | Start the run without attaching a client |
 | `--task-runtime` | string[] | | Per-task runtime override rules |
-| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--add-dir`, `--auto-commit`, `--dry-run` |
+| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--speed`, `--add-dir`, `--auto-commit`, `--dry-run` |
 
 ```
 compozy tasks run multi-repo --ide claude
 compozy tasks run --name multi-repo --ide codex --auto-commit
+compozy tasks run multi-repo --speed fast
 compozy tasks run --multiple alpha,beta --stream
 compozy tasks run --multiple alpha,beta --parallel --parallel-limit 2
 compozy tasks run multi-repo --parallel-tasks
@@ -94,16 +98,19 @@ Execute a single ad hoc prompt through the ACP runtime. Provide prompt as argume
 | `--persist` | bool | false | Save artifacts under `~/.compozy/runs/<run-id>/` |
 | `--extensions` | bool | false | Enable executable extensions for this run |
 | `--run-id` | string | | Resume a previously persisted session |
-| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--add-dir`, `--auto-commit`, `--dry-run` |
+| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--speed`, `--add-dir`, `--auto-commit`, `--dry-run` |
 
 ```
 compozy exec "Summarize the current repository changes"
 compozy exec --agent council "Decide between two designs"
 compozy exec --prompt-file prompt.md --format json
+compozy exec --speed fast "Draft a concise response"
 cat prompt.md | compozy exec
 compozy exec --persist "Review the latest changes"
 compozy exec --run-id exec-20260405-120000-000000000 "Continue"
 ```
+
+For `exec --run-id`, Compozy restores the persisted speed. Omitting `--speed` accepts the persisted value even if current config differs. A conflicting explicit `--speed` is rejected before daemon submission.
 
 ---
 
@@ -147,10 +154,11 @@ Process review issue files and dispatch agents to remediate feedback.
 | `--ui` | bool | false | Force interactive TUI attach mode |
 | `--stream` | bool | false | Force textual stream attach mode |
 | `--detach` | bool | false | Start the run without attaching a client |
-| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--add-dir`, `--auto-commit`, `--dry-run` |
+| + common flags | | | `--ide`, `--model`, `--reasoning-effort`, `--speed`, `--add-dir`, `--auto-commit`, `--dry-run` |
 
 ```
 compozy reviews fix my-feature --ide codex --concurrent 2 --batch-size 3
+compozy reviews fix my-feature --speed normal
 compozy reviews fix --name my-feature --round 2
 compozy reviews fix --reviews-dir .compozy/tasks/my-feature/reviews-001
 compozy reviews fix --name my-feature

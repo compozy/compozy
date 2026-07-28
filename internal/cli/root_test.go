@@ -645,6 +645,93 @@ func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
 	}
 }
 
+func TestSpeedDocumentationMatchesRuntimeContract(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		path     string
+		required []string
+	}{
+		{
+			path: "README.md",
+			required: []string{
+				`speed = "normal"`,
+				`speed = "fast"`,
+				"`--speed normal|fast`",
+				"explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`",
+				"`applied`, `unsupported`, or `rejected`",
+				"`capability_absent`, `capability_ambiguous`, `value_ambiguous`, and `provider_rejected`",
+				"model selection and option refresh → speed classification/application → prompt",
+				"Recovery, conflict-resolution, task-multi, review-watch, and reusable child agents inherit",
+			},
+		},
+		{
+			path: filepath.Join("skills", "compozy", "references", "config-reference.md"),
+			required: []string{
+				"| `speed` | string |",
+				"`normal` (product default) or `fast`",
+				`[defaults]`,
+				`[exec]`,
+				`speed = "normal"`,
+				`speed = "fast"`,
+				"explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`",
+			},
+		},
+		{
+			path: filepath.Join("skills", "compozy", "references", "cli-reference.md"),
+			required: []string{
+				"| `--speed` | string | `normal` |",
+				"`tasks run`, `exec`, and `reviews fix`",
+				"conflicting explicit `--speed`",
+				"`capability_absent`, `capability_ambiguous`, `value_ambiguous`, and `provider_rejected`",
+			},
+		},
+		{
+			path: filepath.Join("docs", "reader-library.md"),
+			required: []string{
+				"`RunSummary.Speed`",
+				"`RunSummary.SpeedResolutions`",
+				"per job index",
+				"does not aggregate",
+				"Historical runs",
+			},
+		},
+		{
+			path: "CHANGELOG.md",
+			required: []string{
+				"## Unreleased",
+				"`normal` is the new cost-conscious product default",
+				`speed = "fast"`,
+				"`--speed fast`",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			path := mustCLIRepoRootPath(t, tc.path)
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			content := string(body)
+			for _, snippet := range tc.required {
+				if !strings.Contains(content, snippet) {
+					t.Fatalf("expected %s to include %q", tc.path, snippet)
+				}
+			}
+			for _, forbidden := range []string{"Cursor-only", "only Cursor", "reported as applied without confirmation"} {
+				if strings.Contains(content, forbidden) {
+					t.Fatalf("expected %s to omit %q", tc.path, forbidden)
+				}
+			}
+		})
+	}
+}
+
 func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	t.Parallel()
 

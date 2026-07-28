@@ -126,6 +126,47 @@ func TestRunRecoveryPayloadFieldsDocumented(t *testing.T) {
 	}
 }
 
+func TestSpeedLifecycleDocumentationMatchesPublicContract(t *testing.T) {
+	t.Parallel()
+
+	content := readEventsDocumentation(t)
+	sections := []struct {
+		start string
+		end   string
+		field string
+	}{
+		{start: "### `run.queued`", end: "### `run.started`", field: "`speed`"},
+		{start: "### `run.started`", end: "### `run.crashed`", field: "`speed`"},
+		{start: "### `job.queued`", end: "### `job.started`", field: "`speed`"},
+		{start: "### `job.started`", end: "### `job.attempt_started`", field: "`speed`"},
+		{start: "### `job.failed`", end: "### `job.cancelled`", field: "`speed_resolution`"},
+		{start: "### `session.started`", end: "### `session.update`", field: "`speed_resolution`"},
+	}
+	for _, section := range sections {
+		section := section
+		t.Run(section.start, func(t *testing.T) {
+			t.Parallel()
+
+			body := docsSection(t, content, section.start, section.end)
+			if !strings.Contains(body, section.field) {
+				t.Fatalf("expected %s section to document %s", section.start, section.field)
+			}
+		})
+	}
+
+	for _, snippet := range []string{
+		"`requested`",
+		"`status`: `applied`, `unsupported`, or `rejected`",
+		"`reason`: `capability_absent`, `capability_ambiguous`, `value_ambiguous`, or `provider_rejected`",
+		"additive and optional",
+		"Historical events without them remain valid",
+	} {
+		if !strings.Contains(content, snippet) {
+			t.Fatalf("expected docs/events.md to include %q", snippet)
+		}
+	}
+}
+
 func jsonFieldName(tag string) string {
 	name, _, _ := strings.Cut(tag, ",")
 	return strings.TrimSpace(name)

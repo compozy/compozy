@@ -163,6 +163,7 @@ Example:
 ide = "codex"
 model = "gpt-5.5"
 reasoning_effort = "medium"
+speed = "normal"
 access_mode = "full"
 timeout = "10m"
 tail_lines = 0
@@ -192,6 +193,7 @@ validation_command = []
 
 [exec]
 output_format = "text"
+speed = "fast"
 
 [recovery]
 enabled = false
@@ -212,8 +214,8 @@ nitpicks = false
 
 Supported sections:
 
-- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
-- `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `speed`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `speed`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
 - `[tasks.run.parallel]` for dependency-aware parallel execution inside one PRD task workflow, including `enabled`, `max_concurrency`, and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`
@@ -239,6 +241,22 @@ Notes:
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
 - Recovery is disabled by default. When enabled, `max_attempts` is the number of remediation plus restart cycles and must be between `1` and `3`.
 - Recovery config is resolved fresh for each invocation and is not persisted into run or exec metadata. Use `--recovery`, `--no-recovery`, `--recovery-ide`, `--recovery-model`, `--recovery-reasoning`, and `--recovery-max-attempts` to override `[recovery]` for one command.
+
+### Runtime speed control
+
+Compozy exposes one provider-neutral speed preference: `normal` requests compatible standard behavior and `fast` requests compatible accelerated behavior. The product default is `normal`. Both `[defaults].speed` and `[exec].speed` accept `normal` or `fast`; `[exec]` applies only to `compozy exec`.
+
+Use the common `--speed normal|fast` flag for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`. The exact precedence is explicit `--speed` > workspace command section > workspace `[defaults]` > global command section > global `[defaults]` > product default `normal`. Only `exec` has a command-specific speed section, so task and review runs skip the command-section layers.
+
+Speed is capability-gated from the live ACP session and selected model. Compozy does not infer support from a provider or model name. For every new or resumed session, setup order is model selection and option refresh → speed classification/application → prompt. A resumed session reapplies the run's stored preference before its next prompt. Recovery, conflict-resolution, task-multi, review-watch, and reusable child agents inherit the parent run preference.
+
+Every ACP session resolves the request as `applied`, `unsupported`, or `rejected`:
+
+- `applied`: the runtime confirmed the requested value; no reason is recorded.
+- `unsupported`: no compatible unambiguous control or value was advertised. Compozy sends no speculative speed write, continues with the runtime default, and reports `capability_absent`, `capability_ambiguous`, or `value_ambiguous`.
+- `rejected`: an advertised compatible control rejected the request. Compozy reports `provider_rejected` and stops before prompting.
+
+The stable reason vocabulary is `capability_absent`, `capability_ambiguous`, `value_ambiguous`, and `provider_rejected`. Requested speed is run-wide, but outcomes are per job/session; multi-job runs deliberately have no aggregate speed resolution.
 
 ## Reusable Agents
 
@@ -332,6 +350,7 @@ Use `compozy exec` when you want one prompt through the same ACP-backed executio
 compozy exec "Summarize the current repository changes"
 compozy exec --prompt-file prompt.md
 cat prompt.md | compozy exec --format json
+compozy exec --speed fast "Prototype a lower-latency response"
 compozy exec --persist "Review the latest changes"
 compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"
 ```
@@ -353,6 +372,9 @@ Output modes:
 - `--tui` opts back into the Bubble Tea interface for interactive inspection
 - `--persist` stores a resumable conversation under `~/.compozy/runs/<run-id>/`
 - `--run-id` loads a previously persisted ACP session and appends a new turn
+- `--speed normal|fast` overrides the resolved preference for a new run
+
+Persisted resume restores the original run's speed. Omitting `--speed` accepts that stored value even when current config differs; a conflicting explicit `--speed` is rejected before daemon submission.
 
 Persisted `exec` runs use this layout:
 

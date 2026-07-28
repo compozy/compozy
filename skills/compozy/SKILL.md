@@ -95,7 +95,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | `compozy ext enable/disable` | Toggle extension | `<name>` |
 | `compozy ext doctor` | Diagnose extension issues | |
 
-Common flags shared by `tasks run`, `exec`, and `reviews fix`: `--ide`, `--model`, `--reasoning-effort`, `--add-dir`, `--auto-commit`, `--dry-run`.
+Common flags shared by `tasks run`, `exec`, and `reviews fix`: `--ide`, `--model`, `--reasoning-effort`, `--speed`, `--add-dir`, `--auto-commit`, `--dry-run`.
 
 For complete flag documentation, read `references/cli-reference.md`.
 
@@ -165,6 +165,7 @@ ide = "claude"
 model = "opus"
 auto_commit = true
 reasoning_effort = "high"
+speed = "normal"
 add_dirs = ["../shared-lib"]
 
 [tasks]
@@ -183,10 +184,13 @@ provider = "coderabbit"
 nitpicks = false
 
 [exec]
+speed = "fast"
 verbose = false
 tui = false
 persist = false
 ```
+
+Use `--speed normal|fast` to override the configured provider-neutral speed for one `tasks run`, `exec`, or `reviews fix` invocation. `normal` is the product default. Live ACP capabilities resolve each session as `applied`, `unsupported`, or `rejected`; unsupported continues with the runtime default, while rejected stops before prompting. Persisted exec resumes restore their stored speed, and child execution inherits the parent preference.
 
 For all fields, types, and defaults, read `references/config-reference.md`.
 

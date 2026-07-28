@@ -271,16 +271,20 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		modelOptions []acp.SessionConfigOption
-		speedOptions []acp.SessionConfigOption
-		want         kinds.SpeedResolution
-		wantOrder    []string
+		name               string
+		requested          kinds.Speed
+		modelOptions       []acp.SessionConfigOption
+		speedOptions       []acp.SessionConfigOption
+		expectedSpeedValue string
+		want               kinds.SpeedResolution
+		wantOrder          []string
 	}{
 		{
-			name:         "applied after write",
-			modelOptions: atomicSpeedSelectOptions("standard-tier"),
-			speedOptions: atomicSpeedSelectOptions("accelerated-tier"),
+			name:               "fast applied after write",
+			requested:          kinds.SpeedFast,
+			modelOptions:       atomicSpeedSelectOptions("standard-tier"),
+			speedOptions:       atomicSpeedSelectOptions("accelerated-tier"),
+			expectedSpeedValue: "accelerated-tier",
 			want: kinds.SpeedResolution{
 				Requested: kinds.SpeedFast,
 				Status:    kinds.SpeedResolutionStatusApplied,
@@ -288,7 +292,20 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 			wantOrder: []string{"new", "model", "speed", "prompt"},
 		},
 		{
+			name:               "normal applied after write",
+			requested:          kinds.SpeedNormal,
+			modelOptions:       atomicSpeedSelectOptions("accelerated-tier"),
+			speedOptions:       atomicSpeedSelectOptions("standard-tier"),
+			expectedSpeedValue: "standard-tier",
+			want: kinds.SpeedResolution{
+				Requested: kinds.SpeedNormal,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			wantOrder: []string{"new", "model", "speed", "prompt"},
+		},
+		{
 			name:         "already applied",
+			requested:    kinds.SpeedFast,
 			modelOptions: atomicSpeedSelectOptions("accelerated-tier"),
 			want: kinds.SpeedResolution{
 				Requested: kinds.SpeedFast,
@@ -297,7 +314,8 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 			wantOrder: []string{"new", "model", "prompt"},
 		},
 		{
-			name: "unsupported absent",
+			name:      "unsupported absent",
+			requested: kinds.SpeedFast,
 			want: kinds.SpeedResolution{
 				Requested: kinds.SpeedFast,
 				Status:    kinds.SpeedResolutionStatusUnsupported,
@@ -306,7 +324,8 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 			wantOrder: []string{"new", "model", "prompt"},
 		},
 		{
-			name: "unsupported boolean",
+			name:      "unsupported boolean",
+			requested: kinds.SpeedFast,
 			modelOptions: []acp.SessionConfigOption{
 				completeBooleanConfigOption(
 					"provider-fast",
@@ -338,7 +357,7 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 				SpeedConfigOptions:      test.speedOptions,
 				ExpectedModelValue:      "model-v2",
 				ExpectedSpeedConfigID:   "provider-speed",
-				ExpectedSpeedValue:      "accelerated-tier",
+				ExpectedSpeedValue:      test.expectedSpeedValue,
 				ExpectedRequestOrder:    test.wantOrder,
 				ProtocolLogPath:         protocolLog,
 				StopReason:              string(acp.StopReasonEndTurn),
@@ -349,7 +368,7 @@ func TestClientCreateSessionSpeedOutcomes(t *testing.T) {
 				WorkingDir: scenario.ExpectedCWD,
 				Prompt:     []byte(scenario.ExpectedPrompt),
 				Model:      scenario.ExpectedModelValue,
-				Speed:      kinds.SpeedFast,
+				Speed:      test.requested,
 			})
 			if err != nil {
 				t.Fatalf("create atomic session: %v", err)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func ExampleList() {
@@ -64,6 +65,33 @@ func ExampleOpen() {
 
 	// Output:
 	// run-open exec completed
+}
+
+func ExampleRunSummary_speedResolutions() {
+	summary := RunSummary{
+		RunID: "run-speed",
+		Speed: kinds.SpeedFast,
+		SpeedResolutions: map[int]kinds.SpeedResolution{
+			0: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			1: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+		},
+	}
+
+	fmt.Printf("requested: %s\n", summary.Speed)
+	fmt.Printf("job 0: %s\n", summary.SpeedResolutions[0].Status)
+	fmt.Printf("job 1: %s (%s)\n", summary.SpeedResolutions[1].Status, summary.SpeedResolutions[1].Reason)
+
+	// Output:
+	// requested: fast
+	// job 0: applied
+	// job 1: unsupported (capability_absent)
 }
 
 func ExampleRun_Replay() {

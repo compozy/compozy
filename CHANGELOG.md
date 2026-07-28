@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Unreleased
+
+### 🎉 Features
+
+- Add provider-neutral ACP speed control across exec, task, and review workflows. `normal` is the new cost-conscious product default; opt in to compatible accelerated behavior persistently with `speed = "fast"` under `[defaults]` or `[exec]`, or per run with `--speed fast`. Unsupported runtimes continue with their own default and report that the preference was not applied.
+
 ## 0.2.11 - 2026-07-03
 
 ### 🎉 Features

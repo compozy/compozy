@@ -4,6 +4,8 @@ This document is the canonical public reference for the `pkg/compozy/events` env
 
 All event payload fields use their JSON tag names below. Fields tagged with `omitempty` are omitted when their value is empty or zero.
 
+Speed fields are additive and optional. Historical events without them remain valid and decode with no requested speed or resolution.
+
 ## Envelope
 
 Every line in `events.jsonl` is one `events.Event` object:
@@ -30,6 +32,7 @@ Payload type: `kinds.RunQueuedPayload`
 - `model`: effective model name
 - `reasoning_effort`: effective reasoning level
 - `access_mode`: effective runtime access mode
+- `speed`: requested provider-neutral speed, `normal` or `fast`
 
 ### `run.started`
 
@@ -42,6 +45,7 @@ Payload type: `kinds.RunStartedPayload`
 - `model`
 - `reasoning_effort`
 - `access_mode`
+- `speed`: requested provider-neutral speed, `normal` or `fast`
 - `artifacts_dir`: run artifact directory under `~/.compozy/runs/<run-id>`
 - `jobs_total`: number of prepared jobs
 
@@ -124,6 +128,7 @@ Payload type: `kinds.JobQueuedPayload`
 - `task_title`: parsed PRD task title when available
 - `task_type`: parsed PRD task type when available
 - `safe_name`: artifact-safe job name
+- `speed`: requested provider-neutral speed, `normal` or `fast`
 - `out_log`: stdout log path
 - `err_log`: stderr log path
 
@@ -134,6 +139,7 @@ Payload type: `kinds.JobStartedPayload`
 - `index`
 - `attempt`
 - `max_attempts`
+- `speed`: requested provider-neutral speed, `normal` or `fast`
 
 ### `job.attempt_started`
 
@@ -214,6 +220,7 @@ Payload type: `kinds.JobFailedPayload`
 - `out_log`
 - `err_log`
 - `error`
+- `speed_resolution`: rejected speed outcome when compatible setup fails before prompting
 
 ### `job.cancelled`
 
@@ -234,6 +241,7 @@ Payload type: `kinds.SessionStartedPayload`
 - `acp_session_id`
 - `agent_session_id`
 - `resumed`
+- `speed_resolution`: applied or unsupported speed outcome confirmed before prompting
 
 ### `session.update`
 
@@ -278,6 +286,18 @@ Payload type: `kinds.SessionFailedPayload`
 - `index`
 - `error`
 - `usage`: `kinds.Usage`
+
+### Speed field contract
+
+Requested intent appears as `speed` on `run.queued`, `run.started`, `job.queued`, and `job.started`. Resolution appears only after ACP session setup: `session.started.speed_resolution` carries applied or unsupported outcomes, while `job.failed.speed_resolution` carries a rejected setup outcome.
+
+`speed_resolution` fields are:
+
+- `requested`: `normal` or `fast`
+- `status`: `applied`, `unsupported`, or `rejected`
+- `reason`: `capability_absent`, `capability_ambiguous`, `value_ambiguous`, or `provider_rejected`; omitted for `applied`
+
+Speed is requested at run level but resolved independently per job/session. Consumers must not infer one aggregate run resolution from multiple jobs. All speed fields use `omitempty`; historical journals that omit them retain their original meaning.
 
 ## Reusable Agent Events
 
