@@ -113,10 +113,6 @@ describe("useSessionCatalogStreams", () => {
       queryKey: sessionKeys.detail(beta.id, "sess_beta"),
       exact: true,
     });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionKeys.byId("sess_beta"),
-      exact: true,
-    });
     expect(invalidate).not.toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(alpha.id),
     });

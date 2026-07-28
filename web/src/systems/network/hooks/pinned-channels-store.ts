@@ -47,6 +47,7 @@ export function createPinnedChannelsStore(workspaceId: string): PinnedChannelsSt
     persist({
       name: PINNED_CHANNELS_STORAGE_KEY,
       storage: createPinnedChannelsStorage(workspaceId),
+      skipHydration: true,
       merge: (persisted, current) => ({
         workspaceId: current.workspaceId,
         pinnedIds: sameIds(current.pinnedIds, persisted.pinnedIds ?? [])

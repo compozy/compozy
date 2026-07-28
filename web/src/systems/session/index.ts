@@ -73,7 +73,6 @@ export {
   fetchSessionClarifications,
   deleteSession,
   fetchSession,
-  fetchSessionById,
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionGoal,
@@ -100,7 +99,6 @@ export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export { sessionKeys } from "./lib/query-keys";
 export {
-  sessionByIdOptions,
   sessionClarificationsOptions,
   sessionDetailOptions,
   sessionEventsOptions,

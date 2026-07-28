@@ -54,7 +54,6 @@ export function useCreateSession() {
     onSuccess: session => {
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
-      queryClient.setQueryData(sessionKeys.byId(session.id), session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
       void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
     },
@@ -85,7 +84,6 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
       const successWorkspaceId = requireWorkspace(workspaceId);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.byId(id), exact: true });
 
       return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },

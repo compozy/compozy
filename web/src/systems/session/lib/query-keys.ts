@@ -18,7 +18,6 @@ function normalizedEventParams(params: FetchSessionEventsParams = {}): FetchSess
 
 export const sessionKeys = {
   all: ["sessions"] as const,
-  byId: (id: string) => [...sessionKeys.all, "by-id", id] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
   workspaceActivity: (workspace: string) =>

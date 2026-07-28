@@ -20,10 +20,6 @@ export async function invalidateSessionMutationQueries(
     queryClient.invalidateQueries({
       queryKey: sessionKeys.detail(workspaceId, sessionId),
     }),
-    queryClient.invalidateQueries({
-      queryKey: sessionKeys.byId(sessionId),
-      exact: true,
-    }),
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),
   ]);
 }
@@ -40,10 +36,6 @@ export async function invalidateSessionLiveQueries(
     }),
     queryClient.invalidateQueries({
       queryKey: sessionKeys.history(workspaceId, sessionId),
-      exact: true,
-    }),
-    queryClient.invalidateQueries({
-      queryKey: sessionKeys.byId(sessionId),
       exact: true,
     }),
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),

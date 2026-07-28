@@ -5,7 +5,11 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
-import { PINNED_CHANNELS_STORAGE_KEY } from "../pinned-channels-store";
+import {
+  createPinnedChannelsStore,
+  PINNED_CHANNELS_STORAGE_KEY,
+  rehydratePinnedChannelsStore,
+} from "../pinned-channels-store";
 import { useNetworkChannels } from "../use-channels";
 
 vi.mock("@/systems/workspace", () => ({
@@ -48,6 +52,21 @@ describe("useNetworkChannels", () => {
 
   afterEach(() => {
     window.localStorage.clear();
+  });
+
+  it("Should defer pinned-channel storage reads until explicit hydration", async () => {
+    window.localStorage.setItem(PINNED_CHANNELS_STORAGE_KEY, JSON.stringify({ w1: ["ops"] }));
+    const getItem = vi.spyOn(Storage.prototype, "getItem");
+
+    const store = createPinnedChannelsStore("w1");
+
+    expect(getItem).not.toHaveBeenCalled();
+    expect(store.getSnapshot().context.pinnedIds).toEqual([]);
+
+    await rehydratePinnedChannelsStore(store);
+
+    expect(getItem).toHaveBeenCalledWith(PINNED_CHANNELS_STORAGE_KEY);
+    expect(store.getSnapshot().context.pinnedIds).toEqual(["ops"]);
   });
 
   it("preserves backend channel order and surfaces pinned channels separately", async () => {

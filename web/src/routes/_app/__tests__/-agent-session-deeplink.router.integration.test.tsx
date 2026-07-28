@@ -1,6 +1,6 @@
 // Suite: cross-workspace session deep-link router integration
-// Invariant: a session navigation always selects the session's owning workspace (Routing rule 8,
-// US-016.EC-2 — nothing renders cross-workspace in place); preloads never change the selection.
+// Invariant: session navigation remains scoped to the active workspace; a foreign session id
+// resolves as not found without changing selection or reading a cache owned by another workspace.
 // Boundary IN: TanStack Router, Link, route beforeLoad/loader, Query cache, and active-workspace store.
 // Boundary OUT: HTTP adapters and rendered session transcript, owned by their system suites.
 
@@ -15,7 +15,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sessionKeys, type SessionPayload } from "@/systems/session";
 import {
@@ -78,7 +78,6 @@ function seedSessionRouteQueries(queryClient: QueryClient): void {
     makeWorkspace(PRIMARY_WORKSPACE_ID, "primary"),
   ]);
   for (const session of sessions) {
-    queryClient.setQueryData(sessionKeys.byId(session.id), session);
     queryClient.setQueryData(sessionKeys.detail(session.workspace_id, session.id), session);
     queryClient.setQueryData(sessionKeys.transcript(session.workspace_id, session.id), {
       pages: [],
@@ -154,57 +153,52 @@ describe("cross-workspace session deep-link router integration", () => {
   beforeEach(() => {
     localStorage.clear();
     setActiveWorkspaceId(BENCH_WORKSPACE_ID);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
   });
 
-  it("Should select the owning workspace when a session link crosses workspaces", async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should reject a foreign session link without changing the active workspace", async () => {
     const { router } = buildSessionDeepLinkRouter();
     render(<RouterProvider router={router} />);
 
     await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
     fireEvent.click(screen.getByRole("link", { name: "Open primary session" }));
 
-    await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
+      expect(router.state.location.pathname).toBe("/agents/general");
     });
-    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
-      PRIMARY_WORKSPACE_ID
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+    expect(localStorage.getItem("compozy:active-workspace:v2")).toContain(BENCH_WORKSPACE_ID);
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(globalThis.fetch).mock.calls[0]?.[0];
+    expect(new URL(request instanceof Request ? request.url : String(request)).pathname).toBe(
+      `/api/workspaces/${BENCH_WORKSPACE_ID}/sessions/${PRIMARY_SESSION_ID}`
     );
-    expect(localStorage.getItem("compozy:active-workspace:v2")).toContain(PRIMARY_WORKSPACE_ID);
   });
 
-  it("Should adopt the owner on every cross-workspace hop, both directions", async () => {
+  it("Should load a session owned by the active workspace", async () => {
     const { router } = buildSessionDeepLinkRouter();
     render(<RouterProvider router={router} />);
 
     await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
-    fireEvent.click(screen.getByRole("link", { name: "Open primary session" }));
-    await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
-    await waitFor(() => {
-      expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
-        PRIMARY_WORKSPACE_ID
-      );
-    });
-    fireEvent.click(screen.getByRole("link", { name: "Open bench permalink" }));
-
-    await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
-    await waitFor(() => {
-      expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
-        BENCH_WORKSPACE_ID
-      );
-    });
+    expect(router.state.location.pathname).toBe(`/agents/general/sessions/${BENCH_SESSION_ID}`);
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("Should never change the selection from a preload", async () => {
+  it("Should keep foreign preloads scoped without changing the selection", async () => {
     const { queryClient } = buildSessionDeepLinkRouter();
 
     const data = await prefetchAgentSessionRoute({
       queryClient,
       sessionId: PRIMARY_SESSION_ID,
-      preload: true,
     });
 
-    expect(data.workspaceId).toBe(PRIMARY_WORKSPACE_ID);
+    expect(data.workspaceId).toBeNull();
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
   });
 });

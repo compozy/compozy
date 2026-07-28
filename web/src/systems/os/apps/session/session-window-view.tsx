@@ -2,7 +2,6 @@ import { AlertCircle } from "lucide-react";
 
 import { Spinner } from "@compozy/ui";
 
-import { useSessionWorkspaceGuard } from "@/hooks/routes/use-session-workspace-guard";
 import { SessionChatRuntimeProvider, useSessionById } from "@/systems/session";
 
 import { SessionWindowContent } from "./session-window-content";
@@ -21,13 +20,6 @@ export function SessionWindowView({
   const { data: session, isLoading, error } = useSessionById(id, workspaceId);
   const sessionWorkspaceId = session?.workspace_id?.trim();
 
-  useSessionWorkspaceGuard({
-    sessionWorkspaceId,
-    agentName: name,
-    sessionId: id,
-    sessionName: session?.name,
-  });
-
   if (isLoading) {
     return (
       <div
@@ -38,7 +30,7 @@ export function SessionWindowView({
       </div>
     );
   }
-  if (!session || !sessionWorkspaceId) {
+  if (!session || sessionWorkspaceId !== workspaceId) {
     return <SessionWindowNotice message={error?.message ?? "Session not found"} />;
   }
 

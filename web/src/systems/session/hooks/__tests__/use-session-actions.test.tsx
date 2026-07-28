@@ -153,7 +153,6 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );
-    expect(queryClient.getQueryData(sessionKeys.byId(createdSession.id))).toEqual(createdSession);
     expect(queryClient.getQueryData(sessionKeys.list())).toEqual(allSessions);
     expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_alpha" }))).toEqual(
       workspaceSessions
@@ -254,7 +253,6 @@ describe("session actions", () => {
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.byId(createdSession.id), createdSession);
     queryClient.setQueryData(
       sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
       transcriptCache()
@@ -279,7 +277,6 @@ describe("session actions", () => {
     expect(
       queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))
     ).toBeUndefined();
-    expect(queryClient.getQueryData(sessionKeys.byId(createdSession.id))).toBeUndefined();
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
     ).toBeUndefined();
@@ -302,7 +299,6 @@ describe("session actions", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.byId(createdSession.id), createdSession);
 
     const transcriptSnapshot = transcriptCache();
     const historySnapshot = [{ id: "turn-1" }];
@@ -326,7 +322,6 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );
-    expect(queryClient.getQueryData(sessionKeys.byId(createdSession.id))).toEqual(createdSession);
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
     ).toEqual(transcriptSnapshot);
@@ -377,10 +372,6 @@ describe("session actions", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.byId(createdSession.id),
-      exact: true,
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),

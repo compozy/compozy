@@ -50,6 +50,8 @@ export function useNetworkChannels({
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
+    void rehydratePinnedChannelsStore(store);
+
     function handleStorage(event: StorageEvent) {
       if (event.key === PINNED_CHANNELS_STORAGE_KEY) {
         void rehydratePinnedChannelsStore(store);
@@ -57,7 +59,7 @@ export function useNetworkChannels({
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [store, workspaceKey]);
+  }, [store]);
 
   const togglePinned = (channel: string) => {
     if (!selectedWorkspaceId) return;

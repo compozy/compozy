@@ -79,10 +79,6 @@ function openSessionCatalogStream(
       queryKey: sessionKeys.detail(payload.workspace_id, payload.session_id),
       exact: true,
     });
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.byId(payload.session_id),
-      exact: true,
-    });
   };
   const source = eventSourceFactory(sessionCatalogStreamURL());
   try {

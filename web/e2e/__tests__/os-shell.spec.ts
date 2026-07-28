@@ -121,6 +121,18 @@ interface WindowManagerLayoutDocument {
   overrides: Record<string, unknown>;
 }
 
+interface WindowManagerSettingsResponse {
+  config: {
+    gaps: {
+      inner: number;
+      top: number;
+      right: number;
+      bottom: number;
+      left: number;
+    };
+  };
+}
+
 interface SettingsRestartAction {
   operation_id: string;
   status: string;
@@ -915,7 +927,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const secondWorkspace = await addSecondWorkspace(runtime);
+  const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await appPage.locator('[data-slot="os-menubar-workspace"]').click();
@@ -1066,6 +1078,9 @@ test("E2E-026: normalized tile topology converges across viewports and CLI arran
 }) => {
   await appPage.setViewportSize({ width: 1440, height: 900 });
   const workspace = await prepareShell(appPage, runtime);
+  const settings = await runtime.requestJSON<WindowManagerSettingsResponse>(
+    "/api/settings/window-manager"
+  );
   const second = await openPeerPage(browser, runtime);
   try {
     const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
@@ -1114,8 +1129,8 @@ test("E2E-026: normalized tile topology converges across viewports and CLI arran
           winLayerSize(second),
         ]);
         return (
-          Math.abs(first.x - firstLayer.width / 2) <= 1 &&
-          Math.abs(peer.x - peerLayer.width / 2) <= 1
+          Math.abs(first.x - rightHalfTileX(firstLayer.width, settings.config.gaps)) <= 1 &&
+          Math.abs(peer.x - rightHalfTileX(peerLayer.width, settings.config.gaps)) <= 1
         );
       })
       .toBe(true);
@@ -1468,15 +1483,15 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
     .toMatchObject({ minimized: false });
 });
 
-test("E2E-016: a cross-workspace session deep link switches workspaces and leaves both topologies intact", async ({
+test("E2E-016: a cross-workspace session deep link is rejected without exposing foreign data", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
-  const secondWorkspace = await addSecondWorkspace(runtime);
+  const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
   const session = await createNamedSession(runtime, secondWorkspace.id, "cross-workspace-session");
 
-  // Arrange A so its integrity is checkable after the round trip.
+  // Arrange A so its integrity is checkable after the rejected navigation.
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const openedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, "app:tasks");
   await dragWindowBy(appPage, tasks, 130, 70);
@@ -1486,29 +1501,27 @@ test("E2E-016: a cross-workspace session deep link switches workspaces and leave
   const arrangedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, "app:tasks");
   await expect.poll(() => windowRect(appPage, tasks)).toEqual(arrangedTasks);
 
-  // Follow the session link owned by B: the shell switches to workspace B and
-  // opens that session focused there — never cross-workspace in place.
+  // Follow the session link owned by B: the active workspace remains A and the
+  // foreign session resolves as not found.
   await appPage.goto(
     runtime.url(
       `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`
     ),
     { waitUntil: "domcontentloaded" }
   );
-  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(
-    secondWorkspace.name
+  await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
+    "Session not found"
   );
-  const sessionWindow = appPage.getByTestId(`os-window-session:${session.id}`);
-  await expect(sessionWindow).toBeVisible();
-  await expect(appPage.getByTestId("os-window-app:tasks")).toHaveCount(0);
-
-  // Switching back shows A untouched: same windows, same position, no leak.
-  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
-  await appPage.getByTestId(`os-workspace-option-${workspace.id}`).click();
-  const tasksBack = appPage.getByTestId("os-window-app:tasks");
-  await expect(tasksBack).toBeVisible();
-  await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
   await expect
-    .poll(async () => rectsClose(await windowRect(appPage, tasksBack), arrangedTasks))
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/agents/${encodeURIComponent(session.agent_name)}`);
+  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(workspace.name);
+  await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
+  await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
+  const tasksAfterRejection = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksAfterRejection).toBeVisible();
+  await expect
+    .poll(async () => rectsClose(await windowRect(appPage, tasksAfterRejection), arrangedTasks))
     .toBe(true);
 });
 
@@ -2270,12 +2283,27 @@ async function sessionHistoryContains(
   return JSON.stringify(history).includes(expected);
 }
 
-async function addSecondWorkspace(runtime: BrowserRuntime): Promise<WorkspacePayload> {
+async function addSecondWorkspace(
+  runtime: BrowserRuntime,
+  firstWorkspaceId: string
+): Promise<WorkspacePayload> {
   if (!runtime.paths) throw new Error("workspace switch E2E requires launch-mode runtime paths");
-  const rootDir = path.join(runtime.paths.homeDir, "os-shell-second-workspace");
+  const rootDir = `${runtime.paths.homeDir}-os-shell-second-workspace`;
   const { mkdir } = await import("node:fs/promises");
   await mkdir(rootDir, { recursive: true });
-  return await runtime.resolveWorkspace(rootDir);
+  const workspace = await runtime.resolveWorkspace(rootDir);
+  if (workspace.id === firstWorkspaceId) {
+    throw new Error("cross-workspace E2E setup must resolve a distinct workspace");
+  }
+  return workspace;
+}
+
+function rightHalfTileX(
+  layerWidth: number,
+  gaps: WindowManagerSettingsResponse["config"]["gaps"]
+): number {
+  const layoutWidth = Math.max(0, layerWidth - gaps.left - gaps.right);
+  return gaps.left + Math.round(layoutWidth / 2) + Math.ceil(gaps.inner / 2);
 }
 
 type MenubarMenu = "CompozyOS" | "Session" | "Go" | "Window" | "Help";

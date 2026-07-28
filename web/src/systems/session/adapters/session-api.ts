@@ -76,17 +76,6 @@ export async function fetchSession(
   return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
 
-export async function fetchSessionById(id: string, signal?: AbortSignal): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.GET("/api/sessions/{session_id}", {
-    params: { path: { session_id: id } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session "${id}"`, id);
-  }
-  return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
-}
-
 export async function deleteSession(
   workspaceId: string,
   id: string,

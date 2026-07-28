@@ -4,7 +4,8 @@ import { toast } from "sonner";
 
 import { Spinner } from "@compozy/ui";
 
-import { sessionByIdOptions } from "@/systems/session";
+import { SessionNotFoundError, sessionDetailOptions } from "@/systems/session";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
@@ -15,23 +16,34 @@ const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
 
 /**
  * Session window controller: parses `agent + session` identity from
- * the window's WM location and resolves the owning workspace the same way the
- * route loader does (session-by-id), then rehosts the existing session view.
+ * the window's WM location, then resolves the session inside the active
+ * workspace before rehosting the existing session view.
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
+  const { activeWorkspaceId } = useActiveWorkspace();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "");
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
 
   const sessionQuery = useQuery({
-    ...sessionByIdOptions(sessionId ?? ""),
-    enabled: sessionId !== null,
+    ...sessionDetailOptions(activeWorkspaceId ?? "", sessionId ?? ""),
+    enabled: activeWorkspaceId !== null && sessionId !== null,
   });
+  const sessionWorkspaceId = sessionQuery.data?.workspace_id?.trim();
+  const crossesWorkspace =
+    sessionWorkspaceId !== undefined &&
+    activeWorkspaceId !== null &&
+    sessionWorkspaceId !== activeWorkspaceId;
 
   useEffect(() => {
-    if (!sessionQuery.error?.message.includes("not found") || agentName === null) return;
+    if (
+      (!(sessionQuery.error instanceof SessionNotFoundError) && !crossesWorkspace) ||
+      agentName === null
+    ) {
+      return;
+    }
     toast.error("Session not found");
     void coordinator.userClose(windowId).then(closed => {
       if (!closed) return;
@@ -43,7 +55,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         },
       });
     });
-  }, [agentName, coordinator, sessionQuery.error, windowId]);
+  }, [agentName, coordinator, crossesWorkspace, sessionQuery.error, windowId]);
 
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
@@ -59,8 +71,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     );
   }
 
-  const workspaceId = sessionQuery.data?.workspace_id?.trim() || null;
-  if (workspaceId === null) {
+  if (activeWorkspaceId === null || crossesWorkspace) {
     return (
       <SessionWindowNotice
         message={sessionQuery.error?.message ?? "Session workspace unavailable"}
@@ -73,7 +84,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
       <SessionWindowView
         name={agentName}
         id={sessionId}
-        workspaceId={workspaceId}
+        workspaceId={activeWorkspaceId}
         onDeleteSuccess={() => {
           void coordinator.userClose(windowId).then(closed => {
             if (!closed) return;

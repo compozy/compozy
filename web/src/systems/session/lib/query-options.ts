@@ -2,7 +2,6 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   fetchSession,
-  fetchSessionById,
   fetchSessionClarifications,
   fetchSessionEvents,
   fetchSessionHistory,
@@ -76,16 +75,6 @@ export function sessionDetailOptions(workspace: string, id: string) {
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
-  });
-}
-
-export function sessionByIdOptions(id: string) {
-  return queryOptions({
-    queryKey: sessionKeys.byId(id),
-    queryFn: ({ signal }) => fetchSessionById(id, signal),
-    staleTime: SESSION_DETAIL_STALE_TIME_MS,
-    ...SESSION_WARM_CACHE_POLICY,
-    enabled: !!id,
   });
 }
 

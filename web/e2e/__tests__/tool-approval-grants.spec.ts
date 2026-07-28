@@ -125,7 +125,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     // creates no unrelated state. The call blocks until the operator answers in the browser.
     const pendingCall = client.callTool({
       name: REVOKE_TOOL,
-      arguments: { id: "e2e-nonexistent-grant", workspace_id: workspace.id },
+      arguments: { id: "e2e-nonexistent-grant" },
       _meta: { toolCallId: "e2e-tool-approval-revoke" },
     });
     toolCall = pendingCall;
