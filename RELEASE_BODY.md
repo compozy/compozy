@@ -1,41 +1,53 @@
-## 0.0.9 - 2026-07-04
+## 0.3.0 - 2026-07-28
 
-### ♻️ Refactoring
+### 🎉 Features
 
-- Tasks orchestration (#269)
+- Introducing CompozyOS beta
+- **BREAKING:** introducing CompozyOS beta
 
 ### 🐛 Bug Fixes
 
-- Network optimizations (#263)
-- Native tools (#266)
-- Align release-gated network integration tests with #263 behavior
+- _(cli)_ Reap leaked test daemons and artifacts (#253)
+- Archive without tasks
+- Resolve inherited cross-runtime models against runtime defaults (#259)
 
 ### 📚 Documentation
 
-- Update skills
-- New skill
-- Add feature stories
-- Add v0.0.9 release notes
+- Update readme
 
 ### 📦 Build System
 
-- Update go deps
-- Gitignore
+- Auto-publish beta releases on release PR merge
+- Push release branch updates with RELEASE_TOKEN
+- Publish site changelog receipts from the release job
+- Delete not need things
+- Fix tests
+- Align release body heading with the published version
+
+### 🔧 CI/CD
+
+- Fix tests
+- Fix release workflow
 
 ### Release Notes
 
-#### Features
+#### Breaking Changes
 
-##### Network delivery policies, subscriptions, and thread-to-task promotion
+##### The OS Release
 
-Compozy network channels gain durable delivery control. Each channel now carries a fan-out policy — deliver to all members, route to a designated coordinator peer, or match by capability (the default) — managed with `compozy network channels create` and `compozy network channels update`. Peers and tasks can subscribe to channels: inspect subscriptions with `compozy network subscriptions` and manage per-task subscriptions with `compozy task subscribe <task-id>`. Executable thread messages can be promoted into durable workspace tasks straight from the CLI with `compozy network promote`, or by an agent through the `compozy__task_promote_from_thread` native tool, and designated sibling task runs can be fanned out as part of a workflow. Network and task views now surface task links, peer and coordination cost, and delivered size and token metrics, while mentions are normalized (trimmed, empties removed) and size and token limits are enforced as non-negative.
+Compozy v0.3 is a new operating system boundary for agent work. Sessions, tasks, loops, memory,
+permissions, automation, the OS shell, and Compozy Network now share one daemon-owned state model.
+People can start and inspect that work from the web, CLI, HTTP/SSE, or UDS. Agents can operate the
+same runtime through structured tools and extension contracts.
 
-##### Task blocking, recovery, and needs-attention triage
+This is a breaking beta. The command, package, environment, storage, API, and tool namespaces move
+to Compozy, and several v0.2 surfaces have deliberate replacements or removals. Follow the
+[v0.3 migration guide](https://compozy.com/runtime/migration/) before replacing an existing install.
+The maintained v0.2 line and its collateral remain on `legacy/v0.2`.
 
-Tasks are now first-class to block, triage, and recover. A task can be explicitly blocked and unblocked with `compozy task block <id>` and `compozy task unblock <id>`, and every block is kept as durable history you can inspect with `compozy task blocks <id>`. A new `needs_attention` status surfaces tasks that stalled and need a human or coordinator to step in — task details now carry the blocked reason and the wake creator so it is clear why a task is waiting and who nudged it. Clear the state with `compozy task recover <id>`, recover a specific stalled run with `compozy task run recover <run-id>`, or let an agent do it through the `compozy__task_recover` native tool and the HTTP/UDS API. Task completion now returns the IDs of any tasks it created, and stronger validation rejects invalid created-task references before they are persisted. Claim tokens are redacted across task outputs and hook payloads, and the new `needs_attention_after` setting controls how long a task may wait before it is flagged for attention.
+Install the beta through the verified hosted installer, `@compozy/cli@beta`, or the explicit
+`github.com/compozy/compozy@v0.3.0-beta.1` Go version. The beta channel may change before v0.3.0
+stable; production rollouts should pin the version and review each prerelease.
 
-#### Fixes
-
-##### Clearer native tool errors and availability diagnostics
-
-Native and hosted tool calls now fail legibly. Hosted MCP tool calls return richer, structured JSON error details — the tool ID, an error code, and any denial reasons — instead of opaque failures, and advertised tools carry improved metadata and descriptions. When runtime diagnostic data cannot be retrieved, native tool lookups report a clear "unavailable" diagnostic rather than a silent miss. Hosted and session MCP availability handling is safer overall, with clearer informational and warning logs and graceful fallbacks when a feature is disabled. Documentation and the runtime envelope now consistently direct agents to the canonical `compozy__*` tool IDs and the harness-returned tool references.
+The repository was already MIT licensed. v0.3 corrects stale BSL-1.1 text in distribution metadata;
+it does not relicense the code.
