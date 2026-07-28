@@ -201,15 +201,19 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 func TestSessionNewRejectsInvalidSpeed(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
-			t.Fatal("CreateSession() called with invalid speed")
-			return SessionRecord{}, nil
-		},
+	t.Run("Should reject invalid speed before creating a session", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				t.Fatal("CreateSession() called with invalid speed")
+				return SessionRecord{}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "session", "new", "--speed", "turbo"); err == nil {
+			t.Fatal("executeRootCommand(session new --speed turbo) error = nil")
+		}
 	})
-	if _, _, err := executeRootCommand(t, deps, "session", "new", "--speed", "turbo"); err == nil {
-		t.Fatal("executeRootCommand(session new --speed turbo) error = nil")
-	}
 }
 
 func TestSessionNewReportsDurableStartupFailure(t *testing.T) {
