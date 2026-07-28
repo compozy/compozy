@@ -133,10 +133,3 @@ export function describeWorkspaceError(error: unknown): string {
   }
   return "Unable to load provider options for this workspace.";
 }
-
-export function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}

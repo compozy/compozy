@@ -78,6 +78,10 @@ vi.mock("fumadocs-ui/layouts/notebook", () => ({
   useNotebookLayout: () => mocks.state,
 }));
 
+vi.mock("fumadocs-ui/layouts/notebook/slots/sidebar", () => ({
+  useSidebar: () => ({ open: false }),
+}));
+
 vi.mock("fumadocs-ui/layouts/shared", () => ({
   isLayoutTabActive: (tab: TabItem, pathname: string) => pathname.startsWith(tab.url),
   LinkItem: ({ children, item, ...props }: { children?: ReactNode; item: NavItem }) => (

@@ -54,9 +54,7 @@ function Sheet({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <SheetMotionContext.Provider value={value}>
-        {children as React.ReactNode}
-      </SheetMotionContext.Provider>
+      <SheetMotionContext value={value}>{children as React.ReactNode}</SheetMotionContext>
     </SheetPrimitive.Root>
   );
 }

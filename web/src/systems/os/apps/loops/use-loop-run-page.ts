@@ -56,12 +56,10 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   // failures remain visible after navigation or reload; the hook closes on it.
   useLoopStream(workspaceId, runId, {
     enabled: runQuery.isSuccess,
-    onSubscriptionOpened: subscription =>
-      runPageStore.trigger.streamSubscriptionOpened(subscription),
     onEvent: (frame, subscription) =>
       runPageStore.trigger.streamFrameReceived({
         frame,
-        generation: subscription.generation,
+        subscription,
       }),
   });
   const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });

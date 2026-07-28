@@ -2,6 +2,7 @@
 
 import { buttonVariants, cn } from "@compozy/ui";
 import { useNotebookLayout } from "fumadocs-ui/layouts/notebook";
+import { useSidebar } from "fumadocs-ui/layouts/notebook/slots/sidebar";
 import {
   isLayoutTabActive,
   LinkItem,
@@ -25,7 +26,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
   } = useNotebookLayout();
 
   const sidebarSlots = slots.sidebar;
-  const { open } = sidebarSlots?.useSidebar?.() ?? {};
+  const { open } = useSidebar();
   const navMode = nav?.mode ?? "auto";
   const sidebarCollapsible = sidebar.collapsible ?? true;
   const showLayoutTabs = tabMode === "navbar" && tabs.length > 0;

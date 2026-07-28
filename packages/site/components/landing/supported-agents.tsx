@@ -94,6 +94,20 @@ const QUILT_LAYOUT: readonly ("logo" | "empty")[] = QUILT_PATTERN.flatMap(row =>
   Array.from(row, ch => (ch === "*" ? ("logo" as const) : ("empty" as const)))
 );
 
+type QuiltSlot = { kind: "empty" } | { kind: "logo"; providerIndex: number };
+
+function indexQuiltSlots(layout: readonly ("logo" | "empty")[]): QuiltSlot[] {
+  let providerIndex = 0;
+  return layout.map(slot => {
+    if (slot === "empty") return { kind: "empty" };
+    const indexedSlot: QuiltSlot = { kind: "logo", providerIndex };
+    providerIndex += 1;
+    return indexedSlot;
+  });
+}
+
+const QUILT_SLOTS = indexQuiltSlots(QUILT_LAYOUT);
+
 /**
  * Compact strip showing which agent CLIs are supported. Frames each CLI as a
  * peer on Compozy Network, the strip's job is to make a visitor see their own
@@ -126,7 +140,6 @@ export function SupportedAgents() {
 }
 
 function ProviderQuilt({ providers }: { providers: Provider[] }) {
-  let logoCursor = 0;
   return (
     <div
       // Radial mask fades only the band ends — vertical fade is muted because the ribbon is short.
@@ -143,8 +156,8 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
             className="grid w-full gap-1.5"
             style={{ gridTemplateColumns: `repeat(${QUILT_COLS}, minmax(0, 1fr))` }}
           >
-            {QUILT_LAYOUT.map((slot, idx) => {
-              if (slot === "empty") {
+            {QUILT_SLOTS.map((slot, idx) => {
+              if (slot.kind === "empty") {
                 return (
                   <li
                     key={`empty-${idx}`}
@@ -153,8 +166,7 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
                   />
                 );
               }
-              const provider = providers[logoCursor];
-              logoCursor += 1;
+              const provider = providers[slot.providerIndex];
               if (!provider) {
                 return (
                   <li

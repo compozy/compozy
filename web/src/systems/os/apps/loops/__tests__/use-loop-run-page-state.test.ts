@@ -21,60 +21,65 @@ function frame(
 }
 
 describe("loopRunPageLogic", () => {
-  it("Should preserve live state when the same run opens a newer stream generation", () => {
+  // Invariant: stream generations are monotonic while live state accumulates for
+  // the current scope. Owning layer: store transition. Canonical suite: this file.
+  it("Should preserve live state when the same run receives a newer stream generation", () => {
     const store = loopRunPageLogic.createStore({ runId: "run-a", workspaceId: "workspace-a" });
-
-    store.trigger.streamSubscriptionOpened({
+    const firstSubscription = {
       generation: 1,
       runId: "run-a",
       workspaceId: "workspace-a",
-    });
-    store.trigger.streamFrameReceived({ frame: frame("node_running", 1), generation: 1 });
-
-    store.trigger.streamSubscriptionOpened({
-      generation: 2,
-      runId: "run-a",
-      workspaceId: "workspace-a",
-    });
-
-    expect(store.getSnapshot().context.live.frames).toHaveLength(1);
-    expect(store.getSnapshot().context.streamGeneration).toBe(2);
-    store.trigger.streamFrameReceived({ frame: frame("node_running", 2), generation: 1 });
-    expect(store.getSnapshot().context.live.frames).toHaveLength(1);
-  });
-
-  // Invariant: a frame belongs only to the active run-stream generation; changing
-  // the workspace/run scope clears live projection and rejects late frames.
-  // Owning layer: unit transition logic. Canonical suite: this file, because no
-  // existing run-page state suite owns generation-fenced stream transitions.
-  it("Should reject late stream frames after the run subscription changes", () => {
-    const store = loopRunPageLogic.createStore({ runId: "run-a", workspaceId: "workspace-a" });
-
-    store.trigger.streamSubscriptionOpened({
-      generation: 1,
-      runId: "run-a",
-      workspaceId: "workspace-a",
-    });
-    store.trigger.streamFrameReceived({ frame: frame("node_running", 1), generation: 1 });
-    expect(store.getSnapshot().context.live.frames).toHaveLength(1);
-
-    store.trigger.streamSubscriptionOpened({
-      generation: 2,
-      runId: "run-b",
-      workspaceId: "workspace-b",
-    });
-    expect(store.getSnapshot().context.live.frames).toHaveLength(0);
-    expect(store.getSnapshot().context.streamGeneration).toBe(2);
-
-    store.trigger.streamFrameReceived({ frame: frame("node_running", 2), generation: 1 });
-    expect(store.getSnapshot().context.live.frames).toHaveLength(0);
-
-    store.trigger.streamFrameReceived({ frame: frame("node_running", 3), generation: 2 });
-    expect(store.getSnapshot().context.live.frames).toHaveLength(0);
+    };
+    const secondSubscription = { ...firstSubscription, generation: 2 };
 
     store.trigger.streamFrameReceived({
-      frame: frame("node_running", 4, { runId: "run-b", workspaceId: "workspace-b" }),
-      generation: 2,
+      frame: frame("node_running", 1),
+      subscription: firstSubscription,
+    });
+    store.trigger.streamFrameReceived({
+      frame: frame("node_running", 2),
+      subscription: secondSubscription,
+    });
+    expect(store.getSnapshot().context.live.frames).toHaveLength(2);
+    expect(store.getSnapshot().context.streamGeneration).toBe(2);
+
+    store.trigger.streamFrameReceived({
+      frame: frame("node_running", 3),
+      subscription: firstSubscription,
+    });
+    expect(store.getSnapshot().context.live.frames).toHaveLength(2);
+  });
+
+  // Invariant: a frame belongs only to the page's workspace/run scope.
+  // Owning layer: unit transition logic. Canonical suite: this file, because no
+  // other run-page state suite owns stream-scope validation.
+  it("Should reject frames from a different run subscription or payload scope", () => {
+    const store = loopRunPageLogic.createStore({ runId: "run-a", workspaceId: "workspace-a" });
+    const currentSubscription = {
+      generation: 1,
+      runId: "run-a",
+      workspaceId: "workspace-a",
+    };
+
+    store.trigger.streamFrameReceived({
+      frame: frame("node_running", 1),
+      subscription: currentSubscription,
+    });
+    expect(store.getSnapshot().context.live.frames).toHaveLength(1);
+
+    store.trigger.streamFrameReceived({
+      frame: frame("node_running", 2),
+      subscription: {
+        generation: 2,
+        runId: "run-b",
+        workspaceId: "workspace-b",
+      },
+    });
+    expect(store.getSnapshot().context.live.frames).toHaveLength(1);
+
+    store.trigger.streamFrameReceived({
+      frame: frame("node_running", 3, { runId: "run-b", workspaceId: "workspace-b" }),
+      subscription: { ...currentSubscription, generation: 2 },
     });
     expect(store.getSnapshot().context.live.frames).toHaveLength(1);
   });

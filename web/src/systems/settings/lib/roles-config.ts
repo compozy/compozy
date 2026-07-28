@@ -144,12 +144,6 @@ const REASONING_VALUES = [
   "max",
 ] as const satisfies readonly ReasoningEffort[];
 
-/** Reasoning-effort options ("" = inherit) shared with the AGENT.md enum. */
-export const REASONING_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "", label: "Default (inherit)" },
-  ...REASONING_VALUES.map(value => ({ value, label: value })),
-];
-
 export function isReasoningEffortOptionValue(value: string): boolean {
   return value === "" || (REASONING_VALUES as readonly string[]).includes(value);
 }

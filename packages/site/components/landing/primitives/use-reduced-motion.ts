@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 function subscribeToReducedMotion(
   query: MediaQueryList,
@@ -18,22 +20,31 @@ function subscribeToReducedMotion(
   return () => legacyQuery.removeListener?.(listener);
 }
 
+function getReducedMotionQuery(): MediaQueryList | null {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return null;
+  }
+  return window.matchMedia(REDUCED_MOTION_QUERY);
+}
+
+function subscribe(onStoreChange: () => void): () => void {
+  const query = getReducedMotionQuery();
+  if (!query) return () => {};
+  return subscribeToReducedMotion(query, onStoreChange);
+}
+
+function getSnapshot(): boolean {
+  return getReducedMotionQuery()?.matches ?? false;
+}
+
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 /**
  * Returns true when the user has requested reduced motion via the OS.
  * SSR-safe: defaults to false server-side and on first client render.
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(query.matches);
-    const handler = (event: MediaQueryListEvent) => setReduced(event.matches);
-    return subscribeToReducedMotion(query, handler);
-  }, []);
-
-  return reduced;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

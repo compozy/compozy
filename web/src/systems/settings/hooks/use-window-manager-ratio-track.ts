@@ -20,20 +20,33 @@ function sameRatios(left: readonly number[], right: readonly number[]): boolean 
   return left.length === right.length && left.every((ratio, index) => ratio === right[index]);
 }
 
-function reconcileStopIds(
-  previousRatios: readonly number[],
-  previousIds: readonly string[],
-  nextRatios: readonly number[],
-  nextId: () => string
-): string[] {
-  const available = previousRatios.map((ratio, index) => ({ id: previousIds[index], ratio }));
-  return nextRatios.map(ratio => {
+interface StopIdentityState {
+  ratios: readonly number[];
+  ids: readonly string[];
+  nextSerial: number;
+}
+
+function reconcileStopIdentity(
+  previous: StopIdentityState,
+  nextRatios: readonly number[]
+): StopIdentityState {
+  const available = previous.ratios.map((ratio, index) => ({
+    id: previous.ids[index],
+    ratio,
+  }));
+  let nextSerial = previous.nextSerial;
+  const ids = nextRatios.map(ratio => {
     const matchIndex = available.findIndex(candidate => candidate.ratio === ratio);
-    if (matchIndex < 0) return nextId();
+    if (matchIndex < 0) {
+      const id = `repeat-stop-${nextSerial}`;
+      nextSerial += 1;
+      return id;
+    }
     const [match] = available.splice(matchIndex, 1);
     if (!match?.id) throw new Error("Repeat-width stop identity is missing.");
     return match.id;
   });
+  return { ratios: [...nextRatios], ids, nextSerial };
 }
 
 /**
@@ -46,39 +59,30 @@ export function useWindowManagerRatioTrack(
   setDraft: Dispatch<SetStateAction<WindowManagerConfig>>
 ) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const knownRatiosRef = useRef<readonly number[]>([]);
-  const stopIdsRef = useRef<readonly string[]>([]);
-  const nextStopIdRef = useRef(0);
   const [selected, setSelected] = useState<number | null>(null);
   const ratios = draft.snap.repeatRatios;
   const limits = WINDOW_MANAGER_RANGES.repeatStops;
-
-  const nextStopId = () => {
-    const id = `repeat-stop-${nextStopIdRef.current}`;
-    nextStopIdRef.current += 1;
-    return id;
-  };
-  if (!sameRatios(knownRatiosRef.current, ratios)) {
-    stopIdsRef.current = reconcileStopIds(
-      knownRatiosRef.current,
-      stopIdsRef.current,
-      ratios,
-      nextStopId
-    );
-    knownRatiosRef.current = [...ratios];
+  const [identity, setIdentity] = useState<StopIdentityState>(() =>
+    reconcileStopIdentity({ ratios: [], ids: [], nextSerial: 0 }, ratios)
+  );
+  const currentIdentity = sameRatios(identity.ratios, ratios)
+    ? identity
+    : reconcileStopIdentity(identity, ratios);
+  if (currentIdentity !== identity) {
+    setIdentity(currentIdentity);
   }
   const stopIdAt = (index: number): string => {
-    const id = stopIdsRef.current[index];
+    const id = currentIdentity.ids[index];
     if (!id) throw new Error("Repeat-width stop identity is missing.");
     return id;
   };
 
-  const setRatios = (
-    next: number[],
-    nextIds = reconcileStopIds(knownRatiosRef.current, stopIdsRef.current, next, nextStopId)
-  ) => {
-    knownRatiosRef.current = [...next];
-    stopIdsRef.current = nextIds;
+  const setRatios = (next: number[], nextIds?: readonly string[]) => {
+    setIdentity(
+      nextIds
+        ? { ...currentIdentity, ratios: [...next], ids: nextIds }
+        : reconcileStopIdentity(currentIdentity, next)
+    );
     setDraft(current => ({ ...current, snap: { ...current.snap, repeatRatios: next } }));
   };
 
@@ -94,7 +98,13 @@ export function useWindowManagerRatioTrack(
     if (position === null) return;
     const snapped = nearestDetent(position, 0.015) ?? position;
     if (ratios.some(ratio => Math.abs(ratio - snapped) < 0.01)) return;
-    setRatios([...ratios, round(snapped)], [...stopIdsRef.current, nextStopId()]);
+    const next = [...ratios, round(snapped)];
+    setIdentity({
+      ratios: next,
+      ids: [...currentIdentity.ids, `repeat-stop-${currentIdentity.nextSerial}`],
+      nextSerial: currentIdentity.nextSerial + 1,
+    });
+    setDraft(current => ({ ...current, snap: { ...current.snap, repeatRatios: next } }));
     setSelected(ratios.length);
   };
 
@@ -107,7 +117,7 @@ export function useWindowManagerRatioTrack(
     removeStop: (index: number) => {
       setRatios(
         ratios.filter((_, at) => at !== index),
-        stopIdsRef.current.filter((_, at) => at !== index)
+        currentIdentity.ids.filter((_, at) => at !== index)
       );
       setSelected(null);
     },
@@ -116,7 +126,7 @@ export function useWindowManagerRatioTrack(
     setRatioAt: (index: number, next: number) =>
       setRatios(
         ratios.map((value, at) => (at === index ? next : value)),
-        [...stopIdsRef.current]
+        [...currentIdentity.ids]
       ),
     stopIdAt,
     trackRef,

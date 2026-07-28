@@ -61,10 +61,16 @@ export function LayoutCanvas({
       )}
       data-testid="layout-canvas"
       ref={canvasRef}
-      onClick={() => onSelect(null)}
     >
+      <button
+        aria-label="Clear layout selection"
+        className="absolute inset-0 cursor-default focus-visible:outline-none focus-visible:shadow-focus-ring"
+        type="button"
+        onClick={() => onSelect(null)}
+      />
+
       {empty ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-small-body text-subtle">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-small-body text-subtle">
           <p className="text-fg">No windows on this desktop</p>
           <p>Open a window in the workspace to start tiling.</p>
         </div>

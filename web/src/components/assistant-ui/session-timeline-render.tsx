@@ -254,7 +254,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
 // referentially stable so the React Compiler can reuse their rendered subtrees.
 // Interactive variants select their own expansion state from the stable store
 // handle in `TimelineRowContext`.
-export function TimelineRowContent({ row }: { row: SessionRow }) {
+function TimelineRowContent({ row }: { row: SessionRow }) {
   switch (row.kind) {
     case "text":
       return <SessionTextRowView row={row} />;

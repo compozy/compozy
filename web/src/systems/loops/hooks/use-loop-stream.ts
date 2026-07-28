@@ -24,7 +24,6 @@ interface UseLoopStreamOptions {
   eventSourceFactory?: LoopStreamEventSourceFactory;
   onEvent?: (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => void;
   onError?: (error: unknown) => void;
-  onSubscriptionOpened?: (subscription: LoopStreamSubscription) => void;
 }
 
 export interface LoopStreamSubscription {
@@ -123,22 +122,19 @@ export function useLoopStream(
     eventSourceFactory: customEventSourceFactory,
     onEvent,
     onError,
-    onSubscriptionOpened,
   }: UseLoopStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
   const trimmedWorkspace = workspaceId.trim();
   const trimmedRun = runId.trim();
   const nextGeneration = useRef(0);
+  const activeSubscription = useRef<LoopStreamSubscription | null>(null);
 
   const notifyEvent = useEffectEvent(
     (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => {
       onEvent?.(payload, subscription);
     }
   );
-  const notifySubscriptionOpened = useEffectEvent((subscription: LoopStreamSubscription) => {
-    onSubscriptionOpened?.(subscription);
-  });
   const notifyError = useEffectEvent((error: unknown, fallback: string) => {
     if (onError) {
       onError(error);
@@ -168,9 +164,12 @@ export function useLoopStream(
       workspaceId: trimmedWorkspace,
     };
     nextGeneration.current = subscription.generation;
-    notifySubscriptionOpened(subscription);
+    activeSubscription.current = subscription;
 
     const handleFrame = (event: MessageEvent) => {
+      if (activeSubscription.current !== subscription) {
+        return;
+      }
       if (typeof event.data !== "string") {
         return;
       }
@@ -196,6 +195,7 @@ export function useLoopStream(
       }
       notifyEvent(payload, subscription);
       if (isTerminalStatusFrame(kind, payload)) {
+        activeSubscription.current = null;
         source.close();
       }
     };
@@ -204,7 +204,13 @@ export function useLoopStream(
       notifyError(event, "Loop stream failed");
     };
 
-    return attachLoopStreamSource(source, handleFrame, handleError);
+    const detach = attachLoopStreamSource(source, handleFrame, handleError);
+    return () => {
+      if (activeSubscription.current === subscription) {
+        activeSubscription.current = null;
+      }
+      detach();
+    };
   }, [enabled, trimmedWorkspace, trimmedRun, afterSequence, customEventSourceFactory, queryClient]);
 }
 

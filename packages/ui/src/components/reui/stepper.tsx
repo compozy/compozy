@@ -45,7 +45,7 @@ function Stepper({
   });
 
   return (
-    <StepperContext.Provider value={contextValue}>
+    <StepperContext value={contextValue}>
       <div
         role="tablist"
         aria-orientation={orientation}
@@ -56,7 +56,7 @@ function Stepper({
       >
         {children}
       </div>
-    </StepperContext.Provider>
+    </StepperContext>
   );
 }
 
@@ -85,7 +85,7 @@ function StepperItem({
   const contextValue = { step, state, isDisabled: disabled, isLoading };
 
   return (
-    <StepItemContext.Provider value={contextValue}>
+    <StepItemContext value={contextValue}>
       <div
         data-slot="stepper-item"
         className={cn(
@@ -98,7 +98,7 @@ function StepperItem({
       >
         {children}
       </div>
-    </StepItemContext.Provider>
+    </StepItemContext>
   );
 }
 

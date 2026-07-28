@@ -65,21 +65,26 @@ export async function submitBridgeSecretSlots(
   drafts: readonly BridgeSecretSlotDraft[],
   write: BridgeSecretSlotWriter
 ): Promise<BridgeSecretSlotOutcome> {
-  const succeeded: string[] = [];
-  const failed: BridgeSecretSlotFailure[] = [];
-  for (const draft of drafts) {
-    try {
-      await write({ bridgeId, name: draft.name, value: draft.value });
-      succeeded.push(draft.name);
-    } catch (error) {
-      failed.push({
-        name: draft.name,
-        message:
-          error instanceof Error && error.message.trim().length > 0
-            ? error.message
-            : `Failed to bind ${draft.name}.`,
-      });
-    }
-  }
+  const results = await Promise.all(
+    drafts.map(async draft => {
+      try {
+        await write({ bridgeId, name: draft.name, value: draft.value });
+        return { status: "succeeded" as const, name: draft.name };
+      } catch (error) {
+        return {
+          status: "failed" as const,
+          failure: {
+            name: draft.name,
+            message:
+              error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : `Failed to bind ${draft.name}.`,
+          },
+        };
+      }
+    })
+  );
+  const succeeded = results.flatMap(result => (result.status === "succeeded" ? [result.name] : []));
+  const failed = results.flatMap(result => (result.status === "failed" ? [result.failure] : []));
   return { bridgeId, succeeded, failed };
 }

@@ -18,31 +18,27 @@ export const loopRunPageLogic = createStoreLogic({
     workspaceId: input.workspaceId,
   }),
   on: {
-    streamSubscriptionOpened: (
+    streamFrameReceived: (
       current,
-      event: { generation: number; runId: string; workspaceId: string }
-    ) => {
-      const sameScope = event.workspaceId === current.workspaceId && event.runId === current.runId;
-      if (sameScope && event.generation === current.streamGeneration) return;
-      if (sameScope) {
-        return { ...current, streamGeneration: event.generation };
+      event: {
+        frame: LoopRunEventFrame;
+        subscription: { generation: number; runId: string; workspaceId: string };
       }
-      return {
-        live: emptyLoopRunLiveState(),
-        runId: event.runId,
-        streamGeneration: event.generation,
-        workspaceId: event.workspaceId,
-      };
-    },
-    streamFrameReceived: (current, event: { frame: LoopRunEventFrame; generation: number }) => {
-      if (event.generation !== current.streamGeneration) return;
+    ) => {
+      if (event.subscription.generation < current.streamGeneration) return;
       if (
+        event.subscription.workspaceId !== current.workspaceId ||
+        event.subscription.runId !== current.runId ||
         event.frame.workspace_id !== current.workspaceId ||
         event.frame.loop_run_id !== current.runId
       ) {
         return;
       }
-      return { ...current, live: applyLoopEventFrame(current.live, event.frame) };
+      return {
+        ...current,
+        live: applyLoopEventFrame(current.live, event.frame),
+        streamGeneration: event.subscription.generation,
+      };
     },
   },
 });

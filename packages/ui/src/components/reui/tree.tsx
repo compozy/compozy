@@ -33,14 +33,14 @@ function Tree<T>({
   const contextValue = { indent, tree, toggleIconType };
 
   return (
-    <TreeContext.Provider value={contextValue}>
+    <TreeContext value={contextValue}>
       <div
         data-slot="tree"
         style={mergedStyle}
         className={cn("flex flex-col", className)}
         {...otherProps}
       />
-    </TreeContext.Provider>
+    </TreeContext>
   );
 }
 
@@ -90,13 +90,13 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
   const contextValue = { ...parentContext, currentItem: item };
 
   return (
-    <TreeContext.Provider value={contextValue}>
+    <TreeContext value={contextValue}>
       {useRender({
         defaultTagName: "button",
         render,
         props: mergeProps<"button">(defaultProps, otherProps),
       })}
-    </TreeContext.Provider>
+    </TreeContext>
   );
 }
 

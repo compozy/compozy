@@ -73,7 +73,7 @@ function FiltersFrame<T = unknown>({
   };
 
   return (
-    <FilterContext.Provider value={contextValue}>
+    <FilterContext value={contextValue}>
       <div className={cn(filtersContainerVariants({ variant, size }), className)}>
         {state.selectableFields.length > 0 ? (
           <DropdownMenu open={state.addFilterOpen} onOpenChange={state.handleAddFilterOpenChange}>
@@ -137,7 +137,7 @@ function FiltersFrame<T = unknown>({
           focusFilterId={state.lastAddedFilterId}
         />
       </div>
-    </FilterContext.Provider>
+    </FilterContext>
   );
 }
 

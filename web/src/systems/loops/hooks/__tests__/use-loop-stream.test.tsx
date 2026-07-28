@@ -146,7 +146,9 @@ describe("useLoopStream", () => {
     }
   });
 
-  it("Should retain the originating subscription token on a late frame", () => {
+  // Invariant: once a run stream is replaced, its detached source cannot deliver
+  // late frames. Owning layer: SSE transport hook. Canonical suite: this file.
+  it("Should discard a late frame from a replaced subscription", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const sources: FakeLoopStreamEventSource[] = [];
     const factory = vi.fn(() => {
@@ -155,13 +157,11 @@ describe("useLoopStream", () => {
       return source;
     });
     const onEvent = vi.fn();
-    const onSubscriptionOpened = vi.fn();
     const { rerender } = renderHook(
       ({ runId, workspaceId }) =>
         useLoopStream(workspaceId, runId, {
           eventSourceFactory: factory,
           onEvent,
-          onSubscriptionOpened,
         }),
       {
         initialProps: { runId: "looprun-a", workspaceId: "workspace-a" },
@@ -169,11 +169,28 @@ describe("useLoopStream", () => {
       }
     );
     const lateHandler = sources[0]?.onmessage;
-    const firstSubscription = onSubscriptionOpened.mock.calls[0]?.[0];
+    const firstFrame = buildFrame({
+      kind: "node_running",
+      loop_run_id: "looprun-a",
+      workspace_id: "workspace-a",
+    });
+    act(() => {
+      sources[0]?.emitMessage(firstFrame);
+    });
+    const firstSubscription = onEvent.mock.calls[0]?.[1];
 
     rerender({ runId: "looprun-b", workspaceId: "workspace-b" });
-    const secondSubscription = onSubscriptionOpened.mock.calls[1]?.[0];
+    const secondFrame = buildFrame({
+      kind: "node_running",
+      loop_run_id: "looprun-b",
+      workspace_id: "workspace-b",
+    });
+    act(() => {
+      sources[1]?.emitMessage(secondFrame);
+    });
+    const secondSubscription = onEvent.mock.calls[1]?.[1];
     expect(secondSubscription.generation).toBeGreaterThan(firstSubscription.generation);
+    onEvent.mockClear();
 
     const lateFrame = buildFrame({
       kind: "node_running",
@@ -184,8 +201,7 @@ describe("useLoopStream", () => {
       lateHandler?.(new MessageEvent("message", { data: JSON.stringify(lateFrame) }));
     });
 
-    expect(onEvent).toHaveBeenCalledWith(lateFrame, firstSubscription);
-    expect(onEvent).not.toHaveBeenCalledWith(lateFrame, secondSubscription);
+    expect(onEvent).not.toHaveBeenCalled();
   });
 
   it("Should apply each SSE event kind to onEvent (no kind silently dropped)", async () => {
@@ -193,7 +209,6 @@ describe("useLoopStream", () => {
     const eventSource = new FakeLoopStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
-    const onSubscriptionOpened = vi.fn();
 
     renderHook(
       () =>
@@ -201,11 +216,9 @@ describe("useLoopStream", () => {
           afterSequence: 0,
           eventSourceFactory: factory,
           onEvent,
-          onSubscriptionOpened,
         }),
       { wrapper: createWrapper(queryClient) }
     );
-    const subscription = onSubscriptionOpened.mock.calls[0]?.[0];
 
     for (const [index, kind] of LOOP_EVENT_KINDS.entries()) {
       const frame = buildFrame({ kind, seq: index + 1 });
@@ -215,7 +228,13 @@ describe("useLoopStream", () => {
       // Every enumerated kind reaches onEvent with the parsed frame — the L-017
       // named-listener invariant.
       await waitFor(() => {
-        expect(onEvent).toHaveBeenCalledWith(frame, subscription);
+        expect(onEvent).toHaveBeenCalledWith(
+          frame,
+          expect.objectContaining({
+            runId: "looprun_1",
+            workspaceId: "ws_1",
+          })
+        );
       });
     }
 
@@ -275,18 +294,15 @@ describe("useLoopStream", () => {
     const eventSource = new FakeLoopStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
-    const onSubscriptionOpened = vi.fn();
 
     renderHook(
       () =>
         useLoopStream("ws_1", "looprun_1", {
           eventSourceFactory: factory,
           onEvent,
-          onSubscriptionOpened,
         }),
       { wrapper: createWrapper(queryClient) }
     );
-    const subscription = onSubscriptionOpened.mock.calls[0]?.[0];
 
     const terminal = buildFrame({
       kind: "status_changed",
@@ -296,7 +312,12 @@ describe("useLoopStream", () => {
       eventSource.emitNamed("status_changed", terminal);
     });
 
-    await waitFor(() => expect(onEvent).toHaveBeenCalledWith(terminal, subscription));
+    await waitFor(() =>
+      expect(onEvent).toHaveBeenCalledWith(
+        terminal,
+        expect.objectContaining({ runId: "looprun_1", workspaceId: "ws_1" })
+      )
+    );
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
@@ -356,18 +377,15 @@ describe("useLoopStream", () => {
     const eventSource = new FakeLoopStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
-    const onSubscriptionOpened = vi.fn();
 
     renderHook(
       () =>
         useLoopStream("ws_1", "looprun_1", {
           eventSourceFactory: factory,
           onEvent,
-          onSubscriptionOpened,
         }),
       { wrapper: createWrapper(queryClient) }
     );
-    const subscription = onSubscriptionOpened.mock.calls[0]?.[0];
 
     const frame = buildFrame();
     act(() => {
@@ -375,7 +393,10 @@ describe("useLoopStream", () => {
     });
 
     await waitFor(() => {
-      expect(onEvent).toHaveBeenCalledWith(frame, subscription);
+      expect(onEvent).toHaveBeenCalledWith(
+        frame,
+        expect.objectContaining({ runId: "looprun_1", workspaceId: "ws_1" })
+      );
     });
   });
 

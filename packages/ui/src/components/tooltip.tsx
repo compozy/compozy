@@ -47,9 +47,7 @@ function Tooltip({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <TooltipMotionContext.Provider value={value}>
-        {children as React.ReactNode}
-      </TooltipMotionContext.Provider>
+      <TooltipMotionContext value={value}>{children as React.ReactNode}</TooltipMotionContext>
     </TooltipPrimitive.Root>
   );
 }
