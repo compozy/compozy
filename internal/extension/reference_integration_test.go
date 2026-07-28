@@ -376,15 +376,15 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 		t.Fatalf("cli.NewClient() error = %v", err)
 	}
 	harness.client = client
-	harness.waitForDaemonReady(t)
 
 	t.Cleanup(func() {
-		harness.shutdown(t)
 		if t.Failed() && harness.logBuffer.Len() > 0 {
 			t.Logf("reference daemon logs:\n%s", harness.logBuffer.String())
 		}
+		harness.shutdown(t)
 	})
 
+	harness.waitForDaemonReady(t)
 	return harness
 }
 
@@ -474,19 +474,41 @@ func (h *referenceHarness) extensionStatus(name string) (cli.ExtensionRecord, er
 func (h *referenceHarness) waitForDaemonReady(t *testing.T) cli.DaemonStatus {
 	t.Helper()
 
-	var status cli.DaemonStatus
-	waitForCondition(t, 10*time.Second, "daemon ready", func() bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-		defer cancel()
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
 
-		current, err := h.client.DaemonStatus(ctx)
-		if err != nil {
-			return false
+	var lastProbeErr error
+	for {
+		select {
+		case daemonErr := <-h.daemonErrCh:
+			h.daemonErrCh = nil
+			h.daemonCancel()
+			h.daemonCancel = nil
+			if daemonErr != nil {
+				t.Fatalf("daemon.Run() exited before readiness: %v", daemonErr)
+			}
+			t.Fatal("daemon.Run() exited before readiness without an error")
+		case <-timeout.C:
+			if lastProbeErr != nil {
+				t.Fatalf("timed out waiting for daemon ready after 10s: last probe error: %v", lastProbeErr)
+			}
+			t.Fatal("timed out waiting for daemon ready after 10s without a completed probe")
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			current, err := h.client.DaemonStatus(ctx)
+			cancel()
+			if err != nil {
+				lastProbeErr = err
+				continue
+			}
+			if strings.TrimSpace(current.Status) == "running" {
+				return current
+			}
+			lastProbeErr = fmt.Errorf("daemon status = %q, want running", current.Status)
 		}
-		status = current
-		return strings.TrimSpace(current.Status) == "running"
-	})
-	return status
+	}
 }
 
 func (h *referenceHarness) hookCatalog(t *testing.T) []cli.HookCatalogRecord {

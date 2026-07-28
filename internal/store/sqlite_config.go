@@ -28,14 +28,13 @@ func sqliteInitializationDSN(path string) string {
 	return sqliteDSNWithPragmas(path, false)
 }
 
-func sqliteImmutableDSN(path string) string {
+func sqliteReadOnlyDSN(path string) string {
 	u := url.URL{
 		Scheme: sqliteFileScheme,
 		Path:   filepath.ToSlash(path),
 	}
 	query := u.Query()
 	query.Set("mode", "ro")
-	query.Set("immutable", "1")
 	u.RawQuery = query.Encode()
 	return u.String()
 }

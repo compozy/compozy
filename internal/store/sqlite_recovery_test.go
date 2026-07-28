@@ -67,6 +67,69 @@ func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the corruption probe coordinated with live WAL writes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		dbPath := filepath.Join(t.TempDir(), "live-wal.db")
+		writer, err := OpenSQLiteDatabase(ctx, dbPath, func(ctx context.Context, db *sql.DB) error {
+			return executeTestSchema(ctx, db, []string{
+				`CREATE TABLE sentinel (id TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+				`INSERT INTO sentinel (id, value) VALUES ('row-1', 'alpha');`,
+			})
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(writer) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := writer.Close(); closeErr != nil {
+				t.Errorf("Close(writer) error = %v", closeErr)
+			}
+		})
+		if err := Checkpoint(ctx, writer); err != nil {
+			t.Fatalf("Checkpoint(initial state) error = %v", err)
+		}
+
+		probe, err := sql.Open(sqliteDriverName, sqliteReadOnlyDSN(dbPath))
+		if err != nil {
+			t.Fatalf("Open(probe) error = %v", err)
+		}
+		probe.SetMaxOpenConns(1)
+		probe.SetMaxIdleConns(1)
+		t.Cleanup(func() {
+			if closeErr := probe.Close(); closeErr != nil {
+				t.Errorf("Close(probe) error = %v", closeErr)
+			}
+		})
+
+		var value string
+		if err := probe.QueryRowContext(ctx, `SELECT value FROM sentinel WHERE id = 'row-1'`).
+			Scan(&value); err != nil {
+			t.Fatalf("QueryRowContext(probe initial value) error = %v", err)
+		}
+		if value != "alpha" {
+			t.Fatalf("probe initial value = %q, want alpha", value)
+		}
+
+		if _, err := writer.ExecContext(
+			ctx,
+			`UPDATE sentinel SET value = 'beta' WHERE id = 'row-1'`,
+		); err != nil {
+			t.Fatalf("ExecContext(update live database) error = %v", err)
+		}
+		if err := Checkpoint(ctx, writer); err != nil {
+			t.Fatalf("Checkpoint(updated state) error = %v", err)
+		}
+
+		if err := probe.QueryRowContext(ctx, `SELECT value FROM sentinel WHERE id = 'row-1'`).
+			Scan(&value); err != nil {
+			t.Fatalf("QueryRowContext(probe updated value) error = %v", err)
+		}
+		if value != "beta" {
+			t.Fatalf("probe updated value = %q, want beta", value)
+		}
+	})
+
 	t.Run("Should not quarantine healthy database after malformed initialization error", func(t *testing.T) {
 		t.Parallel()
 
