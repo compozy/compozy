@@ -1,6 +1,6 @@
 # Listing standard — rows & cards
 
-Reusable catalog listing pattern for Compozy redesigns (Loops, Skills, Bridges, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
+Reusable catalog listing pattern for CompozyOS redesigns (Loops, Skills, Bridges, Vault, and similar inventories). Applied in `loops-catalog.html` and `vault-redesign.html`.
 
 **Visual companion:** [`catalog-design-system.html`](./catalog-design-system.html) — live specs, anatomy, playground, and class contract for redesigning other inventory pages.
 

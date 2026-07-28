@@ -1,13 +1,13 @@
 # Loops feature — design handoff
 
 > **Purpose of this file.** A cold-start briefing so a _new chat with another LLM_
-> can continue designing Compozy's "Loops" feature screens without re-deriving anything.
+> can continue designing CompozyOS's "Loops" feature screens without re-deriving anything.
 > Paste this whole file into the new conversation as context. It records what was
 > built, what's left, the design system, and the spec model. **HTML mockups are the
 > deliverables — this doc only describes them.**
 >
 > **Last update:** redesign pass complete. The first five screens were rebuilt to
-> match the real Compozy operator UI (much quieter, color = state only) and then stripped
+> match the real CompozyOS operator UI (much quieter, color = state only) and then stripped
 > down to **content + header only** (the app rail + nav sidebar live in the real app,
 > so the mockups must NOT include them). Read §4 and §10 carefully before building more.
 >
@@ -33,7 +33,7 @@
 
 ## 1. Mission
 
-Design **all UI screens** for Compozy's new **Loops** feature — a mix of the new
+Design **all UI screens** for CompozyOS's new **Loops** feature — a mix of the new
 "loop engineering" paradigm with **static DAG workflows**. Deliverables are
 high-fidelity, **self-contained HTML** mockups (one file per screen, inline CSS/JS).
 
@@ -50,7 +50,7 @@ Spec folder (this repo is linked read-only in the design project):
   adrs/adr-001..023   analysis/ (incl. the round-5 set + summary-round5.md)
 ```
 
-The Compozy design system is the other source of truth:
+The CompozyOS design system is the other source of truth:
 `/Users/pedronauck/dev/compozy/compozy/DESIGN.md` + `PRODUCT.md`
 (token source: `packages/ui/src/tokens.css`). Real UI patterns to copy live in
 `web/src/systems/*` and `packages/ui/src/components/*`.
@@ -71,7 +71,7 @@ Each screen is one standalone `.html`, previewable on its own.
 - **Two nouns only:** **Loops** (the catalog) and **Runs** (the executions). No third
   noun — no "ready to run", "spec", or "workflow" screens.
 - A **Loop** = a **contract** (goal → verify → stop) + a **body** (a static DAG of
-  steps) + typed **declared inputs**. It runs on Compozy's autonomy kernel (not a 2nd executor).
+  steps) + typed **declared inputs**. It runs on CompozyOS's autonomy kernel (not a 2nd executor).
 - **Arrive-and-use is the hero path:** pick a Loop → fill an auto-generated input form →
   Run → watch it iterate live. Built-ins run with zero authoring.
 - Runs iterate across **generations**. Re-attempt strategy: `failed-only` (default —
@@ -122,7 +122,7 @@ Each screen is one standalone `.html`, previewable on its own.
   `string/number/boolean/file/agent/ref`.
 - **Start bindings (ADR-007):** the `start[]` allowlist
   (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`) declares how
-  a Loop may be initiated. Event-driven starts (trigger/schedule/webhook) ride Compozy's EXISTING
+  a Loop may be initiated. Event-driven starts (trigger/schedule/webhook) ride CompozyOS's EXISTING
   automation primitives: a Trigger or Job gains a discriminated target, `Run agent` (today) or
   `Run loop` `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only,
   TechSpec §9.14; no design HTML for those sheets). Surfaced in the mocks: loop-detail Start
@@ -141,9 +141,9 @@ Each screen is one standalone `.html`, previewable on its own.
   `validate` mode on `compozy__loop_create`) runs the same lint+compile without saving
   (ADR-023).
 
-## 4. Design system — REBUILT to match real Compozy (read before coding)
+## 4. Design system — REBUILT to match real CompozyOS (read before coding)
 
-The screens now mirror the **real Compozy operator UI** (`web/` + `packages/ui`), per
+The screens now mirror the **real CompozyOS operator UI** (`web/` + `packages/ui`), per
 `DESIGN.md`. The atmosphere: warm near-black canvas, quiet/dense/intentional, flat depth,
 a **single** accent, signal colors as **desaturated tint + text** (never solid banners).
 
@@ -196,7 +196,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
   ("Ready/Next", "the screenshot that sells the product", etc.). No AI-slop emoji rows.
   Honest placeholders over invented stats.
 
-## 5. DONE (all rebuilt this session: quiet Compozy pattern + content-only)
+## 5. DONE (all rebuilt this session: quiet CompozyOS pattern + content-only)
 
 | File                 | Screen                          | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -204,7 +204,7 @@ radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
 | `loops-catalog.html` | Loops catalog                   | Vault-style topbar (icon + Loops + count · Runs ghost + New primary). Listing toolbar: compact **SearchInput** before **reui Filters** (kind / category / status / mode / name) + **PillGroup Rows\|Cards** (no “Sorted by”). Default = rows; cards = `CatalogCard` grid. Empty state, binding badge, Run → run-form. Listing standard in `LISTING-STANDARD.md` (also applied on `vault-redesign.html` — flat list, `Pill mono` type in trail/footer, date under card title, delete always visible). |
 | `loop-detail.html`   | Loop definition page            | DetailHeader (Run = the one accent CTA · Configure · Fork & edit). Section pattern (label + hairlines): Contract (goal/DoD/verification kinds/terminal chips), read-only body DAG (neutral nodes; 8 nodes for software-delivery), recent runs. Right rail (content): declared inputs, start bindings (declared kinds + attached automations + Add trigger / Add schedule CTAs), limits vs ceilings, versions, 30d stats.                                                                                                                                                                                                                                                                                               |
 | `run-detail.html`    | **Live run monitor** (heaviest) | Sticky contract header (goal + running pill) + 5 neutral live meters (attempts/tokens/wall/cost/breadth; warn color only near ceiling). Generation timeline on a flat node spine: G1 revised (slug → load_tasks file-import → implement fan-out over the authored tasks in dependency order as batch branches, batch_size 1 so each branch is one task e.g. `task_01 · schema migration`, 1 failed branch → collect → review agent-judge → request_changes → revise; node IDs snake_case); G2 running (carry-forward, execute_task re-running only the failed task via run-agent, embedded channel (`compozy__network_send` + `channel_result` harvest, the converse-and-decide convention) with desaturated avatars, pending verify, human approval gate). Right info rail (content): live events, run facts (automation-started runs name their trigger: `schedule · nightly · 0 3 * * * (job)`; bare kinds for web/cli/agent), terminal-outcome legend. Gates are flat tint cards (no side-stripe/gradient). JS ticks meters/events + collapsibles, guarded by reduced-motion. |
-| `runs.html`          | Runs history                    | KPI strip (Compozy metric scale), outcome filter segment (JS) + Loop/date selects, Active vs Past tables across the full outcome spectrum, neutral budget mini-bars (warn/danger only near limit), → run-detail.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `runs.html`          | Runs history                    | KPI strip (CompozyOS metric scale), outcome filter segment (JS) + Loop/date selects, Active vs Past tables across the full outcome spectrum, neutral budget mini-bars (warn/danger only near limit), → run-detail.                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Cross-screen consistency is locked: identical `:root` token block, shell, `.pill--*`
 vocabulary, type scale. Spec numbers fact-checked (limits, states, node count = 8 for
@@ -247,7 +247,7 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 7. How to continue (workflow)
 
 1. Read this file + `DESIGN.md`/`PRODUCT.md` + the spec folder. Don't invent — every
-   term/limit must trace to the spec. **Use the `impeccable` skill** (it loads the Compozy
+   term/limit must trace to the spec. **Use the `impeccable` skill** (it loads the CompozyOS
    register + rules); the user expects it applied extensively.
 2. Copy the `:root` token block + the content-only shell (`.shell{height:100vh}` + `.main`
    topbar/scroll) from `loop-detail.html` or `run-detail.html`. Keep each file fully
@@ -261,10 +261,10 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 8. Open decisions / flags
 
 - **Global Runs route:** `product-ux.md` puts run history **under each Loop** and says there
-  is **no separate global Runs nav route**. `runs.html` was kept As a person running agent work convenience
+  is **no separate global Runs nav route**. `runs.html` was kept as an operator convenience
   (and as the `run-detail` "All runs" target). If strict spec-IA is wanted, fold it into the
   catalog/loop-detail instead. (Decision pending the user.)
-- **Palette:** Compozy **operator** (warm-dark + orange), matching the real app. A Linear-indigo
+- **Palette:** CompozyOS **operator** (warm-dark + orange), matching the real app. A Linear-indigo
   reskin would be a pure token swap.
 - **App shell removed by request:** mockups are content + header only; the real app supplies
   the rail/sidebar. New screens must follow suit.
@@ -272,7 +272,7 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
 ## 9. Suggested skills (for the next session)
 
 - `impeccable` — UI quality (hierarchy, states, accessibility, anti-slop). **Use it.**
-- `eng-design` — Compozy branded UI/asset generation.
+- `eng-design` — CompozyOS branded UI/asset generation.
 - `eng-ui-screenshot` — deterministic PNGs for visual-parity checks.
 - `compozy` — repo conventions, for when this moves to real implementation.
 
@@ -288,4 +288,4 @@ Optional later: version diff, node-run drilldown modal, watch-source quiet/stall
   radial glow), peach/off-palette inline-code colors, em dashes in copy.
 - **Content + header only:** no workspace rail, no nav panel. In-page info rails are content.
 - These screens are the reference for the real `web/` implementation, so they must look like
-  Compozy already — earned familiarity, the tool disappearing into the task.
+  CompozyOS already — earned familiarity, the tool disappearing into the task.

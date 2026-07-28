@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CompozyOS · Session Transcript Design System</title>
+<link rel="stylesheet" href="session.css">
+<style>
+/* ---- spec-page chrome only (not part of the vocabulary) ---- */
+body{background:var(--rail)}
+.page{max-width:980px;margin:0 auto;padding:40px 28px 120px}
+.page-head{margin-bottom:34px}
+.page-head h1{font-size:21px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.page-head p{margin-top:7px;font-size:13px;line-height:1.6;color:var(--muted);max-width:70ch}
+.page-head .refs{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.refline{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:2px 7px}
+.spec{margin-top:44px}
+.spec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.spec-num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.spec-head h2{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.spec>p{font-size:12.5px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:4px}
+.spec>p code,.rules li code{font-family:var(--font-mono);font-size:11px;background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 4px}
+.replaces{font-size:11px;color:var(--subtle);margin:6px 0 12px}
+.replaces code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 4px}
+.demo{border:1px solid var(--line);border-radius:var(--radius-xl);background:var(--canvas);padding:22px 26px;margin:12px 0}
+.demo--col{max-width:640px}
+.demo-cap{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 12px}
+.demo-cap:not(:first-child){margin-top:22px}
+.rules{margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.rules li{display:flex;gap:9px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:80ch}
+.rules li::before{content:"—";color:var(--faint);flex:none}
+.rules li b{color:var(--fg);font-weight:500}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+.bad-good{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.bad-good.bad{color:var(--danger)}.bad-good.good{color:var(--success)}
+table.map{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
+.map th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--subtle);padding:0 12px 7px 0;border-bottom:1px solid var(--line)}
+.map td{padding:8px 12px 8px 0;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+.map td:first-child{color:var(--fg);font-weight:500;white-space:nowrap}
+.map code{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);word-break:break-all}
+.map .to{color:var(--muted)}
+/* old-vs-new mock (bad side only, for contrast) */
+.mock-alert{display:flex;gap:9px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--warning-tint);padding:10px 12px;font-size:12px;color:var(--fg)}
+.mock-alert svg{width:13px;height:13px;color:var(--warning);flex:none;margin-top:1px}
+.mock-pill{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:var(--radius-xs);background:var(--danger-tint);color:var(--danger);font-family:var(--font-mono);font-size:10px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="session-ds-page">
+
+<header class="page-head" data-od-id="session-ds-head">
+  <h1>Session Transcript — Design System</h1>
+  <p>The session surface is the product's center of gravity, and its job is to disappear behind the
+     conversation. Everything rendered between messages — tool calls, thinking, markers, goal state,
+     decisions, outcomes — is <b>text on the canvas</b>: one neutral ramp, one column, one disclosure
+     motion, zero cards. Status is a glyph, never a badge. Color is a signal, never a wash.</p>
+  <div class="refs">
+    <span class="refline">tokens · ds-core.css verbatim</span>
+    <span class="refline">references · .resources/t3code + .resources/synara</span>
+    <span class="refline">applied prototype · session-chat.html</span>
+    <span class="refline">migration · SESSION-REDESIGN-SPEC.md</span>
+  </div>
+</header>
+
+<!-- ============================================================ 01 -->
+<section class="spec" data-od-id="spec-principles">
+  <div class="spec-head"><span class="spec-num">01</span><h2>Principles</h2></div>
+  <ul class="rules">
+    <li><b>Text first.</b> The transcript owns no surface: no cards, no panels, no rails between
+        messages. Prose sits directly on <code>--canvas</code>. If a component needs a border to
+        exist, it probably shouldn't exist here.</li>
+    <li><b>One column.</b> Transcript and composer share a centered <code>46rem</code> column
+        (<code>--chat-col</code>). Nothing inside is wider, narrower, or offset.</li>
+    <li><b>One neutral ramp.</b> Hierarchy is carried by <code>--fg → --muted → --subtle →
+        --faint</code>, never by color. Prose is <code>--fg</code>; tool activity is one step down.</li>
+    <li><b>Status is a glyph.</b> Success = grey check. Failure = red ×. Running = grey spinner.
+        Never a pill, never a badge, never tinted row text. Row text does not turn red on failure.</li>
+    <li><b>Color budget, exhaustive:</b> the danger × glyph, <code>+N/−N</code> diff numerals,
+        link color (<code>--info</code>), the running accent dot, and composer focus. That is the
+        entire list. Tinted backgrounds (<code>*-tint</code> washes) are banned inside the transcript.</li>
+    <li><b>Collapse is the resting state.</b> Settled work folds automatically; only the live tail
+        stays open. Expansion is opt-in, remembered, and always the same 220ms disclosure.</li>
+    <li><b>Decisions leave the transcript.</b> Permission and clarification prompts dock to the
+        composer — where the answer happens. The transcript keeps one-line receipts.</li>
+    <li><b>Truthful lines.</b> A collapsed row shows only what the daemon provides: verb, one input
+        summary, status, diff stats, line counts. Per-tool duration is not in the data model — never
+        render it. Turn duration is (<code>turnDurationMs</code>) — the fold row owns it.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 02 -->
+<section class="spec" data-od-id="spec-frame">
+  <div class="spec-head"><span class="spec-num">02</span><h2>Transcript frame &amp; rhythm</h2></div>
+  <p>Spacing is the entire separation system: <b>7px</b> between rows inside a turn, <b>18px</b>
+     between turns. No dividers between messages — the turn fold rule (§05) is the only horizontal
+     line the transcript may draw.</p>
+  <p class="replaces">Replaces mixed <code>pb-4/pb-2</code> in <code>session-thread.tsx</code> and per-row <code>my-*</code> margins on every notice/card.</p>
+  <div class="demo demo--col">
+    <div class="transcript" style="padding:0">
+      <div class="t-row t-msg msg-user">
+        <div class="msg-user__bubble">Run the tests and fix whatever breaks.</div>
+      </div>
+      <div class="t-row"><div class="trow" data-status="success"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">bun test --filter session</span></span>
+        <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+      </div></div></div>
+      <div class="t-row t-row--turn-end t-msg">
+        <div class="msg-assistant md"><p>Two tests failed in <code>session-timeline.logic.test.ts</code> — both on the fold boundary. Fixing the off-by-one in <code>foldSettledTurns</code> now.</p></div>
+      </div>
+      <div class="t-row t-msg msg-user">
+        <div class="msg-user__bubble">Nice, keep going.</div>
+      </div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>7px / 18px rhythm</b> — <code>.t-row</code> / <code>.t-row--turn-end</code>. Tool rows stack at 2px inside a group.</li>
+    <li><b>Scroll fade, not shadow</b> — the viewport masks its top edge with a gradient; content dissolves under the window head instead of clipping.</li>
+    <li>Virtualizer row-height estimates (<code>timeline-row-estimates.ts</code>) must be re-tuned for the tighter rows: tool row ≈ 26px, marker ≈ 24px.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 03 -->
+<section class="spec" data-od-id="spec-messages">
+  <div class="spec-head"><span class="spec-num">03</span><h2>Messages</h2></div>
+  <p>User = right-aligned borderless block on a 4.5% ink wash, max-width 80%, radius
+     <code>--radius-lg</code>. Assistant = naked markdown at full column width, <code>--fg</code>.
+     No avatars, no role labels, no borders, no shadows. Meta (timestamp · copy · use as goal) is
+     hover-revealed and only appears on the terminal message of a settled turn.</p>
+  <p class="replaces">Replaces <code>UserMessage</code> bordered bubble (<code>session-thread.tsx:89</code>) and the <code>MessageActions</code> always-visible "Use as Goal" (<code>message-actions.tsx:31</code>).</p>
+  <div class="demo demo--col">
+    <div class="transcript" style="padding:0">
+      <div class="t-row t-msg msg-user">
+        <div class="msg-user__bubble">Refactor the transcript renderer so settled turns fold, and make sure the permission flow still works end to end.</div>
+        <div class="msg-meta"><span>14:32</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+      </div>
+      <div class="t-row t-row--turn-end t-msg">
+        <div class="msg-assistant md">
+          <p>Done. Settled turns now fold behind a <strong>Worked for 42s</strong> row, and the permission
+          prompt moved to the composer dock. Two things worth knowing:</p>
+          <ul><li>the fold keeps permission receipts outside, so decisions stay auditable</li>
+          <li>interrupted turns never fold — you keep your place</li></ul>
+        </div>
+        <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button type="button">Use as goal</button><span>14:33</span></div>
+      </div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Hover to exist</b> — <code>.msg-meta</code> is <code>opacity:0</code> until row hover/focus. Mid-turn commentary never shows meta.</li>
+    <li><b>Long user messages clamp</b> — <code>data-clamped</code> masks at 176px with a gradient + "Show more"; text is never truncated.</li>
+    <li>Assistant prose keeps full <code>--fg</code>; the user bubble is the only filled surface in the transcript.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 04 -->
+<section class="spec" data-od-id="spec-toolcall">
+  <div class="spec-head"><span class="spec-num">04</span><h2>Tool call row</h2></div>
+  <p>One 24px line: <b>18px icon well · verb (500, <code>--muted</code>) · mono preview
+     (<code>--subtle</code>) · chevron · status glyph</b>. The whole line brightens on hover; there is
+     no fill, no border, no badge, no per-call duration. Expanded detail is indented mono behind a
+     1px rail — no card, no header, no syntax theatre.</p>
+  <p class="replaces">Retunes <code>ToolCallRow</code> (<code>packages/ui/…/tool-call-row.tsx:90</code>); kills failed-row force-expand (<code>tool-call-card.tsx:123</code>) and the danger icon-well tint.</p>
+  <div class="demo demo--col">
+    <p class="demo-cap">States — pending · running · success · failed · empty</p>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div class="trow" data-status="running"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Running</span><span class="trow__prev">make verify</span></span>
+        <span class="trow__aside"><span class="trow__status"><svg class="trow__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span></span>
+      </div></div>
+      <div class="trow" data-status="success" data-expandable="true" data-open="false"><button class="trow__line" type="button" data-toggle>
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Edited</span><span class="trow__prev">session-timeline.logic.ts</span></span>
+        <span class="diffstat"><b>+18</b><i>−6</i></span>
+        <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+      </button>
+      <div class="disclose"><div><div class="trow__detail"><pre><span class="ctx">@@ -171,7 +171,9 @@ export function foldSettledTurns(rows) {</span>
+<span class="del">-  if (turn.completedAt === null) return rows;</span>
+<span class="add">+  if (turn.completedAt === null || turn.state === "running") {</span>
+<span class="add">+    return rows;</span>
+<span class="add">+  }</span></pre></div></div></div></div>
+      <div class="trow" data-status="success"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Read</span><span class="trow__prev">session-thread.tsx · 412 lines</span></span>
+        <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+      </div></div>
+      <div class="trow" data-status="failed" data-expandable="true" data-open="false"><button class="trow__line" type="button" data-toggle>
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">bun test --filter session</span></span>
+        <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></span>
+      </button>
+      <div class="disclose"><div><div class="trow__detail"><pre><span class="err">2 tests failed</span>
+<span class="ctx">✗ folds settled turns › keeps permission rows outside the fold</span>
+<span class="ctx">✗ folds settled turns › never folds a running turn</span>
+exit code 1</pre></div></div></div></div>
+      <div class="trow" data-status="success"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Searched</span><span class="trow__prev">"defaultExpanded" · 7 matches</span></span>
+        <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+      </div></div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Grey success check.</b> <code>--subtle</code>, not <code>--success</code>. A green check
+        per row makes twenty rows a Christmas tree; success is the default outcome, not news.</li>
+    <li><b>Failure = glyph only.</b> Danger × in the status slot; verb and preview keep their neutral
+        colors. First line of <code>error</code> may surface as the preview. Failed rows stay
+        <b>collapsed</b> — no more force-expand.</li>
+    <li><b>Verb + one truthful summary.</b> From <code>getToolCompactSummary</code>: command, path,
+        pattern, query. Edit rows append the per-file <code>.diffstat</code>. Read/Bash may append
+        <code>· N lines</code>. Never raw JSON in the preview.</li>
+    <li><b>Expanded = indented pre.</b> <code>max-height:240px</code>, mono 11px, <code>--muted</code>,
+        diff lines colored by text only. Input/Output captions only when both exist. MCP / generic
+        tools show pretty-printed JSON here — and only here.</li>
+    <li><b>No chevron when there is nothing to expand</b> — the row is inert, cursor stays default.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 05 -->
+<section class="spec" data-od-id="spec-grouping">
+  <div class="spec-head"><span class="spec-num">05</span><h2>Grouping &amp; turn folding</h2></div>
+  <p>Consecutive settled tool calls collapse into <b>one semantic summary line</b> — category counts
+     joined by middle dots, using the run's first icon. Only the live tail stays expanded (last 4).
+     When a whole turn settles it folds behind <b>"Worked for 42s"</b> — the only divider on the
+     surface. The terminal answer stays visible below the fold; interrupted turns never fold.</p>
+  <p class="replaces">Replaces the <code>&lt;Eyebrow&gt;N tool calls&lt;/Eyebrow&gt;</code> caption (<code>session-timeline-render.tsx:176</code>) and retunes <code>SETTLED_WORK_VISIBLE_LIMIT</code> semantics: settled → summary line, not "last row + toggle".</p>
+  <div class="demo demo--col">
+    <p class="demo-cap">Settled group — collapsed to one line</p>
+    <div class="tgroup" data-open="false">
+      <button class="tgroup-sum" type="button" data-toggle aria-expanded="false">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+        <span>Ran 2 commands<span class="dotsep"></span>Edited 3 files<span class="dotsep"></span>Read 5 files</span>
+        <span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+      </button>
+      <div class="disclose"><div><div class="tgroup__body">
+        <div class="trow" data-status="success"><div class="trow__line">
+          <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+          <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">rg "GoalStatusChip" web/src</span></span>
+          <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+        </div></div>
+        <div class="trow" data-status="success"><div class="trow__line">
+          <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          <span class="trow__text"><span class="trow__verb">Edited</span><span class="trow__prev">goal-status-chip.tsx</span></span>
+          <span class="diffstat"><b>+4</b><i>−121</i></span>
+          <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+        </div></div>
+        <div class="trow" data-status="success"><div class="trow__line">
+          <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="trow__text"><span class="trow__verb">Read</span><span class="trow__prev">session-timeline-render.tsx · 320 lines</span></span>
+          <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+        </div></div>
+      </div></div></div>
+    </div>
+    <p class="demo-cap">Live tail — last rows visible + quiet overflow toggle</p>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <button class="tmore" type="button">+6 previous tool calls</button>
+      <div class="trow" data-status="success"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Edited</span><span class="trow__prev">permission-prompt.tsx</span></span>
+        <span class="diffstat"><b>+32</b><i>−148</i></span>
+        <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+      </div></div>
+      <div class="trow" data-status="running"><div class="trow__line">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Running</span><span class="trow__prev">bun test --filter session</span></span>
+        <span class="trow__aside"><span class="trow__status"><svg class="trow__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span></span>
+      </div></div>
+    </div>
+    <p class="demo-cap">Settled turn — folded</p>
+    <div class="turnfold" data-open="false">
+      <button class="turnfold__btn" type="button" data-toggle aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        <span>Worked for 42s</span>
+      </button>
+      <div class="disclose"><div><div class="turnfold__body">
+        <div class="tgroup-sum" style="cursor:default">
+          <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+          <span>Ran 3 commands<span class="dotsep"></span>Edited 2 files</span>
+        </div>
+      </div></div></div>
+    </div>
+    <p class="demo-cap">Interrupted turn — never folds</p>
+    <div class="turnfold turnfold--stopped">
+      <span class="turnfold__label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><rect x="9" y="9" width="6" height="6"/></svg>You stopped after 18s</span>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Summary grammar</b> — fixed category order <code>Ran · Edited · Read · Searched · Used</code>;
+        edit/read counts are distinct files, not call count. Icon borrowed from the run's first entry.</li>
+    <li><b>Narration breaks runs</b> — a thinking block or commentary between calls flushes the group;
+        prose is a natural boundary, exactly like the references.</li>
+    <li><b>Turn duration is real data</b> (<code>turnDurationMs</code>) — it lives here and only here.</li>
+    <li><b>Permission receipts stay outside the fold</b> — decisions remain auditable after folding.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 06 -->
+<section class="spec" data-od-id="spec-streaming">
+  <div class="spec-head"><span class="spec-num">06</span><h2>Thinking &amp; streaming</h2></div>
+  <p>Live thinking is a shimmering text label — nothing else. Settled thinking collapses into the
+     same row grammar as a tool call ("Thought for a while"), body indented and muted. The working
+     indicator is three 4px dots on a stepped duty cycle plus a self-ticking elapsed label. No
+     skeletons, no blinking caret, no pulse washes.</p>
+  <p class="replaces">Retunes <code>ThinkingBlock</code> (<code>thinking-block.tsx:25</code>: drop icon well + "N updates" eyebrow) and <code>WorkingIndicator</code> (<code>session-working-row.tsx:43</code>).</p>
+  <div class="demo demo--col">
+    <p class="demo-cap">Live</p>
+    <div class="thinking-live shimmer">Thinking</div>
+    <div class="working"><span class="working__dots"><i></i><i></i><i></i></span><span class="working__label">Working for <span data-tick>12s</span></span></div>
+    <p class="demo-cap">Settled — collapsed reasoning</p>
+    <div class="trow thinking" data-expandable="true" data-open="false">
+      <button class="trow__line" type="button" data-toggle aria-expanded="false">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3a4 4 0 0 0-4 4 4 4 0 0 0-3 6.6A4 4 0 0 0 8 20h8a4 4 0 0 0 3-6.4A4 4 0 0 0 16 7a4 4 0 0 0-4-4Z"/></svg></span>
+        <span class="trow__text"><span class="trow__verb">Thought</span><span class="trow__prev" style="font-family:var(--font-sans)">weighed folding strategy vs. flat list</span></span>
+        <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></span>
+      </button>
+      <div class="disclose"><div><div class="thinking__body">The fold has to anchor on the first foldable entry, not the first entry — permission receipts must stay outside so the audit trail survives collapse. Interrupts auto-expand their turn so the user keeps their place.</div></div></div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Streaming text is just text appearing</b> — smooth-paced reveal, snap to full on settle.</li>
+    <li><b>Elapsed ticks outside React</b> — mutate the text node, keep the tree still.</li>
+    <li>Reasoning auto-opens while live, auto-collapses on settle unless pinned (current behavior — keep it).</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 07 -->
+<section class="spec" data-od-id="spec-markers">
+  <div class="spec-head"><span class="spec-num">07</span><h2>System events — markers, not banners</h2></div>
+  <p>Every runtime event that used to render a tinted <code>Alert</code> card becomes a <b>marker
+     line</b>: 12px glyph + one muted sentence. Tone lives in the glyph only. Lifecycle boundaries
+     (resume, compaction) are a centered mono rule. The single exception: a <b>session-level</b>
+     failure renders one hairline banner above the transcript — never between messages.</p>
+  <p class="replaces">Replaces tinted Alerts in <code>runtime-activity-notice.tsx:152–253</code>, <code>SessionDataEventCard</code> (<code>session-message-parts.tsx:17</code>), <code>SessionMessageErrorNotice</code> (<code>session-thread.tsx:61</code>), <code>SessionResumeFailure</code> meta pills (<code>session-resume-failure.tsx:41</code>).</p>
+  <div class="two">
+    <div class="demo"><p class="bad-good bad">Before — tinted card + pill per event</p>
+      <div class="mock-alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><b style="font-size:12px">Transcript marker</b> <span class="mock-pill">context_compaction</span>
+        <div style="color:var(--muted);margin-top:2px">Conversation history was compacted to fit the context window.</div></div></div>
+    </div>
+    <div class="demo"><p class="bad-good good">After — one quiet line</p>
+      <div class="liferule"><span>context compacted · 14:31</span></div>
+      <div class="marker" data-tone="warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><b>Context 82% full</b> — older turns will be compacted soon.</span></div>
+      <div class="marker" data-tone="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span><b>Turn failed</b> — provider returned 529 (overloaded). <span class="marker__meta">retried ×2</span></span></div>
+      <div class="marker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Runtime idle for 4m — waiting on sandbox.</span></div>
+    </div>
+  </div>
+  <div class="demo demo--col">
+    <p class="demo-cap">Session-level failure — the one allowed banner (above the transcript)</p>
+    <div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div><b>Session failed to resume</b><p>The agent process exited before attaching. Retry to spawn a new process with the same transcript.</p></div>
+      <button class="banner__x" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Marker anatomy is fixed</b> — glyph (tone) + sentence (<code>--subtle</code>, bold lead in
+        <code>--muted</code>) + optional mono meta. Never a title row + pill + description stack.</li>
+    <li><b>N warnings = N lines</b>, and consecutive markers of the same kind cluster into one line
+        with a count ("Provider retried ×3").</li>
+    <li><b>Banner budget: one.</b> Hairline at 28% + 4% wash. If it can't dismiss or act, it's a marker.</li>
+    <li>The raw event kind string (<code>context_compaction</code>) never renders as a pill — translate it or put it in mono meta.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 08 -->
+<section class="spec" data-od-id="spec-decisions">
+  <div class="spec-head"><span class="spec-num">08</span><h2>Decisions — the composer dock</h2></div>
+  <p>Permission and clarification prompts dock to the top of the composer — attached, same column,
+     no red wash, no shield tile, no sticky overlay chasing the scroll. Emphasis is letter-spacing
+     and geometry. The transcript records the outcome as a one-line receipt.</p>
+  <p class="replaces">Replaces sticky <code>PermissionPrompt</code> (<code>permission-prompt.tsx:69</code>), <code>ClarificationCard</code> (<code>clarification-card.tsx:23</code>), <code>PermissionRejectedNotice</code>, <code>ClarificationReceipt</code> cards.</p>
+  <div class="demo demo--col">
+    <p class="demo-cap">Permission — docked above the composer</p>
+    <div>
+      <div class="dock">
+        <div class="dock__head"><span class="dock__eyebrow">Permission</span><span class="dock__title">Run a command</span><span class="dock__count">1/2</span></div>
+        <div class="dock__body">
+          <pre class="dock__pre">rm -rf node_modules && bun install</pre>
+          <div class="dock__meta">Bash · workspace <code>compozy</code></div>
+        </div>
+        <div class="dock__actions">
+          <button class="btn btn--primary" type="button">Allow once<kbd>1</kbd></button>
+          <button class="btn" type="button">Always allow<kbd>2</kbd></button>
+          <span class="spacer"></span>
+          <button class="btn btn--danger-ghost" type="button">Reject<kbd>3</kbd></button>
+        </div>
+      </div>
+      <div class="composer composer--docked">
+        <textarea rows="1" placeholder="Reply to the agent…"></textarea>
+        <div class="composer__bar"><span class="composer__hint"><kbd>⏎</kbd> send</span><span class="spacer"></span>
+          <button class="composer__send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button></div>
+      </div>
+    </div>
+    <p class="demo-cap">Clarification — choice rows with shortcuts</p>
+    <div class="dock" style="border-bottom:1px solid var(--line-strong);border-radius:var(--radius-lg)">
+      <div class="dock__head"><span class="dock__eyebrow">Question</span><span class="dock__title">Which store should own the new table?</span></div>
+      <div class="choice">
+        <button class="choice__row" type="button"><span class="choice__key">1</span>events store <span class="choice__hint">recommended</span></button>
+        <button class="choice__row" type="button"><span class="choice__key">2</span>memory store</button>
+        <button class="choice__row" type="button"><span class="choice__key">3</span>new dedicated stream</button>
+      </div>
+    </div>
+    <p class="demo-cap">In-transcript receipts — one line each</p>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div class="receipt" data-tone="allowed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Allowed <code>Bash</code> once</span></div>
+      <div class="receipt" data-tone="rejected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Rejected <code>Write</code> — asked for a dry run instead</span></div>
+      <div class="receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8Z"/></svg><span>Answered <b>"events store"</b> to the schema question</span></div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Decisions happen where you type.</b> The dock shares the composer's border; the composer
+        stays usable — replying is always an alternative to deciding.</li>
+    <li><b>Action order is fixed:</b> primary allow · always allow · spacer · reject (danger ghost).
+        Four buttons max; reject-always lives behind the reject hold/menu.</li>
+    <li><b>Numeric shortcuts</b> — keys 1–9 map to choice rows and allow/reject; shown in the hint line.</li>
+    <li><b>Receipts are the transcript's memory</b> — glyph tone + one sentence; allowed decisions
+        also get a receipt (today they render nothing).</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 09 -->
+<section class="spec" data-od-id="spec-goal">
+  <div class="spec-head"><span class="spec-num">09</span><h2>Goal surface</h2></div>
+  <p>The goal card becomes a <b>strip</b>: one 24px line pinned above the transcript inside the same
+     column — state dot, objective, one mono fact, chevron. Expanding reveals quiet key/value facts
+     and links. In-transcript goal events are markers, not cards. Controls live in the window head's
+     action slot, not in a 5-button bar.</p>
+  <p class="replaces">Replaces <code>GoalStatusChip</code> (<code>goal-status-chip.tsx:93</code>: icon tile + 2 pills + meter grid + controls) and <code>GoalPromptNotice</code> (<code>session-timeline-render.tsx:286</code>).</p>
+  <div class="demo demo--col">
+    <div class="goalstrip" data-state="active" data-open="true">
+      <button class="goalstrip__line" type="button" data-toggle aria-expanded="true">
+        <span class="goalstrip__dot"></span>
+        <span class="goalstrip__kicker">Goal</span>
+        <span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span>
+        <span class="goalstrip__fact">turn 3/20 · ctx 41%</span>
+        <span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+      </button>
+      <div class="disclose"><div><div class="goalstrip__body">
+        <div class="goalstrip__row"><span class="goalstrip__k">Contract</span><span class="goalstrip__v">All 16 transcript components on session.css tokens; make verify green.</span></div>
+        <div class="goalstrip__row"><span class="goalstrip__k">Run</span><span class="goalstrip__v"><a href="#">plan-4 · generation 2</a> — active in this session</span></div>
+        <div class="goalstrip__row"><span class="goalstrip__k">Last verdict</span><span class="goalstrip__v">continue — 2 blocking issues resolved</span></div>
+      </div></div></div>
+    </div>
+    <p class="demo-cap">In-transcript goal marker (was a bordered card)</p>
+    <div class="marker marker--goal" data-tone="info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      <span><b>Goal continuation</b> <span class="marker__meta">generation 2 · turn 3</span></span></div>
+  </div>
+  <ul class="rules">
+    <li><b>State dot carries status</b> — accent pulse = active, warning = blocked, success = done.
+        No pills, no second run-status pill, no progress-bar grid.</li>
+    <li><b>Meters become mono facts</b> — <code>turn 3/20 · ctx 41%</code>. A number the user can read
+        beats a 1.5px bar they have to decode.</li>
+    <li><b>Approve/Clear move to the window head</b> — they are session controls, not transcript content.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 10 -->
+<section class="spec" data-od-id="spec-outcomes">
+  <div class="spec-head"><span class="spec-num">10</span><h2>Turn outcomes — files &amp; plans</h2></div>
+  <p>Per-turn changed files collapse to one line — <b>"Edited 3 files +154 −29"</b> — expanding to
+     bare file lines behind the same 1px rail. <code>TodoWrite</code> renders as a task list with
+     state glyphs, never as a JSON dump through <code>GenericContent</code>.</p>
+  <p class="replaces">Replaces the <code>SessionChangedFilesRowView</code> card (<code>session-changed-files-row.tsx:54</code>) and adds the missing plan renderer (today TodoWrite → <code>GenericContent</code> JSON).</p>
+  <div class="demo demo--col">
+    <p class="demo-cap">Changed files</p>
+    <div class="changed" data-open="true">
+      <button class="changed__sum" type="button" data-toggle aria-expanded="true">
+        <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        <span>Edited 3 files</span>
+        <span class="diffstat"><b>+154</b><i>−29</i></span>
+        <span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+      </button>
+      <div class="disclose"><div><div class="changed__body">
+        <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">systems/session/</span><span class="changed__name">permission-prompt.tsx</span><span class="diffstat"><b>+32</b><i>−14</i></span></div>
+        <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">assistant-ui/</span><span class="changed__name">session-timeline.logic.ts</span><span class="diffstat"><b>+118</b><i>−9</i></span></div>
+        <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">assistant-ui/</span><span class="changed__name">session-thread.tsx</span><span class="diffstat"><b>+4</b><i>−6</i></span></div>
+      </div></div></div>
+    </div>
+    <p class="demo-cap">Plan / todo (TodoWrite)</p>
+    <div class="todo">
+      <p class="todo__cap">Plan · 2 of 4</p>
+      <div class="todo__item" data-state="done"><span class="todo__glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span>Inventory current transcript components</span></div>
+      <div class="todo__item" data-state="done"><span class="todo__glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span>Extract reference patterns from t3code and synara</span></div>
+      <div class="todo__item" data-state="active"><span class="todo__glyph"><i></i></span><span>Rebuild tool-call row on the calm vocabulary</span></div>
+      <div class="todo__item" data-state="pending"><span class="todo__glyph"><span class="dot-pending"></span></span><span>Migrate markers and decision surfaces</span></div>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>File lines are mono</b> — dir in <code>--subtle</code>, name in <code>--fg</code>, stat right-aligned. Cap at 8 with "+N more".</li>
+    <li><b>Todo glyphs:</b> done = grey check + line-through; active = accent pulse dot (the running signal); pending = hollow faint dot.</li>
+    <li>The plan caption shows progress (<code>2 of 4</code>) — no progress bar.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 11 -->
+<section class="spec" data-od-id="spec-markdown">
+  <div class="spec-head"><span class="spec-num">11</span><h2>Markdown &amp; code</h2></div>
+  <p>Prose is 13.5px/1.62 with a compressed heading scale (h1 = 17px). Inline code sits on
+     <code>--badge-fill</code>; fenced blocks sit on the 3% code wash with an optional quiet header
+     (filename + copy). Links are <code>--info</code>, underline on hover only. Diff and stderr are
+     colored text — never tinted blocks with rings.</p>
+  <p class="replaces">Retunes <code>PROSE_BASE</code>/<code>markdown-prose-parts.tsx</code> and <code>CodeBlock</code> tone usage (<code>code-block.tsx:316</code> — drop <code>tone="danger"/"success"</code> full-block recolor).</p>
+  <div class="demo demo--col">
+    <div class="msg-assistant md">
+      <h3>Fold strategy</h3>
+      <p>The renderer keeps <strong>one source of truth</strong> for row derivation. See
+         <a href="#">session-timeline.logic.ts</a> for the cluster rules — the short version:</p>
+      <ul><li>consecutive calls with the same <code>turnId</code> cluster</li><li>narration flushes the run</li></ul>
+      <div class="codeblock"><div class="codeblock__head"><span class="codeblock__title"><b>session-timeline.logic.ts</b> · ts</span>
+        <span class="codeblock__act"><button type="button" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></span></div>
+        <pre><code>const collapsed = summary !== null
+  &amp;&amp; !summary.hasRunningEntry
+  &amp;&amp; !isLiveTail;</code></pre></div>
+      <blockquote>Collapse the moment a run settles — the live tail is the only open thing.</blockquote>
+    </div>
+  </div>
+  <ul class="rules">
+    <li><b>Heading scale is compressed</b> — a chat reply is not a document; h1 17px → h4 13.5px.</li>
+    <li><b>One code wash</b> — <code>--chat-fill-code</code> for fenced blocks, dock pre, and expanded
+        tool detail backgrounds stay transparent (rail only).</li>
+    <li>Tables draw row separators only — no vertical rules, no zebra.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 12 -->
+<section class="spec" data-od-id="spec-migration">
+  <div class="spec-head"><span class="spec-num">12</span><h2>Migration map</h2></div>
+  <p>Every current transcript component, mapped. Full implementation detail in
+     <code>SESSION-REDESIGN-SPEC.md</code>.</p>
+  <table class="map">
+    <thead><tr><th>Current</th><th>Where</th><th>Becomes</th></tr></thead>
+    <tbody>
+      <tr><td>UserMessage bubble</td><td><code>session-thread.tsx:89</code></td><td class="to">Borderless 4.5% block · §03</td></tr>
+      <tr><td>ToolCallRow + tool-call-card</td><td><code>packages/ui · tool-call-card.tsx:78</code></td><td class="to">24px calm row; grey check; failed stays collapsed · §04</td></tr>
+      <tr><td>SessionWorkRowView eyebrow</td><td><code>session-timeline-render.tsx:176</code></td><td class="to">Semantic summary line ("Ran 2 · Edited 3") · §05</td></tr>
+      <tr><td>TurnFold / WorkToggle buttons</td><td><code>session-timeline-render.tsx:115,214</code></td><td class="to">Kept — retoned to §05 geometry</td></tr>
+      <tr><td>ThinkingBlock</td><td><code>thinking-block.tsx:25</code></td><td class="to">Shimmer label live · collapsed "Thought" row settled · §06</td></tr>
+      <tr><td>WorkingIndicator</td><td><code>session-working-row.tsx:43</code></td><td class="to">Dots + ticking label (kept, retoned) · §06</td></tr>
+      <tr><td>Alert-based notices (5 kinds)</td><td><code>runtime-activity-notice.tsx</code></td><td class="to">Marker lines; kind pills deleted · §07</td></tr>
+      <tr><td>SessionDataEventCard</td><td><code>session-message-parts.tsx:17</code></td><td class="to">Marker line with mono meta · §07</td></tr>
+      <tr><td>SessionMessageErrorNotice</td><td><code>session-thread.tsx:61</code></td><td class="to">Danger marker line (tokenized) · §07</td></tr>
+      <tr><td>SessionResumeFailure</td><td><code>session-resume-failure.tsx:41</code></td><td class="to">The one banner + actions · §07</td></tr>
+      <tr><td>PermissionPrompt (sticky)</td><td><code>permission-prompt.tsx:69</code></td><td class="to">Composer dock · §08</td></tr>
+      <tr><td>ClarificationCard / Receipt</td><td><code>clarification-card.tsx:23</code></td><td class="to">Composer dock + receipt lines · §08</td></tr>
+      <tr><td>PermissionRejectedNotice</td><td><code>permission-prompt.tsx:242</code></td><td class="to">Receipt line · §08</td></tr>
+      <tr><td>GoalStatusChip + meters + controls</td><td><code>goal-status-chip.tsx:93</code></td><td class="to">Goal strip; controls → window head · §09</td></tr>
+      <tr><td>GoalPromptNotice</td><td><code>session-timeline-render.tsx:286</code></td><td class="to">Goal marker line · §09</td></tr>
+      <tr><td>SessionChangedFilesRowView card</td><td><code>session-changed-files-row.tsx:54</code></td><td class="to">Outcome line + file lines · §10</td></tr>
+      <tr><td>TodoWrite → GenericContent JSON</td><td><code>generic-content.tsx:24</code></td><td class="to">Task-list renderer · §10</td></tr>
+      <tr><td>EditContent stacked tinted blocks</td><td><code>edit-content.tsx:19</code></td><td class="to">Unified diff, colored text only · §04/§11</td></tr>
+      <tr><td>BashContent stderr danger block</td><td><code>bash-content.tsx:17</code></td><td class="to">Mono detail; error lines in danger text · §04</td></tr>
+      <tr><td>SearchContent bordered list</td><td><code>search-content.tsx:11</code></td><td class="to">Bare mono lines in the detail rail · §04</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+<script>
+document.addEventListener("click",(e)=>{
+  const t=e.target.closest("[data-toggle]");if(!t)return;
+  const host=t.closest("[data-open]");if(!host)return;
+  const open=host.getAttribute("data-open")==="true";
+  host.setAttribute("data-open",String(!open));
+  t.setAttribute("aria-expanded",String(!open));
+});
+/* demo ticker */
+(()=>{const el=document.querySelector("[data-tick]");if(!el)return;let s=12;
+setInterval(()=>{s++;el.textContent=s<60?s+"s":Math.floor(s/60)+"m "+(s%60)+"s";},1000);})();
+</script>
+</body>
+</html>

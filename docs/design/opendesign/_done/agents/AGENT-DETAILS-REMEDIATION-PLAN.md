@@ -3,7 +3,7 @@
 ## Document status
 
 - **Purpose:** explain why the implemented `agent-details` feature lost substantial visual and interaction quality relative to the approved OpenDesign references, then define the complete remediation required in product code, shared UI, specifications, workflow, tests, and visual evidence.
-- **Primary audience:** Compozy product engineers, design-system maintainers, spec authors, reviewers, and QA operators.
+- **Primary audience:** CompozyOS product engineers, design-system maintainers, spec authors, reviewers, and QA operators.
 - **Document type:** explanation plus implementation guide.
 - **Normative visual inputs:** `agent-detail.html`, `agent-settings.html`, `agents-list.html`, and `provider-model-reasoning-selector.html`.
 - **Repository evidence:** claims about the archived spec and production implementation are taken from the supplied audit conversation. They are intentionally marked as **reported** when they cannot be independently revalidated from this Design Files workspace.
@@ -58,7 +58,7 @@ The supplied audit reports the following production and spec facts. These are su
 - The archived task checked screenshot parity but preserved only two implementation screenshots, with no rendered reference, side-by-side comparison, diff, comparison metadata, or review report.
 - Strong Visual Contract Mode was added after the original implementation and therefore did not protect that delivery.
 - A review identified the non-durable references but deferred the problem instead of blocking the feature.
-- The implementation already received an initial pass and a remediation pass, so Compozy's two-touch rule requires the next intervention to be designed as a structural TechSpec rather than a third patch.
+- The implementation already received an initial pass and a remediation pass, so CompozyOS's two-touch rule requires the next intervention to be designed as a structural TechSpec rather than a third patch.
 
 ### 1.3 Newly confirmed provenance drift
 
@@ -297,7 +297,7 @@ Required navigation behavior:
 6. A missing agent renders the canonical not-found state; it must not show an empty modal over a broken detail page.
 7. Permission or workspace mismatch uses the canonical access error and cannot leak whether an agent exists in another workspace.
 
-Do not implement this with a second, visually similar full-page settings route kept “for compatibility.” Compozy is greenfield alpha; the old topology is a delete target.
+Do not implement this with a second, visually similar full-page settings route kept “for compatibility.” CompozyOS is greenfield alpha; the old topology is a delete target.
 
 ### 5.2 Detail page anatomy
 
@@ -400,7 +400,7 @@ Dirty-state contract:
 - Cancel and clean close discard no persisted state;
 - closing dirty settings asks for confirmation;
 - a failed save keeps the draft, exposes the field or form error, and allows retry;
-- successful save updates the detail cache and closes or remains open according to the established Compozy form convention;
+- successful save updates the detail cache and closes or remains open according to the established CompozyOS form convention;
 - no production error is discarded.
 
 ### 5.7 Live runtime mutation
@@ -539,7 +539,7 @@ references:
     authorized_deltas: []
 ```
 
-The concrete schema may follow existing Compozy conventions, but it must answer these questions unambiguously:
+The concrete schema may follow existing CompozyOS conventions, but it must answer these questions unambiguously:
 
 - Which bytes were approved?
 - Which state was rendered?
@@ -954,7 +954,7 @@ The TechSpec must verify whether runtime selection interacts with:
 
 The selector must consume registries and extension points. It must not hardcode a closed list of providers in the web feature.
 
-## 14. Compozy cross-surface impact audit
+## 14. CompozyOS cross-surface impact audit
 
 The implementation plan and completion report must include this audit with concrete evidence:
 

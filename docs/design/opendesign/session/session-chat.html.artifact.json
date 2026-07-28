@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session/session-chat.html",
+  "entry": "session/session-chat.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-27T23:44:15.996Z",
+  "updatedAt": "2026-07-27T23:44:15.996Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

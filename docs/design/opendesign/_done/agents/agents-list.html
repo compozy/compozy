@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Agents · Compozy</title>
+<title>Agents · CompozyOS</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -329,7 +329,7 @@
     var id = providerKey(provider);
     var L = LOGO[id];
     if (!L) {
-      // lucide Bot fallback when Compozy has no brand mark
+      // lucide Bot fallback when CompozyOS has no brand mark
       return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
     }
     return '<svg viewBox="' + L.vb + '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + L.inner + '</svg>';
@@ -342,7 +342,7 @@
   }
 
 
-  /* Sample fleet — names/providers/models mirror Compozy agent payloads; session counts are client-derived. */
+  /* Sample fleet — names/providers/models mirror CompozyOS agent payloads; session counts are client-derived. */
   var AGENTS = [
     {
       name: "release-captain",

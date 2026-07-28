@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "Compozy · First-run onboarding",
+  "title": "CompozyOS · First-run onboarding",
   "entry": "compozy-onboarding.html",
   "renderer": "html",
   "status": "complete",

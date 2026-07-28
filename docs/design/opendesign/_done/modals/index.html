@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CompozyOS · Entity editor review</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body class="library">
+
+<header class="library__bar" data-od-id="library-topbar">
+  <span class="library__brand">
+    <span class="head-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="3.5"/><circle cx="8" cy="8" r="2.2"/></svg></span>
+    Entity editors
+  </span>
+  <span class="sub">16 surfaces · one modal grammar</span>
+  <a class="library__cta" href="../design-system/index.html">CompozyOS design system</a>
+</header>
+
+<main class="library__main" data-od-id="library-main">
+
+  <section class="library__intro" data-od-id="library-intro">
+    <div class="eyebrow">CompozyOS · Core modules</div>
+    <h1>Creation and editing, aligned to one modal system.</h1>
+    <p>Every editor shares the same anatomy: consequence-led header, Simple/Advanced toolbar where depth exists, ruled sections, canonical selectors, write-only secrets, and a truthful footer. Review states on a surface HTML: <span class="mono">?save=error</span> · <span class="mono">?delivery=error</span> · <span class="mono">?auth=error</span>. Contract: <span class="mono">MODAL-STANDARD.md</span>.</p>
+  </section>
+
+  <section class="library__section" data-od-id="library-core-section">
+    <div class="library__section-head">
+      <h2>Core product flows</h2>
+      <p>Focused actions; policy stays out of the primary path.</p>
+    </div>
+    <div class="library__cards">
+      <a class="library-card" href="create-agent.html" data-od-id="card-agent-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 2h6"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Agent · Create</span>
+          <h3>Create agent</h3>
+          <p>Definition, runtime catalogs, and a plain-language permission choice.</p>
+        </span>
+        <span class="library-card__badge b-acc">Simple / Advanced</span>
+      </a>
+      <a class="library-card" href="start-session.html" data-od-id="card-session-start">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l14 8-14 8V4z"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Session · Launcher</span>
+          <h3>Start session</h3>
+          <p>Catalog-aware launch with per-run overrides — no false edit semantics.</p>
+        </span>
+        <span class="library-card__badge b-acc">Simple / Advanced</span>
+      </a>
+      <a class="library-card" href="add-workspace.html" data-od-id="card-workspace-add">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Workspace · Add</span>
+          <h3>Add workspace</h3>
+          <p>Immutable root with compact session defaults.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Compact</span>
+      </a>
+      <a class="library-card" href="create-knowledge.html" data-od-id="card-knowledge-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Knowledge · Create</span>
+          <h3>Create knowledge</h3>
+          <p>Document or instruction, with retrieval-friendly naming.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Compact</span>
+      </a>
+      <a class="library-card" href="edit-knowledge.html" data-od-id="card-knowledge-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Knowledge · Edit</span>
+          <h3>Edit knowledge</h3>
+          <p>Mutable content only; identity locked for stable retrieval.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Edit</span>
+      </a>
+      <a class="library-card" href="create-network-channel.html" data-od-id="card-channel-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.2 10.8 16.8 7.2M7.2 13.2 16.8 16.8"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Network · Create</span>
+          <h3>Create channel</h3>
+          <p>Purpose, members, and fanout policy as plain-language cards.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Compact</span>
+      </a>
+      <a class="library-card" href="edit-network-channel.html" data-od-id="card-channel-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.2 10.8 16.8 7.2M7.2 13.2 16.8 16.8"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Network · Edit</span>
+          <h3>Edit channel</h3>
+          <p>Locked membership; purpose and fanout stay mutable.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Edit</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="library__section" data-od-id="library-connections-section">
+    <div class="library__section-head">
+      <h2>Connections</h2>
+      <p>Provider-driven setup with write-only secret boundaries.</p>
+    </div>
+    <div class="library__cards">
+      <a class="library-card" href="create-bridge.html" data-od-id="card-bridge-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Bridge · Create</span>
+          <h3>Create bridge</h3>
+          <p>Provider cards drive declared secret slots; routing stays Advanced.</p>
+        </span>
+        <span class="library-card__badge b-acc">Simple / Advanced</span>
+      </a>
+      <a class="library-card" href="edit-bridge.html" data-od-id="card-bridge-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Bridge · Edit</span>
+          <h3>Edit bridge</h3>
+          <p>Locked identity, credential rotation, and a live delivery test.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Edit</span>
+      </a>
+      <a class="library-card" href="create-mcp-server.html" data-od-id="card-mcp-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2m6 6V2"/><path d="M6 8h12v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">MCP · Add</span>
+          <h3>Add MCP server</h3>
+          <p>Local or remote transport cards with conditional OAuth.</p>
+        </span>
+        <span class="library-card__badge b-acc">Simple / Advanced</span>
+      </a>
+      <a class="library-card" href="edit-mcp-server.html" data-od-id="card-mcp-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2m6 6V2"/><path d="M6 8h12v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">MCP · Edit</span>
+          <h3>Edit MCP server</h3>
+          <p>Locked route identity with mutable connection and secret rotation.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Edit</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="library__section" data-od-id="library-settings-section">
+    <div class="library__section-head">
+      <h2>Settings &amp; security</h2>
+      <p>Compact dialogs plus context-preserving provider sheets.</p>
+    </div>
+    <div class="library__cards">
+      <a class="library-card" href="create-vault-secret.html" data-od-id="card-vault-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Vault · Add</span>
+          <h3>Add vault secret</h3>
+          <p>Write-only value with explicit replacement confirmation.</p>
+        </span>
+        <span class="library-card__badge b-warn">Write-only</span>
+      </a>
+      <a class="library-card" href="create-sandbox-profile.html" data-od-id="card-sandbox-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Sandbox · Create</span>
+          <h3>Create sandbox profile</h3>
+          <p>Local or Daytona backend; isolation policy lives in Advanced.</p>
+        </span>
+        <span class="library-card__badge b-acc">Simple / Advanced</span>
+      </a>
+      <a class="library-card" href="edit-sandbox-profile.html" data-od-id="card-sandbox-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Sandbox · Edit</span>
+          <h3>Edit sandbox profile</h3>
+          <p>Lifecycle controls and write-only environment rotation.</p>
+        </span>
+        <span class="library-card__badge b-neutral">Edit</span>
+      </a>
+      <a class="library-card" href="create-provider-sheet.html" data-od-id="card-provider-create">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3m-2.6-7.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-13.8 2.1 2.1m8.6 9.6 2.1 2.1"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Provider · Create sheet</span>
+          <h3>Create provider</h3>
+          <p>Authentication ownership cards gate every credential control.</p>
+        </span>
+        <span class="library-card__badge b-info">576px sheet</span>
+      </a>
+      <a class="library-card" href="edit-provider-sheet.html" data-od-id="card-provider-edit">
+        <span class="library-card__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3m-2.6-7.4-2.1 2.1M7.7 16.3l-2.1 2.1m0-13.8 2.1 2.1m8.6 9.6 2.1 2.1"/></svg></span>
+        <span class="library-card__copy">
+          <span class="library-card__meta">Provider · Edit sheet</span>
+          <h3>Edit provider</h3>
+          <p>Production sheet rhythm, locked identity, credential rotation.</p>
+        </span>
+        <span class="library-card__badge b-info">576px sheet</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="library__section" data-od-id="library-scope-section">
+    <div class="note note--flush" data-od-component="alert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span><b>Outside this wave:</b> Task, Trigger, Job, and Loop Configure remain the reference surfaces. Destructive confirmations and transient operational dialogs keep their specialized contracts.</span>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>

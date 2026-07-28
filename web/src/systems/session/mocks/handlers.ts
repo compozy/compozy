@@ -17,6 +17,26 @@ import {
 import type { CreateSessionParams } from "../types";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
+const sessionCatalogStreamEncoder = new TextEncoder();
+
+function createSessionCatalogStreamResponse(): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        sessionCatalogStreamEncoder.encode(": storybook session catalog stream\n\n")
+      );
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    },
+  });
+}
 
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/sessions", ({ request }) => {
@@ -46,6 +66,9 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
+  compozyApiMock.get("/api/sessions/catalog-stream", ({ response }) =>
+    response.untyped(createSessionCatalogStreamResponse())
+  ),
   compozyApiMock.get("/api/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);

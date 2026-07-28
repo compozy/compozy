@@ -1,3 +1,8 @@
+// Suite: Web Storybook browser bootstrap
+// Invariant: the real preview worker enforces local API mocks and route stories honor cold deep links
+// without publishing cross-component state during render.
+// Boundary IN: Storybook dev server, preview iframe, Service Worker, router, and MSW handlers.
+// Boundary OUT: individual app rendering contracts owned by their component and route suites.
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
@@ -10,13 +15,14 @@ const storybookHost = "127.0.0.1";
 const storybookPort = 6106;
 const storybookBaseURL = `http://${storybookHost}:${storybookPort}`;
 const storyURL = `${storybookBaseURL}/iframe.html?id=systems-design-system-components-designsystemshowcase--default&viewMode=story`;
+const loopRunStoryURL = `${storybookBaseURL}/iframe.html?id=systems-loops-routes-loopruns--run-detail&viewMode=story`;
 const storyModulePath =
   "/src/systems/design-system/components/stories/design-system-showcase.stories.tsx";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 test.setTimeout(180_000);
 
-test("registers the MSW worker and fails unknown local API requests in web Storybook", async ({
+test("registers the MSW worker, guards local APIs, and renders route-story deep links", async ({
   page,
 }) => {
   const cwd = path.resolve(currentDir, "../..");
@@ -84,6 +90,20 @@ test("registers the MSW worker and fails unknown local API requests in web Story
     expect(browserConsole.some(entry => entry.includes("without a matching request handler"))).toBe(
       true
     );
+
+    const sessionCatalogStreamResponse = page.waitForResponse(response => {
+      return new URL(response.url()).pathname === "/api/sessions/catalog-stream";
+    });
+    await page.goto(loopRunStoryURL, { waitUntil: "domcontentloaded" });
+    const catalogResponse = await sessionCatalogStreamResponse;
+    expect(catalogResponse.status()).toBe(200);
+    expect(catalogResponse.headers()["content-type"]).toContain("text/event-stream");
+
+    const loopsWindow = page.getByRole("region", { name: "Loops window" });
+    await expect(loopsWindow).toBeVisible();
+    await expect(loopsWindow).toHaveAttribute("data-focused", "");
+    await expect(page.getByTestId("loop-run-status-pill")).toBeVisible();
+    expect(browserConsole.some(entry => entry.includes("Cannot update a component"))).toBeFalsy();
   } finally {
     await stopStorybook(storybook);
   }

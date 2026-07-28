@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Marketplace · Detail · Compozy</title>
+<title>Marketplace · Detail · CompozyOS</title>
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -703,7 +703,7 @@
         +row("Scopes",'<span class="mono">'+item.auth.scopes.join(", ")+'</span>');
       return readme
         + section("Config template", tpl)
-        + section("Authorization", '<div class="panelbox"><div class="kv">'+authRows+'</div></div><p class="field__desc" style="margin-top:8px">Writing this server does not make it usable. Compozy runs the OAuth authorize step after install; tools stay unavailable until you authorize.</p>');
+        + section("Authorization", '<div class="panelbox"><div class="kv">'+authRows+'</div></div><p class="field__desc" style="margin-top:8px">Writing this server does not make it usable. CompozyOS runs the OAuth authorize step after install; tools stay unavailable until you authorize.</p>');
     }
     tpl='<div class="cfg-block">'+item.command+'\ntransport: '+item.transport+'\n'+(item.required||[]).map(function(f){ return f.key+'=<'+(f.secret?'secret':'value')+'>'; }).join("\n")+'</div>';
     var reqRows=(item.required||[]).map(function(f){ return row(f.key, esc(f.hint)+(f.secret?' <span class="pill" data-mono="true" style="margin-left:6px">secret</span>':'')); }).join("");
@@ -786,7 +786,7 @@
         +'</div></div>');
     }
     if(kind==="mcp"){
-      out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","Compozy curated")+row("Community registry","out of v1")+'</div></div>');
+      out+=section("Trust", '<div class="panelbox"><div class="kv">'+row("Provenance","curated")+row("Feed","CompozyOS curated")+row("Community registry","out of v1")+'</div></div>');
       if(isRemote){
         out+=section("Authorization", '<div class="panelbox"><div class="kv">'
           +row("Status", item.auth_status.status.replace("_"," "))

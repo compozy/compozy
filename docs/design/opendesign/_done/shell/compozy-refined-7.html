@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Compozy · Workspace</title>
+<title>CompozyOS · Workspace</title>
 <link rel="preconnect" href="https://rsms.me/" />
 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -870,19 +870,19 @@ function Pill({ tone="neutral", icon, mono, children, className="", size }) {
   const cls = `pill pill--${tone}` + (mono?" pill--mono":"") + (size?` pill--${size}`:"") + (className?` ${className}`:"");
   return <span className={cls}>{icon}{children}</span>;
 }
-window.Compozy = { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill };
+window.COMPOZY = { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, Compozy } = window;
+const { I, CompozyOS } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
+const { WORKSPACES, AGENTS, TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = CompozyOS;
 
 /* ============ RAIL ============ */
 function Rail({ activeWs, onSelectWs, onAddWs }) {
   return (
     <aside className="rail" role="navigation" aria-label="Workspaces">
-      <button className="rail__logo" title="Compozy home" aria-label="Compozy home">A</button>
+      <button className="rail__logo" title="Compozy home" aria-label="Compozy home">C</button>
       <div className="rail__divider" />
       {WORKSPACES.map((ws) => (
         <button key={ws.id} className="rail__avatar" data-active={activeWs === ws.id} onClick={() => onSelectWs(ws.id)} title={ws.name} aria-label={`Workspace ${ws.name}`}>
@@ -994,9 +994,9 @@ window.COMPOZY_SHELL = { Rail, Sidebar };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, Compozy } = window;
+const { I, CompozyOS } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS, STATUS_TONE, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
+const { TASKS, STATUS_TONE, TEMPLATES, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = CompozyOS;
 
 /* ============ TOPBAR ============ */
 const VIEWS = [
@@ -1536,9 +1536,9 @@ window.COMPOZY_VIEWS = { TasksTopBar, TaskListView, KanbanView, DashboardView, I
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, Compozy } = window;
+const { I, CompozyOS } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TEMPLATES, Pill } = Compozy;
+const { TEMPLATES, Pill } = CompozyOS;
 
 /* ============ NEW TASK EDITOR ============ */
 const TPL_DEFAULTS = {
@@ -1784,9 +1784,9 @@ window.COMPOZY_NEW = { NewTaskEditor };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, Compozy } = window;
+const { I, CompozyOS } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = Compozy;
+const { TASKS, STATUS_TONE, SUB_ISSUES, DEPENDENCIES, ACTIVITY, RUNS, Avatar, StatusDot, StatusPill, PriorityBars, Pill } = CompozyOS;
 
 /* ============ TASK DETAIL ============ */
 const DETAIL_TABS = [
@@ -2294,9 +2294,9 @@ window.COMPOZY_DETAIL = { TaskDetail };
 </script>
 
 <script type="text/babel" data-presets="env,react">
-const { I, Compozy, COMPOZY_SHELL, COMPOZY_VIEWS, COMPOZY_NEW, COMPOZY_DETAIL } = window;
+const { I, CompozyOS, COMPOZY_SHELL, COMPOZY_VIEWS, COMPOZY_NEW, COMPOZY_DETAIL } = window;
 const { useState, useEffect, useMemo, Fragment } = React;
-const { TASKS } = Compozy;
+const { TASKS } = CompozyOS;
 const { Rail, Sidebar } = COMPOZY_SHELL;
 const { TasksTopBar, TaskListView, KanbanView, DashboardView, InboxView, EmptyState } = COMPOZY_VIEWS;
 const { NewTaskEditor } = COMPOZY_NEW;

@@ -1,10 +1,11 @@
 // Suite: OS Storybook handlers
 // Invariant: window-manager commands require a registered client and expose truthful outcomes.
-// Owning layer: the MSW boundary used by OS stories.
+// Boundary IN: the MSW boundary used by OS and full-app route stories.
+// Boundary OUT: browser wiring and rendered story behavior (web/e2e/__tests__/storybook-bootstrap.spec.ts).
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { windowManagerStoryWindowId } from "../fixtures";
+import { windowManagerStoryDesktopId, windowManagerStoryWindowId } from "../fixtures";
 import { handlers, resetWindowManagerMockState } from "../handlers";
 
 const server = setupServer(...handlers);
@@ -14,7 +15,7 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });
 
-afterEach(() => {
+beforeEach(() => {
   resetWindowManagerMockState();
   server.resetHandlers();
 });
@@ -87,6 +88,50 @@ describe("OS window-manager MSW handlers", () => {
       },
       changes: { window_ids: [windowManagerStoryWindowId] },
       client: { client_id: "client:storybook", workspace_id: "workspace-custom" },
+    });
+  });
+
+  it("Should open and focus the app window required by a route-story deep link", async () => {
+    expect((await register("client:storybook")).status).toBe(201);
+
+    const response = await command(
+      commandBody("client:storybook", "window.open", {
+        window: {
+          id: "app:loops",
+          app: "loops",
+          route: { pathname: "/loop-runs/looprun_running", search: {} },
+          desktop_id: windowManagerStoryDesktopId,
+          floating_rect: { x: 0.12, y: 0.08, width: 0.68, height: 0.78 },
+          insert_tiled: false,
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      applied: true,
+      snapshot: {
+        workspace_id: "workspace-custom",
+        revision: 13,
+        windows: {
+          "app:loops": {
+            app: "loops",
+            route: { pathname: "/loop-runs/looprun_running", search: {} },
+            desktop_id: windowManagerStoryDesktopId,
+            placement: "floating",
+          },
+        },
+      },
+      changes: {
+        desktop_ids: [windowManagerStoryDesktopId],
+        window_ids: ["app:loops"],
+      },
+      client: {
+        client_id: "client:storybook",
+        workspace_id: "workspace-custom",
+        active_desktop_id: windowManagerStoryDesktopId,
+        focused_window_id: "app:loops",
+      },
     });
   });
 

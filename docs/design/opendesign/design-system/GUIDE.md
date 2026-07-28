@@ -1,4 +1,4 @@
-# Compozy Design System — Author's Guide
+# CompozyOS Design System — Author's Guide
 
 Single source of truth for every future design/prototype in `docs/design/opendesign/`.
 Read this before starting any surface. On conflict: **production (`packages/ui/src/tokens.css` + `web/src`) > this folder > any older prototype**.

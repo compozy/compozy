@@ -1,4 +1,4 @@
-# Compozy first run — onboarding as a shell panel
+# CompozyOS first run — onboarding as a shell panel
 
 **Scope.** The OS shell is delivered: menu bar, dock, window manager, desktops, ⌘K and window-scoped modals all ship from `web/src/systems/os`. Onboarding is the one surface still on the pre-OS layout — a full-page two-column wizard with its own chrome that renders *instead of* the desktop. This document covers only that change.
 
@@ -32,7 +32,7 @@ The panel borrows the window grammar without being a window.
 
 | Zone | Height | Contents |
 | --- | --- | --- |
-| Head | 52px | Compozy mark · `Set up Compozy` · flex · `Runs locally` chip |
+| Head | 52px | CompozyOS mark · `Set up CompozyOS` · flex · `Runs locally` chip |
 | Step strip | 44px | Two segments (`1 Runtime`, `2 Workspace`), each with a 2px progress rule; the slot the OS context strip occupies |
 | Body | animated | One pane per step; height measured from content, width 660px → 960px |
 | Footer | 58px | What will be saved (label + mono value) · `Back` · `Continue` \| `Finish setup` |
