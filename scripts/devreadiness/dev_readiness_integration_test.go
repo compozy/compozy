@@ -1,7 +1,7 @@
 //go:build !windows
 
 // Suite: Development process readiness integration.
-// Invariant: Vite starts only after the current Air run reports a ready daemon exactly once.
+// Invariant: Dev uses project-local Air and starts daemon-backed config resolution and Vite only after readiness.
 // Boundary IN: Bash supervision, FIFO events, Air lifecycle, daemon replacement, and Vite launch ordering.
 // Boundary OUT: Daemon HTTP health and browser behavior, which are covered by isolated QA.
 package devreadiness
@@ -185,9 +185,10 @@ func TestDevSupervisorReadiness(t *testing.T) {
 			t.Fatalf("create fake Air install directory: %v", err)
 		}
 
-		airStartedFIFO := createFIFO(t, tempDir, "air-started.fifo")
+		lifecycleFIFO := createFIFO(t, tempDir, "lifecycle.fifo")
 		viteStartedFIFO := createFIFO(t, tempDir, "vite-started.fifo")
 		readyGateFIFO := createFIFO(t, tempDir, "ready-gate.fifo")
+		daemonReadyFile := filepath.Join(tempDir, "daemon-ready")
 		holdFIFO := createFIFO(t, tempDir, "hold.fifo")
 		holdFile, err := os.OpenFile(holdFIFO, os.O_RDWR, 0)
 		if err != nil {
@@ -214,6 +215,15 @@ if [[ "${1:-}" == "run" && "${2:-}" == "./scripts/air-state-lock" ]]; then
   shift
   exec "$@"
 fi
+if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/compozy" && "${3:-}" == "config" && "${4:-}" == "show" ]]; then
+  if [[ -f "$COMPOZY_TEST_DAEMON_READY_FILE" ]]; then
+    printf '%s\n' 'config-after-ready' > "$COMPOZY_TEST_LIFECYCLE_FIFO"
+  else
+    printf '%s\n' 'config-before-ready' > "$COMPOZY_TEST_LIFECYCLE_FIFO"
+  fi
+  printf '%s\n' '{"config":{"http":{"host":"127.0.0.1","port":2123}}}'
+  exit 0
+fi
 printf 'unexpected go command: %s\n' "$*" >&2
 exit 2
 `)
@@ -221,6 +231,11 @@ exit 2
 set -euo pipefail
 if [[ "${1:-}" == "scripts/find-dev-port.mjs" ]]; then
   printf '%s\n' '3000'
+  exit 0
+fi
+if [[ "${1:-}" == "-e" ]]; then
+  cat >/dev/null
+  printf '%s' 'http://127.0.0.1:2123'
   exit 0
 fi
 if [[ "${1:-}" == "run" ]]; then
@@ -234,15 +249,16 @@ exit 2
 `)
 		writeExecutable(t, airInstallDir, "air", `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' 'air-started' > "$COMPOZY_TEST_AIR_STARTED_FIFO"
+printf '%s\n' 'air-started' > "$COMPOZY_TEST_LIFECYCLE_FIFO"
 read -r _ < "$COMPOZY_TEST_READY_GATE_FIFO"
+printf '%s\n' 'ready' > "$COMPOZY_TEST_DAEMON_READY_FILE"
 bash "$COMPOZY_TEST_REPO_ROOT/scripts/dev-readiness.sh" ready \
   "$COMPOZY_AIR_READY_FIFO" "$COMPOZY_AIR_DEV_RUN_ID" "$COMPOZY_AIR_READY_MARKER" "fake-binary"
 trap 'exit 143' INT TERM
 read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 `)
 
-		airStarted := readFIFOEvent(airStartedFIFO)
+		firstLifecycleEvent := readFIFOEvent(lifecycleFIFO)
 		viteStarted := readFIFOEvent(viteStartedFIFO)
 		commandContext, cancelCommand := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancelCommand()
@@ -252,12 +268,13 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 		command.Env = append(os.Environ(),
 			"PATH="+fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			"AIR_VERSION=test-version",
-			"COMPOZY_WEB_API_PROXY_TARGET=http://127.0.0.1:2123",
+			"COMPOZY_WEB_API_PROXY_TARGET=",
 			"COMPOZY_AIR_CACHE_DIR="+airCacheDir,
 			"COMPOZY_TEST_AIR_STATE_DIR="+stateDir,
-			"COMPOZY_TEST_AIR_STARTED_FIFO="+airStartedFIFO,
+			"COMPOZY_TEST_LIFECYCLE_FIFO="+lifecycleFIFO,
 			"COMPOZY_TEST_VITE_STARTED_FIFO="+viteStartedFIFO,
 			"COMPOZY_TEST_READY_GATE_FIFO="+readyGateFIFO,
+			"COMPOZY_TEST_DAEMON_READY_FILE="+daemonReadyFile,
 			"COMPOZY_TEST_HOLD_FIFO="+holdFIFO,
 			"COMPOZY_TEST_REPO_ROOT="+repoRoot,
 		)
@@ -294,8 +311,8 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 			}
 		})
 
-		if event := awaitFIFOEvent(t, airStarted, 2*time.Second, "Air start"); event != "air-started" {
-			t.Fatalf("Air event = %q, want air-started", event)
+		if event := awaitFIFOEvent(t, firstLifecycleEvent, 2*time.Second, "first lifecycle"); event != "air-started" {
+			t.Fatalf("first lifecycle event = %q, want air-started", event)
 		}
 		absenceTimer := time.NewTimer(150 * time.Millisecond)
 		select {
@@ -308,8 +325,17 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 		case <-absenceTimer.C:
 		}
 
+		configResolved := readFIFOEvent(lifecycleFIFO)
 		if err := writeFIFOEvent(readyGateFIFO, "release"); err != nil {
 			t.Fatalf("release daemon readiness gate: %v", err)
+		}
+		if event := awaitFIFOEvent(
+			t,
+			configResolved,
+			2*time.Second,
+			"config resolution",
+		); event != "config-after-ready" {
+			t.Fatalf("config resolution event = %q, want config-after-ready", event)
 		}
 		if event := awaitFIFOEvent(t, viteStarted, 2*time.Second, "Vite start"); event != "vite-started" {
 			t.Fatalf("Vite event = %q, want vite-started", event)
@@ -323,6 +349,80 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 		var exitError *exec.ExitError
 		if !errors.As(err, &exitError) || exitError.ExitCode() != 143 {
 			t.Fatalf("dev supervisor exit = %v, want status 143; output=%s", err, commandOutput.String())
+		}
+	})
+}
+
+func TestRunAir(t *testing.T) {
+	t.Run("Should install with the selected toolchain when the PATH Go shim rewrites GOBIN", func(t *testing.T) {
+		t.Parallel()
+
+		repoRoot := repositoryRoot(t)
+		tempDir := t.TempDir()
+		fakeBinDir := filepath.Join(tempDir, "bin")
+		fakeGoRoot := filepath.Join(tempDir, "go-root")
+		fakeGoBinDir := filepath.Join(fakeGoRoot, "bin")
+		if err := os.MkdirAll(fakeBinDir, 0o755); err != nil {
+			t.Fatalf("create fake bin directory: %v", err)
+		}
+		if err := os.MkdirAll(fakeGoBinDir, 0o755); err != nil {
+			t.Fatalf("create fake Go bin directory: %v", err)
+		}
+
+		writeExecutable(t, fakeBinDir, "go", `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "env" && "${2:-}" == "GOROOT" ]]; then
+  printf '%s\n' "$COMPOZY_TEST_GO_ROOT"
+  exit 0
+fi
+if [[ "${1:-}" == "install" ]]; then
+  GOBIN="$COMPOZY_TEST_GLOBAL_GOBIN" exec "$COMPOZY_TEST_GO_ROOT/bin/go" "$@"
+fi
+printf 'unexpected Go shim command: %s\n' "$*" >&2
+exit 2
+`)
+		writeExecutable(t, fakeGoBinDir, "go", `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" != "install" ]]; then
+  printf 'unexpected selected Go command: %s\n' "$*" >&2
+  exit 2
+fi
+: "${GOBIN:?GOBIN must select the project-local Air install directory}"
+mkdir -p "$GOBIN"
+cat > "$GOBIN/air" <<'AIR'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" > "$COMPOZY_TEST_AIR_OUTPUT"
+AIR
+chmod 0700 "$GOBIN/air"
+`)
+
+		airOutput := filepath.Join(tempDir, "air-output")
+		command := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(repoRoot, "scripts", "run-air.sh"),
+			"test-version",
+			"--probe",
+		)
+		command.Dir = repoRoot
+		command.Env = append(os.Environ(),
+			"PATH="+fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"COMPOZY_AIR_CACHE_DIR="+filepath.Join(tempDir, "air-cache"),
+			"COMPOZY_TEST_GO_ROOT="+fakeGoRoot,
+			"COMPOZY_TEST_GLOBAL_GOBIN="+filepath.Join(tempDir, "global-bin"),
+			"COMPOZY_TEST_AIR_OUTPUT="+airOutput,
+		)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("run Air launcher: %v; output=%s", err, output)
+		}
+
+		output, err := os.ReadFile(airOutput)
+		if err != nil {
+			t.Fatalf("read Air invocation: %v", err)
+		}
+		if got := strings.TrimSpace(string(output)); got != "--probe" {
+			t.Fatalf("Air arguments = %q, want --probe", got)
 		}
 	})
 }

@@ -46,13 +46,6 @@ configured_api_proxy_target() {
   '
 }
 
-if [[ -n ${COMPOZY_WEB_API_PROXY_TARGET:-} ]]; then
-  api_proxy_target=$COMPOZY_WEB_API_PROXY_TARGET
-else
-  api_proxy_target=$(configured_api_proxy_target)
-fi
-export COMPOZY_WEB_API_PROXY_TARGET=$api_proxy_target
-
 terminate_process() {
   local pid=$1
   local name=$2
@@ -214,7 +207,6 @@ export COMPOZY_AIR_READY_MARKER=$readiness_marker
 
 echo "dev: live web UI: $web_url"
 echo "dev: daemon web routes will redirect to the live UI"
-echo "dev: API traffic will be proxied to the daemon on $api_proxy_target"
 
 bash scripts/run-air-with-events.sh "$readiness_fifo" "$dev_run_id" "$AIR_VERSION" -c .air.toml &
 air_pid=$!
@@ -227,6 +219,14 @@ if ((ready_status != 0)); then
   exit "$ready_status"
 fi
 echo "dev: daemon ready for current Air build ($ready_binary_id)"
+
+if [[ -n ${COMPOZY_WEB_API_PROXY_TARGET:-} ]]; then
+  api_proxy_target=$COMPOZY_WEB_API_PROXY_TARGET
+else
+  api_proxy_target=$(configured_api_proxy_target)
+fi
+export COMPOZY_WEB_API_PROXY_TARGET=$api_proxy_target
+echo "dev: API traffic will be proxied to the daemon on $api_proxy_target"
 
 bun run --cwd web dev:raw -- --port "$web_port" --strictPort &
 vite_pid=$!

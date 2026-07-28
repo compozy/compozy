@@ -23,7 +23,17 @@ fi
 if [[ ! -x "$air_binary" ]]; then
   mkdir -p "$install_dir"
   echo "dev: installing Air $air_version"
-  GOBIN="$install_dir" go install "github.com/air-verse/air@$air_version"
+  go_root=$(go env GOROOT)
+  go_binary="$go_root/bin/go"
+  if [[ ! -x "$go_binary" ]]; then
+    echo "dev: selected Go toolchain is not executable: $go_binary" >&2
+    exit 1
+  fi
+  GOBIN="$install_dir" "$go_binary" install "github.com/air-verse/air@$air_version"
+  if [[ ! -x "$air_binary" ]]; then
+    echo "dev: Air installation did not produce $air_binary" >&2
+    exit 1
+  fi
 fi
 
 exec "$air_binary" "$@"

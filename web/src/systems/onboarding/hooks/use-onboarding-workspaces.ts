@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { useDeleteWorkspace, useResolveWorkspace, useWorkspaces } from "@/systems/workspace";
+import { useCreateWorkspace, useDeleteWorkspace, useWorkspaces } from "@/systems/workspace";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { useDirectoryBrowser } from "./use-directory-browser";
@@ -66,7 +66,7 @@ function registeredWorkspaceIdForDraft(
 
 export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const workspaces = useSelector(onboardingDraftStore, state => state.context.workspaces);
-  const resolveWorkspace = useResolveWorkspace();
+  const createWorkspace = useCreateWorkspace();
   const deleteWorkspace = useDeleteWorkspace();
   const registeredWorkspaces = useWorkspaces();
   const workspaceCatalog = registeredWorkspaces.data;
@@ -113,7 +113,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     if (trimmed.length === 0 || workspaces.some(item => item.path === trimmed)) return;
     setResolveError(null);
     try {
-      const workspace = await resolveWorkspace.mutateAsync({ path: trimmed });
+      const workspace = await createWorkspace.mutateAsync({ root_dir: trimmed });
       onboardingDraftStore.trigger.workspaceDraftAdded({
         workspace: draftFromWorkspace(workspace, trimmed),
       });
@@ -164,7 +164,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
         : "Failed to browse directory."
       : null,
     workspaces,
-    isResolving: resolveWorkspace.isPending,
+    isResolving: createWorkspace.isPending,
     isRemoving: deleteWorkspace.isPending,
     isCatalogLoading: registeredWorkspaces.isLoading,
     catalogError,

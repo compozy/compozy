@@ -15,22 +15,22 @@ import {
 import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
 
 const mocks = vi.hoisted(() => ({
+  createWorkspace: vi.fn(),
   deleteWorkspace: vi.fn(),
   registeredWorkspaces: [] as WorkspacePayload[] | undefined,
-  resolveWorkspace: vi.fn(),
   workspacesIsLoading: false,
   workspacesError: null as Error | null,
   refetchWorkspaces: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace", () => ({
+  useCreateWorkspace: () => ({
+    isPending: false,
+    mutateAsync: mocks.createWorkspace,
+  }),
   useDeleteWorkspace: () => ({
     isPending: false,
     mutateAsync: mocks.deleteWorkspace,
-  }),
-  useResolveWorkspace: () => ({
-    isPending: false,
-    mutateAsync: mocks.resolveWorkspace,
   }),
   useWorkspaces: () => ({
     data: mocks.registeredWorkspaces,
@@ -197,13 +197,13 @@ describe("useOnboardingWorkspaces", () => {
     expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
   });
 
-  it("deletes the registered workspace before removing a resolved folder from the draft", async () => {
+  it("deletes the registered workspace before removing a selected folder from the draft", async () => {
     const registeredWorkspace = workspace({
       id: "ws_project",
       root_dir: "/Users/operator/project",
       name: "project",
     });
-    mocks.resolveWorkspace.mockResolvedValue(registeredWorkspace);
+    mocks.createWorkspace.mockResolvedValue(registeredWorkspace);
     mocks.deleteWorkspace.mockImplementation(async () => {
       mocks.registeredWorkspaces = [];
     });
@@ -227,6 +227,39 @@ describe("useOnboardingWorkspaces", () => {
 
     expect(mocks.deleteWorkspace).toHaveBeenCalledWith("ws_project");
     expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
+  });
+
+  it("registers the exact selected folder beneath an existing workspace", async () => {
+    const parentWorkspace = workspace();
+    const selectedChild = workspace({
+      id: "ws_project",
+      root_dir: "/Users/operator/project",
+      name: "project",
+    });
+    mocks.registeredWorkspaces = [parentWorkspace];
+    mocks.createWorkspace.mockResolvedValue(selectedChild);
+    const { result } = renderHook(() => useOnboardingWorkspaces());
+    await waitFor(() => expect(result.current.workspaces).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.addWorkspace(selectedChild.root_dir);
+    });
+
+    expect(mocks.createWorkspace).toHaveBeenCalledWith({ root_dir: selectedChild.root_dir });
+    await waitFor(() => {
+      expect(result.current.workspaces).toEqual([
+        {
+          path: parentWorkspace.root_dir,
+          name: parentWorkspace.name,
+          workspaceId: parentWorkspace.id,
+        },
+        {
+          path: selectedChild.root_dir,
+          name: selectedChild.name,
+          workspaceId: selectedChild.id,
+        },
+      ]);
+    });
   });
 
   it("does not resurrect deleted drafts from a still-warm workspace catalog", async () => {
