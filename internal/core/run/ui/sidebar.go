@@ -203,10 +203,13 @@ func (m *uiModel) sidebarJobNumber(index int, job *uiJob) int {
 	return index + 1
 }
 
-// sidebarMetaText builds the muted card meta line: task type, elapsed/duration,
-// and provider token total, joining only the parts that are present.
+// sidebarMetaText builds the muted card meta line: speed, task type,
+// elapsed/duration, and provider token total, joining only present parts.
 func (m *uiModel) sidebarMetaText(job *uiJob) string {
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 4)
+	if speed := sidebarSpeedLabel(job); speed != "" {
+		parts = append(parts, speed)
+	}
 	if t := strings.TrimSpace(job.taskType); t != "" {
 		parts = append(parts, t)
 	}
@@ -217,6 +220,24 @@ func (m *uiModel) sidebarMetaText(job *uiJob) string {
 		parts = append(parts, tokens)
 	}
 	return strings.Join(parts, " · ")
+}
+
+func sidebarSpeedLabel(job *uiJob) string {
+	if job == nil {
+		return ""
+	}
+	requested := job.requestedSpeed
+	if requested == "" && job.speedResolution != nil {
+		requested = job.speedResolution.Requested
+	}
+	if requested == "" {
+		return ""
+	}
+	status := speedStatusPending
+	if job.speedResolution != nil && job.speedResolution.Status != "" {
+		status = string(job.speedResolution.Status)
+	}
+	return fmt.Sprintf("speed %s · %s", requested, status)
 }
 
 func sidebarTokenLabel(job *uiJob) string {
@@ -358,16 +379,24 @@ func (m *uiModel) sidebarTimeString(job *uiJob) string {
 
 func (m *uiModel) sidebarRowKey(index int, job *uiJob, selected bool) sidebarRowCacheKey {
 	key := sidebarRowCacheKey{
-		selected:    selected,
-		width:       m.sidebarViewport.Width(),
-		index:       index,
-		taskNumber:  job.taskNumber,
-		state:       job.state,
-		safeName:    job.safeName,
-		taskTitle:   job.taskTitle,
-		taskType:    job.taskType,
-		attempt:     job.attempt,
-		maxAttempts: job.maxAttempts,
+		selected:       selected,
+		width:          m.sidebarViewport.Width(),
+		index:          index,
+		taskNumber:     job.taskNumber,
+		state:          job.state,
+		safeName:       job.safeName,
+		taskTitle:      job.taskTitle,
+		taskType:       job.taskType,
+		attempt:        job.attempt,
+		maxAttempts:    job.maxAttempts,
+		requestedSpeed: job.requestedSpeed,
+	}
+	if job.speedResolution != nil {
+		if key.requestedSpeed == "" {
+			key.requestedSpeed = job.speedResolution.Requested
+		}
+		key.speedStatus = job.speedResolution.Status
+		key.speedReason = job.speedResolution.Reason
 	}
 	if job.tokenUsage != nil {
 		key.inputTokens = job.tokenUsage.InputTokens

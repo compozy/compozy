@@ -676,6 +676,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 	switch value := msg.(type) {
 	case jobQueuedMsg,
 		jobStartedMsg,
+		jobSpeedMsg,
 		jobRetryMsg,
 		jobFinishedMsg,
 		jobUpdateMsg,
@@ -689,6 +690,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 		switch value.Kind {
 		case events.EventKindJobQueued,
 			events.EventKindJobStarted,
+			events.EventKindSessionStarted,
 			events.EventKindJobPausing,
 			events.EventKindJobPaused,
 			events.EventKindJobResumed,
@@ -794,6 +796,13 @@ func (t *uiEventTranslator) translateMessages(ev events.Event) []uiMsg {
 		payload, ok := decodeUIEventPayload[kinds.JobFailedPayload](ev)
 		if !ok {
 			return msgs
+		}
+		if payload.SpeedResolution != nil {
+			msgs = append(msgs, jobSpeedMsg{
+				Index:      payload.Index,
+				Attempt:    payload.Attempt,
+				Resolution: payload.SpeedResolution,
+			})
 		}
 		msgs = append(msgs, jobFinishedMsg{
 			Index:      payload.Index,
@@ -1099,6 +1108,7 @@ func translateJobQueuedEvent(ev events.Event) (uiMsg, bool) {
 		IDE:             payload.IDE,
 		Model:           payload.Model,
 		ReasoningEffort: payload.ReasoningEffort,
+		Speed:           payload.Speed,
 		OutLog:          payload.OutLog,
 		ErrLog:          payload.ErrLog,
 	}, true
@@ -1116,6 +1126,7 @@ func translateJobStartedEvent(ev events.Event) (uiMsg, bool) {
 		IDE:             payload.IDE,
 		Model:           payload.Model,
 		ReasoningEffort: payload.ReasoningEffort,
+		Speed:           payload.Speed,
 	}, true
 }
 
@@ -1192,6 +1203,18 @@ func translateJobCancelledEvent(ev events.Event) (uiMsg, bool) {
 
 func (t *uiEventTranslator) translateSessionEvent(ev events.Event) (uiMsg, bool) {
 	switch ev.Kind {
+	case events.EventKindSessionStarted:
+		payload, ok := decodeUIEventPayload[kinds.SessionStartedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		if payload.SpeedResolution == nil {
+			return nil, false
+		}
+		return jobSpeedMsg{
+			Index:      payload.Index,
+			Resolution: payload.SpeedResolution,
+		}, true
 	case events.EventKindSessionUpdate:
 		return t.translateSessionUpdate(ev)
 	default:

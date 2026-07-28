@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const (
@@ -63,51 +64,55 @@ const (
 	statusLabelCrashed  = "CRASHED"
 	statusLabelCanceled = "CANCELED"
 	statusLabelDone     = "DONE"
+	speedStatusPending  = "pending"
 )
 
 type uiJob struct {
-	codeFile             string
-	codeFiles            []string
-	issues               int
-	taskNumber           int
-	taskTitle            string
-	taskType             string
-	childRunID           string
-	worktreePath         string
-	safeName             string
-	ide                  string
-	model                string
-	reasoningEffort      string
-	outLog               string
-	errLog               string
-	state                jobState
-	exitCode             int
-	outBuffer            *lineBuffer
-	errBuffer            *lineBuffer
-	startedAt            time.Time
-	completedAt          time.Time
-	duration             time.Duration
-	attempt              int
-	maxAttempts          int
-	retrying             bool
-	retryReason          string
-	tokenUsage           *model.Usage
-	snapshot             SessionViewSnapshot
-	selectedEntry        int
-	expandedEntryIDs     map[string]bool
-	expansionRevision    int
-	transcriptFollowTail bool
-	transcriptYOffset    int
-	transcriptXOffset    int
-	timelineCache        timelineRender
-	timelineCacheWidth   int
-	timelineCacheRev     int
-	timelineCacheSel     int
-	timelineCacheExpand  int
-	timelineCacheValid   bool
-	sidebarCacheKey      sidebarRowCacheKey
-	sidebarCacheRow      string
-	sidebarCacheValid    bool
+	codeFile               string
+	codeFiles              []string
+	issues                 int
+	taskNumber             int
+	taskTitle              string
+	taskType               string
+	childRunID             string
+	worktreePath           string
+	safeName               string
+	ide                    string
+	model                  string
+	reasoningEffort        string
+	requestedSpeed         kinds.Speed
+	speedResolution        *kinds.SpeedResolution
+	speedResolutionAttempt int
+	outLog                 string
+	errLog                 string
+	state                  jobState
+	exitCode               int
+	outBuffer              *lineBuffer
+	errBuffer              *lineBuffer
+	startedAt              time.Time
+	completedAt            time.Time
+	duration               time.Duration
+	attempt                int
+	maxAttempts            int
+	retrying               bool
+	retryReason            string
+	tokenUsage             *model.Usage
+	snapshot               SessionViewSnapshot
+	selectedEntry          int
+	expandedEntryIDs       map[string]bool
+	expansionRevision      int
+	transcriptFollowTail   bool
+	transcriptYOffset      int
+	transcriptXOffset      int
+	timelineCache          timelineRender
+	timelineCacheWidth     int
+	timelineCacheRev       int
+	timelineCacheSel       int
+	timelineCacheExpand    int
+	timelineCacheValid     bool
+	sidebarCacheKey        sidebarRowCacheKey
+	sidebarCacheRow        string
+	sidebarCacheValid      bool
 }
 
 type timelineMountState struct {
@@ -135,6 +140,9 @@ type sidebarRowCacheKey struct {
 	outputTokens   int
 	totalTokens    int
 	spinnerFrame   int
+	requestedSpeed kinds.Speed
+	speedStatus    kinds.SpeedResolutionStatus
+	speedReason    kinds.SpeedResolutionReason
 }
 
 type clockTickMsg struct {
@@ -157,6 +165,7 @@ type jobQueuedMsg struct {
 	IDE             string
 	Model           string
 	ReasoningEffort string
+	Speed           kinds.Speed
 	OutLog          string
 	ErrLog          string
 	OutBuffer       *lineBuffer
@@ -170,6 +179,14 @@ type jobStartedMsg struct {
 	IDE             string
 	Model           string
 	ReasoningEffort string
+	Speed           kinds.Speed
+}
+
+type jobSpeedMsg struct {
+	Index      int
+	Attempt    int
+	Requested  kinds.Speed
+	Resolution *kinds.SpeedResolution
 }
 
 type jobRetryMsg struct {

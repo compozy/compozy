@@ -464,7 +464,15 @@ func remoteBootstrapSummaryMsgs(index int, summary *apicore.RunJobSummary) []uiM
 		return nil
 	}
 
-	msgs := make([]uiMsg, 0, 2)
+	msgs := make([]uiMsg, 0, 3)
+	if summary.Speed != "" || summary.SpeedResolution != nil {
+		msgs = append(msgs, jobSpeedMsg{
+			Index:      index,
+			Attempt:    summary.Attempt,
+			Requested:  summary.Speed,
+			Resolution: summary.SpeedResolution,
+		})
+	}
 	if snapshot := summary.Session; len(snapshot.Entries) > 0 || len(snapshot.Plan.Entries) > 0 ||
 		snapshot.Session.Status != "" || snapshot.Session.CurrentModeID != "" ||
 		len(snapshot.Session.AvailableCommands) > 0 {

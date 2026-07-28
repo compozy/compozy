@@ -63,6 +63,8 @@ func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 		return m.applyUIMsg(v), true
 	case jobStartedMsg:
 		return m.applyUIMsg(v), true
+	case jobSpeedMsg:
+		return m.applyUIMsg(v), true
 	case jobRetryMsg:
 		return m.applyUIMsg(v), true
 	case jobPausingMsg:
@@ -124,12 +126,6 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return m.handleJobFinished(value)
 	case jobUpdateMsg:
 		return m.handleJobUpdate(value)
-	case usageUpdateMsg:
-		return m.handleUsageUpdate(value)
-	case runStatusMsg:
-		return m.handleRunStatus(value)
-	case shutdownStatusMsg:
-		return m.handleShutdownStatus(value)
 	case jobFailureMsg:
 		m.failures = append(m.failures, value.Failure)
 		return nil
@@ -138,8 +134,30 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 	case dispatchBatchMsg:
 		return m.handleDispatchBatch(value)
 	default:
+		if m.applyStateUIMsg(value) {
+			return nil
+		}
 		cmd, _ := m.applyParallelUIMsg(value)
 		return cmd
+	}
+}
+
+func (m *uiModel) applyStateUIMsg(msg uiMsg) bool {
+	switch value := msg.(type) {
+	case jobSpeedMsg:
+		m.handleJobSpeed(value)
+		return true
+	case usageUpdateMsg:
+		m.handleUsageUpdate(value)
+		return true
+	case runStatusMsg:
+		m.handleRunStatus(value)
+		return true
+	case shutdownStatusMsg:
+		m.handleShutdownStatus(value)
+		return true
+	default:
+		return false
 	}
 }
 
@@ -179,9 +197,8 @@ func (m *uiModel) afterParallelUpdate() tea.Cmd {
 	return m.ensureSpinnerTick()
 }
 
-func (m *uiModel) handleRunStatus(v runStatusMsg) tea.Cmd {
+func (m *uiModel) handleRunStatus(v runStatusMsg) {
 	m.runStatus = strings.TrimSpace(v.Status)
-	return nil
 }
 
 func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
@@ -776,6 +793,7 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		ide:                  v.IDE,
 		model:                v.Model,
 		reasoningEffort:      v.ReasoningEffort,
+		requestedSpeed:       v.Speed,
 		outLog:               v.OutLog,
 		errLog:               v.ErrLog,
 		outBuffer:            v.OutBuffer,
@@ -815,6 +833,7 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 	startedAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
+		job.beginSpeedAttempt(v.Attempt)
 		job.state = jobRunning
 		job.attempt = max(v.Attempt, 1)
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
@@ -826,6 +845,9 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 		}
 		if strings.TrimSpace(v.ReasoningEffort) != "" {
 			job.reasoningEffort = v.ReasoningEffort
+		}
+		if v.Speed != "" {
+			job.requestedSpeed = v.Speed
 		}
 		job.retrying = false
 		job.retryReason = ""
@@ -847,6 +869,7 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 	retryAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
+		job.beginSpeedAttempt(v.Attempt)
 		job.state = jobRetrying
 		job.attempt = max(v.Attempt, 1)
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
@@ -860,6 +883,44 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 	}
 	m.refreshViewportContent()
 	return nil
+}
+
+func (m *uiModel) handleJobSpeed(v jobSpeedMsg) {
+	job, _ := m.ensureJobSlot(v.Index)
+	if job == nil {
+		return
+	}
+	attempt := v.Attempt
+	if v.Resolution != nil {
+		if attempt <= 0 {
+			attempt = job.attempt
+		}
+		if attempt > 0 && attempt < job.speedResolutionAttempt {
+			return
+		}
+	}
+	if v.Requested != "" {
+		job.requestedSpeed = v.Requested
+	}
+	if v.Resolution != nil {
+		if attempt > 0 {
+			job.speedResolutionAttempt = attempt
+		}
+		resolution := *v.Resolution
+		job.speedResolution = &resolution
+	}
+	job.sidebarCacheValid = false
+	m.sidebarDirty = true
+	m.refreshViewportContent()
+}
+
+func (job *uiJob) beginSpeedAttempt(attempt int) {
+	if job == nil || attempt <= 0 || attempt <= job.speedResolutionAttempt {
+		return
+	}
+	job.speedResolution = nil
+	job.speedResolutionAttempt = attempt
+	job.sidebarCacheValid = false
 }
 
 func (m *uiModel) handleJobPausing(v jobPausingMsg) tea.Cmd {
@@ -1017,7 +1078,7 @@ func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
 	return m.ensureSpinnerTick()
 }
 
-func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
+func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) {
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		if job.tokenUsage == nil {
 			job.tokenUsage = &model.Usage{}
@@ -1030,10 +1091,9 @@ func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
 		m.aggregateUsage.Add(v.Usage)
 	}
 	m.refreshViewportContent()
-	return nil
 }
 
-func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) tea.Cmd {
+func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) {
 	if v.State.Active() {
 		m.closeQuitDialog()
 	}
@@ -1041,7 +1101,6 @@ func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) tea.Cmd {
 	if !v.State.RequestedAt.IsZero() && v.State.RequestedAt.After(m.now) {
 		m.now = v.State.RequestedAt
 	}
-	return nil
 }
 
 func (m *uiModel) sidebarNeedsActiveRefresh() bool {
@@ -1189,6 +1248,16 @@ func mergeQueuedRuntimeState(existing *uiJob, queued *uiJob) {
 	}
 	if existing.state != jobPending {
 		queued.state = existing.state
+	}
+	if queued.requestedSpeed == "" {
+		queued.requestedSpeed = existing.requestedSpeed
+	}
+	if existing.speedResolution != nil {
+		resolution := *existing.speedResolution
+		queued.speedResolution = &resolution
+	}
+	if existing.speedResolutionAttempt > 0 {
+		queued.speedResolutionAttempt = existing.speedResolutionAttempt
 	}
 }
 

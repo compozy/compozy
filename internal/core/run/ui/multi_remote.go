@@ -1489,6 +1489,9 @@ func reindexParallelIndexedChildUIMsg(msg uiMsg, index int) (uiMsg, bool) {
 	case jobStartedMsg:
 		value.Index = index
 		return value, true
+	case jobSpeedMsg:
+		value.Index = index
+		return value, true
 	case jobRetryMsg:
 		value.Index = index
 		return value, true
