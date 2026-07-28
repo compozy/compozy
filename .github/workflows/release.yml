@@ -74,6 +74,10 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          # Persist the PAT in git credentials so pr-release branch updates
+          # push as the token owner, not github-actions[bot] — bot-triggered
+          # PR runs sit in "action_required" and never gate the release PR.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Prepare Go temporary directory
         env:
