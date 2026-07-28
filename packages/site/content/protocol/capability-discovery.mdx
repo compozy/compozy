@@ -1,0 +1,259 @@
+---
+title: Capability Discovery
+description: Wire-level reference for advertising capabilities, retrieving rich catalogs through whois, and transferring capability envelopes.
+icon: Zap
+---
+
+A capability is the single Compozy delegation artifact. The same structured capability model feeds
+three distinct protocol roles:
+
+- brief discovery in `greet` through `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]`
+- rich discovery in `whois` through the envelope-level `ext["compozy.capability_catalog"]`
+- explicit transfer through [`kind:"capability"`](/protocol/message-kinds/#capability)
+
+Capability discovery is a thin layer on top of `greet` and `whois`, using namespaced envelope
+extensions so that runtimes that do not know these keys still route correctly. Receivers that want
+the full document — including the canonical digest and optional execution hints — can either request
+a rich `whois` response or receive a `capability` envelope from a peer.
+
+This page is normative unless a section is marked as an example.
+
+## Three protocol roles for one concept
+
+| Role     | Trigger                                                                      | Surface                                                                     | Payload                                               |
+| -------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Brief    | Always emitted when a catalog exists.                                        | `peer_card.capabilities` and `peer_card.ext["compozy.capabilities_brief"]`. | Capability IDs and one-line summaries.                |
+| Rich     | Opt-in via `compozy.include` on a `whois` request.                           | Response envelope `ext["compozy.capability_catalog"]`.                      | Full capability records with outcomes and optionals.  |
+| Transfer | Sender emits a [`capability` envelope](/protocol/message-kinds/#capability). | `body.capability` on a `kind:"capability"` envelope.                        | One full capability document with canonical `digest`. |
+
+The full catalog never rides inside `peer_card.ext`. It is always scoped to an explicit `whois`
+exchange or a `capability` envelope so that routine peer cards remain small.
+
+## Brief discovery
+
+A peer with a local capability catalog MUST project it into its Peer Card in two places:
+
+- `peer_card.capabilities` — an array of capability ID strings, whitespace trimmed, in catalog
+  order.
+- `peer_card.ext["compozy.capabilities_brief"]` — an array of `{ "id", "summary" }` objects matching
+  `peer_card.capabilities` entry-by-entry, in the same order.
+
+A peer without a local catalog:
+
+- MUST still emit `peer_card.capabilities` as `[]` (never `null`).
+- MUST omit `peer_card.ext["compozy.capabilities_brief"]` entirely.
+
+Receivers MUST treat `compozy.capabilities_brief` as advisory. A capability claim is not proof that
+the peer can perform the work, and brief projections never carry the outcome or constraint fields.
+
+### Example Peer Card with brief capabilities
+
+```json
+{
+  "peer_id": "designer.session-19",
+  "display_name": "Designer",
+  "profiles_supported": ["compozy-network/v0"],
+  "capabilities": ["build-site", "review-copy"],
+  "artifacts_supported": ["capability"],
+  "trust_modes_supported": ["unverified"],
+  "ext": {
+    "compozy.capabilities_brief": [
+      { "id": "build-site", "summary": "Build the landing page." },
+      { "id": "review-copy", "summary": "Review conversion copy." }
+    ]
+  }
+}
+```
+
+This brief shape appears both inside a `greet` announcement and inside the `body.peer_card` of a
+`whois` response.
+
+## Rich discovery through `whois`
+
+A caller asks for the full catalog by adding extension keys to the request envelope's `ext`
+object.
+
+### Request extensions
+
+| Key                      | Type             | Required | Effect                                                                              |
+| ------------------------ | ---------------- | -------- | ----------------------------------------------------------------------------------- |
+| `compozy.include`        | array of strings | Yes      | MUST contain the string `"capability_catalog"` to trigger rich discovery.           |
+| `compozy.capability_ids` | array of strings | No       | Narrows the response to matching capability IDs. Unknown IDs return an empty array. |
+
+Receivers SHOULD ignore unknown values inside `compozy.include` so that future extensions stay
+forward-compatible. When `compozy.include` does not contain `"capability_catalog"`, the responder MUST
+NOT add `compozy.capability_catalog` to the response envelope.
+
+### Response extensions
+
+| Key                          | Type   | Present when                                                    |
+| ---------------------------- | ------ | --------------------------------------------------------------- |
+| `compozy.capability_catalog` | object | The request included `capability_catalog` in `compozy.include`. |
+
+The payload shape is:
+
+```json
+{
+  "capabilities": [
+    {
+      "id": "build-site",
+      "workspace_id": "ws_alpha",
+      "summary": "Build the landing page.",
+      "outcome": "A finished landing page.",
+      "version": "1.0.0",
+      "digest": "sha256:56756e530d86ff5ec3dbdf2a0034fdcd69dae0f8d676dd04faca07f46b63c225",
+      "context_needed": ["repo"],
+      "execution_outline": ["Inspect", "Build"]
+    }
+  ]
+}
+```
+
+Field rules for each entry:
+
+- `id`, `summary`, and `outcome` are always present.
+- `version`, `digest`, `context_needed`, `artifacts_expected`, `execution_outline`, `constraints`,
+  `examples`, and `requirements` are optional and MUST be omitted when empty.
+- `digest` is the canonical digest computed from the structured capability document and MUST match
+  the digest carried by a subsequent [`kind:"capability"`](/protocol/message-kinds/#capability)
+  transfer of the same record.
+- Entries appear in catalog order. Filtering preserves that order.
+
+### Response rules
+
+- The `whois` response body still carries the normal `peer_card`, including brief discovery keys.
+- Rich catalog data lives in the envelope-level `ext`, never inside `peer_card.ext`.
+- When the responder has no local catalog, `compozy.capability_catalog.capabilities` MUST be `[]`.
+- When `compozy.capability_ids` filters out every capability (including when every ID is unknown),
+  `compozy.capability_catalog.capabilities` MUST be `[]`.
+- Responses that would exceed the protocol envelope size limit MUST be rejected by the responder
+  before emission.
+
+## Full example
+
+### Request
+
+```json
+{
+  "protocol": "compozy-network/v0",
+  "id": "msg_whois_catalog_001",
+  "workspace_id": "ws_alpha",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "ops-coordinator.session-42",
+  "to": "designer.session-19",
+  "ts": 1776366060,
+  "body": {
+    "type": "request",
+    "query": "build-site"
+  },
+  "ext": {
+    "compozy.include": ["capability_catalog"],
+    "compozy.capability_ids": ["build-site"]
+  },
+  "proof": null
+}
+```
+
+### Response
+
+```json
+{
+  "protocol": "compozy-network/v0",
+  "id": "msg_whois_catalog_002",
+  "workspace_id": "ws_alpha",
+  "kind": "whois",
+  "channel": "builders",
+  "from": "designer.session-19",
+  "to": "ops-coordinator.session-42",
+  "reply_to": "msg_whois_catalog_001",
+  "ts": 1776366061,
+  "body": {
+    "type": "response",
+    "peer_card": {
+      "peer_id": "designer.session-19",
+      "profiles_supported": ["compozy-network/v0"],
+      "capabilities": ["build-site", "review-copy"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["unverified"],
+      "ext": {
+        "compozy.capabilities_brief": [
+          { "id": "build-site", "summary": "Build the landing page." },
+          { "id": "review-copy", "summary": "Review conversion copy." }
+        ]
+      }
+    }
+  },
+  "ext": {
+    "compozy.capability_catalog": {
+      "capabilities": [
+        {
+          "id": "build-site",
+          "workspace_id": "ws_alpha",
+          "summary": "Build the landing page.",
+          "outcome": "A finished landing page.",
+          "version": "1.0.0",
+          "digest": "sha256:38096a54f5072f05ff954f94315a9dba6c373f3589bf04053684204b6cd86b03",
+          "context_needed": ["repo", "brand brief"],
+          "execution_outline": ["Inspect", "Build"],
+          "constraints": ["No mocks"]
+        }
+      ]
+    }
+  },
+  "proof": null
+}
+```
+
+## Explicit transfer through `kind:"capability"`
+
+Discovery advertises what a peer claims to offer. When a caller needs the authoritative, digest-bound
+record — to cache, sign, adapt, or delegate — the sender emits a
+[`kind:"capability"`](/protocol/message-kinds/#capability) envelope that carries the full structured
+document under `body.capability`.
+
+Rules:
+
+- A `capability` envelope and a rich `whois` response that return the same capability MUST agree on
+  `id`, `summary`, `outcome`, and `digest`.
+- Receivers SHOULD verify `capability.digest` against the canonical structured document before
+  caching or forwarding it. A mismatch MUST be treated as `verification_failed`.
+- A `capability` envelope MUST carry a conversation surface (`surface:"thread"` with `thread_id`,
+  or `surface:"direct"` with `direct_id`), a target peer in `to`, and a `work_id`. The capability
+  participates in the same lifecycle rules as a directed `say` envelope with `work_id`.
+
+Discovery and transfer therefore cover different needs over one concept: discovery is lightweight
+hint metadata scoped to peer cards and `whois`, and transfer is the digest-bound hand-off of the
+same structured capability record.
+
+## Interop rules
+
+Capability discovery is designed to degrade cleanly when a peer does not implement the extension
+keys.
+
+| Peer implements                | Caller sees                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| Neither brief nor rich         | `peer_card.capabilities` is `[]`; no `compozy.*` extension keys appear.             |
+| Brief only                     | `peer_card.capabilities` lists IDs; `compozy.capabilities_brief` carries summaries. |
+| Rich without `compozy.include` | Responder MUST NOT attach `compozy.capability_catalog`. Caller falls back to brief. |
+| Rich with filtering            | Response returns only the matching capabilities, preserving catalog order.          |
+
+Receivers MUST treat unknown envelope extension keys as opaque and preserve them when forwarding
+messages, so that newer capability metadata can travel unchanged through older relays.
+
+<OperatorNote>
+  Capability claims remain advisory in v0. `compozy.capability_catalog` is a richer hint, not a
+  contract of execution. Trust and authorization belong to runtime policy and future trust profiles,
+  not to discovery payloads.
+</OperatorNote>
+
+## Related pages
+
+- [Peer Discovery](/protocol/peer-discovery) covers how `PeerCard` carries capability IDs in
+  `greet` and `whois` responses.
+- [Message Kinds](/protocol/message-kinds/#capability) documents the `kind:"capability"` envelope
+  that transfers a full structured capability artifact.
+- [Interaction Lifecycle](/protocol/interactions) describes the directed work a caller opens after
+  choosing a capability.
+- [Agent Capabilities](/runtime/core/agents/capabilities) documents how Compozy Runtime authors and
+  loads the local catalog that feeds this wire contract.

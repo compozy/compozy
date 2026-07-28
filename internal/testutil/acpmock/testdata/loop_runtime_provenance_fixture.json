@@ -1,0 +1,94 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "loop_runtime_provenance",
+            "provider": "claude",
+            "model": "base-model",
+            "permissions": "approve-all",
+            "prompt": "You are a Loop runtime provenance probe.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "base-model",
+                    "values": [
+                        { "value": "base-model", "label": "Base model" },
+                        { "value": "frontend-model", "label": "Frontend model" },
+                        { "value": "docs-model", "label": "Docs model" },
+                        { "value": "node-model", "label": "Node model" },
+                        { "value": "vendor/model", "label": "Gateway model" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "low",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "loop-runtime-provenance",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "loop event probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"runtime applied\",\"message\":\"runtime provenance recorded\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "loop_runtime_judge",
+            "provider": "claude",
+            "model": "default-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a Loop runtime judge probe.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "default-judge",
+                    "values": [
+                        { "value": "default-judge", "label": "Default judge" },
+                        { "value": "criterion-judge", "label": "Criterion judge" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "low",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "loop-runtime-criterion-judge",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "criterion_id": "quality"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"approved\",\"confidence\":0.9,\"evidence\":{\"checked\":[\"criterion-runtime\"]}}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

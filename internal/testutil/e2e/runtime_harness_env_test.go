@@ -1,0 +1,31 @@
+package e2e
+
+import "testing"
+
+func TestRuntimeHarnessEnvContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep isolated home env when options provide reserved keys", func(t *testing.T) {
+		t.Parallel()
+
+		layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
+			Env: map[string]string{
+				"COMPOZY_HOME": "/tmp/outside-compozy-home",
+				"HOME":         "/tmp/outside-home",
+			},
+		})
+
+		if got, want := lookupEnvValue(layout.Env, "HOME"), layout.HomePaths.HomeDir; got != want {
+			t.Fatalf("lookupEnvValue(HOME) = %q, want %q", got, want)
+		}
+		if got, want := lookupEnvValue(layout.Env, "COMPOZY_HOME"), layout.HomePaths.HomeDir; got != want {
+			t.Fatalf("lookupEnvValue(COMPOZY_HOME) = %q, want %q", got, want)
+		}
+		if got, want := countEnvEntries(layout.Env, "HOME"), 1; got != want {
+			t.Fatalf("countEnvEntries(HOME) = %d, want %d", got, want)
+		}
+		if got, want := countEnvEntries(layout.Env, "COMPOZY_HOME"), 1; got != want {
+			t.Fatalf("countEnvEntries(COMPOZY_HOME) = %d, want %d", got, want)
+		}
+	})
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "design-system-sidebar-sessions.html",
+  "entry": "sidebar-sessions-01.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:37:33.511Z",
+  "updatedAt": "2026-07-15T03:14:36.335Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

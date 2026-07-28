@@ -1,0 +1,23 @@
+package main
+
+import (
+	"io"
+
+	"github.com/compozy/compozy/internal/bridgesdk"
+)
+
+func main() {
+	bridgesdk.Main("gchat", runServe)
+}
+
+func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	return bridgesdk.RunProviderCommand("gchat", args, stdin, stdout, stderr, runServe)
+}
+
+func runServe(stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	provider, err := newGChatProvider(stderr)
+	if err != nil {
+		return err
+	}
+	return provider.serve(stdin, stdout)
+}

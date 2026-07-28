@@ -29,8 +29,8 @@ Anything failing one test → **Decisions for a Human**. When a fix grows beyond
 
 Every auto-fix ships with, non-negotiably:
 
-1. **A regression test that failed before and passes after.** When no automated test is meaningful (pure copy, purely visual), a documented replay stands in: the exact re-walk steps, the before/after evidence, and the stated reason no test applies — plus an `automation-backlog.md` entry recording the debt.
-2. **One logical fix per commit**, message citing the `BUG-NNNN`.
+1. **A regression test that failed before and passes after.** When no automated test is meaningful (pure copy, purely visual), a documented replay stands in: the exact re-walk steps, the before/after evidence, and the stated reason no test applies — plus an `automation-backlog/` entry recording the debt.
+2. **One logical fix per commit**, message citing the bug id.
 3. **Root cause in the bug file** (`Fix` section: root cause, commit SHA, regression test path).
 4. **Retest** per the protocol below before the finding's row moves to `Fixed`.
 
@@ -39,7 +39,7 @@ Every auto-fix ships with, non-negotiably:
 Escalations are findings with a recommendation, recorded in the report's **Decisions for a Human** section:
 
 ```markdown
-### <finding title> (BUG-NNNN / paper cut)
+### <finding title> (bug id / paper cut)
 - What's broken: <user-side description, evidence path>
 - Why not auto-fixed: <which governor bound it fails>
 - Options:

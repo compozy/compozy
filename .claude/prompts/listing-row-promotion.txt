@@ -1,0 +1,157 @@
+# Task: Promote the inventory listing row into `@compozy/ui` as `ListingRow` — one canonical row, zero overlapping primitives, three adopting surfaces
+
+## Task type
+
+Improvement / design-system consolidation. Extract the canonical inventory listing-row pattern into the shared UI package (`@compozy/ui`), migrate three surfaces to consume it — the Loops catalog (pixel-parity reference), the Tasks list, and the Network main-pane lists (Threads + Directs) — delete the dormant overlapping primitive (`ReviewRow`), and document the job boundaries so no two shared components answer the same "list row" question.
+
+## Decision record (locked — these are requirements, not suggestions)
+
+These decisions were made after a full usage census of the repo and a design-owner ruling that Tasks and Network lists must adopt the same standard. Do not re-litigate them; implement them.
+
+1. **The HTML class contract is the source of truth, not the Loops row.** The normative spec is the `.listing-row` contract in `docs/design/opendesign/catalog-design-system.html` + `docs/design/opendesign/LISTING-STANDARD.md`. `web/src/systems/loops/components/catalog/loop-catalog-row.tsx` is the first production consumer of that contract, not the spec itself. Where the Loops row and the HTML contract disagree, the HTML contract wins.
+2. **The canonical React inventory row is a new `ListingRow` compound component** at `packages/ui/src/components/custom/listing-row.tsx`, named exactly as `LISTING-REDESIGN-BRIEF.md` §5 prescribes ("a `ListingRow` slot component … Candidate home: `packages/ui/src/components/custom/`"). A census confirmed no `ListingRow`/`CatalogRow` component or export exists anywhere in `packages/ui`, `web/src`, or `packages/site` — the namespace is clear.
+3. **`CatalogCard` keeps its name and API.** `LISTING-STANDARD.md` explicitly binds the card half to `@compozy/ui` `CatalogCard` ("Compose like `@compozy/ui` CatalogCard"). The `ListingRow`/`CatalogCard` naming asymmetry is accepted because both names are normative in the standard. No rename, no dual export, no alias.
+4. **`ListingRow` gains exactly one state beyond hover: `selected`.** Design-owner ruling: the Network main-pane lists keep their active-row indication when migrating, so the shared row supports an optional selected state — expressed as `data-selected` + `bg-row-selected` background (the token already exists: `--color-row-selected`, `packages/ui/src/tokens.css` ~L80) — mirroring how `CatalogCard` exposes `selected`. Selection rails, dots, and any indicator chrome remain banned on `ListingRow` (P0 anti-pattern). Because the current written standard documents hover-only, this change MUST amend both authorities in the same PR: add the selected-state clause to `LISTING-STANDARD.md` (row layout section) and a `.listing-row[data-selected]` rule to the class contract in `catalog-design-system.html`, so the docs and the component never diverge.
+5. **`ReviewRow` is deleted.** It is dormant primitive code: zero production imports anywhere in `web/src` or `packages/site` (verified — the only references are its own story, its own unit test, the two barrel exports, and one `packages/ui/README.md` mention; the `runReviewRow` e2e selector in `web/e2e` is an unrelated tasks-DOM testid, not this component). Its slot shape (leading/title/description/meta/actions) overlaps the listing row, and its visual grammar (bordered `bg-canvas-soft` flex row with tone border) violates the flat listing standard. Greenfield alpha policy: hard cut. Delete the component file, its story, its test, both barrel export lines, and the README mention. No deprecation period, no compat re-export.
+6. **`Item` stays, re-scoped in documentation.** After this change its job is *compact selection chrome*: sidebar rails and pickers (`ChannelRailRow`, recents, directs picker rail), split-pane master panels (skills/bridges/knowledge/automation), inspector lists (members, activity, agent info), and vault/settings panels. That is a different job from a main-pane inventory row. Do not modify `Item`'s code; write the boundary down (see Deliverables).
+7. **The Tasks list migrates to `ListingRow`.** Evidence: in list mode a row click NAVIGATES to `/tasks/$id` (`web/src/routes/_app/-tasks-route.tsx` `handleSelectTask` → `navigate({ to: "/tasks/$id" })`; comment in `tasks-list-surface.tsx`: "clicking a row navigates to `/tasks/$id` instead of opening an inline preview"); `TasksListSurface` never passes `selected`; `showStatusDot` defaults to `false` in list mode (status dots live on `TaskGroup` headers, and a vitest suite asserts no status-dot in list rows). The row's selection rail, `selected` prop, and `showStatusDot` dot-column are therefore dead weight in its only production consumption (`TaskCard`) — delete them (hard cut) and adopt the full listing anatomy: 34px leading icon well, name line (title + optional lane `Pill`), meta line (`MonoId` · relative timestamp · optional meta children), trailing slot (TaskCard's priority/approval/Blocked/Needs-attention pills). The Kanban card (`TaskKanbanCard`), Inbox rows (`TasksInboxRow`/`TasksInboxItem`), and run-review surfaces keep their own primitives — out of scope.
+8. **The main region of every migrated row is a real link.** Loops already does this (TanStack `Link` covering icon well + main, trail as sibling). The Tasks row is currently a `<button>` + imperative `navigate` — migrate it to the link grammar (`/tasks/$id`), preserving the existing router integration test ("navigates to `/tasks/$id` when a list row is clicked") as the canonical assertion. Threads/Directs rows already render `Link`s.
+9. **"NetworkList" = the Network main-pane lists, and they migrate.** No component named `NetworkList` exists — the name belongs to filter plumbing (`useNetworkListFilters` / `NetworkListFiltersProvider`, story title `NetworkLists`, toolbar testids `network-list-sort-*`, `network-list-mark-all-read`). The actual row surfaces behind it are **`ThreadsList`** (`web/src/systems/network/components/threads/threads-list.tsx`, rows → `.../threads/$threadId`) and **`DirectsList`** (`web/src/systems/network/components/directs/directs-list.tsx`, rows → `.../directs/$directId`). Both currently compose `@compozy/ui` `Item` with `indicator="rail"` for the active row. They migrate to `ListingRow`: leading well carries the avatar/channel glyph, name line carries title/`@peer` + pills (work pill, role), description carries the preview line, meta carries peers/replies/opener/time facts as the contract dictates, trail carries time/unread affordances — and the active row uses the new `selected` state (decision 4) instead of a rail. The filter plumbing, hooks, context, and `network-list-*` toolbar testids are untouched — this is row presentation only.
+10. **Explicitly NOT migrating (each is a different job):** `ChannelRailRow` and recents (sidebar picker — `Item`'s job), `ActivityFeed` (timeline feed with flat link rows, not an inventory), `InspectorMembersList` (inspector panel), `TaskKanbanCard` / `TasksInboxRow` (dedicated grammars by design), `loop-run-row.tsx` (runs table), and session/chat/tool-call rows.
+11. **`ListGroup` stays as-is.** Section shell (eyebrow label + count Pill + items wrapper); composes around rows, does not compete with them.
+12. **Scope is the row, not the toolbar.** `ListingToolbar` (search + filters + view toggle + URL `view=` state) is a separate follow-up task: URL state is router-bound and cannot live in the domain-free `packages/ui`. Do NOT ship a partial toolbar, a view toggle, or URL-state handling in this change. Do NOT restructure `loop-catalog-filters.tsx` or the network filter toolbar.
+
+## Problem / background
+
+Compozy's operator inventory pages (Loops, Vault, Skills, Jobs, Bridges, Tasks, …) are supposed to share one listing pattern: dense rows by default, optional cards, shared toolbar/topbar grammar. The card half is already a shared primitive (`CatalogCard`). The row half is not: the Loops catalog implements it inline as a domain component, the Tasks list implements a different grammar (`.task-row` proposal: button rows, selection rail, optional status-dot column), the Network lists compose `Item` with selection rails, and other surfaces use tables or ad-hoc markup. The redesign brief flags this drift explicitly ("the product reads as a collage of one-offs instead of one operator surface"). Promoting the row without clarifying boundaries against `Item`, `ReviewRow`, `ListGroup`, and domain rows would leave `@compozy/ui` with multiple plausible "list row" answers — the exact inconsistency this task exists to prevent.
+
+## Normative visual contract (must match exactly)
+
+From `catalog-design-system.html` (lines ~259–289) and `LISTING-STANDARD.md`:
+
+- **Grid:** `[ leading 34px ] [ main minmax(0,1fr) ] [ trail auto ]`; gap 14px; padding 12px 16px.
+- **Row chrome:** `border-bottom: 1px solid var(--line-soft)`, none on last child; hover = `--row-hover` background only; selected (new, decision 4) = `--row-selected` background via `data-selected`. No lift, no shadow, no accent side-stripe, no rail/dot indicator, no gradients (P0 anti-patterns).
+- **Leading:** neutral well 34×34, `radius-md`, `bg-elevated`, `text-muted`; glyph 16px per the HTML spec (the current Loops row uses 17px — the shared component leaves glyph size to the consumer's icon, but the well is fixed). Consumers may place an icon or an avatar in the well.
+- **Main · name line:** truncated name — sans 14px/500 `fg-strong` (mono variant: 12px/500) — plus kind/source tags as `Pill` (xs, sans, neutral in the name line) and an optional mono slug (11px, `faint`, no-wrap).
+- **Main · description:** one truncated line, 12.5px / 1.45, `muted`. Optional.
+- **Main · meta:** 11px `faint`, flex-wrap, dot separators; mono fact keys 10px `subtle`; optional neutral binding badge. Optional.
+- **Trail:** flex, gap 12px; type/status `Pill` (`mono`, `size="sm"`, `tone="neutral"` for type labels); optional stat block (value mono 12px/600 tabular-nums + label 10px `faint`); always-visible primary action. Never duplicate the type in meta when the trail shows a type Pill.
+- **List container:** rows sit inside a bordered wrapper — `rounded-lg border border-line bg-canvas-soft overflow-hidden` (the `.list` class in the HTML; `loop-catalog.tsx` already renders exactly this).
+- All values come from `packages/ui/src/tokens.css` / `DESIGN.md` tokens — no hex, no invented chrome. Relevant existing tokens: `--color-row-hover`, `--color-row-selected`, `--color-surface-glaze` (`tokens.css` ~L79–81; Tailwind utilities `bg-row-hover`, `bg-row-selected`).
+
+Reference implementations to verify against: `docs/design/opendesign/loops-catalog.html` (rows) and `docs/design/opendesign/vault-redesign.html` (rows/cards).
+
+## Current implementation (what exists today)
+
+### Surface A — Loops catalog row (pixel-parity migration) — `web/src/systems/loops/components/catalog/loop-catalog-row.tsx`
+
+Domain component, not in `@compozy/ui`. Hardcodes the grid/hover/slot markup inline and mixes in Loops domain content (`LoopCatalogEntry`, `LoopStatusPill`, `LoopBindingBadge`, loop formatters) and TanStack Router `Link`:
+
+```tsx
+<div
+  className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-line-soft px-4 py-3.5 transition-colors last:border-b-0 hover:bg-row-hover"
+  data-testid="loop-catalog-row"
+  data-loop={entry.name}
+>
+  <Link
+    to="/loops/$name" params={{ name: entry.name }}
+    className="col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5"
+    aria-label={`Open ${entry.name}`}
+  >
+    <span className="grid size-[34px] place-items-center rounded-md bg-elevated text-muted">
+      <Repeat2 aria-hidden="true" className="size-[17px]" />
+    </span>
+    <div className="min-w-0">
+      {/* name (b.truncate text-sm font-medium text-fg-strong) + Pill xs tags + mono version */}
+      {/* optional goal line: mt-1 truncate text-[12.5px] text-muted */}
+      {/* meta: mt-1.5 flex-wrap gap-2 text-[11px] text-faint — inputs · iteration cap · human gate · <LoopBindingBadge/> */}
+    </div>
+  </Link>
+  <div className="flex items-center gap-4.5">
+    {/* category (hidden sm:block) · <LoopStatusPill/> · success-rate stat (mono xs semibold tabular) · Run button */}
+  </div>
+</div>
+```
+
+Load-bearing behavior to preserve: the name/main region is a single link to the detail page (covering icon well + main via the `col-span-2` inner-grid technique) with an accessible label, while the trail is a sibling — so the Run button and other trail controls are NOT nested inside the link. Test hooks `data-testid="loop-catalog-row"`, `data-testid="loop-catalog-run"`, and `data-loop={entry.name}` must survive the migration (e2e selectors depend on them).
+
+Parent list `loop-catalog.tsx`: groups entries by kind (Eyebrow + mono count header per group), wraps rows in `<div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">`, uses shared `Empty` for the zero state. Grouping and filters (`loop-catalog-filters.tsx`) are NOT part of this task.
+
+### Surface B — Tasks list (anatomy-adoption migration)
+
+Render chain: route `/tasks` (`web/src/routes/_app/tasks.tsx` → `-tasks-route.tsx`) → `web/src/systems/tasks/components/tasks-list-surface.tsx` (groups) → `task-card.tsx` (`TaskCard`, fills trailing with priority/approval/Blocked/Needs-attention pills) → `tasks-list-row.tsx` (`TasksListRow`, the primitive).
+
+`TasksListRow` today: `<button aria-pressed>` extending `Omit<ComponentProps<"button">, "onClick"|"onSelect"|"type">` with props `task`, `selected?`, `rail?`, `onSelect?(taskId)`, `lane?`, `trailing?`, `meta?`, `testId?`, `showStatusDot?` (default false). Conditional grid `[10px_minmax(0,1fr)_auto]` with dot column when `showStatusDot`, else 2-col; absolute selection rail (`w-0.5 bg-fg-strong`) when `rail || selected`; `selected && "bg-row-selected"`; status dot tones from `rowStatusDotTone(taskStatusSignal(status).tone)` (`task-formatters.ts` ~L40–61: `in_progress|running` → accent+pulse, `blocked|failed|canceled` → danger, `needs_attention` → warning, else neutral → no dot). Main: title + optional lane `Pill`; meta: `MonoId` · relative timestamp · optional meta children with `·` separators. Its file comment cites the superseded `.task-row` proposal grammar and notes Kanban/Inbox build their own primitives.
+
+Facts that shape the migration: list mode never passes `selected`; `showStatusDot` is never true in list mode (a vitest asserts no status-dot in list rows; dots live on `TaskGroup` headers); clicking navigates via `handleSelectTask` → `navigate({ to: "/tasks/$id" })`; `TasksListRow`'s only production consumer is `TaskCard`. Status semantics already reach the user through trailing pills and group-header dots — nothing is lost by dropping the row's rail/dot/selected machinery.
+
+Test hooks to preserve: `data-testid` default `task-card-${task.id}` plus TaskCard children (`task-card-owner|attempt|children|deps|error|blocked|needs-attention-${id}`). Canonical vitest suites to update in place (never new regression files): `tasks-list-row.test.tsx`, `tasks-list-surface.test.tsx`, `task-card.test.tsx`, and the router integration test `web/src/routes/_app/__tests__/-tasks.router.integration.test.tsx` ("navigates to `/tasks/$id` when a list row is clicked"). Playwright specs that must keep passing unchanged: `web/e2e/__tests__/tasks.spec.ts`, `tasks-hardening.spec.ts`, `tasks-coordinator-handoff.spec.ts`, all via the locator factory `web/e2e/fixtures/selectors.ts` (`taskCard: (id) => getByTestId(\`task-card-${id}\`)`).
+
+### Surface C — Network main-pane lists (anatomy-adoption migration)
+
+- **`ThreadsList`** (`web/src/systems/network/components/threads/threads-list.tsx`): rows show title, preview, work pill, peers/replies/opener facts, time; composed with `@compozy/ui` `Item` + `indicator="rail"` when active + `bg-canvas-soft`; each row is a `Link` to `.../threads/$threadId`.
+- **`DirectsList`** (`web/src/systems/network/components/directs/directs-list.tsx`): rows show avatar, `@peer`, role, preview, time; same `Item` + rail pattern; `Link` to `.../directs/$directId`.
+- Both sit under the `/network` shell (left `ChannelRail` + center tab content + optional inspector) and are governed by the `NetworkList*` filter plumbing (`useNetworkListFilters` / `NetworkListFiltersProvider`; story `network-lists.stories.tsx`; toolbar testids `network-list-sort-*`, `network-list-mark-all-read`) — all of which stay untouched.
+- The lists remain visible while a thread/direct is open, so the active row needs the `selected` state (decision 4) — `data-selected` + `bg-row-selected`, no rail. Note the tone shift: network `Item` selected currently uses `bg-elevated`; the listing standard uses `--row-selected`.
+- Before migrating, audit `web/e2e` for selectors touching threads/directs row markup and preserve every `data-testid` you find (the network toolbar testids are known; row-level testids must be discovered and kept).
+
+### The shared card half (ambient compound pattern to mirror) — `packages/ui/src/components/custom/catalog-card.tsx`
+
+`CatalogCard` is the API-shape precedent: a root that extends `React.ComponentProps<"article">` with minimal boolean props (`selected`, `actionable`), plus slot subcomponents (`CatalogCard.Logo/.Title/.Description/.Meta/.Actions`) built via `Object.assign`, each a native-element wrapper (`data-slot` attribute, `cn()` class merge, `{...props}` spread), tokens-only styling. All domain content flows through slot children — zero domain props. `ListingRow` must follow this same compound style.
+
+### The overlap surface (census results)
+
+- **`Item`** (`packages/ui/src/components/item.tsx`): polymorphic (`as="div"|"button"`), cva variants (`default|outline|muted`, sizes `default|sm|xs`), selection (`selected`, `selectable`, `indicator="rail"|"dot"|"none"`, `aria-pressed`), sub-parts `ItemGroup/Media/Content/Title/Description/Actions/Header/Footer/SelectionIndicator`. Rounded flex row. After this task its production consumers are the selection-shaped surfaces listed in decision 6.
+- **`ReviewRow`** (`packages/ui/src/components/custom/review-row.tsx`): props `leading?/title/description?/meta?/actions?/tone?`; bordered flex row with tone border. Referenced ONLY by: `packages/ui/src/components/custom/stories/review-row.stories.tsx`, `packages/ui/src/components/custom/__tests__/review-row.test.tsx`, `packages/ui/src/components/custom/index.ts` (~line 232), `packages/ui/src/index.ts` (~line 367), `packages/ui/README.md` (~line 211). Zero production routes. Delete all of it.
+- **`ListGroup`** (`packages/ui/src/components/custom/list-group.tsx`): compound `Root/Header/Items`; label + count Pill + actions header, items wrapper. 3 consumers (skill/bridges/knowledge list panels). Keep.
+- Other `*Row` names (`FieldRow`, `ToolCallRow`, `OperationalLinksRow`, `MetadataList.Row`) are different jobs; untouched.
+
+### Package conventions that bind this task
+
+- `packages/ui` is **domain-free**: no imports from `web/`, no `@tanstack/react-router`, no query/store/openapi types. Domain content enters through slots/children only. Consequence: `ListingRow` must be router-agnostic — the consumer supplies the link element for the clickable main region; the shared component only guarantees the layout contract (link region spans icon well + main; trail stays a sibling, never nested in the link).
+- Public surface: export through `packages/ui/src/components/custom/index.ts` AND `packages/ui/src/index.ts` (if it is not in `src/index.ts`, `web/` cannot import it).
+- README rule (verbatim): "**No new exports without a story and a test. Both land in the same PR.**" Every variant gets a story; tokens only, no hex.
+- Stories for custom components are split across two dirs today (`components/stories/` and `components/custom/stories/`, both matched by the `../src/**/*.stories.@(ts|tsx)` glob). Place the new story in `packages/ui/src/components/custom/stories/listing-row.stories.tsx` — colocated with its source's sibling stories; do not invent a third location.
+- Hard cap 500 lines per production file, one responsibility per file. Native DOM wrappers extend `React.ComponentProps<"…">`, merge `className` via `cn()`, spread `{...props}`. Kebab-case filenames. Named exports only. Oxlint is zero-tolerance.
+- Test placement discipline: name the invariant and edit the existing canonical suite; never add standalone regression files for behavior an existing suite owns.
+
+## Deliverables
+
+1. **`ListingRow` compound** in `packages/ui/src/components/custom/listing-row.tsx` implementing the normative contract above, in `CatalogCard`'s compound slot style, with the root accepting an optional `selected` boolean (decision 4). Slot decomposition, exact prop names, and the mechanism for the consumer-supplied link region are yours to design — within the locked constraints (domain-free, router-agnostic, tokens-only, trail outside the link region, `data-slot` attributes, no rail/dot/indicator features — those remain `Item`'s job and must not leak into `ListingRow`).
+2. **Storybook story + unit test** for `ListingRow`, same PR (story: `packages/ui/src/components/custom/stories/listing-row.stories.tsx`; test under the nearest `__tests__/`). Stories must cover the anatomy variants that exist in the contract (full row, no description, no meta, stat block, mono name variant, tag pills, trail action, selected state, avatar-in-well) — rendered with neutral placeholder content, never domain data.
+3. **Standard amendment:** add the `selected` state to `LISTING-STANDARD.md` (row layout section: `data-selected` → `--row-selected`, no rail) and a `.listing-row[data-selected]` rule to the class contract in `catalog-design-system.html`, in this same change.
+4. **Loops migration (pixel parity):** `LoopCatalogRow` becomes a thin domain composition over `ListingRow` — it keeps its props (`entry`, `bindingKinds`, `onRun`), its domain content (icon, `LoopStatusPill`, `LoopBindingBadge`, formatters, Run button), its TanStack `Link`, and its three test hooks, and deletes every line of inline grid/hover/well/typography markup that `ListingRow` now owns. The rendered result on `/loops` must be visually identical (pixel-parity within token rounding) to the current production row. `loop-catalog.tsx` and `loop-catalog-filters.tsx` are untouched except for anything the row swap strictly requires.
+5. **Tasks migration (anatomy adoption):** the tasks list row adopts the full listing anatomy per decision 7 — 34px leading well (pick a sensible neutral task glyph; do not invent status semantics in the well), link-based main region to `/tasks/$id` (decision 8), lane pill in the name line, `MonoId`/timestamp/meta facts in the meta line, TaskCard's pills in the trail — and the `selected`/`rail`/`showStatusDot`/`onSelect` machinery is deleted from the row (hard cut; Kanban/Inbox keep their own primitives). Whether `TasksListRow` survives as a thin composition layer or folds into `TaskCard` is your structural call — but no layer may exist only to forward props. Preserve `task-card-${id}` and all TaskCard child testids; update the four canonical vitest suites in place; the three Playwright specs must pass unchanged.
+6. **Network migration (anatomy adoption):** `ThreadsList` and `DirectsList` rows recompose from `Item`+rail to `ListingRow` per decision 9, using `selected` for the active row. Filter plumbing, hooks, context, toolbar testids, `ChannelRail`, `ActivityFeed`, and inspector lists are untouched. Update the `network-lists` story and any canonical network component suites in place; audit and preserve row-level e2e selectors.
+7. **`ReviewRow` deletion:** remove `review-row.tsx`, its story, its test, both barrel export lines, and the `packages/ui/README.md` mention. Then verify `grep -r "ReviewRow" web/src packages/ui/src packages/site --include="*.ts*"` returns zero component references.
+8. **Boundary documentation** in `packages/ui/README.md`: a short "Which list component?" decision table covering — `ListingRow` (main-pane inventory/navigational rows: Loops/Tasks/Threads/Directs today; Vault/Skills/Jobs/Bridges catalogs next), `Item` (compact selection chrome: sidebar rails, pickers, split-pane master panels, inspector lists), `ListGroup` (section shell around either), `CatalogCard` (card view of the same listing data), and a note that dedicated grammars (`TaskKanbanCard`, `TasksInboxRow`, feed/chat/tool-call rows) are intentionally not `ListingRow`. A new contributor reading this table must be unable to reasonably pick the wrong component for an inventory page.
+9. **Design-system showcase:** add a `ListingRow` demo to `web/src/components/design-system-showcase.tsx` (the `/design-system` route already showcases `Item` and `CatalogCard`), with neutral placeholder content, including the selected state.
+
+## Verification gates (all required before completion)
+
+- `bunx turbo run lint typecheck test --filter=./packages/ui` and `--filter=./web` from the repo root during iteration (never `cd`-local runs); full `make verify` once as the completion gate.
+- **Visual verification via `eng-ui-screenshot`:** capture (a) the new `ListingRow` Storybook story, (b) `/loops` after migration diffed against a pre-migration capture (must be pixel-identical) and against `docs/design/opendesign/loops-catalog.html` / `catalog-design-system.html`, (c) `/tasks` before + after, and (d) `/network` threads + directs before + after (including an active/selected row). Cite every capture. Tests verify code; screenshots verify pixels.
+- **QA tracker (`docs/qa/state.csv`):** `/loops` = "no user-visible change — pure refactor, verified by screenshot diff". `/tasks` and `/network` (threads/directs) = intentional visual changes → reset the affected rows' `qa_status` to `untested`. Flag, don't retest.
+- **Compozy Impact Audit** in the completion notes (Native tools: no impact — presentational web/packages/ui only, no `compozy__*` surfaces touched; Extensibility and hooks: no impact — no extension/config surfaces; Workspace data isolation: no impact — no data reads/writes; Official Compozy skill: no impact — no public behavior/CLI/tool change; each with the checked surfaces named).
+- Commit style: a small sequenced batch is acceptable — e.g. `feat: add ListingRow inventory row to @compozy/ui` (primitive + story + test + docs + ReviewRow deletion), then `refactor: adopt ListingRow in loops catalog`, `refactor: adopt ListingRow in tasks list`, `refactor: adopt ListingRow in network lists`. Run `make verify` once before the batch.
+
+## Success criteria
+
+- `@compozy/ui` exports exactly one canonical inventory-row component (`ListingRow`), and no second plausible answer exists (`ReviewRow` is gone; `Item`'s selection job is documented as distinct).
+- Loops, Tasks, Threads, and Directs rows all compose `ListingRow` slots instead of hand-rolled grid/hover/rail markup: one visual grammar across all four surfaces (34px well, `--row-hover`, `--row-selected` where active, flat depth, trail Pill grammar), screenshot-verified.
+- Loops shows zero visual regression; Tasks and Network match the listing contract (no rails, no dot columns, no bordered item chrome in main-pane lists).
+- Domain content (status pills, binding badges, Run actions, lane pills, avatars, work pills) flows through slots without forking the layout contract — `ListingRow` contains no domain knowledge.
+- The written standard (`LISTING-STANDARD.md` + `catalog-design-system.html`) and the shipped component agree on every state, including `selected`.
+- All gates above pass with zero warnings; all named e2e specs pass unchanged.
+
+## Non-goals
+
+- No `ListingToolbar`, view toggle, URL `view=` state, filter rework, or empty-state changes (follow-up task).
+- No redesign of any route beyond the three row swaps; `/vault`, `/skills`, `/jobs`, etc. adopt later.
+- No changes to `Item`, `ListGroup`, `CatalogCard`, `ChannelRailRow`, `ActivityFeed`, `InspectorMembersList`, `TaskKanbanCard`, `TasksInboxRow`, `loop-run-row`, or session/network-chat/tool-call row contracts.
+- No daemon/API changes, no invented metrics, no new status semantics.
+- No compat shims, deprecated aliases, or dual exports of any kind.
+
+## Environment
+
+Monorepo: Bun workspaces + Turborepo. Web = Vite + React 19 + TanStack Router/Query + Tailwind v4 + shadcn (base-nova). Shared package `@compozy/ui` at `packages/ui` (tokens at `packages/ui/src/tokens.css`; generated spec `DESIGN.md` at repo root). Design authorities under `docs/design/opendesign/`. Frontend validation runs through Turborepo from the repo root only.

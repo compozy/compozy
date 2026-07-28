@@ -1,0 +1,25 @@
+{
+    "$schema": "https://ui.shadcn.com/schema.json",
+    "style": "base-nova",
+    "rsc": false,
+    "tsx": true,
+    "tailwind": {
+        "config": "",
+        "css": "src/tokens.css",
+        "baseColor": "zinc",
+        "cssVariables": true,
+        "prefix": ""
+    },
+    "iconLibrary": "lucide",
+    "rtl": false,
+    "aliases": {
+        "components": "@compozy/ui/components",
+        "utils": "@compozy/ui/lib/utils",
+        "ui": "@compozy/ui/components",
+        "lib": "@compozy/ui/lib",
+        "hooks": "@compozy/ui/hooks"
+    },
+    "registries": {
+        "@reui": "https://reui.io/r/{style}/{name}.json"
+    }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-detail.html",
+  "entry": "agent-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-09T16:46:42.798Z",
+  "updatedAt": "2026-07-09T16:46:42.798Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,50 @@
+---
+title: "compozy ch list"
+description: "List coordination channels visible to the current agent session"
+---
+
+## compozy ch list
+
+List coordination channels visible to the current agent session
+
+```
+compozy ch list [flags]
+```
+
+### Examples
+
+```
+  # List coordination channels visible to this session
+  compozy ch list
+
+  # Print channel discovery metadata as JSON
+  compozy ch list -o json
+```
+
+### Options
+
+```
+  -h, --help   help for list
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy ch list -o json
+```

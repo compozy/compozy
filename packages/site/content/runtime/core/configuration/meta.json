@@ -1,0 +1,14 @@
+{
+    "title": "Configuration",
+    "icon": "Settings",
+    "pages": [
+        "config-toml",
+        "lifecycle-matrix",
+        "vault",
+        "agent-md",
+        "skill-md",
+        "mcp-json",
+        "env-vars",
+        "file-locations"
+    ]
+}

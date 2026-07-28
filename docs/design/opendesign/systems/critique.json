@@ -1,0 +1,27 @@
+{
+  "kind": "critique-panel",
+  "scope": ["vault.html", "mcp-servers.html", "sandbox.html"],
+  "score": 4,
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "Each page answers one operator question per zone: breadcrumb (where), PH1 head (what), toolbar (how). Sandbox now exposes the canonical Rows|Cards PillGroup so scan vs browse density is explicit."
+    },
+    "hierarchy": {
+      "score": 5,
+      "notes": "Canonical route stack from design-system.html §03/§09: topbar → page head → listing toolbar (search · filters · Rows|Cards) → rows or card grid. One accent CTA per viewport; status on tint pills, never card borders."
+    },
+    "typography": {
+      "score": 5,
+      "notes": "Inter UI + JetBrains Mono for refs/endpoints/enums. Mono row/card titles for machine profile names; card Meta eyebrow stays uppercase sans with mono-slug for persistence."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "140ms token transitions, sheet slide, skeleton shimmer. View toggle is instant re-render with aria-pressed sync. Full prefers-reduced-motion guard."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "PillGroup matches design-system.html demo (md 24px, borderless track, elevated active, never accent fill). Card anatomy follows CatalogCard: flat canvas-soft, elevated hover, foot meta + Edit action."
+    }
+  }
+}

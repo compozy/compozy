@@ -1,0 +1,73 @@
+---
+title: "compozy completion bash"
+description: "Generate the autocompletion script for bash"
+---
+
+## compozy completion bash
+
+Generate the autocompletion script for bash
+
+### Synopsis
+
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+```
+source <(compozy completion bash)
+
+```
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+```
+compozy completion bash > /etc/bash_completion.d/compozy
+
+```
+
+#### macOS:
+
+```
+compozy completion bash > $(brew --prefix)/etc/bash_completion.d/compozy
+
+```
+
+You will need to start a new shell for this setup to take effect.
+
+```
+compozy completion bash
+```
+
+### Options
+
+```
+  -h, --help              help for bash
+      --no-descriptions   disable completion descriptions
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy completion bash > /etc/bash_completion.d/compozy -o json
+```

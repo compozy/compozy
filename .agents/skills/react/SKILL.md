@@ -1,9 +1,12 @@
 ---
 name: react
-description: Comprehensive React development guide covering component architecture, hooks, state management, TypeScript integration, useEffect patterns, and testing with Vitest. Use when creating React components, custom hooks, managing state, or any frontend React code. Essential for React 19+ development.
+description: Comprehensive React development guide covering component architecture, hooks, state management, TypeScript integration, useEffect patterns, and testing with Vitest. Use when creating React components, custom hooks, managing state, or any frontend React code. Essential for React 19+ development. Don't use for React Native, non-React frameworks (Vue, Svelte, Solid), or backend-only Node.js code.
 allowed-tools: Read, Grep, Glob
+metadata:
+  author: Pedro Nauck
+  github: https://github.com/pedronauck
+  repository: https://github.com/pedronauck/skills
 ---
-
 # React Development Guide
 
 This skill provides comprehensive guidelines, patterns, and best practices for React development in this project.
@@ -11,9 +14,10 @@ This skill provides comprehensive guidelines, patterns, and best practices for R
 ## Quick Start
 
 1. **Best Practices**: For component architecture, state management, and TypeScript integration, read `references/best-practices.md`
-2. **useEffect Patterns**: For understanding when to use (and avoid) useEffect, read `references/useeffect-patterns.md`
-3. **Data Fetching**: For TanStack Query patterns, use the `tanstack` skill
-4. **Forms**: For form handling with TanStack Form, use the `tanstack` skill
+2. **Element wrappers**: If a component renders a single native element (`button`, `input`, `a`, …), extend that element’s props (`React.ComponentProps<"…">`) and spread `...props` — see **Extend native element props** below and `references/best-practices.md` → *Extending HTML Elements*.
+3. **useEffect Patterns**: For understanding when to use (and avoid) useEffect, read `references/useeffect-patterns.md`
+4. **Data Fetching**: For TanStack Query patterns, use the `tanstack` skill
+5. **Forms**: For form handling with TanStack Form, use the `tanstack` skill
 
 ## Core Principles
 
@@ -22,6 +26,39 @@ This skill provides comprehensive guidelines, patterns, and best practices for R
 - **Separation of Concerns**: Extract behavior logic into custom hooks, keep components focused on rendering
 - **Feature-Based Organization**: Co-locate related files by feature, not by type
 - **React 19+ Features**: Embrace modern React features (`use()`, Actions, `useOptimistic()`)
+
+## Extend native element props
+
+**Default rule for wrappers:** whenever a component’s root output is a **single native element**, its props interface MUST extend that element’s intrinsic props — same contract as shadcn/ui-generated primitives. Callers keep access to `aria-*`, `data-*`, `onClick`, `disabled`, etc., without bespoke passthrough lists.
+
+**Do this:**
+
+| Requirement | Detail |
+| ------------- | ------ |
+| Base type | `interface XProps extends React.ComponentProps<"button">` (or `"input"`, `"a"`, `"div"`, …) |
+| Spreading | Destructure your custom fields, then `{...props}` (and merged `className`) onto the DOM node |
+| Ref | Use `React.forwardRef` and the matching element ref type when refs are needed |
+
+```typescript
+interface TextFieldProps extends React.ComponentProps<"input"> {
+  label: string;
+  error?: string;
+}
+
+function TextField({ label, error, className, ...props }: TextFieldProps) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span>{label}</span>
+      <input className={cn("rounded border px-2 py-1", error && "border-destructive", className)} {...props} />
+      {error ? <span className="text-destructive text-sm">{error}</span> : null}
+    </label>
+  );
+}
+```
+
+**Variants + CVA:** if you use `class-variance-authority`, combine intrinsic props with `VariantProps<typeof variants>` (often `extends React.ButtonHTMLAttributes<HTMLButtonElement>`). Follow the **`shadcn`** skill patterns.
+
+**Deep dive:** `references/best-practices.md` → *Extending HTML Elements*.
 
 ## Quick Reference Tables
 
@@ -63,18 +100,18 @@ This skill provides comprehensive guidelines, patterns, and best practices for R
 
 ```typescript
 // CORRECT: Type props directly (never use React.FC)
-interface ButtonProps {
+interface BrandButtonProps {
   variant: "primary" | "secondary";
   children: React.ReactNode;
 }
 
-function Button({ variant, children }: ButtonProps) {
-  return <button className={variant}>{children}</button>;
+function BrandButton({ variant, children }: BrandButtonProps) {
+  return <button type="button" className={variant}>{children}</button>;
 }
 
-// Extending HTML elements
-interface InputProps extends React.ComponentProps<"input"> {
-  label: string;
+// When wrapping a native element, extend its props — see "Extend native element props" above
+interface IconButtonProps extends React.ComponentProps<"button"> {
+  icon: React.ReactNode;
 }
 ```
 
@@ -178,7 +215,7 @@ Before finishing a task involving React:
 
 - [ ] Components are functional and follow single responsibility principle
 - [ ] Behavior logic is extracted into custom hooks
-- [ ] TypeScript props are typed directly (not using `React.FC`)
+- [ ] TypeScript props are typed directly (not using `React.FC`); native wrappers extend `React.ComponentProps<"…">` (or `ButtonHTMLAttributes` + variants per `shadcn` skill) and forward `...props`
 - [ ] State management follows the hierarchy (local -> Zustand -> TanStack Query -> URL)
 - [ ] useEffect is only used for external system synchronization
 - [ ] Error boundaries are in place for error handling

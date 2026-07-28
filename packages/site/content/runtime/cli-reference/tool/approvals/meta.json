@@ -1,0 +1,4 @@
+{
+    "title": "Approvals",
+    "pages": ["index", "list", "revoke", "set"]
+}

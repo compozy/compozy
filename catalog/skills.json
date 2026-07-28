@@ -1,0 +1,18 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-17T00:40:00Z",
+    "entries": [
+        {
+            "entry_id": "documentation-writer",
+            "name": "Documentation Writer",
+            "description": "Create and improve READMEs, API references, user guides, and code documentation",
+            "version": "1.0.0",
+            "published_at": "2026-03-16T17:06:25Z",
+            "updated_at": "2026-05-11T09:32:33Z",
+            "install_slug": "documentation-writer",
+            "display_name": "Documentation Writer",
+            "author": "engsathiago",
+            "tags": ["documentation", "writing"]
+        }
+    ]
+}

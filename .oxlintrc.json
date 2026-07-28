@@ -1,6 +1,15 @@
 {
     "$schema": "./node_modules/oxlint/configuration_schema.json",
     "plugins": ["unicorn", "typescript", "oxc"],
+    "jsPlugins": [
+        "./lint-plugins/react-component-complexity.mjs",
+        "./lint-plugins/react-hooks-separation.mjs",
+        "./lint-plugins/test-file-location.mjs",
+        "./lint-plugins/compozy-design-system.mjs",
+        "./lint-plugins/ui-primitive-reuse.mjs",
+        "./lint-plugins/data-boundaries.mjs",
+        { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" }
+    ],
     "categories": {},
     "rules": {
         "no-unassigned-vars": "warn",
@@ -91,34 +100,125 @@
         "unicorn/no-useless-length-check": "warn",
         "unicorn/no-useless-spread": "warn",
         "unicorn/prefer-set-size": "warn",
-        "unicorn/prefer-string-starts-ends-with": "warn"
+        "unicorn/prefer-string-starts-ends-with": "warn",
+        "compozy-testing/tests-in-tests-dir": "error",
+        "compozy-design-system/no-inline-eyebrow": "error",
+        "compozy-design-system/no-design-glaze-rgba": "error",
+        "compozy-design-system/no-banned-imports": "error",
+        "compozy-design-system/no-inline-design-tuples": "error",
+        "compozy-design-system/prefer-bare-token-utility": "error",
+        "compozy-design-system/no-low-contrast-focus-ring": "error",
+        "compozy-ui-reuse/no-shadow-ui-primitive": "error",
+        "compozy-data-boundaries/require-canonical-query-options": "error",
+        "compozy-data-boundaries/no-inline-query-key": "error"
     },
     "overrides": [
+        {
+            "files": ["web/src/**/*.tsx", "packages/ui/src/**/*.tsx", "packages/site/**/*.tsx"],
+            "rules": {
+                "compozy-react/max-component-complexity": [
+                    "error",
+                    {
+                        "maxHooks": 5,
+                        "maxHandlers": 3,
+                        "maxTotal": 7
+                    }
+                ],
+                "compozy-react-hooks/no-mixed-hooks-and-components": "error"
+            }
+        },
+        {
+            "files": [
+                "web/src/**/*.{ts,tsx}",
+                "packages/ui/src/**/*.{ts,tsx}",
+                "packages/site/**/*.{ts,tsx}"
+            ],
+            "rules": {
+                "compozy-react-hooks/hooks-in-hooks-folder": "error"
+            }
+        },
+        {
+            "files": [
+                "web/src/**/*.{ts,tsx}",
+                "packages/ui/src/**/*.{ts,tsx}",
+                "packages/site/**/*.{ts,tsx}"
+            ],
+            "rules": {
+                "react-doctor/effect-needs-cleanup": "error",
+                "react-doctor/hooks-no-nan-in-deps": "error",
+                "react-doctor/checked-requires-onchange-or-readonly": "error",
+                "react-doctor/no-reset-all-state-on-prop-change": "error",
+                "react-doctor/no-pass-live-state-to-parent": "error",
+                "react-doctor/no-array-index-as-key": "error",
+                "react-doctor/exhaustive-deps": "error",
+                "react-doctor/no-effect-with-fresh-deps": "error",
+                "react-doctor/no-derived-useState": "error",
+                "react-doctor/no-event-handler": "error",
+                "react-doctor/button-has-type": "error",
+                "react-doctor/no-call-component-as-function": "error",
+                "react-doctor/jsx-no-constructed-context-values": "error",
+                "react-doctor/use-lazy-motion": "error",
+                "react-doctor/rerender-memo-with-default-value": "error",
+                "react-doctor/js-set-map-lookups": "error",
+                "react-doctor/js-combine-iterations": "error",
+                "react-doctor/js-flatmap-filter": "error",
+                "react-doctor/js-hoist-intl": "error",
+                "react-doctor/no-scale-from-zero": "error",
+                "react-doctor/no-barrel-import": "error",
+                "react-doctor/rerender-lazy-state-init": "error",
+                "react-doctor/prefer-tag-over-role": "error",
+                "react-doctor/anchor-has-content": "error",
+                "react-doctor/no-redundant-roles": "error",
+                "react-doctor/react-compiler-no-manual-memoization": "error",
+                "react-doctor/prefer-module-scope-static-value": "error",
+                "react-doctor/prefer-module-scope-pure-function": "error",
+                "react-doctor/only-export-components": "error",
+                "react-doctor/no-many-boolean-props": "error",
+                "react-doctor/no-react19-deprecated-apis": "error",
+                "react-doctor/no-giant-component": "error"
+            }
+        },
         {
             "files": [
                 "**/*_test.{js,ts,tsx}",
                 "**/*.test.{js,ts,tsx}",
                 "**/test/**/*.{js,ts,tsx}",
                 "**/tests/*.{js,ts,tsx}",
-                "**/__tests__/**/*.{js,ts,tsx}"
+                "**/__tests__/**/*.{js,ts,tsx}",
+                "**/*.stories.{ts,tsx}"
             ],
             "rules": {
-                "eslint/max-lines-per-function": "off"
+                "eslint/max-lines-per-function": "off",
+                "compozy-react/max-component-complexity": "off",
+                "compozy-react-hooks/no-mixed-hooks-and-components": "off",
+                "compozy-react-hooks/hooks-in-hooks-folder": "off",
+                "typescript/unbound-method": "off",
+                "typescript/await-thenable": "off"
             }
         }
     ],
+    "settings": {
+        "jsx-a11y": {
+            "polymorphicPropName": "",
+            "components": {}
+        },
+        "react": {
+            "formComponents": [],
+            "linkComponents": []
+        }
+    },
     "env": {
         "builtin": true
     },
     "globals": {},
     "ignorePatterns": [
+        ".old_project/**",
         ".resources/**",
-        ".peer-reviews/**",
         ".claude/skills/**",
         ".agents/skills/**",
+        "web/dist/**",
+        "**/routeTree.gen.ts",
         ".compozy/tasks/**",
-        ".compozy/runs/**",
-        "docs/design/**",
-        "skills/**"
+        "docs/design/**"
     ]
 }

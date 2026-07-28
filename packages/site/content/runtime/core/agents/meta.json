@@ -1,0 +1,13 @@
+{
+    "title": "Agents",
+    "icon": "FileText",
+    "pages": [
+        "definitions",
+        "capabilities",
+        "soul",
+        "heartbeat",
+        "providers",
+        "model-catalog",
+        "spawning"
+    ]
+}

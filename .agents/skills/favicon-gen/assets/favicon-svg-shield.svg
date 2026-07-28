@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Shield monogram template -->
+  <!-- Replace #0066cc with your brand color -->
+  <!-- Replace "S" with your letter(s) -->
+  <!-- Good for: Security, legal, trust industries -->
+  <path d="M16,2 L28,8 L28,16 C28,24 16,30 16,30 C16,30 4,24 4,16 L4,8 Z"
+        fill="#0066cc"/>
+  <text x="16" y="20" font-size="16" font-weight="bold"
+        text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">S</text>
+</svg>

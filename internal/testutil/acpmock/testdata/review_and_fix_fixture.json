@@ -1,0 +1,128 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "review_and_fix_reviewer",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are the deterministic review-and-fix reviewer.",
+            "turns": [
+                {
+                    "name": "review-generation-one",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Review the current workspace changes for task review-e2e.\nThis is review generation 1 for that task.\n\nRead the task artifacts and repository instructions before judging the implementation.\nReport only concrete defects, regressions, unsafe shortcuts, contract drift, and missing\nverification. Do not create, rename, timestamp, or edit review artifact files.\n\nReturn `issues` as source-agnostic structured records. Every issue must include a specific\ntitle, an evidence-backed body, and a severity. Include `file` and `line` when the finding\nbelongs to a specific location; omit them for general findings. Return an empty array only\nwhen the round is clean."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"issues\":[{\"title\":\"Avoid the race\",\"body\":\"Guard the shared map.\",\"severity\":\"high\",\"file\":\"internal/store/cache.go\",\"line\":42,\"author\":\"reviewer\"},{\"title\":\"Add regression coverage\",\"body\":\"The failure path is untested.\",\"severity\":\"medium\"}]}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "review-generation-two-clean",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Review the current workspace changes for task review-e2e.\nThis is review generation 2 for that task.\n\nRead the task artifacts and repository instructions before judging the implementation.\nReport only concrete defects, regressions, unsafe shortcuts, contract drift, and missing\nverification. Do not create, rename, timestamp, or edit review artifact files.\n\nReturn `issues` as source-agnostic structured records. Every issue must include a specific\ntitle, an evidence-backed body, and a severity. Include `file` and `line` when the finding\nbelongs to a specific location; omit them for general findings. Return an empty array only\nwhen the round is clean."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"issues\":[]}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "review_and_fix_fixer",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are the deterministic review-and-fix fixer.",
+            "turns": [
+                {
+                    "name": "triage-specific-review-file",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Remediate this complete batch of review artifact files now. This prompt is the operator's\nauthorization to make scoped code changes; begin immediately without asking for confirmation.\n\nRequired skills:\n- systematic-debugging: establish the root cause before changing production code.\n- no-workarounds: implement complete fixes instead of symptom patches.\n- cy-fix-reviews: follow the review-artifact remediation workflow.\n- cy-final-verify: run the repository's real verification before completion or commit.\n\nScope:\n- Code file: internal/store/cache.go\n- Issue files:\n- .compozy/tasks/review-e2e/reviews-001/issue_001.md\n\n- Read every listed issue file completely before editing code.\n- Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,\n  or resolve an artifact; edit only its existing triage content and change frontmatter from\n  `pending` to `valid` or `invalid`.\n- Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must\n  receive one structured result.\n\nRemediation:\n1. Triage each finding against local evidence.\n2. For a valid finding, implement the root-cause fix and focused regression coverage, or name\n   the existing canonical suite that owns the invariant.\n3. For an invalid finding, document the disproving evidence and use `resolution: documented`.\n4. Run the repository's required verification for every touched surface.\n5. Leave the verified changes uncommitted for manual review. Do not push.\n\n\nReturn `results` with exactly one entry per issue file. A valid issue uses\n`resolution: fixed`; an invalid issue uses `resolution: documented`."
+                    },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "triage-specific-review-file",
+                            "title": "Triage the specific review file",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-c",
+                                "set -eu; issue=.compozy/tasks/review-e2e/reviews-001/issue_001.md; sed 's/^status: pending$/status: valid/; s/- Decision: `UNREVIEWED`/- Decision: `VALID`/' \"$issue\" > \"$issue.tmp\"; mv \"$issue.tmp\" \"$issue\""
+                            ],
+                            "expect_exit_code": 0
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "{\"results\":[{\"path\":\".compozy/tasks/review-e2e/reviews-001/issue_001.md\",\"triage\":\"valid\",\"resolution\":\"fixed\",\"summary\":\"Guarded the shared map.\"}]}"
+                        }
+                    ]
+                },
+                {
+                    "name": "triage-general-review-file",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Remediate this complete batch of review artifact files now. This prompt is the operator's\nauthorization to make scoped code changes; begin immediately without asking for confirmation.\n\nRequired skills:\n- systematic-debugging: establish the root cause before changing production code.\n- no-workarounds: implement complete fixes instead of symptom patches.\n- cy-fix-reviews: follow the review-artifact remediation workflow.\n- cy-final-verify: run the repository's real verification before completion or commit.\n\nScope:\n- Code file: unknown\n- Issue files:\n- .compozy/tasks/review-e2e/reviews-001/issue_002.md\n\n- Read every listed issue file completely before editing code.\n- Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,\n  or resolve an artifact; edit only its existing triage content and change frontmatter from\n  `pending` to `valid` or `invalid`.\n- Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must\n  receive one structured result.\n\nRemediation:\n1. Triage each finding against local evidence.\n2. For a valid finding, implement the root-cause fix and focused regression coverage, or name\n   the existing canonical suite that owns the invariant.\n3. For an invalid finding, document the disproving evidence and use `resolution: documented`.\n4. Run the repository's required verification for every touched surface.\n5. Leave the verified changes uncommitted for manual review. Do not push.\n\n\nReturn `results` with exactly one entry per issue file. A valid issue uses\n`resolution: fixed`; an invalid issue uses `resolution: documented`."
+                    },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "triage-general-review-file",
+                            "title": "Triage the general review file",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-c",
+                                "set -eu; issue=.compozy/tasks/review-e2e/reviews-001/issue_002.md; sed 's/^status: pending$/status: invalid/; s/- Decision: `UNREVIEWED`/- Decision: `INVALID`/' \"$issue\" > \"$issue.tmp\"; mv \"$issue.tmp\" \"$issue\""
+                            ],
+                            "expect_exit_code": 0
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "{\"results\":[{\"path\":\".compozy/tasks/review-e2e/reviews-001/issue_002.md\",\"triage\":\"invalid\",\"resolution\":\"documented\",\"summary\":\"Recorded the disproving evidence.\"}]}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "review_and_fix_invalid_reviewer",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You emit one intentionally schema-invalid review response.",
+            "turns": [
+                {
+                    "name": "invalid-review-generation-one",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Review the current workspace changes for task review-invalid.\nThis is review generation 1 for that task.\n\nRead the task artifacts and repository instructions before judging the implementation.\nReport only concrete defects, regressions, unsafe shortcuts, contract drift, and missing\nverification. Do not create, rename, timestamp, or edit review artifact files.\n\nReturn `issues` as source-agnostic structured records. Every issue must include a specific\ntitle, an evidence-backed body, and a severity. Include `file` and `line` when the finding\nbelongs to a specific location; omit them for general findings. Return an empty array only\nwhen the round is clean."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"issues\":[{\"body\":\"The title is intentionally missing.\",\"severity\":\"high\"}]}"
+                        }
+                    ]
+                },
+                {
+                    "name": "invalid-review-schema-retry",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"issues\":[{\"body\":\"The title remains intentionally missing.\",\"severity\":\"high\"}]}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

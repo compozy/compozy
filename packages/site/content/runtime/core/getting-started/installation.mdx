@@ -1,0 +1,160 @@
+---
+title: Installation
+description: Install the Compozy binary, verify it works, and bootstrap the local runtime before you start the daemon.
+---
+
+This page gets Compozy onto one machine and prepares the local runtime for real work. By the end, you
+will have a working `compozy` binary, a bootstrapped `~/.compozy` home, and the prerequisites needed for
+your first durable session.
+
+## Before You Begin
+
+Make sure you have:
+
+- **macOS or Linux**. Compozy currently targets local-first Unix-like environments.
+- **An install method that fits your machine**. During the v0.3 beta, use the verified installer,
+  npm's `beta` channel, or the explicit Go beta version. Homebrew returns with v0.3.0 stable.
+  The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
+  a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
+  checking Compozy release provenance.
+- **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
+  ACP-compatible agent runtime you already use.
+- **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
+  Code, Codex, Gemini CLI, OpenCode, Hermes, and OpenClaw use their own CLI login/session state by
+  default. The direct `pi` provider uses Pi's `/login` and auth file by default. Wrapped API-key
+  providers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and
+  Groq use `auth_mode = "bound_secret"` by default and need an `env:` or
+  `vault:providers/<provider>/<slot>` credential configured for the daemon.
+
+Example for a built-in wrapped provider:
+
+```bash
+export OPENROUTER_API_KEY="..."
+```
+
+## Install the Binary
+
+### Option 1: verified binary installer
+
+Use the verified installer for a standalone beta install on macOS or Linux:
+
+```bash
+curl -fsSL https://compozy.com/install.sh | sh
+```
+
+The installer targets `v0.3.0-beta.1`, downloads a pinned temporary cosign verifier when `cosign`
+is not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
+against `checksums.txt.sigstore.json`, verifies the archive checksum, installs `compozy`, runs
+`compozy version`, and opens `compozy install` when an interactive terminal is available.
+
+Use flags when you need a pinned or scripted install:
+
+```bash
+curl -fsSL https://compozy.com/install.sh | sh -s -- --version v0.3.0-beta.1 --dir "$HOME/.local/bin"
+curl -fsSL https://compozy.com/install.sh | sh -s -- --skip-bootstrap
+curl -fsSL https://compozy.com/install.sh | sh -s -- --dry-run
+```
+
+Environment variables are equivalent for automation:
+
+```bash
+curl -fsSL https://compozy.com/install.sh |
+  COMPOZY_VERSION=v0.3.0-beta.1 COMPOZY_INSTALL_DIR="$HOME/.local/bin" COMPOZY_SKIP_BOOTSTRAP=1 sh
+```
+
+If the target directory is not on your `PATH`, the installer prints the exact directory to add.
+
+### Option 2: npm beta channel
+
+Use npm when you want package-manager-owned updates on the beta channel:
+
+```bash
+npm install -g @compozy/cli@beta
+```
+
+### Option 3: explicit Go beta
+
+Go's `@latest` still resolves the v0.2 stable line during beta. Pin the v0.3 prerelease:
+
+```bash
+go install github.com/compozy/compozy@v0.3.0-beta.1
+```
+
+### Option 4: Linux packages
+
+Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
+and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
+against `checksums.txt`, then install it with your distribution package manager.
+
+### Option 5: build from a repository checkout
+
+Use this when you are already working from the Compozy source tree or want a local build artifact you
+control explicitly. This path requires Go 1.25 or later.
+
+```bash
+git clone https://github.com/compozy/compozy
+cd compozy
+go build -o ./bin/compozy .
+export PATH="$PWD/bin:$PATH"
+```
+
+## Verify the Install
+
+Confirm that the binary is available:
+
+```bash
+compozy version
+```
+
+If your shell reports `command not found`, fix `PATH` first. Do that before you continue.
+
+## Bootstrap the Compozy Home
+
+The verified binary installer runs this step automatically when it can access an interactive
+terminal. If you used `--skip-bootstrap`, a managed install, a Linux package, or a source build, run
+the interactive bootstrap once:
+
+```bash
+compozy install
+```
+
+This creates or updates:
+
+- `~/.compozy/config.toml`
+- `~/.compozy/agents/general/AGENT.md`
+
+The bootstrap flow lets you pick a default provider and model for the built-in `general` agent.
+
+## Manage the Install
+
+Use `compozy config path` to inspect the exact global and workspace config files Compozy will read, and use
+`compozy config validate` after manual edits. `compozy config show`, `compozy config list`, and
+`compozy config get <path>` always redact environment-backed MCP and config values before printing.
+Use `compozy config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
+bounded repair.
+
+`compozy update` keeps a beta install on newer v0.3 prereleases and never offers the v0.2 stable
+line. Use `compozy update --check` for a status-only check. Managed installs defer to their package
+manager and return the beta-safe command instead of mutating files directly:
+`npm install -g @compozy/cli@beta`, the hosted installer, or
+`go install github.com/compozy/compozy@v0.3.0-beta.1`. Homebrew guidance returns only after the
+formula ships v0.3.0 stable. Windows direct-binary installs remain manual in this first cut.
+`compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
+you explicitly pass `--purge --force`.
+
+## Sanity Check the Runtime Inputs
+
+Before moving to Quick Start, verify these four things:
+
+1. `compozy version` succeeds.
+2. `compozy install` completed, either through the verified binary installer's automatic bootstrap, a
+   managed install, a Linux package, or a manual run, and created `~/.compozy/config.toml`.
+3. `compozy config validate` reports a valid config.
+4. Your selected provider is authenticated. For native CLI providers, run the provider's own login
+   command first; for `bound_secret` providers, make sure the daemon can resolve the configured
+   `env:` or `vault:` secret.
+
+## Next Step
+
+Continue to [Quick Start](/runtime/core/getting-started/quick-start). That tutorial assumes the
+binary works, `~/.compozy` exists, and your selected provider is authenticated.

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "settings/settings-layouts.html",
+  "entry": "settings/settings-layouts.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-24T22:51:59.651Z",
+  "updatedAt": "2026-07-24T22:51:59.651Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

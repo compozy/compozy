@@ -1,0 +1,70 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "os-shell-multi-session-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are the OS shell multi-session test agent.",
+            "turns": [
+                {
+                    "name": "primary-window-stream",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "observe primary stream"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                "Primary stream is warming up. ",
+                                "The first window keeps a deliberately long transcript so its independent scroll position is observable while another session receives a reply. Each sentence represents durable agent output owned by this session alone. The operator can move through earlier context without the second window snapping this transcript back to the newest event. The shell must preserve that reading position because simultaneous supervision is the product contract. ",
+                                "A second block extends the transcript beyond the visible viewport. Runtime events continue to belong to the primary session, its composer remains isolated, and its window focus is controlled only by explicit interaction. Rehosting the session view must not merge assistant runtimes, transcript caches, scroll controllers, or prompt state between window instances. ",
+                                "A third block supplies enough vertical content for the browser test to move away from the bottom. The observer is reviewing prior context while a different agent finishes work beside it. No update from that neighboring window may change this scroll container or raise this window unexpectedly. ",
+                                "A fourth block repeats the operational truth in user-facing prose: primary context stays primary, secondary context stays secondary, and both transcripts remain live. This text is test data emitted through the real ACP mock boundary and persisted by the daemon before the UI renders it. ",
+                                "A fifth block completes the overflow setup. Independent windows are useful only when operators can keep one transcript parked on evidence while interacting with another. The test will now move this viewport to an earlier point, submit work in window two, and confirm this exact viewport remains where the operator left it."
+                            ]
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 4000
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": [
+                                " Primary stream event arrived while the window was minimized."
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "secondary-window-stream",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "reply in secondary window"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Secondary stream started. "]
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 300
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Secondary stream completed independently."]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

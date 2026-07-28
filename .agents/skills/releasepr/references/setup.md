@@ -38,7 +38,7 @@ install/build step:
 
 ```yaml
 env:
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21  # pin a real tag
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.24  # pin a real tag
 # ...
   - run: go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 ```

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "settings/settings-providers.html",
+  "entry": "settings/settings-providers.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-18T03:47:08.066Z",
+  "updatedAt": "2026-07-18T03:47:08.066Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

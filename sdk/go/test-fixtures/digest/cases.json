@@ -1,0 +1,54 @@
+[
+    {
+        "name": "unordered_input_schema",
+        "schema": {
+            "required": ["query"],
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "canonical": "{\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}",
+        "sha256": "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01"
+    },
+    {
+        "name": "literal_ref_output_schema",
+        "schema": {
+            "defs": {
+                "result": {
+                    "type": "object",
+                    "properties": {
+                        "ok": {
+                            "type": "boolean"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "$ref": "#/defs/result"
+        },
+        "canonical": "{\"$ref\":\"#/defs/result\",\"defs\":{\"result\":{\"additionalProperties\":false,\"properties\":{\"ok\":{\"type\":\"boolean\"}},\"type\":\"object\"}}}",
+        "sha256": "cffbd6b5e5f626562e75684e28e2a8df492b82cb30e1eebb329dca3e66f5bcd9"
+    },
+    {
+        "name": "numeric_keywords",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "tag": {
+                    "type": "string",
+                    "enum": ["alpha", "beta"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "default": 10
+                }
+            }
+        },
+        "canonical": "{\"properties\":{\"limit\":{\"default\":10,\"maximum\":100,\"type\":\"integer\"},\"tag\":{\"enum\":[\"alpha\",\"beta\"],\"type\":\"string\"}},\"type\":\"object\"}",
+        "sha256": "98e8773e128a2588736a27e45a4282c66cd52bafb7f4b69386d3e75718a2814c"
+    }
+]

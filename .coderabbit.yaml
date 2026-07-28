@@ -10,6 +10,7 @@ reviews:
   sequence_diagrams: true
   profile: "chill"
   path_filters:
+    - "!docs/design/**/*"
     - "!**/*.md"
     - "!**/*.yaml"
     - "!**/*.yml"
@@ -18,6 +19,8 @@ reviews:
     - "!**/*.xml"
     - "!**/*.mdc"
     - "!**/*.mdx"
+    - "!**/*.lock"
+    - "!**/*.sum"
     - "!.cursor/**"
     - "!.git/**"
     - "!.claude/**"
@@ -26,6 +29,13 @@ reviews:
     - "!.taskmaster/**"
     - "!**/fixtures/**"
     - "!test/testdata/**"
+    # Generated / binary artifacts — gated by `make codegen-check`, not line-reviewable
+    - "!**/generated/**"
+    - "!**/*.d.ts"
+    - "!**/*.gz"
+    # Storybook fixtures + Playwright harness — verified by capture/e2e, not code review
+    - "!**/*.stories.tsx"
+    - "!web/e2e/**"
   path_instructions:
     - path: "**/*_test.go"
       instructions: |-

@@ -87,11 +87,11 @@ For branch/PR cycles, scope by the diff instead: every user-visible change maps 
 
 ## Journey file format
 
-One file per journey at `<qa-docs-path>/journeys/J-<NN>-<slug>.md`: the Mermaid flowchart first, then the YAML map:
+One file per journey at `<qa-docs-path>/journeys/J-<slug>.md` — the id is the content-addressed slug (2-5 kebab-case words naming the value, e.g. `J-first-purchase`), never a sequence number. The Mermaid flowchart first, then the YAML map:
 
 ```yaml
 journey:
-  id: J-<NN>
+  id: J-<slug>
   name: <verb-noun, e.g. "Complete first purchase">
   value_statement: "<what the user gains when this succeeds>"
   personas: [<primary persona>, <secondary persona>]
@@ -140,7 +140,7 @@ Walk the flowchart node by node and edge by edge:
 4. Each side effect's landing (email content/destination, notification target) = one scenario.
 5. Cross-check the five taxonomy dimensions (routed at Step 4 of the SKILL) for what walking the boxes doesn't reveal — experiential and cross-cutting concerns don't appear as nodes.
 
-Each derived scenario becomes one `state.csv` row (schema routed at Step 4 of the SKILL). If a flow yields more than ~10 scenarios, the journey is probably two journeys — split it.
+Each derived scenario becomes one scenario file (schema routed at Step 4 of the SKILL). If a flow yields more than ~10 scenarios, the journey is probably two journeys — split it.
 
 ## Anti-patterns
 

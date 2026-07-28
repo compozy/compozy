@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Circle monogram template -->
+  <!-- Replace #0066cc with your brand color -->
+  <!-- Replace "A" with your letter(s) -->
+  <circle cx="16" cy="16" r="16" fill="#0066cc"/>
+  <text x="16" y="21" font-size="18" font-weight="bold"
+        text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif">A</text>
+</svg>

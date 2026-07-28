@@ -1,8 +1,11 @@
 ---
 name: tech-logos
-description: Install official tech brand logos from the Elements registry. Use when user needs logos for tech companies (Clerk, Vercel, GitHub, etc.), AI providers (OpenAI, Anthropic, Claude), social platforms, or any brand assets. Triggers on "logo", "brand", "icon for [company]", "add [company] logo", placeholder logo detection, or when building landing pages, auth UIs, or integrations showcases.
+description: Install official tech brand logos from the Elements registry. Use when user needs logos for tech companies (Clerk, Vercel, GitHub, etc.), AI providers (OpenAI, Anthropic, Claude), social platforms, or any brand assets. Triggers on "logo", "brand", "icon for [company]", "add [company] logo", placeholder logo detection, or when building landing pages, auth UIs, or integrations showcases. Don't use for custom in-house logos, generic icon libraries (Lucide, Heroicons), or marketing image assets.
+metadata:
+  author: Pedro Nauck
+  github: https://github.com/pedronauck
+  repository: https://github.com/pedronauck/skills
 ---
-
 # Tech Logos
 
 Install official, theme-aware brand logos from the Elements registry.

@@ -1,0 +1,22 @@
+{
+    "title": "Bridge",
+    "pages": [
+        "index",
+        "create",
+        "disable",
+        "enable",
+        "get",
+        "list",
+        "resolve",
+        "restart",
+        "routes",
+        "send-test",
+        "targets",
+        "test-delivery",
+        "update",
+        "verify",
+        "manifest",
+        "secret-bindings",
+        "setup"
+    ]
+}

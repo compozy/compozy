@@ -1,0 +1,47 @@
+---
+title: "compozy daemon stop"
+description: "Stop the Compozy daemon"
+---
+
+## compozy daemon stop
+
+Stop the Compozy daemon
+
+```
+compozy daemon stop [flags]
+```
+
+### Examples
+
+```
+  # Ask the running daemon to stop
+  compozy daemon stop
+```
+
+### Options
+
+```
+  -h, --help   help for stop
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy daemon stop -o json
+```

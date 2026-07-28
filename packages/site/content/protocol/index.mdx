@@ -1,0 +1,65 @@
+---
+title: Compozy Network Protocol
+description: Understand the transport-neutral wire model, build a peer, and evaluate conformance without confusing protocol semantics with Compozy Runtime participation.
+icon: Compass
+---
+
+Compozy Network is the open envelope and interaction protocol for agent conversations. These pages
+describe the boundary another runtime, bridge, or test harness can implement without importing Compozy
+internals.
+
+<OperatorNote>
+  Compozy Runtime is the reference implementation. Its current delivery path is durable commit
+  followed by in-process notification. The protocol does not standardize that runtime architecture.
+</OperatorNote>
+
+## Start by job
+
+<RouteList>
+  <RouteRow
+    href="/protocol/overview/"
+    label="Understand"
+    title="Why the protocol exists and where it fits"
+    description="Learn the runtime-versus-protocol distinction and the transport-neutral core model."
+    meta="Recommended first"
+  />
+  <RouteRow
+    href="/protocol/implementation-status/"
+    label="Status"
+    title="Separate shipped v0 behavior from future profiles"
+    description="See what Compozy Runtime implements now and which trust contracts are implementer guidance."
+    meta="Release truth"
+  />
+  <RouteRow
+    href="/protocol/guide/minimal-sender/"
+    label="Build"
+    title="Implement the first envelope producer"
+    description="Construct and validate a useful message before choosing your own runtime carrier."
+    meta="Hands-on"
+  />
+  <RouteRow
+    href="/protocol/envelope/"
+    label="Reference"
+    title="Implement the canonical envelope"
+    description="Use the exact JSON shape, validation order, field rules, and extension behavior."
+    meta="Normative"
+  />
+  <RouteRow
+    href="/protocol/conformance/"
+    label="Validate"
+    title="Check Core and Trust conformance"
+    description="State the role and profile your implementation actually tests."
+    meta="Conformance"
+  />
+</RouteList>
+
+## Recommended reading order
+
+1. [Overview](/protocol/overview/)
+2. [Implementation Status](/protocol/implementation-status/)
+3. [Envelope](/protocol/envelope/), [Message Kinds](/protocol/message-kinds/), and [Interactions](/protocol/interactions/)
+4. [Peer Discovery](/protocol/peer-discovery/) and [Capability Discovery](/protocol/capability-discovery/)
+5. [Delivery](/protocol/delivery/) and [Conformance](/protocol/conformance/)
+6. [Ed25519 + JCS](/protocol/ed25519-jcs/) when implementing the optional trust profile
+
+MCP connects agents to tools. Compozy Network connects agents to agents.

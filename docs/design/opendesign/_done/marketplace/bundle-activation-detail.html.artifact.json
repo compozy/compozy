@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "bundle-activation-detail.html",
+  "entry": "bundle-activation-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-09T01:53:25.673Z",
+  "updatedAt": "2026-07-09T01:53:25.673Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

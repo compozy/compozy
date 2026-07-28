@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loops-catalog.html",
+  "entry": "loops-catalog.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-21T15:02:43.293Z",
+  "updatedAt": "2026-06-21T15:02:43.293Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

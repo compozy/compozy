@@ -1,0 +1,59 @@
+---
+title: Hooks
+description: Intercept named runtime events, inspect the payload, and emit a JSON patch that Compozy applies in a deterministic order.
+---
+
+Hooks are the policy and observability layer between runtime events and the actions that follow.
+A declaration binds a named event to an executor; the executor returns a JSON patch; Compozy applies
+patches in declaration order and records the outcome on the session event stream.
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/hooks/event-catalog"
+    label="Events"
+    title="Hook event catalog"
+    description="Use this page for the complete event list, payload schemas, patch schemas, and which events support synchronous mutation."
+    meta="Reference"
+  />
+  <RouteRow
+    href="/runtime/core/hooks/declaration"
+    label="Format"
+    title="Hook declaration format"
+    description="Use this page when authoring hooks: matchers, subprocess executors, ordering, and execution behavior."
+    meta="Authoring"
+  />
+</RouteList>
+
+## Memory v2 Hooks
+
+Two hook events feed the Memory v2 pipeline:
+
+- `session.message_persisted` fires after a transcript message is durably stored. The Memory v2
+  extractor consumes this event asynchronously, runs bounded per-session work, stages candidates
+  under `_inbox/`, and routes accepted proposals through the controller.
+- `session.post_stop` queues a workspace-scoped dreaming check; the gated dreaming runtime decides
+  whether to start a `dreaming-curator` session for that workspace.
+
+Memory hooks never bypass the controller. Extractor outputs route through `Store.ProposeWrite` /
+`compozy__memory_propose`, and dreaming promotions are real `memory_decisions` rows with
+`origin = dreaming`. See [Memory System](/runtime/core/memory/system) for the controller path and
+[Dream](/runtime/core/memory/dream) for the gate cascade.
+
+## Management surfaces
+
+Hooks are agent-manageable for mutable sources. The `compozy__hooks` toolset and the parallel
+`compozy hooks` CLI both call the same hook normalization, validation, and persistence pipeline.
+
+| Surface     | Read tools                                     | Mutation tools                                                            | CLI parity                                        |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
+| Catalog     | `compozy__hooks_list`, `compozy__hooks_info`   | —                                                                         | `compozy hooks list`, `compozy hooks info`        |
+| History     | `compozy__hooks_events`, `compozy__hooks_runs` | —                                                                         | `compozy hooks events`, `compozy hooks runs`      |
+| Declaration | —                                              | `compozy__hooks_create`, `compozy__hooks_update`, `compozy__hooks_delete` | overlay edits in `config.toml` plus daemon reload |
+| Lifecycle   | —                                              | `compozy__hooks_enable`, `compozy__hooks_disable`                         | overlay edits plus daemon reload                  |
+
+Source-owned hooks (extension manifests, skill metadata, native daemon hooks) stay structurally
+immutable through agent tools. Mutating tools require approval and reject secret-bearing
+executor environments with deterministic codes such as `HOOK_SOURCE_IMMUTABLE`,
+`HOOK_SECRET_INPUT_FORBIDDEN`, `HOOK_VALIDATION_FAILED`, and `HOOK_APPROVAL_REQUIRED`.

@@ -1,0 +1,39 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "local-default",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic Local execution probe.",
+            "turns": [
+                {
+                    "name": "local-session-probe",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "local session probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "local session complete"
+                        }
+                    ]
+                },
+                {
+                    "name": "local-loop-probe",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "local loop probe"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"local loop complete\",\"message\":\"local loop result\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

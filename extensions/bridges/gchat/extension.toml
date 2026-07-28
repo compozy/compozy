@@ -1,0 +1,56 @@
+[extension]
+name = "gchat"
+version = "0.1.0"
+description = "Production Google Chat bridge provider built on internal/bridgesdk"
+min_compozy_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "gchat"
+display_name = "Google Chat"
+
+[[bridge.secret_slots]]
+name = "credentials_json"
+description = "Google service account credentials JSON"
+required = true
+
+[[bridge.secret_slots]]
+name = "project_number"
+description = "Google Cloud project number used for direct webhook JWT verification"
+required = false
+
+[bridge.config_schema]
+schema = "compozy.bridge.gchat"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/gchat"
+args = ["serve"]
+
+[subprocess.env]
+COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STATE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STATE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_INGEST_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_INGEST_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STARTS_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STARTS_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR}}"
+COMPOZY_BRIDGE_GCHAT_API_BASE_URL = "{{env:COMPOZY_BRIDGE_GCHAT_API_BASE_URL}}"
+COMPOZY_BRIDGE_GCHAT_TOKEN_URL = "{{env:COMPOZY_BRIDGE_GCHAT_TOKEN_URL}}"
+COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL = "{{env:COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL}}"
+COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL = "{{env:COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

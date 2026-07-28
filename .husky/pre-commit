@@ -1,1 +1,3 @@
+#!/bin/sh
+
 bunx --no-install lint-staged

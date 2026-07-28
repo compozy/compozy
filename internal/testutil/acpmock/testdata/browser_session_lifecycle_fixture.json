@@ -1,0 +1,80 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "browser-lifecycle-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are the browser lifecycle test agent.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "qa-browser-model",
+                    "values": [
+                        {
+                            "value": "qa-browser-model",
+                            "label": "QA Browser Model"
+                        },
+                        {
+                            "value": "qa-browser-model-alt",
+                            "label": "QA Browser Model Alt"
+                        }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        {
+                            "value": "low",
+                            "label": "Low"
+                        },
+                        {
+                            "value": "medium",
+                            "label": "Medium"
+                        },
+                        {
+                            "value": "high",
+                            "label": "High"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "browser-session-lifecycle",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "run browser lifecycle flow"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Streaming response ", "started. "]
+                        },
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-browser-1",
+                            "title": "Edit lifecycle plan",
+                            "tool_kind": "edit",
+                            "path": "browser-session.txt",
+                            "raw_input": {
+                                "path": "browser-session.txt",
+                                "instruction": "allow browser lifecycle edit"
+                            },
+                            "status": "pending",
+                            "expect_decision": "allow-once",
+                            "emit_text": "Approval granted. "
+                        },
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Session continued ", "after approval."]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

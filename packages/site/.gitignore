@@ -1,0 +1,10 @@
+.source/
+.velite/
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# fumadocs-openapi generated tag pages and meta — regenerated on every build
+/content/runtime/api-reference/*.mdx
+/content/runtime/api-reference/meta.json
+!/content/runtime/api-reference/index.mdx

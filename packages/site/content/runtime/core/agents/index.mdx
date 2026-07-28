@@ -1,0 +1,72 @@
+---
+title: Agents
+description: How Compozy resolves agent definitions, advertises capabilities, launches providers, and supervises ACP subprocesses.
+---
+
+Agents are the executable unit Compozy manages. A definition file declares the agent identity, the
+provider that runs it, the permissions it inherits, and the capabilities it advertises. At session
+start Compozy resolves that definition into an ACP subprocess, injects environment, negotiates the
+session, and supervises it through stop.
+
+Use this section when you need to answer which agent will run, which provider command Compozy will
+execute, what capabilities the agent advertises to the network, or why a session did not launch the
+way you expected. Agent docs sit between configuration and sessions: configuration explains the
+files, sessions explain live runtime state, and this section explains the handoff from definition to
+managed subprocess.
+
+<OperatorNote>
+  This section is the runtime model for agents. The `AGENT.md` file format itself lives under
+  [Configuration → AGENT.md](/runtime/core/configuration/agent-md); reach for it when authoring, not
+  when troubleshooting runtime resolution.
+</OperatorNote>
+
+For a new project, start with definitions, confirm the provider ID on the providers page, then check
+spawning if the process fails. Reach for capabilities when the question is what another peer can
+discover about the agent, not how the process starts.
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/agents/definitions"
+    label="Format"
+    title="Agent definitions and discovery"
+    description="Use this page for the AGENT.md schema, discovery order (workspace → additional → global), runtime defaults, and parser edge cases."
+    meta="Authoring"
+  />
+  <RouteRow
+    href="/runtime/core/agents/capabilities"
+    label="Catalog"
+    title="Capability catalog and projection"
+    description="Use this page when authoring capability catalogs and seeing how Compozy projects them into greet, whois, and capability transfer."
+    meta="Discovery"
+  />
+  <RouteRow
+    href="/runtime/core/agents/soul"
+    label="Persona"
+    title="Optional SOUL.md authored persona"
+    description="Use this page when authoring an agent's SOUL.md persona file, understanding the prompt projection, snapshots, and managed authoring boundary."
+    meta="Authoring"
+  />
+  <RouteRow
+    href="/runtime/core/agents/heartbeat"
+    label="Wake policy"
+    title="Optional HEARTBEAT.md and session health"
+    description="Use this page when authoring an agent's HEARTBEAT.md wake/reentry policy, reading session health, or requesting a manual advisory wake."
+    meta="Authoring"
+  />
+  <RouteRow
+    href="/runtime/core/agents/providers"
+    label="Providers"
+    title="Provider IDs, launch commands, and overrides"
+    description="Use this page when configuring built-in providers (claude, codex, gemini, qwen-code, …) or wiring a custom ACP-compatible provider."
+    meta="Execution"
+  />
+  <RouteRow
+    href="/runtime/core/agents/spawning"
+    label="Spawning"
+    title="Definition to live ACP subprocess"
+    description="Use this page for the spawn handoff, environment injection, ACP negotiation, and stop semantics."
+    meta="Lifecycle"
+  />
+</RouteList>

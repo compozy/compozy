@@ -1,0 +1,153 @@
+---
+title: Choose the Right control surface
+description: Decide when Compozy work should go through CLI, HTTP/SSE, UDS, or the web UI.
+---
+
+This guide helps you choose the Compozy surface for the actor in front of you: a human operator, a
+script, a local agent, a web UI, or a remote integration. It intentionally avoids flag-by-flag
+reference. Use the generated references when you need exact syntax.
+
+<OperatorNote label="Runtime truth">
+  A feature is incomplete if agents can only manage it through the web UI. Durable runtime state
+  should be available through structured CLI, HTTP/SSE, or UDS paths.
+</OperatorNote>
+
+## The short version
+
+| Surface  | Best for                                 | Use when                                                               | Reference                                      |
+| -------- | ---------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
+| CLI      | Humans, scripts, local agents            | You need a stable command, shell pipeline, or `-o json` output.        | [CLI Reference](/runtime/cli-reference)        |
+| HTTP/SSE | Browser UI, integrations, stream readers | You need daemon state over TCP or live events over Server-Sent Events. | [API Reference](/runtime/api-reference)        |
+| UDS      | Local agents and tools                   | You need daemon control without exposing a TCP listener.               | [API Reference](/runtime/api-reference)        |
+| Web UI   | Human inspection                         | You need to scan sessions, events, and runtime state visually.         | [Web UI](/runtime/core/getting-started/web-ui) |
+
+## Choose by actor
+
+<Workflow>
+  <WorkflowStep title="A human operator is doing one task">
+    Start with the CLI. It is explicit, scriptable, and mirrors daemon state directly.
+
+    ```bash
+    compozy status
+    compozy session list
+    compozy session events sess_1234 --follow
+    ```
+
+    What happened: the operator asked the daemon for current state, then followed the durable event
+    stream for one session.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="An agent needs to inspect or mutate Compozy">
+    Prefer CLI JSON output or the local UDS API. Agents should avoid scraping terminal prose or web
+    UI state.
+
+    ```bash
+    compozy session list -o json
+    compozy memory search release notes -o json
+    compozy tool list -o json
+    ```
+
+    What happened: the agent received machine-readable runtime state it can validate before taking
+    the next action.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="A browser surface needs live updates">
+    Use HTTP plus SSE. Polling hides ordering and makes recovery harder; Compozy events are already
+    append-only runtime records.
+
+    ```bash
+    curl http://localhost:2123/api/status
+    curl 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/transcript?limit=200'
+    curl -N \
+      -H 'Last-Event-ID: 42' \
+      'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/stream?epoch=3&generation=7&limit=200'
+    ```
+
+    What happened: the browser or integration reads a bounded transcript page, retains its
+    `epoch`, `generation`, and applied cursor, then subscribes to fenced transcript deltas. Use the
+    values returned by your own page instead of the example values above.
+
+    Add `frames=raw` when the integration needs raw persisted event rows instead of transcript
+    frames.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="A local tool should not depend on TCP">
+    Use the UDS transport. It keeps daemon access local to the runtime home and matches the same
+    shared API handler contracts used by HTTP.
+
+    ```bash
+    compozy status
+    compozy doctor -o json
+    ```
+
+    What happened: the CLI talked to the daemon over the local socket and returned structured health
+    data without exposing a public listener.
+
+  </WorkflowStep>
+</Workflow>
+
+## Common decisions
+
+### Start or stop a daemon
+
+Use the CLI:
+
+```bash
+compozy daemon start
+compozy status
+compozy daemon stop
+```
+
+Then open [Daemon Operations](/runtime/core/operations/daemon) when you need supervision,
+foreground logs, socket paths, or process details.
+
+### Inspect a session
+
+Use CLI first, then web UI when visual scanning helps:
+
+```bash
+compozy session status sess_1234 -o json
+compozy session history sess_1234
+compozy session events sess_1234 --follow
+```
+
+For the lifecycle model behind those commands, read
+[Session Lifecycle](/runtime/core/sessions/lifecycle).
+
+### Let another system watch Compozy
+
+Use HTTP/SSE. The API route map lists the implemented route families and marks which routes are
+generated from OpenAPI today; the guides explain when a route is the right tool.
+
+Start with:
+
+- [API Reference](/runtime/api-reference)
+- [Event Streaming](/runtime/core/sessions/events)
+- [Runtime status](/runtime/cli-reference/status)
+- [Doctor diagnostics](/runtime/cli-reference/doctor)
+
+### Let agents manage work
+
+Use surfaces with structured output:
+
+- `compozy task next -o json` for claimable work
+- `compozy task heartbeat <run-id> -o json` for lease extension
+- `compozy task complete <run-id> -o json` for task completion
+- `compozy ch send <channel>` and `compozy ch recv <channel>` for coordination channels
+
+These are agent-operable surfaces, not hidden in-process calls. A managed agent can use them when
+its session has CLI/tool access to the runtime; a human operator can run the same commands from a
+shell and compare the same JSON output.
+
+The web UI can show the same state, but it should not be the only way an agent can act.
+
+## Next steps
+
+- Use [Debug a Failed or Stuck Session](/runtime/guides/debug-a-failed-session) when the surface
+  reports an unhealthy state.
+- Use [Coordinate Agents over Compozy Network](/runtime/guides/coordinate-agents-over-network) when one
+  session needs to find or delegate to another.
+- Use [CLI Reference](/runtime/cli-reference) for exact commands and flags.

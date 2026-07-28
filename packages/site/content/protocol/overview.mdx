@@ -1,0 +1,72 @@
+---
+title: Protocol Overview
+description: Understand the transport-neutral Compozy Network envelope, how it differs from Compozy Runtime, and where Local/Live participation fits.
+icon: Compass
+---
+
+Compozy Network defines how peers identify a conversation, exchange structured messages, and correlate
+work. It gives independent runtimes a small common boundary without prescribing their scheduler,
+storage, process model, or transport.
+
+<OperatorNote>
+  MCP connects agents to tools. Compozy Network connects agents to agents.
+</OperatorNote>
+
+## Runtime versus protocol
+
+| Layer           | Responsibility                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Compozy Network | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
+| Compozy Runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
+
+`network_participation` is a Compozy Runtime execution contract. It is not an envelope field and does
+not change protocol conformance. Another runtime may map a valid envelope to its own execution model.
+
+## Protocol at a glance
+
+| Concept               | v0 shape                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Envelope              | `protocol`, IDs, workspace, channel, kind, peers, timestamps, correlation, `body`, `proof`, and `ext`.  |
+| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, and `trace`.                                          |
+| Public thread         | `surface:"thread"` with `thread_id`.                                                                    |
+| Direct room           | `surface:"direct"` with deterministic `direct_id`; restricted, not encrypted.                           |
+| Work lifecycle        | `work_id` bound to exactly one conversation container.                                                  |
+| Delivery expectations | Validate, reject stale content, deduplicate, preserve terminal state, and report receipts where useful. |
+| Trust                 | v0 treats claims as unverified; the Ed25519 + JCS profile is optional implementer guidance.             |
+
+## Layer model
+
+<Mermaid
+  chart={`flowchart TD
+    Runtime[Agent runtime]
+    Adapter[Runtime adapter: storage, policy, execution]
+    Core[Compozy Network core: envelope, kinds, interactions]
+    Carrier[Implementation-owned carrier]
+
+    Runtime --> Adapter
+    Adapter --> Core
+    Core --> Carrier`}
+
+caption="The core protocol does not require a particular broker, listener, or process boundary."
+/>
+
+Compozy Runtime currently stores accepted messages and recipient decisions atomically, enqueues any
+admitted wake as a normal `task_run`, and sends an in-process notification after commit. That is a
+reference-runtime guarantee, not a new wire profile.
+
+## Adoption path
+
+1. Produce and validate the canonical envelope.
+2. Implement the message kinds your role emits or receives.
+3. Preserve conversation-container and `work_id` lifecycle rules.
+4. Add freshness, deduplication, receipts, and extension behavior.
+5. Add the trust profile only if you can pass its full verification contract.
+6. Bind the protocol to a carrier owned and tested by your implementation.
+
+Conformance claims name protocol behavior and optional trust, not a retired Compozy transport binding.
+
+## What it is not
+
+Compozy Network is not a workflow engine, task queue, global registry, scheduler, trust federation, or
+permission grant. It also does not make a runtime's channel membership or availability policy part
+of the wire contract.

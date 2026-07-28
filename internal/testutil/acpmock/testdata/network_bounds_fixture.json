@@ -1,0 +1,85 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "bounds-alpha",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are the alpha Network bounds probe.",
+            "turns": [
+                {
+                    "name": "bounds-alpha-mention",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "bounds_mention_root"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "delay",
+                                "delay_ms": 2000
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "alpha mention handled"
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 7,
+                        "output_tokens": 2
+                    }
+                }
+            ]
+        },
+        {
+            "name": "bounds-beta",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are the beta Network bounds probe.",
+            "turns": [
+                {
+                    "name": "bounds-beta-direct",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "message_id": "bounds_direct_root"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "beta direct handled"
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 11,
+                        "output_tokens": 3
+                    }
+                },
+                {
+                    "name": "bounds-beta-burst",
+                    "match": {
+                        "turn_source": "network",
+                        "network": {
+                            "reply_to": "bounds_direct_root"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "beta coalesced burst handled"
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 13,
+                        "output_tokens": 4
+                    }
+                }
+            ]
+        }
+    ]
+}

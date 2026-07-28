@@ -1,0 +1,87 @@
+.dark {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    /* Body baseline / DESIGN.md §9. */
+    font-size: 0.84375rem;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    font-feature-settings: "cv01", "ss03", "cv11";
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* JetBrains Mono needs its native stroke rendering instead of Inter's
+     inherited OpenType and grayscale smoothing configuration. */
+  .font-mono,
+  [class*="font-mono"],
+  code,
+  kbd,
+  samp,
+  pre {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    font-feature-settings: normal;
+  }
+
+  ::selection {
+    background: var(--color-accent-tint);
+    color: var(--color-fg-strong);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Single eyebrow utility / DESIGN.md §11, lesson L-022. */
+@utility eyebrow {
+  @apply font-sans text-(length:--text-eyebrow) font-semibold uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* `0.001ms` preserves animation-end callbacks while removing visible motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

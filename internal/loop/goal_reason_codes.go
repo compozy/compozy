@@ -1,0 +1,32 @@
+package loop
+
+const (
+	ReasonCodeGoalNotActive            ReasonCode = "goal_not_active"
+	ReasonCodeGoalReplaceRequired      ReasonCode = "goal_replace_required"
+	ReasonCodeGoalReplaceStale         ReasonCode = "goal_replace_stale"
+	ReasonCodeGoalEvidenceTooLarge     ReasonCode = "goal_evidence_too_large"
+	ReasonCodeGoalReportConflict       ReasonCode = "goal_report_conflict"
+	ReasonCodeGoalReportedBlocked      ReasonCode = "goal_reported_blocked"
+	ReasonCodeGoalActionControlInvalid ReasonCode = "goal_action_control_invalid"
+	ReasonCodeGoalStopReasonInvalid    ReasonCode = "goal_stop_reason_invalid"
+	ReasonCodeGoalPromptRequestFailed  ReasonCode = "goal_prompt_request_failed"
+	ReasonCodeGoalJudgeUnavailable     ReasonCode = "goal_judge_unavailable"
+	ReasonCodeGoalJudgeBroken          ReasonCode = "goal_judge_broken"
+	ReasonCodeGoalJudgeOutcomeInvalid  ReasonCode = "goal_judge_outcome_invalid"
+	ReasonCodeGoalAgentRefused         ReasonCode = "goal_agent_refused"
+	//nolint:misspell // The persisted reason code uses the ACP contract's British spelling.
+	ReasonCodeGoalCompactionCancelled         ReasonCode = "goal_compaction_cancelled"
+	ReasonCodeGoalPresubmitRetriesExhausted   ReasonCode = "goal_presubmit_retries_exhausted"
+	ReasonCodeGoalRecoveryAmbiguous           ReasonCode = "goal_recovery_ambiguous"
+	ReasonCodeGoalControlRevokedInFlight      ReasonCode = "goal_control_revoked_in_flight"
+	ReasonCodeGoalBudgetFenced                ReasonCode = "goal_budget_fenced"
+	ReasonCodeGoalTurnsExhausted              ReasonCode = "goal_turns_exhausted"
+	ReasonCodeGoalReseedConfirmationRequired  ReasonCode = "goal_reseed_confirmation_required"
+	ReasonCodeGoalControlStale                ReasonCode = "goal_control_stale"
+	ReasonCodeGoalPromptFenced                ReasonCode = "goal_prompt_fenced"
+	ReasonCodeGoalOriginInvalid               ReasonCode = "goal_origin_invalid"
+	ReasonCodeGoalOriginWorkspaceMismatch     ReasonCode = "goal_origin_workspace_mismatch"
+	ReasonCodeGoalOriginProfileUnavailable    ReasonCode = "goal_origin_profile_unavailable"
+	ReasonCodeSessionCreationIdentityMismatch ReasonCode = "session_creation_identity_mismatch"
+	ReasonCodeContinuousBindingMismatch       ReasonCode = "continuous_binding_mismatch"
+)

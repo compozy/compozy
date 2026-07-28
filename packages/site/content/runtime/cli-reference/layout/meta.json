@@ -1,0 +1,17 @@
+{
+    "title": "Layout",
+    "pages": [
+        "index",
+        "apply",
+        "arrange",
+        "balance",
+        "export",
+        "get",
+        "preview",
+        "redo",
+        "resize",
+        "undo",
+        "validate",
+        "watch"
+    ]
+}

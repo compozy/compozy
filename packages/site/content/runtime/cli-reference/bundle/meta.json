@@ -1,0 +1,14 @@
+{
+    "title": "Bundle",
+    "pages": [
+        "index",
+        "activate",
+        "catalog",
+        "deactivate",
+        "get",
+        "list",
+        "network-settings",
+        "preview",
+        "update"
+    ]
+}

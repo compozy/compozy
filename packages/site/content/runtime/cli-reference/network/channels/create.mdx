@@ -1,0 +1,57 @@
+---
+title: "compozy network channels create"
+description: "Create a runtime channel and start one session per selected agent"
+---
+
+## compozy network channels create
+
+Create a runtime channel and start one session per selected agent
+
+```
+compozy network channels create [channel] [flags]
+```
+
+### Examples
+
+```
+  # Create a launch channel with two local agents
+  compozy network --workspace ~/dev/ad8 channels create ad8_launch \
+    --purpose "Coordinate launch work" \
+    --agent site_copywriter \
+    --agent growth_marketer \
+    -o json
+```
+
+### Options
+
+```
+      --agent stringArray            Agent definition name to launch in the channel (repeatable)
+      --channel string               Channel name when not passed as an argument
+      --coordinator-peer-id string   Coordinator peer id for coordinator routing metadata
+      --fanout-policy string         Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions
+  -h, --help                         help for create
+      --purpose string               Human-readable channel purpose
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy network channels create [channel] -o json
+```

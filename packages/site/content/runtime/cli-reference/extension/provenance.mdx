@@ -1,0 +1,40 @@
+---
+title: "compozy extension provenance"
+description: "Show extension provenance and trust report"
+---
+
+## compozy extension provenance
+
+Show extension provenance and trust report
+
+```
+compozy extension provenance <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for provenance
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy extension provenance <name> -o json
+```

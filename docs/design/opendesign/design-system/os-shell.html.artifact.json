@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "design-system/os-shell.html",
+  "entry": "design-system/os-shell.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-22T14:37:09.646Z",
+  "updatedAt": "2026-07-22T14:37:09.646Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,100 @@
+---
+title: Sessions
+description: The durable runtime unit Compozy creates, attaches, audits, and governs.
+---
+
+A session is the unit Compozy actually manages. It binds one agent subprocess to a workspace,
+permission policy, event store, and attach record under one stable Compozy session ID.
+
+Live session events are written to `events.db` while the session runs. After the session stops,
+Compozy materializes a read-only forensic JSONL ledger at
+`$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
+`$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
+is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
+the recall pipeline — it is operator-readable history only.
+
+Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ordinary encrypted
+Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
+for those refs.
+
+Use this section when a live run needs supervision or forensic detail: why it started, what state it
+entered, which events were persisted, whether it can be attached, and which permission checks apply while
+the agent works. If the problem is choosing an agent definition, use Agents first. If the problem is
+the daemon or database itself, use Operations after you identify the affected session.
+
+<OperatorNote>
+  Reach for this section when you need the operational contract around one live session: how it
+  starts, what gets stored, how replay works, and how approvals are enforced while the agent runs.
+</OperatorNote>
+
+## Browse the session catalog
+
+`compozy session list -o json` returns a counted page owned by the daemon. Filter by workspace, exact
+agent, state, or session type; filter by resumability or a text query; choose `recent` or
+`last_activity` ordering; and add `--include-health` only when the caller needs the metadata-only
+health projection. For example, `--type user --state active --sort last_activity` returns active
+operator-created sessions ordered by their latest runtime activity. The response keeps rows under
+`sessions` and reports exact `total`, applied `limit`, `has_more`, and `next_cursor` values under
+`page`.
+
+Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
+is rejected instead of crossing catalog boundaries. See the generated
+[`compozy session list`](/runtime/cli-reference/session/list) reference for every flag.
+
+Browser clients can subscribe once to `GET /api/sessions/catalog-stream`. Each
+`session_catalog_changed` event identifies an `upserted` or `deleted` session and includes its
+authoritative `workspace_id`. The event is a wake signal, not a row delta: reconcile the counted
+catalog page for that workspace after every event. Catalog caches remain workspace-scoped, so an
+event must invalidate only keys owned by its `workspace_id`.
+
+The reading order follows the lifecycle. Start with lifecycle for state names and stop
+classification, move to events when you need the durable record, then use resume attach and
+permissions for the two most common operator questions: "can I re-enter this live session?" and
+"why did Compozy ask before acting?"
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/sessions/lifecycle"
+    label="Lifecycle"
+    title="Create, activate, stop, and classify sessions"
+    description="Use this page for the state machine, stop behavior, timeout boundaries, and what Compozy persists across the session lifetime."
+    meta="State model"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/health"
+    label="Health"
+    title="Session presence, attachability, and wake eligibility"
+    description="Use this page for metadata-only health, the authority boundary against task-run leases and HEARTBEAT.md, and the session health/status/inspect CLI/API surfaces."
+    meta="Liveness"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/resume"
+    label="Resume"
+    title="Attach to live sessions and replay stored work"
+    description="Use this page to understand explicit resume attach, deterministic recap, transcript markers, and replay reconstruction."
+    meta="Recovery"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/events"
+    label="Events"
+    title="Query, stream, and persist session events"
+    description="Use this page for the event catalog, SSE behavior, SQLite storage, and the difference between persisted streams and prompt streams."
+    meta="Observability"
+  />
+  <RouteRow
+    href="/runtime/core/sessions/permissions"
+    label="Permissions"
+    title="Static modes, workspace boundaries, and approval flow"
+    description="Use this page to understand what `deny-all`, `approve-reads`, and `approve-all` actually permit and how interactive approvals work."
+    meta="Governance"
+  />
+  <RouteRow
+    href="/runtime/core/configuration/vault"
+    label="Vault"
+    title="Session-scoped secret metadata"
+    description="Use this page when a session needs write-only encrypted refs such as `vault:sessions/<session_id>/<name>`."
+    meta="Secrets"
+  />
+</RouteList>

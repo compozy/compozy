@@ -1,0 +1,51 @@
+---
+title: "compozy bridge"
+description: "Manage bridge instances"
+---
+
+## compozy bridge
+
+Manage bridge instances
+
+### Options
+
+```
+  -h, --help   help for bridge
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                         | Description                                                      |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [compozy bridge create](/runtime/cli-reference/bridge/create)                   | Create a bridge instance                                         |
+| [compozy bridge disable](/runtime/cli-reference/bridge/disable)                 | Disable a bridge instance                                        |
+| [compozy bridge enable](/runtime/cli-reference/bridge/enable)                   | Enable a bridge instance                                         |
+| [compozy bridge get](/runtime/cli-reference/bridge/get)                         | Show one bridge instance                                         |
+| [compozy bridge list](/runtime/cli-reference/bridge/list)                       | List bridge instances                                            |
+| [compozy bridge manifest](/runtime/cli-reference/bridge/manifest)               | Generate provider setup artifacts                                |
+| [compozy bridge resolve](/runtime/cli-reference/bridge/resolve)                 | Resolve a bridge target name without sending                     |
+| [compozy bridge restart](/runtime/cli-reference/bridge/restart)                 | Restart a bridge instance                                        |
+| [compozy bridge routes](/runtime/cli-reference/bridge/routes)                   | Inspect routes for one bridge instance                           |
+| [compozy bridge secret-bindings](/runtime/cli-reference/bridge/secret-bindings) | Manage bridge secret bindings                                    |
+| [compozy bridge send-test](/runtime/cli-reference/bridge/send-test)             | Send one real message through a bridge provider                  |
+| [compozy bridge setup](/runtime/cli-reference/bridge/setup)                     | Configure a bridge instance and its write-only secrets           |
+| [compozy bridge targets](/runtime/cli-reference/bridge/targets)                 | List discovered targets for one bridge instance                  |
+| [compozy bridge test-delivery](/runtime/cli-reference/bridge/test-delivery)     | Resolve a typed outbound delivery target for one bridge instance |
+| [compozy bridge update](/runtime/cli-reference/bridge/update)                   | Update mutable bridge fields                                     |
+| [compozy bridge verify](/runtime/cli-reference/bridge/verify)                   | Run live provider checks for one bridge instance                 |

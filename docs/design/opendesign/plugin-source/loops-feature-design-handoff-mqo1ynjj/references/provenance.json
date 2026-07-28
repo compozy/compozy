@@ -1,0 +1,19 @@
+{
+  "candidateId": "51782ac8-6dff-4bfe-bd19-8cc756e64af8",
+  "projectId": "bb1d96e1-f5c1-4478-a88b-10abd624f30a",
+  "runId": "5965abd5-6924-4788-9878-542970035830",
+  "conversationId": "413616d2-7e42-4422-8bc7-9a1cc53cc9e8",
+  "provenance": {
+    "summary": "Detected from LOOPS-HANDOFF.md after a successful run.",
+    "detectedAt": 1782062413759
+  },
+  "sourceRefs": [
+    {
+      "kind": "file",
+      "value": "LOOPS-HANDOFF.md",
+      "label": "LOOPS-HANDOFF.md",
+      "size": 15288,
+      "copied": true
+    }
+  ]
+}

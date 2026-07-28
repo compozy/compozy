@@ -1,0 +1,61 @@
+---
+title: "compozy session list"
+description: "List sessions"
+---
+
+## compozy session list
+
+List sessions
+
+```
+compozy session list [flags]
+```
+
+### Examples
+
+```
+  # List active sessions
+  compozy session list
+
+  # Page all sessions for one agent in a workspace
+  compozy session list --all --workspace checkout-api --agent reviewer --limit 25
+```
+
+### Options
+
+```
+      --agent string       Filter by exact agent definition name
+      --all                Include every session state when --state is omitted
+      --cursor string      Continue from an opaque next_cursor
+  -h, --help               help for list
+      --include-health     Include metadata-only health for returned sessions
+      --limit int          Sessions per page (1-100)
+      --query string       Search session id, name, agent, provider, or channel
+      --resumable          Show only sessions eligible for resume attach
+      --sort string        Sort by recent or last_activity
+      --state string       Filter by state (starting|active|stopping|stopped)
+      --type string        Filter by session type (user|system|coordinator|spawned)
+      --workspace string   Filter by workspace name or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy session list -o json
+```

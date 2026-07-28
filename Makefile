@@ -1,245 +1,168 @@
--include .env
-# Makefile for Compozy
+MAGE_VERSION ?= v1.17.2
+MAGE ?=
+AIR_VERSION ?= v1.65.3
 
-# -----------------------------------------------------------------------------
-# Go Parameters & Setup
-# -----------------------------------------------------------------------------
-GOCMD=$(shell which go)
-GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.26")
-BUN_VERSION ?= $(shell cat .bun-version 2>/dev/null || echo "1.3.11")
-BUNCMD=$(shell which bun)
-GOBUILD=$(GOCMD) build
-GOTEST=$(GOCMD) test
-GOFMT=gofmt -s -w
-BINARY_NAME=compozy
-BINARY_DIR=bin
-SRC_DIRS=./...
-# Standalone Go extension modules (own go.mod, excluded from the root ./...).
-EXTENSION_GO_MODULES=extensions/cy-qa-workflow
-GOLANGCI_LINT_VERSION=v2.11.4
-GOTESTSUM_VERSION=v1.13.0
-LINTCMD=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-GOTESTSUMCMD=$(GOCMD) run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
-COMPOZY_EVAL_IDE ?= codex
-COMPOZY_EVAL_REASONING_EFFORT ?= medium
-
-# Colors for output
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-NC := \033[0m # No Color
-
-# -----------------------------------------------------------------------------
-# Build Variables
-# -----------------------------------------------------------------------------
-GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION := $(shell git describe --tags --match="v*" --always 2>/dev/null || echo "unknown")
-
-# Build flags for injecting version info (aligned with GoReleaser format)
-BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-MODULE_PATH := $(shell $(GOCMD) list -m 2>/dev/null)
-ifeq ($(MODULE_PATH),)
-MODULE_PATH := github.com/compozy/compozy
+ifeq ($(strip $(MAGE)),)
+MAGE_RUN = bash scripts/run-mage.sh $(MAGE_VERSION)
+else
+MAGE_RUN = $(MAGE)
 endif
-LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build verify-extensions frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev eval-cy-capture-decisions
+.PHONY: deps fmt fmt-check lint go-lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed
 
-# -----------------------------------------------------------------------------
-# Setup & Version Checks
-# -----------------------------------------------------------------------------
-check-go-version:
-	@echo "Checking Go version..."
-	@GO_VERSION=$$($(GOCMD) version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
-	REQUIRED_VERSION=$(GOVERSION); \
-	if [ -z "$$GO_VERSION" ]; then \
-		echo "$(RED)Error: Go is not available$(NC)"; \
-		echo "Please ensure Go $(GOVERSION) is installed via mise"; \
-		exit 1; \
-	elif CURRENT_NUM=$$(echo "$$GO_VERSION" | awk -F. '{maj=$$1+0; min=($$2==""?0:$$2)+0; pat=($$3==""?0:$$3)+0; printf "%03d%03d%03d", maj, min, pat}'); \
-	REQUIRED_NUM=$$(echo "$$REQUIRED_VERSION" | awk -F. '{maj=$$1+0; min=($$2==""?0:$$2)+0; pat=($$3==""?0:$$3)+0; printf "%03d%03d%03d", maj, min, pat}'); \
-	[ "$$CURRENT_NUM" -lt "$$REQUIRED_NUM" ]; then \
-		echo "$(YELLOW)Warning: Go version $$GO_VERSION found, but $(GOVERSION) is required$(NC)"; \
-		echo "Please update Go to version $(GOVERSION) with: mise use go@$(GOVERSION)"; \
-		exit 1; \
-	else \
-		echo "$(GREEN)Go version $$GO_VERSION is compatible$(NC)"; \
-	fi
+DEMO_HOME ?= $(HOME)/.agh
 
-check-bun-version:
-	@echo "Checking Bun version..."
-	@if [ -z "$(BUNCMD)" ]; then \
-		echo "$(RED)Error: Bun is not available$(NC)"; \
-		echo "Please install Bun $(BUN_VERSION) or newer before running frontend verification"; \
-		exit 1; \
-	fi
-	@REQUIRED_VERSION=$(BUN_VERSION); \
-	CURRENT_VERSION=$$($(BUNCMD) --version 2>/dev/null | tr -d '\n'); \
-	if [ -z "$$CURRENT_VERSION" ]; then \
-		echo "$(RED)Error: Unable to determine Bun version$(NC)"; \
-		exit 1; \
-	elif CURRENT_NUM=$$(echo "$$CURRENT_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
-	REQUIRED_NUM=$$(echo "$$REQUIRED_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
-	[ "$$CURRENT_NUM" -lt "$$REQUIRED_NUM" ]; then \
-		echo "$(YELLOW)Warning: Bun version $$CURRENT_VERSION found, but $$REQUIRED_VERSION or newer is required$(NC)"; \
-		echo "Please upgrade Bun to at least $$REQUIRED_VERSION before running frontend verification"; \
-		exit 1; \
-	else \
-		echo "$(GREEN)Bun version $$CURRENT_VERSION is compatible (minimum $$REQUIRED_VERSION)$(NC)"; \
-	fi
-
-link-skills:
-	@bash scripts/link-skills.sh
-
-setup: check-go-version deps link-skills
-	@echo "$(GREEN)Setup complete! You can now run 'make build' or 'make verify'$(NC)"
-
-# -----------------------------------------------------------------------------
-# Main Targets
-# -----------------------------------------------------------------------------
-all: test lint fmt
-
-clean:
-	rm -rf $(BINARY_DIR)/
-	$(GOCMD) clean
-
-build: frontend-build go-build
-
-go-build: check-go-version
-	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy
-	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
-
-build-extension-sdks:
-	npm run build --workspace @compozy/extension-sdk --workspace @compozy/create-extension
-
-publish-extension-sdks: verify build-extension-sdks
-	npm publish --workspace @compozy/extension-sdk --access public
-	npm publish --workspace @compozy/create-extension --access public
-
-install: build
-	$(GOCMD) install -ldflags "$(LDFLAGS)" ./cmd/compozy
-
-# -----------------------------------------------------------------------------
-# Code Quality & Formatting
-# -----------------------------------------------------------------------------
-lint:
-	$(LINTCMD) run --fix --allow-parallel-runners
-	@echo "Linting completed successfully"
+deps:
+	@$(MAGE_RUN) deps
 
 fmt:
-	@echo "Formatting code..."
-	$(LINTCMD) fmt
-	@echo "Formatting completed successfully"
+	@$(MAGE_RUN) fmt
 
-# -----------------------------------------------------------------------------
-# Frontend Verification
-# -----------------------------------------------------------------------------
-frontend-bootstrap: check-bun-version
-	$(BUNCMD) run frontend:bootstrap
+fmt-check:
+	@$(MAGE_RUN) fmtCheck
 
-frontend-lint: frontend-bootstrap
-	$(BUNCMD) run frontend:lint
+lint:
+	@$(MAGE_RUN) lint
 
-frontend-typecheck: frontend-bootstrap
-	$(BUNCMD) run frontend:typecheck
+go-lint:
+	@$(MAGE_RUN) goLint
 
-frontend-test: frontend-bootstrap
-	$(BUNCMD) run frontend:test
-
-frontend-build: frontend-bootstrap
-	$(BUNCMD) run frontend:build
-
-frontend-e2e: frontend-build go-build
-	$(BUNCMD) run frontend:e2e
-
-frontend-verify: frontend-lint frontend-typecheck frontend-test frontend-build
-
-# -----------------------------------------------------------------------------
-# Verification Pipeline (BLOCKING GATE for any change)
-# -----------------------------------------------------------------------------
-verify: frontend-verify fmt lint test go-build verify-extensions frontend-e2e
-	@echo "$(GREEN)All verification checks passed$(NC)"
-
-# Standalone extension modules ship their own go.mod and are excluded from the
-# root ./..., so build/test/lint them here to keep them covered by verify.
-verify-extensions:
-	@for dir in $(EXTENSION_GO_MODULES); do \
-		echo "Verifying extension module $$dir"; \
-		( cd $$dir && \
-			$(GOBUILD) -o /dev/null ./... && \
-			$(GOTEST) -race ./... && \
-			$(LINTCMD) run ) || exit 1; \
-	done
-	@echo "$(GREEN)Extension modules verified$(NC)"
-
-# Opt-in because every matrix trial invokes a paid model. The harness defaults
-# to three repetitions and installs the extension into an isolated Compozy home.
-eval-cy-capture-decisions: build
-	@if [ -z "$(COMPOZY_EVAL_MODEL)" ]; then \
-		echo "$(RED)Error: COMPOZY_EVAL_MODEL is required$(NC)"; \
-		exit 1; \
-	fi
-	$(GOCMD) run ./extensions/cy-capture-decisions/evals/cmd/cy-capture-decisions-eval \
-		--ide "$(COMPOZY_EVAL_IDE)" \
-		--model "$(COMPOZY_EVAL_MODEL)" \
-		--reasoning-effort "$(COMPOZY_EVAL_REASONING_EFFORT)"
-
-# -----------------------------------------------------------------------------
-# Development & Dependencies
-# -----------------------------------------------------------------------------
-dev: go-build
-	./$(BINARY_DIR)/$(BINARY_NAME) daemon start --foreground --web-dev-proxy http://127.0.0.1:3000
-
-tidy:
-	@echo "Tidying modules..."
-	$(GOCMD) mod tidy
-
-deps: check-go-version
-	@echo "Installing Go dependencies..."
-	@echo "Installing gotestsum..."
-	@$(GOCMD) install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
-	@echo "Installing golangci-lint v2..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
-	@echo "$(GREEN)All dependencies installed successfully$(NC)"
-
-# -----------------------------------------------------------------------------
-# Testing
-# -----------------------------------------------------------------------------
 test:
-	@$(GOTESTSUMCMD) --format pkgname -- -race -parallel=4 ./...
+	@$(MAGE_RUN) test
 
-test-coverage:
-	@$(GOTESTSUMCMD) --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
+test-integration:
+	@$(MAGE_RUN) testIntegration
 
-test-nocache:
-	@$(GOTESTSUMCMD) --format pkgname -- -race -count=1 -parallel=4 ./...
+test-e2e-runtime:
+	@$(MAGE_RUN) testE2ERuntime
 
-# -----------------------------------------------------------------------------
-# Help
-# -----------------------------------------------------------------------------
+test-e2e-web:
+	@$(MAGE_RUN) testE2EWeb
+
+test-e2e:
+	@$(MAGE_RUN) testE2E
+
+test-e2e-nightly:
+	@$(MAGE_RUN) testE2ENightly
+
+codegen:
+	@$(MAGE_RUN) codegen
+
+codegen-check:
+	@$(MAGE_RUN) codegenCheck
+
+build:
+	@$(MAGE_RUN) build
+
+build-go:
+	@$(MAGE_RUN) buildGo
+
+boundaries:
+	@$(MAGE_RUN) boundaries
+
+verify:
+	@$(MAGE_RUN) verify
+
+bun-lint:
+	@$(MAGE_RUN) bunLint
+
+bun-typecheck:
+	@$(MAGE_RUN) bunTypecheck
+
+bun-test:
+	@$(MAGE_RUN) bunTest
+
+installer-check:
+	@$(MAGE_RUN) installerCheck
+
+demo-seed:
+	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
+
 help:
-	@echo "Available targets:"
-	@echo "  make build          - Build the compozy binary"
-	@echo "  make build-extension-sdks - Build the npm extension SDK and scaffolder packages"
-	@echo "  make install        - Build and install to GOPATH/bin"
-	@echo "  make frontend-bootstrap - Install Bun dependencies for the frontend workspaces"
-	@echo "  make frontend-lint  - Run frontend lint/format checks"
-	@echo "  make frontend-typecheck - Run frontend workspace typechecks"
-	@echo "  make frontend-test  - Run frontend workspace tests"
-	@echo "  make frontend-build - Build frontend workspaces and restore web/dist placeholder"
-	@echo "  make frontend-e2e   - Run Playwright against the daemon-served embedded UI"
-	@echo "  make dev            - Start ./bin/compozy with the Vite dev proxy; run `bun run --cwd web dev` separately"
-	@echo "  make test           - Run tests with race detector"
-	@echo "  make lint           - Run golangci-lint"
-	@echo "  make fmt            - Format code"
-	@echo "  make verify         - Run frontend verification, Go verification, and daemon-served Playwright"
-	@echo "  make eval-cy-capture-decisions - Run the opt-in 3x model-backed decision-capture matrix"
-	@echo "  make deps           - Install development dependencies"
-	@echo "  make tidy           - Tidy Go modules"
-	@echo "  make clean          - Remove build artifacts"
-	@echo "  make setup          - Full setup (check Go version + deps)"
-	@echo "  make publish-extension-sdks - Publish the npm extension SDK and scaffolder packages"
-	@echo "  make test-coverage  - Run tests with coverage"
-	@echo "  make test-nocache   - Run tests without cache"
-	@echo "  make help           - Show this help"
+	@$(MAGE_RUN) -l
+
+# Documentation Site
+.PHONY: site-dev site-build cli-docs migration-guide-check
+
+site-dev:
+	@cd packages/site && bun run dev
+
+site-build:
+	@bunx turbo run build --filter=./packages/site
+
+cli-docs:
+	@go run ./cmd/compozy doc --output-dir packages/site/content/runtime/cli-reference
+	@bunx oxfmt packages/site/content/runtime/cli-reference
+
+migration-guide-check:
+	@bash scripts/verify-migration-guide-parity.sh
+
+# Web UI
+.PHONY: web-dev web-build web-fmt web-typecheck web-test
+
+web-dev:
+	@cd web && bun run dev
+
+web-build:
+	@bunx turbo run build --filter=./web
+
+web-fmt:
+	@cd web && bun run format
+
+web-typecheck:
+	@bunx turbo run typecheck --filter=./web
+
+web-test:
+	@bunx turbo run test --filter=./web
+
+# Parallel worktrees
+#
+# `worktree-new` creates a sibling worktree at ../<repo>-worktrees/<slug> and
+# bootstraps it (mise pins, bun install + skill symlinks; BUILD=1 adds `make
+# build`, E2E=1 installs Playwright chromium). `worktree-bootstrap` preps the
+# current checkout. Removal: scripts/worktree.sh rm <slug>.
+.PHONY: worktree-new worktree-bootstrap
+worktree-new:
+	@test -n "$(SLUG)" || { echo "usage: make worktree-new SLUG=<slug> [BRANCH=] [BASE=] [BUILD=1] [E2E=1]"; exit 2; }
+	@bash scripts/worktree.sh new $(SLUG) $(if $(BRANCH),--branch $(BRANCH),) $(if $(BASE),--base $(BASE),) $(if $(BUILD),--build,) $(if $(E2E),--e2e,)
+
+worktree-bootstrap:
+	@bash scripts/worktree.sh bootstrap $(if $(BUILD),--build,) $(if $(E2E),--e2e,)
+
+# QA lab process hygiene
+#
+# Stops daemons and kills every process still tied to a QA lab (bootstrap labs,
+# $TMPDIR/compozyqa-* runtime roots, compozy-iso-* isolation envelopes). Run after any
+# QA pass; mandatory before claiming QA completion. Add PURGE=1 to also remove
+# lab runtime dirs after a clean sweep.
+.PHONY: qa-reap
+qa-reap:
+	@python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --all $(if $(PURGE),--purge,)
+
+# Local daemon run
+#
+# `start` rebuilds both the daemon and web bundle so their public contracts
+# cannot drift, then launches the daemon with the COMPOZY_WEB_DIST_DIR override so
+# it serves the freshly-built web/dist from disk instead of the embedded bundle.
+# `dev` runs the real daemon under Air and the web UI under Vite. The first
+# successful Air build gracefully stops any daemon using the active COMPOZY_HOME;
+# daemon web routes redirect to Vite, and Air owns every later rebuild/restart.
+.PHONY: start stop restart dev dev-daemon
+
+dev: codegen
+	@AIR_VERSION="$(AIR_VERSION)" bash scripts/dev.sh
+
+dev-daemon:
+	@bash scripts/dev-daemon-runner.sh "$(AIR_VERSION)" -c .air.toml
+
+start: build web-build
+	@test -x ./bin/compozy || { echo "bin/compozy not found — run 'make build' first"; exit 1; }
+	@echo "Starting daemon serving local web bundle: $(CURDIR)/web/dist"
+	@COMPOZY_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
+
+stop:
+	@./bin/compozy daemon stop
+
+restart:
+	@$(MAKE) stop || true
+	@$(MAKE) start

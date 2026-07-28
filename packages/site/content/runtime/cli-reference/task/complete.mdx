@@ -1,0 +1,51 @@
+---
+title: "compozy task complete"
+description: "Complete a claimed task run for the current agent session"
+---
+
+## compozy task complete
+
+Complete a claimed task run for the current agent session
+
+```
+compozy task complete <run-id> [flags]
+```
+
+### Examples
+
+```
+  # Complete a claimed run
+  compozy task complete run-123
+
+	  # Complete with structured result data
+  compozy task complete run-123 --result '{"summary":"tests passed"}'
+```
+
+### Options
+
+```
+  -h, --help            help for complete
+      --result string   Optional result JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task complete <run-id> -o json
+```

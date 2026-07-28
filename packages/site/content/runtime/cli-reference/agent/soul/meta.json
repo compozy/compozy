@@ -1,0 +1,4 @@
+{
+    "title": "Soul",
+    "pages": ["index", "delete", "history", "inspect", "rollback", "validate", "write"]
+}

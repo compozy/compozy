@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/start-session.html",
+  "entry": "modals/start-session.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T16:44:52.307Z",
+  "updatedAt": "2026-07-14T16:44:52.307Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

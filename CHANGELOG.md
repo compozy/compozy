@@ -4,408 +4,384 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## 0.2.15 - 2026-07-17
 
-### 🎉 Features
+Upgrading from the legacy v0.2 line? Read the complete [v0.3 migration guide](MIGRATION_GUIDE.md)
+before replacing the CLI or reusing `.compozy/` state.
 
-- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
+## 0.0.9 - 2026-07-04
+
+### ♻️ Refactoring
+
+- Tasks orchestration (#269)
+
 ### 🐛 Bug Fixes
 
-- Recover stalled and wedged multi-runs (#230)- Share parallel task status enum (#241)- Surface progress and bound the reviews-fix daemon start (#236)- Package cy-qa-workflow as a module and make host.tasks.create v2-aware (#234)- Correct Kiro CLI ACP model handling (#226)- Isolate sync tests and clarify ignore checks (#248)- Isolate task artifacts and add complexity runtime defaults (#250)
+- Network optimizations (#263)
+- Native tools (#266)
+- Align release-gated network integration tests with #263 behavior
+
 ### 📚 Documentation
 
-- Add v0.2.15 release highlights
-## 0.2.14 - 2026-07-15
+- Update skills
+- New skill
+- Add feature stories
+- Add v0.0.9 release notes
+
+### 📦 Build System
+
+- Update go deps
+- Gitignore
+
+## 0.0.8 - 2026-06-22
 
 ### 🐛 Bug Fixes
 
-- Acp integratoin
-## 0.2.13 - 2026-07-10
+- Acp update and general fixes (#256)
+- Make docs markdown copy retryable
+
+### 📦 Build System
+
+- Update deps
+- Fix msw setup
+
+### 🧪 Testing
+
+- Remove not needed test
+
+## 0.0.7 - 2026-06-04
+
+### ♻️ Refactoring
+
+- Improvements on create modals (#252)
 
 ### 🐛 Bug Fixes
 
-- Codex acp
-## 0.2.12 - 2026-07-10
+- Repair daemon-served e2e flows
 
-### 🐛 Bug Fixes
-
-- Parallel tasks (#231)
-## 0.2.11 - 2026-07-03
+## 0.0.6 - 2026-06-03
 
 ### 🎉 Features
 
-- Agentic runs (#212)- Simplify repo-level default setup overrides (#90)- Support COMPOZY_HOME env override for home directory (#216)
+- Dependency-driven auto-enqueue (opt-in) (#232)
+
 ### 🐛 Bug Fixes
 
-- Parallel execution (#217)- Specifying the model on ACP (#215)- Worktree management (#223)- Restore run TUI elapsed timer across retry, failure, cancel, and remote paths (#221)
-### 📚 Documentation
+- Wake coordinator sessions reliably (#240)
+- Enable runtime evidence profiles (#242)
+- React doctor fixes (#245)
+- Verify marketplace skill installs (#244)
+- Persist active workspace and redirect on session/workspace mismatch (#238)
+- Safe workspace delete and compozy session remove command (#239)
+- Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
 
-- Update skills- Add v0.2.11 release notes
-## 0.2.10 - 2026-06-18
-
-### ♻️  Refactoring
-
-- Tui redesign (#201)
-### 🎉 Features
-
-- Worktree-backed parallel multi-run for tasks run --multiple (#200)- Add Devin CLI agent support (#204)
-### 🐛 Bug Fixes
-
-- Reviews watch bug
 ### 📚 Documentation
 
 - Release notes
+
+## 0.0.5 - 2026-05-29
+
+### ♻️ Refactoring
+
+- Optimize prompt consumption (#222)
+- Orchestration improvements (#230)
+
+### 🎉 Features
+
+- Decouple worker concurrency from coordinator uniqueness (#229)
+
+### 🐛 Bug Fixes
+
+- Handle provider overlay subtables (#228)
+
+### 📚 Documentation
+
+- Add contributors
+
+### 🔧 CI/CD
+
+- Web asset release
+
+## 0.0.4 - 2026-05-27
+
+### 🐛 Bug Fixes
+
+- Default workspace
+
+### 📚 Documentation
+
+- Remove old changelog from website
+
 ### 📦 Build System
 
-- Skeeper config (#206)- Converge skeeper sidecar lock to main branch
-## 0.2.9 - 2026-06-14
+- Sync web assets module (#217)
 
-### 🐛 Bug Fixes
+## 0.0.3 - 2026-05-27
 
-- Record ACP token usage and adapt to acp-go-sdk v0.13.5 (#198)
-## 0.2.8 - 2026-06-12
+### ♻️ Refactoring
 
-### 🎉 Features
+- Memory optimization (#215)
 
-- Warn when tasks run starts beside active runs in other workspaces (#190)
-### 🐛 Bug Fixes
-
-- Keep multi-run task timers ticking (#179)- Treat model auto as runtime default (#181)- Pin claude model via ANTHROPIC_MODEL instead of unsupported session/set_model (#187)- Restart stale daemon when CLI and daemon versions mismatch (#191)- Surface ACP session setup errors in job logs and fail runs fast (#192)- Reviews watch (#196)
-## 0.2.7 - 2026-05-27
-
-### 🔧 CI/CD
-
-- Support forced release version via workflow_dispatch (#175)
-## 0.2.6 - 2026-05-27
-
-### 🎉 Features
-
-- Add multi-task run support (#162)
-### 🐛 Bug Fixes
-
-- Add Windows daemon support (#163)
-### 📚 Documentation
-
-- Release notes
-## 0.2.5 - 2026-05-25
-
-### 🎉 Features
-
-- Add zsh task completion plugin docs and script (#149)- Add kiro-cli as supported ACP execution runtime (#160)- Discover task files recursively in nested subdirectories (#153)
-### 🐛 Bug Fixes
-
-- Homebrew formula- Emit one task slug per compozy completion candidate (#159)- Run managed upgrade commands (#158)
-### 📚 Documentation
-
-- Add star history on readme- Release notes
-### 🔧 CI/CD
-
-- Release fix
-### 🧪 Testing
-
-- Internal test fix
-## 0.2.4 - 2026-05-14
-
-### 🐛 Bug Fixes
-
-- Codex acp integration (#151)
-## 0.2.3 - 2026-05-09
-
-### 🐛 Bug Fixes
-
-- Cwd path
-## 0.2.2 - 2026-05-09
-
-### 🎉 Features
-
-- Add qa extension (#138)
-### 🐛 Bug Fixes
-
-- Workspace register (#140)- Workspace discover path- Prevent false task completion via prompt kickoff + worktree diff-check (#144) (#145)
-### 📚 Documentation
-
-- Update- Release notes
 ### 📦 Build System
 
-- Release tool
-## 0.2.1 - 2026-05-01
+- Sync web assets module (#210)
 
-### 🐛 Bug Fixes
+## 0.0.2 - 2026-05-27
 
-- Binary release
-## 0.2.0 - 2026-05-01
+### Other Changes
 
-### ♻️  Refactoring
+- Lessons learned
 
-- Daemon improvs (#121)
-### 🎉 Features
+### ♻️ Refactoring
 
-- Add optional sound notifications on run lifecycle events (#96)- Global config defaults (#106)- Add per task prop selection (#109)- Migrate to daemon (#112)  - **BREAKING:** migrate to daemon (#112)
-- Daemon web UI (#122)- Web ui polish (#125)- Review watch (#133)
-### 🐛 Bug Fixes
-
-- Daemons adjustments (#116)- Harden runtime activity and version handling (#127)- Release adjustments (#131)- Infer task type during migrate (#129)- Watch adjustments- Lint errors
-### 📚 Documentation
-
-- Release notes- Daemon prd- New prds- Update- Add release notes
-### 🔧 CI/CD
-
-- Fix auto-docs- Add release notes- Fix windows
-### 🧪 Testing
-
-- Release config
-## 0.1.12 - 2026-04-14
-
-### 🎉 Features
-
-- Add shared layout package for run artifact filenames (#95)
-### 🐛 Bug Fixes
-
-- Execution order- Fetch reviews parsing
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.12 (#100)
-
-### 🧪 Testing
-
-- Fix suite
-## 0.1.11 - 2026-04-14
+- Project structure (#7)
+- Kb improvements (#12)
+- Rename spaces to channels (#17)
+- Add extensions gaps (#21)
+- Improve tool calls ui (#22)
+- Remove web app header
+- Module improvements (#29)
+- Memory improvements (#35)
+- Storybook for web and ui (#38)
+- Enable Compozy network by default for new installs (#57)
+- Hermes adjustments (#69)
+- Badges design (#84)
+- Storybook scenario and logos gallery
+- Migrate typescript tests (#114)
+- Internal go packages (#120)
+- Ui patterns (#127)
+- Improve e2e tests (#130)
+- Ui redesign
+- Workspace isolation across runtime surfaces (#145)
+- Prod ready applies (#162)
+- Tool card ui (#164)
+- Alpha on logo
+- Prod ready features (#167)
+- Thread sheet (#202)
 
 ### 🎉 Features
 
-- Agents spec (#78)- Add extensability (#80)- Add compozy skill- Extension improvements (#83)- Migrate core extension (#93)
-### 📚 Documentation
-
-- New prds- Add auto-docs workflow (claude code on merge)- Update- Update docs path
-### 📦 Build System
-
-- Auto-docs workflow
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.11 (#94)
-
-## 0.1.10 - 2026-04-10
-
-### ♻️  Refactoring
-
-- Improve packages (#70)- Add nitpicks for coderabbit (#75)
-### 🎉 Features
-
-- Kernel refactoring (#68)
-### 🐛 Bug Fixes
-
-- Stop rewriting all _meta.md files when listing workflows (#73)
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.10 (#76)
-
-## 0.1.9 - 2026-04-06
-
-### 🎉 Features
-
-- Exec command (#60)
-### 🐛 Bug Fixes
-
-- Close issue #61 (#63)- Fail for unsupported --add-dir (#66)
-### 📚 Documentation
-
-- Context7 and exa skills
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.9 (#67)
-
-## 0.1.8 - 2026-04-05
-
-### ♻️  Refactoring
-
-- Rename idea-factory artifacts from issue to idea (#56)
-### 🎉 Features
-
-- Add GitHub Copilot CLI as ACP runtime (#57)
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.8 (#59)
-
-## 0.1.7 - 2026-04-05
-
-### ♻️  Refactoring
-
-- Tool calls (#48)- Task artifacts changes (#52)
-### 🎉 Features
-
-- *(build)* Add AUR support and automation via GoReleaser (#49)
+- Implement config foundation packages
+- Implement sqlite store package
+- Add ACP client package
+- Add session lifecycle manager
+- Implement observe package
+- Add daemon composition root
+- Add uds api server
+- Implement cli package
+- Add http api server
+- Add system design
+- Add foundation types, schemas, and layout shell for web client
+- Add daemon health polling and agent sidebar systems for web client
+- Add session system CRUD, streaming core, and session store for web client
+- Add chat view, messages, and composer tests for web client
+- Add tool cards and renderers for web client
+- Add file-backed memory store core
+- Scaffold memory session seams
+- Add memory dream consolidation service
+- Wire memory assembler into daemon
+- Add memory api and cli
+- New skills system (#1)
+- Add workspace entity (#5)
+- Add new skill capabilities (#8)
+- Web ui v2 (#9)
+- Improve hooks system (#10)
+- Session resilience (#11)
+- Add extensability (#13)
+- Add automation (#16)
+- Add channels (#14)
+- Add network implementation (#15)
+- Add network, bridges and automations web pages (#18)
+- Ext registry (#20)
+- Add core tasks (#19)
+- Bridge adapters (#23)
+- Add site (#26)
+- Add ext refac and sandbox (#25)
+- Settings ui (#37)
+- Tasks ui (#36)
+- Harness improvements (#44)
+- Agent capabilities (#49)
+- Redesign ui (#48)
+- Unify capability (#53)
+- Redesign network workspace (#59)
+- Add task deletion and split session delete from stop (#58)
+- Session provider selection (#60)
+- Production grade adjustments (#66)
+- Autonomous system (#75)
+- Add agent session route (#80)
+- Tools registry (#85)
+- Agents soul (#88)
+- Add network threads (#105)
+- Orchestration improvements (#106)
+- Memory v2 (#108)
+- Agent categories (#113)
+- Providers model (#118)
+- Add canonical Compozy bundled skill (#143)
+- Onboarding and improvements (#198)
+- Onboarding and improvements (#201)
 
 ### 🐛 Bug Fixes
 
 - Review round
-### 📦 Build System
-
-- Comment AUR release for now
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.7 (#55)
-
-## 0.1.6 - 2026-04-04
-
-### 🐛 Bug Fixes
-
-- Improve failures
-### 📦 Build System
-
-- Remove ai-docs folder
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.6 (#47)
-
-## 0.1.5 - 2026-04-03
-
-### 🎉 Features
-
-- Add config.toml (#40)
-### 🐛 Bug Fixes
-
-- Check skills shift before run- Acp permission
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.5 (#45)
-
-## 0.1.4 - 2026-04-03
-
-### 🎉 Features
-
-- Add cy-idea-factory skill and improve planning skills DX (#35)
-### 🐛 Bug Fixes
-
-- Failed tool call crash- Skills frontmatter
-### 📦 Build System
-
-- Fix skills symlink
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.4 (#39)
-
-## 0.1.3 - 2026-04-03
-
-### 🎉 Features
-
-- *(repo)* Add archive command
-- Use acp instead of stream raw json (#34)
-### 📚 Documentation
-
-- Archive old prds- Update readme
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.3 (#36)
-
-## 0.1.2 - 2026-04-02
-
-### 🐛 Bug Fixes
-
-- *(repo)* Close tui when finish
-- Correct opencode run flags and add stdin support (#25)
-### 📚 Documentation
-
-- *(repo)* Update readme
-
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.1.2 (#28)
-
-## 0.1.1 - 2026-04-02
-
-### 🐛 Bug Fixes
-
-- *(repo)* Automatic completion
+- Review rounds
+- Resolve memory extensibility review batch
+- Embed web into daemon
+- Defaults agents
+- Acp integration (#4)
+- Lint errors
+- Prd folder
+- Remove orphan web actions and dead surfaces (#55)
+- Qa testing and fixes (#73)
+- New review rounds (#82)
+- Security audit (#90)
+- Release qa round (#95)
+- Add missing tools (#141)
+- New qa round (#147)
+- Advanced qa round (#149)
+- Homebrew tap
+- Final review round (#151)
+- Daemon healthy
+- Reasoning models (#158)
+- Lint errors (#160)
+- Review round (#168)
+- Release adjustments (#171)
+- Stabilize release ci fixtures
+- Stabilize release integration gate
+- Stabilize release verify gates
+- Stabilize release integration flows
+- Stabilize release verify gates
+- Stabilize main verify shutdown
+- Ignore stale acpmock cancel
+- Marketplace search focus and filtering (#193)
+- Website video
+- Workspace command select
 
 ### 📚 Documentation
 
-- *(repo)* Remove installs
+- Update agents.md
+- Update prd
+- Update skills
+- Update compozy tasks
+- Update compozy
+- Update compozy
+- Add new skills
+- Archive prd
+- Update prds
+- Update rfc
+- Update prds
+- Update prds
+- Add automation prd
+- Channels prd
+- Update prd
+- Update prd
+- New prds
+- Archive prds
+- Bridges adapters prd
+- Sandbox prd
+- Update
+- Archive prd
+- Update
+- Add new prd
+- New design
+- Update prd
+- Archive prds
+- Update prds
+- Tasks-ui prd tasks
+- Update prd
+- Update design docs
+- Agent capabilities prd
+- Improve site docs
+- Remove old design references
+- Udpate
+- Autonomous prd
+- Update skills
+- Blog design
+- Agent sould prd
+- Final qa plan
+- Update
+- Remove codex ledgers from gitignore
+- Remove not needed files
+- Udpate ledger
+- Update cy-codex-loop skill
+- Orchestration improves prd
+- Update prds
+- Orch improvs prd
+- Memv2 prd
+- Providers model prd
+- Update refacs prd
+- New design proposal
+- Update rules
+- Update skills
+- New blog posts (#173)
+- Format docs
+- Remove old design files
+- Remove old
+- Skeeper update
 
 ### 📦 Build System
 
-- *(repo)* Fix release
+- Initial structure
+- Commitlint
+- Frontend base structure
+- Update vscode settings
+- Add subagents
+- Coderabbit
+- Prd and tooling
+- Bun lock
+- Lint tooling
+- Copy.md and tooling adjusts
+- Add repoclone rc
+- Upgrade skeeper to v0.2.0
+- Update go.mod
+- Adopt task artifacts into skeeper
+- Sync codex plans with skeeper
+- Skeeper lock
+- Skeeper lock
+- New skills
+- Skeeper lock
+- Skeeper lock
+- Skeeper lock
+- Update deps and go
+- Regenerate daytona sidecar assets for go 1.26.3
+- Fix cliff
+- Ignore docs on fmt
+- Build web assets before goreleaser
+- Extend release dry-run timeout
+- Fix release dry-run token contract
 
 ### 🔧 CI/CD
 
-- *(release)* Prepare release v0.1.1 (#24)
+- Lint errors
+- Fint release pr
+- Fix goreleaser
+- Fix release
+- Fix release process
+- Fix release sync
+- Decouple release dry-run npm auth
+- Persist web assets git auth
+- Require npm auth before release merge
 
-## 0.1.0 - 2026-04-01
+### 🧪 Testing
 
-### ♻️  Refactoring
+- Add e2e tests (#27)
+- Qa rounds (#78)
+- Improve test suite (#138)
+- Harden daemon-served restart reloads
+- Harden daemon-served readiness waits
+- Stabilize dashboard focus assertion
+- Stabilize release integration gates
+- Stabilize release e2e markers
+- Stabilize release e2e flows
+- Improve suite speed
 
-- *(repo)* Improve commands
-- *(repo)* Remove not needed flags
-- *(repo)* Remove PR as required for fix-reviews
-- *(repo)* Improve setup command
-- *(repo)* Remove prd- tasks folder prefix
-- *(repo)* Many improvements
-- *(repo)* Add cy prefix for skills and memory system
+[0.0.9]: https://github.com/compozy/compozy/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/compozy/compozy/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/compozy/compozy/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/compozy/compozy/compare/v0.0.5...v0.0.6
+[0.0.5]: https://github.com/compozy/compozy/compare/v0.0.4...v0.0.5
+[0.0.4]: https://github.com/compozy/compozy/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/compozy/compozy/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/compozy/compozy/releases/tag/v0.0.2
 
-### 🎉 Features
-
-- *(repo)* Add build and release
-- *(repo)* Add adr support
-- *(repo)* Add fetch reviews
-- *(repo)* Add review-round skill
-- *(repo)* Add setup command
-- *(repo)* Add _meta.md for tasks
-- Main structure
-### 🐛 Bug Fixes
-
-- *(repo)* Release
-- *(repo)* Color bugs
-
-### 📚 Documentation
-
-- *(repo)* Improve readme
-- *(repo)* Remove old templates
-- *(repo)* Improve readme
-- *(repo)* Readme
-- *(repo)* Update readme
-
-### 📦 Build System
-
-- *(repo)* Release
-- *(repo)* Gitignore
-- *(repo)* Rename to compozy
-- *(repo)* Bump tag
-
-### 🔧 CI/CD
-
-- *(release)* Prepare release v0.0.1 (#4)
-- *(release)* Prepare release v0.0.2 (#5)
-- *(release)* Prepare release v0.0.3 (#11)
-- *(release)* Prepare release v0.1.0 (#21)
-- *(repo)* Fix tests
-
-[0.2.15]: https://github.com///compare/v0.2.14...v0.2.15
-[0.2.14]: https://github.com///compare/v0.2.13...v0.2.14
-[0.2.13]: https://github.com///compare/v0.2.12...v0.2.13
-[0.2.12]: https://github.com///compare/v0.2.11...v0.2.12
-[0.2.11]: https://github.com///compare/v0.2.10...v0.2.11
-[0.2.10]: https://github.com///compare/v0.2.9...v0.2.10
-[0.2.9]: https://github.com///compare/v0.2.8...v0.2.9
-[0.2.8]: https://github.com///compare/v0.2.7...v0.2.8
-[0.2.7]: https://github.com///compare/v0.2.6...v0.2.7
-[0.2.6]: https://github.com///compare/v0.2.5...v0.2.6
-[0.2.5]: https://github.com///compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com///compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com///compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com///compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com///compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com///compare/v0.1.12...v0.2.0
-[0.1.12]: https://github.com///compare/v0.1.11...v0.1.12
-[0.1.11]: https://github.com///compare/v0.1.10...v0.1.11
-[0.1.10]: https://github.com///compare/v0.1.9...v0.1.10
-[0.1.9]: https://github.com///compare/v0.1.8...v0.1.9
-[0.1.8]: https://github.com///compare/v0.1.7...v0.1.8
-[0.1.7]: https://github.com///compare/v0.1.6...v0.1.7
-[0.1.6]: https://github.com///compare/v0.1.5...v0.1.6
-[0.1.5]: https://github.com///compare/v0.1.4...v0.1.5
-[0.1.4]: https://github.com///compare/v0.1.3...v0.1.4
-[0.1.3]: https://github.com///compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com///compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com///compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com///releases/tag/v0.1.0
 ---
-*Generated by [git-cliff](https://git-cliff.org)*
+
+_Generated by [git-cliff](https://git-cliff.org)_

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loops/loop-run-detail-states.html",
+  "entry": "loops/loop-run-detail-states.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-23T03:13:13.219Z",
+  "updatedAt": "2026-07-23T03:13:13.219Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

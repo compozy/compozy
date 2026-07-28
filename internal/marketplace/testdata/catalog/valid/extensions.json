@@ -1,0 +1,16 @@
+{
+    "manifest_version": 1,
+    "generated_at": "2026-07-13T00:00:00Z",
+    "entries": [
+        {
+            "entry_id": "fixture-extension",
+            "name": "Fixture extension",
+            "description": "Validates the extension publication contract",
+            "version": "1.0.0",
+            "install_slug": "compozy/fixture-extension",
+            "artifact_url": "https://downloads.example.test/fixture-extension-v1.0.0.tar.gz",
+            "digest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "tier": "official"
+        }
+    ]
+}

@@ -21,14 +21,14 @@ Every charter has six parts:
 
 1. **Mission** — one sentence: what to investigate and why it matters.
 2. **Persona** — who you are while testing (`<qa-docs-path>/personas.md`).
-3. **Journey** — which journey (`J-NN`) the session walks.
+3. **Journey** — which journey (`J-<slug>`) the session walks.
 4. **Tour** — the thematic lens driving off-script exploration. The canonical tour catalog lives in the `qa-execution` skill (routed from its SKILL.md). Exactly one; mixing dilutes findings.
 5. **Time-box** — a hard ceiling: 30 / 60 / 90 minutes.
-6. **Scenarios in scope** — the `state.csv` ids this session can settle.
+6. **Scenarios in scope** — the scenario ids this session can settle.
 
 ## Charter file format
 
-One file per charter at `<qa-docs-path>/charters/CH-<NNN>.md` (template: `<qa-docs-path>/templates/charter.md`, seed: `assets/charter-template.md`). `CH-NNN` ids are global and monotonic like every other id in the tree. Charters are durable: a charter written for one cycle is re-run in later cycles (smoke/regression cadence) with a fresh debrief appended per run.
+One file per charter at `<qa-docs-path>/charters/CH-<slug>.md` (template: `<qa-docs-path>/templates/charter.md`, seed: `assets/charter-template.md`). The id is content-addressed like every id in the tree: 2-5 kebab-case words naming the mission (e.g. `CH-mobile-checkout-back-button`) — two planners writing the same mission mint the same id, which is the dedup working. Charters are durable **and immutable once written**: a charter written for one cycle is re-run in later cycles (smoke/regression cadence), and each run's debrief goes in that run's report — never appended to the charter, so re-runs on parallel branches don't contend over one file. A mission that genuinely changed is a new charter.
 
 ## Charter modes
 
@@ -68,18 +68,18 @@ Order sessions by risk: highest-impact journey × highest-blast-radius tour firs
 The completeness question is **"was every journey in scope walked by a persona this cycle?"** — a session ledger, not a case count.
 
 - Wrong: "every persona has at least one test case", "every CFR category has a TC". That instinct produces artifact accumulation and zero confidence.
-- Right: every in-scope journey has ≥1 charter; every charter has a persona, one tour, and a time-box; every run charter has a debrief; every scenario it settles has its `state.csv` verdict updated.
+- Right: every in-scope journey has ≥1 charter; every charter has a persona, one tour, and a time-box; every run charter has a debrief in the run report; every scenario it settles has its verdict updated in its scenario file.
 
 A cycle with 5 deep sessions that walked 5 journeys end-to-end beats a cycle that generated 40 test-case files and walked nothing.
 
 ## The debrief is mandatory
 
-A session without a debrief is wasted exploration. When the box ends (appended to the charter file per run by `qa-execution`):
+A session without a debrief is wasted exploration. When the box ends (written by `qa-execution` into the run report's Session Debriefs section, one block per charter run):
 
 1. Stop the timer — no "just one more thing".
 2. Write findings within 5 minutes, before surprises normalize.
 3. File bugs via the global bug registry (routed at Step 6 of the SKILL) — dedup first.
-4. Update the settled scenarios in `state.csv`.
+4. Update the settled scenarios' files.
 5. Suggest the next charter: what did this session not reach?
 6. Note candidate tours: an improvised pattern that found something is a catalog candidate.
 
@@ -88,6 +88,7 @@ A session without a debrief is wasted exploration. When the box ends (appended t
 - **No mission** — a charter without a one-sentence mission is tab-clicking.
 - **Multi-tour charter** — one tour per box; a second theme is a second charter.
 - **Drift outside the journey** — interesting bugs elsewhere go to a follow-up charter, not into this debrief's scope.
-- **Charter-per-round duplication** — re-drafting the same mission each cycle instead of re-running the existing charter with a new debrief. Charters are durable; debriefs are per-run.
+- **Charter-per-round duplication** — re-drafting the same mission each cycle instead of re-running the existing charter. Charters are durable; debriefs are per-run and live in each run's report.
+- **Editing a run charter** — appending debriefs or tweaking the mission in place turns a durable mission into a contended file. Charters are immutable; a changed mission is a new charter.
 - **Skipping the debrief** — finding bugs without recording them equals not finding them.
 - **Case-count completeness** — see the coverage inversion. If the plan's success metric counts files, the plan is wrong.

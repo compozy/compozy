@@ -1,0 +1,302 @@
+---
+title: Bridges Overview
+description: How Compozy bridge instances connect workspace agents to external messaging platforms.
+---
+
+A bridge is a workspace-facing adapter between Compozy sessions and an external platform. The Compozy source
+repository contains in-tree providers for Slack, Discord, Telegram, WhatsApp, Microsoft Teams,
+Google Chat, GitHub, and Linear. They are not embedded in the released `compozy` binary: build and
+install the provider from a trusted source checkout before configuring its bridge instances. The
+bridge instance stores the operator-owned configuration, while the provider extension owns webhook
+validation, message normalization, and outbound delivery.
+
+That split keeps Compozy responsible for sessions, routing, persistence, and delivery bookkeeping while
+letting each platform adapter speak the platform API directly.
+
+<OperatorNote>
+  Create bridge instances as workspace-scoped records when they should start sessions from incoming
+  messages. The current runtime creates bridge-initiated sessions by resolving the instance
+  `workspace_id` and that workspace's default agent.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/bridges/setup"
+    label="Setup"
+    title="Platform Setup"
+    description="Build and install an in-tree provider, then configure credentials, webhooks, routing, and verification."
+    meta="How-to"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/access"
+    label="Access"
+    title="Control Bridge Access"
+    description="Restrict direct messages before enablement and prove sender admission separately from webhook authentication."
+    meta="Security how-to"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/operations"
+    label="Operations"
+    title="Operate and Repair Bridges"
+    description="Inspect health, rotate credentials, move endpoints, restart providers, and prove recovery."
+    meta="Runbook"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/conversations"
+    label="Conversations"
+    title="Bridge Conversations and Sessions"
+    description="Understand session reuse, busy ingress, clean-context recovery, and in-chat control boundaries."
+    meta="Runtime model"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/behavior"
+    label="Reference"
+    title="Supported Bridge Behavior"
+    description="Compare inbound events, route shapes, outbound operations, progress, attachments, and known limits."
+    meta="Capability matrix"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/routing"
+    label="Routing"
+    title="Understand Message Routing"
+    description="How platform identities become stable route keys, ordered deliveries, and durable checkpoints."
+    meta="Explanation"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/progress"
+    label="Progress"
+    title="Tool Progress Reference"
+    description="Control daemon-rendered tool status, grouping, redaction, and adapter affordances."
+    meta="Configuration"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/adding-a-bridge"
+    label="Authoring"
+    title="Build an In-Tree Bridge Provider"
+    description="Declare, implement, verify, and document a provider inside the Compozy repository."
+    meta="Developer guide"
+  />
+</RouteList>
+
+## Choose a provider
+
+| Provider        | Best fit                                                | Inbound boundary                                  | Outbound behavior                              | Progress default |
+| --------------- | ------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------- | ---------------- |
+| Slack           | Workspace chat with channels and reply threads          | Signed Events API, commands, and interactions     | Create, edit, delete; Slack mrkdwn             | `new`            |
+| Telegram        | Direct chat, groups, and forum topics                   | Bot API webhook secret token                      | Create, edit, delete; MarkdownV2 fallback      | `new`            |
+| Discord         | Server channels, threads, interactions, and components  | Ed25519-signed HTTP webhooks                      | Create, edit, delete; 2,000-code-point chunks  | `new`            |
+| WhatsApp        | Business-number direct messaging through Cloud API      | Meta verification challenge and signed POST       | Create only; 4,096-code-point chunks           | `off`            |
+| Microsoft Teams | Bot Framework personal, group, and channel conversation | Bot Framework bearer JWT and activity service URL | Create, edit, delete; 28,000-code-point chunks | `off`            |
+| Google Chat     | Workspace spaces through direct or Pub/Sub ingress      | Google direct JWT or Pub/Sub OIDC JWT             | Create, edit, delete; 32,000 UTF-8 bytes       | `off`            |
+| GitHub          | Repository issue and pull-request comment threads       | Repository/App webhook HMAC                       | Issue/review comment create, edit, delete      | `off`            |
+| Linear          | Issue comments or Linear Agent Sessions                 | Linear webhook HMAC                               | Comments editable; Agent Activities append     | `off`            |
+
+Start with [Bridge setup](/runtime/core/bridges/setup), which links to one dedicated guide per
+provider. A provider is complete only after configuration, runtime, public transport, inbound route,
+and real outbound-delivery proofs all pass.
+
+## Runtime model
+
+| Object             | Owned by                | What it does                                                                                                                       |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Provider extension | Extension catalog       | Declares `bridge.adapter`, platform name, display name, required secret slots, and provider config schema hints.                   |
+| Bridge instance    | Compozy bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
+| Secret binding     | Compozy daemon          | Maps a provider slot such as `bot_token` to a vault-backed secret reference and stores the write-only secret value encrypted.      |
+| Bridge route       | Compozy routing layer   | Maps one canonical platform identity to one Compozy session and agent name.                                                        |
+| Target directory   | Compozy daemon          | Stores provider-discovered immutable target identities and resolver indexes for operator-friendly names.                           |
+| Delivery target    | Delivery broker         | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
+
+The provider catalog is dynamic. `GET /api/bridges/providers` returns installed extensions that
+provide `bridge.adapter`, including disabled providers. Inspect each descriptor's `enabled`, `state`,
+and `health` before creating an instance. The source repository contains provider manifests for
+Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear. The setup
+section covers every in-tree provider and calls out mode-dependent credentials explicitly.
+
+## Message flow
+
+<Mermaid
+  chart={`sequenceDiagram
+participant User as Platform user
+participant Platform as External platform
+participant Adapter as Bridge provider extension
+participant Host as Compozy Host API
+participant Router as Bridge routing
+participant Session as Compozy session
+participant Agent as ACP agent
+participant Broker as Delivery broker
+
+User->>Platform: send message or command
+Platform->>Adapter: webhook request
+Adapter->>Adapter: verify signature or token
+Adapter->>Host: bridges/messages/ingest
+Host->>Router: build routing key
+Router-->>Host: existing or new route
+Host->>Session: create or reuse workspace session
+Session->>Agent: submit prompt
+Agent-->>Session: stream events
+Session-->>Broker: project response events
+Broker->>Adapter: bridges/deliver
+Adapter->>Platform: post, edit, or delete response
+Platform-->>User: response appears in channel or chat`}
+caption="An inbound platform event is normalized by the adapter, routed to a Compozy session, and streamed back through the delivery broker to the same platform."
+/>
+
+## Adapter architecture
+
+The bridge adapter runs as an extension subprocess. During initialization, Compozy gives it the bridge
+instances assigned to that extension and a Host API surface. The adapter then:
+
+1. Resolves bridge secret bindings from the daemon-provided cache.
+2. Starts webhook listeners for configured bridge instances.
+3. Verifies incoming platform requests before ingestion.
+4. Converts platform payloads into normalized bridge envelopes.
+5. Reports bridge state back to Compozy as `ready`, `degraded`, `auth_required`, or `error`.
+6. Delivers response events back to the platform API and acknowledges delivery to Compozy.
+
+Compozy does not parse provider webhook payloads in the daemon. The daemon accepts the normalized
+envelope only after the provider extension authenticates it and confirms that the bridge instance is
+enabled for that extension.
+
+## Bridge instance format
+
+Bridge instances are persisted runtime records. They are created through the bridge API or the
+`compozy bridge create` command, not through `config.toml`.
+
+```json
+{
+  "scope": "workspace",
+  "workspace_id": "ws_8f33a913d23c4fd1",
+  "platform": "slack",
+  "extension_name": "slack",
+  "display_name": "Slack support",
+  "enabled": false,
+  "status": "disabled",
+  "dm_policy": "allowlist",
+  "routing_policy": {
+    "include_peer": false,
+    "include_thread": false,
+    "include_group": true
+  },
+  "provider_config": {
+    "webhook": {
+      "public_url": "https://bridge.example.com/slack/support",
+      "listen_addr": "127.0.0.1:18081",
+      "path": "/slack/support"
+    },
+    "dm": {
+      "allow_user_ids": ["U0123456789"]
+    }
+  },
+  "delivery_defaults": {
+    "group_id": "C0123456789",
+    "mode": "direct-send"
+  }
+}
+```
+
+| Field               | Required       | Notes                                                                                                                                               |
+| ------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scope`             | yes            | `workspace` or `global`. Use `workspace` for inbound sessions.                                                                                      |
+| `workspace_id`      | workspace only | Required when `scope` is `workspace`; forbidden for `global`.                                                                                       |
+| `platform`          | yes            | Platform identifier such as `slack`, `discord`, or `telegram`.                                                                                      |
+| `extension_name`    | yes            | Installed extension that owns the provider, usually the same as the platform.                                                                       |
+| `display_name`      | yes            | Operator-facing name shown by CLI/API output.                                                                                                       |
+| `enabled`           | yes            | Disabled instances do not accept routing work. Create disabled, bind secrets, then enable.                                                          |
+| `status`            | yes            | `disabled`, `starting`, `ready`, `degraded`, `auth_required`, or `error`.                                                                           |
+| `dm_policy`         | no             | Direct messages only: `open`, `allowlist`, or `pairing`; empty normalizes to permissive `open`. See [access control](/runtime/core/bridges/access). |
+| `routing_policy`    | yes            | Chooses which platform identity dimensions join the canonical route key.                                                                            |
+| `provider_config`   | no             | Provider-owned JSON object. The transport accepts any JSON object or `null`; each adapter validates the keys it uses.                               |
+| `delivery_defaults` | no             | JSON object with route defaults plus an optional typed `progress` block. `thread_id` requires `peer_id` or `group_id`.                              |
+
+Package-managed instances can be created by extension bundles. Those records report
+`source: "package"` and reject direct spec mutation through the generic update API.
+
+## Supported provider slots
+
+| Provider        | Required secrets                             | Optional secrets                        | Webhook auth                                                          |
+| --------------- | -------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------- |
+| Slack           | `bot_token`, `signing_secret`                | none                                    | Slack request signing secret.                                         |
+| Discord         | `bot_token`, `public_key`                    | none                                    | Discord Ed25519 interaction signature headers.                        |
+| Telegram        | `bot_token`                                  | `webhook_secret`                        | Telegram `X-Telegram-Bot-Api-Secret-Token` header when configured.    |
+| WhatsApp        | `access_token`, `app_secret`, `verify_token` | none                                    | Meta `X-Hub-Signature-256` plus the GET verification challenge.       |
+| Microsoft Teams | `app_id`, `app_password`                     | `app_tenant_id`                         | Bot Framework bearer JWT validated against the activity `serviceUrl`. |
+| Google Chat     | `credentials_json`                           | `project_number`                        | Google direct-webhook JWT, Pub/Sub OIDC token, or both.               |
+| GitHub          | `webhook_secret`                             | `token`, `app_id`, `private_key`        | GitHub `X-Hub-Signature-256`.                                         |
+| Linear          | `webhook_secret`                             | `api_key`, `client_id`, `client_secret` | Linear `linear-signature` HMAC.                                       |
+
+Bind each slot to a Compozy-managed vault secret before enabling the bridge. The API accepts the
+plaintext only through the write-only `secret_value` field and never returns it:
+
+```bash
+BRIDGE_ID=brg_123
+
+printf '%s' "$SLACK_BOT_TOKEN" | compozy bridge secret-bindings put "$BRIDGE_ID" bot_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
+  --kind token \
+  --secret-value-stdin
+```
+
+The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
+enable the bridge after changing a binding so the provider receives fresh launch material.
+
+Bridge Vault refs are visible as redacted metadata through the Vault page, `compozy vault list
+--namespace bridges`, and `/api/vault/secrets?namespace=bridges`. The plaintext `secret_value` is
+accepted only on write.
+
+## Operational states
+
+| Status          | Meaning                                                              | Ingest behavior                                           |
+| --------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
+| `disabled`      | Operator disabled the instance.                                      | Rejected as unavailable.                                  |
+| `starting`      | Extension is launching, restarting, or reconnecting.                 | Rejected until the provider reports readiness.            |
+| `ready`         | Provider is healthy and can ingest and deliver.                      | Accepted.                                                 |
+| `degraded`      | Provider can still work but reported a known issue.                  | Accepted; health payload includes the degradation reason. |
+| `auth_required` | Required credential or platform authorization is missing or invalid. | Rejected until fixed and restarted.                       |
+| `error`         | Provider reached a terminal or repeated fault.                       | Rejected until restarted or repaired.                     |
+
+Bridge health is exposed with each bridge payload and through the bridge health stream. It includes
+route count, delivery backlog, dropped delivery count, delivery failures, auth failures, last success,
+last error, and degradation metadata.
+
+## Target directory
+
+Bridge adapters can report platform targets such as channels, rooms, users, groups, and threads.
+Adapters that do not implement native target enumeration use Compozy's fallback snapshot from the bridge
+instance's operator-declared delivery defaults. The daemon validates snapshots, writes
+`bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
+when an extension runtime connects and then every five minutes while that runtime remains connected.
+
+The in-tree provider walkthroughs use operator-declared delivery defaults for target snapshots.
+Native platform discovery such as Slack `conversations.list` is not part of the v1 target-directory
+contract.
+
+Each target stores the provider-derived immutable route, display name, normalized lookup key,
+optional qualifier, type, capabilities, `updated_at`, and `last_seen_at`. Missing targets are not
+deleted during refresh; their `last_seen_at` remains the last time the provider saw them so operators
+can distinguish stale but known targets from new unknown names.
+
+Use the target APIs before wiring notification presets or explicit outbound targets:
+
+```bash
+compozy bridge targets brg_123 --query launch -o json
+compozy bridge resolve brg_123 "launch room" -o json
+```
+
+The HTTP/UDS equivalents are `GET /api/bridges/:id/targets` and
+`POST /api/bridges/:id/resolve`. Resolve returns a structured diagnostic for ambiguous or unknown
+names instead of selecting a candidate silently.
+
+## Notification suppression
+
+Each bridge instance has a live `notification_suppress` flag. When it is true, the common bridge
+notification delivery path suppresses notification deliveries for that bridge and returns a
+deterministic suppression result to the caller. Notification presets treat suppression as a terminal
+skip and advance their cursor, so a muted bridge does not replay the same preset event forever. Task
+bridge subscriptions and direct notifiers use the same common check.
+
+Use suppression for planned bridge maintenance or noisy downstream systems. It is not a replacement
+for disabling the bridge: disabled or unhealthy bridges reject delivery as unavailable and leave
+cursors unadvanced for retry, while suppression intentionally records that the event was skipped for
+that bridge.

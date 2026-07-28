@@ -1,0 +1,27 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "scope": ["network.html", "network-states.html"],
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "One identity per level: the 44px w2head owns the route (Network · status · New channel), the content head owns the channel (#name · purpose · meta), and drill-in swaps the trail per os/pagehead-redesign.html §03. Every entity, field, action, and status string maps to internal/api/contract (channels, threads, directs, peers, work) — fanout enum, work states, and empty-state copy are lifted verbatim from the runtime, nothing invented."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Three-pane order matches production network-shell.tsx: 232px channel rail (28px rows, unread count chips, state via dot/count only), main pane with lane-tabs Threads·Directs·Activity, 268px inspector (About · Members · Work). The old DetailHeader icon-tile and slash-joined operator meta strip are gone; work state is the only pill tone in the channel head, fanout demoted to a neutral mono pill."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "design-system.html scale: 13.5px body, 16px channel name, 13px/600 w2-title, 10.5px mono status chips. JetBrains Mono strictly for ids, session refs, counts, timestamps, and enum values (capability_match, wk_9f2); Inter for all prose, names, and previews — no all-caps eyebrow subheaders survive from the old surface."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "Motion is state only: dot--pulse on needs_input, ticking elapsed on working chips, 140ms token transitions on hover/selection, optimistic pending→delivered on send, shimmer skeletons in states 04. All guarded by prefers-reduced-motion; no entrance choreography."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Tokens copied verbatim from systems/design-system.html:12-38 (packages/ui tokens.css lineage). Accent appears only on the primary action, selection radio, and send button; status tones ride the tint-pill system. Geometry (btn 26px, pill 19px, lane-tab 40px, listing radius-lg, w2head 44px) matches the exported packages/ui components — no parallel component dialect."
+    }
+  }
+}

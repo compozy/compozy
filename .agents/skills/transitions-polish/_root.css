@@ -1,0 +1,39 @@
+/* transitions-polish — the shared motion-token scale.
+   Copy this :root block into your project once and reference the tokens
+   with var(--…) anywhere (e.g. transition: transform var(--duration-fast)
+   var(--ease-smooth-out)). These are the same tokens the transitions.dev
+   Motion tokens tab exposes. The transitions-dev snippets ship literal
+   values; `transitions polish` maps those values back to these tokens by
+   usage. */
+:root {
+  /* Durations */
+  --duration-stagger: 40ms;  /* per-item stagger offset */
+  --duration-micro: 80ms;  /* tooltip/path delay, shake segment, large stagger */
+  --duration-quick: 150ms;  /* modal/dropdown close, text swap, tooltip appear */
+  --duration-fast: 250ms;  /* icon swap, dropdown/modal open, tabs sliding, page slide */
+  --duration-medium: 350ms;  /* panel close, toast close */
+  --duration-slow: 400ms;  /* panel open, skeleton content reveal, input clear */
+  --duration-very-slow: 500ms;  /* emphasis moments, badge appear, text reveal, success check */
+  /* Easings */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);  /* modal/dropdown/panel open + close, page slide, resize, position change */
+  --ease-in-out: ease-in-out;  /* icon swap, text swap, text reveal, skeleton reveal */
+  --ease-out: ease-out;  /* tooltip open / close */
+  --ease-linear: linear;  /* shimmer, skeleton pulse, spinner */
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);  /* badge pop open */
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);  /* bouncy hover-out (avatar return) */
+  /* Distances */
+  --distance-micro: 4px;  /* text swap */
+  --distance-small: 6px;  /* error shake (small segment) */
+  --distance-base: 8px;  /* badge diagonal reveal, page slide, error shake (large segment) */
+  --distance-medium: 12px;  /* text reveal */
+  --distance-large: 30px;  /* check badge appear */
+  /* Scales */
+  --scale-large: 0.96;  /* modal open / close */
+  --scale-medium: 0.97;  /* dropdown open */
+  --scale-small: 0.98;  /* tooltip open */
+  --scale-tiny: 0.99;  /* dropdown close */
+  /* Blur */
+  --blur-small: 2px;  /* panel reveal, icon swap, text swap, skeleton reveal, number pop-in */
+  --blur-medium: 3px;  /* page slide, text reveal */
+  --blur-large: 8px;  /* success check open */
+}

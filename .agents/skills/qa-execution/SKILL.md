@@ -24,7 +24,7 @@ Three non-negotiables hold every session:
 
 1. **In persona.** Every interaction and every verification goes through a surface a real user can reach — no dev-tools shortcut, no code-reading to decide what should happen, no patching over a stall.
 2. **Proof, not optimism.** A `Pass` is the expected observable seen, confirmed through an independent read path, surviving a refresh, with evidence captured. Optimistic UI is not confirmation.
-3. **Write back or it didn't happen.** Every session updates the tree — charter debrief, `state.csv` verdicts, bug registry, dated report.
+3. **Write back or it didn't happen.** Every session updates the tree — scenario-file verdicts, bug registry, and the dated report carrying the session debrief.
 
 ## Input
 
@@ -35,7 +35,7 @@ Three non-negotiables hold every session:
 Each step names the reference that owns its detail — read it in full when you reach the step; the inline text is the trigger, not the contract.
 
 **Step 1 — Resolve the tree, scope, and preconditions**
-- Read, in order: `<qa-docs-path>/README.md` (entry points, dev-server command, area codes), `state.csv`, open `bugs/`, and this cycle's charters. The tree is the memory; running without reading it recreates the duplication this design kills.
+- Read, in order: `<qa-docs-path>/README.md` (entry points, dev-server command, area codes), the in-scope `scenarios/` files, open `bugs/`, and this cycle's charters. The tree is the memory; running without reading it recreates the duplication this design kills.
 - Scope: a **branch/PR run** covers the journeys its user-visible diff touches plus one adjacent canary — no user-visible change, report that and stop. A **release/full run** covers the journeys the cycle plan marked in scope.
 - Preconditions: the automated suite is green (a precondition, not a QA step — gaps route to `agent-output-audit`) and the product is reachable in a production-parity build (real dev server, real auth, no mocks). Not reachable → name the exact gap and stop.
 - **Done when:** scope is fixed and every precondition is met or its gap is surfaced.
@@ -51,7 +51,7 @@ Each step names the reference that owns its detail — read it in full when you 
 - For each charter, in matrix order: adopt the persona (device, network, locale), enter through its real entry point, and walk the journey verb by verb to its **true end state** — verifying each step against the evidence standard.
 - Hunt **paper cuts** throughout: persona-felt friction no functional check fails; sharp ones become findings.
 - A leg only a human can complete (real payment, external email/SMS, real OAuth) is marked `Blocked (needs human verify)` with exact instructions — never faked.
-- **Done when:** every charter is walked to a recorded verdict, evidence captured at checkpoints and divergences, the debrief appended to the charter file, and the matrix row updated.
+- **Done when:** every charter is walked to a recorded verdict, evidence captured at checkpoints and divergences, the debrief written to the report's Session Debriefs section, and the matrix row updated.
 
 **Step 4 — Run each tour and edge probe**
 - Read `references/tours.md` (the 10-tour catalog and surface-to-tour matrix) and `references/edge-cases.md` (the non-technical user edge cases).
@@ -66,8 +66,8 @@ Each step names the reference that owns its detail — read it in full when you 
 
 **Step 6 — File findings into the registry**
 - Read `../qa-report/references/bug-registry.md` — it owns ids, dedup, and the impact rubric.
-- Dedup first: search `bugs/` and the affected rows' `bug_ids`. Re-found → append `## Re-found`; regressed → reopen with `## Regressed`; only a genuinely new symptom mints a new `BUG-NNNN`.
-- File with the user first — impact tier, persona, journey step, reproduction from the persona's entry point, evidence paths — then link the id into the affected `state.csv` rows.
+- Dedup first: search `bugs/` and the affected scenarios' `bug_ids`. Re-found → append `## Re-found`; regressed → reopen with `## Regressed`; only a genuinely new symptom mints a new `BUG-<YYYYMMDD>-<slug>` id.
+- File with the user first — impact tier, persona, journey step, reproduction from the persona's entry point, evidence paths — then link the id into the affected scenario files.
 - **Done when:** every finding is deduped, filed, and linked to its rows.
 
 **Step 7 — Fix loop (governed)**
@@ -78,7 +78,7 @@ Each step names the reference that owns its detail — read it in full when you 
 **Step 8 — Close the round**
 - Re-read the round-close checklist in `references/status-and-reporting.md`; map matrix verdicts to tracker enums per `../qa-report/references/state-schema.md`.
 - Exit gate: run the project's full automated suite once and record the result verbatim — a green matrix over a red suite is not ready, and Final Status must say so.
-- **Done when:** zero matrix rows are `Pending`, `state.csv` verdicts and bug statuses are current, charter debriefs are appended, and the report's Final Status states release readiness with totals by impact tier — backed by fresh evidence from the current build.
+- **Done when:** zero matrix rows are `Pending`, scenario-file verdicts and bug statuses are current, every session's debrief is in the report, and the report's Final Status states release readiness with totals by impact tier — backed by fresh evidence from the current build.
 
 ## Companion skills
 

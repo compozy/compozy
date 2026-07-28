@@ -1,0 +1,41 @@
+---
+title: "compozy config show"
+description: "Show the redacted effective config"
+---
+
+## compozy config show
+
+Show the redacted effective config
+
+```
+compozy config show [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for show
+      --workspace string   Workspace root whose overlay should be included
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy config show -o json
+```

@@ -1,0 +1,2872 @@
+[
+  {
+    "tool_id": "compozy__agent_create",
+    "native_name": "agent_create",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "514853b2ed481388eae739954450a0bfc55b3c1d862fa9702cc89e4cec4f2da4",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_heartbeat_status",
+    "native_name": "agent_heartbeat_status",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9ce1744f9d68e5117827ae2551d0c08688b3b23f25b32be12d2571c9696cd4dd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_heartbeat_wake",
+    "native_name": "agent_heartbeat_wake",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "46c46b34639a573cf0372613b7c7ca7807b308da8ed619810a564bb44779bc7b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_create",
+    "native_name": "automation_jobs_create",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "5181f25d922ee9cfb4dd33032b45193a55d1edf78510fa2e0fbebd05d73be69f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_delete",
+    "native_name": "automation_jobs_delete",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_disable",
+    "native_name": "automation_jobs_disable",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_enable",
+    "native_name": "automation_jobs_enable",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_get",
+    "native_name": "automation_jobs_get",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_history",
+    "native_name": "automation_jobs_history",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "14c7f4e22bb0e3d4baf2f17bceaf3c556fd5262450e5f3ef6748096c9abf7355",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_list",
+    "native_name": "automation_jobs_list",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2d941919351266e7421aaca202fa130fa3b4876451c301d745fab7e3665ada77",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_trigger",
+    "native_name": "automation_jobs_trigger",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d4a2ddb4001b2f0910705808d05833701160435c552cc28ef5d6315b59e998d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_jobs_update",
+    "native_name": "automation_jobs_update",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d6440dd9b91d4eddf475c88f889e377385a7093eb7b7829d8a0ef04da84514b1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_runs_get",
+    "native_name": "automation_runs_get",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f395e386f7c06ce663b40b91e5ea7c6065d0e6e200d9228ff145903b91ace68b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_runs_list",
+    "native_name": "automation_runs_list",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a323c36739cd68c8c8b8be47ba9f6e441a4db6c9e6d1036d66087bde86f1ec2f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_suggestions_accept",
+    "native_name": "automation_suggestions_accept",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a22b9f2020f009c517101f0e64cc180e83607c8f3ad1f471924217cb61fa6a8d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_suggestions_dismiss",
+    "native_name": "automation_suggestions_dismiss",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "a22b9f2020f009c517101f0e64cc180e83607c8f3ad1f471924217cb61fa6a8d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_suggestions_list",
+    "native_name": "automation_suggestions_list",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d9b5cb0fc77297afcbaa7ce9743338a711cb746d7917ced3181ff0d24d8e6ae",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_create",
+    "native_name": "automation_triggers_create",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "013a38b7b8d521277143d2ce508e5d67a281b8e2427e31f0340b53e4ee33daa8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_delete",
+    "native_name": "automation_triggers_delete",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "3224beb403c47aa95b39914afa8c94bc41a6149dc72e0e55dba4e619d674a2cd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_disable",
+    "native_name": "automation_triggers_disable",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3224beb403c47aa95b39914afa8c94bc41a6149dc72e0e55dba4e619d674a2cd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_enable",
+    "native_name": "automation_triggers_enable",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3224beb403c47aa95b39914afa8c94bc41a6149dc72e0e55dba4e619d674a2cd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_get",
+    "native_name": "automation_triggers_get",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3224beb403c47aa95b39914afa8c94bc41a6149dc72e0e55dba4e619d674a2cd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_history",
+    "native_name": "automation_triggers_history",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "053bbf77a625de2d63be2f1ab4247f0f3847b7f4d56d6dccc3f9ff54425508f6",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_list",
+    "native_name": "automation_triggers_list",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fa48c35aa64e2d1889e94bcc559459008ea7e99567e049187c986dbf6d95cd26",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__automation_triggers_update",
+    "native_name": "automation_triggers_update",
+    "toolsets": [
+      "compozy__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c02aec6ad250a7033a57c912b82a3c4dd6f19ec0e931871219abf31bc835c1ee",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__bridges_list",
+    "native_name": "bridges_list",
+    "toolsets": [
+      "compozy__bridges"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d629eec4936861664284a98cb12fbc8a58b75432121522722c6ed7246e4326c4",
+    "output_schema_digest": "3a9685ace940df52533c5cbc297c30e3510f6099cc721734162c3dc93c59cddd"
+  },
+  {
+    "tool_id": "compozy__bridges_status",
+    "native_name": "bridges_status",
+    "toolsets": [
+      "compozy__bridges"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "632e1da03bff7eca0065d8d9db3af1d7ebcea79ce4ec6e8ac01e1253bb2396e7",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__bundles_activate",
+    "native_name": "bundles_activate",
+    "toolsets": [
+      "compozy__bundles"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "507de9167d897decd2667d654e7561d8c7b85cdd7787817fe41c9ca16cd61bca",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "bundles.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__bundles_deactivate",
+    "native_name": "bundles_deactivate",
+    "toolsets": [
+      "compozy__bundles"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "7717dd85c2e5ff939b47bf9369acc9c59e449e42f2f3bff74058dcd2eea9242d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "bundles.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__bundles_info",
+    "native_name": "bundles_info",
+    "toolsets": [
+      "compozy__bundles"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7717dd85c2e5ff939b47bf9369acc9c59e449e42f2f3bff74058dcd2eea9242d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "bundles.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__bundles_list",
+    "native_name": "bundles_list",
+    "toolsets": [
+      "compozy__bundles"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "bundles.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__bundles_status",
+    "native_name": "bundles_status",
+    "toolsets": [
+      "compozy__bundles"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "bundles.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__clarify",
+    "native_name": "clarify",
+    "toolsets": [
+      "compozy__clarify"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d3fc8dbc692d79635a47d83e5aefc1de78dc7881fa979dfb2d1e2cd143fc4080",
+    "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3"
+  },
+  {
+    "tool_id": "compozy__config_diff",
+    "native_name": "config_diff",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3cdde9782e3d8906ce51dd2b3d84ec1ce370e3dacddd1e91113933fa5afe575b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_get",
+    "native_name": "config_get",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bf9ce5efe45cd676279d01e349f43f93d2fecfeb3d2f6642b4294fe335e2ccf3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_list",
+    "native_name": "config_list",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3cdde9782e3d8906ce51dd2b3d84ec1ce370e3dacddd1e91113933fa5afe575b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_path",
+    "native_name": "config_path",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3ee6f446e8b4bbc0a39cfba5160ee91ef4b25b8a70c2bd1b05a937fac714cb65",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_set",
+    "native_name": "config_set",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e63afd506c0031b67042747401fc1f4cd6776f42356ebd89d37951973ff121cc",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_show",
+    "native_name": "config_show",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3cdde9782e3d8906ce51dd2b3d84ec1ce370e3dacddd1e91113933fa5afe575b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__config_unset",
+    "native_name": "config_unset",
+    "toolsets": [
+      "compozy__config"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "3950082f562ccf41eaeae394d32842001424ecf3fbded342193205508f390e4f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__desktop_clients",
+    "native_name": "desktop_clients",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_create",
+    "native_name": "desktop_create",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ee06de13b3d3516f223f6a625c451b2c1571427f08ecdda2f0918389f73b7091",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_delete",
+    "native_name": "desktop_delete",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "220b44453bbb7c20cd30a69d0e631a5a2683658e8ab608bb4a1c374ab68963b8",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_list",
+    "native_name": "desktop_list",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_reorder",
+    "native_name": "desktop_reorder",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b8ca4e1f3f76fd4e3106c668df5ff30845f8e50828f551c5a60eded305ed2870",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_switch",
+    "native_name": "desktop_switch",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "88e829c67b0ab4aa0537020bf7874a611de411274f1cf92c90a6d02f321beb7f",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__desktop_update",
+    "native_name": "desktop_update",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3dfdea2342ff65ce0863ba4871ccea58e3ed0acf6c7295c2856b58c0b307929a",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__extensions_disable",
+    "native_name": "extensions_disable",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_enable",
+    "native_name": "extensions_enable",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_info",
+    "native_name": "extensions_info",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_install",
+    "native_name": "extensions_install",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1c82d43abe4afd74f34157373e9f80b04c40e80e54724b8671d7f9a9ad426cee",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_list",
+    "native_name": "extensions_list",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_remove",
+    "native_name": "extensions_remove",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_update",
+    "native_name": "extensions_update",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b403d09c19656b86c0aa7b4923ae3a3e5b3751362135c30f5ccc3f616c7d0da7",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__goal_get",
+    "native_name": "goal_get",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c840726baa45061aae99208419e7737527f1c2addac95b2df7e21add1e41f93c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__goal_report",
+    "native_name": "goal_report",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "584385c2ee046656936145d03409503d104b33ae557818b8592598e19ce59cdc",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_create",
+    "native_name": "hooks_create",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1a5330d4189d66fbba4cc0ef05cbf6a1415f7508ece075918caf282611493228",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_delete",
+    "native_name": "hooks_delete",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "8732086775be0a8af450d7af394afd48d31a40fca690732e3227f3a2aba9edfa",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_disable",
+    "native_name": "hooks_disable",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8732086775be0a8af450d7af394afd48d31a40fca690732e3227f3a2aba9edfa",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_enable",
+    "native_name": "hooks_enable",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8732086775be0a8af450d7af394afd48d31a40fca690732e3227f3a2aba9edfa",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_events",
+    "native_name": "hooks_events",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8cdab28da9bee288c215f77f6818c494584dc022bda6f8ddfb6113a8d8f49e13",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_info",
+    "native_name": "hooks_info",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7ab3c4fc58e62b020db6611dd43ccb05ced9640e3279fdff47dec7167f277daf",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_list",
+    "native_name": "hooks_list",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9248d3a02950986c929486df4cd7bb655531d71d06ac90a2174aa0d0aa2e9d88",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_runs",
+    "native_name": "hooks_runs",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4094c094e8964a99e0caf6f0941abd8a06561df7f795a67ba58629be24cd47f2",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__hooks_update",
+    "native_name": "hooks_update",
+    "toolsets": [
+      "compozy__hooks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b3793517145e63240848b4df6fc528c99dd80e49bd8071d456d1f3a95970dad9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__layout_apply",
+    "native_name": "layout_apply",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "29fc31c62b3d620ad2788acee9ea29c52964365f6e71c3728cc580a6643fd006",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_arrange",
+    "native_name": "layout_arrange",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a92ea99048267c6953af2a1fde04aec1b8c930d09bc2b834adc1ed56470dc5e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_balance",
+    "native_name": "layout_balance",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8ea34d583efd300081f466db5525ba476a3624fde5aee16637f10bfa09406bc5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_export",
+    "native_name": "layout_export",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_get",
+    "native_name": "layout_get",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_preview",
+    "native_name": "layout_preview",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "37c4a482e7aa7d97097f9efbf2e901384e889272b99118ac4649e0290b32e5d4",
+    "output_schema_digest": "e013b71d3074f9d0265d7e1ca4a0f9a6440b9a9420036ad10fa1f21014cb0d9c",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_redo",
+    "native_name": "layout_redo",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_resize",
+    "native_name": "layout_resize",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fdde84d529f9354e300aa2255261b158ea2b529d491820b1689cb70a1363778b",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_undo",
+    "native_name": "layout_undo",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8852118eb550996ecd2ee836c98ee90147eae0ce05814dd106f55dfb75bb7e5",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_validate",
+    "native_name": "layout_validate",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7532b8ad9791756e913a517751a655dfd62596cc166b9d8656e4e38357544d8d",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__logs",
+    "native_name": "logs",
+    "toolsets": [
+      "compozy__observe"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f371b9241b5700474a61078a315558a4633d472a757d0d46cd56753b8c04cd86",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_approve",
+    "native_name": "loop_approve",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3eda05f8954ceb7585ea7d4e2f468c3648b140449e5a7c4fb2eddb81fe38ae5c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "loops.approve"
+    ]
+  },
+  {
+    "tool_id": "compozy__loop_configure",
+    "native_name": "loop_configure",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "48df61790afb8fa711478bb46a619e661e21a5fd479e71533068193323eb779b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_create",
+    "native_name": "loop_create",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c61c9ef31b8ec49a4fa5c3258132f96c8adb3438cb9e9200e87749a869cf8c65",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_delete",
+    "native_name": "loop_delete",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "815c90182ef2e26614bca37baf49851f98992cf21185cad52f27dfb589218bc0",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_inspect",
+    "native_name": "loop_inspect",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "815c90182ef2e26614bca37baf49851f98992cf21185cad52f27dfb589218bc0",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_list",
+    "native_name": "loop_list",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c840726baa45061aae99208419e7737527f1c2addac95b2df7e21add1e41f93c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_pause",
+    "native_name": "loop_pause",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_resume",
+    "native_name": "loop_resume",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_run",
+    "native_name": "loop_run",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9ce5afc27527701ebc80ce18b967d9cebe75faa1e2b8ec916ec209c147a8cdd0",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_runs",
+    "native_name": "loop_runs",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "976f6b9f34f5d6dabb60d3c9ec42138c0d723edc2ec28c76444da6d1d9d187a3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_status",
+    "native_name": "loop_status",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_stop",
+    "native_name": "loop_stop",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_turns",
+    "native_name": "loop_turns",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f39fa7a128e7484e65fb3a2880e4110cdcf223ef87ba9a27c6b1996cbf717966",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__loop_validate",
+    "native_name": "loop_validate",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6f0758f9fed99cf36d56aa54acd66447af88e6837941598f08ab9475eaa28565",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__marketplace_search",
+    "native_name": "marketplace_search",
+    "toolsets": [
+      "compozy__marketplace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8b39a95d459030f952bcb61ed38929c664977517ec9e9b04e3b8a0b4f9965144",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__mcp_auth_status",
+    "native_name": "mcp_auth_status",
+    "toolsets": [
+      "compozy__mcp_auth"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0a1469f2fb25c7713de4d09feb5d497248f75df2772a82e2e391ecbb74fa5202",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__mcp_status",
+    "native_name": "mcp_status",
+    "toolsets": [
+      "compozy__mcp"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0a1469f2fb25c7713de4d09feb5d497248f75df2772a82e2e391ecbb74fa5202",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_admin_history",
+    "native_name": "memory_admin_history",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e2d128cd26f784b03e455bd8b01be47465e8528e9b55bc072f253879f654ed0d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_daily_list",
+    "native_name": "memory_daily_list",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "5cd49399e4d889dbf54903b6925fd8d718fcb568fbe619f4729e2b0c4537983d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_decisions_list",
+    "native_name": "memory_decisions_list",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8ce769b5397a36a8c7627faf138d1ebda62f9f74dae8c8b30387c3c1a3502953",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_decisions_revert",
+    "native_name": "memory_decisions_revert",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "1ebc71da39fee08d3c6217f26fcc0589e0383c60fa4e4b4580331cd10bab9781",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_decisions_show",
+    "native_name": "memory_decisions_show",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3ba7b254a10cadc259d202cc360e88cef2f56a37e98a7fe1d4fdcdf6415955eb",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_dream_list",
+    "native_name": "memory_dream_list",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "519d1091c00dd8cad97755a3a05328e487dd7ace8f3ccc03d9b2f349156bf253",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_dream_retry",
+    "native_name": "memory_dream_retry",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e6d3d9d835be730588c3071ccbfa763ccc45cd3b3fba1023dc74475dacfbb42a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_dream_show",
+    "native_name": "memory_dream_show",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a8d551544bc0db89fbeeeb2578aadaedd3d49e17b6a0983ba7949d98ce5792a8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_dream_status",
+    "native_name": "memory_dream_status",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_dream_trigger",
+    "native_name": "memory_dream_trigger",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c3592af63a0e1e9db1fb830021f202b0135afc270b37b249e4887c7e67580899",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_extractor_drain",
+    "native_name": "memory_extractor_drain",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_extractor_failures",
+    "native_name": "memory_extractor_failures",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_extractor_retry",
+    "native_name": "memory_extractor_retry",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "da543c69bf81797a066d5aff24fd3dd14125fab30b85299b440092fc60c133be",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_extractor_status",
+    "native_name": "memory_extractor_status",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_health",
+    "native_name": "memory_health",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4fc1ac13358b080f0a3ab0fe57647f24961aa372d6fb7ad4a47912a30e082e9b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_list",
+    "native_name": "memory_list",
+    "toolsets": [
+      "compozy__memory"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "afbeb8f6b95d86196e500636406fa4aaf6419a5b394a18b01b7b8ca5a1c0cc3c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_note",
+    "native_name": "memory_note",
+    "toolsets": [
+      "compozy__memory"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1df1ca9f14b429414d254877fae3387ec9526663053fe3ba1f6c895981099adf",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_promote",
+    "native_name": "memory_promote",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6f054127a2dfde17a37630c929502ba45c5d7a7bddf3cee785cbcd64982c8d5d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_propose",
+    "native_name": "memory_propose",
+    "toolsets": [
+      "compozy__memory"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4f0bcbe703de259dd7f3f9fe2c3aae6a9a6209d483a652b2d36c25111c2544bd",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_provider_disable",
+    "native_name": "memory_provider_disable",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6026f48805acbe57f5b6c1a46147a7bd61b96d2fbb7a5ccd18c86d8e069d7f19",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_provider_enable",
+    "native_name": "memory_provider_enable",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6026f48805acbe57f5b6c1a46147a7bd61b96d2fbb7a5ccd18c86d8e069d7f19",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_provider_get",
+    "native_name": "memory_provider_get",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2a4cdcfe790b4a3305e724929546471eda74ae3181c86e017be6a9018722b1bb",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_provider_list",
+    "native_name": "memory_provider_list",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "5cbece859b6ee0fcc570b237cc51a118fb92797235bb8fe98e263c979ee6289e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_provider_select",
+    "native_name": "memory_provider_select",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2a4cdcfe790b4a3305e724929546471eda74ae3181c86e017be6a9018722b1bb",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_recall_trace",
+    "native_name": "memory_recall_trace",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "81176e7ac6a9f271e7b0dd78001080a3c926e7d74393668befcc49d5ac7ec061",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_reindex",
+    "native_name": "memory_reindex",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c1172d6bf936d1c142dc0abd6c739a35d52d9bc8086df9c5635c829c3669f514",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_reload",
+    "native_name": "memory_reload",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "20613c9605652147184f644b05382ced600669654f77f9c6cd3ecec0a4e246d3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_reset",
+    "native_name": "memory_reset",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "34b4cac1bb1af949d23d4a76631cb30d4cfd2041515385d38c3d004140554781",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_scope_show",
+    "native_name": "memory_scope_show",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "20613c9605652147184f644b05382ced600669654f77f9c6cd3ecec0a4e246d3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_search",
+    "native_name": "memory_search",
+    "toolsets": [
+      "compozy__memory"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "994ef7b3941137509e8fc4c7faf0053c2299477a9915e3992391b528c0cc2ffc",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_session_ledger",
+    "native_name": "memory_session_ledger",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d37b6ee67efebfd4e0e8c13fe921fb5678f1319df679edb6faa7a75aaf3deea9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_session_replay",
+    "native_name": "memory_session_replay",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7f2f4868163c1f5b805129a5136739c9a1fb4e0f2a46bac7b9f0100955e08d79",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_sessions_prune",
+    "native_name": "memory_sessions_prune",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "39161ddff085175d5bfc3275e5d942e9cae79e91b104032e95814f21f47fdce1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_sessions_repair",
+    "native_name": "memory_sessions_repair",
+    "toolsets": [
+      "compozy__memory_admin"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__memory_show",
+    "native_name": "memory_show",
+    "toolsets": [
+      "compozy__memory"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7f8fdc4e22ee207848d71d44607b924bd3b9b73dfac5530821ac7e8e38f92133",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_channel_create",
+    "native_name": "network_channel_create",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8b6447ba6bedf58133825557f13c7eb5602d2e06df865f60f2c38896617d32c8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_channel_update",
+    "native_name": "network_channel_update",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "378274efe2f352e5d5f1772a52a457ae0c2792fcf7502a032f865bf71e9d531a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_channels",
+    "native_name": "network_channels",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f827053faea4dc50743113cee55b451ecd3cb825d85d2c7fec5739c299dedaf2",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_direct_messages",
+    "native_name": "network_direct_messages",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "87fc3bfb91eb54fd00caf83710d09dd56ed76cb05d3def2f8f3de6de33975a7e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_direct_resolve",
+    "native_name": "network_direct_resolve",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "99922f76a78e4dec7f8f75bd5831932b6a45007fd68e4af4624d28b40b31beca",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_directs",
+    "native_name": "network_directs",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "97f673553b462ab039ad37d886441937fedf8a0aeb2e689838f9cb29856a90ad",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_inbox",
+    "native_name": "network_inbox",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b16922e89f02362ad4cb433a55d658f0a0522524bd66f26b06ac61e59944de64",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_mute",
+    "native_name": "network_mute",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c5849dfa33460ddd1c7d2a7d1e628a0c59505aaef62ddbcd6035d74c07ac6e2c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_peers",
+    "native_name": "network_peers",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4fe4eb167bd3774ce180cec171a2287dab7ef8cba6bb2d48734e0b72e346035b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_send",
+    "native_name": "network_send",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "open_world",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "a486c6328014a119ec4f23556345f9cbdce8676c823498bbc7a651e82e5ee88c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_status",
+    "native_name": "network_status",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_subscribe",
+    "native_name": "network_subscribe",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c5849dfa33460ddd1c7d2a7d1e628a0c59505aaef62ddbcd6035d74c07ac6e2c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_subscriptions",
+    "native_name": "network_subscriptions",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6790389bc3475b47900ed4bca049e31eeca356dca36c613696e5a98a8c81b944",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_thread_messages",
+    "native_name": "network_thread_messages",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1fdd35990207feaf953ca51404efd7ac27d9e76a438f21af14f089b262a15d6f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_threads",
+    "native_name": "network_threads",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "97f673553b462ab039ad37d886441937fedf8a0aeb2e689838f9cb29856a90ad",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_unmute",
+    "native_name": "network_unmute",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "c5849dfa33460ddd1c7d2a7d1e628a0c59505aaef62ddbcd6035d74c07ac6e2c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_usage",
+    "native_name": "network_usage",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0926c023942a0a7e2bb25095cffdb0d4efdaa7ed81b95cd6b9026d4aa4ddd174",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__network_work",
+    "native_name": "network_work",
+    "toolsets": [
+      "compozy__coordination"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f291b9ae6eb296ffed5b32bfcea050aba1db4c1cdd41cbfcca9bae78b216c5a8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__observe_metrics",
+    "native_name": "observe_metrics",
+    "toolsets": [
+      "compozy__observe"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__observe_search",
+    "native_name": "observe_search",
+    "toolsets": [
+      "compozy__observe"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "42f7e0244defb9b898b07d427d8a5a2581c06ccb2679b23cd8822d4bf0ea5aae",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__provider_models_curate",
+    "native_name": "provider_models_curate",
+    "toolsets": [
+      "compozy__provider_models"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a4691b273ff24b936aad410578168bfa55cfaa879274a125f89513e44511dc32",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "providers.models.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__provider_models_list",
+    "native_name": "provider_models_list",
+    "toolsets": [
+      "compozy__provider_models"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6e8cd10a0d6310340b63ba8a2e3ce71a70b34f8fad09ee26416ec95cd8cdd580",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__provider_models_refresh",
+    "native_name": "provider_models_refresh",
+    "toolsets": [
+      "compozy__provider_models"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f3f8fdcde6d1fb679bd8cc298fd1068448f79d8641cebed01b3a0992510cda0b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__provider_models_status",
+    "native_name": "provider_models_status",
+    "toolsets": [
+      "compozy__provider_models"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9e76351640bce7c48226a1465c9dc573d2cb2d2e0f5cd084e967173565f22e24",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__resources_info",
+    "native_name": "resources_info",
+    "toolsets": [
+      "compozy__resources"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "418955fb869a206eb9cfbd0785a3c62dbb13d1684d5189a7d0ea6a0f3e944400",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "resources.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__resources_list",
+    "native_name": "resources_list",
+    "toolsets": [
+      "compozy__resources"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bcaf29b2c9c13d599af20dade0c2db926bd6b29afb5b8609b02508af0db327a2",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "resources.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__resources_snapshot",
+    "native_name": "resources_snapshot",
+    "toolsets": [
+      "compozy__resources"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bcaf29b2c9c13d599af20dade0c2db926bd6b29afb5b8609b02508af0db327a2",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "required_capabilities": [
+      "resources.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__session_describe",
+    "native_name": "session_describe",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0007e16af0344865490cc2de58d99728a9bb0e1c1c821bf302f858319b1aad14",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__session_events",
+    "native_name": "session_events",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0007e16af0344865490cc2de58d99728a9bb0e1c1c821bf302f858319b1aad14",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__session_health",
+    "native_name": "session_health",
+    "toolsets": [
+      "compozy__authored_context",
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d37b6ee67efebfd4e0e8c13fe921fb5678f1319df679edb6faa7a75aaf3deea9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__session_history",
+    "native_name": "session_history",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0007e16af0344865490cc2de58d99728a9bb0e1c1c821bf302f858319b1aad14",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__session_list",
+    "native_name": "session_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f674e12153b1a019aba76dd8323e03f91a78410ebc6c2d10f55f1dd06572d9a9",
+    "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
+  },
+  {
+    "tool_id": "compozy__session_status",
+    "native_name": "session_status",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d37b6ee67efebfd4e0e8c13fe921fb5678f1319df679edb6faa7a75aaf3deea9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__skill_list",
+    "native_name": "skill_list",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b576b669ff1173c17dba80e6ac04d8242863d0b6db40c0f529e2f7e7a2683f96",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__skill_search",
+    "native_name": "skill_search",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d20241200027e74f2045ef7210d06fae4586ed95b709b34bb16e2089c948637",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__skill_view",
+    "native_name": "skill_view",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c6dd7f9995e690ae566eccfd2abf6eb067b9ca71788adb532672a98f06ed7d3e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_block",
+    "native_name": "task_block",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "50c8d8509b39f402f0a23eaef1b66deccf7aea4334c86ca028406c99d60892ee",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_blocks",
+    "native_name": "task_blocks",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1eeb78a5628df964f61153c469d3fa8d2a73c2a0edc6a0ff02f123c3c289a09b",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_cancel",
+    "native_name": "task_cancel",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "e746120334868be7c605a8234e460de157b28ccaf2bdafc5bc7e77f2858034bc",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_child_create",
+    "native_name": "task_child_create",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9c5ddfe97c72bb572b01106975cdb88b093f76f78169ea0349f76bbbac2282c0",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_create",
+    "native_name": "task_create",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "f447ddbedf84e415db9c0bc560636cf16385a2ff95af612781a2d393b912d543",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_execution_profile_delete",
+    "native_name": "task_execution_profile_delete",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "431e26a88d577077723820e7389f30b8b2847662b288660765f727c5d85a2a37",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_execution_profile_get",
+    "native_name": "task_execution_profile_get",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "431e26a88d577077723820e7389f30b8b2847662b288660765f727c5d85a2a37",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_execution_profile_set",
+    "native_name": "task_execution_profile_set",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0627968053cc0b4932fead39b20b98fa2c4e0fde2811a9a58d03fe701da301c5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_fanout_runs",
+    "native_name": "task_fanout_runs",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "6007801c7c5ff33b00601ca7634ba0abeaca0c84cbab1ceff98bf64be6378017",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_list",
+    "native_name": "task_list",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "af8b0ae26b3fc39ba84fc9e1d1303a1a87e2d6a14fa7ec119b69dffcf3fb7366",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_notification_delete",
+    "native_name": "task_notification_delete",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "207d69681ea56e9d4c9241a533e5e12388b0a5026afde237c9b300212ac3a036",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_notification_list",
+    "native_name": "task_notification_list",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8e337c1ff9bf611fadb5fae2ff0cdb1c355298788a54d0f4a63d3ff684dffe5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_notification_show",
+    "native_name": "task_notification_show",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "207d69681ea56e9d4c9241a533e5e12388b0a5026afde237c9b300212ac3a036",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_notification_subscribe",
+    "native_name": "task_notification_subscribe",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7c56a4799ab8df65f8548e06fe3e6186f53614623753cc13a7d15fea9e35b105",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_promote_from_thread",
+    "native_name": "task_promote_from_thread",
+    "toolsets": [
+      "compozy__coordination",
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a12f97598990cc2b8711a7c925964c9f82d850c3240a68500f2a5797cdce4e91",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_read",
+    "native_name": "task_read",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "431e26a88d577077723820e7389f30b8b2847662b288660765f727c5d85a2a37",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_recover",
+    "native_name": "task_recover",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1a3a65a76b779c3f4e38ed7d51432ff083756af575a46f4349a31fec9827c422",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_claim_next",
+    "native_name": "task_run_claim_next",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9d1dbb8f0c87d196a4d20d6b4bf27b2a2fe18b4b7d33bdf45268d455a6a61ce9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_complete",
+    "native_name": "task_run_complete",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ea6c7d2ebc40fc37fc32e8c87ad61a09783b83233aa2edcdd423165ddb527266",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_fail",
+    "native_name": "task_run_fail",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "466c4fa508a923eb30b69e79a9d5e5d1634b6a176757b9c57467119c4ab02fc3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_heartbeat",
+    "native_name": "task_run_heartbeat",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8afec8dbe7982d3c37a3fe0dc03b3772f42f6d103303dd6f0fa63b420eb1c101",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_list",
+    "native_name": "task_run_list",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1dc356ca4cf703744f2af168f472376af009e732fce29a71dc414fefbb56cd08",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_release",
+    "native_name": "task_run_release",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "be1727d26b4f8f9d200acade6ce7a139df8ff3791cf93925c95358e459f203c1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_review_list",
+    "native_name": "task_run_review_list",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "3ca263d5e3920c3c01705701933b221da283f138d3a8b86c753f9c222ea7f9cf",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_review_request",
+    "native_name": "task_run_review_request",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "03f8a1d91343342e1d5a96eacbe38d1da6068437b21a820b37754504e957364c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_review_show",
+    "native_name": "task_run_review_show",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55ad5d0134d88fe04e705bc2b372c519768c14ac0151f75a63679641322ba84c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_run_review_submit",
+    "native_name": "submit_run_review",
+    "toolsets": [
+      "compozy__autonomy"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "423412b105350a48f57ade498b1b851ae0d906c43a73ef71b1e30e26bc13e5d1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_unblock",
+    "native_name": "task_unblock",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d56ae5ebed07f06e22967fbb4c7b0f176ab3c8670de48f49062ca1176f44bce1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_update",
+    "native_name": "task_update",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "dc26481c6e9c9a64a57287487816d0641409335903a22f261c15e1a2c3fdc6a5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__tool_approvals_list",
+    "native_name": "tool_approvals_list",
+    "toolsets": [
+      "compozy__tool_approvals"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "3d750b2dc16b309abb31cea95ce64c346c916c0b3487b4f26bcd6b9bf753b132"
+  },
+  {
+    "tool_id": "compozy__tool_approvals_revoke",
+    "native_name": "tool_approvals_revoke",
+    "toolsets": [
+      "compozy__tool_approvals"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "7c1d95c93ebc31a382c2e7717a2da69e601f07ae721e7f457e6108f3b7b3916f",
+    "output_schema_digest": "776165c33f7f9f762cc0905864e8aa1dd3e54b5405201216633c71ac7fa785d1"
+  },
+  {
+    "tool_id": "compozy__tool_approvals_set",
+    "native_name": "tool_approvals_set",
+    "toolsets": [
+      "compozy__tool_approvals"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "3a42e16a53d49d6a480c0fa6b009f555a1e31aa12439c6a96d58e2dcbfa45058",
+    "output_schema_digest": "4ebe51593c78a5ca95b966ffada02c6db31c8208b830e052f6b20073e32ec083"
+  },
+  {
+    "tool_id": "compozy__tool_artifact_read",
+    "native_name": "tool_artifact_read",
+    "toolsets": [
+      "compozy__bootstrap",
+      "compozy__tool_artifacts"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ec03f93ab0a10581f28dc6712edf27c2c0cbf5f113f01b7d9650f5265a1b6c42",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__tool_info",
+    "native_name": "tool_info",
+    "toolsets": [
+      "compozy__bootstrap",
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "22d04ef76dee5d69342c98a31fe534691175c72719aa416dd069e7e8b3fcd9c3",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__tool_list",
+    "native_name": "tool_list",
+    "toolsets": [
+      "compozy__bootstrap",
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "5b34b5c3cade6f26e027e6f76f1af339915b10193210b8b133e56fe76a8cd5e8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__tool_search",
+    "native_name": "tool_search",
+    "toolsets": [
+      "compozy__bootstrap",
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "235b68f12aa4b9763d295705e9fe8170b86623970f5decd3e16e4468e0f0598a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__window_close",
+    "native_name": "window_close",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "dac4ae7425bec23c05fde7f1e2c7e9c1601c55295dd89561e0f490b1a750c0fe",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_float",
+    "native_name": "window_float",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "485669a4f468a71f90f1cdf8c8c7bae77254f757eca62a06ad5b73401bc982c9",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_focus",
+    "native_name": "window_focus",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bad4802e550ce4d0a9a9ec02084326075ce7921e8a144bee392d233b69ffe91b",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_list",
+    "native_name": "window_list",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "57fc521df3d46ee13a02411a7cfa3b323052c2beb0ea33997ddde7ce092f7efb",
+    "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
+    "required_capabilities": [
+      "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_move",
+    "native_name": "window_move",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "60eb80414430a2f8987c27ec39cd7c88814141fde8e6105cf628999888f1f0b7",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_navigate",
+    "native_name": "window_navigate",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bbacde2fc12797f07150eb5c82c0ab7f42b7dd45485e6a5a2561ff9d7e901761",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_open",
+    "native_name": "window_open",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a3245fef549390943ca44196df2346f4b06cfba07923da8f405b60484ca1158c",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_swap",
+    "native_name": "window_swap",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "58668ccbdec2329c5753589e28bc4d85b314a84309479ee46ab8dcca6673026d",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_zoom",
+    "native_name": "window_zoom",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ad28f2d0bf31d96ce980a4bb8281ce6f6be613f5aca192f638af3651fd001577",
+    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__workspace_describe",
+    "native_name": "workspace_describe",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8ac96eb02703fd4cc12c2e5af2d1892766bab4ad1db27d5de71d7c4990262bfe",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__workspace_info",
+    "native_name": "workspace_info",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8ac96eb02703fd4cc12c2e5af2d1892766bab4ad1db27d5de71d7c4990262bfe",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__workspace_list",
+    "native_name": "workspace_list",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  }
+]

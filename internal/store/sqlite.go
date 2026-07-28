@@ -5,26 +5,34 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-
-	// Register the pure-Go SQLite driver used by database/sql in this package.
-	_ "modernc.org/sqlite"
 )
 
-var (
-	checkpointSQLiteWAL = Checkpoint
-	closeSQLiteHandle   = func(db *sql.DB) error { return db.Close() }
-)
-
-// OpenSQLiteDatabase opens a SQLite database, applies shared configuration,
-// and retries once after moving aside a corrupt file.
+// OpenSQLiteDatabase opens a SQLite database and applies shared configuration.
 func OpenSQLiteDatabase(
 	ctx context.Context,
 	path string,
+	initialize func(context.Context, *sql.DB) error,
+) (*sql.DB, error) {
+	return openSQLiteDatabaseWithPragmas(ctx, path, nil, initialize)
+}
+
+// OpenSQLiteDatabaseWithPragmas opens a SQLite database with additional driver-level pragmas.
+func OpenSQLiteDatabaseWithPragmas(
+	ctx context.Context,
+	path string,
+	pragmas []string,
+	initialize func(context.Context, *sql.DB) error,
+) (*sql.DB, error) {
+	return openSQLiteDatabaseWithPragmas(ctx, path, pragmas, initialize)
+}
+
+func openSQLiteDatabaseWithPragmas(
+	ctx context.Context,
+	path string,
+	pragmas []string,
 	initialize func(context.Context, *sql.DB) error,
 ) (*sql.DB, error) {
 	cleanPath := strings.TrimSpace(path)
@@ -34,27 +42,13 @@ func OpenSQLiteDatabase(
 	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
 		return nil, fmt.Errorf("store: create database directory for %q: %w", cleanPath, err)
 	}
-
-	db, err := openSQLiteDatabaseOnce(ctx, cleanPath, initialize)
-	if err == nil {
-		return db, nil
-	}
-	if !ShouldRecoverSQLite(err) {
-		return nil, err
-	}
-	if _, statErr := os.Stat(cleanPath); statErr != nil {
-		return nil, err
-	}
-	if _, recoverErr := recoverSQLiteDatabase(cleanPath); recoverErr != nil {
-		return nil, errors.Join(err, fmt.Errorf("store: recover sqlite database %q: %w", cleanPath, recoverErr))
+	if err := probeExistingSQLiteDatabase(ctx, cleanPath); err != nil {
+		return nil, classifySQLiteOpenError(cleanPath, err)
 	}
 
-	db, reopenErr := openSQLiteDatabaseOnce(ctx, cleanPath, initialize)
-	if reopenErr != nil {
-		return nil, errors.Join(
-			err,
-			fmt.Errorf("store: reopen sqlite database %q after recovery: %w", cleanPath, reopenErr),
-		)
+	db, err := openSQLiteDatabaseOnce(ctx, cleanPath, initialize, pragmas...)
+	if err != nil {
+		return nil, classifySQLiteOpenError(cleanPath, err)
 	}
 	return db, nil
 }
@@ -63,175 +57,56 @@ func openSQLiteDatabaseOnce(
 	ctx context.Context,
 	path string,
 	initialize func(context.Context, *sql.DB) error,
+	extraPragmas ...string,
 ) (*sql.DB, error) {
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
-	if err != nil {
-		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
+	if initialize != nil {
+		initializationDB, err := openSQLiteHandle(ctx, path, sqliteInitializationDSN(path))
+		if err != nil {
+			return nil, err
+		}
+		if err := initialize(ctx, initializationDB); err != nil {
+			primaryErr := fmt.Errorf("store: initialize sqlite database %q: %w", path, err)
+			return nil, closeSQLiteAfterError(
+				initializationDB,
+				primaryErr,
+				fmt.Sprintf("initialized database %q after initialization failure", path),
+			)
+		}
+		if err := initializationDB.Close(); err != nil {
+			return nil, fmt.Errorf("store: close initialized sqlite database %q: %w", path, err)
+		}
 	}
 
-	db.SetMaxOpenConns(defaultMaxOpenConns)
-	db.SetMaxIdleConns(defaultMaxIdleConns)
-
-	if err := db.PingContext(ctx); err != nil {
-		closeQuietly(db)
-		return nil, fmt.Errorf("store: ping sqlite database %q: %w", path, err)
+	db, err := openSQLiteHandle(ctx, path, sqliteDSN(path, extraPragmas...))
+	if err != nil {
+		return nil, err
 	}
 	if err := configureSQLite(ctx, db); err != nil {
-		closeQuietly(db)
-		return nil, fmt.Errorf("store: configure sqlite database %q: %w", path, err)
-	}
-	if initialize != nil {
-		if err := initialize(ctx, db); err != nil {
-			closeQuietly(db)
-			return nil, fmt.Errorf("store: initialize sqlite database %q: %w", path, err)
-		}
+		primaryErr := fmt.Errorf("store: configure sqlite database %q: %w", path, err)
+		return nil, closeSQLiteAfterError(
+			db,
+			primaryErr,
+			fmt.Sprintf("database %q after configuration failure", path),
+		)
 	}
 
 	return db, nil
 }
 
-func sqliteDSN(path string) string {
-	slashPath := filepath.ToSlash(path)
-	// url.URL requires an absolute path starting with "/" to produce the
-	// three-slash form "file:///...". On Windows, filepath.IsAbs returns true
-	// for drive-letter paths (e.g. "C:\..."), but filepath.ToSlash yields
-	// "C:/..." which url.URL serializes as "file://C:/..." — the SQLite URI
-	// parser then interprets "C:" as the network authority rather than a drive
-	// letter. Prepend "/" only for absolute paths that lack one; relative paths
-	// are left unchanged so callers that pass relative paths are unaffected.
-	if filepath.IsAbs(path) && !strings.HasPrefix(slashPath, "/") {
-		slashPath = "/" + slashPath
-	}
-	u := url.URL{
-		Scheme: "file",
-		Path:   slashPath,
-	}
-	query := u.Query()
-	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
-	query.Add("_pragma", "foreign_keys(ON)")
-	query.Add("_pragma", "journal_mode(WAL)")
-	query.Add("_pragma", "synchronous(NORMAL)")
-	// Begin write transactions with BEGIN IMMEDIATE so concurrent writers (e.g.
-	// parallel multi-run children) acquire the WAL write lock upfront and wait on
-	// busy_timeout instead of deadlocking on a read-to-write upgrade, which SQLite
-	// reports as an immediate SQLITE_BUSY that busy_timeout cannot retry.
-	query.Add("_txlock", "immediate")
-	u.RawQuery = query.Encode()
-	return u.String()
-}
-
-func configureSQLite(ctx context.Context, db *sql.DB) error {
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA busy_timeout = %d", defaultBusyTimeoutMS)); err != nil {
-		return err
-	}
-
-	mode, err := querySingleString(ctx, db, "PRAGMA journal_mode = WAL")
+func openSQLiteHandle(ctx context.Context, path string, dsn string) (*sql.DB, error) {
+	db, err := sql.Open(sqliteDriverName, dsn)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
 	}
-	if !strings.EqualFold(mode, "wal") {
-		return fmt.Errorf("store: sqlite journal_mode = %q, want wal", mode)
+	db.SetMaxOpenConns(defaultMaxOpenConns)
+	db.SetMaxIdleConns(defaultMaxIdleConns)
+	if err := db.PingContext(ctx); err != nil {
+		primaryErr := fmt.Errorf("store: ping sqlite database %q: %w", path, err)
+		return nil, closeSQLiteAfterError(
+			db,
+			primaryErr,
+			fmt.Sprintf("database %q after ping failure", path),
+		)
 	}
-
-	if _, err := db.ExecContext(ctx, "PRAGMA synchronous = NORMAL"); err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func querySingleString(ctx context.Context, db *sql.DB, stmt string) (string, error) {
-	var value string
-	if err := db.QueryRowContext(ctx, stmt).Scan(&value); err != nil {
-		return "", err
-	}
-	return value, nil
-}
-
-// ShouldRecoverSQLite reports whether the open error indicates recoverable corruption.
-func ShouldRecoverSQLite(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	message := strings.ToLower(err.Error())
-	for _, marker := range []string{
-		"not a database",
-		"database disk image is malformed",
-		"malformed database schema",
-		"malformed",
-		"file is encrypted or is not a database",
-	} {
-		if strings.Contains(message, marker) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Checkpoint truncates the WAL for an open SQLite database.
-func Checkpoint(ctx context.Context, db *sql.DB) error {
-	if db == nil {
-		return nil
-	}
-	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		return fmt.Errorf("store: checkpoint sqlite wal: %w", err)
-	}
-	return nil
-}
-
-// CloseSQLiteDatabase checkpoints the WAL before closing the database handle.
-func CloseSQLiteDatabase(ctx context.Context, db *sql.DB) error {
-	if db == nil {
-		return nil
-	}
-	if ctx == nil {
-		return errors.New("store: close context is required")
-	}
-
-	checkpointErr := checkpointSQLiteWAL(ctx, db)
-	closeErr := closeSQLiteHandle(db)
-	switch {
-	case checkpointErr == nil && closeErr == nil:
-		return nil
-	case checkpointErr == nil:
-		return fmt.Errorf("store: close sqlite database: %w", closeErr)
-	case closeErr == nil:
-		return checkpointErr
-	default:
-		return errors.Join(checkpointErr, fmt.Errorf("store: close sqlite database: %w", closeErr))
-	}
-}
-
-func recoverSQLiteDatabase(path string) (string, error) {
-	corruptPath := fmt.Sprintf("%s.corrupt.%s", path, time.Now().UTC().Format("20060102T150405.000000000Z0700"))
-	if err := os.Rename(path, corruptPath); err != nil {
-		return "", err
-	}
-	for _, suffix := range []string{"-wal", "-shm"} {
-		if err := renameSQLiteCompanion(path+suffix, corruptPath+suffix); err != nil {
-			return "", err
-		}
-	}
-	return corruptPath, nil
-}
-
-func renameSQLiteCompanion(source string, target string) error {
-	if err := os.Rename(source, target); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
-func closeQuietly(db *sql.DB) {
-	if db != nil {
-		_ = db.Close()
-	}
+	return db, nil
 }

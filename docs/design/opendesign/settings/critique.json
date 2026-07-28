@@ -1,0 +1,40 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "date": "2026-07-21",
+  "head_contract": "os-v2 unified head (os/pagehead-redesign.html) applied to all 9 settings sections: topbar + icon-tile page head replaced by drill-in w2head (back chevron + trail Settings / <Section>, max 1 primary + overflow); old head desc/meta demoted to a 12px subhead line (.subhead, or .pagesub in settings-memory where .subhead was taken; settings-network renamed its in-content .subhead to .adv-subhead). Real actions preserved (e.g. New provider); live states stay in content boards, never duplicated in the head. settings-design-system.html intentionally left on the old pattern as the catalog of it.",
+  "scope": [
+    "settings-design-system.html",
+    "settings-general.html",
+    "settings-providers.html",
+    "settings-skills.html",
+    "settings-hooks.html",
+    "settings-extensions.html",
+    "settings-network.html",
+    "settings-automation.html",
+    "settings-observability.html",
+    "settings-memory.html"
+  ],
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "One decision per row with a consequence sentence; jargon chips demoted to Advanced-only provchips; save semantics named per model (draft / per-item / immediate)."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Takeover shell removes the dual-rail problem; head → groups → Advanced → save bar reads top-down; 768px form column vs 960px listing column."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "Canon scale verbatim: 1.4rem/600/-.028em titles, 13px/500 row labels, 12px muted descriptions ≤52ch, mono reserved for values/provenance."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "State-only motion at 140ms canon easing: save bar appears when dirty, sheet slides 200ms, switch knob 140ms, disclosure chevron rotate; prefers-reduced-motion kills all."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Tokens verbatim from packages/ui lineage; accent restricted to active nav item, primary action and Default pill (state); selection state neutral glaze per radio-card canon."
+    }
+  }
+}

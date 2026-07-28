@@ -1,0 +1,81 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "auto-title-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You exercise automatic title lifecycle behavior.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "primary-title-model",
+                    "values": [
+                        {
+                            "value": "primary-title-model",
+                            "label": "Primary title model"
+                        },
+                        {
+                            "value": "fallback-title-model",
+                            "label": "Fallback title model"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "parent-response",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Implement checkout retry fencing"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "auto-title-edit-failed",
+                            "title": "Edit checkout retry fencing",
+                            "tool_kind": "edit",
+                            "path": "checkout/retry.go",
+                            "raw_input": {
+                                "path": "checkout/retry.go"
+                            },
+                            "status": "failed",
+                            "content_text": "edit rejected"
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Implemented checkout retry fencing."
+                        }
+                    ]
+                },
+                {
+                    "name": "title-response",
+                    "match": {
+                        "turn_source": "synthetic",
+                        "user_text": "Implement checkout retry fencing\n\nAssistant response:\nImplemented checkout retry fencing."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Checkout Retry Fencing"
+                        }
+                    ]
+                },
+                {
+                    "name": "post-acceptance-parent-response",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Implement post-acceptance fencing"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Implemented post-acceptance fencing."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

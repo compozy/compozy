@@ -1,5 +1,6 @@
 {
-    "extends": "../tsconfig.base.json",
+    "include": ["**/*.ts", "**/*.tsx"],
+    "exclude": ["node_modules", "dist", ".tmp", "storybook-static", "coverage", "scripts"],
     "compilerOptions": {
         "target": "ES2022",
         "jsx": "react-jsx",
@@ -19,13 +20,5 @@
         "paths": {
             "@/*": ["./src/*"]
         }
-    },
-    "include": [
-        "src/**/*.ts",
-        "src/**/*.tsx",
-        ".storybook/**/*.ts",
-        "vite.config.ts",
-        "vitest.config.ts"
-    ],
-    "exclude": ["dist", "coverage", "node_modules"]
+    }
 }

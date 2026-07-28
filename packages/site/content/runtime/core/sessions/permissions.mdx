@@ -1,0 +1,248 @@
+---
+title: Permissions
+description: How Compozy applies static permission modes, workspace boundaries, and interactive approvals during session execution.
+---
+
+Compozy applies permissions in two layers:
+
+1. a daemon-side static policy for built-in ACP tool surfaces
+2. an interactive approval flow for ACP `session/request_permission`
+
+Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
+
+When provider-native tool interception is active, Compozy may keep the upstream ACP session in an
+approval-mediated mode so provider-native tool calls return through the Compozy execution gateway
+before any real side effect. That does not change the configured policy outcome:
+`approve-all` still auto-allows, `approve-reads` still auto-allows reads only, and `deny-all`
+still auto-rejects at the execution boundary.
+
+## Permission modes
+
+Compozy supports three static modes:
+
+| Mode            | Static behavior                                                                       |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `deny-all`      | Compozy auto-allows none of the built-in file or terminal operations.                 |
+| `approve-reads` | Compozy auto-allows `fs/read_text_file` only.                                         |
+| `approve-all`   | Compozy auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. |
+
+### Defaults and overrides
+
+The current built-in default configuration is:
+
+```toml
+[permissions]
+mode = "approve-all"
+```
+
+That global mode can be overridden by an agent definition. Dream sessions are forced to
+`approve-all` regardless of the configured mode.
+
+If a session somehow reaches startup with no resolved permission string at all, the session manager
+falls back to `approve-reads` instead of launching with an empty policy.
+
+## What the static policy actually covers
+
+These are the built-in operations Compozy checks directly:
+
+| Operation            | `deny-all` | `approve-reads` | `approve-all` |
+| -------------------- | ---------- | --------------- | ------------- |
+| `fs/read_text_file`  | blocked    | allowed         | allowed       |
+| `fs/write_text_file` | blocked    | blocked         | allowed       |
+| `terminal/create`    | blocked    | blocked         | allowed       |
+
+Static auto-allow is only one part of the full story. Compozy still enforces workspace scoping and
+network-turn restrictions after the mode check passes.
+
+## Workspace boundaries
+
+Every permission decision is evaluated relative to the session workspace root.
+
+Compozy resolves paths carefully:
+
+- absolute paths are checked directly
+- relative paths are resolved under the workspace root
+- existing paths are resolved through symlinks
+- missing paths are resolved through the first existing ancestor
+
+If the final path escapes the workspace root, Compozy rejects it with a path-outside-workspace error.
+
+## Network-originated turn restrictions
+
+Network-originated turns are stricter than normal user turns, even under `approve-all`.
+
+Current daemon-side restrictions:
+
+- `fs/write_text_file` is blocked for network turns
+- `terminal/create` is only allowed for a narrow allowlist of `compozy network ...` commands
+
+This is enforced after the normal mode check.
+
+## Interactive approval flow
+
+Agents can also ask for permission explicitly with ACP `session/request_permission`.
+
+That flow behaves like this:
+
+1. the agent sends a permission request with one or more offered outcomes
+2. Compozy checks the workspace boundary first
+3. Compozy either auto-selects an outcome or records a pending permission event
+4. a client approves or rejects it
+5. Compozy returns the selected ACP outcome to the agent
+
+### Auto decisions vs pending decisions
+
+| Session mode    | Request kind                   | Immediate result |
+| --------------- | ------------------------------ | ---------------- |
+| `approve-all`   | any valid in-workspace request | `allow-once`     |
+| `approve-reads` | ACP read request               | `allow-once`     |
+| `approve-reads` | non-read ACP request           | pending approval |
+| `deny-all`      | any ACP request                | `reject-once`    |
+
+Outside-workspace requests are rejected immediately instead of becoming pending.
+
+### Decisions clients can send
+
+The approval request body accepts these decisions:
+
+- `allow-once`
+- `allow-always`
+- `reject-once`
+- `reject-always`
+
+Example HTTP approval:
+
+```bash
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/approve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_id": "req-42",
+    "turn_id": "turn-9abc",
+    "decision": "allow-always"
+  }'
+```
+
+Success response:
+
+```json
+{
+  "status": "approved"
+}
+```
+
+### Approval timeout
+
+Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
+Compozy resolves the request as `reject-once`.
+
+### What `allow-always` and `reject-always` mean
+
+For a generic ACP permission request, Compozy picks the closest option offered by the agent and returns
+it. The agent runtime owns the long-lived meaning of "always" for that request.
+
+Native tools routed through Compozy's approval gateway have an additional daemon-owned contract.
+Selecting `allow-always` or `reject-always` stores an exact workspace + agent + tool + input-digest
+decision. The next matching invocation uses that decision before prompting, and the decision
+survives daemon restart. Operators and agents can inspect or revoke these records through Web,
+`compozy tool approvals`, HTTP/UDS, or the `compozy__tool_approvals_*` native tools. This does not change ACP
+subprocess permissions or sandbox policy. See [Policy and Invocation](/runtime/core/tools/policy-and-invocation#remembered-native-tool-decisions).
+
+## Permission events
+
+Permission requests and resolutions are visible in both prompt streams and persisted session
+history.
+
+Example canonical permission payload:
+
+```json
+{
+  "schema": "compozy.session.event.v1",
+  "type": "permission",
+  "session_id": "acp-session-77",
+  "turn_id": "turn-9abc",
+  "request_id": "req-42",
+  "timestamp": "2026-04-16T01:22:00Z",
+  "action": "session/request_permission",
+  "resource": "/absolute/path/to/repo/internal/session/manager.go",
+  "decision": "allow-always",
+  "title": "Write file",
+  "tool_call_id": "tool-call-7",
+  "raw": {
+    "tool_call": {
+      "kind": "edit",
+      "title": "Write file"
+    }
+  }
+}
+```
+
+If a request is still pending, the initial permission event is recorded with no final `decision`
+yet. The resolved decision appears when approval completes.
+
+## Current transport status
+
+Interactive approval is exposed differently across Compozy transports today:
+
+| Transport | Status                                                                           |
+| --------- | -------------------------------------------------------------------------------- |
+| HTTP      | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
+| UDS       | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
+| CLI       | implemented at `compozy session approve <id>`                                    |
+
+That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
+surface today.
+
+## Clarification questions are not approvals
+
+`compozy__clarify` lets an active managed session ask one bounded question and wait for an operator.
+It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
+requests, approval decisions, or remembered native-tool grants. One session can have at most one
+pending clarification.
+
+The question may offer up to four unique choices or accept free text. The HTTP/UDS wire uses a
+zero-based `choice_index`; the CLI presents one-based choice numbers:
+
+```bash
+compozy session clarify pending <session-id> -o json
+compozy session clarify answer <session-id> <request-id> --choice 1 -o json
+compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
+```
+
+HTTP and UDS use the same workspace-scoped routes:
+
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/clarifications`
+- `POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer`
+
+The live pending list is exact daemon truth. Durable `clarify` events preserve the pending,
+resolved, timed-out, and canceled transitions for timeline and audit. Timeout returns exactly
+`{"choice":null,"text":"","fallback":true}`; stopping the session or daemon cancels the wait.
+
+## Practical configuration example
+
+Global default in `~/.compozy/config.toml`:
+
+```toml
+[permissions]
+mode = "approve-reads"
+```
+
+Per-agent override in an `AGENT.md` definition:
+
+```text
+---
+name: reviewer
+provider: codex
+permissions: deny-all
+---
+
+Review code changes and explain the risk.
+```
+
+Use the global default for the team baseline, then override individual agents only when they need a
+different safety envelope. There is no `compozy session new --permissions` flag today, and the session
+create HTTP payload does not currently accept a permissions override either.
+
+## Next steps
+
+- Use [Session Lifecycle](/runtime/core/sessions/lifecycle) to see where approvals fit into create, active, and stop behavior.
+- Use [Event Streaming](/runtime/core/sessions/events) to follow `permission` events and audit what happened in one session.

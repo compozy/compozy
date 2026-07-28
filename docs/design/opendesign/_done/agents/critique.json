@@ -1,0 +1,32 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "scope": "provider-model-reasoning-selector.html — impeccable layout pass: quieter reasoning slider, 4pt spacing rhythm, edge-anchored labels",
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "Model list is the primary surface of the popup again; the reasoning footer reads as one quiet control row. Slider labels raised from subtle to muted (≥4.5:1 on the tinted footer) with fg-strong on the active stop."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Track slimmed 28→16px (hero 20px), thumb 22→20px (hero 26px) with lighter rings, so the accent fill is a state indicator rather than the loudest element. Section separation widened to a 44px beat against tight in-group spacing."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "No scale changes; label contrast corrected. Head row (eyebrow + mono provider·model + source badge) unchanged from production reasoning-bar.tsx."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "Same spring commit + 1:1 drag; halo and scale feedback reduced (scale 1.05, 5-6px tint rings) to match the smaller control. Reduced-motion fallback intact."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Product register per impeccable: restrained accent budget (fill + selected row only), popup/trigger geometry untouched from agent-detail.html parity. rzbar padding normalized to 14/16 with 12px head gap; page rhythm on the 4pt scale."
+    }
+  },
+  "validation": {
+    "structural": "pass — tag balance matched, inline script passes node --check, 958 lines",
+    "rendered": "skipped — OD render helper known-blocked in this environment; user preview is the visual check",
+    "known_deltas": "Slider replaces the production rzseg pressed group by design; edge slider labels anchor flush to track ends instead of centering on end stops (prevents overflow and ragged edges)"
+  }
+}

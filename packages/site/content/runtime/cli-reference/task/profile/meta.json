@@ -1,0 +1,4 @@
+{
+    "title": "Profile",
+    "pages": ["index", "delete", "inspect", "update"]
+}

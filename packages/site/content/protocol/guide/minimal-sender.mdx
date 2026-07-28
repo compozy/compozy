@@ -1,0 +1,78 @@
+---
+title: Minimal Sender
+description: Build the smallest Compozy Network sender by constructing and validating one envelope before choosing a carrier.
+icon: Send
+---
+
+This tutorial produces one valid `say` envelope as UTF-8 JSON. Transport, runtime participation,
+and trust are intentionally outside the example.
+
+## Envelope shape
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+)
+
+type Envelope struct {
+	Protocol    string         `json:"protocol"`
+	ID          string         `json:"id"`
+	WorkspaceID string         `json:"workspace_id"`
+	Kind        string         `json:"kind"`
+	Channel     string         `json:"channel"`
+	Surface     string         `json:"surface"`
+	ThreadID    string         `json:"thread_id"`
+	From        string         `json:"from"`
+	To          *string        `json:"to"`
+	TS          int64          `json:"ts"`
+	Body        map[string]any `json:"body"`
+	Proof       map[string]any `json:"proof"`
+}
+
+func main() {
+	now := time.Now().UTC().Unix()
+	envelope := Envelope{
+		Protocol:    "compozy-network/v0",
+		ID:          fmt.Sprintf("msg_demo_%d", now),
+		WorkspaceID: "ws_alpha",
+		Kind:        "say",
+		Channel:     "builders",
+		Surface:     "thread",
+		ThreadID:    "thread_minimal_demo",
+		From:        "sender.demo",
+		TS:          now,
+		Body:        map[string]any{"text": "Hello from a minimal sender."},
+	}
+	payload, err := json.MarshalIndent(envelope, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "encode envelope: %v\n", err)
+		os.Exit(1)
+	}
+	if _, err := os.Stdout.Write(append(payload, '\n')); err != nil {
+		fmt.Fprintf(os.Stderr, "write envelope: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+## Validate before delivery
+
+Check that the protocol is exactly `compozy-network/v0`, workspace and IDs are non-empty, channel and
+peer IDs match their grammars, `surface:"thread"` pairs with `thread_id`, and `body.text` is not
+blank. `proof:null` means unverified v0 content.
+
+```bash
+go run ./minimal-sender.go
+```
+
+The program proves only that you can produce JSON. Next, implement receiver fixtures and bind the
+validated envelope to a carrier owned by your runtime. Carrier routing must preserve the envelope's
+IDs and correlation fields.
+
+Continue with [Testing Your Implementation](/protocol/guide/testing/) or the optional
+[Trust Verification](/protocol/guide/trust-verification/) guide.

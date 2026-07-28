@@ -1,0 +1,39 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "automation-runner",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You handle automation and delegated task E2E scenarios.",
+            "turns": [
+                {
+                    "name": "webhook-deploy-review",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Review payload deploy for main"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Automation review completed for deploy on main."
+                        }
+                    ]
+                },
+                {
+                    "name": "task-session-follow-up",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Continue delegated task run"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Delegated task session responded."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

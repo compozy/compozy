@@ -1,0 +1,361 @@
+package config
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
+)
+
+func TestLoopsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should load delivery and watch config defaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+
+		assertLoopDefaultConfig(t, "delivery", cfg.Loops.Defaults.Delivery, loopDefaultWant{
+			iterationCap:     50,
+			noProgressWindow: 3,
+			gateMaxRevisions: 10,
+			budgetTokens:     0,
+			budgetWallSec:    0,
+			budgetOnExceeded: string(dsl.BudgetExceededHalt),
+			fanOutWidth:      4,
+		})
+		assertLoopDefaultConfig(t, "watch", cfg.Loops.Defaults.Watch, loopDefaultWant{
+			iterationCap:     0,
+			noProgressWindow: 2,
+			gateMaxRevisions: 0,
+			budgetTokens:     0,
+			budgetWallSec:    0,
+			budgetOnExceeded: string(dsl.BudgetExceededHalt),
+			fanOutWidth:      2,
+		})
+	})
+
+	t.Run("Should apply global and workspace overlays with zero values preserved", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		workspaceRoot := t.TempDir()
+
+		writeFile(t, homePaths.ConfigFile, `
+[loops.defaults.delivery]
+iteration_cap = 40
+fan_out_width = 3
+
+[loops.defaults.delivery.no_progress]
+window = 2
+
+[loops.defaults.delivery.gates]
+max_revisions = 9
+
+[loops.defaults.delivery.runtime_defaults.worker]
+model = "global-worker"
+
+[loops.defaults.delivery.runtime_defaults.judge]
+model = "global-judge"
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
+complexity = "high"
+[loops.defaults.delivery.runtime_rules.runtime]
+model = "global-complexity-model"
+
+[loops.defaults.delivery.budget]
+tokens = 100
+wall_clock_sec = 60
+on_exceeded = "escalate"
+
+[loops.defaults.watch]
+iteration_cap = 1
+fan_out_width = 1
+
+[loops.defaults.watch.no_progress]
+window = 1
+
+[loops.defaults.watch.runtime_defaults.judge]
+model = "global-watch-judge"
+
+[loops.inputs.review-and-fix]
+auto_commit = false
+retries = 0
+reviewer = ""
+`)
+		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[loops.defaults.delivery]
+iteration_cap = 0
+fan_out_width = 2
+
+[loops.defaults.delivery.budget]
+tokens = 0
+on_exceeded = "halt"
+
+[loops.defaults.delivery.runtime_defaults.worker]
+model = "workspace-worker"
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
+type = "frontend"
+[loops.defaults.delivery.runtime_rules.runtime]
+model = "workspace-frontend-model"
+
+[loops.defaults.watch]
+fan_out_width = 5
+
+[loops.defaults.watch.no_progress]
+window = 4
+
+[loops.defaults.watch.gates]
+max_revisions = 7
+
+[loops.defaults.watch.runtime_defaults.judge]
+model = "workspace-watch-judge"
+
+[loops.inputs.review-and-fix]
+auto_commit = true
+fixer = ""
+`)
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+
+		assertLoopDefaultConfig(t, "delivery", cfg.Loops.Defaults.Delivery, loopDefaultWant{
+			iterationCap:     0,
+			noProgressWindow: 2,
+			gateMaxRevisions: 9,
+			budgetTokens:     0,
+			budgetWallSec:    60,
+			budgetOnExceeded: string(dsl.BudgetExceededHalt),
+			fanOutWidth:      2,
+			workerModel:      "workspace-worker",
+			judgeModel:       "global-judge",
+		})
+		assertLoopDefaultConfig(t, "watch", cfg.Loops.Defaults.Watch, loopDefaultWant{
+			iterationCap:     1,
+			noProgressWindow: 4,
+			gateMaxRevisions: 7,
+			budgetTokens:     0,
+			budgetWallSec:    0,
+			budgetOnExceeded: string(dsl.BudgetExceededHalt),
+			fanOutWidth:      5,
+			judgeModel:       "workspace-watch-judge",
+		})
+		rules := cfg.Loops.Defaults.Delivery.RuntimeRules
+		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
+			rules[1].Match.Type != "frontend" || rules[1].Runtime.Model != "workspace-frontend-model" {
+			t.Fatalf("delivery runtime rules = %#v, want ordered global/workspace rules", rules)
+		}
+		globalInputs, workspaceInputs := cfg.Loops.InputDefaultLayers("review-and-fix")
+		if got, ok := workspaceInputs["auto_commit"]; !ok || got != true {
+			t.Fatalf("workspace auto_commit = %#v/%v, want explicit true", got, ok)
+		}
+		if got, ok := globalInputs["retries"]; !ok || got != int64(0) {
+			t.Fatalf("global retries = %#v/%v, want explicit int64(0)", got, ok)
+		}
+		if got, ok := globalInputs["reviewer"]; !ok || got != "" {
+			t.Fatalf("global reviewer = %#v/%v, want explicit empty string", got, ok)
+		}
+		if got, ok := workspaceInputs["fixer"]; !ok || got != "" {
+			t.Fatalf("workspace fixer = %#v/%v, want explicit empty string", got, ok)
+		}
+		if _, leaked := globalInputs["auto_commit"]; leaked {
+			t.Fatalf("global inputs expose shadowed auto_commit: %#v", globalInputs)
+		}
+	})
+
+	t.Run("Should reject retired model defaults with migration guidance", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+[loops.defaults.delivery.model_defaults.worker]
+model = "opus"
+`)
+
+		_, err = LoadForHome(homePaths)
+		if err == nil || !strings.Contains(err.Error(), "model_defaults") ||
+			!strings.Contains(err.Error(), "MIGRATION_GUIDE.md#per-task-runtime-selection") {
+			t.Fatalf("LoadForHome() error = %v, want retired-key migration guidance", err)
+		}
+	})
+}
+
+func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		path      []string
+		value     any
+		wantError string
+	}{
+		{
+			name:      "Should reject delivery fan out above compile-time ceiling",
+			path:      []string{"loops", "defaults", "delivery", "fan_out_width"},
+			value:     loopDefaultsMaxFanoutWidth + 1,
+			wantError: "loops.defaults.delivery.fan_out_width",
+		},
+		{
+			name:      "Should reject watch no-progress above compile-time ceiling",
+			path:      []string{"loops", "defaults", "watch", "no_progress", "window"},
+			value:     loopDefaultsMaxNoProgressWindow + 1,
+			wantError: "loops.defaults.watch.no_progress.window",
+		},
+		{
+			name:      "Should reject gate revisions above compile-time ceiling",
+			path:      []string{"loops", "defaults", "delivery", "gates", "max_revisions"},
+			value:     dsl.GateMaxRevisionsCeiling + 1,
+			wantError: "loops.defaults.delivery.gates.max_revisions",
+		},
+		{
+			name:      "Should reject invalid budget on exceeded policy",
+			path:      []string{"loops", "defaults", "delivery", "budget", "on_exceeded"},
+			value:     "ignore",
+			wantError: "loops.defaults.delivery.budget.on_exceeded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+			if err != nil {
+				t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+			}
+
+			_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue(tt.path, tt.value)
+			})
+			if err == nil {
+				t.Fatal("EditConfigOverlay() error = nil, want validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("EditConfigOverlay() error = %v, want path %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path []string
+		kind ValueKind
+	}{
+		{
+			name: "Should allow delivery fan out defaults",
+			path: []string{"loops", "defaults", "delivery", "fan_out_width"},
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow watch budget policy defaults",
+			path: []string{"loops", "defaults", "watch", "budget", "on_exceeded"},
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow delivery worker runtime defaults",
+			path: []string{"loops", "defaults", "delivery", "runtime_defaults", "worker", "model"},
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow dynamic per Loop input defaults",
+			path: []string{"loops", "inputs", "review-and-fix", "auto_commit"},
+			kind: ConfigValueScalar,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy, err := ClassifyToolConfigPath(tt.path)
+			if err != nil {
+				t.Fatalf("ClassifyToolConfigPath() error = %v", err)
+			}
+			if policy.Denial != ConfigPathAllowed {
+				t.Fatalf("ClassifyToolConfigPath() denial = %q, want allowed", policy.Denial)
+			}
+			if policy.Kind != tt.kind {
+				t.Fatalf("ClassifyToolConfigPath() kind = %v, want %v", policy.Kind, tt.kind)
+			}
+		})
+	}
+}
+
+type loopDefaultWant struct {
+	iterationCap     int
+	noProgressWindow int
+	gateMaxRevisions int
+	budgetTokens     int
+	budgetWallSec    int
+	budgetOnExceeded string
+	fanOutWidth      int
+	workerModel      string
+	judgeModel       string
+}
+
+func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, want loopDefaultWant) {
+	t.Helper()
+
+	if got.IterationCap != want.iterationCap {
+		t.Fatalf("%s IterationCap = %d, want %d", label, got.IterationCap, want.iterationCap)
+	}
+	if got.NoProgress.Window != want.noProgressWindow {
+		t.Fatalf("%s NoProgress.Window = %d, want %d", label, got.NoProgress.Window, want.noProgressWindow)
+	}
+	if got.Gates.MaxRevisions != want.gateMaxRevisions {
+		t.Fatalf("%s Gates.MaxRevisions = %d, want %d", label, got.Gates.MaxRevisions, want.gateMaxRevisions)
+	}
+	if got.Budget.Tokens != want.budgetTokens {
+		t.Fatalf("%s Budget.Tokens = %d, want %d", label, got.Budget.Tokens, want.budgetTokens)
+	}
+	if got.Budget.WallClockSec != want.budgetWallSec {
+		t.Fatalf("%s Budget.WallClockSec = %d, want %d", label, got.Budget.WallClockSec, want.budgetWallSec)
+	}
+	if got.Budget.OnExceeded != want.budgetOnExceeded {
+		t.Fatalf("%s Budget.OnExceeded = %q, want %q", label, got.Budget.OnExceeded, want.budgetOnExceeded)
+	}
+	if got.FanOutWidth != want.fanOutWidth {
+		t.Fatalf("%s FanOutWidth = %d, want %d", label, got.FanOutWidth, want.fanOutWidth)
+	}
+	if got.RuntimeDefaults.Worker.Model != want.workerModel {
+		t.Fatalf(
+			"%s RuntimeDefaults.Worker.Model = %q, want %q",
+			label,
+			got.RuntimeDefaults.Worker.Model,
+			want.workerModel,
+		)
+	}
+	if got.RuntimeDefaults.Judge.Model != want.judgeModel {
+		t.Fatalf(
+			"%s RuntimeDefaults.Judge.Model = %q, want %q",
+			label,
+			got.RuntimeDefaults.Judge.Model,
+			want.judgeModel,
+		)
+	}
+}

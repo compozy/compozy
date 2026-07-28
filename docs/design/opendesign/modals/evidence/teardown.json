@@ -1,0 +1,8 @@
+{
+  "clean": true,
+  "owned_server_session": 63343,
+  "port": 4173,
+  "result": "The owned static server exited after Ctrl-C when the single CDP capture batch could not start.",
+  "process_probe": "lsof found no listener on 127.0.0.1:4173 after teardown.",
+  "capture_result": "No PNGs produced because chrome-launcher was unavailable before Chrome launch."
+}

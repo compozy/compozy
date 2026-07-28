@@ -1,0 +1,4 @@
+{
+    "title": "Clients",
+    "pages": ["index", "list", "register", "unregister"]
+}

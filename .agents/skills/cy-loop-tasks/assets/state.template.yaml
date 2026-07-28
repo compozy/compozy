@@ -1,0 +1,34 @@
+# cy-loop-tasks state file. Created by .agents/skills/cy-loop-tasks/scripts/init-state.py.
+# All fields are mutated only by .agents/skills/cy-loop-tasks/scripts/update-state.py. Never hand-edit.
+slug: ""
+created_at: ""        # RFC3339 UTC
+last_updated: ""      # RFC3339 UTC
+mode: ""              # tasks | free
+iteration: 0
+goal_signature: ""    # canonical text the user pasted in CODEX_LOOP goal=
+frontend_agent: null  # claude | cursor | null; set once via init-state.py --frontend
+
+tasks:                # populated only when mode == tasks
+  total: 0
+  completed: []
+  current: null
+  pending: []
+
+progress:             # populated only when mode == free
+  deliverables_complete: false
+  checklist: []       # entries: {text, status: pending|in_progress|completed, iteration}
+
+qa:
+  report_done: false
+  execution_done: false
+
+review:
+  rounds: 0           # closed deep-review rounds
+  last_verdict: null  # SHIP | FIX_BEFORE_SHIP | REWORK | null
+  ship: false         # true once a round closes with verdict SHIP
+
+verify:
+  last_run: null      # RFC3339 UTC
+  last_status: null   # PASS | FAIL | null
+
+iterations: []        # append-only log; capped at last 50 by update-state.py

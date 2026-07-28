@@ -1,0 +1,146 @@
+---
+title: "Designing a dark UI without shadows: Compozy's flat depth model"
+description: "Drop shadows muddy dark UIs. Compozy replaces them with a warm surface ramp, translucent hairlines, and inset focus rings — enforced by tokens and a lint rule."
+date: 2026-05-20
+category: design
+tags:
+  - design-system
+  - dark-mode
+  - tokens
+  - tailwind
+  - lint
+author: pedronauck
+archetype:
+  primary: launch
+audience: engineer-adopter
+depth:
+  opening: R1
+  body: R2-R3 with R5 dive
+  closing: R1
+  traversal: staircase
+status: publishable
+---
+
+## Why shadows fail in dark UIs
+
+A drop shadow assumes light. Place an element above a white page and the shadow reads as physical depth — the eye expects the world to behave that way. Place the same shadow over a near-black canvas at `#131211` and the eye gets ambiguous information: the shadow lives in the same luminance band as the surface it tries to lift, so it reads as smear rather than separation. Stack three or four of those shadows across cards, popovers, headers, and dropdowns, and the screen turns into a haze.
+
+Compozy is a local operator console for long-running agent work — the kind of UI that an engineer stares at for an entire afternoon. Haze on that surface costs more than aesthetics. It costs scan speed, focus visibility, and the operator's ability to tell apart a card, a hovered row, and a selected row at a glance. The flat depth model exists to remove that cost.
+
+Compozy's flat depth model substitutes shadow-based elevation with four parts: a warm surface ramp, translucent hairlines, inset focus rings, and a token contract that holds them as the single source of truth — protected by a lint rule that rejects every inline workaround.
+
+## The warm surface ramp
+
+Depth in Compozy comes from the canvas, not from light. The runtime ships six luminance steps that climb from the rail to the most elevated surface, all sharing one warm brown-black hue. The eye reads the climb as ordered planes because the hue stays constant while luminance steps remain perceptually even.
+
+The six steps live in `packages/ui/src/tokens.css`:
+
+| Token                 | Hex       | Intended use                                         |
+| --------------------- | --------- | ---------------------------------------------------- |
+| `--color-rail`        | `#0c0b0b` | Workspace rail; the deepest plane behind every shell |
+| `--color-canvas`      | `#131211` | Default page background                              |
+| `--color-canvas-soft` | `#1a1918` | Cards, popovers, sidebar surfaces                    |
+| `--color-canvas-tint` | `#1c1b1a` | Subtle separation from `canvas-soft`                 |
+| `--color-elevated`    | `#232220` | Active and prominent surfaces                        |
+| `--color-disabled`    | `#4a4847` | Disabled foreground only — not a surface plane       |
+
+_Six warm-dark luminance steps form the depth ladder. The hue stays constant; luminance climbs in perceptually even intervals so the ramp reads as ordered planes when surfaces stack._
+
+The ramp does the work a shadow used to do. A card on `canvas-soft` separates from a page on `canvas` because the lighter plane sits higher in the luminance order. A modal-style surface on `elevated` reads higher still. The reader never has to interpret blur radius, x/y offset, or shadow color — luminance alone carries the order.
+
+`DESIGN.md` §2 holds this rationale: _"Color carries state. The warm ramp separates shell, page, grouped surfaces, and active surfaces without decorative depth."_ Hue choice is also operator-protective — extended sessions feel less harsh on warm-dark than on cool slate or pure black.
+
+## Hairlines, not borders
+
+The ramp separates planes. Hairlines edge them. Compozy binds three hairline tokens, all translucent white at low alpha so the line layers consistently across every step of the ramp:
+
+| Token                 | Value                        | Intended use                                   |
+| --------------------- | ---------------------------- | ---------------------------------------------- |
+| `--color-line-soft`   | `rgba(255, 255, 255, 0.03)`  | Quiet seams, table-row dividers                |
+| `--color-line`        | `rgba(255, 255, 255, 0.055)` | Default surface edge — cards, popovers, inputs |
+| `--color-line-strong` | `rgba(255, 255, 255, 0.09)`  | Active rings, selected rims, emphasized seams  |
+
+_Three translucent-white alpha tiers form the hairline system, baselined against the warm ramp. Because the line is alpha-on-canvas, it stays optically consistent whether the underlying surface is `--color-rail` or `--color-elevated`._
+
+A solid `#222` border behaves differently on `canvas` than on `elevated` — it muddies one plane while disappearing on another. A translucent-white hairline lifts the same amount from every surface beneath it, so a card edge on the deepest rail and a card edge on the brightest elevated plane both read as the same kind of seam. Hairlines replace borders everywhere except the form-control focus ring, which graduates to the strong tier when the control is active.
+
+## Focus rings live inside the surface
+
+Keyboard navigation is the load-bearing case for visible depth. Most dark UIs solve it with an outer glow — a soft drop shadow in an accent color. The flat depth model refuses to introduce a glow just for focus, so the focus ring lives inside the surface.
+
+`tokens.css` declares four ring shapes, each routed through the hairline tier:
+
+| Token                            | Shape                                      |
+| -------------------------------- | ------------------------------------------ |
+| `--shadow-focus-ring`            | `0 0 0 1px var(--color-line-strong)`       |
+| `--shadow-focus-ring-soft`       | `0 0 0 1px var(--color-line-soft)`         |
+| `--shadow-focus-ring-inset`      | `inset 0 0 0 1px var(--color-line-strong)` |
+| `--shadow-focus-ring-inset-soft` | `inset 0 0 0 1px var(--color-line-soft)`   |
+
+_Four focus-ring tokens; each is a 1px solid hairline routed through `box-shadow`. The inset variants paint inside the element bounds — used by cards, accordions, and list items where an outer ring would crash into a neighbor._
+
+The ring uses `box-shadow` only as a delivery mechanism for a stable line; the underlying value is still a hairline color from the same alpha tier. Two consequences follow. First, the focus ring never adds blur to the surface — it stays a sharp 1px edge that scales identically across the six ramp steps. Second, surfaces that pack tightly (lists, accordions, segmented controls) can wear the inset variant and never collide with the next row's outer ring.
+
+## Tokens are the only source of truth
+
+The pattern has one rule: every plane, every seam, every ring resolves through a `--color-*`, `--shadow-*`, or `--text-*` token declared in `packages/ui/src/tokens.css`. Raw hex is acceptable only in the token source itself or in generated artifacts that cannot read CSS variables.
+
+`tokens.css` exports inside Tailwind v4's `@theme` block, which means Tailwind generates the bare utility (`bg-canvas-soft`, `text-fg`, `shadow-focus-ring`) _and_ exposes the variable globally (`var(--color-canvas-soft)`). Consumers never see two ways to spell the same value — the utility and the variable are the same compiled output.
+
+`DESIGN.md` (repo root) is the generated counterpart. It mirrors the token tables verbatim between `<!-- BEGIN:tokens:* -->` markers, so the spec table for "Surface ramp" cannot drift from the runtime tokens. `make codegen` regenerates `DESIGN.md` from `tokens.css`; `make codegen-check` blocks any commit that lets the two views disagree. `COPY.md` is the verbal counterpart of the same contract — `DESIGN.md` governs how a surface looks; `COPY.md` governs what it is allowed to say.
+
+The contract holds because the substitution is mechanical. If a card's background needs to lift one plane, the change is `bg-canvas` → `bg-canvas-soft`, not a hand-picked hex. If a hairline needs to climb a tier, the change is `border-line` → `border-line-strong`, not a guessed alpha. The system reduces every visual decision to a token name.
+
+## A lint rule, not a style guide
+
+A style guide is advisory. A lint rule is unbuildable-if-violated. Compozy's design system runs through `lint-plugins/compozy-design-system.mjs`, an oxlint plugin that scans JSX for the patterns the token system is supposed to make unreachable.
+
+The eyebrow rule is the cleanest specimen. The canonical eyebrow contract is **Inter UC 11px / 600 / -0.005em**, bound to `--text-eyebrow` and `--tracking-eyebrow` in `tokens.css`. Any consumer that needs an uppercase metadata label renders through `<Eyebrow>` from `@compozy/ui` or applies the `.eyebrow` utility on a structural HTML element (`<dt>`, `<label>`, `<th>`). The rule rejects every other path:
+
+```js
+// lint-plugins/compozy-design-system.mjs — the no-inline-eyebrow predicate
+function isViolation(value) {
+  if (DELETED_EYEBROW_UTILITY_RE.test(value)) return true;
+  const tokens = splitClassTokens(value);
+  const hasMono = tokens.includes("font-mono");
+  const hasUpper = tokens.includes("uppercase");
+  if (hasMono && hasUpper) return true;
+  if (hasUpper && (ARBITRARY_TEXT_RE.test(value) || ARBITRARY_TRACKING_RE.test(value))) {
+    return true;
+  }
+  // ... arbitrary text-[N] / tracking-[N] tuples paired with font-mono
+  return false;
+}
+```
+
+_One predicate catches three drift paths: deleted utility classes (`eyebrow-badge`, `eyebrow-micro`), inline `font-mono` + `uppercase` tuples, and arbitrary `text-[…]` / `tracking-[…]` overrides paired with `uppercase`._
+
+The same plugin carries `no-design-glaze-rgba` (forbids inline `bg-[rgba(255,255,255,0.0NN)]` literals in favor of named glaze tokens like `bg-row-hover`, `bg-surface-glaze`, `bg-input-fill`), `no-banned-imports` (forbids Lucide loader glyphs in favor of `<Spinner>`), and `no-inline-design-tuples` (forbids the open-coded 22px page-H1 tuple). Each rule names the token-aligned replacement inside its error message. The lint message _is_ the migration path.
+
+## What 124 typography callsites taught about consolidation
+
+The eyebrow rule is narrow on purpose. The system landed there only after an audit found **124 separate eyebrow callsites** across `web/`, `packages/site/`, and `packages/ui/` — roughly half going through the `<Eyebrow>` primitive, the other half inlining the same idea by hand with five distinct tuples in active use (`text-[10.5px] tracking-wider`, `text-eyebrow tracking-mono`, `text-badge tracking-badge`, hard-coded `text-[11px]` inside chat primitives, arbitrary `text-[10px] tracking-[0.08em]` inside dialogs).
+
+The pattern observation generalises: a design token without a primitive invites callsite drift; a primitive with a wide prop matrix invites the same drift one layer up. The first revision of `<Eyebrow>` carried `case`, `family`, `tone`, `size`, and `weight` props. With that many switches, callsites still picked the wrong combination and the JetBrains-Mono contract leaked into surfaces that needed the Inter UC contract. The fan-out of variants was the drift surface.
+
+The system now ships one primitive with no variant props, one CSS utility, one Inter UC contract. `DESIGN.md` §3 names the contract; `tokens.css` declares `--text-eyebrow` and `--tracking-eyebrow`; the lint rule rejects every other path. Color is the only knob a consumer can turn — `text-(--muted)`, `text-(--subtle)`, `text-(--accent)` — passed through `className`.
+
+The transferable observation: when a typographic primitive proliferates faster than the design system can govern it, the move is not more props on the primitive. It is fewer.
+
+## The honest tradeoff
+
+The flat depth model has a cost. A per-component shadow lets a single designer reach for any blur radius, any offset, any alpha to solve a local separation problem. The token contract takes that freedom away. Once `--shadow-overlay` is the only overlay shape, every modal, every menu, every popover wears the same depth — and components that "want" a different shadow lose the argument before it starts.
+
+The exchange is system-level coherence for per-component freedom. The runtime UI gains a stable visual grammar across thousands of callsites; individual components give up one degree of expressive control. For an operator console where the same six surfaces appear in dozens of arrangements, the trade is the right one — but the trade is real. A consumer marketing surface with different scan patterns and different per-page identities would weigh it differently.
+
+## Three principles for any dark UI
+
+The pattern is reusable beyond Compozy. Three principles do most of the work.
+
+First, treat surface luminance as the depth ramp. A handful of warm-dark steps with a stable hue separates planes more reliably than any drop shadow ever will on a dark surface. Constrain the ramp early — six steps is enough; twelve invites drift.
+
+Second, edge planes with translucent white, not solid borders. A hairline tier from quiet to strong layers consistently across every ramp step and survives token retunes that would break hand-picked border colors.
+
+Third, encode the system as tokens, not conventions, and protect the tokens with a lint rule. A token without enforcement decays as the codebase grows; a lint rule that names the token-aligned replacement inside its error message turns design philosophy into a build-time guarantee. Compozy's `tokens.css` and the `compozy-design-system` plugin are the pattern as a working artifact — read them as a template, not a prescription.
+
+The dark UI does not need shadows. It needs a ramp, a hairline, a ring, a token, and the rule that says nothing else gets through.

@@ -1,0 +1,37 @@
+# Extractor candidate prompt v1
+
+You are extracting candidate Compozy Memory v2 facts from a completed assistant turn.
+
+Return JSONL. Each line is one candidate with:
+
+```json
+{"type":"user|feedback|project|reference","scope":"global|workspace|agent","agent_tier":"","content":"","evidence":"","entity":"","attribute":""}
+```
+
+Hard rules:
+
+- Produce candidates only for durable facts that should survive future sessions.
+- Do not emit candidates for sub-agent-only operational chatter.
+- Do not emit candidates when the same turn already made an explicit memory write.
+- Keep every candidate lexical-only. Do not include embeddings, vectors, or similarity scores.
+- Include concise evidence tied to the provided message sequence range.
+- Set `agent_tier` to `workspace` or `global` only when `scope` is `agent`; otherwise leave it empty.
+- Apply the WHAT_NOT_TO_SAVE policy below before emitting any line.
+
+WHAT_NOT_TO_SAVE policy:
+
+{{.WhatNotToSave}}
+
+Turn:
+
+- `session_id`: {{.Turn.SessionID}}
+- `root_session_id`: {{.Turn.RootSessionID}}
+- `parent_session_id`: {{.Turn.ParentSessionID}}
+- `agent_id`: {{.Turn.AgentID}}
+- `workspace_id`: {{.Turn.WorkspaceID}}
+- `since_message_seq`: {{.Turn.SinceMessageSeq}}
+- `until_message_seq`: {{.Turn.UntilMessageSeq}}
+
+Transcript snapshot:
+
+{{.Transcript}}

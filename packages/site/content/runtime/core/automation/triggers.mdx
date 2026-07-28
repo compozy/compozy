@@ -1,0 +1,283 @@
+---
+title: Triggers
+description: Configure Compozy automation triggers that react to runtime events, filters, and prompt templates.
+---
+
+Triggers start an Agent or Loop in response to events. They are useful when the next run should
+depend on something that happened inside Compozy, such as a session stopping, a memory consolidation
+completing, or a webhook delivery arriving.
+
+Triggers do not bind to jobs by ID. A trigger is its own automation definition with an event,
+filters, target, retry policy, and fire limit. When a matching event arrives, Compozy uses the same
+dispatcher and run history model that scheduled jobs use.
+
+Triggers can come from TOML config, package-provided definitions, or the dynamic store. Config and
+package triggers are managed definitions: their source owns the definition, while operators and
+agents can overlay only the enabled state. Dynamic triggers support full create, update, and delete
+management through the CLI, native tools, HTTP, and UDS.
+
+<OperatorNote>
+  Use a job when time is the input. Use a trigger when an event envelope is the input. Use a webhook
+  trigger when an external system should create that event envelope.
+</OperatorNote>
+
+## Browse the trigger catalog
+
+`compozy automation triggers -o json` returns one counted catalog page. The daemon applies `scope`,
+`workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, activation
+event, Loop target, and text query filters before it cuts the page. The response keeps the rows
+under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and `next_cursor` values
+under `page`.
+
+Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
+that created it; restart from the first page when any filter changes. See the generated
+[`compozy automation triggers`](/runtime/cli-reference/automation/triggers) reference for every flag.
+
+## Trigger fields
+
+| Field                        | Required                | Meaning                                                                                      |
+| ---------------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| `name`                       | Yes                     | Human-readable trigger name.                                                                 |
+| `scope`                      | Yes                     | `global` or `workspace`.                                                                     |
+| `workspace` / `workspace_id` | Workspace triggers only | TOML uses `workspace`; API payloads and stored triggers use `workspace_id`.                  |
+| `target_kind`                | No                      | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.     |
+| `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`. |
+| `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. Must be empty for Loop targets.                       |
+| `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets. |
+| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, and optional event `input_mapping`.    |
+| `filter`                     | No                      | Exact-match conditions on envelope fields.                                                   |
+| `enabled`                    | No                      | Defaults to `true` for parsed config definitions.                                            |
+| `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                               |
+| `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                         |
+| `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                     |
+| `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                     |
+
+## Target a Loop from an event
+
+Set `target_kind` to `loop` and omit `agent_name` and `prompt`. The target workspace follows the
+same boundary as Jobs: a workspace trigger must use its own `workspace_id`, while a global trigger
+must name the workspace that owns the Loop. The selected Loop must support the trigger's automation
+start kind.
+
+`loop_target.inputs` provides static values. `loop_target.input_mapping` can derive additional
+Loop inputs from the activation envelope with the Loop start-binding template grammar.
+
+```json
+{
+  "name": "review-deployment",
+  "scope": "workspace",
+  "workspace_id": "ws_123",
+  "target_kind": "loop",
+  "event": "webhook",
+  "loop_target": {
+    "workspace_id": "ws_123",
+    "loop_name": "deployment-review",
+    "inputs": { "environment": "production" },
+    "input_mapping": {
+      "title": "{{ .trigger.payload.title }}"
+    }
+  },
+  "enabled": true
+}
+```
+
+Agents can submit this shape through `compozy__automation_triggers_create`; HTTP and UDS expose the
+same request contract. The `compozy automation triggers create|update` flags currently author Agent
+targets. The CLI can still list, inspect, enable, disable, and delete Loop-target triggers created
+through a native tool or transport API.
+
+## Event types
+
+Compozy stores trigger events as strings. The current runtime emits these built-in event names:
+
+| Event                        | Source                       | Typical use                                                                |
+| ---------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
+| `session.created`            | Session lifecycle observer   | Start a helper agent when a workspace session begins.                      |
+| `session.stopped`            | Session lifecycle observer   | Summarize work, collect failures, or schedule follow-up review.            |
+| `memory.consolidated`        | Memory consolidation runtime | Review durable memory changes after consolidation.                         |
+| `hook.<hook_name>.completed` | Hook runtime                 | Continue work after a named hook completes.                                |
+| `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
+| `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
+
+The event name must be non-empty. Compozy does not restrict custom extension event names beyond the
+extension ingress contract.
+
+## Matching and filters
+
+A trigger fires only when all of these match:
+
+- the trigger is enabled
+- the trigger event equals the activation event
+- the trigger scope equals the activation scope
+- workspace triggers match the same workspace ID
+- every filter entry matches exactly
+
+Filters support these paths:
+
+| Filter path    | Matches                                                                       |
+| -------------- | ----------------------------------------------------------------------------- |
+| `kind`         | Activation event name such as `session.stopped`, `webhook`, or `ext.release`. |
+| `scope`        | `global` or `workspace`.                                                      |
+| `workspace_id` | Workspace ID carried by the activation envelope.                              |
+| `source`       | Activation source such as `observer`, `hook`, `webhook`, or `extension`.      |
+| `data.<path>`  | String value inside the activation `data` object.                             |
+
+Filter values must be non-empty strings.
+
+```toml
+filter = { "data.stop_reason" = "error", "data.agent_name" = "codex" }
+```
+
+## Prompt templates
+
+Trigger prompts are rendered with Go `text/template`. The template data is the activation envelope:
+
+| Template value | Meaning                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
+| `.Kind`        | Activation event name.                                                   |
+| `.Scope`       | `global` or `workspace`.                                                 |
+| `.WorkspaceID` | Workspace ID for workspace-scoped activations.                           |
+| `.Source`      | Activation source such as `observer`, `hook`, `webhook`, or `extension`. |
+| `.Data`        | Event-specific data map.                                                 |
+
+Use `index` for dynamic data keys:
+
+```toml
+prompt = "Summarize session {{ index .Data \"session_id\" }}. Stop reason: {{ index .Data \"stop_reason\" }}."
+```
+
+Invalid templates fail validation when the trigger is created or loaded from config.
+
+## Worked example: summarize failed sessions
+
+This trigger runs after a workspace session stops with an error. The prompt template receives the
+event data and turns it into a targeted summarization request.
+
+```toml
+[[automation.triggers]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "summarize-failed-sessions"
+event = "session.stopped"
+agent = "summarizer"
+prompt = "Summarize session {{ index .Data \"session_id\" }}. Stop reason: {{ index .Data \"stop_reason\" }}."
+filter = { "data.stop_reason" = "error" }
+retry = { strategy = "backoff", max_retries = 2, base_delay = "5s" }
+fire_limit = { max = 4, window = "1h" }
+```
+
+Create the same dynamic trigger from the CLI:
+
+```bash
+compozy automation triggers create \
+  --name summarize-failed-sessions \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --event session.stopped \
+  --agent summarizer \
+  --prompt 'Summarize session {{ index .Data "session_id" }}. Stop reason: {{ index .Data "stop_reason" }}.' \
+  --filter data.stop_reason=error \
+  --retry backoff:2:5s
+```
+
+## API example
+
+Create a dynamic trigger over HTTP:
+
+```bash
+curl -sS -X POST http://localhost:2123/api/automation/triggers \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "memory-review",
+    "scope": "workspace",
+    "workspace_id": "ws_123",
+    "event": "memory.consolidated",
+    "agent_name": "reviewer",
+    "prompt": "Review memory consolidation {{ index .Data \"consolidation_id\" }}.",
+    "filter": {
+      "data.scope": "workspace"
+    },
+    "retry": {
+      "strategy": "none"
+    },
+    "fire_limit": {
+      "max": 3,
+      "window": "1h"
+    },
+    "enabled": true
+  }'
+```
+
+The response is wrapped as:
+
+```json
+{
+  "trigger": {
+    "id": "trg_...",
+    "name": "memory-review",
+    "event": "memory.consolidated",
+    "enabled": true
+  }
+}
+```
+
+## Conditional execution
+
+Filters handle exact-match conditions. For richer policy, use lifecycle hooks around automation
+runs:
+
+- job or trigger pre-fire hooks can rewrite the prompt
+- pre-fire hooks can cancel the run, which records the run as `canceled`
+- run-failed hooks receive retry metadata, including whether Compozy will retry
+
+Hooks are part of the same runtime flow, so cancellation and prompt changes are visible in run
+history.
+
+## Monitoring trigger runs
+
+Read trigger-specific history:
+
+```bash
+compozy automation triggers history <trigger-id> --last 20
+```
+
+Read all recent automation runs for a status:
+
+```bash
+compozy automation runs --status failed --last 20
+```
+
+Query the API:
+
+```bash
+curl -sS "http://localhost:2123/api/automation/triggers/<trigger-id>/runs?limit=20"
+```
+
+Run statuses are the same statuses documented for jobs: `scheduled`, `running`, `delegated`,
+`completed`, `failed`, and `canceled`.
+
+## Related pages
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/automation/jobs"
+    label="Automation"
+    title="Jobs and Scheduling"
+    description="Run agents on cron, interval, or one-time schedules."
+    meta="Scheduled"
+  />
+  <RouteRow
+    href="/runtime/core/automation/webhooks"
+    label="Automation"
+    title="Webhooks"
+    description="Expose signed HTTP endpoints for external automation."
+    meta="Ingress"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/automation/triggers/create"
+    label="CLI"
+    title="automation triggers create"
+    description="Create a dynamic event trigger from the command line."
+    meta="Reference"
+  />
+</RouteList>

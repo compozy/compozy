@@ -1,23 +1,37 @@
-## Compozy CLI {{ .Version }}
+## CompozyOS {{ .Version }}
 
-Welcome to the latest release of the Compozy CLI!
+CompozyOS is a local-first agent operating system for durable ACP-compatible work.
 
 ### Installation
 
-#### Homebrew
+#### npm
 ```bash
-brew install compozy/compozy/compozy
+{{- if eq .Env.NPM_TAG "beta" }}
+npm install -g @compozy/cli@beta
+{{- else }}
+npm install -g @compozy/cli@latest
+{{- end }}
 ```
-
-#### NPM
-```bash
-npm install -g @compozy/cli
-```
-
-#### Binary Download
-Download the appropriate `compozy_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
 
 #### Go Install
 ```bash
-go install github.com/compozy/compozy/cmd/compozy@{{ .Tag }}
+go install github.com/compozy/compozy@{{ .Tag }}
 ```
+
+#### Verified Binary Installer
+```bash
+curl -fsSL https://compozy.com/install.sh | sh
+```
+
+The installer downloads the configured v0.3 archive for macOS or Linux, uses local `cosign` when
+present or a pinned temporary verifier when absent, verifies it against `checksums.txt`, installs
+`compozy`, and starts `compozy install` when an interactive terminal is available.
+
+#### Binary Download
+Download the appropriate `compozy_<os>_<arch>.tar.gz` asset for your platform and extract it.
+
+{{- if eq .Env.HOMEBREW_SKIP_UPLOAD "true" }}
+Homebrew is intentionally unavailable for this prerelease.
+{{- else }}
+Homebrew distribution is updated for this stable release.
+{{- end }}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/index.html",
+  "entry": "modals/index.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T17:03:59.961Z",
+  "updatedAt": "2026-07-14T17:03:59.961Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

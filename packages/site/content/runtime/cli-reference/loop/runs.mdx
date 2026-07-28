@@ -1,0 +1,46 @@
+---
+title: "compozy loop runs"
+description: "List workspace Loop runs"
+---
+
+## compozy loop runs
+
+List workspace Loop runs
+
+```
+compozy loop runs [flags]
+```
+
+### Options
+
+```
+  -h, --help                    help for runs
+      --limit int               Maximum runs to return
+      --loop string             Filter by Loop name
+      --origin string           Filter by run origin: catalog or session
+      --origin-session string   Filter by origin session ID
+      --status string           Filter by Loop run status
+      --workspace string        Workspace path, name, or ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy loop runs -o json
+```

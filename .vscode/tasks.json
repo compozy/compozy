@@ -1,0 +1,107 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Web Dev Server",
+            "type": "shell",
+            "command": "bun run dev",
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^$",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*Starting.*|.*turbo.*",
+                    "endsPattern": ".*Ready.*|.*Local:.*"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            }
+        },
+        {
+            "label": "Go: Verify",
+            "type": "shell",
+            "command": "make verify",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Lint",
+            "type": "shell",
+            "command": "bun run lint",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Lint Fix",
+            "type": "shell",
+            "command": "bunx oxlint --fix",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Format",
+            "type": "shell",
+            "command": "bun run format",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Format Check",
+            "type": "shell",
+            "command": "bun run format:check",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Type Check",
+            "type": "shell",
+            "command": "bun run typecheck",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "bun run test",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false
+            }
+        }
+    ]
+}

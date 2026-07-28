@@ -1,0 +1,132 @@
+---
+title: "Introducing CompozyOS"
+description: "Compozy v0.3 brings sessions, work, memory, permissions, automation, coordination, and an OS shell into one extensible local-first runtime."
+date: 2026-07-27
+category: runtime
+tags:
+  - runtime
+  - compozy-network
+  - agent-operating-system
+  - extensibility
+  - beta
+  - launch
+author: pedronauck
+kinds:
+  - greet
+  - whois
+  - say
+  - capability
+  - receipt
+  - trace
+featured: true
+---
+
+Compozy v0.3 is the point where the product becomes CompozyOS: one system for running agent work,
+keeping its state, governing what it can do, and connecting it to the people and agents that move it
+forward.
+
+## The only true OS for AI agents
+
+A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions,
+connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one
+built to pass it.
+
+The claim is about integration. A task can start a durable session. A loop can coordinate the work.
+Permissions stay attached to execution. Memory stays scoped to the right workspace. The OS shell,
+CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state. Compozy
+Network lets sessions become peers inside that system instead of adding a separate coordination
+product beside it.
+
+That connection is the release. The shell is how people see it; the runtime is what makes it an OS.
+
+## What changed
+
+The v0.3 line replaces the old product boundary instead of wrapping it in compatibility layers.
+
+- The product, binary, package, environment, storage, API, and native-tool namespaces are Compozy.
+- Sessions, tasks, loops, memory, permissions, automation, hooks, extensions, bridges, tools, and
+  Compozy Network operate through one daemon.
+- The `review-and-fix` loop is agent-authored. A reviewer produces structured issues, fixer agents
+  remediate them, and deterministic artifacts record the round without depending on an external
+  review provider.
+- Loop inputs can resolve from run, workspace, global, and definition defaults, with their origins
+  visible through the same control surfaces.
+- The bundled development cycle is an extension and a set of inspectable skills, not privileged
+  product code hidden behind the UI.
+
+This release also removes surfaces that no longer fit that boundary. Existing v0.2 installations
+should not be pointed at the v0.3 state directory and expected to upgrade in place. The complete
+[v0.3 migration guide](/runtime/migration) maps commands and configuration, lists every removed
+surface, and explains the clean-state transition.
+
+## Built to be built on
+
+An operating system is useful because other things can become part of it. Compozy exposes that
+boundary through extensions, typed hooks, skills, capabilities, bridge adapters, SDK contracts, MCP,
+native tools, and daemon-owned registries.
+
+The same rule applies to management. A feature is incomplete when it only works through a private Go
+call or a human-only screen. Compozy capabilities expose structured CLI output, HTTP or UDS routes,
+and agent-callable tools where the runtime contract permits them. Agents don't just run on the OS.
+They can run it within the same permission ceiling people set.
+
+The bundled development cycle is the proof. Its task planning, implementation, review, and repair
+journeys ship as an extension using public runtime contracts. The product dogfoods the boundary that
+other extensions use.
+
+## Durable work, not terminal lifetime
+
+Agent work should not disappear when a terminal tab closes. The Compozy daemon owns sessions and
+their event history in local SQLite state. Workspaces keep project context scoped. Tasks and loops
+make longer work visible and recoverable. Memory remains file-backed and inspectable instead of
+living only inside a model conversation.
+
+People can start a session from the CLI, follow it in the OS shell, inspect the same state over HTTP
+or UDS, and let an agent continue through structured tools. The surface changes; the work record does
+not.
+
+Compozy Network adds explicit agent-to-agent coordination. Live sessions can discover peers, exchange
+typed envelopes, advertise capabilities, and return receipts. Local execution remains the default;
+Network participation is explicit and bounded by runtime policy.
+
+## What the beta means
+
+v0.3.0-beta.1 is a prerelease, not a stable-channel replacement. Install it when the new runtime
+boundary is worth testing and version pinning is acceptable. Review each later beta before moving an
+existing environment.
+
+The beta front door has three paths:
+
+```bash
+$ curl -fsSL https://compozy.com/install.sh | sh
+# or: npm install -g @compozy/cli@beta
+# or: go install github.com/compozy/compozy@v0.3.0-beta.1
+```
+
+The hosted installer verifies the release provenance and installs the documented beta target. npm
+uses the `beta` tag. Go installs use the explicit prerelease version. The maintained v0.2 line and its
+collateral remain on `legacy/v0.2` while the beta is evaluated.
+
+The repository was already MIT licensed. An old GoReleaser metadata field still said BSL-1.1 even
+though the repository license was MIT. v0.3 corrects that distribution metadata. It is a metadata fix,
+not a relicense.
+
+## Start with one real session
+
+After installing the beta, bootstrap the home, start the daemon, register the current workspace, and
+open a durable session:
+
+```bash
+$ compozy install
+$ compozy daemon start
+$ compozy workspace add "$PWD" --name current
+$ compozy session new --workspace current --agent general --name first-run
+```
+
+Continue with the [Quick Start](/runtime/core/getting-started/quick-start), inspect the
+[runtime documentation](/runtime), or read the [Compozy Network protocol](/protocol) before enabling
+Live coordination.
+
+For an existing v0.2 environment, start with the [migration guide](/runtime/migration). It records
+the hard cuts, the clean-state procedure, and where each legacy surface moved — including the cases
+that intentionally have no v0.3 replacement.

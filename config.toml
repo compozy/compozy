@@ -1,0 +1,122 @@
+[daemon]
+socket = "~/.compozy/daemon.sock"
+
+[http]
+host = "localhost"
+port = 2123
+
+[window_manager]
+new_window_policy = "floating"
+small_viewport_policy = "stack"
+focus_policy = "click_directional"
+focus_wrap = false
+focus_follows_pointer = false
+raise_on_focus = true
+drag_away_policy = "window"
+group_move_modifier = "alt"
+history_limit = 50
+desktop_transition = "slide"
+
+[window_manager.gaps]
+inner = 8
+top = 8
+right = 10
+bottom = 8
+left = 10
+
+[window_manager.snap]
+edge_band = 32
+corner_reach = 150
+exit_slack = 16
+repeat_ratios = [0.5, 0.666667, 0.333333]
+
+[window_manager.bindings]
+top_center = "zoom"
+bottom_center = "reserved"
+
+[defaults]
+agent = "general"
+provider = "claude"
+
+[limits]
+max_concurrent_agents = 20
+
+[autonomy]
+block_recurrence_limit = 2
+
+[permissions]
+mode = "approve-all"
+
+[tools]
+enabled = true
+hosted_mcp_enabled = true
+default_max_result_bytes = 262144
+
+[tools.hosted_mcp]
+bind_nonce_ttl_seconds = 30
+
+[tools.policy]
+external_default = "disabled"
+approval_timeout_seconds = 120
+trusted_sources = []
+
+[loops.defaults.delivery]
+iteration_cap = 50
+fan_out_width = 4
+
+[loops.defaults.delivery.no_progress]
+window = 3
+
+[loops.defaults.delivery.gates]
+max_revisions = 10
+
+[loops.defaults.delivery.budget]
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
+
+[loops.defaults.watch]
+iteration_cap = 0
+fan_out_width = 2
+
+[loops.defaults.watch.no_progress]
+window = 2
+
+[loops.defaults.watch.budget]
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
+
+[goals]
+max_turns = 20
+context_nudge_ratio = 0.8
+outbox_batch_size = 50
+outbox_poll_interval = "100ms"
+
+[providers.claude.models]
+default = "claude-sonnet-5"
+
+[providers.claude.models.reasoning]
+apply = "acp_option"
+
+[providers.codex.models]
+default = "gpt-5.6-sol"
+
+[providers.codex.models.reasoning]
+apply = "acp_option"
+
+[providers.gemini.models]
+default = "gemini-3.1-pro-preview"
+
+[observability]
+enabled = true
+retention_days = 7
+max_global_bytes = 1073741824
+
+[observability.transcripts]
+enabled = true
+segment_bytes = 1048576
+max_bytes_per_session = 268435456
+
+[log]
+level = "info"

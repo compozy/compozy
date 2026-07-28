@@ -1,0 +1,265 @@
+---
+title: Skills Overview
+description: How Compozy discovers skills, resolves precedence, injects the prompt catalog, and connects skills to MCP servers.
+---
+
+Skills are reusable instruction sets for Compozy agents. A skill is a directory with a `SKILL.md`
+file, optional resource files, and optional MCP sidecar configuration. Compozy loads skill metadata at
+runtime, injects a compact catalog into the startup prompt, and lets the agent read the full skill
+only when it needs it.
+
+<OperatorNote>
+  Skills are metadata-first. The startup prompt receives names and descriptions, not every
+  `SKILL.md` body. Agents resolve canonical `compozy__skill_view` through the active harness (or
+  canonical `compozy__skill_search` first if the exact name is not yet known), then call the returned
+  tool reference; operators read the same content through `compozy skill view <name>`.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/runtime/core/skills/skill-md"
+    label="Format"
+    title="SKILL.md schema and authoring"
+    description="Use this page for the YAML frontmatter, body conventions, MCP sidecars, and skill-local resource files."
+    meta="Authoring"
+  />
+  <RouteRow
+    href="/runtime/core/skills/marketplace"
+    label="Marketplace"
+    title="Discover and install community skills"
+    description="Use this page to install, update, and remove ClawHub-sourced skills with `compozy skill`."
+    meta="Distribution"
+  />
+  <RouteRow
+    href="/runtime/core/skills/bundled"
+    label="Bundled"
+    title="The skill shipped in the Compozy binary"
+    description="Use this page when you need the bundled `compozy` skill, its references, and contextual injections."
+    meta="Built-in"
+  />
+</RouteList>
+
+## What a Skill Contains
+
+```text
+<scope>/skills/refactor-checklist/
+  SKILL.md
+  mcp.json
+  references/
+    review-template.md
+```
+
+`SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives Compozy the
+skill name, description, version, and optional Compozy-specific metadata. The Markdown body is procedural
+guidance for the agent. Resource files stay next to the skill and are read on demand with
+the returned tool reference for canonical `compozy__skill_view` with a `file` input from inside a session,
+or with `compozy skill view <name> --file <path>` from the operator CLI.
+
+The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
+the web UI lightweight while preserving the full instruction set for explicit reads.
+
+## Source Hierarchy
+
+Compozy starts from the filesystem-backed skill layers implemented today, then applies the winning
+agent's `skills/` directory as a final overlay when one effective agent is selected. Later rows
+override earlier rows when the same skill name is visible.
+
+| Precedence | Source          | Directory or owner                                      | Notes                                                                        |
+| ---------- | --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1          | Bundled         | compiled into the binary from `skills/*/SKILL.md`       | Lowest precedence. Always available when skills are enabled.                 |
+| 2          | Marketplace     | `$COMPOZY_HOME/skills/<name>` with `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
+| 3          | User            | `$COMPOZY_HOME/skills/<name>`                           | Local operator-controlled global skills.                                     |
+| 4          | Additional root | `<additional-dir>/.compozy/skills/<name>`               | Visible to workspaces that registered additional roots.                      |
+| 5          | Workspace       | `<workspace>/.compozy/skills/<name>`                    | Highest base precedence for that workspace.                                  |
+| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`                  | Final overlay for the winning agent definition only.                         |
+
+In short, bundled, marketplace, user, additional root, and workspace form the base stack, then
+Agent-local overlays on top. Agent-local is resolved from the winning `AGENT.md` directory only
+after Compozy chooses the effective agent definition for that scope. It does not create a separate
+skill mode; it only overrides or augments the already-resolved base set.
+
+## Public surfaces
+
+The operator and API surfaces resolve the same effective skill set:
+
+- CLI: `compozy skill list|info|view|enable|disable --for-agent <name> [--workspace <ref>]`
+- HTTP/UDS: `GET /api/skills?for_agent=<name>&workspace=<path-or-id>`
+- HTTP/UDS detail/content/mutate: the same optional `for_agent` and `workspace` query parameters
+  apply to `GET /api/skills/{name}`, `GET /api/skills/{name}/content`, `POST /api/skills/{name}/enable`,
+  and `POST /api/skills/{name}/disable`
+
+If `for_agent` is omitted, Compozy returns the base effective set for the selected global or workspace
+resolution context. If `for_agent` is present, Compozy overlays the winning agent's `skills/` tree and
+applies that agent's logical `skills.disabled` tombstones before returning the result.
+
+Management responses retain enabled skills that are currently ineligible for prompt catalogs.
+Their `activation.active` field is `false`, and `activation.reasons` reports the unmet
+`metadata.compozy.when` gates. The CLI and Skills UI present this runtime activation state separately
+from the administrative enabled switch.
+
+Enabled extensions can also register runtime-owned skills into the live registry. Those overlays
+are not filesystem-backed, so they are documented as runtime registry behavior rather than as one
+more scan root.
+
+## Provenance And Shadow Audit
+
+Every skill list/detail payload includes `provenance.precedence_tier`, which is the resolver tier
+that won for that skill: `bundled`, `marketplace`, `user`, `additional`, `workspace`, or
+`agent_local`. Marketplace metadata remains in `slug`, `registry`, `version`, and `installed_at`.
+Skills supplied by higher-level runtime packages can also carry `installed_from_bundle` or
+`installed_from_extension` so operators can trace the owning bundle or extension.
+
+When more than one declaration uses the same skill name, Compozy keeps the normal precedence order and
+records the losing declarations in `provenance.shadowed_by`. The full resolver view is available
+through the same operator and agent-manageable surfaces:
+
+| Surface  | Operation                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------- |
+| CLI      | `compozy skill where <name> [--workspace <ref>] [--for-agent <name>]`                        |
+| HTTP/UDS | `GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<name>`                            |
+| Web      | Skills detail shows the winning tier, installed-from fields, and every winner/shadowed path. |
+
+The shadows response lists the winner first and marks it with `resolved_to_winner: true`.
+Lower-precedence declarations remain visible with `resolved_to_winner: false`. Compozy also writes a
+canonical `skill.shadowed` event whenever resolver reconciliation detects a shadow relationship,
+including daemon boot, workspace resolution, agent-local overlays, and extension/resource updates.
+
+## Resolution Flow
+
+<Mermaid
+  chart={`flowchart TD
+Boot[Daemon boot] --> Bundled[Load bundled skills]
+Boot --> Global[Load global user skills]
+Global --> Marketplace[Classify marketplace skills by .compozy-meta.json]
+Bundled --> Registry[Global skill registry]
+Marketplace --> Registry
+Session[Session start] --> Workspace[Resolve workspace snapshot]
+Workspace --> Roots[Discover workspace and additional skill dirs]
+Registry --> Merge[Merge by skill name]
+Roots --> Merge
+Merge --> Agent[Overlay agent-local skills]
+Agent --> Catalog[Build available-skills catalog]
+Catalog --> Prompt[Append catalog after agent prompt]
+Agent --> MCP[Resolve skill MCP servers]
+MCP --> StartOpts[Merge into ACP start options]`}
+  caption="Compozy loads global skills at boot, resolves workspace and additional skills per session, overlays Agent-local skills when an agent is selected, appends only a compact catalog to the prompt, and resolves MCP servers for startup."
+/>
+
+The daemon boot path is responsible for the global registry:
+
+1. Load bundled skills.
+2. Load global Compozy skills from `$COMPOZY_HOME/skills/`.
+3. Start the global watcher when `skills.enabled` is true.
+
+The session start path is workspace-aware:
+
+1. Resolve the workspace snapshot.
+2. Discover `<workspace>/.compozy/skills/` and any registered additional roots.
+3. Overlay workspace-visible skills over the global registry.
+4. Resolve the winning `AGENT.md` and, if it has a `skills/` directory, overlay those skills last.
+5. Apply agent-scoped logical tombstones from `AGENT.md` `skills.disabled`.
+6. Evaluate `metadata.compozy.when` against the current platform, authored agent capabilities, and
+   session-callable tools.
+7. Build the prompt catalog from skills that are both enabled and active.
+8. Resolve MCP servers declared by enabled resolved skills; offer-time activation does not gate MCP
+   startup.
+
+## Prompt Injection
+
+The prompt catalog has this shape:
+
+```xml
+<available-skills>
+  <skill name="compozy">Operate and extend Compozy, the local-first agent operating system...</skill>
+</available-skills>
+
+Resolve canonical `compozy__skill_view` through the active harness, then call the returned tool
+reference with `{ "name": "compozy" }` to load full instructions for any skill, or
+`compozy skill view <name>` from the operator CLI when the tool path is unavailable.
+Use the returned tool reference for canonical `compozy__skill_view` with
+`{ "name": "compozy", "file": "references/network.md" }` (or
+`compozy skill view <name> --file <path>`) to read a
+specific skill resource file.
+```
+
+When the runtime denies `compozy__skill_view` for the active scope, agents fall back to
+`compozy skill view`. The conditional guidance is part of the rendered catalog so the prompt never
+advertises a CLI fallback when the dedicated tool is callable.
+
+Runtime prompts do not repeat the full current-skill catalog after every turn when the resolved
+catalog is unchanged for the session. The first prompt, and any later catalog change, carries the
+full `<current-available-skills>` block; repeated turns carry a compact unchanged marker that keeps
+the previous block authoritative and points agents back to canonical `compozy__skill_view` for full
+instructions.
+
+Important details:
+
+| Behavior            | Current implementation                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Full body in prompt | Not injected by the catalog. The body is read on demand.                                                   |
+| Description length  | Descriptions are truncated to 200 runes in the prompt catalog.                                             |
+| Disabled skills     | Omitted from the catalog.                                                                                  |
+| Inactive skills     | Retained by management surfaces with reasons, but omitted from startup and current-turn catalogs.          |
+| Catalog order       | Sorted by skill name after resolution.                                                                     |
+| Prompt position     | Memory context is prepended, the `AGENT.md` prompt stays in the middle, and the skill catalog is appended. |
+| Network sessions    | Sessions with a network channel also receive `compozy` `references/network.md`.                            |
+
+Disabled and activation-gated skills are hidden from the prompt catalog. Activation is an
+offer-time filter: explicit skill reads still work, and management surfaces retain inactive skills
+with structured reasons. Current MCP and hook resolution still iterates the resolved skill list,
+so do not treat disabling or activation-gating a skill as a complete runtime kill switch for MCP
+or hooks.
+
+## MCP Relationship
+
+Skills can declare MCP servers in two places:
+
+1. `metadata.compozy.mcp_servers` inside `SKILL.md`.
+2. A skill-local `mcp.json` sidecar next to `SKILL.md`.
+
+The sidecar accepts either `mcpServers` or `mcp_servers`. Server names are map keys in the sidecar,
+and the sidecar replaces same-name frontmatter servers.
+
+At session start, Compozy merges MCP servers in this order:
+
+1. top-level config MCP servers
+2. provider MCP servers
+3. agent MCP servers
+4. skill MCP servers
+
+Marketplace skill MCP servers are blocked unless `skills.allowed_marketplace_mcp` contains one of
+the skill's consent keys: the marketplace slug, `registry:slug`, or the installed hash.
+
+```toml
+[skills]
+allowed_marketplace_mcp = ["@author/postgres-tools"]
+
+[skills.marketplace]
+registry = "clawhub"
+```
+
+There is no interactive MCP consent prompt today. Consent is a static config allowlist.
+
+## Reload And Failure Behavior
+
+| Case                          | Behavior                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills.enabled = false`      | The registry, catalog provider, skill MCP resolver, watcher, and skill hooks are not wired.                                                             |
+| Global skill edit             | The watcher refreshes global skills on `skills.poll_interval`, default `3s`.                                                                            |
+| Workspace skill edit          | Workspace skill cache uses file snapshots and is rechecked when a workspace is resolved. Cache entries expire after 10 minutes.                         |
+| Agent-local skill edit        | Agent-local resolution is rechecked when the winning `AGENT.md` or its `skills/` tree changes. Invalid agent-local state is fail-closed for that agent. |
+| Missing global directory      | Treated as empty.                                                                                                                                       |
+| Scan depth                    | Compozy looks for `SKILL.md` files up to depth 4 under each scanned directory.                                                                          |
+| Scan limit                    | Each scanned directory is capped at 300 `SKILL.md` candidates.                                                                                          |
+| Critical verification finding | The skill is blocked from loading.                                                                                                                      |
+| Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |
+
+## Related Pages
+
+- [SKILL.md Format](/runtime/core/skills/skill-md) documents the file format and schema.
+- [Marketplace](/runtime/core/skills/marketplace) shows how to search, install, update, and remove skills.
+- [Bundled Skill](/runtime/core/skills/bundled) documents the `compozy` skill shipped in the Compozy binary.
+- [Agent Definitions](/runtime/core/agents/definitions) explains how agents and skill-aware MCP servers meet at session start.
+- [Spawning](/runtime/core/agents/spawning) follows the ACP startup path that receives skill MCP servers.

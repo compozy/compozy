@@ -1,16 +1,23 @@
 name: "Setup Go Environment"
-description: "Sets up Go with caching and common tools for Compozy development"
-author: "Compozy Team"
+description: "Sets up Go with caching and only the pinned tools requested by the caller"
 
 inputs:
   go-version:
     description: "Go version to install"
     required: false
     default: "1.26.4"
-  install-tools:
-    description: "Install common development tools"
+  install-mage:
+    description: "Install the pinned Mage task runner"
     required: false
-    default: "true"
+    default: "false"
+  install-gotestsum:
+    description: "Install the pinned gotestsum test runner"
+    required: false
+    default: "false"
+  install-golangci-lint:
+    description: "Install the pinned golangci-lint binary"
+    required: false
+    default: "false"
   cache:
     description: "Cache Go modules"
     required: false
@@ -26,7 +33,7 @@ runs:
   steps:
     - name: Set up Go
       id: setup-go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go-version }}
         cache: ${{ inputs.cache }}
@@ -38,10 +45,18 @@ runs:
         go mod download
         go mod verify
 
-    - name: Install development tools
-      if: inputs.install-tools == 'true'
+    - name: Install Mage
+      if: inputs.install-mage == 'true'
       shell: bash
-      run: |-
-        echo "Installing Go development tools..."
-        go install gotest.tools/gotestsum@v1.13.0
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.11.4
+      run: go install github.com/magefile/mage@v1.17.2
+
+    - name: Install gotestsum
+      if: inputs.install-gotestsum == 'true'
+      shell: bash
+      run: go install gotest.tools/gotestsum@v1.13.0
+
+    - name: Install golangci-lint
+      if: inputs.install-golangci-lint == 'true'
+      shell: bash
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2

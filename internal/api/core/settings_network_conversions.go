@@ -1,0 +1,81 @@
+package core
+
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+)
+
+func settingsNetworkConfigPayload(value compozyconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
+	return contract.SettingsNetworkConfigPayload{
+		Enabled:      value.Enabled,
+		MaxReplayAge: value.MaxReplayAge,
+		Live: contract.SettingsNetworkLiveConfigPayload{
+			Defaults: contract.SettingsNetworkLiveDefaultsPayload{
+				MaxWakes:         value.Live.Defaults.MaxWakes,
+				MaxWakeWallTime:  value.Live.Defaults.MaxWakeWallTime,
+				MaxTotalWallTime: value.Live.Defaults.MaxTotalWallTime,
+				MaxInputTokens:   value.Live.Defaults.MaxInputTokens,
+				MaxOutputTokens:  value.Live.Defaults.MaxOutputTokens,
+				MaxWakeDepth:     value.Live.Defaults.MaxWakeDepth,
+				CoalesceWindow:   value.Live.Defaults.CoalesceWindow,
+			},
+			Limits: contract.SettingsNetworkLiveLimitsPayload{
+				MaxWakes:          value.Live.Limits.MaxWakes,
+				MaxWakeWallTime:   value.Live.Limits.MaxWakeWallTime,
+				MaxTotalWallTime:  value.Live.Limits.MaxTotalWallTime,
+				MaxInputTokens:    value.Live.Limits.MaxInputTokens,
+				MaxOutputTokens:   value.Live.Limits.MaxOutputTokens,
+				MaxWakeDepth:      value.Live.Limits.MaxWakeDepth,
+				MinCoalesceWindow: value.Live.Limits.MinCoalesceWindow,
+				MaxCoalesceWindow: value.Live.Limits.MaxCoalesceWindow,
+			},
+		},
+	}
+}
+
+func settingsNetworkRuntimePayload(value settingspkg.NetworkRuntimeStatus) contract.SettingsNetworkRuntimePayload {
+	return contract.SettingsNetworkRuntimePayload{
+		Available:         value.Available,
+		Enabled:           value.Enabled,
+		Status:            strings.TrimSpace(value.Status),
+		LocalPeers:        value.LocalPeers,
+		Channels:          value.Channels,
+		MessagesReceived:  value.MessagesReceived,
+		MessagesDelivered: value.MessagesDelivered,
+		MessagesRejected:  value.MessagesRejected,
+	}
+}
+
+func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (compozyconfig.NetworkConfig, error) {
+	value := compozyconfig.DefaultNetworkConfig()
+	value.Enabled = payload.Enabled
+	value.MaxReplayAge = payload.MaxReplayAge
+	value.Live = compozyconfig.NetworkLiveConfig{
+		Defaults: compozyconfig.NetworkLiveDefaultsConfig{
+			MaxWakes:         payload.Live.Defaults.MaxWakes,
+			MaxWakeWallTime:  strings.TrimSpace(payload.Live.Defaults.MaxWakeWallTime),
+			MaxTotalWallTime: strings.TrimSpace(payload.Live.Defaults.MaxTotalWallTime),
+			MaxInputTokens:   payload.Live.Defaults.MaxInputTokens,
+			MaxOutputTokens:  payload.Live.Defaults.MaxOutputTokens,
+			MaxWakeDepth:     payload.Live.Defaults.MaxWakeDepth,
+			CoalesceWindow:   strings.TrimSpace(payload.Live.Defaults.CoalesceWindow),
+		},
+		Limits: compozyconfig.NetworkLiveLimitsConfig{
+			MaxWakes:          payload.Live.Limits.MaxWakes,
+			MaxWakeWallTime:   strings.TrimSpace(payload.Live.Limits.MaxWakeWallTime),
+			MaxTotalWallTime:  strings.TrimSpace(payload.Live.Limits.MaxTotalWallTime),
+			MaxInputTokens:    payload.Live.Limits.MaxInputTokens,
+			MaxOutputTokens:   payload.Live.Limits.MaxOutputTokens,
+			MaxWakeDepth:      payload.Live.Limits.MaxWakeDepth,
+			MinCoalesceWindow: strings.TrimSpace(payload.Live.Limits.MinCoalesceWindow),
+			MaxCoalesceWindow: strings.TrimSpace(payload.Live.Limits.MaxCoalesceWindow),
+		},
+	}
+	if err := value.Validate(); err != nil {
+		return compozyconfig.NetworkConfig{}, NewSettingsValidationError(err)
+	}
+	return value, nil
+}

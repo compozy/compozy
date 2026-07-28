@@ -1,0 +1,4 @@
+{
+    "title": "Roles",
+    "pages": ["index", "list", "show"]
+}

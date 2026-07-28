@@ -1,0 +1,71 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "software_delivery_implementer",
+            "provider": "acpmock",
+            "model": "base-model",
+            "reasoning_effort": "low",
+            "permissions": "approve-all",
+            "prompt": "You are the deterministic software-delivery implementer.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "base-model",
+                    "values": [
+                        { "value": "base-model", "label": "Base model" },
+                        { "value": "docs-model", "label": "Docs model" },
+                        { "value": "opus", "label": "Opus" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "low",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "complete-delivery-task",
+                    "match": { "turn_source": "user" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"status\":\"completed\",\"summary\":\"Delivery fixture completed.\",\"files_changed\":[]}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "software_delivery_reviewer",
+            "provider": "acpmock",
+            "model": "reviewer-model",
+            "reasoning_effort": "low",
+            "permissions": "approve-all",
+            "prompt": "You are the deterministic software-delivery acceptance reviewer.",
+            "turns": [
+                {
+                    "name": "approve-delivery",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "criterion_id": "acceptance"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"approved\",\"confidence\":1,\"evidence\":{\"checked\":[\"three task outputs\"]}}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

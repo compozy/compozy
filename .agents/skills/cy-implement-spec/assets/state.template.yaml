@@ -1,0 +1,27 @@
+# cy-implement-spec state file. Created by .agents/skills/cy-implement-spec/scripts/init-state.py.
+# All fields are mutated only by .agents/skills/cy-implement-spec/scripts/update-state.py. Never hand-edit.
+slug: ""
+created_at: ""        # RFC3339 UTC
+last_updated: ""      # RFC3339 UTC
+iteration: 0
+goal_signature: ""    # canonical text the user pasted in CODEX_LOOP goal=
+
+progress:
+  implementation_complete: false   # true only when every criterion is met on a verify-PASS tree
+  criteria: []        # entries: {text, status: pending|met, iteration}
+                      # the spec's exit conditions, registered at bootstrap — never work items
+
+qa:
+  report_done: false
+  execution_done: false
+
+review:
+  rounds: 0           # closed deep-review rounds
+  last_verdict: null  # SHIP | FIX_BEFORE_SHIP | REWORK | null
+  ship: false         # true once a round closes with verdict SHIP
+
+verify:
+  last_run: null      # RFC3339 UTC
+  last_status: null   # PASS | FAIL | null
+
+iterations: []        # append-only log; capped at last 50 by update-state.py

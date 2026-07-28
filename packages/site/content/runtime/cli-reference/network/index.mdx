@@ -1,0 +1,51 @@
+---
+title: "compozy network"
+description: "Operate the daemon-owned network runtime"
+---
+
+## compozy network
+
+Operate the daemon-owned network runtime
+
+### Options
+
+```
+  -h, --help               help for network
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                       | Description                                                        |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [compozy network channels](/runtime/cli-reference/network/channels)           | List active runtime channels                                       |
+| [compozy network coordination](/runtime/cli-reference/network/coordination)   | Inspect or change workspace network coordination                   |
+| [compozy network directs](/runtime/cli-reference/network/directs)             | Inspect restricted direct rooms                                    |
+| [compozy network inbox](/runtime/cli-reference/network/inbox)                 | Show queued inbound messages for one session                       |
+| [compozy network invitation](/runtime/cli-reference/network/invitation)       | Dismiss or reset the coordination invitation                       |
+| [compozy network mute](/runtime/cli-reference/network/mute)                   | Mute one peer's network delivery                                   |
+| [compozy network peers](/runtime/cli-reference/network/peers)                 | List visible local peers and their capability cards                |
+| [compozy network send](/runtime/cli-reference/network/send)                   | Send one envelope through the daemon-owned network runtime         |
+| [compozy network status](/runtime/cli-reference/network/status)               | Show Network availability, Live participation, and runtime metrics |
+| [compozy network subscribe](/runtime/cli-reference/network/subscribe)         | Subscribe one peer to full delivery                                |
+| [compozy network subscriptions](/runtime/cli-reference/network/subscriptions) | Inspect network delivery preferences                               |
+| [compozy network threads](/runtime/cli-reference/network/threads)             | Inspect public network threads                                     |
+| [compozy network unmute](/runtime/cli-reference/network/unmute)               | Remove one network delivery preference                             |
+| [compozy network usage](/runtime/cli-reference/network/usage)                 | Show workspace-scoped network wake usage from the ledger           |
+| [compozy network work](/runtime/cli-reference/network/work)                   | Inspect lifecycle-bearing network work                             |

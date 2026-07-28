@@ -1,93 +1,82 @@
-import type { DashboardPayload, WorkflowCard } from "../types";
-import { workspaceFixture } from "@/systems/app-shell/mocks";
+import type { HomeOverview } from "../types";
 
-export const dashboardWorkflowCardFixture: WorkflowCard = {
-  workflow: {
-    id: "wf-alpha",
-    slug: "alpha",
-    workspace_id: workspaceFixture.id,
-  },
-  active_runs: 1,
-  review_round_count: 0,
-  task_completed: 4,
-  task_pending: 2,
-  task_total: 6,
-};
-
-export function buildDashboardFixture(overrides: Partial<DashboardPayload> = {}): DashboardPayload {
+export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOverview {
   return {
-    workspace: workspaceFixture,
-    daemon: {
-      pid: 42,
-      started_at: "2026-04-20T00:00:00Z",
-      workspace_count: 1,
-      active_run_count: 1,
-      http_port: 2123,
-      version: "0.1.12",
+    schema_version: "observe-overview/v1",
+    generated_at: "2026-07-23T12:00:00Z",
+    attention: {
+      total: 2,
+      by_kind: { approval: 1, failure: 1, needs_input: 0 },
+      items: [
+        {
+          kind: "approval",
+          title: "Deploy docs site",
+          task_id: "task-approval",
+          occurred_at: "2026-07-23T10:00:00Z",
+          actions: ["approve", "reject", "open"],
+        },
+        {
+          kind: "failure",
+          title: "Overnight writer session",
+          detail: "provider timed out",
+          task_id: "task-failed",
+          run_id: "run-failed",
+          occurred_at: "2026-07-23T02:12:00Z",
+          actions: ["retry", "open"],
+        },
+      ],
     },
-    health: {
-      ready: true,
-      degraded: false,
-      details: [],
+    today: { runs_completed: 5, runs_failed: 1, tasks_closed: 3 },
+    outcomes: {
+      window_days: 14,
+      days: [
+        { date: "2026-07-22", completed: 6, failed: 1, canceled: 0 },
+        { date: "2026-07-23", completed: 5, failed: 1, canceled: 1 },
+      ],
+      completed: 11,
+      failed: 2,
+      canceled: 1,
+      success_pct: 78.6,
     },
-    pending_reviews: 0,
-    queue: {
-      active: 1,
-      completed: 5,
-      failed: 1,
-      canceled: 0,
-      total: 7,
+    usage: {
+      window_days: 30,
+      retention_days: 7,
+      truncated: true,
+      total_tokens: 1_400_000,
+      estimated_cost: 21.4,
+      cost_currency: "USD",
+      cost_status: "estimated",
+      days: [
+        { date: "2026-07-22", tokens: 700_000 },
+        { date: "2026-07-23", tokens: 700_000 },
+      ],
+      agent_share: [
+        { agent_name: "writer", tokens: 900_000, fraction: 0.64 },
+        { agent_name: "researcher", tokens: 500_000, fraction: 0.36 },
+      ],
     },
-    workflows: [dashboardWorkflowCardFixture],
-    active_runs: [],
+    pulse: {
+      window_days: 14,
+      buckets: [{ weekday: 2, hour: 14, events: 42 }],
+      busiest: { weekday: 2, hour: 14, events: 42 },
+      longest_session: {
+        session_id: "sess-long",
+        agent_name: "writer",
+        duration_seconds: 8040,
+        date: "2026-07-22",
+      },
+    },
+    network: { messages_today: 128 },
+    system: { hook_runs_today: 24, hook_failures_today: 0, retention_days: 7 },
+    freshness: {
+      observed_at: "2026-07-23T12:00:00Z",
+      latest_activity_at: "2026-07-23T11:59:00Z",
+      age_ms: 60_000,
+      stale_after_ms: 120_000,
+      has_live_work: true,
+      status: "current",
+      stale: false,
+    },
     ...overrides,
-  } as DashboardPayload;
+  };
 }
-
-export const dashboardFixture = buildDashboardFixture();
-
-export const emptyDashboardFixture = buildDashboardFixture({
-  pending_reviews: 0,
-  workflows: [],
-  active_runs: [],
-  queue: {
-    active: 0,
-    completed: 0,
-    failed: 0,
-    canceled: 0,
-    total: 0,
-  },
-});
-
-export const degradedDashboardFixture = buildDashboardFixture({
-  health: {
-    ready: true,
-    degraded: true,
-    details: [
-      {
-        code: "sse_backlog",
-        message: "SSE replay backlog is elevated.",
-        severity: "warning",
-      },
-    ],
-  } as DashboardPayload["health"],
-});
-
-export const reviewsDashboardFixture = buildDashboardFixture({
-  pending_reviews: 1,
-  workflows: [
-    {
-      ...dashboardWorkflowCardFixture,
-      review_round_count: 1,
-      latest_review: {
-        workflow_slug: "alpha",
-        round_number: 2,
-        pr_ref: "PR-42",
-        provider: "coderabbit",
-        resolved_count: 1,
-        unresolved_count: 3,
-        updated_at: "2026-04-20T02:00:00Z",
-      },
-    } as WorkflowCard,
-  ],
-});

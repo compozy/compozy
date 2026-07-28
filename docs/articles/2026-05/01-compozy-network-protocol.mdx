@@ -1,0 +1,184 @@
+---
+title: "compozy-network/v0: a bounded protocol for agent coordination"
+description: "MCP connects agents to tools. compozy-network/v0 gives explicitly participating agents a durable conversation contract with commit-first local delivery."
+date: 2026-05-20
+updated: 2026-07-14
+category: protocol
+tags:
+  - protocol
+  - compozy-network
+  - agent-coordination
+  - launch
+author: pedronauck
+archetype:
+  primary: ai-agent
+  absorbed: launch
+audience: peer-engineer-deep
+depth:
+  opening: R1
+  body: R2-R4
+  closing: R1
+  traversal: spiral
+status: publishable
+---
+
+MCP gave agents a wire to their tools. It did not define when two agent executions should share
+context, how a message becomes durable, or what limits stop conversation from turning into unbounded
+model work. `compozy-network/v0` defines that coordination contract.
+
+The protocol is deliberately small: six message kinds, one workspace-qualified envelope, explicit
+thread and direct-room containers, and a work lifecycle. CompozyOS runtime adds one rule that matters as
+much as the wire shape: Network participation is opt-in per execution. Local is the default. Live is
+an explicit, bounded choice.
+
+The current runtime delivers only inside one Compozy installation. It validates and commits accepted
+messages before notifying eligible local recipients in-process. Remote carriers and federation are
+future external-interaction work, not half-shipped infrastructure hidden behind the protocol.
+
+## The boundary MCP leaves open
+
+An agent can call a database, script, or API through MCP and still have no reliable way to address
+another execution. Ad-hoc relays usually mix three different decisions:
+
+1. how a message is represented
+2. where its conversation lives
+3. whether receiving it should spend model time
+
+Compozy Network keeps those decisions separate. The envelope is the protocol contract. Threads and
+direct rooms are durable conversation containers. The immutable Local/Live participation snapshot
+decides whether an execution may receive Network context and coordination tools. Wake admission then
+decides whether one eligible message should prompt the model within finite bounds.
+
+## One envelope, scoped to one workspace
+
+Every message is a UTF-8 JSON object. The required fields are `protocol`, `id`, `workspace_id`,
+`kind`, `channel`, `from`, `ts`, and `body`. Conversation-bearing messages add `surface` plus exactly
+one container identifier. Lifecycle-bearing messages add `work_id`.
+
+```json
+{
+  "protocol": "compozy-network/v0",
+  "id": "msg_demo_1776366000",
+  "workspace_id": "ws_alpha",
+  "kind": "say",
+  "channel": "builders",
+  "surface": "thread",
+  "thread_id": "thread_release_check",
+  "from": "ops-coordinator.session-42",
+  "to": null,
+  "ts": 1776366000,
+  "body": {
+    "text": "Release branch staging is ready for smoke checks.",
+    "intent": "notice"
+  },
+  "proof": null
+}
+```
+
+`workspace_id` is the top-level isolation boundary. The same channel slug in two workspaces names
+two different channels. `surface:"thread"` identifies a public N-to-N container;
+`surface:"direct"` identifies a restricted two-party room. `work_id` identifies lifecycle-bearing
+work inside exactly one container and never substitutes for task authority.
+
+Receivers validate in a fixed order: required fields, protocol version, workspace and channel,
+expiration, kind-specific shape, conversation-container symmetry, work lifecycle, then body. That
+order makes rejection deterministic and keeps malformed input away from runtime work.
+
+## Six kinds, one job each
+
+| Kind | Job |
+| --- | --- |
+| `greet` | Announce presence and a compact Peer Card. |
+| `whois` | Discover peers or capabilities. |
+| `say` | Converse inside a thread or direct room. |
+| `capability` | Transfer one reusable capability artifact. |
+| `receipt` | Accept, reject, deduplicate, expire, or cancel lifecycle-bearing work. |
+| `trace` | Report working, waiting, completed, failed, or canceled progress. |
+
+Only `say` is conversational. An addressed or mentioned `say` is also the only current path that may
+wake a Live execution. `greet`, `whois`, `capability`, `receipt`, `trace`, and unaddressed messages
+may be committed and inspected without prompting a model.
+
+That distinction is intentional. Protocol delivery is not authorization to spend tokens.
+
+## Commit first, dispatch second
+
+The reference runtime processes a valid local message in five steps:
+
+1. validate the envelope and caller authority
+2. compute recipient dispositions from the pre-message participant snapshot
+3. commit the conversation and dispositions atomically
+4. notify eligible local recipients after commit
+5. admit bounded wakes from durable state
+
+The durable commit is acceptance. There is no publish hop whose failure can leave an acknowledged
+message missing from the conversation. If in-process notification is interrupted, restart recovery
+finds durable admitted work and continues from there.
+
+Duplicate message IDs are idempotent. Messages in the same causal burst may coalesce into one wake.
+One owner cannot accumulate simultaneous wake claims, and depth, wall-time, token, and total-wake
+ceilings remain visible when they stop further activation.
+
+## Local and Live are execution choices
+
+Network availability is an administrative prerequisite, never enrollment.
+
+- **Local** is the default. The execution receives no Network prompt, environment, coordination
+  toolset, channel lease, or wake.
+- **Live** is explicit per execution. Its immutable snapshot selects one authorized channel strategy
+  and finite bounds for that run.
+
+Workspace coordination is separate. Enabling it affects future coordinated runs only. It does not
+rewrite an active run and does not turn every task, session, Loop, or automation fire into a Network
+participant.
+
+Children resolve independently. Spawned, review, and detached sessions do not inherit a parent's
+conversation merely because the parent is Live.
+
+## Conversation is evidence; tasks remain authority
+
+Network messages explain decisions, requests, receipts, and progress. They do not become a second
+task state machine. When work must be owned, leased, retried, reviewed, or completed, the task system
+remains authoritative.
+
+This split prevents a persuasive chat message from masquerading as a durable claim. `receipt` and
+`trace` express protocol lifecycle; task runs own executable work and token-fenced leases.
+
+## Usage stays truthful
+
+A Live wake settles the actual input/output usage reported by the provider when that measurement is
+available. When it is not, the runtime reports `usage_unavailable`. It does not estimate a plausible
+total and present it as fact.
+
+Operators can inspect workspace-scoped usage and conversation history through structured HTTP, UDS,
+and CLI surfaces. The UI projects the same records; it does not own hidden coordination state.
+
+## Trust remains a separate profile
+
+The v0 core preserves `proof` as opaque data and does not claim cryptographic sender verification.
+The future `compozy-network.trust.ed25519-jcs/v1` profile defines Ed25519 signatures over RFC 8785 JCS
+bytes, self-certified `nickname@fingerprint` identities, and proof-stripping defense.
+
+Keeping trust separate lets the current runtime tell the truth: local delivery is durable and
+auditable, while remote identity and carrier security are not shipped yet.
+
+## What implementers can rely on
+
+The envelope grammar, six kinds, workspace isolation, conversation containers, work lifecycle, and
+validation rules are the portable core. A non-Compozy implementation can produce and validate those
+envelopes today without importing a Compozy SDK.
+
+Cross-installation interoperability needs more than a JSON shape. It needs a specified carrier,
+authenticated remote identity, delivery evidence, failure recovery, and conformance fixtures. That
+program remains explicit future work.
+
+For the current contract:
+
+- read the [protocol reference](https://compozy.com/protocol)
+- run the [minimal sender guide](https://compozy.com/protocol/guide/minimal-sender) to validate one
+  envelope locally
+- inspect CompozyOS runtime through `compozy network status -o json`, `compozy network usage -o json`, and the
+  structured conversation reads
+
+MCP gives agents a wire to tools. Compozy Network defines the durable, bounded conversation contract
+between executions that explicitly choose to participate.

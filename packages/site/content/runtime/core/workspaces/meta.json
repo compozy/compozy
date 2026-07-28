@@ -1,0 +1,5 @@
+{
+    "title": "Workspaces",
+    "icon": "FolderTree",
+    "pages": ["resolver", "config-overlays", "multi-root", "window-management"]
+}

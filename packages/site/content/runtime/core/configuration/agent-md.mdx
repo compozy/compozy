@@ -1,0 +1,547 @@
+---
+title: AGENT.md
+description: Complete implemented AGENT.md schema, parser rules, provider examples, MCP sidecars, and RFC drift.
+---
+
+`AGENT.md` defines a Compozy agent: structured frontmatter plus a required Markdown prompt body.
+Current Compozy agents live in Compozy resource directories:
+
+```text
+$COMPOZY_HOME/agents/<agent-name>/AGENT.md
+<workspace>/.compozy/agents/<agent-name>/AGENT.md
+<additional-root>/.compozy/agents/<agent-name>/AGENT.md
+```
+
+The parser is strict. Unknown frontmatter fields fail loading.
+
+<OperatorNote>
+  RFC 001 is ahead of the current implementation. This page documents the fields accepted by the
+  current runtime. Draft RFC fields such as `description`, `skills.inherit`, `skills.extra_sources`,
+  and `memory.*` are listed as non-accepted fields near the end of this page.
+</OperatorNote>
+
+## Quick Reference
+
+| Field              | Type                        | Default                                              | Valid values                                                        | Description                                                               |
+| ------------------ | --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `name`             | string                      | required                                             | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
+| `provider`         | string                      | `[defaults].provider`                                | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
+| `command`          | string                      | Provider `command`                                   | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
+| `model`            | string                      | Provider `models.default`                            | Exact model ID accepted by the active adapter.                      | Agent-specific model preference applied before the first prompt.          |
+| `reasoning_effort` | string                      | Curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.         | Agent default used when session creation does not override it.            |
+| `tools`            | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
+| `toolsets`         | string array                | empty                                                | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
+| `deny_tools`       | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
+| `permissions`      | string                      | `[permissions].mode`, default `approve-all`          | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
+| `skills`           | object                      | empty                                                | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
+| `category_path`    | string array                | empty                                                | Non-empty path segments without `.`, `..`, `/`, or `\`.             | Display-only hierarchy used by CLI/API/Web views.                         |
+| `mcp_servers`      | array of MCP server objects | empty                                                | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
+| `hooks`            | array of hook declarations  | empty                                                | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
+| Markdown body      | Markdown text               | required                                             | Non-empty after trimming.                                           | Agent-owned role prompt included in the assembled startup prompt.         |
+
+When `tools` and `toolsets` are empty, the agent definition does not add an allowlist. For a bare
+managed session, hosted MCP projects the full availability-gated callable catalog. Populate
+`tools` or `toolsets` only when the agent should be limited to that explicit surface. Discovery-only
+policies can still name `compozy__bootstrap` or `compozy__catalog`; Compozy just no longer injects those
+toolsets as a default cap for every bare hosted session. Agents should discover Compozy-native runtime
+capabilities by resolving canonical `compozy__tool_search`, inspect descriptors through canonical
+`compozy__tool_info`, and invoke the harness-returned dedicated tool reference before shelling out to
+equivalent `compozy ...` commands. Operator-only management examples include MCP OAuth login/logout,
+daemon lifecycle, raw secret writes, and trust-root config. These flows remain CLI/HTTP/UDS by
+design and are not promoted into the tool surface.
+
+Compozy also adds a daemon-owned runtime envelope around the agent body at session startup. The envelope
+states that the session is running inside Compozy, carries session/workspace facts, and is not something
+agent authors need to repeat in every `AGENT.md`.
+
+## Discovery And Precedence
+
+Compozy loads visible agents from the workspace snapshot attached to a session.
+
+| Order | Source           | Path                                                                     |
+| ----- | ---------------- | ------------------------------------------------------------------------ |
+| 1     | Workspace root   | `<workspace>/.compozy/agents/<name>/AGENT.md`                            |
+| 2     | Additional roots | `<additional-root>/.compozy/agents/<name>/AGENT.md`, in registered order |
+| 3     | Global home      | `$COMPOZY_HOME/agents/<name>/AGENT.md`                                   |
+
+Discovery is first-wins. If two files define the same `name`, Compozy keeps the first one found and
+does not merge lower-precedence definitions.
+
+## Reserved Builtin Names
+
+`coordinator` and `dreaming-curator` are virtual, Compozy-owned role identities. They have embedded
+prompts, resolve without authored directories, and never appear in public agent catalogs. Creating,
+updating, renaming, duplicating, or bundle-materializing either name fails with
+`agent_name_reserved`; Compozy does not create or modify an authored directory.
+
+`general` is different: it is the normal managed public agent created by installation and remains
+editable. Other authored agents may be selected through `[roles.<role>].agent`; doing so changes the
+route to that agent and does not modify a builtin prompt.
+
+## Parser Rules
+
+| Rule                  | Behavior                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Frontmatter delimiter | The file must start with `---` and include a closing `---`.                                           |
+| Frontmatter language  | YAML is parsed first. If YAML fails, Compozy tries TOML frontmatter.                                  |
+| Unknown fields        | Unknown YAML or TOML fields are errors.                                                               |
+| Body                  | The Markdown body after frontmatter is trimmed. Empty body fails with `agent prompt is required`.     |
+| Name match            | `LoadAgentDef(name)` requires the parsed `name` to match the requested directory/name.                |
+| Category path         | `category_path` must be an array. `categories` and slash-string forms such as `Marketing/Sales` fail. |
+| Sidecar               | `mcp.json` next to `AGENT.md` is optional and replaces same-name inline MCP servers as whole objects. |
+
+## Complete Annotated Example
+
+```text
+---
+# Required. This must match the directory name when loaded by name.
+name: reviewer
+
+# Optional if [defaults].provider is set in config.toml.
+provider: claude
+
+# Optional. Defaults to the provider models.default.
+model: claude-sonnet-5
+
+# Optional. Empty uses the provider/adapter default; explicit none is a real value.
+reasoning_effort: max
+
+# Optional. Set only when this agent should be limited to these ToolIDs.
+tools:
+  - "mcp__github__*"
+
+# Optional. Set only when this agent should be limited to these toolsets.
+toolsets:
+  - "compozy__coordination"
+
+# Optional. Denies always narrow the allowed set.
+deny_tools:
+  - "compozy__network_send"
+
+# Optional. Defaults to [permissions].mode.
+permissions: approve-reads
+
+# Optional. Display-only UI/CLI/API organization path.
+category_path:
+  - Engineering
+  - Review
+
+# Optional. Merged after top-level and provider MCP servers.
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    secret_env:
+      GITHUB_TOKEN: "env:GITHUB_TOKEN"
+
+# Optional. Agent-scoped hooks automatically match this agent name.
+hooks:
+  - name: reviewer-started
+    event: session.post_create
+    mode: async
+    command: printf
+    args: ["reviewer ready\n"]
+---
+
+You are a senior code reviewer.
+
+Review code for correctness, security boundaries, data loss, races, and missing tests.
+Put blocking findings first and cite the relevant file or symbol.
+```
+
+## Field Details
+
+### `name`
+
+| Attribute    | Value                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| Type         | string                                                                                        |
+| Default      | none                                                                                          |
+| Required     | yes                                                                                           |
+| Valid values | Non-empty string. No lowercase or slug pattern is currently enforced.                         |
+| Description  | Agent identity used for discovery, CLI/API selection, hook scoping, and duplicate resolution. |
+
+### `provider`
+
+| Attribute    | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| Type         | string                                                                                              |
+| Default      | `[defaults].provider`                                                                               |
+| Required     | Required at resolution time unless `[defaults].provider` is set.                                    |
+| Valid values | Built-in provider key or custom `[providers.<name>]` key.                                           |
+| Description  | Selects the provider command, default model, provider MCP servers, auth mode, and runtime metadata. |
+
+### `command`
+
+| Attribute    | Value                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | string                                                                                                                             |
+| Default      | Selected provider `command`                                                                                                        |
+| Required     | no                                                                                                                                 |
+| Valid values | Non-empty command when set.                                                                                                        |
+| Description  | Overrides the provider launch command for this agent. The command is parsed with shell-style quoting and launched without a shell. |
+
+### `model`
+
+| Attribute    | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Type         | string                                                       |
+| Default      | Selected provider `models.default`                           |
+| Required     | no                                                           |
+| Valid values | Any string. Empty is allowed if the provider has no default. |
+| Description  | Agent-specific model metadata.                               |
+
+The exact model ID is applied through the active ACP model option after session creation/load. An
+unadvertised ID fails with `model_unavailable`; Compozy never aliases it or falls back to the provider
+default.
+
+### `reasoning_effort`
+
+| Attribute    | Value                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| Type         | string                                                                                      |
+| Default      | empty, which keeps the provider/adapter default                                             |
+| Required     | no                                                                                          |
+| Valid values | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                                  |
+| Description  | Agent default used only when session creation does not provide an explicit effort override. |
+
+At session start, Compozy applies model first, refreshes the advertised ACP options, then applies the
+effort before the first prompt. Explicit `none` is sent when advertised; empty sends no effort RPC.
+Missing or unsupported live options fail loudly with `reasoning_option_missing` or
+`reasoning_effort_unsupported`.
+
+### `tools`
+
+| Attribute    | Value                                                                                                                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                                                                                                                                                           |
+| Default      | empty                                                                                                                                                                                                                                  |
+| Required     | no                                                                                                                                                                                                                                     |
+| Valid values | Exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. `*`, dotted names, hyphens, uppercase, suffix wildcards, and mid-segment wildcards are rejected. |
+| Description  | Optional agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`. Empty leaves the hosted projection uncapped by the agent definition.                              |
+
+### `toolsets`
+
+| Attribute    | Value                                                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type         | string array                                                                                                                                                                                     |
+| Default      | empty                                                                                                                                                                                            |
+| Required     | no                                                                                                                                                                                               |
+| Valid values | Canonical ToolsetIDs such as `compozy__bootstrap`, `compozy__catalog`, or `linear__read`.                                                                                                        |
+| Description  | Optional named tool bundles allowed for the agent. Toolsets are separate from `tools`; do not place toolset IDs in `tools`. Empty leaves the hosted projection uncapped by the agent definition. |
+
+### `deny_tools`
+
+| Attribute    | Value                                                                                                                |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                                         |
+| Default      | empty                                                                                                                |
+| Required     | no                                                                                                                   |
+| Valid values | Same grammar as `tools`: exact canonical ToolIDs or namespace-prefix wildcard patterns.                              |
+| Description  | Explicit narrowing layer. A deny can overlap an allow; later policy evaluation treats the deny as taking precedence. |
+
+### `permissions`
+
+| Attribute    | Value                                                 |
+| ------------ | ----------------------------------------------------- |
+| Type         | string                                                |
+| Default      | `[permissions].mode`, which defaults to `approve-all` |
+| Required     | no                                                    |
+| Valid values | `deny-all`, `approve-reads`, `approve-all`            |
+| Description  | Overrides the global permission mode for this agent.  |
+
+### `skills`
+
+| Attribute    | Value                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| Type         | object                                                                                                 |
+| Default      | empty                                                                                                  |
+| Required     | no                                                                                                     |
+| Valid values | Currently only `disabled`, a string array of logical skill names.                                      |
+| Description  | Persists agent-scoped disabled skill tombstones in `AGENT.md` and applies them after skill precedence. |
+
+The current runtime supports:
+
+```yaml
+skills:
+  disabled:
+    - review
+    - deploy-production
+```
+
+`skills.disabled` does not add new roots and does not create an agent-only skill mode. Compozy resolves
+the normal bundled -> marketplace -> user -> additional -> workspace set, overlays the winning
+agent's `skills/` directory, then disables any logical skill names listed here for that agent.
+This is separate from the global skills settings field `disabled_skills`; use `AGENT.md`
+`skills.disabled` for one agent's tombstones and [settings](/runtime/api-reference/settings)
+for daemon-managed global defaults.
+
+### `category_path`
+
+| Attribute    | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                        |
+| Default      | empty                                                                                               |
+| Required     | no                                                                                                  |
+| Valid values | Ordered, non-empty path segments. Segments are trimmed and must not be `.`, `..`, or contain slash. |
+| Description  | Display-only hierarchy surfaced by CLI JSON, HTTP/UDS payloads, and the web UI.                     |
+
+Use `category_path` when a large agent set needs a stable visual grouping:
+
+```yaml
+category_path:
+  - Marketing
+  - Sales
+```
+
+This field does not affect provider selection, permissions, tools, scheduling, skill resolution,
+hooks, memory, or ACP startup. It is not a multi-tag list; it is one ordered path. Root-level agents
+omit the field or use an empty array. Compozy rejects `categories: [...]` and `category_path:
+"Marketing/Sales"` because the runtime has one canonical array shape and no compatibility aliases.
+
+### `mcp_servers`
+
+| Attribute    | Value                                                                           |
+| ------------ | ------------------------------------------------------------------------------- |
+| Type         | array of MCP server objects                                                     |
+| Default      | empty                                                                           |
+| Required     | no                                                                              |
+| Valid values | Each object requires `name` and `command`; `args` and `env` are optional.       |
+| Description  | Agent-local MCP servers merged after top-level config and provider MCP servers. |
+
+| Server field | Type         | Default  | Valid values            | Description                                                  |
+| ------------ | ------------ | -------- | ----------------------- | ------------------------------------------------------------ |
+| `name`       | string       | required | Non-empty.              | Server merge key.                                            |
+| `command`    | string       | required | Non-empty.              | MCP server command.                                          |
+| `args`       | string array | empty    | Strings.                | Command arguments.                                           |
+| `env`        | string map   | empty    | String keys and values. | Literal environment values. No shell expansion is performed. |
+
+### `hooks`
+
+Agent hook declarations use the same fields as `[[hooks.declarations]]` in `config.toml`. When a
+hook matcher includes `agent_name`, it must match this agent's `name`; Compozy then scopes the hook to
+this agent.
+
+| Field           | Type         | Default                                             | Valid values                                                          | Description                                       |
+| --------------- | ------------ | --------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
+| `name`          | string       | required                                            | Non-empty.                                                            | Hook name.                                        |
+| `event`         | string       | required                                            | Current dot-form hook event.                                          | Event that triggers the hook.                     |
+| `mode`          | string       | `async`                                             | `sync` or `async`; `sync` only for sync-eligible events.              | Dispatch mode.                                    |
+| `required`      | boolean      | `false`                                             | `true` or `false`; required hooks must be `sync`.                     | Whether hook failure blocks the source operation. |
+| `priority`      | integer      | Agent-definition source default.                    | Integer.                                                              | Ordering priority.                                |
+| `timeout`       | duration     | `0s`; subprocess executor uses 5 seconds when zero. | Non-negative Go duration.                                             | Hook timeout.                                     |
+| `matcher`       | object       | scoped to this agent.                               | Hook matcher fields.                                                  | Narrows eligibility.                              |
+| `command`       | string       | empty                                               | Required for subprocess hooks unless nested executor fields are used. | Subprocess command.                               |
+| `args`          | string array | empty                                               | Strings.                                                              | Command arguments.                                |
+| `env`           | string map   | empty                                               | String keys and values.                                               | Explicit hook environment values.                 |
+| `executor.kind` | string       | `subprocess` when a command is present.             | `subprocess` or `wasm` for user declarations.                         | Executor kind.                                    |
+
+## Provider Examples
+
+These snippets show the minimal agent shape for the core built-in providers. API-key providers such
+as OpenRouter, z.ai, Moonshot/Kimi, and Vercel AI Gateway use the same `provider` and `model`
+frontmatter once their credential slots are configured in `config.toml` or settings.
+
+### Claude
+
+```text
+---
+name: claude-reviewer
+provider: claude
+model: claude-sonnet-5
+reasoning_effort: max
+permissions: approve-reads
+---
+
+Review the requested change for correctness and missing tests.
+```
+
+### Codex
+
+```text
+---
+name: codex-builder
+provider: codex
+model: gpt-5.6-sol
+permissions: approve-all
+---
+
+Implement scoped code changes, run verification, and summarize the diff.
+```
+
+### Gemini
+
+```text
+---
+name: gemini-researcher
+provider: gemini
+model: gemini-3.1-pro-preview
+permissions: approve-reads
+---
+
+Analyze the repository context and return concise implementation guidance.
+```
+
+### OpenCode
+
+```text
+---
+name: opencode-worker
+provider: opencode
+permissions: approve-all
+---
+
+Work through implementation tasks with a small, reviewable diff.
+```
+
+### Copilot
+
+```text
+---
+name: copilot-helper
+provider: copilot
+permissions: approve-reads
+---
+
+Inspect the codebase and answer questions with file-backed references.
+```
+
+### Cursor
+
+```text
+---
+name: cursor-agent
+provider: cursor
+permissions: approve-all
+---
+
+Make focused edits and keep changes aligned with project conventions.
+```
+
+### Kiro
+
+```text
+---
+name: kiro-planner
+provider: kiro
+permissions: approve-reads
+---
+
+Turn product requirements into concrete implementation notes.
+```
+
+### Pi
+
+```text
+---
+name: pi-assistant
+provider: pi
+permissions: approve-reads
+---
+
+Provide concise assistance grounded in the active workspace.
+```
+
+## Recognized Sidecars
+
+An agent directory accepts two kinds of sidecars next to `AGENT.md`:
+
+| Sidecar                                                                                    | Purpose                                                                                                                  | Reference                                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `mcp.json`                                                                                 | Declare MCP servers in JSON form.                                                                                        | [MCP Sidecar](#mcp-sidecar) below.                       |
+| `capabilities.toml` / `capabilities.json` or `capabilities/*.toml` / `capabilities/*.json` | Declare the unified capability catalog projected into brief discovery, rich discovery, and `kind:"capability"` transfer. | [Agent Capabilities](/runtime/core/agents/capabilities). |
+
+Sidecars are loaded independently. Exactly one capability layout (single-file or directory) is
+allowed per agent; mixing layouts is a hard error.
+
+## MCP Sidecar
+
+Place `mcp.json` next to `AGENT.md` when MCP definitions are generated or easier to maintain as
+JSON.
+
+```text
+~/.compozy/agents/reviewer/
+  AGENT.md
+  mcp.json
+```
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "secret_env": {
+        "GITHUB_TOKEN": "env:GITHUB_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Sidecar behavior:
+
+| Rule                    | Behavior                                             |
+| ----------------------- | ---------------------------------------------------- |
+| Accepted top-level keys | `mcpServers` and `mcp_servers`.                      |
+| Server names            | The map keys are server names.                       |
+| Unknown fields          | Fail parsing.                                        |
+| Same-name inline server | The sidecar replaces the whole inline server object. |
+| Missing file            | Treated as absent.                                   |
+
+## Runtime Resolution
+
+| Runtime value | Resolution order                                                             | Failure mode                                                              |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Agent name    | explicit CLI/API agent name, then `[defaults].agent`                         | Fails if empty.                                                           |
+| Provider      | `AGENT.md` `provider`, then `[defaults].provider`                            | Fails if still empty.                                                     |
+| Command       | `AGENT.md` `command`, then provider `command`                                | Fails if empty after provider resolution.                                 |
+| Model         | `AGENT.md` `model`, then provider `models.default`                           | Empty is allowed.                                                         |
+| Reasoning     | `AGENT.md` `reasoning_effort`, then curated model `default_reasoning_effort` | Empty keeps the provider/adapter default.                                 |
+| Tools         | `AGENT.md` `tools`                                                           | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
+| Toolsets      | `AGENT.md` `toolsets`                                                        | Must be canonical ToolsetIDs.                                             |
+| Deny tools    | `AGENT.md` `deny_tools`                                                      | Same grammar as `tools`; denies narrow later policy evaluation.           |
+| Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`                          | Must be a supported permission mode.                                      |
+| Skills policy | `AGENT.md` `skills.disabled`                                                 | Disables logical skill names after precedence resolution for this agent.  |
+| Category path | `AGENT.md` `category_path`                                                   | Display-only metadata; surfaced as a flat string array.                   |
+| MCP servers   | Top-level config, provider, agent, active skills                             | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
+
+The `Tools` and `Toolsets` rows describe configured agent policy. Empty means no agent-local
+allowlist; hosted MCP projects the full availability-gated callable catalog unless another policy
+layer narrows it. Denies still win.
+
+## RFC 001 Drift
+
+The current runtime diverges from the broader RFC 001 draft in these ways:
+
+| Field                     | RFC purpose                           | Current behavior |
+| ------------------------- | ------------------------------------- | ---------------- |
+| `description`             | Human description.                    | Rejected.        |
+| `skills.inherit`          | Control inherited skills.             | Rejected.        |
+| `skills.disabled`         | Disable logical skills for one agent. | Accepted.        |
+| `skills.extra_sources`    | Add agent-specific skill roots.       | Rejected.        |
+| `memory.inherit`          | Control inherited memory.             | Rejected.        |
+| `memory.scope`            | Default write scope for memory.       | Rejected.        |
+| `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.        |
+| `categories`              | Ambiguous multi-tag grouping.         | Rejected.        |
+
+RFC examples also use permission values such as `plan`. Current Compozy uses `deny-all`,
+`approve-reads`, and `approve-all`.
+
+## Common Errors
+
+| Error                                   | Cause                                                      | Fix                                                                        |
+| --------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `config: missing YAML frontmatter`      | The file does not start with a frontmatter block.          | Add an opening and closing `---` block.                                    |
+| `config: unterminated YAML frontmatter` | The opening delimiter has no closing delimiter.            | Close the frontmatter before the prompt body.                              |
+| `unknown field`                         | A draft or misspelled frontmatter field is present.        | Remove it or move the setting to a supported config surface.               |
+| `agent prompt is required`              | The body after frontmatter is empty.                       | Add the agent prompt.                                                      |
+| `agent.permissions must be one of ...`  | Unsupported permission value.                              | Use `deny-all`, `approve-reads`, or `approve-all`.                         |
+| `agent.category_path[...]`              | A category segment is blank, `.`, `..`, or contains slash. | Use an array of clean path segments, for example `["Marketing", "Sales"]`. |
+| `provider "<name>" command is required` | A custom provider has no command.                          | Add `[providers.<name>].command` or set `command` in `AGENT.md`.           |
+
+## Related Pages
+
+- [config.toml](/runtime/core/configuration/config-toml) documents provider and permission defaults.
+- [mcp.json](/runtime/core/configuration/mcp-json) documents sidecar schema and replacement rules.
+- [Agent Providers](/runtime/core/agents/providers) explains built-in provider behavior.

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Task detail · key states · Tasks · Compozy</title>
+<style>
+  /* tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;letter-spacing:inherit}
+  svg{display:block}
+  code,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
+  :is(.btn,.act,.subrow,.gnav a,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* gallery frame: each state below is the real page in that state */
+  .gnav{display:flex;align-items:center;gap:14px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+  .state{border-bottom:1px solid var(--line)}
+  .state:last-child{border-bottom:0}
+
+  /* unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);border-color:transparent}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  /* subhead (demoted page-head meta, 12px subtle line) */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted);flex:none}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  .lane-tabs{display:flex;margin:0 0 22px;border-bottom:1px solid var(--line)}
+  .lane-tab{position:relative;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border:0;background:transparent;
+    color:var(--subtle);font-size:13px;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
+  .lane-tab[aria-selected="true"]{color:var(--fg-strong)}
+  .lane-tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:1.5px;background:var(--fg-strong);border-radius:1px}
+  .lane-tab .count{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:var(--canvas-soft);border-radius:var(--radius-xs);padding:1px 5px;min-width:16px;text-align:center}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+  .section{margin-bottom:26px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--subtle);text-transform:uppercase}
+  .section__label .count{font-family:var(--font-mono);font-size:10.5px;font-weight:500;color:var(--muted);background:var(--canvas-soft);border-radius:var(--radius-xs);padding:1px 5px}
+  .section__label .spacer{flex:1}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .desc{padding:14px 16px;font-size:13.5px;line-height:1.6;color:var(--fg);max-width:68ch;text-wrap:pretty}
+  .act{font-size:11px;font-weight:520;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:none;border:0;padding:2px 4px;border-radius:var(--radius-xs);font-family:inherit;text-transform:none;letter-spacing:0}
+  .act:hover{color:var(--fg-strong)}
+  .act svg{width:12px;height:12px}
+
+  /* status cards + outcome bands: flat tint, full border, no side-stripe */
+  .scard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;
+    padding:13px 15px;border-radius:var(--radius-md);border:1px solid;margin-bottom:10px}
+  .scard[data-tone="info"]{background:var(--info-tint);border-color:color-mix(in srgb,var(--info) 24%,transparent)}
+  .scard[data-tone="warning"]{background:var(--warning-tint);border-color:color-mix(in srgb,var(--warning) 22%,transparent)}
+  .scard[data-tone="danger"]{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent)}
+  .scard[data-tone="success"]{background:var(--success-tint);border-color:color-mix(in srgb,var(--success) 22%,transparent)}
+  .scard__title{font-size:13px;font-weight:560}
+  .scard[data-tone="info"] .scard__title{color:var(--info)}
+  .scard[data-tone="warning"] .scard__title{color:var(--warning)}
+  .scard[data-tone="danger"] .scard__title{color:var(--danger)}
+  .scard[data-tone="success"] .scard__title{color:var(--success)}
+  .scard__body{grid-column:1;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .scard__body .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .scard__actions{grid-row:1 / span 2;grid-column:2;display:flex;align-items:center;gap:8px}
+
+  .subrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto 14px;gap:11px;align-items:center;
+    padding:11px 16px;border-top:1px solid var(--line-soft);color:inherit}
+  .subrow:first-of-type{border-top:0}
+  .subrow:hover{background:var(--row-hover)}
+  .subrow__dot{width:8px;height:8px;border-radius:50%;justify-self:center}
+  .subrow__dot[data-state="done"]{background:var(--success)}
+  .subrow__dot[data-state="active"]{background:transparent;border:1.5px solid var(--accent)}
+  .subrow__dot[data-state="todo"]{background:transparent;border:1.5px solid var(--faint)}
+  .subrow__title{font-size:13px;font-weight:500;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .subrow__title s{color:var(--muted);text-decoration-color:var(--faint)}
+  .subrow__owner{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .subrow__time{font-size:11.5px;color:var(--subtle)}
+  .subrow__chev{color:var(--faint)}
+  .subrow__chev svg{width:14px;height:14px}
+  .avatar{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--muted);font-family:var(--font-mono);font-size:8px;font-weight:600;flex:none}
+  .sp{display:flex;height:3px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.06);margin:14px 16px 2px}
+  .sp i{display:block;height:100%}
+  .sp .done{background:var(--success)}
+
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:16px 18px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;min-height:26px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--muted)}
+  .prow__v .d{width:6px;height:6px;border-radius:50%;flex:none}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.dot--pulse{animation:none}}
+</style>
+</head>
+<body>
+
+<nav class="gnav" aria-label="States in this gallery" data-od-id="states-nav">
+  <a href="#blocked">blocked + approval</a>
+  <a href="#failed">failed</a>
+  <a href="#attention">needs attention</a>
+  <a href="#completed">completed</a>
+</nav>
+
+<!-- ================================================================ STATE: BLOCKED + APPROVAL PENDING -->
+<section class="state" id="blocked" data-od-id="state-blocked">
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Roll out partner-bank settlement replay</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="warn"><span class="dot" aria-hidden="true"></span>Blocked</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">Approve</button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="pill" data-tone="info">Approval pending</span>
+      <span class="pill" data-tone="warning">High</span>
+      <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 08:50">44 min ago</time></span>
+    </div>
+    <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">0</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
+    <div class="layout">
+      <main>
+        <section class="section">
+          <div class="scard" data-tone="info">
+            <div class="scard__title">Waiting for your approval</div>
+            <div class="scard__body">sofia.mendes asked for a manual check before this task can start.</div>
+            <div class="scard__actions"><button class="btn btn--sm btn--ghost" type="button">Reject</button><button class="btn btn--sm" type="button">Approve</button></div>
+          </div>
+          <div class="scard" data-tone="warning">
+            <div class="scard__title">Waits on another task</div>
+            <div class="scard__body">“Finalize compliance sign-off on public timeout copy” has to finish first.</div>
+            <div class="scard__actions"><button class="btn btn--sm" type="button">Open blocking task</button></div>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section__label">Description</div>
+          <div class="panelbox"><p class="desc">Replay the partner-bank settlement stream against the new checkpoint and confirm the cutover path holds under the launch-day volume.</p></div>
+        </section>
+        <section class="section">
+          <div class="section__label">Blocked by <span class="count">1</span></div>
+          <div class="panelbox">
+            <a class="subrow" href="#">
+              <span class="subrow__dot" data-state="active" aria-hidden="true"></span>
+              <span class="subrow__title">Finalize compliance sign-off on public timeout copy</span>
+              <span class="subrow__owner"><span class="avatar">CR</span>compliance-review-agent</span>
+              <span class="subrow__time" title="Jul 17, 2026, 08:12">1h ago</span>
+              <span class="subrow__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+            </a>
+          </div>
+        </section>
+      </main>
+      <aside>
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Approval</div>
+            <div class="prow"><span class="prow__k">State</span><span class="prow__v"><span class="d" style="background:var(--info)"></span><span>Pending</span></span></div>
+            <div class="prow"><span class="prow__k">Requested by</span><span class="prow__v"><span>sofia.mendes</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Properties</div>
+            <div class="prow"><span class="prow__k">Priority</span><span class="prow__v"><span class="d" style="background:var(--warning)"></span><span>High</span></span></div>
+            <div class="prow"><span class="prow__k">Owner</span><span class="prow__v"><span class="avatar">PE</span><span>platform-engineer-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Workspace</span><span class="prow__v"><span>launch-hq</span></span></div>
+            <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v"><span>0 of 3</span></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ STATE: FAILED (attempts remain) -->
+<section class="state" id="failed" data-od-id="state-failed">
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Lock launch blockers for the 18:30 UTC cutover</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Failed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Retry
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="pill" data-tone="warning">High</span>
+      <span>Owner <b>product-manager-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 09:14">18 min ago</time></span>
+    </div>
+    <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">2</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
+    <div class="layout">
+      <main>
+        <section class="section">
+          <div class="scard" data-tone="danger">
+            <div class="scard__title">Failed on attempt 2 of 3</div>
+            <div class="scard__body">Partner-bank replay data went stale before the checkpoint. Retry to queue attempt 3, or open the run to see what happened.<br><span class="mono">task.run_failed · run_002</span></div>
+            <div class="scard__actions"><button class="btn btn--sm" type="button">Open run</button></div>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section__label">Description</div>
+          <div class="panelbox"><p class="desc">Coordinate the launch-week decision, capture the blocker context, and leave a crisp operator-ready outcome before the 18:30 UTC cutover window closes.</p></div>
+        </section>
+        <section class="section">
+          <div class="section__label">Subtasks <span class="count">3</span><span class="spacer"></span><span style="font-size:11px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0">1 of 3 done</span></div>
+          <div class="panelbox">
+            <div class="sp" role="img" aria-label="1 of 3 subtasks done"><i class="done" style="width:33.4%"></i></div>
+            <a class="subrow" href="#">
+              <span class="subrow__dot" data-state="done" aria-hidden="true"></span>
+              <span class="subrow__title"><s>Lock fallback banner copy</s></span>
+              <span class="subrow__owner"><span class="avatar">CA</span>copywriter-agent</span>
+              <span class="subrow__time">1h ago</span>
+              <span class="subrow__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+            </a>
+            <a class="subrow" href="#">
+              <span class="subrow__dot" data-state="todo" aria-hidden="true"></span>
+              <span class="subrow__title">Verify partner settlement replay closeout</span>
+              <span class="subrow__owner"><span class="avatar">PE</span>platform-engineer-agent</span>
+              <span class="subrow__time">12m ago</span>
+              <span class="subrow__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+            </a>
+            <a class="subrow" href="#">
+              <span class="subrow__dot" data-state="todo" aria-hidden="true"></span>
+              <span class="subrow__title">Sync support fallback ownership</span>
+              <span class="subrow__owner"><span class="avatar">SL</span>support-lead-agent</span>
+              <span class="subrow__time">yesterday</span>
+              <span class="subrow__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+            </a>
+          </div>
+        </section>
+      </main>
+      <aside>
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Properties</div>
+            <div class="prow"><span class="prow__k">Priority</span><span class="prow__v"><span class="d" style="background:var(--warning)"></span><span>High</span></span></div>
+            <div class="prow"><span class="prow__k">Owner</span><span class="prow__v"><span class="avatar">PM</span><span>product-manager-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v"><span>2 of 3</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Last run</div>
+            <div class="prow"><span class="prow__k">Status</span><span class="prow__v"><span class="d" style="background:var(--danger)"></span><span>Failed</span></span></div>
+            <div class="prow"><span class="prow__k">Ended</span><span class="prow__v"><time title="Jul 17, 2026, 09:14">18 min ago</time></span></div>
+            <div class="prow"><span class="prow__k">Duration</span><span class="prow__v mono"><span>8m 12s</span></span></div>
+            <div class="prow"><span class="prow__k">Run id</span><span class="prow__v mono"><span>run_002</span></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ STATE: NEEDS ATTENTION -->
+<section class="state" id="attention" data-od-id="state-attention">
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Draft canary rollback checklist</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Needs attention</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Recover
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span>Owner <b>platform-engineer-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Updated <time title="Jul 17, 2026, 09:28">4 min ago</time></span>
+    </div>
+    <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">1</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
+    <div class="layout">
+      <main>
+        <section class="section">
+          <div class="scard" data-tone="danger">
+            <div class="scard__title">This attempt looks stuck</div>
+            <div class="scard__body">The agent stopped responding 4 minutes ago. Recover requeues the work as a fresh attempt; nothing done so far is lost.<br><span class="mono">task_run_stuck · run_007</span></div>
+            <div class="scard__actions"><button class="btn btn--sm" type="button">Recover</button></div>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section__label">Description</div>
+          <div class="panelbox"><p class="desc">Write the rollback checklist for the canary cohort so on-call can unwind the cutover in under five minutes.</p></div>
+        </section>
+      </main>
+      <aside>
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Current run</div>
+            <div class="prow"><span class="prow__k">Status</span><span class="prow__v"><span class="d" style="background:var(--danger)"></span><span>Needs attention</span></span></div>
+            <div class="prow"><span class="prow__k">Claimed by</span><span class="prow__v"><span class="avatar">PE</span><span>platform-engineer-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Last heartbeat</span><span class="prow__v"><time title="Jul 17, 2026, 09:28">4 min ago</time></span></div>
+            <div class="prow"><span class="prow__k">Run id</span><span class="prow__v mono"><span>run_007</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Properties</div>
+            <div class="prow"><span class="prow__k">Priority</span><span class="prow__v"><span>Medium</span></span></div>
+            <div class="prow"><span class="prow__k">Owner</span><span class="prow__v"><span class="avatar">PE</span><span>platform-engineer-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v"><span>1 of 3</span></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ STATE: COMPLETED -->
+<section class="state" id="completed" data-od-id="state-completed">
+  <header class="w2head">
+    <a class="w2-back" href="#" aria-label="Back to Tasks"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Lock fallback banner copy</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="ok"><span class="dot" aria-hidden="true"></span>Completed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn" type="button">Edit</button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span>Owner <b>copywriter-agent</b></span><span class="dotsep"></span>
+      <span>Created by <b>sofia.mendes</b></span><span class="dotsep"></span>
+      <span>Closed <time title="Jul 17, 2026, 08:12">1h ago</time></span>
+    </div>
+    <nav class="lane-tabs" aria-label="Task views"><button class="lane-tab" aria-selected="true">Overview</button><button class="lane-tab" aria-selected="false">Runs <span class="count">1</span></button><button class="lane-tab" aria-selected="false">Activity</button></nav>
+    <div class="layout">
+      <main>
+        <section class="section">
+          <div class="scard" data-tone="success">
+            <div class="scard__title">Completed in 1 attempt</div>
+            <div class="scard__body">Finished 1 hour ago in 6m 40s. The result is ready below.</div>
+            <div class="scard__actions"><button class="btn btn--sm" type="button">View result</button></div>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section__label">Result</div>
+          <div class="panelbox"><p class="desc">Final fallback banner copy locked: “Payments are taking longer than usual. Your transfer is safe and will complete automatically; no action is needed.” Variants for the status page and the in-app banner are attached to the run.</p></div>
+        </section>
+        <section class="section">
+          <div class="section__label">Description</div>
+          <div class="panelbox"><p class="desc">Write and lock the fallback banner copy shown if the cutover exceeds the public timeout window.</p></div>
+        </section>
+      </main>
+      <aside>
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Properties</div>
+            <div class="prow"><span class="prow__k">Priority</span><span class="prow__v"><span>Medium</span></span></div>
+            <div class="prow"><span class="prow__k">Owner</span><span class="prow__v"><span class="avatar">CA</span><span>copywriter-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Parent task</span><span class="prow__v"><span>Lock launch blockers…</span></span></div>
+            <div class="prow"><span class="prow__k">Attempts</span><span class="prow__v"><span>1 of 3</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Activity</div>
+            <div class="prow"><span class="prow__k">Created</span><span class="prow__v"><time title="Jul 16, 2026, 14:30">yesterday</time></span></div>
+            <div class="prow"><span class="prow__k">Closed</span><span class="prow__v"><time title="Jul 17, 2026, 08:12">1h ago</time></span></div>
+            <div class="prow"><span class="prow__k">Duration</span><span class="prow__v mono"><span>6m 40s</span></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

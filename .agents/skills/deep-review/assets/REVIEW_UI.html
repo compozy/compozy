@@ -1,0 +1,1338 @@
+<!doctype html>
+<!-- deep-review fixed report UI. Hydrated by scripts/render_html.py, which
+     swaps the data placeholder inside the application/json script tag (that
+     token must appear exactly once, in that tag only). Edit the UI here,
+     nowhere else — models never author report HTML. Self-contained: no
+     network, works via file://. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Deep Review</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: oklch(0.155 0 0);
+    --surface: oklch(0.205 0 0);
+    --surface-2: oklch(0.245 0 0);
+    --ink: oklch(0.965 0 0);
+    --ink-2: oklch(0.78 0 0);
+    --ink-3: oklch(0.63 0 0);
+    --line: oklch(0.29 0 0);
+    --line-strong: oklch(0.37 0 0);
+    --accent: oklch(0.68 0.14 46);
+    --accent-text: oklch(0.74 0.13 48);
+    --accent-tint: oklch(0.68 0.14 46 / 0.12);
+    --sev-critical: #d03b3b;
+    --sev-major: #ec835a;
+    --sev-minor: #fab219;
+    --sev-trivial: oklch(0.64 0.04 250);
+    --sev-critical-text: #e66767;
+    --sev-major-text: #ee9268;
+    --sev-minor-text: #e7ad34;
+    --sev-trivial-text: oklch(0.72 0.04 250);
+    --good: #0ca30c;
+    --good-text: #2fbf2f;
+    --dot-ring: rgb(255 255 255 / 0.14);
+    --code-bg: oklch(0.185 0 0);
+    --focus: oklch(0.74 0.13 48);
+    --z-sticky: 10;
+    --z-toast: 30;
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: oklch(1 0 0);
+    --surface: oklch(0.972 0 0);
+    --surface-2: oklch(0.947 0 0);
+    --ink: oklch(0.165 0 0);
+    --ink-2: oklch(0.42 0 0);
+    --ink-3: oklch(0.53 0 0);
+    --line: oklch(0.905 0 0);
+    --line-strong: oklch(0.83 0 0);
+    --accent: oklch(0.568 0.149 46);
+    --accent-text: oklch(0.49 0.14 46);
+    --accent-tint: oklch(0.568 0.149 46 / 0.10);
+    --sev-critical-text: #b32a2a;
+    --sev-major-text: #a84f24;
+    --sev-minor-text: #7d5a00;
+    --sev-trivial-text: oklch(0.46 0.035 250);
+    --good-text: #006300;
+    --dot-ring: rgb(0 0 0 / 0.14);
+    --code-bg: oklch(0.965 0 0);
+    --focus: oklch(0.49 0.14 46);
+  }
+
+  * { box-sizing: border-box; }
+  html { scrollbar-gutter: stable; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  code, pre, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  a { color: var(--accent-text); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection { background: var(--accent-tint); }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- topbar ---------- */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-in {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
+  .brand h1 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
+  .brand .target {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .round-chip {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .topbar-tools { display: flex; align-items: center; gap: 8px; }
+  .updated {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: var(--bg);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  }
+  .icon-btn:hover { background: var(--surface); color: var(--ink); }
+  .icon-btn[aria-pressed="true"] {
+    border-color: var(--accent);
+    color: var(--accent-text);
+    background: var(--accent-tint);
+  }
+  .icon-btn svg { width: 14px; height: 14px; flex: none; }
+
+  /* ---------- verdict banner ---------- */
+  .banner {
+    margin-top: 20px;
+    border: 1px solid color-mix(in oklab, var(--v-color) 38%, var(--line));
+    background: color-mix(in oklab, var(--v-color) 9%, var(--bg));
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .banner .v-icon {
+    width: 30px; height: 30px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--v-color) 20%, var(--bg));
+    color: var(--v-text);
+  }
+  .banner .v-icon svg { width: 17px; height: 17px; }
+  .banner h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--v-text);
+  }
+  .banner .v-rationale { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-2); max-width: 72ch; }
+  .banner .v-meta {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .banner .v-meta code { font-size: 11.5px; }
+
+  /* ---------- KPI tiles ---------- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .tile {
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 11px 13px 9px;
+    background: var(--bg);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  }
+  .tile:hover { background: var(--surface); }
+  .tile[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-tint);
+  }
+  .tile .t-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+  }
+  .tile .t-value {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 2px;
+    color: var(--ink);
+  }
+  .tile .t-sub { font-size: 11px; color: var(--ink-3); margin-top: -2px; }
+  .tile.is-zero .t-value { color: var(--ink-3); font-weight: 600; }
+  .tile.static { cursor: default; }
+  .tile.static:hover { background: var(--bg); }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 999px;
+    flex: none;
+    background: var(--d, var(--ink-3));
+    box-shadow: inset 0 0 0 1px var(--dot-ring);
+  }
+
+  /* ---------- toolbar ---------- */
+  .toolbar {
+    position: sticky;
+    top: 52px;
+    z-index: var(--z-sticky);
+    background: var(--bg);
+    padding: 12px 0 10px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .search {
+    position: relative;
+    flex: 1 1 220px;
+    max-width: 340px;
+  }
+  .search > svg {
+    position: absolute; left: 9px; top: 50%;
+    translate: 0 -50%;
+    width: 14px; height: 14px;
+    color: var(--ink-3);
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    padding: 6px 26px 6px 29px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color 150ms ease-out;
+  }
+  .search input::placeholder { color: var(--ink-3); }
+  .search input:focus { outline: none; border-color: var(--accent); }
+  .search .clear-q {
+    position: absolute; right: 4px; top: 50%;
+    translate: 0 -50%;
+    width: 20px; height: 20px;
+    display: none;
+    place-items: center;
+    color: var(--ink-3);
+    border-radius: 6px;
+  }
+  .search .clear-q:hover { color: var(--ink); background: var(--surface-2); }
+  .search .clear-q svg { width: 12px; height: 12px; }
+  .search.has-q .clear-q { display: grid; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-2);
+    background: var(--bg);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  }
+  .chip:hover { background: var(--surface); color: var(--ink); }
+  .chip[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg);
+  }
+  .chip .count { font-size: 11px; color: inherit; opacity: 0.65; font-variant-numeric: tabular-nums; }
+  .toolbar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+  .select-wrap { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+  .select-wrap select {
+    font: inherit;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 6px;
+  }
+  .toolbar .spacer { flex: 1; }
+
+  .result-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--ink-3);
+    margin: 12px 0 4px;
+  }
+  .result-line .link-btn { color: var(--accent-text); font-size: 12px; }
+  .result-line .link-btn:hover { text-decoration: underline; }
+
+  /* ---------- findings ---------- */
+  .file-group { margin-top: 18px; }
+  .file-head {
+    position: sticky;
+    top: 105px;
+    z-index: calc(var(--z-sticky) - 1);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .file-head .path {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    word-break: break-all;
+  }
+  .file-head .file-dots { display: flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
+  .file-head .file-dots .n { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-right: 2px; }
+
+  .finding {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-top: 10px;
+    background: var(--bg);
+    transition: border-color 150ms ease-out;
+  }
+  .finding[open] { border-color: var(--line-strong); }
+  .finding summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: background-color 150ms ease-out;
+  }
+  .finding summary::-webkit-details-marker { display: none; }
+  .finding summary:hover { background: var(--surface); }
+  .finding[open] summary { border-radius: 12px 12px 0 0; }
+  .sev-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--sev-text);
+    flex: none;
+    width: 74px;
+  }
+  .f-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    flex: 1;
+    min-width: 0;
+  }
+  .f-flags { display: inline-flex; gap: 5px; flex: none; }
+  .flag {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+  .flag.qw { color: var(--accent-text); border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); }
+  .f-anchor, .f-anchor-body {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .anchor-row { display: flex; gap: 8px; align-items: center; }
+  .chev { flex: none; color: var(--ink-3); transition: rotate 150ms ease-out; }
+  .chev svg { width: 14px; height: 14px; display: block; }
+  .finding[open] .chev { rotate: 90deg; }
+
+  .f-body { padding: 4px 14px 14px 98px; }
+  .f-body > * + * { margin-top: 12px; }
+  .prose { font-size: 13.5px; color: var(--ink-2); max-width: 74ch; }
+  .prose p { margin: 0 0 8px; }
+  .prose p:last-child { margin-bottom: 0; }
+  .prose code {
+    font-size: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  .prose pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .prose pre code { background: none; border: 0; padding: 0; }
+  .prose ul, .prose ol { margin: 0 0 8px; padding-left: 20px; }
+  .prose li { margin: 2px 0; }
+  .prose h1, .prose h2, .prose h3, .prose h4 {
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--ink);
+    margin: 14px 0 6px;
+    text-wrap: balance;
+  }
+  .prose table { border-collapse: collapse; font-size: 12.5px; margin: 8px 0; width: 100%; }
+  .prose th, .prose td {
+    border: 1px solid var(--line);
+    padding: 5px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .prose th { background: var(--surface); font-weight: 600; color: var(--ink); }
+  .prose blockquote {
+    margin: 8px 0;
+    padding: 2px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink-3);
+    background: var(--surface);
+  }
+  .prose hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+
+  .kv { font-size: 12px; color: var(--ink-3); }
+  .kv .k { font-weight: 600; color: var(--ink-2); }
+  .evidence { font-size: 12px; color: var(--ink-3); padding-left: 0; margin: 4px 0 0; list-style: none; }
+  .evidence li { margin: 3px 0; padding-left: 16px; position: relative; }
+  .evidence li::before {
+    content: "";
+    position: absolute; left: 2px; top: 7px;
+    width: 5px; height: 5px;
+    border-radius: 999px;
+    background: var(--good);
+  }
+
+  .codebox { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .codebox-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .codebox-head .note { font-weight: 400; color: var(--ink-3); }
+  .codebox-head .copy-btn { margin-left: auto; }
+  .codebox pre {
+    margin: 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.55;
+    background: var(--code-bg);
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-3);
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    transition: color 150ms ease-out, border-color 150ms ease-out;
+  }
+  .copy-btn:hover { color: var(--ink); border-color: var(--line-strong); }
+  .copy-btn.copied { color: var(--good-text); border-color: color-mix(in oklab, var(--good) 45%, var(--line)); }
+  .copy-btn svg { width: 12px; height: 12px; }
+
+  .f-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    font-size: 11px;
+    color: var(--ink-3);
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+
+  /* ---------- secondary sections ---------- */
+  .section { margin-top: 30px; }
+  .section > h3 {
+    font-size: 13px;
+    font-weight: 650;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+  }
+  .section > h3 .n { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+  .section .hint { font-size: 12px; color: var(--ink-3); margin: 0 0 10px; }
+  .plain-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; }
+  .plain-list:empty { display: none; }
+  .plain-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    border-top: 1px solid var(--line);
+  }
+  .plain-list li:first-child { border-top: 0; }
+  .plain-list .li-icon { flex: none; align-self: center; display: grid; place-items: center; width: 16px; height: 16px; }
+  .plain-list .li-icon svg { width: 14px; height: 14px; }
+  .plain-list .li-title { color: var(--ink-2); min-width: 0; }
+  .plain-list .li-file { font-size: 11.5px; color: var(--ink-3); margin-left: auto; flex: none; }
+  .plain-list .li-round { font-size: 11px; color: var(--ink-3); flex: none; width: 52px; text-align: right; }
+  .muted-details > summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    padding: 6px 0;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .muted-details > summary::-webkit-details-marker { display: none; }
+  .muted-details > summary:hover { color: var(--ink); }
+  .muted-details > summary .chev { rotate: 0deg; }
+  .muted-details[open] > summary .chev { rotate: 90deg; }
+
+  /* ---------- timeline ---------- */
+  .timeline {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    padding: 6px 0 10px;
+  }
+  .round-node { display: flex; align-items: flex-start; flex: none; }
+  .round-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 13px;
+    min-width: 150px;
+    background: var(--bg);
+  }
+  .round-node.current .round-card { border-color: var(--accent); background: var(--accent-tint); }
+  .round-card .r-top {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .round-card .r-verdict { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; color: var(--rv-text); }
+  .round-card .r-date { font-size: 11px; color: var(--ink-3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .round-card .r-stats { font-size: 11px; color: var(--ink-2); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .round-link {
+    flex: none;
+    width: 26px;
+    height: 1px;
+    background: var(--line-strong);
+    margin-top: 26px;
+  }
+
+  /* ---------- walkthrough ---------- */
+  .walkthrough {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-top: 14px;
+  }
+  .walkthrough > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 12px;
+    transition: background-color 150ms ease-out;
+  }
+  .walkthrough > summary::-webkit-details-marker { display: none; }
+  .walkthrough > summary:hover { background: var(--surface); }
+  .walkthrough > summary .chev { margin-left: auto; }
+  .walkthrough[open] > summary { border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+  .walkthrough .prose { padding: 14px 16px; max-width: none; }
+  .walkthrough .prose > :first-child { margin-top: 0; }
+
+  /* ---------- empty / states ---------- */
+  .empty {
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
+    padding: 34px 20px;
+    text-align: center;
+    margin-top: 16px;
+  }
+  .empty .e-icon { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; background: var(--surface); color: var(--ink-3); margin-bottom: 10px; }
+  .empty .e-icon svg { width: 17px; height: 17px; }
+  .empty.good .e-icon { background: color-mix(in oklab, var(--good) 15%, var(--bg)); color: var(--good-text); }
+  .empty h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .empty p { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-3); }
+  .empty .link-btn { color: var(--accent-text); font-weight: 600; }
+
+  .hydrate-error {
+    max-width: 560px;
+    margin: 15vh auto;
+    padding: 0 24px;
+    text-align: center;
+  }
+  .hydrate-error h1 { font-size: 17px; }
+  .hydrate-error p { color: var(--ink-2); font-size: 13.5px; }
+  .hydrate-error code { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+
+  footer.wrap {
+    margin-top: 44px;
+    padding-top: 14px;
+    padding-bottom: 34px;
+    border-top: 1px solid var(--line);
+    font-size: 11.5px;
+    color: var(--ink-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    translate: -50% 0;
+    z-index: var(--z-toast);
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease-out;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 0 14px; }
+    .topbar-in { flex-wrap: wrap; }
+    .updated { display: none; }
+    .sev-tag { width: auto; }
+    .finding summary { flex-wrap: wrap; }
+    .f-body { padding-left: 14px; }
+    .f-anchor { display: none; }
+    .toolbar { top: 0; position: static; }
+    .file-head { position: static; }
+    .result-line { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+  @media print {
+    .topbar-tools, .toolbar, .result-line .link-btn, .copy-btn, #toast { display: none !important; }
+    .topbar, .toolbar, .file-head { position: static; }
+    .finding { break-inside: avoid; }
+    body { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">This report needs JavaScript (all local — no network access).</p></noscript>
+<script id="dr-data" type="application/json">__DEEP_REVIEW_DATA__</script>
+<script>
+"use strict";
+(() => {
+  /* ---------- data ---------- */
+  let DATA = null;
+  try { DATA = JSON.parse(document.getElementById("dr-data").textContent); } catch (_) { /* placeholder */ }
+  const app = document.getElementById("app");
+  if (!DATA || !DATA.schema_version) {
+    document.title = "Deep Review — template";
+    app.innerHTML = `<div class="hydrate-error"><h1>Template not hydrated</h1>
+      <p>This file is the fixed deep-review UI template. Generate the report with</p>
+      <p><code>python3 &lt;skill-dir&gt;/scripts/render_html.py --out &lt;out&gt;</code></p></div>`;
+    return;
+  }
+
+  /* ---------- constants ---------- */
+  const SEV = ["critical", "major", "minor", "trivial"];
+  const SEV_RANK = { critical: 3, major: 2, minor: 1, trivial: 0 };
+  const SEV_LABEL = { critical: "Critical", major: "Major", minor: "Minor", trivial: "Trivial" };
+  const CAT_LABEL = { "potential-issue": "Potential issue", refactor: "Refactor", nitpick: "Nitpick" };
+  const VERDICT = {
+    SHIP:            { color: "var(--good)",         text: "var(--good-text)",         icon: "check",  label: "SHIP" },
+    FIX_BEFORE_SHIP: { color: "var(--sev-major)",    text: "var(--sev-major-text)",    icon: "alert",  label: "FIX BEFORE SHIP" },
+    REWORK:          { color: "var(--sev-critical)", text: "var(--sev-critical-text)", icon: "block",  label: "REWORK" },
+    PENDING:         { color: "var(--ink-3)",        text: "var(--ink-2)",             icon: "clock",  label: "ROUND IN PROGRESS" },
+  };
+  const ICONS = {
+    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg>',
+    alert: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8 15 14H1z"/><path d="M8 6.2v3.4"/><circle cx="8" cy="11.9" r="0.4" fill="currentColor"/></svg>',
+    block: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6.2"/><path d="M3.8 3.8l8.4 8.4"/></svg>',
+    clock: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5V8l2.4 1.6"/></svg>',
+    chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg>',
+    search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14"/></svg>',
+    copy: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>',
+    x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    sun: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.2v1.8M8 13v1.8M1.2 8H3M13 8h1.8M3.2 3.2l1.3 1.3M11.5 11.5l1.3 1.3M12.8 3.2l-1.3 1.3M4.5 11.5l-1.3 1.3"/></svg>',
+    moon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.8A6 6 0 0 1 6.2 2.5a6 6 0 1 0 7.3 7.3z"/></svg>',
+    refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.6 6.6A6 6 0 0 0 2.9 4.9M2.4 9.4a6 6 0 0 0 10.7 1.7"/><path d="M13.8 2.5v4.1h-4.1M2.2 13.5V9.4h4.1"/></svg>',
+    dismiss: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M5 8h6"/></svg>',
+    dup: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.4-3.9L13.5 5.7"/><path d="M13.5 2v3.7H9.8"/><path d="M13.5 8a5.5 5.5 0 0 1-9.4 3.9L2.5 10.3"/><path d="M2.5 14v-3.7h3.7"/></svg>',
+  };
+
+  /* ---------- utils ---------- */
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const shortSha = (s) => (s || "").slice(0, 7);
+  const fmtDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return isNaN(d) ? iso : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+  const anchorOf = (f) => {
+    const end = f.end_line && f.end_line !== f.line ? `-${f.end_line}` : "";
+    return `${f.file}:${f.line}${end}`;
+  };
+  /* ---------- tiny markdown renderer (escape-first) ---------- */
+  function inlineMd(s) {
+    let out = esc(s);
+    out = out.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+    out = out.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
+    out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    out = out.replace(/(^|[\s(])_([^_]+)_(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+    out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener" target="_blank">$1</a>');
+    return out;
+  }
+  function renderMd(src) {
+    if (!src) return "";
+    const lines = String(src).replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    let i = 0;
+    const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*```/.test(line)) {
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
+        i++;
+        out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`);
+        continue;
+      }
+      if (/^\s*<!--/.test(line) && /-->\s*$/.test(line)) { i++; continue; }
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) { out.push(`<h${Math.min(h[1].length, 4)}>${inlineMd(h[2])}</h${Math.min(h[1].length, 4)}>`); i++; continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+      if (isTableRow(line) && isTableRow(lines[i + 1] || "") && /^[\s|:-]+$/.test(lines[i + 1])) {
+        const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const head = cells(line);
+        i += 2;
+        const rows = [];
+        while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
+        out.push(`<table><thead><tr>${head.map((c) => `<th>${inlineMd(c)}</th>`).join("")}</tr></thead><tbody>${
+          rows.map((r) => `<tr>${r.map((c) => `<td>${inlineMd(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+        continue;
+      }
+      if (/^\s*>/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ""));
+        out.push(`<blockquote>${renderMd(buf.join("\n"))}</blockquote>`);
+        continue;
+      }
+      const li = line.match(/^\s*([-*]|\d+\.)\s+/);
+      if (li) {
+        const ordered = /\d+\./.test(li[1]);
+        const buf = [];
+        while (i < lines.length) {
+          const m = lines[i].match(/^\s*([-*]|\d+\.)\s+(.*)$/);
+          if (!m) break;
+          buf.push(`<li>${inlineMd(m[2])}</li>`);
+          i++;
+        }
+        out.push(ordered ? `<ol>${buf.join("")}</ol>` : `<ul>${buf.join("")}</ul>`);
+        continue;
+      }
+      if (line.trim() === "") { i++; continue; }
+      const buf = [];
+      while (i < lines.length && lines[i].trim() !== "" && !/^\s*(#|```|>|\||[-*]\s|\d+\.\s)/.test(lines[i])) buf.push(lines[i++]);
+      if (buf.length) out.push(`<p>${inlineMd(buf.join(" "))}</p>`);
+      else i++;
+    }
+    return out.join("\n");
+  }
+
+  /* ---------- persisted UI state ---------- */
+  const LS_KEY = `deep-review:${DATA.target}`;
+  const defaults = { q: "", sev: [], cat: [], kind: [], status: [], scope: [], qw: false, sort: "severity", theme: "system", refresh: true, open: {}, closed: {} };
+  let ui = { ...defaults };
+  try { ui = { ...defaults, ...JSON.parse(localStorage.getItem(LS_KEY) || "{}") }; } catch (_) {}
+  const save = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(ui)); } catch (_) {} };
+
+  /* ---------- theme ---------- */
+  const sysDark = matchMedia("(prefers-color-scheme: dark)");
+  function applyTheme() {
+    const mode = ui.theme === "system" ? (sysDark.matches ? "dark" : "light") : ui.theme;
+    document.documentElement.dataset.theme = mode;
+    return mode;
+  }
+  sysDark.addEventListener("change", () => { if (ui.theme === "system") applyTheme(); });
+  applyTheme();
+
+  /* ---------- derived data ---------- */
+  const open = (DATA.findings || []).filter((f) => f.round_status === "new" || f.round_status === "duplicate");
+  const openBySev = Object.fromEntries(SEV.map((s) => [s, open.filter((f) => f.severity === s).length]));
+  const advisories = open.filter((f) => f.result_kind === "advisory");
+  const aiPrompts = open.filter((f) => f.ai_prompt);
+  document.title = `Deep Review — ${DATA.target} · round ${DATA.round}`;
+
+  /* ---------- filtering ---------- */
+  function visibleFindings() {
+    const q = ui.q.trim().toLowerCase();
+    return open.filter((f) => {
+      if (ui.sev.length && !ui.sev.includes(f.severity)) return false;
+      if (ui.cat.length && !ui.cat.includes(f.category)) return false;
+      if (ui.kind.length && !ui.kind.includes(f.result_kind)) return false;
+      if (ui.status.length) {
+        const st = f.round_status === "duplicate" ? "recurring" : "new";
+        if (!ui.status.includes(st)) return false;
+      }
+      if (ui.scope.length) {
+        const sc = f.in_diff ? "in-diff" : "outside";
+        if (!ui.scope.includes(sc)) return false;
+      }
+      if (ui.qw && !f.quick_win) return false;
+      if (q) {
+        const hay = `${f.title}\n${f.body}\n${f.file}\n${f.fingerprint}\n${(f.rules || []).map((r) => r.id).join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+  const filtersActive = () =>
+    ui.q.trim() !== "" || ui.sev.length || ui.cat.length || ui.kind.length || ui.status.length || ui.scope.length || ui.qw;
+
+  /* ---------- render helpers ---------- */
+  const sevDot = (s) => `<span class="dot" style="--d: var(--sev-${s})"></span>`;
+  const sevTag = (s) => `<span class="sev-tag" style="--sev-text: var(--sev-${s}-text)">${sevDot(s)}${SEV_LABEL[s]}</span>`;
+
+  function copyBtn(payload, label = "Copy") {
+    return `<button type="button" class="copy-btn" data-copy="${esc(encodeURIComponent(payload))}">${ICONS.copy}<span>${esc(label)}</span></button>`;
+  }
+
+  function findingCard(f) {
+    const fp = f.fingerprint;
+    const openByDefault = (f.severity === "critical" || f.severity === "major");
+    const isOpen = ui.open[fp] ? true : ui.closed[fp] ? false : openByDefault;
+    const flags = [
+      f.quick_win ? '<span class="flag qw">&#9889; quick win</span>' : "",
+      f.round_status === "duplicate" ? `<span class="flag">recurring &middot; R${f.first_round ?? "?"}</span>` : "",
+      !f.in_diff ? '<span class="flag">outside diff</span>' : "",
+      f.result_kind === "advisory" ? '<span class="flag">advisory · no verdict impact</span>' : "",
+    ].join("");
+    const rules = (f.rules || []).map((r) =>
+      `<p class="kv"><span class="k">Guideline ${esc(r.id)}</span> (<code>${esc(r.source)}</code>): &ldquo;${esc(r.guideline)}&rdquo;</p>`).join("");
+    const evidence = (f.evidence || []).length
+      ? `<div><p class="kv"><span class="k">Evidence trail</span></p><ul class="evidence">${f.evidence.map((e) => `<li class="mono">${esc(e)}</li>`).join("")}</ul></div>` : "";
+    const also = (f.also_applies || []).length
+      ? `<p class="kv"><span class="k">Also applies to</span> <span class="mono">${f.also_applies.map(esc).join(", ")}</span></p>` : "";
+    const suggestion = f.suggestion
+      ? `<div class="codebox"><div class="codebox-head"><span>&#128221; Committable suggestion</span><span class="note">replaces lines ${esc(String(f.line))}&ndash;${esc(String(f.end_line || f.line))} &mdash; review before committing</span>${copyBtn(f.suggestion)}</div><pre><code>${esc(f.suggestion)}</code></pre></div>` : "";
+    const prompt = f.ai_prompt
+      ? `<div class="codebox"><div class="codebox-head"><span>&#129302; Prompt for AI agents</span>${copyBtn(f.ai_prompt, "Copy prompt")}</div><pre><code>${esc(f.ai_prompt)}</code></pre></div>` : "";
+    const meta = [
+      `<span>${esc(CAT_LABEL[f.category] || f.category)}</span>`,
+      `<span>${esc(f.result_kind || "defect")}</span>`,
+      `<span>fingerprint <span class="mono">${esc(fp)}</span></span>`,
+      f.source_jobs?.length ? `<span>reported by ${f.source_jobs.map(esc).join(", ")}</span>` : "",
+      f.hunk ? `<span>hunk <span class="mono">${esc(f.hunk)}</span></span>` : "",
+    ].filter(Boolean).join("");
+    return `<details class="finding" data-fp="${esc(fp)}" ${isOpen ? "open" : ""}>
+      <summary>
+        ${sevTag(f.severity)}
+        <span class="f-title">${esc(f.title)}</span>
+        <span class="f-flags">${flags}</span>
+        <span class="f-anchor mono">${esc(anchorOf(f))}</span>
+        <span class="chev">${ICONS.chev}</span>
+      </summary>
+      <div class="f-body">
+        <div class="anchor-row">
+          <span class="f-anchor-body mono">${esc(anchorOf(f))}</span>
+          ${copyBtn(anchorOf(f), "Copy anchor")}
+        </div>
+        <div class="prose">${renderMd(f.body)}</div>
+        ${also}${rules}${evidence}${suggestion}${prompt}
+        <div class="f-meta">${meta}</div>
+      </div>
+    </details>`;
+  }
+
+  function fileGroups(list) {
+    const groups = new Map();
+    for (const f of list) {
+      if (!groups.has(f.file)) groups.set(f.file, []);
+      groups.get(f.file).push(f);
+    }
+    let ordered = [...groups.entries()];
+    if (ui.sort === "file") ordered.sort((a, b) => a[0].localeCompare(b[0]));
+    else ordered.sort((a, b) =>
+      Math.max(...b[1].map((f) => SEV_RANK[f.severity])) - Math.max(...a[1].map((f) => SEV_RANK[f.severity])) ||
+      a[0].localeCompare(b[0]));
+    return ordered.map(([path, fs]) => {
+      fs.sort((a, b) => (ui.sort === "file" ? a.line - b.line : SEV_RANK[b.severity] - SEV_RANK[a.severity] || a.line - b.line));
+      const dots = SEV.map((s) => {
+        const n = fs.filter((f) => f.severity === s).length;
+        return n ? `<span class="n">${n}</span><span class="dot" style="--d: var(--sev-${s})" title="${n} ${SEV_LABEL[s]}"></span>` : "";
+      }).join("");
+      return `<section class="file-group">
+        <div class="file-head"><span class="path mono">${esc(path)}</span><span class="file-dots">${dots}</span></div>
+        ${fs.map(findingCard).join("")}
+      </section>`;
+    }).join("");
+  }
+
+  /* ---------- sections ---------- */
+  function bannerHtml() {
+    const v = VERDICT[DATA.verdict] || VERDICT.PENDING;
+    const rationale = DATA.verdict === "PENDING"
+      ? "Findings are merged; the verdict lands when render_review.py completes this round."
+      : esc(DATA.verdict_rationale || "");
+    const pr = DATA.pr ? `<span>PR <a href="${esc(DATA.pr.url)}" target="_blank" rel="noopener">#${esc(String(DATA.pr.number))} ${esc(DATA.pr.title)}</a></span>` : "";
+    const c = DATA.counts || {};
+    return `<section class="banner" style="--v-color:${v.color}; --v-text:${v.text}" aria-label="verdict">
+      <span class="v-icon">${ICONS[v.icon]}</span>
+      <div>
+        <h2>${v.label}</h2>
+        ${rationale ? `<p class="v-rationale">${rationale}</p>` : ""}
+        <div class="v-meta">
+          ${pr}
+          <span><span class="mono">${esc(shortSha(DATA.base))}&hellip;${esc(shortSha(DATA.head))}</span></span>
+          <span>${c.selected ?? 0} files reviewed &middot; ${c.ignored ?? 0} ignored &middot; ${c.skipped ?? 0} skipped</span>
+          <span>assertive review</span>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function tilesHtml() {
+    const res = (DATA.resolved || []).length;
+    const tiles = SEV.map((s) => `
+      <button type="button" class="tile ${openBySev[s] ? "" : "is-zero"}" data-sev="${s}" aria-pressed="${ui.sev.includes(s)}">
+        <span class="t-label"><span class="dot" style="--d: var(--sev-${s})"></span>${SEV_LABEL[s]}</span>
+        <span class="t-value">${openBySev[s]}</span>
+      </button>`).join("");
+    return `<div class="tiles" role="group" aria-label="open findings by severity — click to filter">
+      ${tiles}
+      <div class="tile static ${res ? "" : "is-zero"}">
+        <span class="t-label"><span class="dot" style="--d: var(--good)"></span>Resolved</span>
+        <span class="t-value">${res}</span>
+        <span class="t-sub">since last round</span>
+      </div>
+      <div class="tile static ${advisories.length ? "" : "is-zero"}">
+        <span class="t-label"><span class="dot"></span>Advisories</span>
+        <span class="t-value">${advisories.length}</span>
+        <span class="t-sub">of ${open.length} open</span>
+      </div>
+    </div>`;
+  }
+
+  function chip(group, val, label, count, pressed) {
+    return `<button type="button" class="chip" data-group="${group}" data-val="${val}" aria-pressed="${pressed}">${label}${count != null ? ` <span class="count">${count}</span>` : ""}</button>`;
+  }
+
+  function toolbarHtml() {
+    const catCounts = Object.fromEntries(["potential-issue", "refactor", "nitpick"].map((c) => [c, open.filter((f) => f.category === c).length]));
+    const kindCounts = Object.fromEntries(["defect", "advisory"].map((kind) => [kind, open.filter((f) => f.result_kind === kind).length]));
+    const recurring = open.filter((f) => f.round_status === "duplicate").length;
+    const outside = open.filter((f) => !f.in_diff).length;
+    const qwCount = open.filter((f) => f.quick_win).length;
+    return `<div class="toolbar" role="search">
+      <div class="search ${ui.q ? "has-q" : ""}">
+        ${ICONS.search}
+        <input id="q" type="search" placeholder="Filter findings… ( / )" value="${esc(ui.q)}" aria-label="Filter findings">
+        <button type="button" class="clear-q" aria-label="Clear search">${ICONS.x}</button>
+      </div>
+      ${chip("kind", "defect", "Defects", kindCounts.defect, ui.kind.includes("defect"))}
+      ${chip("kind", "advisory", "Advisories", kindCounts.advisory, ui.kind.includes("advisory"))}
+      <span class="sep"></span>
+      ${chip("cat", "potential-issue", "Issues", catCounts["potential-issue"], ui.cat.includes("potential-issue"))}
+      ${chip("cat", "refactor", "Refactors", catCounts.refactor, ui.cat.includes("refactor"))}
+      ${chip("cat", "nitpick", "Nitpicks", catCounts.nitpick, ui.cat.includes("nitpick"))}
+      <span class="sep"></span>
+      ${chip("status", "new", "New", open.length - recurring, ui.status.includes("new"))}
+      ${chip("status", "recurring", "Recurring", recurring, ui.status.includes("recurring"))}
+      ${outside ? chip("scope", "outside", "Outside diff", outside, ui.scope.includes("outside")) : ""}
+      ${qwCount ? `<button type="button" class="chip" data-group="qw" aria-pressed="${ui.qw}">&#9889; Quick wins <span class="count">${qwCount}</span></button>` : ""}
+      <span class="spacer"></span>
+      <label class="select-wrap">Sort
+        <select id="sort" aria-label="Sort findings">
+          <option value="severity" ${ui.sort === "severity" ? "selected" : ""}>severity</option>
+          <option value="file" ${ui.sort === "file" ? "selected" : ""}>file</option>
+        </select>
+      </label>
+      ${aiPrompts.length ? `<button type="button" class="icon-btn" id="copy-all" title="Copy every open Critical/Major AI fix prompt">${ICONS.copy}Fix prompts <span class="count">${aiPrompts.length}</span></button>` : ""}
+    </div>`;
+  }
+
+  function findingsHtml() {
+    const vis = visibleFindings();
+    const active = filtersActive();
+    let body;
+    if (!open.length) {
+      const res = (DATA.resolved || []).length;
+      body = DATA.verdict === "SHIP"
+        ? `<div class="empty good"><span class="e-icon">${ICONS.check}</span><h3>No open findings</h3><p>${res ? `${res} finding${res === 1 ? "" : "s"} resolved since the last round. ` : ""}This round is clean — ship it.</p></div>`
+        : `<div class="empty"><span class="e-icon">${ICONS.clock}</span><h3>No findings yet</h3><p>Reviewer outputs are merged as the round progresses.</p></div>`;
+    } else if (!vis.length) {
+      body = `<div class="empty"><span class="e-icon">${ICONS.search}</span><h3>No findings match</h3><p><button type="button" class="link-btn" id="clear-filters-empty">Clear filters</button> to see all ${open.length} open findings.</p></div>`;
+    } else {
+      const defects = vis.filter((f) => f.result_kind === "defect");
+      const advice = vis.filter((f) => f.result_kind === "advisory");
+      body = `${defects.length ? `<section class="section"><h3>Defects <span class="n">${defects.length}</span></h3>${fileGroups(defects)}</section>` : ""}
+        ${advice.length ? `<section class="section"><h3>Advisories <span class="n">${advice.length}</span></h3><p class="hint">Actionable polish and project-rule guidance; excluded from the verdict.</p>${fileGroups(advice)}</section>` : ""}`;
+    }
+    const line = open.length
+      ? `<div class="result-line"><span>Showing ${vis.length} of ${open.length} open findings</span>${active ? `<button type="button" class="link-btn" id="clear-filters">Clear filters</button>` : ""}
+         <span class="spacer" style="flex:1"></span>
+         <button type="button" class="link-btn" data-toggle-all="open">Expand all</button>
+         <button type="button" class="link-btn" data-toggle-all="close">Collapse all</button></div>`
+      : "";
+    return `${line}<div id="findings">${body}</div>`;
+  }
+
+  function listItem(icon, iconColor, title, file, line, roundTxt) {
+    return `<li><span class="li-icon" style="color:${iconColor}">${icon}</span>
+      <span class="li-title">${esc(title)}</span>
+      <span class="li-file mono">${esc(file)}${line ? `:${line}` : ""}</span>
+      <span class="li-round">${esc(roundTxt)}</span></li>`;
+  }
+
+  function secondaryHtml() {
+    const parts = [];
+    const stats = DATA.review_stats || {};
+    const coverage = stats.coverage || {};
+    const laneCoverage = coverage.lanes || {};
+    parts.push(`<section class="section"><h3>Review observability</h3>
+      <p class="hint">${stats.candidates ?? 0} candidates investigated · ${stats.reported ?? 0} reported before deduplication · ${stats.suppressed ?? 0} suppressions recorded.</p>
+      <p class="hint">${coverage.selected_hunk_lines ?? 0} selected hunk lines · defect coverage ${laneCoverage.defect?.complete ? "complete" : "incomplete"} · polish coverage ${laneCoverage.polish?.complete ? "complete" : "incomplete"}.</p>
+    </section>`);
+    const suppressions = DATA.suppressions || [];
+    if (suppressions.length) {
+      parts.push(`<section class="section"><details class="muted-details"><summary><span class="chev">${ICONS.chev}</span>Suppressed candidates <span class="n">${suppressions.length}</span></summary>
+        <ul class="plain-list" style="margin-top:8px">${suppressions.map((row) => listItem(ICONS.dismiss, "var(--ink-3)", `${row.candidate} — ${row.reason}`, row.file, row.line, row.source_job)).join("")}</ul></details></section>`);
+    }
+    const unrev = DATA.unreviewed_open || [];
+    if (unrev.length) {
+      parts.push(`<section class="section"><h3>Still open — not re-reviewed <span class="n">${unrev.length}</span></h3>
+        <p class="hint">Raised in an earlier round; their files were carried or skipped this round, so their status is unchanged.</p>
+        <ul class="plain-list">${unrev.map((r) => listItem(ICONS.dup, "var(--ink-3)", r.title, r.file, null, `R${r.round ?? "?"}`)).join("")}</ul></section>`);
+    }
+    const res = DATA.resolved || [];
+    if (res.length) {
+      parts.push(`<section class="section"><h3>Resolved since last round <span class="n">${res.length}</span></h3>
+        <ul class="plain-list">${res.map((r) => listItem(ICONS.check, "var(--good-text)", r.title, r.file, null, `R${r.round ?? "?"}`)).join("")}</ul></section>`);
+    }
+    const dis = DATA.dismissed || [];
+    if (dis.length) {
+      parts.push(`<section class="section"><details class="muted-details"><summary><span class="chev">${ICONS.chev}</span>Dismissed — never re-raised <span class="n">${dis.length}</span></summary>
+        <ul class="plain-list" style="margin-top:8px">${dis.map((r) => listItem(ICONS.dismiss, "var(--ink-3)", r.title, r.file, null, `R${r.round ?? "?"}`)).join("")}</ul></details></section>`);
+    }
+    return parts.join("");
+  }
+
+  function timelineHtml() {
+    const rounds = DATA.rounds || [];
+    if (!rounds.length) return "";
+    const nodes = rounds.map((r, i) => {
+      const v = VERDICT[r.verdict] || VERDICT.PENDING;
+      const stats = r.stats
+        ? `<div class="r-stats">${r.stats.open ?? "?"} open &middot; ${r.stats.critical ?? 0}&#8202;C ${r.stats.major ?? 0}&#8202;M &middot; ${r.stats.advisories ?? 0} advisories</div>` : "";
+      return `${i ? '<span class="round-link" aria-hidden="true"></span>' : ""}
+        <div class="round-node ${r.current ? "current" : ""}">
+          <div class="round-card" style="--rv-text:${v.text}">
+            <div class="r-top"><span class="dot" style="--d:${v.color}"></span>Round ${r.n} <span class="r-verdict">${r.verdict === "PENDING" ? "IN PROGRESS" : esc(String(r.verdict || "").replace(/_/g, " "))}</span></div>
+            <div class="r-date">${esc(fmtDate(r.reviewed_at))} &middot; <span class="mono">${esc(shortSha(r.base))}&hellip;${esc(shortSha(r.head))}</span></div>
+            ${stats}
+          </div>
+        </div>`;
+    }).join("");
+    return `<section class="section"><h3>Rounds</h3><div class="timeline">${nodes}</div></section>`;
+  }
+
+  function walkthroughHtml() {
+    if (!DATA.walkthrough) return "";
+    return `<details class="walkthrough" ${ui.open["__walkthrough"] ? "open" : ""} id="walkthrough">
+      <summary>Walkthrough &amp; changes<span class="chev">${ICONS.chev}</span></summary>
+      <div class="prose">${renderMd(DATA.walkthrough)}</div>
+    </details>`;
+  }
+
+  /* ---------- shell ---------- */
+  function render() {
+    app.innerHTML = `
+      <header class="topbar"><div class="wrap topbar-in">
+        <div class="brand">
+          <h1>Deep Review</h1>
+          <span class="target mono" title="${esc(DATA.target)}">${esc(DATA.target)}</span>
+          <span class="round-chip">round ${DATA.round}</span>
+        </div>
+        <div class="topbar-tools">
+          <span class="updated" id="updated" title="${esc(DATA.generated_at)}"></span>
+          <button type="button" class="icon-btn" id="auto-refresh" aria-pressed="${ui.refresh}" title="Reload when a new round lands">${ICONS.refresh}<span>Auto</span></button>
+          <button type="button" class="icon-btn" id="theme" title="Toggle theme (t)"></button>
+        </div>
+      </div></header>
+      <main class="wrap">
+        ${bannerHtml()}
+        ${tilesHtml()}
+        ${walkthroughHtml()}
+        ${open.length ? toolbarHtml() : ""}
+        ${findingsHtml()}
+        ${secondaryHtml()}
+        ${timelineHtml()}
+      </main>
+      <footer class="wrap">
+        <span>deep-review &middot; generated ${esc(fmtDate(DATA.generated_at))}</span>
+        <span>artifacts: <span class="mono">${esc(DATA.out_dir || "")}</span></span>
+        <span class="mono">review.md &middot; findings.json &middot; state.json</span>
+      </footer>`;
+    syncThemeBtn();
+    tickUpdated();
+  }
+
+  function syncThemeBtn() {
+    const btn = document.getElementById("theme");
+    if (!btn) return;
+    const mode = applyTheme();
+    btn.innerHTML = (mode === "dark" ? ICONS.moon : ICONS.sun) + `<span>${ui.theme === "system" ? "Auto" : mode === "dark" ? "Dark" : "Light"}</span>`;
+  }
+
+  /* ---------- auto refresh ---------- */
+  const genMs = Date.parse(DATA.generated_at || "") || Date.now();
+  function tickUpdated() {
+    const el = document.getElementById("updated");
+    if (!el) return;
+    const s = Math.max(0, Math.round((Date.now() - genMs) / 1000));
+    el.textContent = s < 5 ? "just updated" : s < 60 ? `updated ${s}s ago` : s < 3600 ? `updated ${Math.round(s / 60)}m ago` : `updated ${fmtDate(DATA.generated_at)}`;
+  }
+  setInterval(tickUpdated, 1000);
+  setInterval(() => {
+    if (!ui.refresh || document.hidden) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT")) return;
+    if (String(getSelection() || "").length) return;
+    location.reload();
+  }, 10000);
+
+  /* ---------- events (delegated) ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 1400);
+  }
+  async function copyText(text, btn) {
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch (_) {}
+      ta.remove();
+    }
+    if (ok && btn) {
+      btn.classList.add("copied");
+      setTimeout(() => btn.classList.remove("copied"), 1200);
+    }
+    toast(ok ? "Copied" : "Copy failed — select manually");
+  }
+  const toggleIn = (arr, val) => { const i = arr.indexOf(val); i >= 0 ? arr.splice(i, 1) : arr.push(val); };
+
+  document.addEventListener("click", (e) => {
+    const copyEl = e.target.closest("[data-copy]");
+    if (copyEl) { e.preventDefault(); copyText(decodeURIComponent(copyEl.dataset.copy), copyEl); return; }
+    const tile = e.target.closest(".tile[data-sev]");
+    if (tile) { toggleIn(ui.sev, tile.dataset.sev); save(); render(); return; }
+    const chipEl = e.target.closest(".chip[data-group]");
+    if (chipEl) {
+      const g = chipEl.dataset.group;
+      if (g === "qw") ui.qw = !ui.qw;
+      else toggleIn(ui[g], chipEl.dataset.val);
+      save(); render(); return;
+    }
+    if (e.target.closest("#clear-filters") || e.target.closest("#clear-filters-empty")) {
+      Object.assign(ui, { q: "", sev: [], cat: [], kind: [], status: [], scope: [], qw: false });
+      save(); render(); return;
+    }
+    const tog = e.target.closest("[data-toggle-all]");
+    if (tog) {
+      const openAll = tog.dataset.toggleAll === "open";
+      document.querySelectorAll(".finding").forEach((d) => {
+        d.open = openAll;
+        const fp = d.dataset.fp;
+        if (openAll) { ui.open[fp] = 1; delete ui.closed[fp]; }
+        else { ui.closed[fp] = 1; delete ui.open[fp]; }
+      });
+      save(); return;
+    }
+    if (e.target.closest("#copy-all")) {
+      const text = aiPrompts.map((f) => f.ai_prompt).join("\n\n---\n\n");
+      copyText(text, e.target.closest("#copy-all"));
+      return;
+    }
+    if (e.target.closest("#auto-refresh")) {
+      ui.refresh = !ui.refresh;
+      save();
+      document.getElementById("auto-refresh").setAttribute("aria-pressed", String(ui.refresh));
+      toast(ui.refresh ? "Auto-reload on" : "Auto-reload off");
+      return;
+    }
+    if (e.target.closest("#theme")) {
+      ui.theme = ui.theme === "system" ? "dark" : ui.theme === "dark" ? "light" : "system";
+      save(); syncThemeBtn(); return;
+    }
+    if (e.target.closest(".search .clear-q")) {
+      ui.q = ""; save(); render();
+      document.getElementById("q")?.focus();
+      return;
+    }
+  });
+
+  document.addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (d.classList?.contains("finding")) {
+      const fp = d.dataset.fp;
+      if (d.open) { ui.open[fp] = 1; delete ui.closed[fp]; }
+      else { ui.closed[fp] = 1; delete ui.open[fp]; }
+      save();
+    }
+    if (d.id === "walkthrough") {
+      if (d.open) ui.open["__walkthrough"] = 1; else delete ui.open["__walkthrough"];
+      save();
+    }
+  }, true);
+
+  let qTimer;
+  document.addEventListener("input", (e) => {
+    if (e.target.id === "q") {
+      clearTimeout(qTimer);
+      const val = e.target.value;
+      qTimer = setTimeout(() => {
+        ui.q = val;
+        save();
+        render();
+        const inp = document.getElementById("q");
+        if (inp) {
+          inp.focus();
+          inp.setSelectionRange(inp.value.length, inp.value.length);
+        }
+      }, 180);
+    }
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "sort") { ui.sort = e.target.value; save(); render(); }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) {
+      e.preventDefault();
+      document.getElementById("q")?.focus();
+    }
+    if (e.key === "Escape" && document.activeElement?.id === "q") {
+      document.activeElement.blur();
+    }
+    if (e.key === "t" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) {
+      ui.theme = ui.theme === "system" ? "dark" : ui.theme === "dark" ? "light" : "system";
+      save(); syncThemeBtn();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

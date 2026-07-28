@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "modals/add-workspace.html",
+  "entry": "modals/add-workspace.html",
+  "renderer": "html",
+  "status": "implementation-complete-pending-visual-contract",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T17:11:28.575Z",
+  "updatedAt": "2026-07-14T17:11:28.575Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

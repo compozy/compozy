@@ -1,0 +1,63 @@
+---
+title: "compozy task next"
+description: "Claim the next task run for the current agent session"
+---
+
+## compozy task next
+
+Claim the next task run for the current agent session
+
+```
+compozy task next [flags]
+```
+
+### Examples
+
+```
+  # Claim the next available run for this session
+  compozy task next
+
+  # Wait until matching work is claimable and request a five-minute lease
+  compozy task next --wait --lease-seconds 300 -o json
+
+  # Claim one exact queued run through the canonical lease path
+  compozy task next --run-id run-123 -o json
+
+  # Filter by required caller capability
+  compozy task next --capability go.test --priority-min 10
+```
+
+### Options
+
+```
+      --capability stringArray   Caller capability filter (repeatable)
+  -h, --help                     help for next
+      --idempotency-key string   Optional idempotency key
+      --lease-seconds int        Lease duration in seconds
+      --priority-min int         Minimum task priority
+      --run-id string            Claim exactly this queued run
+      --wait                     Wait until work is claimable
+      --workspace-id string      Workspace ID override; defaults to caller workspace
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task next -o json
+```

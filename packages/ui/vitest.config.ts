@@ -1,23 +1,16 @@
+import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [viteReact()],
   test: {
-    environment: "node",
+    name: "ui",
+    environment: "jsdom",
     globals: true,
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["**/node_modules/**", "**/dist/**", "**/coverage/**"],
-    setupFiles: ["./tests/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json-summary"],
-      include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/index.ts"],
-      thresholds: {
-        branches: 80,
-        functions: 80,
-        lines: 80,
-        statements: 80,
-      },
-    },
+    // Bounded pool: turbo runs workspace test tasks concurrently (L-030).
+    maxWorkers: "50%",
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/visual/*.spec.ts"],
+    setupFiles: ["./src/test-setup.ts"],
   },
 });

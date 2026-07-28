@@ -1,0 +1,53 @@
+[extension]
+name = "slack"
+version = "0.1.0"
+description = "Production Slack bridge provider built on internal/bridgesdk"
+min_compozy_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "slack"
+display_name = "Slack"
+
+[[bridge.secret_slots]]
+name = "bot_token"
+description = "Slack bot OAuth token"
+required = true
+
+[[bridge.secret_slots]]
+name = "signing_secret"
+description = "Slack request signing secret"
+required = true
+
+[bridge.config_schema]
+schema = "compozy.bridge.slack"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/messages/ingest",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+]
+
+[subprocess]
+command = "./bin/slack"
+args = ["serve"]
+
+[subprocess.env]
+COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_HANDSHAKE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_OWNERSHIP_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STATE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STATE_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_DELIVERY_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_INGEST_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_INGEST_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_STARTS_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STARTS_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
+COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
+COMPOZY_BRIDGE_SLACK_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_SLACK_LISTEN_ADDR}}"
+COMPOZY_BRIDGE_SLACK_API_BASE_URL = "{{env:COMPOZY_BRIDGE_SLACK_API_BASE_URL}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]

@@ -60,11 +60,11 @@ Paper cuts are the second judgment of every session: friction too small to fail 
 
 ## Session logging
 
-Log every session as it runs (this feeds the charter debrief and the report):
+Log every session as it runs (this feeds the session debrief in the report):
 
 ```yaml
-- charter: CH-<NNN>
-  journey: J-<NN>
+- charter: CH-<slug>
+  journey: J-<slug>
   persona: <name>
   entry: <how the session entered>
   steps:
@@ -80,7 +80,7 @@ Log every session as it runs (this feeds the charter debrief and the report):
   paper_cuts:
     - felt: "<persona language>"
       sharpness: sharp | dull
-  bugs: [BUG-<NNNN>]
+  bugs: [BUG-<YYYYMMDD>-<slug>]
   scenarios_settled: {<id>: <qa_status>}
 ```
 

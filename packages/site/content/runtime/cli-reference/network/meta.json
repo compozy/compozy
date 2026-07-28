@@ -1,0 +1,21 @@
+{
+    "title": "Network",
+    "pages": [
+        "index",
+        "inbox",
+        "mute",
+        "peers",
+        "send",
+        "status",
+        "subscribe",
+        "unmute",
+        "usage",
+        "channels",
+        "coordination",
+        "directs",
+        "invitation",
+        "subscriptions",
+        "threads",
+        "work"
+    ]
+}

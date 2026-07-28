@@ -1,0 +1,117 @@
+{
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.oxc": "explicit",
+        "source.organizeImports": "explicit",
+        "source.removeUnusedImports": "explicit"
+    },
+
+    // Oxc Language Server Configuration
+    "oxc.enable": true,
+    "oxc.fmt.configPath": ".oxfmtrc.json",
+    "oxc.lint.run": "onType",
+    "oxc.trace.server": "off",
+
+    // Use Oxc formatter for all supported file types
+    "[javascript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[javascriptreact]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[typescriptreact]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[css]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[scss]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[yaml]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[graphql]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+
+    // Go files use gopls
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false
+    },
+
+    // JSON files use 4 spaces
+    "[json]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode",
+        "editor.tabSize": 4
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode",
+        "editor.tabSize": 4
+    },
+
+    // TypeScript language service configuration
+    "js/ts.experimental.useTsgo": true,
+    "js/ts.tsdk.path": "./node_modules/@typescript/native/bin",
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "javascript.updateImportsOnFileMove.enabled": "always",
+
+    // Tailwind CSS configuration
+    "files.associations": {
+        "*.css": "tailwindcss"
+    },
+    "tailwindCSS.includeLanguages": {
+        "javascript": "javascript",
+        "html": "HTML"
+    },
+    "tailwindCSS.experimental.classRegex": [
+        ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+        ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+    ],
+
+    // Emmet configuration
+    "emmet.includeLanguages": {
+        "javascript": "javascriptreact",
+        "typescript": "typescriptreact"
+    },
+
+    // File exclusions
+    "files.exclude": {
+        "**/dist": true,
+        "**/.git": true,
+        "**/.DS_Store": true,
+        ".old_project": true
+    },
+    "search.exclude": {
+        "**/dist": true,
+        "**/node_modules": true,
+        "**/routeTree.gen.ts": true,
+        ".old_project/**": true,
+        ".resources/**": true
+    },
+    "files.watcherExclude": {
+        "**/routeTree.gen.ts": true
+    },
+    "files.readonlyInclude": {
+        "**/routeTree.gen.ts": true
+    },
+
+    // Misc
+    "json.schemaDownload.enable": false
+}

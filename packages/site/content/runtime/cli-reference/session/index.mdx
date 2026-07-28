@@ -1,0 +1,53 @@
+---
+title: "compozy session"
+description: "Manage Compozy sessions"
+---
+
+## compozy session
+
+Manage Compozy sessions
+
+### Options
+
+```
+  -h, --help   help for session
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                           | Description                                                |
+| ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| [compozy session approve](/runtime/cli-reference/session/approve) | Approve or reject a pending session permission request     |
+| [compozy session clarify](/runtime/cli-reference/session/clarify) | Manage live session questions                              |
+| [compozy session events](/runtime/cli-reference/session/events)   | Read session events                                        |
+| [compozy session health](/runtime/cli-reference/session/health)   | Read session health and wake eligibility                   |
+| [compozy session history](/runtime/cli-reference/session/history) | Show session history grouped by turn                       |
+| [compozy session inspect](/runtime/cli-reference/session/inspect) | Inspect session health, wake audit, and policy correlation |
+| [compozy session list](/runtime/cli-reference/session/list)       | List sessions                                              |
+| [compozy session new](/runtime/cli-reference/session/new)         | Create a new session                                       |
+| [compozy session prompt](/runtime/cli-reference/session/prompt)   | Send a prompt to a session                                 |
+| [compozy session recap](/runtime/cli-reference/session/recap)     | Show deterministic session recap                           |
+| [compozy session remove](/runtime/cli-reference/session/remove)   | Remove a session and its persisted history                 |
+| [compozy session repair](/runtime/cli-reference/session/repair)   | Inspect and repair an interrupted session transcript       |
+| [compozy session resume](/runtime/cli-reference/session/resume)   | Attach to a resumable session                              |
+| [compozy session soul](/runtime/cli-reference/session/soul)       | Manage session Soul snapshots                              |
+| [compozy session status](/runtime/cli-reference/session/status)   | Show session status                                        |
+| [compozy session stop](/runtime/cli-reference/session/stop)       | Stop a session                                             |
+| [compozy session usage](/runtime/cli-reference/session/usage)     | Show aggregated session token usage and cost provenance    |
+| [compozy session wait](/runtime/cli-reference/session/wait)       | Block until a session stops                                |

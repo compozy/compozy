@@ -24,7 +24,7 @@ Write 3-6 personas to `<qa-docs-path>/personas.md`, each grounded in the product
 1. Start from the product's value proposition: who pays, who uses daily, who arrives for the first time, who comes back after something went wrong.
 2. Map each to the closest seed persona and adapt: give it a name, the product-specific goal it pursues, its device/network reality, and its patience threshold.
 3. Keep the seed persona's `name` in a `base:` field so charters and bug reports can be read across projects.
-4. Include at least one Mobile-based persona when a mobile surface exists, and one Accessibility-Reliant persona unless explicitly out of scope (record the skip reasoning in the file).
+4. Include at least one Mobile-based persona when a mobile surface exists, and one Accessibility-Reliant persona unless explicitly out of scope (record the skip reasoning in the file). When the product's audience includes non-technical people, include at least one persona whose identity is non-technical — someone who judges the product in plain language and never touches its internals.
 
 Personas are durable: update them when the audience changes, not per cycle.
 

@@ -1,0 +1,59 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "approver",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are approver.",
+            "turns": [
+                {
+                    "name": "permission-turn",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "request permission"
+                    },
+                    "steps": [
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "perm-1",
+                            "title": "permission request",
+                            "tool_kind": "edit",
+                            "path": "approve.txt",
+                            "status": "pending",
+                            "expect_decision": "allow-always",
+                            "emit_decision": true
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "runner",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are runner.",
+            "turns": [
+                {
+                    "name": "sandbox-turn",
+                    "match": {
+                        "turn_source": "network",
+                        "user_text": "run sandbox"
+                    },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "cmd-1",
+                            "title": "Run fake network status",
+                            "command": "compozy",
+                            "args": ["network", "status"],
+                            "expect_exit_code": 0,
+                            "expect_output_contains": "network-ok",
+                            "emit_output": true
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

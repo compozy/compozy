@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "marketplace-vault-selector.html",
+  "entry": "marketplace-vault-selector.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T14:28:11Z",
+  "updatedAt": "2026-07-14T14:28:11Z",
+  "metadata": {
+    "inferred": false,
+    "reconciled": true
+  }
+}

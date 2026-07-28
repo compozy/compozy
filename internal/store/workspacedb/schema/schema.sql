@@ -1,0 +1,1 @@
+-- The workspace database has no domain tables at the current main head.

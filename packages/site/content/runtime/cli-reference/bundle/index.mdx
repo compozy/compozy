@@ -1,0 +1,43 @@
+---
+title: "compozy bundle"
+description: "Manage extension bundle presets"
+---
+
+## compozy bundle
+
+Manage extension bundle presets
+
+### Options
+
+```
+  -h, --help   help for bundle
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                           | Description                                            |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [compozy bundle activate](/runtime/cli-reference/bundle/activate)                 | Activate a bundle preset                               |
+| [compozy bundle catalog](/runtime/cli-reference/bundle/catalog)                   | List available extension bundle presets                |
+| [compozy bundle deactivate](/runtime/cli-reference/bundle/deactivate)             | Deactivate a bundle preset and remove owned resources  |
+| [compozy bundle get](/runtime/cli-reference/bundle/get)                           | Show one bundle activation                             |
+| [compozy bundle list](/runtime/cli-reference/bundle/list)                         | List active bundle presets                             |
+| [compozy bundle network-settings](/runtime/cli-reference/bundle/network-settings) | Show bundle-derived network settings                   |
+| [compozy bundle preview](/runtime/cli-reference/bundle/preview)                   | Preview a bundle activation without writing resources  |
+| [compozy bundle update](/runtime/cli-reference/bundle/update)                     | Reapply a bundle activation from its installed profile |

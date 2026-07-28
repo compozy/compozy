@@ -1,0 +1,201 @@
+---
+title: Memory Scopes
+description: How Compozy resolves the three memory scopes — global, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
+---
+
+Compozy memory has three scopes:
+
+- **global** — user-wide context available across workspaces.
+- **workspace** — project context bound to a specific workspace ID.
+- **agent** — per-agent context, with two tiers:
+  - `agent-workspace` — workspace-private agent state.
+  - `agent-global` — cross-workspace agent baseline.
+
+The runtime composes a frozen snapshot from these scopes at session start. Read precedence is:
+
+```text
+agent-workspace ▸ agent-global ▸ workspace ▸ global
+```
+
+A deeper scope shadows a shallower scope when both contain the same identity `(type, slug)`.
+Shadowed entries are never silently merged. The packaged recall block lists scope blocks
+**least-specific first** so agents see global context, then workspace, then agent baseline, then
+agent-workspace overrides.
+
+## File Locations
+
+| Scope                 | Default location                              | Notes                                                                    |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `global`              | `$COMPOZY_HOME/memory/`                       | Default `$COMPOZY_HOME` is `~/.compozy`.                                 |
+| `workspace`           | `<workspace>/.compozy/memory/`                | Resolved by the workspace ID from `<workspace>/.compozy/workspace.toml`. |
+| `agent` (`workspace`) | `<workspace>/.compozy/agents/<agent>/memory/` | Default tier when `--scope agent` is selected.                           |
+| `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`        | Cross-workspace agent baseline.                                          |
+
+Typical layout:
+
+```text
+~/.compozy/memory/
+  MEMORY.md
+  user_review-style.md
+  feedback_test-integrity.md
+  _system/
+  _inbox/
+
+~/.compozy/agents/reviewer/memory/
+  MEMORY.md
+  user_pedro-style.md
+  _system/
+
+/repo/compozy/.compozy/memory/
+  MEMORY.md
+  project_runtime-docs.md
+  reference_session-events.md
+  _system/
+
+/repo/compozy/.compozy/agents/reviewer/memory/
+  MEMORY.md
+  project_repo-rules.md
+  _system/
+```
+
+`workspace_id` is derived from `<workspace>/.compozy/workspace.toml`; the same ULID survives `mv` of the
+workspace directory. Memory keying never uses `workspace_root` paths. See
+[Workspace Resolver](/runtime/core/workspaces/resolver).
+
+## Choosing A Scope
+
+| Question                                                           | Likely scope          |
+| ------------------------------------------------------------------ | --------------------- |
+| Would this still help in any other repository?                     | `global`              |
+| Is this a workspace-private decision, command, or constraint?      | `workspace`           |
+| Is this how a specific agent should behave anywhere?               | `agent` / `global`    |
+| Is this how a specific agent should behave in this workspace only? | `agent` / `workspace` |
+
+Examples:
+
+| Memory                                                                 | Type       | Scope       | Agent tier  |
+| ---------------------------------------------------------------------- | ---------- | ----------- | ----------- |
+| "User prefers terse status updates while commands run."                | `user`     | `global`    | n/a         |
+| "Never weaken a failing test to preserve a broken implementation."     | `feedback` | `global`    | n/a         |
+| "The docs site package is `@compozy/site`."                            | `project`  | `workspace` | n/a         |
+| "Reviewer keeps blocking findings first and cites file:line."          | `feedback` | `agent`     | `global`    |
+| "In this repo, reviewer must call out release-risk on bridge changes." | `feedback` | `agent`     | `workspace` |
+
+## Default Write Posture
+
+The default write posture is conservative.
+
+- **CLI / HTTP / UDS operator writes.** When `--scope` is omitted, the controller falls back to a
+  type-driven default for `global`/`workspace` scopes: `user` and `feedback` → `global`,
+  `project` and `reference` → `workspace`. Agent scope is **never** the default — `--scope agent`
+  must be explicit and requires `--agent <name>` plus a validated `--agent-tier {workspace,
+global}`. The agent tier defaults to `workspace` when omitted.
+- **Cross-workspace promotion.** Agent-global writes are explicit. Operators run
+  `compozy memory promote --to agent-global <filename>` (or use the controller-backed equivalent over
+  HTTP/UDS) when a workspace-tier entry should travel with the agent.
+
+```bash
+compozy memory write \
+  --scope global \
+  --type user \
+  --name "Review Style" \
+  --description "User wants concise review findings" \
+  --content "Put blocking findings first."
+```
+
+```bash
+compozy memory write \
+  --scope workspace \
+  --type project \
+  --name "Docs Package" \
+  --description "Docs package is @compozy/site" \
+  --content 'Use `bunx turbo run build --filter=@compozy/site` for the site build.'
+```
+
+```bash
+compozy memory write \
+  --scope agent \
+  --agent reviewer \
+  --agent-tier workspace \
+  --type feedback \
+  --name "Repo Reviewer Rules" \
+  --description "This repo wants release-risk notes in reviews" \
+  --content "For this repo, include release risk when reviewing bridge or automation changes."
+```
+
+Sessions without an active workspace cannot write `--scope workspace` or `--scope agent
+--agent-tier workspace`. The controller rejects those calls with `memory.scope.workspace_required`
+instead of silently routing them to `global`.
+
+## Show, Edit, And Delete Resolution
+
+`show`, `edit`, and `delete` commands accept an explicit selector or resolve a filename within the
+current snapshot when it is unambiguous.
+
+| Case                                 | Behavior                                                   |
+| ------------------------------------ | ---------------------------------------------------------- |
+| File exists only at one scope/tier   | Compozy uses that scope/tier.                              |
+| File exists at multiple scopes/tiers | Compozy returns an ambiguity error and asks for selectors. |
+| File exists nowhere                  | Compozy returns `memory.not_found`.                        |
+| Selector points at `_system/`        | Operator-only; requires `--include-system`.                |
+
+Use explicit selectors for repeatable automation:
+
+```bash
+compozy memory show user_review-style.md --scope global
+compozy memory delete project_docs-package.md --scope workspace
+compozy memory show user_pedro-style.md --scope agent --agent reviewer --agent-tier global
+```
+
+## API Selectors
+
+HTTP and UDS routes use the same selector shape (`scope`, `workspace_id`, `agent_name`,
+`agent_tier`) and the same controller path:
+
+| Operation | Route                                    | Notes                                                                                        |
+| --------- | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| List      | `GET /api/memory`                        | Optional selector narrows by scope/agent/tier; otherwise returns the resolved-snapshot view. |
+| Show      | `GET /api/memory/{filename}`             | Selector required when the filename is ambiguous across scopes.                              |
+| Write     | `POST /api/memory`                       | Operator write. Routes through the controller WAL before mutation.                           |
+| Edit      | `PATCH /api/memory/{filename}`           | Same as Write but on an existing entry.                                                      |
+| Delete    | `DELETE /api/memory/{filename}`          | Same controller path; persists a delete decision before unlinking.                           |
+| Search    | `POST /api/memory/search`                | Deterministic recall pipeline; query is a JSON body, not query-string.                       |
+| Dream     | `POST /api/memory/dreams/trigger`        | Targets a workspace selector; runs the gated dreaming pass.                                  |
+| Decisions | `GET /api/memory/decisions`              | Lists controller decisions with redaction-safe payloads.                                     |
+| Revert    | `POST /api/memory/decisions/{id}/revert` | Re-applies the prior content for a revertible decision; persists a new decision row.         |
+
+Example workspace write:
+
+```bash
+curl -X POST http://localhost:2123/api/memory \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scope": "workspace",
+    "workspace_id": "01HXJ9YR4QABCDEFGHJK0123456",
+    "type": "project",
+    "name": "Docs Package",
+    "description": "Docs package is @compozy/site",
+    "content": "Use `bunx turbo run build --filter=@compozy/site` for the site build."
+  }'
+```
+
+Public selectors use `workspace_id` and `agent_name`. There is no path-style `workspace` field on
+the wire and no `PUT /api/memory/{filename}` route.
+
+## Shadow-By-Id
+
+Shadowing is structural, not heuristic:
+
+1. The controller computes an entry's identity as `(type, slug)`.
+2. When a deeper scope writes the same identity, the shallower entry stays on disk but is **not
+   surfaced** to the next snapshot or recall packaging until the shadowing entry is removed.
+3. `memory.write.shadowed` events record the winner and loser scopes for forensic browsing.
+
+Shadow events are observable through `compozy memory decisions list` and the events feed.
+
+## Related Pages
+
+- [Memory System](/runtime/core/memory/system) explains the controller WAL, frozen snapshot, and control surfaces.
+- [Dream](/runtime/core/memory/dream) explains gated dreaming runs and signal-based promotion.
+- [Workspace Resolver](/runtime/core/workspaces/resolver) explains how workspace_id is derived.
+- [Agent Definitions](/runtime/core/agents/definitions) documents agent memory binding.

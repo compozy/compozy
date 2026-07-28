@@ -1,0 +1,91 @@
+---
+title: Sandbox
+description: How Compozy runs sessions on the host or inside provider-backed sandboxes.
+---
+
+Sandbox is the execution boundary Compozy uses for agent sessions. A workspace can keep the default
+local sandbox, or it can point at a named sandbox profile that prepares a provider-backed runtime
+before the ACP agent starts.
+
+The implemented providers are:
+
+| Backend   | Use when                                                                  | Status      |
+| --------- | ------------------------------------------------------------------------- | ----------- |
+| `local`   | The session should run on the host with Compozy's normal local tool host. | Implemented |
+| `daytona` | The session should run in a Daytona cloud sandbox with file sync enabled. | Implemented |
+
+Use a sandbox when the runtime boundary matters as much as the agent prompt: dependency isolation,
+repeatable build environments, risky filesystem operations, or long-running agent work that should
+survive beyond a local terminal session.
+
+Sandbox state is recorded on each session as `sandbox_id`, `backend`, `profile`, `instance_id`,
+`state`, sync timestamps, and provider state. Operators can inspect that state through session
+payloads, while extensions can use the sandbox lifecycle hooks and Host API methods.
+
+## Lifecycle
+
+<Mermaid
+  chart={`flowchart TD
+    Workspace[Workspace sandbox selection] --> Resolve[Resolve profile and defaults]
+    Resolve --> Prepare[Prepare backend]
+    Prepare --> SyncTo[Sync local files to runtime]
+    SyncTo --> Launch[Launch ACP agent and sandbox tool host]
+    Launch --> Session[Persist session sandbox metadata]
+    Session --> Stop[Stop or crash]
+    Stop --> SyncFrom[Sync runtime changes back]
+    SyncFrom --> Persistence{Persistence mode}
+    Persistence -->|transient| Destroy[Destroy provider instance]
+    Persistence -->|archive| Archive[Archive provider instance]
+    Persistence -->|reuse| Reuse[Keep instance for reattachment]
+    Reuse --> Reconcile[Daemon boot reconciliation]`}
+  caption="A sandboxed session resolves a profile, prepares a runtime, syncs files, launches the agent, and reconciles provider state after stop or restart."
+/>
+
+| Phase     | What Compozy does                                                                         |
+| --------- | ----------------------------------------------------------------------------------------- |
+| Prepare   | Resolves the workspace sandbox profile, allocates `sandbox_id`, and prepares the backend. |
+| Sync      | Moves files between host and runtime according to the profile's sync mode.                |
+| Launch    | Starts the ACP agent through the sandbox launcher and provider tool host.                 |
+| Stop      | Syncs back when configured, then destroys, archives, or reuses the runtime.               |
+| Reconcile | On daemon boot, reattaches or cleans up recoverable remote sandbox state.                 |
+
+For `sync_mode = "none"`, the sync phases are still lifecycle checkpoints, but no files are moved.
+
+## Agent-manageable surfaces
+
+| Surface                                        | Purpose                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `compozy workspace add --sandbox <name>`       | Attach a workspace to a sandbox profile.                   |
+| `compozy workspace edit --sandbox <name>`      | Change a workspace's sandbox profile.                      |
+| `compozy spawn --sandbox-profile <name>`       | Grant a child session permission to use a sandbox profile. |
+| `/api/settings/sandboxes`                      | Manage config-backed sandbox profiles through HTTP/UDS.    |
+| `sandbox/list`, `sandbox/info`, `sandbox/exec` | Extension Host API methods for operational sandbox access. |
+
+Lifecycle hooks use the `sandbox.*` taxonomy: `sandbox.prepare`, `sandbox.ready`,
+`sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop`.
+
+## Operator checkpoints
+
+| Checkpoint                              | Command or surface                                      | Look for                                                        |
+| --------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| Workspace resolves the expected profile | `compozy workspace info <name> -o json`                 | A `sandbox` value matching the configured profile name.         |
+| Session attached to a sandbox           | `compozy session status <session-id> -o json`           | A `sandbox` object with `backend`, `profile`, and `sandbox_id`. |
+| Lifecycle events were emitted           | `compozy session events <session-id> --last 50 -o json` | `sandbox.prepare`, `sandbox.sync`, and `sandbox.stop` spans.    |
+| Extension visibility is wired           | Host API `sandbox/list` and `sandbox/info`              | The same sandbox identity shown in session status.              |
+| Reuse or archive behaved as expected    | Session status after stop and daemon restart            | `state`, `instance_id`, and provider state are stable.          |
+
+## Failure guide
+
+| Symptom                                      | Likely cause                                                                 | First check                                      |
+| -------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ |
+| Session starts on the host                   | Workspace did not resolve a remote profile.                                  | `compozy workspace info <name> -o json`          |
+| Session fails during prepare                 | Profile name, backend, provider credential, or provider capacity is invalid. | `compozy session events <id> --last 50`          |
+| Files are missing inside the runtime         | `sync_mode`, `include`, `exclude`, or `runtime_root` does not cover them.    | Sandbox profile in `config.toml`                 |
+| Local files did not update after stop        | Sync-back is disabled or the session crashed before final sync completed.    | `sandbox.sync.*` events and `sandbox.last_error` |
+| Reused provider instance has old state       | `persistence = "reuse"` intentionally retained it.                           | Provider state and session sandbox metadata      |
+| Child session cannot use the sandbox profile | Spawn permission did not include the profile.                                | `compozy spawn --sandbox-profile <name>`         |
+
+## Next
+
+- [Profiles](/runtime/core/sandbox/profiles) documents the `config.toml` shape and workspace flags.
+- [Daytona](/runtime/core/sandbox/daytona) documents the implemented remote provider.

@@ -1,0 +1,4 @@
+{
+    "title": "Scheduler",
+    "pages": ["index", "backlog", "drain", "pause", "resume", "status"]
+}

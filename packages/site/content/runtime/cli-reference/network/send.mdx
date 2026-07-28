@@ -1,0 +1,70 @@
+---
+title: "compozy network send"
+description: "Send one envelope through the daemon-owned network runtime"
+---
+
+## compozy network send
+
+Send one envelope through the daemon-owned network runtime
+
+### Synopsis
+
+Send one envelope through the daemon-owned network runtime.
+
+For surface=thread, choose an ID matching `^thread_[a-z0-9][a-z0-9_-]{2,95}$`. The first valid send opens a new public thread; later sends reuse that ID. For surface=direct, resolve the room first and reuse its direct_id.
+
+```
+compozy network send [flags]
+```
+
+### Examples
+
+```
+  compozy network send --workspace ws_example --session sess_example --channel launch-war-room \
+    --surface thread --thread thread_launch_brief --kind say --body '{"text":"Launch status"}'
+```
+
+### Options
+
+```
+      --body string           Kind-specific JSON object; say requires a non-empty text field
+      --causation-id string   Optional causation id
+      --channel string        Target channel
+      --direct string         Existing direct room id from network directs resolve
+      --expires-at string     Optional expiry as unix seconds or RFC3339
+      --ext string            Optional JSON object of extension metadata
+  -h, --help                  help for send
+      --id string             Optional explicit message id
+      --kind string           Envelope kind
+      --mention stringArray   Mention target peer id (repeatable)
+      --reply-to string       Optional reply-to message id
+      --session string        Local source session id
+      --surface string        Conversation surface: thread or direct; required for say/capability/receipt/trace
+      --thread string         Public thread id matching ^thread_[a-z0-9][a-z0-9_-]{2,95}$; the first valid send opens it
+      --to string             Directed target peer id; required for capability and say with --work
+      --trace-id string       Optional trace id
+      --work string           Required for capability, receipt, and trace; optional for lifecycle-bearing say
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy network send -o json
+```

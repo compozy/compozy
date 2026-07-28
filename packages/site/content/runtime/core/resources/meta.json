@@ -1,0 +1,5 @@
+{
+    "title": "Resources",
+    "icon": "Database",
+    "pages": ["index", "bundles"]
+}

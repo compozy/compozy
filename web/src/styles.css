@@ -1,16 +1,113 @@
 @import "tailwindcss";
+/* Inter Variable with opsz+wght — matches OpenDesign rsms Inter optical sizing. */
+@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/jetbrains-mono";
 @import "@compozy/ui/tokens.css";
+@import "shadcn/tailwind.css";
 
-@source "../../packages/ui/src";
+/*
+ * Tailwind v4 scans relative to this stylesheet and ignores external workspace
+ * packages by default. Register shared UI sources so embedded builds emit the
+ * utility classes used by @compozy/ui primitives such as Button.
+ */
+@source "../../packages/ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/streamdown/dist/*.js";
 
-@layer base {
-  body {
-    background:
-      radial-gradient(circle at top left, rgba(214, 242, 74, 0.045), transparent 24%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 18%), var(--background);
+#app {
+  min-height: 100%;
+}
+
+/* Marketplace install flash — domain animation using the shared motion scale. */
+@keyframes marketplace-card-flash {
+  0% {
+    background-color: var(--color-accent-tint);
+  }
+  100% {
+    background-color: var(--color-canvas-soft);
   }
 }
 
-@utility eyebrow {
-  @apply font-eyebrow text-[10px] leading-4 font-medium tracking-[0.14em] uppercase;
+.marketplace-card-flash {
+  animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
+}
+
+/* First-run setup step change: the incoming pane fades and rises so the panel
+   reads as one surface changing shape, not two panels swapping. */
+@keyframes onboarding-setup-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Reduced motion is owned globally by `@compozy/ui` tokens-runtime.css, which collapses
+   every animation/transition duration — this class adds no local override. */
+.onboarding-setup-pane-in {
+  animation: onboarding-setup-pane-in var(--duration-shell-slow) var(--ease-out) both;
+}
+
+/* Genie minimize (os-v2.css `.win.is-minimizing` verbatim): the window folds
+   into its dock item before the minimize commits. Reduced motion (system OR
+   in-product toggle) skips the class entirely — minimize is instant. */
+.os-window-minimizing {
+  transition:
+    transform 0.3s var(--ease-spring),
+    opacity 0.28s ease;
+  pointer-events: none;
+}
+
+/* Desktop switch slide/crossfade. Keyframes (not transitions) so the motion
+   fires even when the transition intent and the active-desktop flip land in
+   one render — zoom, cross-desktop focus, and remote switches arrive that way. */
+@keyframes os-desk-in-later {
+  from {
+    transform: translateX(var(--distance-desk-slide));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-in-earlier {
+  from {
+    transform: translateX(calc(-1 * var(--distance-desk-slide)));
+    opacity: 0;
+  }
+}
+
+/* Out keyframes carry explicit `from` blocks: the leaving desktop's base
+   style is already opacity 0 (inactive), so the implicit from would hide it. */
+@keyframes os-desk-out-later {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(calc(-1 * var(--distance-desk-slide)));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-out-earlier {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(var(--distance-desk-slide));
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes os-desk-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
