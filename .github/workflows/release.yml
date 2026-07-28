@@ -288,12 +288,14 @@ jobs:
   # Job 5: Resolve the explicit release identity exactly once.
   release-plan:
     name: Explicit Release Plan
+    # Auto-beta triggers ONLY on the release PR merge subject ("release:
+    # Release vX.Y.Z"). Other ci(release): commits — e.g. the site changelog
+    # receipt the release job pushes — must stay inert or publishing loops.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
        github.ref == 'refs/heads/main' &&
-       (startsWith(github.event.head_commit.message, 'release:') ||
-        startsWith(github.event.head_commit.message, 'ci(release):')) &&
+       startsWith(github.event.head_commit.message, 'release: Release ') &&
        vars.RELEASE_AUTO_CHANNEL == 'beta')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -318,7 +320,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: ./.github/actions/setup-git-cliff
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Resolve release identity
         id: identity
@@ -336,15 +340,20 @@ jobs:
             } >>"${GITHUB_OUTPUT}"
             exit 0
           fi
-          # Auto-beta path: propose the same input an operator would type by
-          # hand. git-cliff derives the in-flight line (prerelease tags are
-          # excluded via cliff.toml ignore_tags), the next beta.N comes from
-          # existing tags, and `pr-release plan` below stays the sole identity
-          # authority (HEAD match, tag absence, channel/version shape).
-          bumped="$(git cliff --bumped-version)"
-          base="${bumped#v}"
+          # Auto-beta consumes the stable base committed by the release PR.
+          # Existing prerelease tags select the next beta.N, and `pr-release
+          # plan` below remains the identity authority for HEAD, tag absence,
+          # channel policy, and version shape.
+          base="$(node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+            if (typeof manifest.version !== "string") {
+              throw new Error("package.json version must be a string");
+            }
+            process.stdout.write(manifest.version);
+          ')"
           if [[ ! "${base}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::git-cliff bumped version '${bumped}' is not plain SemVer; cannot derive the beta version"
+            echo "::error::release PR package version '${base}' is not plain SemVer; cannot derive the beta version"
             exit 1
           fi
           last=0
@@ -405,6 +414,9 @@ jobs:
           ref: ${{ needs.release-plan.outputs.release_ref }}
           fetch-depth: 0
           fetch-tags: true
+          # PAT so the site-changelog receipt push bypasses the main branch
+          # PR-only rule; its ci(release): subject keeps automation inert.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Prepare Go temporary directory
         env:
@@ -423,6 +435,8 @@ jobs:
       - uses: ./.github/actions/setup-bun
         with:
           install-playwright: "false"
+
+      - uses: ./.github/actions/setup-git-cliff
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
@@ -466,11 +480,6 @@ jobs:
             echo "::error::Missing or empty RELEASE_NOTES.md; release-pr must generate historical release notes"
             exit 1
           fi
-          if ! find packages/site/content/blog/changelog -maxdepth 1 -name '*.mdx' -type f | grep -q .; then
-            echo "::error::Missing generated site changelog page under packages/site/content/blog/changelog"
-            exit 1
-          fi
-
           for path in .goreleaser.release-header.md.tmpl .goreleaser.release-footer.md.tmpl; do
             if [ ! -f "$path" ]; then
               echo "::error::Missing release asset: $path"
@@ -637,3 +646,39 @@ jobs:
             throw new Error("npm latest moved during a beta release");
           }
           NODE
+
+      # The receipt is generated from the REAL published tag (never the release
+      # PR's base version) so the site changelog only ever advertises releases
+      # that exist, with valid compare links. Legacy-line releases publish no
+      # receipt on the CompozyOS site.
+      - name: Publish site changelog receipt
+        if: needs.release-plan.outputs.release_channel != 'legacy'
+        env:
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
+          export PR_RELEASE_VERSION="${RELEASE_VERSION}"
+          if [[ -n "${previous_tag}" ]]; then
+            export PR_RELEASE_PREVIOUS_TAG="${previous_tag}"
+            export PR_RELEASE_GIT_RANGE="${previous_tag}..${RELEASE_TAG}"
+          fi
+          bun run release:site-changelog
+          git add packages/site/content/blog/changelog
+          if git diff --cached --quiet; then
+            echo "site changelog receipt already present for ${RELEASE_TAG}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "ci(release): site changelog receipt ${RELEASE_TAG}"
+          for _ in 1 2 3; do
+            if git push origin "HEAD:refs/heads/main"; then
+              exit 0
+            fi
+            git fetch origin main
+            git rebase FETCH_HEAD
+          done
+          echo "::error::could not push the site changelog receipt for ${RELEASE_TAG}"
+          exit 1

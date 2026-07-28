@@ -24,9 +24,8 @@ export function renderReleaseMdx(entry: ChangelogReleaseEntry): string {
 }
 
 export function releaseStatus(version: string, breaking: string[]): ReleaseStatus {
-  if (breaking.length > 0) {
-    return "breaking";
-  }
+  // Prerelease receipts report their channel; breaking content stays visible
+  // through the frontmatter `breaking` bucket, not the status badge.
   const versionNumber = version.replace(/^v/, "");
   const prerelease = versionNumber.split("-", 2)[1];
   if (prerelease?.startsWith("beta")) {
@@ -34,6 +33,9 @@ export function releaseStatus(version: string, breaking: string[]): ReleaseStatu
   }
   if (prerelease !== undefined) {
     return "alpha";
+  }
+  if (breaking.length > 0) {
+    return "breaking";
   }
   const major = Number.parseInt(versionNumber.split(".", 1)[0] ?? "0", 10);
   return major >= 1 ? "stable" : "alpha";
