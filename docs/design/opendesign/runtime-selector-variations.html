@@ -178,11 +178,38 @@
   .popA .mlist{max-height:264px}
   .rzlineA{display:flex;align-items:center;gap:10px;flex:none;height:44px;padding:0 12px;border-top:1px solid var(--line-soft);background:var(--canvas)}
   .rzlineA .eyebrow{font-size:9.5px;flex:none;letter-spacing:.05em}
-  .rzlineA__val{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);flex:none;min-width:52px;text-align:right;font-weight:500}
-  .rzlineA__val small{color:var(--faint);font-size:9.5px}
+  /* ACP speed switch (PR #267: speed normal|fast) — the bolt rides the thumb across the track */
+  .spdsw{display:inline-flex;align-items:center;gap:7px;height:24px;padding:0;border:0;background:transparent;
+    cursor:pointer;flex:none;user-select:none}
+  .spdsw__lbl{font-size:11px;font-weight:560;color:var(--subtle);letter-spacing:-.005em;transition:color var(--dur) var(--ease)}
+  .spdsw:hover .spdsw__lbl{color:var(--fg)}
+  .spdsw[aria-checked="true"] .spdsw__lbl{color:var(--fg-strong)}
+  .spdsw__track{position:relative;width:40px;height:22px;border-radius:var(--radius-pill);background:var(--canvas-soft);
+    box-shadow:inset 0 0 0 1px var(--line-soft);flex:none;
+    transition:background 260ms var(--ease),box-shadow 260ms var(--ease)}
+  .spdsw[aria-checked="true"] .spdsw__track{background:var(--accent-tint-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .spdsw__thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:var(--radius-pill);
+    display:grid;place-items:center;background:var(--elevated);color:var(--faint);
+    box-shadow:0 0 0 1px var(--line-strong),0 1px 2px rgba(0,0,0,.35);
+    transition:transform 300ms var(--spring),width 160ms var(--ease),background 260ms var(--ease),color 260ms var(--ease)}
+  .spdsw[aria-checked="true"] .spdsw__thumb{transform:translateX(18px);background:var(--fg-strong);color:var(--accent)}
+  /* iOS-style press stretch — the thumb elongates toward the direction it will travel */
+  .spdsw:not([disabled]):active .spdsw__thumb{width:22px}
+  .spdsw[aria-checked="true"]:not([disabled]):active .spdsw__thumb{transform:translateX(14px)}
+  .spdsw__thumb svg{width:12px;height:12px}
+  .spdsw[data-anim] .spdsw__thumb svg{animation:boltzap 420ms var(--spring)}
+  @keyframes boltzap{0%{transform:scale(.6) rotate(-14deg)}55%{transform:scale(1.2) rotate(7deg)}100%{transform:scale(1) rotate(0deg)}}
+  .spdsw[disabled]{opacity:.4;cursor:not-allowed;pointer-events:none}
+  @media (prefers-reduced-motion:reduce){
+    .spdsw__thumb,.spdsw__track{transition:none}
+    .spdsw[data-anim] .spdsw__thumb svg{animation:none}
+  }
+  .pmr__bolt{display:grid;place-items:center;color:var(--accent-strong);flex:none}
+  .pmr__bolt svg{width:11px;height:11px}
   .rznoteA{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-top:1px solid var(--line-soft);
     font-size:11.5px;color:var(--subtle)}
-  .rznoteA svg{width:12.5px;height:12.5px;color:var(--faint);flex:none}
+  .rznoteA>svg{width:12.5px;height:12.5px;color:var(--faint);flex:none}
+  .rznoteA__sp{flex:1}
 
   /* ── VARIATION B — provider-first, 300px ── */
   .popB{width:300px;max-height:430px;position:relative}
@@ -250,16 +277,19 @@
     <section data-od-id="variation-a">
       <div class="vhead">
         <span class="tag">A</span>
+        <span class="tag" style="color:var(--success)">escolhida</span>
         <h2>Paleta plana</h2>
-        <span>uma coluna, filtro em chips, reasoning em uma linha</span>
+        <span>uma coluna, filtro em chips, reasoning + speed em uma linha</span>
       </div>
       <div class="stage">
         <button class="pmr" id="trigA" aria-expanded="true" aria-haspopup="dialog" data-od-id="trigger-a"></button>
         <div class="pop popA" id="popA" role="dialog" aria-label="Runtime selector — variação A" data-od-id="popup-a"></div>
         <div class="wire" id="wireA"></div>
-        <p class="stage__note">O rail vertical de 52px vira uma linha de chips de 32px. Sem badges de harness,
-          sem botão de favorito no rodapé — a estrela vive na própria linha, no hover. Reasoning é uma única
-          linha: label, slider e valor corrente.</p>
+        <p class="stage__note">O rail vertical de 52px vira uma linha de chips de 32px; a estrela de favorito
+          vive na própria linha, no hover. O rodapé é uma linha só: slider de reasoning (valor no tooltip do
+          thumb) + switch <b style="color:var(--muted);font-weight:500">⚡ Fast</b> — o speed do PR #267
+          (<span class="mono" style="font-size:10.5px">normal | fast</span>), desabilitado quando o adapter
+          não expõe a capability.</p>
       </div>
     </section>
 
@@ -268,7 +298,7 @@
       <div class="vhead">
         <span class="tag">B</span>
         <h2>Provider primeiro</h2>
-        <span>escopo no provider ativo, busca expande para todos</span>
+        <span>mantida só como referência — descartada</span>
       </div>
       <div class="stage">
         <button class="pmr" id="trigB" aria-expanded="true" aria-haspopup="dialog" data-od-id="trigger-b"></button>
@@ -294,6 +324,7 @@ const I = {
   check:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3.2L13 5"/></svg>',
   chev:'<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>',
   plus:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+  bolt:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.2 1.3 3.6 9h3.1l-1 5.7L11.4 7H8.3l.9-5.7z"/></svg>',
   anthropic:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.4 2.5h2.3L16 13.5h-2.3L9.4 2.5zM4.3 2.5h2.4l4.3 11H8.6l-.9-2.3H3.3l-.9 2.3H0l4.3-11zm2.6 6.7L5.5 5.4 4 9.2h2.9z"/></svg>',
   openai:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2.2c1.1 0 2 .5 2.6 1.2 1 .1 1.9.6 2.4 1.5.6 1 .6 2.1.2 3 .4.9.4 2-.2 3-.5.9-1.4 1.4-2.4 1.5-.6.7-1.5 1.2-2.6 1.2s-2-.5-2.6-1.2c-1-.1-1.9-.6-2.4-1.5-.6-1-.6-2.1-.2-3-.4-.9-.4-2 .2-3 .5-.9 1.4-1.4 2.4-1.5C6 2.7 6.9 2.2 8 2.2z"/><path d="M8 5.2v5.6M5.6 6.6l4.8 2.8M5.6 9.4l4.8-2.8"/></svg>',
   google:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.6 8.2c0-.5 0-.9-.1-1.3H8v2.5h3.2a2.9 2.9 0 0 1-1.2 1.9v1.6h2A5.6 5.6 0 0 0 13.6 8.2z" fill="currentColor" stroke="none" opacity=".9"/><path d="M8 13.8a5.5 5.5 0 0 0 3.9-1.4l-2-1.6a3.5 3.5 0 0 1-5.2-1.8H2.7v1.6A5.8 5.8 0 0 0 8 13.8z" fill="currentColor" stroke="none" opacity=".55"/><path d="M4.7 9a3.4 3.4 0 0 1 0-2.2V5.2H2.7a5.8 5.8 0 0 0 0 5.4L4.7 9z" fill="currentColor" stroke="none" opacity=".4"/><path d="M8 4.5c.9 0 1.8.3 2.4 1l1.8-1.8A5.6 5.6 0 0 0 2.7 5.2l2 1.6A3.5 3.5 0 0 1 8 4.5z" fill="currentColor" stroke="none" opacity=".7"/></svg>',
@@ -311,13 +342,15 @@ const PROVIDERS = [
   {id:"google", name:"Google", availability:"stale"},
   {id:"xai", name:"xAI", needs_auth:true, availability:"live"},
 ];
+/* `fast:true` = the ACP adapter advertises an unambiguous speed option (PR #267);
+   absent = requesting fast would resolve `unsupported`, so the UI disables the toggle. */
 const MODELS = [
-  {id:"claude-fable-5", provider:"anthropic", name:"Fable 5", efforts:["low","medium","high","xhigh","max"], default_effort:"high", source:"acp"},
-  {id:"claude-opus-5", provider:"anthropic", name:"Opus 5", efforts:["low","medium","high","xhigh","max"], default_effort:"medium", source:"acp"},
+  {id:"claude-fable-5", provider:"anthropic", name:"Fable 5", efforts:["low","medium","high","xhigh","max"], default_effort:"high", source:"acp", fast:true},
+  {id:"claude-opus-5", provider:"anthropic", name:"Opus 5", efforts:["low","medium","high","xhigh","max"], default_effort:"medium", source:"acp", fast:true},
   {id:"claude-sonnet-5", provider:"anthropic", name:"Sonnet 5", efforts:["low","medium","high"], default_effort:"", source:"acp"},
   {id:"claude-haiku-4-5", provider:"anthropic", name:"Haiku 4.5", efforts:[], supports_reasoning:false},
-  {id:"gpt-5.2", provider:"openai", name:"GPT-5.2", efforts:["minimal","low","medium","high","xhigh"], default_effort:"medium", source:"catalog"},
-  {id:"gpt-5.2-codex", provider:"openai", name:"GPT-5.2 Codex", efforts:["low","medium","high","xhigh"], default_effort:"high", source:"catalog"},
+  {id:"gpt-5.2", provider:"openai", name:"GPT-5.2", efforts:["minimal","low","medium","high","xhigh"], default_effort:"medium", source:"catalog", fast:true},
+  {id:"gpt-5.2-codex", provider:"openai", name:"GPT-5.2 Codex", efforts:["low","medium","high","xhigh"], default_effort:"high", source:"catalog", fast:true},
   {id:"gpt-5-mini", provider:"openai", name:"GPT-5 mini", efforts:["minimal","low","medium"], default_effort:"", source:"catalog"},
   {id:"gemini-3-pro", provider:"google", name:"Gemini 3 Pro", efforts:["low","medium","high"], default_effort:"medium", source:"catalog"},
   {id:"gemini-3-flash", provider:"google", name:"Gemini 3 Flash", efforts:[], supports_reasoning:true},
@@ -340,7 +373,7 @@ function rzState(model){
 /* ── shared state factory ── */
 function makeState(){
   return {
-    value:{provider:"anthropic", model:"claude-fable-5", reasoning_effort:""},
+    value:{provider:"anthropic", model:"claude-fable-5", reasoning_effort:"", speed:"normal"},
     favs:new Set(["claude-fable-5","gpt-5.2"]),
     query:"",
   };
@@ -357,14 +390,27 @@ function triggerHTML(st){
   const m = model(st), rz = rzState(m);
   const cur = st.value.reasoning_effort || rz.def;
   const meter = rz.mode==="levels" ? meterHTML(cur, cur==="") : "";
+  const bolt = (st.value.speed||"normal")==="fast" ? `<span class="pmr__bolt" title="Fast mode">${I.bolt}</span>` : "";
   return `<span class="provglyph">${I[st.value.provider]||I.grid}</span>
-    <span class="pmr__name">${m?m.name:st.value.model}</span>${meter}
+    <span class="pmr__name">${m?m.name:st.value.model}</span>${meter}${bolt}
     <svg class="pmr__chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>`;
 }
 function wireHTML(st){
   const e = st.value.reasoning_effort;
   return `<span>wire</span><b>${st.value.provider}</b><span>/</span><b>${st.value.model}</b>
-    <span>· reasoning_effort</span><b>${e===""?'""':e}</b>`;
+    <span>· reasoning_effort</span><b>${e===""?'""':e}</b>
+    <span>· speed</span><b>${st.value.speed||"normal"}</b>`;
+}
+/* ACP speed switch — disabled when the adapter would resolve the request `unsupported` */
+function speedChipHTML(st){
+  const m = model(st);
+  const sup = Boolean(m && m.fast);
+  const on = (st.value.speed||"normal")==="fast";
+  return `<button class="spdsw" data-act="speed" role="switch" aria-checked="${on}" ${sup?"":"disabled"}
+    title="${sup?"Runtime speed · normal | fast":"Este provider não expõe speed para o modelo — o pedido resolveria unsupported"}">
+    <span class="spdsw__lbl">Fast</span>
+    <span class="spdsw__track"><span class="spdsw__thumb">${I.bolt}</span></span>
+  </button>`;
 }
 function rowHTML(m, st, showGlyph){
   const sel = m.provider===st.value.provider && m.id===st.value.model;
@@ -516,17 +562,15 @@ function renderA(){
 
   let rzHTML;
   if(rz.mode==="levels"){
-    const cur = stA.value.reasoning_effort || rz.def;
-    const unset = (stA.value.reasoning_effort||"")==="";
     rzHTML = `<div class="rzlineA" data-od-id="reasoning-a">
       <span class="eyebrow">Reasoning</span>
       ${sliderHTML(rz, stA)}
-      <span class="rzlineA__val">${cur===""?`<small>default</small>`:LBL[cur]}${unset&&cur!==""?` <small>·def</small>`:""}</span>
+      ${speedChipHTML(stA)}
     </div>`;
   } else if(rz.mode==="supported-nolevels"){
-    rzHTML = `<div class="rznoteA">${I.brain}<span><b style="color:var(--muted);font-weight:500">Reasoning ativo.</b> O provider decide o esforço.</span></div>`;
+    rzHTML = `<div class="rznoteA">${I.brain}<span><b style="color:var(--muted);font-weight:500">Reasoning ativo.</b> O provider decide.</span><span class="rznoteA__sp"></span>${speedChipHTML(stA)}</div>`;
   } else {
-    rzHTML = `<div class="rznoteA">${I.brain}<span>Este modelo não usa reasoning effort.</span></div>`;
+    rzHTML = `<div class="rznoteA">${I.brain}<span>Sem reasoning effort.</span><span class="rznoteA__sp"></span>${speedChipHTML(stA)}</div>`;
   }
 
   popA.innerHTML = `
@@ -552,14 +596,29 @@ function bindA(rz){
     const star = ev.target.closest(".mrow__star");
     if(star){ ev.stopPropagation(); const id=star.dataset.star; stA.favs.has(id)?stA.favs.delete(id):stA.favs.add(id); renderA(); return; }
     if(row.dataset.prov && !row.hasAttribute("data-disabled")){
-      stA.value = {provider:row.dataset.prov, model:row.dataset.mid, reasoning_effort:""};
+      // Speed is session-level and sticky, but collapses to normal when the
+      // new model's adapter doesn't advertise the capability (PR #267).
+      const next = MODELS.find(mm=>mm.id===row.dataset.mid && mm.provider===row.dataset.prov);
+      const keepFast = stA.value.speed==="fast" && Boolean(next && next.fast);
+      stA.value = {provider:row.dataset.prov, model:row.dataset.mid, reasoning_effort:"", speed:keepFast?"fast":"normal"};
       renderA();
     }
   }));
   const custom = popA.querySelector('[data-act="custom"]');
   if(custom) custom.addEventListener("click", ()=>{
-    stA.value = {provider:scopeA==="all"||scopeA==="fav"?"anthropic":scopeA, model:stA.query.trim(), reasoning_effort:""};
+    stA.value = {provider:scopeA==="all"||scopeA==="fav"?"anthropic":scopeA, model:stA.query.trim(), reasoning_effort:"", speed:"normal"};
     stA.query=""; renderA();
+  });
+  const spd = popA.querySelector('[data-act="speed"]');
+  if(spd) spd.addEventListener("click", ()=>{
+    const on = stA.value.speed==="fast" ? false : true;
+    stA.value.speed = on ? "fast" : "normal";
+    // Patch in place (no full re-render) so the thumb transition actually runs.
+    spd.setAttribute("aria-checked", String(on));
+    spd.removeAttribute("data-anim");
+    if(on){ void spd.offsetWidth; spd.setAttribute("data-anim",""); }
+    trigA.innerHTML = triggerHTML(stA);
+    setWire(wireA, stA);
   });
   if(rz.mode==="levels") bindSlider(popA, rz, stA, effort=>{ stA.value.reasoning_effort = effort; renderA(); });
 }
