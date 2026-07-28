@@ -24,7 +24,10 @@ func (h *HostAPIHandler) automationJobForBoundSession(
 
 	job, err := automation.GetJob(ctx, jobID)
 	if err != nil {
-		return automationpkg.Job{}, automationpkg.ErrJobNotFound
+		if errors.Is(err, automationpkg.ErrJobNotFound) {
+			return automationpkg.Job{}, automationpkg.ErrJobNotFound
+		}
+		return automationpkg.Job{}, err
 	}
 	if job.Scope != automationpkg.AutomationScopeWorkspace ||
 		strings.TrimSpace(job.WorkspaceID) != strings.TrimSpace(boundWorkspaceID) {
@@ -49,7 +52,10 @@ func (h *HostAPIHandler) automationTriggerForBoundSession(
 
 	trigger, err := automation.GetTrigger(ctx, triggerID)
 	if err != nil {
-		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+		if errors.Is(err, automationpkg.ErrTriggerNotFound) {
+			return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+		}
+		return automationpkg.Trigger{}, err
 	}
 	if trigger.Scope != automationpkg.AutomationScopeWorkspace ||
 		strings.TrimSpace(trigger.WorkspaceID) != strings.TrimSpace(boundWorkspaceID) {

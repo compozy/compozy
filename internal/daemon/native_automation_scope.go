@@ -122,9 +122,9 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 		}
 		return automationpkg.Run{}, err
 	}
-	hasOwnedTarget := false
+	hasTarget := false
 	if jobID := strings.TrimSpace(run.JobID); jobID != "" {
-		hasOwnedTarget = true
+		hasTarget = true
 		if _, err := n.nativeAutomationJobForWorkspace(ctx, workspaceID, jobID); err != nil {
 			if errors.Is(err, automationpkg.ErrJobNotFound) {
 				return automationpkg.Run{}, automationpkg.ErrRunNotFound
@@ -133,7 +133,7 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 		}
 	}
 	if triggerID := strings.TrimSpace(run.TriggerID); triggerID != "" {
-		hasOwnedTarget = true
+		hasTarget = true
 		if _, err := n.nativeAutomationTriggerForWorkspace(ctx, workspaceID, triggerID); err != nil {
 			if errors.Is(err, automationpkg.ErrTriggerNotFound) {
 				return automationpkg.Run{}, automationpkg.ErrRunNotFound
@@ -141,7 +141,7 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 			return automationpkg.Run{}, err
 		}
 	}
-	if !hasOwnedTarget {
+	if !hasTarget {
 		return automationpkg.Run{}, automationpkg.ErrRunNotFound
 	}
 	return run, nil

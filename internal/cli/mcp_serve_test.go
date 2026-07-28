@@ -98,11 +98,13 @@ func TestMCPServeCommand(t *testing.T) {
 	t.Run("Should pass the cwd-resolved workspace through the real serve flow", func(t *testing.T) {
 		t.Parallel()
 
+		var workspaceRefMu sync.Mutex
+		var workspaceRef string
 		client := &mcpServeRelayClient{stubClient: &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-				if ref != "/workspace/project" {
-					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
-				}
+				workspaceRefMu.Lock()
+				workspaceRef = ref
+				workspaceRefMu.Unlock()
 				return WorkspaceDetailRecord{
 					Workspace: WorkspaceRecord{ID: "ws-canonical", RootDir: "/workspace/project"},
 				}, nil
@@ -129,6 +131,12 @@ func TestMCPServeCommand(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("runMCPServe() error = %v", err)
+		}
+		workspaceRefMu.Lock()
+		gotWorkspaceRef := workspaceRef
+		workspaceRefMu.Unlock()
+		if gotWorkspaceRef != "/workspace/project" {
+			t.Fatalf("GetWorkspace() ref = %q, want cwd", gotWorkspaceRef)
 		}
 		if got := client.invokedWorkspace(); got != "ws-canonical" {
 			t.Fatalf("InvokeHostAPI() workspace = %q, want ws-canonical", got)

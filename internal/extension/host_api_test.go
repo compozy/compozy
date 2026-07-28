@@ -292,6 +292,23 @@ func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 		if fetchedOwned.ID != ownedJob.ID {
 			t.Fatalf("automation/jobs/get owned id = %q, want %q", fetchedOwned.ID, ownedJob.ID)
 		}
+
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := env.handler.automationJobForBoundSession(
+			canceledCtx,
+			env.automation,
+			ownedJob.ID,
+		); !errors.Is(err, context.Canceled) {
+			t.Fatalf("automationJobForBoundSession(canceled) error = %v, want context.Canceled", err)
+		}
+		if _, err := env.handler.automationTriggerForBoundSession(
+			canceledCtx,
+			env.automation,
+			foreignTrigger.ID,
+		); !errors.Is(err, context.Canceled) {
+			t.Fatalf("automationTriggerForBoundSession(canceled) error = %v, want context.Canceled", err)
+		}
 	})
 }
 
