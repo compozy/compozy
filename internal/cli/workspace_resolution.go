@@ -18,6 +18,7 @@ const (
 	workspaceResolutionSessionIdentity = "session_identity"
 	workspaceResolutionCWD             = "cwd"
 	workspaceEnvName                   = "COMPOZY_WORKSPACE"
+	workspaceFlagName                  = "workspace"
 )
 
 var errWorkspaceReferenceRequired = errors.New("cli: workspace reference is required")
@@ -92,7 +93,10 @@ func resolveCommandWorkspace(
 		return workspaceResolution{}, errWorkspaceReferenceRequired
 	}
 
-	identityRef, identityAgent := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
+	identityRef, identityAgent, err := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
+	if err != nil {
+		return workspaceResolution{}, err
+	}
 	candidates := []struct {
 		ref    string
 		source string
@@ -151,7 +155,10 @@ func resolveWorkspaceOverrideOnly(
 	if commandWorkspaceFlagIsBlank(cmd, flagRef) {
 		return workspaceResolution{}, true, errWorkspaceReferenceRequired
 	}
-	identityRef, _ := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
+	identityRef, _, err := workspaceRefFromSessionIdentity(ctx, cmd, deps, client)
+	if err != nil {
+		return workspaceResolution{}, false, err
+	}
 	candidates := []struct {
 		ref    string
 		source string
@@ -176,7 +183,7 @@ func commandWorkspaceFlagIsBlank(cmd *cobra.Command, value string) bool {
 	if cmd == nil || strings.TrimSpace(value) != "" {
 		return false
 	}
-	flag := cmd.Flags().Lookup("workspace")
+	flag := cmd.Flags().Lookup(workspaceFlagName)
 	return flag != nil && flag.Changed
 }
 
@@ -205,6 +212,42 @@ func resolveOptionalWorkspaceOverride(
 		return "", nil
 	}
 	return resolution.ID, nil
+}
+
+func resolveWorkspaceFlagOverride(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+	required bool,
+) (string, error) {
+	workspaceRef, err := commandWorkspaceFlag(cmd)
+	if err != nil {
+		return "", fmt.Errorf("parse workspace override: %w", err)
+	}
+	if required {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspaceRef},
+		)
+		if err != nil {
+			return "", fmt.Errorf("resolve workspace override: %w", err)
+		}
+		return resolution.ID, nil
+	}
+	workspace, err := resolveOptionalWorkspaceOverride(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceRef,
+	)
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace override: %w", err)
+	}
+	return workspace, nil
 }
 
 func resolveContextualCommandWorkspace(
@@ -307,14 +350,17 @@ func workspaceRefFromSessionIdentity(
 	cmd *cobra.Command,
 	deps commandDeps,
 	client workspaceLookupClient,
-) (string, string) {
+) (string, string, error) {
 	credentials := agentCredentialsFromEnv(deps)
 	if credentials.SessionID == "" || credentials.AgentName == "" {
-		return "", ""
+		return "", "", nil
 	}
 	sessionClient, ok := client.(agentSessionClient)
 	if !ok {
-		return "", ""
+		return "", "", fmt.Errorf(
+			"cli: workspace session identity lookup is unavailable: %w",
+			agentidentity.ErrIdentityLookupUnavailable,
+		)
 	}
 	originRef := "workspace.resolve"
 	if cmd != nil {
@@ -322,9 +368,9 @@ func workspaceRefFromSessionIdentity(
 	}
 	caller, err := resolveAgentCallerFromEnv(ctx, deps, sessionClient, "", originRef)
 	if err != nil {
-		return "", ""
+		return "", "", err
 	}
-	return strings.TrimSpace(caller.Session.WorkspaceID), strings.TrimSpace(caller.Session.AgentName)
+	return strings.TrimSpace(caller.Session.WorkspaceID), strings.TrimSpace(caller.Session.AgentName), nil
 }
 
 func recordWorkspaceResolution(cmd *cobra.Command, resolution workspaceResolution) {

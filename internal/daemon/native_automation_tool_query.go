@@ -11,14 +11,10 @@ import (
 )
 
 type automationJobHistoryInput struct {
-	JobID       string `json:"job_id"`
-	WorkspaceID string `json:"workspace,omitempty"`
 	automationRunQueryInput
 }
 
 type automationTriggerHistoryInput struct {
-	TriggerID   string `json:"trigger_id"`
-	WorkspaceID string `json:"workspace,omitempty"`
 	automationRunQueryInput
 }
 

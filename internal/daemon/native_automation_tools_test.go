@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -469,9 +470,25 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 	t.Run("Should enforce caller workspace across native automation operations", func(t *testing.T) {
 		t.Parallel()
 
+		foreignJob := nativeAutomationJobFixture("job-b", automationpkg.JobSourceDynamic)
+		foreignJob.Scope = automationpkg.AutomationScopeWorkspace
+		foreignJob.WorkspaceID = "ws-b"
+		foreignTrigger := nativeAutomationTriggerFixture("trigger-b", automationpkg.JobSourceDynamic)
+		foreignTrigger.Scope = automationpkg.AutomationScopeWorkspace
+		foreignTrigger.WorkspaceID = "ws-b"
+		foreignRun := automationpkg.Run{
+			ID:        "run-b",
+			JobID:     foreignJob.ID,
+			TriggerID: foreignTrigger.ID,
+			Status:    automationpkg.RunCompleted,
+		}
+		callbackAssertionErr := errors.New("automation manager callback assertion failed")
 		var listQuery automationpkg.JobListQuery
 		var createCalls int
 		var updateCalls int
+		var getJobCalls int
+		var getTriggerCalls int
+		var getRunCalls int
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				CreateJobFn: func(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
@@ -481,13 +498,22 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
 					listQuery = query
 					if query.WorkspaceID != "ws-a" {
-						t.Fatalf("ListJobs() workspace = %q, want ws-a", query.WorkspaceID)
+						t.Errorf("ListJobs() workspace = %q, want ws-a", query.WorkspaceID)
+						return automationpkg.JobListPage{}, callbackAssertionErr
 					}
 					return automationpkg.JobListPage{}, nil
 				},
-				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
-					t.Fatal("GetJob() called for a workspace-bound lookup")
-					return automationpkg.Job{}, automationpkg.ErrJobNotFound
+				GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
+					getJobCalls++
+					switch id {
+					case foreignJob.ID:
+						return foreignJob, nil
+					case "job-missing":
+						return automationpkg.Job{}, automationpkg.ErrJobNotFound
+					default:
+						t.Errorf("GetJob() id = %q, want foreign or missing fixture", id)
+						return automationpkg.Job{}, callbackAssertionErr
+					}
 				},
 				UpdateJobFn: func(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
 					updateCalls++
@@ -498,21 +524,38 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					query automationpkg.TriggerListQuery,
 				) (automationpkg.TriggerListPage, error) {
 					if query.WorkspaceID != "ws-a" {
-						t.Fatalf("ListTriggers() workspace = %q, want ws-a", query.WorkspaceID)
+						t.Errorf("ListTriggers() workspace = %q, want ws-a", query.WorkspaceID)
+						return automationpkg.TriggerListPage{}, callbackAssertionErr
 					}
 					return automationpkg.TriggerListPage{}, nil
 				},
-				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
-					t.Fatal("GetTrigger() called for a workspace-bound lookup")
-					return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+				GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
+					getTriggerCalls++
+					switch id {
+					case foreignTrigger.ID:
+						return foreignTrigger, nil
+					case "trigger-missing":
+						return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+					default:
+						t.Errorf("GetTrigger() id = %q, want foreign or missing fixture", id)
+						return automationpkg.Trigger{}, callbackAssertionErr
+					}
 				},
-				GetRunFn: func(context.Context, string) (automationpkg.Run, error) {
-					t.Fatal("GetRun() called for a workspace-bound lookup")
-					return automationpkg.Run{}, automationpkg.ErrRunNotFound
+				GetRunFn: func(_ context.Context, id string) (automationpkg.Run, error) {
+					getRunCalls++
+					switch id {
+					case foreignRun.ID:
+						return foreignRun, nil
+					case "run-missing":
+						return automationpkg.Run{}, automationpkg.ErrRunNotFound
+					default:
+						t.Errorf("GetRun() id = %q, want foreign or missing fixture", id)
+						return automationpkg.Run{}, callbackAssertionErr
+					}
 				},
 				ListRunsFn: func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error) {
-					t.Fatal("ListRuns() called without an owned workspace resource")
-					return nil, nil
+					t.Errorf("ListRuns() called without an owned workspace resource")
+					return nil, callbackAssertionErr
 				},
 				StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
 					return automationpkg.ManagerStatus{}, nil
@@ -556,6 +599,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		})
 
 		t.Run("Should make foreign and absent job ids indistinguishable", func(t *testing.T) {
+			callsBefore := getJobCalls
 			_, foreignErr := registry.Call(
 				t.Context(),
 				scope,
@@ -577,6 +621,9 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			if foreignErr.Error() != absentErr.Error() {
 				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
 			}
+			if got := getJobCalls - callsBefore; got != 2 {
+				t.Fatalf("GetJob() calls = %d, want 2 point lookups", got)
+			}
 		})
 
 		t.Run("Should reject mutating a foreign workspace job before the update", func(t *testing.T) {
@@ -595,6 +642,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		})
 
 		t.Run("Should make foreign and absent trigger ids indistinguishable", func(t *testing.T) {
+			callsBefore := getTriggerCalls
 			_, foreignErr := registry.Call(
 				t.Context(),
 				scope,
@@ -616,9 +664,14 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			if foreignErr.Error() != absentErr.Error() {
 				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
 			}
+			if got := getTriggerCalls - callsBefore; got != 2 {
+				t.Fatalf("GetTrigger() calls = %d, want 2 point lookups", got)
+			}
 		})
 
 		t.Run("Should make foreign and absent run ids indistinguishable", func(t *testing.T) {
+			runCallsBefore := getRunCalls
+			jobCallsBefore := getJobCalls
 			_, foreignErr := registry.Call(
 				t.Context(),
 				scope,
@@ -640,7 +693,65 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			if foreignErr.Error() != absentErr.Error() {
 				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
 			}
+			if got := getRunCalls - runCallsBefore; got != 2 {
+				t.Fatalf("GetRun() calls = %d, want 2 point lookups", got)
+			}
+			if got := getJobCalls - jobCallsBefore; got != 1 {
+				t.Fatalf("GetJob() calls for foreign run ownership = %d, want 1", got)
+			}
 		})
+	})
+
+	t.Run("Should stop workspace pagination when cursors do not advance", func(t *testing.T) {
+		t.Parallel()
+
+		var jobCalls int
+		var triggerCalls int
+		manager := apitest.StubAutomationManager{
+			ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+				jobCalls++
+				if jobCalls > 2 {
+					return automationpkg.JobListPage{}, errors.New("job pagination did not stop")
+				}
+				return automationpkg.JobListPage{
+					Jobs:       []automationpkg.Job{{ID: fmt.Sprintf("job-%d", jobCalls)}},
+					HasMore:    true,
+					NextCursor: "job-cursor",
+					Limit:      query.Limit,
+				}, nil
+			},
+			ListTriggersFn: func(
+				_ context.Context,
+				query automationpkg.TriggerListQuery,
+			) (automationpkg.TriggerListPage, error) {
+				triggerCalls++
+				if triggerCalls > 2 {
+					return automationpkg.TriggerListPage{}, errors.New("trigger pagination did not stop")
+				}
+				return automationpkg.TriggerListPage{
+					Triggers:   []automationpkg.Trigger{{ID: fmt.Sprintf("trigger-%d", triggerCalls)}},
+					HasMore:    true,
+					NextCursor: "trigger-cursor",
+					Limit:      query.Limit,
+				}, nil
+			},
+		}
+		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: manager}}
+
+		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a")
+		if err != nil {
+			t.Fatalf("nativeAutomationJobsForWorkspace() error = %v", err)
+		}
+		if len(jobs) != 2 || jobCalls != 2 {
+			t.Fatalf("jobs/calls = %d/%d, want 2/2", len(jobs), jobCalls)
+		}
+		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a")
+		if err != nil {
+			t.Fatalf("nativeAutomationTriggersForWorkspace() error = %v", err)
+		}
+		if len(triggers) != 2 || triggerCalls != 2 {
+			t.Fatalf("triggers/calls = %d/%d, want 2/2", len(triggers), triggerCalls)
+		}
 	})
 
 	t.Run("Should preserve workspace identity across consent-first suggestion tools", func(t *testing.T) {
@@ -708,6 +819,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return dismissed, nil
 				},
 			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -794,6 +906,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -27,7 +28,8 @@ func (f workspaceGetterFunc) Get(ctx context.Context, ref string) (workspacepkg.
 }
 
 type workspaceServiceStub struct {
-	get workspaceGetterFunc
+	get     workspaceGetterFunc
+	resolve func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
 }
 
 func (s workspaceServiceStub) Register(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
@@ -51,9 +53,12 @@ func (s workspaceServiceStub) Get(ctx context.Context, ref string) (workspacepkg
 }
 
 func (s workspaceServiceStub) Resolve(
-	context.Context,
-	string,
+	ctx context.Context,
+	ref string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if s.resolve != nil {
+		return s.resolve(ctx, ref)
+	}
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
@@ -89,6 +94,11 @@ func TestStatusForTaskAgentIdentityErrors(t *testing.T) {
 		}
 		if got := StatusForTaskError(agentidentity.ErrIdentityUnauthorized); got != http.StatusForbidden {
 			t.Fatalf("StatusForTaskError(identity unauthorized) = %d, want %d", got, http.StatusForbidden)
+		}
+		if got := StatusForAgentIdentityError(
+			fmt.Errorf("resolve target: %w", workspacepkg.ErrWorkspaceNotFound),
+		); got != http.StatusNotFound {
+			t.Fatalf("StatusForAgentIdentityError(workspace not found) = %d, want %d", got, http.StatusNotFound)
 		}
 	})
 }
@@ -169,17 +179,32 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 					State:       session.StateActive,
 				}, nil
 			}},
-			Workspaces: workspaceServiceStub{get: func(
-				_ context.Context,
-				ref string,
-			) (workspacepkg.Workspace, error) {
+			Workspaces: workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 				switch ref {
 				case "/workspace/subdir":
-					return workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace"}, nil
+					return workspacepkg.Workspace{ID: "registration-1", RootDir: "/workspace"}, nil
 				case "/foreign/subdir":
-					return workspacepkg.Workspace{ID: "ws-2", RootDir: "/foreign"}, nil
+					return workspacepkg.Workspace{ID: "registration-2", RootDir: "/foreign"}, nil
 				default:
 					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			}, resolve: func(
+				_ context.Context,
+				ref string,
+			) (workspacepkg.ResolvedWorkspace, error) {
+				switch ref {
+				case "/workspace/subdir":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "registration-1", RootDir: "/workspace"},
+						WorkspaceID: "ws-1",
+					}, nil
+				case "/foreign/subdir":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "registration-2", RootDir: "/foreign"},
+						WorkspaceID: "ws-2",
+					}, nil
+				default:
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 			}},
 		}
@@ -198,6 +223,14 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 		_, err = handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "/foreign/subdir")
 		if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
 			t.Fatalf("foreign taskActorContextForWorkspace() error = %v, want ErrIdentityUnauthorized", err)
+		}
+
+		_, err = handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "/missing/subdir")
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("missing taskActorContextForWorkspace() error = %v, want ErrWorkspaceNotFound", err)
+		}
+		if got := StatusForAgentIdentityError(err); got != http.StatusNotFound {
+			t.Fatalf("StatusForAgentIdentityError(missing workspace) = %d, want %d", got, http.StatusNotFound)
 		}
 	})
 

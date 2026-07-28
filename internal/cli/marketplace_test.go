@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -89,6 +90,34 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 		if called {
 			t.Fatal("marketplace transport called after local limit validation failure")
+		}
+	})
+
+	t.Run("Should reject cursor without kind before workspace resolution", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceLookups := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				workspaceLookups++
+				return WorkspaceDetailRecord{}, errors.New("workspace lookup should not run")
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"marketplace",
+			"search",
+			"--scope",
+			"workspace",
+			"--cursor",
+			"page-two",
+		)
+		if err == nil || err.Error() != "cli: --cursor requires --kind" {
+			t.Fatalf("marketplace cursor error = %v, want --cursor argument validation", err)
+		}
+		if workspaceLookups != 0 {
+			t.Fatalf("workspace lookups = %d, want 0 before cursor validation", workspaceLookups)
 		}
 	})
 

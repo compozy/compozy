@@ -617,7 +617,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Loops: func() core.LoopService { return loopSvc },
+			Loops:      func() core.LoopService { return loopSvc },
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		for _, sessionID := range []string{"session-origin", "session-bound"} {

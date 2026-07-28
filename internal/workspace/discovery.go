@@ -17,8 +17,7 @@ func (r *Resolver) lookupWorkspaceByEnclosingRoot(
 	if err != nil {
 		return Workspace{}, fmt.Errorf("workspace: list workspaces for enclosing root match: %w", err)
 	}
-	var nearest *Workspace
-	nearestRoot := ""
+	candidates := make([]EnclosingRootCandidate, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		if err := checkContext(ctx); err != nil {
 			return Workspace{}, err
@@ -39,23 +38,50 @@ func (r *Resolver) lookupWorkspaceByEnclosingRoot(
 				err,
 			)
 		}
-		if !pathIsWithinRoot(canonicalPath, canonicalCandidate) {
-			continue
-		}
-		candidateDepth := pathDepth(canonicalCandidate)
-		nearestDepth := pathDepth(nearestRoot)
-		if nearest == nil ||
-			candidateDepth > nearestDepth ||
-			(candidateDepth == nearestDepth && workspace.ID < nearest.ID) {
-			candidate := cloneWorkspace(workspace)
-			nearest = &candidate
-			nearestRoot = canonicalCandidate
-		}
+		candidates = append(candidates, EnclosingRootCandidate{
+			ID:   workspace.ID,
+			Root: canonicalCandidate,
+		})
 	}
-	if nearest == nil {
+	nearest, ok := SelectNearestEnclosingRoot(canonicalPath, candidates)
+	if !ok {
 		return Workspace{}, ErrWorkspaceNotFound
 	}
-	return *nearest, nil
+	for _, workspace := range workspaces {
+		if workspace.ID == nearest.ID {
+			return cloneWorkspace(workspace), nil
+		}
+	}
+	return Workspace{}, ErrWorkspaceNotFound
+}
+
+// EnclosingRootCandidate identifies a canonical workspace root for nearest-root selection.
+type EnclosingRootCandidate struct {
+	ID   string
+	Root string
+}
+
+// SelectNearestEnclosingRoot returns the deepest enclosing root, breaking ties by ID.
+func SelectNearestEnclosingRoot(
+	canonicalPath string,
+	candidates []EnclosingRootCandidate,
+) (EnclosingRootCandidate, bool) {
+	var nearest EnclosingRootCandidate
+	found := false
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.ID) == "" || !pathIsWithinRoot(canonicalPath, candidate.Root) {
+			continue
+		}
+		candidateDepth := pathDepth(candidate.Root)
+		nearestDepth := pathDepth(nearest.Root)
+		if !found ||
+			candidateDepth > nearestDepth ||
+			(candidateDepth == nearestDepth && candidate.ID < nearest.ID) {
+			nearest = candidate
+			found = true
+		}
+	}
+	return nearest, found
 }
 
 func pathIsWithinRoot(path string, root string) bool {

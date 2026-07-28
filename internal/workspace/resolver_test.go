@@ -143,6 +143,22 @@ func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
 			t.Fatal("ListWorkspaces() calls = 0, want same-root fallback")
 		}
 	})
+
+	t.Run("Should classify a missing target as workspace not found before listing registrations", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(t, store)
+		missing := filepath.Join(t.TempDir(), "missing")
+
+		_, err := resolver.lookupWorkspaceBySameRoot(context.Background(), missing)
+		if !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("lookupWorkspaceBySameRoot(missing) error = %v, want ErrWorkspaceNotFound", err)
+		}
+		if store.listCalls != 0 {
+			t.Fatalf("ListWorkspaces() calls = %d, want 0", store.listCalls)
+		}
+	})
 }
 
 func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {

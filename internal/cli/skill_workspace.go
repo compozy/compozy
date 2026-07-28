@@ -161,12 +161,12 @@ func skillProvenanceRecordFromSkill(skill *skills.Skill, shadows skills.SkillSha
 }
 
 func commandWorkspaceFlag(cmd *cobra.Command) (string, error) {
-	workspace, err := cmd.Flags().GetString("workspace")
+	workspace, err := cmd.Flags().GetString(workspaceFlagName)
 	if err != nil {
 		return "", fmt.Errorf("read workspace flag: %w", err)
 	}
 	trimmed := strings.TrimSpace(workspace)
-	if cmd.Flags().Changed("workspace") && trimmed == "" {
+	if cmd.Flags().Changed(workspaceFlagName) && trimmed == "" {
 		return "", fmt.Errorf("workspace flag cannot be empty")
 	}
 	return trimmed, nil

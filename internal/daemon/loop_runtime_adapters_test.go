@@ -208,7 +208,10 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		t.Parallel()
 
 		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
-			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
+			Name:        "task-worker",
+			Provider:    "mock",
+			Prompt:      "Handle the loop node.",
+			Permissions: string(compozyconfig.PermissionModeDenyAll),
 		}})
 		workspacePath := resolved.RootDir
 		resolveOrRegisterCalled := false
@@ -223,14 +226,19 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			},
 		}
 
-		_, err := binder.policyGate.applyResolved(context.Background(), &session.CreateOpts{
+		opts := session.CreateOpts{
 			WorkspacePath: workspacePath,
-		}, "task-worker", nil)
+		}
+		_, err := binder.policyGate.applyResolved(context.Background(), &opts, "task-worker", nil)
 		if err != nil {
 			t.Fatalf("applyResolved() error = %v", err)
 		}
 		if resolveOrRegisterCalled {
 			t.Fatal("ResolveOrRegister() was called for a registered loop workspace path")
+		}
+		if opts.SandboxRef != resolved.SandboxRef ||
+			opts.Permissions != compozyconfig.PermissionModeDenyAll {
+			t.Fatalf("resolved CreateOpts = %#v, want registered workspace sandbox and permissions", opts)
 		}
 	})
 }

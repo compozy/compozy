@@ -42,6 +42,7 @@ const (
 	hostAPIAutomationTriggersUpdatePath = "automation/triggers/update"
 	hostAPIBridgesInstancesGetPath      = "bridges/instances/get"
 	hostAPIBridgesMessagesIngestPath    = "bridges/messages/ingest"
+	hostAPIKindKey                      = "kind"
 	hostAPILimitKey                     = "limit"
 	hostAPIMemoryStorePath              = "memory/store"
 	hostAPIMethodKey                    = "method"

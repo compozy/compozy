@@ -276,6 +276,7 @@ describe("agent context hooks", () => {
     await waitFor(() => {
       expect(result.current.data?.task.bundle?.task.id).toBe("task_001");
     });
+    expect(vi.mocked(getAgentContext).mock.calls[0]?.[0]).toEqual(identity);
   });
 
   it("Should extract task context bundle", async () => {
@@ -288,6 +289,7 @@ describe("agent context hooks", () => {
     await waitFor(() => {
       expect(result.current.data?.latest_event_seq).toBe(taskContextBundleFixture.latest_event_seq);
     });
+    expect(vi.mocked(getAgentContext).mock.calls[0]?.[0]).toEqual(identity);
     expect(getAgentContext).toHaveBeenCalledTimes(1);
   });
 });

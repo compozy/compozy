@@ -142,21 +142,27 @@ func resolveSessionCreateWorkspace(
 			cmd,
 			client,
 			cleaned,
-			workspaceResolutionFlag,
+			workspaceResolutionCWD,
 		)
 		if err == nil {
-			identityRef, _ := workspaceRefFromSessionIdentity(
+			identityRef, _, identityErr := workspaceRefFromSessionIdentity(
 				cmd.Context(),
 				cmd,
 				deps,
 				client,
 			)
+			if identityErr != nil {
+				return "", "", identityErr
+			}
 			if err := validateResolutionAgainstSessionIdentity(identityRef, resolution.ID); err != nil {
 				return "", "", err
 			}
 			return resolution.ID, "", nil
 		}
-		recordWorkspaceResolution(cmd, workspaceResolution{Root: cleaned, Source: workspaceResolutionFlag})
+		if !workspaceResolutionAllowsGlobalFallback(err) {
+			return "", "", err
+		}
+		recordWorkspaceResolution(cmd, workspaceResolution{Root: cleaned, Source: workspaceResolutionCWD})
 		return "", cleaned, nil
 	}
 

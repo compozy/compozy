@@ -63,8 +63,9 @@ Use structured output when agents need to inspect or route results.
 Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,
 `COMPOZY_WORKSPACE`, validated session identity, then cwd discovery. `--workspace` is an override,
 not a prerequisite, and accepts an ID, name, or path. Inside a workspace-bound session, omit the
-workspace argument unless an explicit override is required. Partial, stale, global, or
-workspace-less identity falls through to cwd.
+workspace argument unless an explicit override is required. Absent or partial credentials, and
+validated global or workspace-less identities, fall through to cwd. Configured credentials that
+cannot be validated fail closed.
 
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task

@@ -9,6 +9,7 @@ import (
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // HostAPIWorkspaceBinding identifies how a workspace-bound Host API call is constrained.
@@ -25,109 +26,95 @@ const (
 	HostAPIWorkspaceBindingResource
 )
 
-type hostAPIWorkspaceBinding = HostAPIWorkspaceBinding
-
-const (
-	hostAPIWorkspaceBindingNone       = HostAPIWorkspaceBindingNone
-	hostAPIWorkspaceBindingActor      = HostAPIWorkspaceBindingActor
-	hostAPIWorkspaceBindingPath       = HostAPIWorkspaceBindingPath
-	hostAPIWorkspaceBindingID         = HostAPIWorkspaceBindingID
-	hostAPIWorkspaceBindingTask       = HostAPIWorkspaceBindingTask
-	hostAPIWorkspaceBindingMemory     = HostAPIWorkspaceBindingMemory
-	hostAPIWorkspaceBindingAutomation = HostAPIWorkspaceBindingAutomation
-	hostAPIWorkspaceBindingResource   = HostAPIWorkspaceBindingResource
-	hostAPIWorkspaceScopeKindKey      = "kind"
-)
-
 // Every Host API method must have an explicit workspace-binding decision.
-var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]hostAPIWorkspaceBinding{
-	extensionprotocol.HostAPIMethodSessionsList:                hostAPIWorkspaceBindingPath,
-	extensionprotocol.HostAPIMethodSessionsCreate:              hostAPIWorkspaceBindingPath,
-	extensionprotocol.HostAPIMethodSessionsPrompt:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsStop:                hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsStatus:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsEvents:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsSoulRefresh:         hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsHealthGet:           hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSessionsStatusGet:           hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSandboxList:                 hostAPIWorkspaceBindingPath,
-	extensionprotocol.HostAPIMethodSandboxInfo:                 hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSandboxExec:                 hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodMemoryRecall:                hostAPIWorkspaceBindingMemory,
-	extensionprotocol.HostAPIMethodMemoryStore:                 hostAPIWorkspaceBindingMemory,
-	extensionprotocol.HostAPIMethodMemoryForget:                hostAPIWorkspaceBindingMemory,
-	extensionprotocol.HostAPIMethodObserveHealth:               hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodListLogs:                    hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodSkillsList:                  hostAPIWorkspaceBindingPath,
-	extensionprotocol.HostAPIMethodModelsList:                  hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodModelsRefresh:               hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodModelsStatus:                hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAgentsSoulGet:               hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsSoulValidate:          hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsSoulPut:               hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsSoulDelete:            hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsSoulHistory:           hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsSoulRollback:          hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatGet:          hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatValidate:     hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatPut:          hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatDelete:       hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatHistory:      hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatRollback:     hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatStatus:       hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAgentsHeartbeatWake:         hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodAutomationJobs:              hostAPIWorkspaceBindingAutomation,
-	extensionprotocol.HostAPIMethodAutomationJobsGet:           hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationJobsCreate:        hostAPIWorkspaceBindingAutomation,
-	extensionprotocol.HostAPIMethodAutomationJobsUpdate:        hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationJobsDelete:        hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationJobsTrigger:       hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationJobsRuns:          hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationTriggers:          hostAPIWorkspaceBindingAutomation,
-	extensionprotocol.HostAPIMethodAutomationTriggersGet:       hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationTriggersCreate:    hostAPIWorkspaceBindingAutomation,
-	extensionprotocol.HostAPIMethodAutomationTriggersUpdate:    hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationTriggersDelete:    hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationTriggersRuns:      hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodAutomationTriggersFire:      hostAPIWorkspaceBindingAutomation,
-	extensionprotocol.HostAPIMethodAutomationRuns:              hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasks:                       hostAPIWorkspaceBindingTask,
-	extensionprotocol.HostAPIMethodTasksGet:                    hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksTimeline:               hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksTree:                   hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksDashboard:              hostAPIWorkspaceBindingTask,
-	extensionprotocol.HostAPIMethodTasksInbox:                  hostAPIWorkspaceBindingTask,
-	extensionprotocol.HostAPIMethodTasksCreate:                 hostAPIWorkspaceBindingTask,
-	extensionprotocol.HostAPIMethodTasksUpdate:                 hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksCancel:                 hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRuns:                   hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsGet:                hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsEnqueue:            hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsStart:              hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsAttachSession:      hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsComplete:           hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsFail:               hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodTasksRunsCancel:             hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodNetworkStatus:               hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodNetworkUsage:                hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkChannels:             hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkPeers:                hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkThreads:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkThreadGet:            hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkThreadMessages:       hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkDirects:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkDirectResolve:        hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkDirectMessages:       hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkWorkGet:              hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodNetworkSend:                 hostAPIWorkspaceBindingID,
-	extensionprotocol.HostAPIMethodResourcesList:               hostAPIWorkspaceBindingResource,
-	extensionprotocol.HostAPIMethodResourcesGet:                hostAPIWorkspaceBindingActor,
-	extensionprotocol.HostAPIMethodResourcesSnapshot:           hostAPIWorkspaceBindingResource,
-	extensionprotocol.HostAPIMethodBridgesInstancesList:        hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodBridgesMessagesIngest:       hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodBridgesInstancesGet:         hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodBridgesInstancesReportState: hostAPIWorkspaceBindingNone,
-	extensionprotocol.HostAPIMethodClarifyAsk:                  hostAPIWorkspaceBindingNone,
+var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]HostAPIWorkspaceBinding{
+	extensionprotocol.HostAPIMethodSessionsList:                HostAPIWorkspaceBindingPath,
+	extensionprotocol.HostAPIMethodSessionsCreate:              HostAPIWorkspaceBindingPath,
+	extensionprotocol.HostAPIMethodSessionsPrompt:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsStop:                HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsStatus:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsEvents:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsSoulRefresh:         HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsHealthGet:           HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSessionsStatusGet:           HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSandboxList:                 HostAPIWorkspaceBindingPath,
+	extensionprotocol.HostAPIMethodSandboxInfo:                 HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSandboxExec:                 HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodMemoryRecall:                HostAPIWorkspaceBindingMemory,
+	extensionprotocol.HostAPIMethodMemoryStore:                 HostAPIWorkspaceBindingMemory,
+	extensionprotocol.HostAPIMethodMemoryForget:                HostAPIWorkspaceBindingMemory,
+	extensionprotocol.HostAPIMethodObserveHealth:               HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodListLogs:                    HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodSkillsList:                  HostAPIWorkspaceBindingPath,
+	extensionprotocol.HostAPIMethodModelsList:                  HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodModelsRefresh:               HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodModelsStatus:                HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAgentsSoulGet:               HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsSoulValidate:          HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsSoulPut:               HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsSoulDelete:            HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsSoulHistory:           HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsSoulRollback:          HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatGet:          HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatValidate:     HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatPut:          HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatDelete:       HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatHistory:      HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatRollback:     HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatStatus:       HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAgentsHeartbeatWake:         HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodAutomationJobs:              HostAPIWorkspaceBindingAutomation,
+	extensionprotocol.HostAPIMethodAutomationJobsGet:           HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationJobsCreate:        HostAPIWorkspaceBindingAutomation,
+	extensionprotocol.HostAPIMethodAutomationJobsUpdate:        HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationJobsDelete:        HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationJobsTrigger:       HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationJobsRuns:          HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationTriggers:          HostAPIWorkspaceBindingAutomation,
+	extensionprotocol.HostAPIMethodAutomationTriggersGet:       HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationTriggersCreate:    HostAPIWorkspaceBindingAutomation,
+	extensionprotocol.HostAPIMethodAutomationTriggersUpdate:    HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationTriggersDelete:    HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationTriggersRuns:      HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodAutomationTriggersFire:      HostAPIWorkspaceBindingAutomation,
+	extensionprotocol.HostAPIMethodAutomationRuns:              HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasks:                       HostAPIWorkspaceBindingTask,
+	extensionprotocol.HostAPIMethodTasksGet:                    HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksTimeline:               HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksTree:                   HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksDashboard:              HostAPIWorkspaceBindingTask,
+	extensionprotocol.HostAPIMethodTasksInbox:                  HostAPIWorkspaceBindingTask,
+	extensionprotocol.HostAPIMethodTasksCreate:                 HostAPIWorkspaceBindingTask,
+	extensionprotocol.HostAPIMethodTasksUpdate:                 HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksCancel:                 HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRuns:                   HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsGet:                HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsEnqueue:            HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsStart:              HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsAttachSession:      HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsComplete:           HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsFail:               HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsCancel:             HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodNetworkStatus:               HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodNetworkUsage:                HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkChannels:             HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkPeers:                HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkThreads:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkThreadGet:            HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkThreadMessages:       HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkDirects:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkDirectResolve:        HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkDirectMessages:       HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkWorkGet:              HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodNetworkSend:                 HostAPIWorkspaceBindingID,
+	extensionprotocol.HostAPIMethodResourcesList:               HostAPIWorkspaceBindingResource,
+	extensionprotocol.HostAPIMethodResourcesGet:                HostAPIWorkspaceBindingActor,
+	extensionprotocol.HostAPIMethodResourcesSnapshot:           HostAPIWorkspaceBindingResource,
+	extensionprotocol.HostAPIMethodBridgesInstancesList:        HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodBridgesMessagesIngest:       HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodBridgesInstancesGet:         HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodBridgesInstancesReportState: HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodClarifyAsk:                  HostAPIWorkspaceBindingNone,
 }
 
 // HostAPIWorkspaceBindingFor returns the canonical workspace-binding decision for one Host API method.
@@ -149,7 +136,7 @@ func (h *HostAPIHandler) bindWorkspaceScopedParams(
 	if !ok {
 		return nil, unavailableRPCError(fmt.Errorf("workspace binding is not declared for %q", method))
 	}
-	if binding == hostAPIWorkspaceBindingNone || binding == hostAPIWorkspaceBindingActor {
+	if binding == HostAPIWorkspaceBindingNone || binding == HostAPIWorkspaceBindingActor {
 		return raw, nil
 	}
 	if h.workspaces == nil {
@@ -160,36 +147,16 @@ func (h *HostAPIHandler) bindWorkspaceScopedParams(
 		return nil, unavailableRPCError(fmt.Errorf("resolve bound workspace %q: %w", workspaceID, err))
 	}
 
-	params, err := decodeWorkspaceBindingParams(raw)
+	encoded, err := BindHostAPIWorkspaceParams(
+		ctx,
+		raw,
+		binding,
+		resolved.ID,
+		resolved.RootDir,
+		h.workspaces,
+	)
 	if err != nil {
 		return nil, invalidParamsRPCError(err)
-	}
-	switch binding {
-	case hostAPIWorkspaceBindingPath:
-		err = h.bindWorkspaceReference(ctx, params, "workspace", resolved.ID, resolved.RootDir)
-	case hostAPIWorkspaceBindingID:
-		err = h.bindWorkspaceReference(ctx, params, "workspace_id", resolved.ID, resolved.ID)
-	case hostAPIWorkspaceBindingTask, hostAPIWorkspaceBindingMemory:
-		err = errors.Join(
-			bindWorkspaceScopeLiteral(params),
-			h.bindWorkspaceReference(ctx, params, "workspace", resolved.ID, resolved.RootDir),
-		)
-	case hostAPIWorkspaceBindingAutomation:
-		err = errors.Join(
-			bindWorkspaceScopeLiteral(params),
-			h.bindWorkspaceReference(ctx, params, "workspace_id", resolved.ID, resolved.ID),
-		)
-	case hostAPIWorkspaceBindingResource:
-		err = h.bindResourceWorkspaceScope(ctx, params, resolved.ID)
-	default:
-		err = fmt.Errorf("unknown workspace binding %d", binding)
-	}
-	if err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
-	encoded, err := json.Marshal(params)
-	if err != nil {
-		return nil, unavailableRPCError(fmt.Errorf("encode workspace-bound params: %w", err))
 	}
 	return encoded, nil
 }
@@ -221,12 +188,62 @@ func decodeWorkspaceBindingParams(raw json.RawMessage) (map[string]any, error) {
 	return params, nil
 }
 
-func (h *HostAPIHandler) bindWorkspaceReference(
+// BindHostAPIWorkspaceParams canonicalizes Host API workspace fields against a bound workspace.
+func BindHostAPIWorkspaceParams(
+	ctx context.Context,
+	raw json.RawMessage,
+	binding HostAPIWorkspaceBinding,
+	workspaceID string,
+	workspaceRoot string,
+	workspaces workspacepkg.RuntimeResolver,
+) (json.RawMessage, error) {
+	if binding == HostAPIWorkspaceBindingActor {
+		return raw, nil
+	}
+	if binding == HostAPIWorkspaceBindingNone {
+		return nil, errors.New("projected method has no workspace binding")
+	}
+	params, err := decodeWorkspaceBindingParams(raw)
+	if err != nil {
+		return nil, err
+	}
+	switch binding {
+	case HostAPIWorkspaceBindingPath:
+		err = bindWorkspaceReference(ctx, params, "workspace", workspaceID, workspaceRoot, workspaces)
+	case HostAPIWorkspaceBindingID:
+		err = bindWorkspaceReference(ctx, params, "workspace_id", workspaceID, workspaceID, workspaces)
+	case HostAPIWorkspaceBindingTask, HostAPIWorkspaceBindingMemory:
+		err = errors.Join(
+			bindWorkspaceScopeLiteral(params),
+			bindWorkspaceReference(ctx, params, "workspace", workspaceID, workspaceRoot, workspaces),
+		)
+	case HostAPIWorkspaceBindingAutomation:
+		err = errors.Join(
+			bindWorkspaceScopeLiteral(params),
+			bindWorkspaceReference(ctx, params, "workspace_id", workspaceID, workspaceID, workspaces),
+		)
+	case HostAPIWorkspaceBindingResource:
+		err = bindResourceWorkspaceScope(ctx, params, workspaceID, workspaces)
+	default:
+		err = fmt.Errorf("unknown workspace binding %d", binding)
+	}
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("encode workspace-bound params: %w", err)
+	}
+	return encoded, nil
+}
+
+func bindWorkspaceReference(
 	ctx context.Context,
 	params map[string]any,
 	key string,
 	workspaceID string,
 	canonical string,
+	workspaces workspacepkg.RuntimeResolver,
 ) error {
 	if value, ok := params[key]; ok && value != nil {
 		provided, ok := value.(string)
@@ -234,8 +251,11 @@ func (h *HostAPIHandler) bindWorkspaceReference(
 			return fmt.Errorf("%s must be a string", key)
 		}
 		provided = strings.TrimSpace(provided)
-		if provided != "" {
-			resolved, err := h.workspaces.Resolve(ctx, provided)
+		if provided != "" && provided != canonical && provided != workspaceID {
+			if workspaces == nil {
+				return fmt.Errorf("%s conflicts with the bound workspace", key)
+			}
+			resolved, err := workspaces.Resolve(ctx, provided)
 			if err != nil {
 				return fmt.Errorf("resolve %s %q: %w", key, provided, err)
 			}
@@ -260,14 +280,15 @@ func bindWorkspaceScopeLiteral(params map[string]any) error {
 	return nil
 }
 
-func (h *HostAPIHandler) bindResourceWorkspaceScope(
+func bindResourceWorkspaceScope(
 	ctx context.Context,
 	params map[string]any,
 	workspaceID string,
+	workspaces workspacepkg.RuntimeResolver,
 ) error {
 	scope := map[string]any{
-		hostAPIWorkspaceScopeKindKey: hostAPIAuthoredContextWorkspaceKey,
-		"id":                         workspaceID,
+		hostAPIKindKey: hostAPIAuthoredContextWorkspaceKey,
+		"id":           workspaceID,
 	}
 	if records, ok := params["records"].([]any); ok {
 		for index, value := range records {
@@ -275,24 +296,25 @@ func (h *HostAPIHandler) bindResourceWorkspaceScope(
 			if !ok {
 				return fmt.Errorf("records[%d] must be an object", index)
 			}
-			if err := h.validateResourceWorkspaceScope(ctx, record["scope"], workspaceID); err != nil {
+			if err := validateResourceWorkspaceScope(ctx, record["scope"], workspaceID, workspaces); err != nil {
 				return fmt.Errorf("records[%d].scope: %w", index, err)
 			}
 			record["scope"] = scope
 		}
 		return nil
 	}
-	if err := h.validateResourceWorkspaceScope(ctx, params["scope"], workspaceID); err != nil {
+	if err := validateResourceWorkspaceScope(ctx, params["scope"], workspaceID, workspaces); err != nil {
 		return err
 	}
 	params["scope"] = scope
 	return nil
 }
 
-func (h *HostAPIHandler) validateResourceWorkspaceScope(
+func validateResourceWorkspaceScope(
 	ctx context.Context,
 	value any,
 	workspaceID string,
+	workspaces workspacepkg.RuntimeResolver,
 ) error {
 	if value == nil {
 		return nil
@@ -301,14 +323,21 @@ func (h *HostAPIHandler) validateResourceWorkspaceScope(
 	if !ok {
 		return errors.New("scope must be an object")
 	}
-	kind, kindOK := scope[hostAPIWorkspaceScopeKindKey].(string)
+	kind, kindOK := scope[hostAPIKindKey].(string)
 	id, idOK := scope["id"].(string)
 	if !kindOK || !idOK ||
 		strings.TrimSpace(kind) != hostAPIAuthoredContextWorkspaceKey ||
 		strings.TrimSpace(id) == "" {
 		return errors.New("scope conflicts with the bound workspace")
 	}
-	resolved, err := h.workspaces.Resolve(ctx, id)
+	id = strings.TrimSpace(id)
+	if id == strings.TrimSpace(workspaceID) {
+		return nil
+	}
+	if workspaces == nil {
+		return errors.New("scope conflicts with the bound workspace")
+	}
+	resolved, err := workspaces.Resolve(ctx, id)
 	if err != nil {
 		return fmt.Errorf("resolve scope workspace %q: %w", id, err)
 	}

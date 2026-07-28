@@ -153,7 +153,7 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(
 			&workspaceRef,
-			workspaceSkillSource,
+			workspaceFlagName,
 			"",
 			"Override workspace context (ID, name, or path) when no positional ref is supplied",
 		)

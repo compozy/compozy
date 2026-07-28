@@ -30,7 +30,7 @@ func (n *daemonNativeTools) workspaceList(
 	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
 		resolved, err := n.deps.Workspaces.Resolve(ctx, scope.WorkspaceID)
 		if err != nil {
-			return toolspkg.ToolResult{}, err
+			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 		}
 		workspaces = []workspacepkg.Workspace{resolved.Workspace}
 	} else {

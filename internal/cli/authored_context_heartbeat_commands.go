@@ -63,7 +63,7 @@ func newAgentHeartbeatValidateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -104,7 +104,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -190,7 +190,7 @@ func newAgentHeartbeatHistoryCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -230,7 +230,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -294,7 +294,7 @@ func newAgentHeartbeatStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -341,7 +341,7 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}

@@ -248,8 +248,10 @@ func TestHooksNotifierOnAgentEventFailsLoudlyWithoutWorkspaceIdentity(t *testing
 		t.Parallel()
 
 		var gotSessionID string
+		hookCalled := false
 		runtime := &fakeHookRuntime{
 			onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+				hookCalled = true
 				gotSessionID = payload.SessionID
 				return nil
 			},
@@ -282,6 +284,9 @@ func TestHooksNotifierOnAgentEventFailsLoudlyWithoutWorkspaceIdentity(t *testing
 
 		if gotSessionID != "" {
 			t.Fatalf("tool hook SessionID = %q, want no hook dispatch", gotSessionID)
+		}
+		if hookCalled {
+			t.Fatal("tool hook callback was called without workspace identity")
 		}
 		if got := downstream.events; !testutil.EqualStringSlices(got, []string{"agent"}) {
 			t.Fatalf("downstream events = %#v, want raw agent event", got)

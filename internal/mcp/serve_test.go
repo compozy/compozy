@@ -239,6 +239,45 @@ func TestHostAPIBinding(t *testing.T) {
 			t.Fatalf("bound resource payload = %s, want workspace scope", bound)
 		}
 	})
+
+	t.Run("Should reject a blank resource scope id before workspace resolution", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := &recordingMCPBindingWorkspaceResolver{}
+		_, err := bindHostAPIParams(
+			context.Background(),
+			json.RawMessage(`{"scope":{"kind":"workspace","id":"  "}}`),
+			workspaceBindingResource,
+			"ws-1",
+			"/workspace",
+			resolver,
+		)
+		if err == nil || !strings.Contains(err.Error(), "conflicts") {
+			t.Fatalf("bindHostAPIParams(blank scope id) error = %v, want conflict", err)
+		}
+		if resolver.calls != 0 {
+			t.Fatalf("Resolve() calls = %d, want 0 for blank scope id", resolver.calls)
+		}
+	})
+}
+
+type recordingMCPBindingWorkspaceResolver struct {
+	calls int
+}
+
+func (r *recordingMCPBindingWorkspaceResolver) Resolve(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	r.calls++
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (*recordingMCPBindingWorkspaceResolver) ResolveOrRegister(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
 type mcpBindingWorkspaceResolver struct{}

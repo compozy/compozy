@@ -267,6 +267,56 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report the operator-selected target workspace", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := compozyconfig.DefaultWithHome(homePaths)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
+		targetRoot := t.TempDir()
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				switch ref {
+				case "target-alias", "ws-target":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      "ws-target",
+							RootDir: targetRoot,
+							Name:    "target",
+						},
+						WorkspaceID: "identity-target",
+						Config:      cfg,
+					}, nil
+				default:
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			HomePaths:   homePaths,
+			Config:      cfg,
+			Workspaces:  workspaces,
+			AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-scope"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentCreate,
+				Input: json.RawMessage(
+					`{"scope":"workspace","workspace":"target-alias","name":"operator-target","provider":"claude","prompt":"Use the selected workspace."}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_create target workspace) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"ws-target"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"workspace_id":"ws-scope"`))
+	})
+
 	t.Run("Should reject a missing sync dependency before persistence", func(t *testing.T) {
 		t.Parallel()
 

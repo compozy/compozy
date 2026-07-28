@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 
@@ -18,16 +19,18 @@ func (n *daemonNativeTools) nativeAutomationJobForWorkspace(
 	if workspaceID == "" {
 		return n.automationManager().GetJob(ctx, jobID)
 	}
-	jobs, err := n.nativeAutomationJobsForWorkspace(ctx, workspaceID)
+	job, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
+		if errors.Is(err, automationpkg.ErrJobNotFound) {
+			return automationpkg.Job{}, automationpkg.ErrJobNotFound
+		}
 		return automationpkg.Job{}, err
 	}
-	for _, job := range jobs {
-		if strings.TrimSpace(job.ID) == jobID {
-			return job, nil
-		}
+	if job.Scope != automationpkg.AutomationScopeWorkspace ||
+		strings.TrimSpace(job.WorkspaceID) != workspaceID {
+		return automationpkg.Job{}, automationpkg.ErrJobNotFound
 	}
-	return automationpkg.Job{}, automationpkg.ErrJobNotFound
+	return job, nil
 }
 
 func (n *daemonNativeTools) nativeAutomationJobsForWorkspace(
@@ -46,10 +49,11 @@ func (n *daemonNativeTools) nativeAutomationJobsForWorkspace(
 			return nil, err
 		}
 		jobs = append(jobs, page.Jobs...)
-		if !page.HasMore || strings.TrimSpace(page.NextCursor) == "" {
+		nextCursor := strings.TrimSpace(page.NextCursor)
+		if !page.HasMore || nextCursor == "" || nextCursor == strings.TrimSpace(query.Cursor) {
 			return jobs, nil
 		}
-		query.Cursor = page.NextCursor
+		query.Cursor = nextCursor
 	}
 }
 
@@ -63,16 +67,18 @@ func (n *daemonNativeTools) nativeAutomationTriggerForWorkspace(
 	if workspaceID == "" {
 		return n.automationManager().GetTrigger(ctx, triggerID)
 	}
-	triggers, err := n.nativeAutomationTriggersForWorkspace(ctx, workspaceID)
+	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
+		if errors.Is(err, automationpkg.ErrTriggerNotFound) {
+			return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+		}
 		return automationpkg.Trigger{}, err
 	}
-	for _, trigger := range triggers {
-		if strings.TrimSpace(trigger.ID) == triggerID {
-			return trigger, nil
-		}
+	if trigger.Scope != automationpkg.AutomationScopeWorkspace ||
+		strings.TrimSpace(trigger.WorkspaceID) != workspaceID {
+		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 	}
-	return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+	return trigger, nil
 }
 
 func (n *daemonNativeTools) nativeAutomationTriggersForWorkspace(
@@ -91,10 +97,11 @@ func (n *daemonNativeTools) nativeAutomationTriggersForWorkspace(
 			return nil, err
 		}
 		triggers = append(triggers, page.Triggers...)
-		if !page.HasMore || strings.TrimSpace(page.NextCursor) == "" {
+		nextCursor := strings.TrimSpace(page.NextCursor)
+		if !page.HasMore || nextCursor == "" || nextCursor == strings.TrimSpace(query.Cursor) {
 			return triggers, nil
 		}
-		query.Cursor = page.NextCursor
+		query.Cursor = nextCursor
 	}
 }
 
@@ -108,16 +115,36 @@ func (n *daemonNativeTools) nativeAutomationRunForWorkspace(
 	if workspaceID == "" {
 		return n.automationManager().GetRun(ctx, runID)
 	}
-	runs, err := n.nativeAutomationRunsForWorkspace(ctx, workspaceID, automationpkg.RunQuery{})
+	run, err := n.automationManager().GetRun(ctx, runID)
 	if err != nil {
+		if errors.Is(err, automationpkg.ErrRunNotFound) {
+			return automationpkg.Run{}, automationpkg.ErrRunNotFound
+		}
 		return automationpkg.Run{}, err
 	}
-	for _, run := range runs {
-		if strings.TrimSpace(run.ID) == runID {
-			return run, nil
+	hasOwnedTarget := false
+	if jobID := strings.TrimSpace(run.JobID); jobID != "" {
+		hasOwnedTarget = true
+		if _, err := n.nativeAutomationJobForWorkspace(ctx, workspaceID, jobID); err != nil {
+			if errors.Is(err, automationpkg.ErrJobNotFound) {
+				return automationpkg.Run{}, automationpkg.ErrRunNotFound
+			}
+			return automationpkg.Run{}, err
 		}
 	}
-	return automationpkg.Run{}, automationpkg.ErrRunNotFound
+	if triggerID := strings.TrimSpace(run.TriggerID); triggerID != "" {
+		hasOwnedTarget = true
+		if _, err := n.nativeAutomationTriggerForWorkspace(ctx, workspaceID, triggerID); err != nil {
+			if errors.Is(err, automationpkg.ErrTriggerNotFound) {
+				return automationpkg.Run{}, automationpkg.ErrRunNotFound
+			}
+			return automationpkg.Run{}, err
+		}
+	}
+	if !hasOwnedTarget {
+		return automationpkg.Run{}, automationpkg.ErrRunNotFound
+	}
+	return run, nil
 }
 
 func (n *daemonNativeTools) nativeAutomationRunsForWorkspace(

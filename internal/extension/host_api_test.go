@@ -254,6 +254,8 @@ func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
 				_, missingErr := env.callWithContext(ctx, t, extensionName, tc.method, tc.missingParams)
 				if missingErr == nil {
 					t.Fatalf("Handle(%s missing) error = nil, want not found", tc.method)

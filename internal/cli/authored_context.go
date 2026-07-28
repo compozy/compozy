@@ -125,7 +125,7 @@ func newAgentSoulValidateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -166,7 +166,7 @@ func newAgentSoulWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -207,7 +207,7 @@ func newAgentSoulDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -246,7 +246,7 @@ func newAgentSoulHistoryCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -284,7 +284,7 @@ func newAgentSoulRollbackCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveAuthoredContextWorkspace(cmd, deps, client)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -314,22 +314,4 @@ func newAgentSoulRollbackCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Soul digest for CAS")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
-}
-
-func resolveAuthoredContextWorkspace(
-	cmd *cobra.Command,
-	deps commandDeps,
-	client workspaceLookupClient,
-) (string, error) {
-	workspaceRef, err := commandWorkspaceFlag(cmd)
-	if err != nil {
-		return "", err
-	}
-	return resolveOptionalWorkspaceOverride(
-		cmd.Context(),
-		cmd,
-		deps,
-		client,
-		workspaceRef,
-	)
 }

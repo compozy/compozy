@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -121,6 +122,14 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		})
 		if !errors.Is(err, toolspkg.ErrToolDenied) {
 			t.Fatalf("Registry.Call(workspace override) error = %v, want ErrToolDenied", err)
+		}
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) {
+			t.Fatalf("Registry.Call(workspace override) error = %T, want *ToolError", err)
+		}
+		if !strings.Contains(toolErr.Message, "workspace") ||
+			!strings.Contains(toolErr.Message, "caller scope") {
+			t.Fatalf("workspace override ToolError message = %q, want workspace scope mismatch", toolErr.Message)
 		}
 	})
 

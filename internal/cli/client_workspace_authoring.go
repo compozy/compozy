@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type workspacePathNotRegisteredError struct {
@@ -86,41 +87,22 @@ func nearestCLIWorkspaceRoute(target string, workspaces []WorkspaceRecord) (stri
 	if err != nil {
 		return "", err
 	}
-	var (
-		selectedID   string
-		selectedRoot string
-	)
+	candidates := make([]workspacepkg.EnclosingRootCandidate, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		root, err := canonicalCLIWorkspacePath(workspace.RootDir)
 		if err != nil {
-			continue
-		}
-		contains, err := cliWorkspaceRootContains(root, target)
-		if err != nil || !contains {
 			continue
 		}
 		id := strings.TrimSpace(workspace.ID)
 		if id == "" {
 			continue
 		}
-		if len(root) > len(selectedRoot) || (len(root) == len(selectedRoot) && id < selectedID) {
-			selectedID = id
-			selectedRoot = root
-		}
+		candidates = append(candidates, workspacepkg.EnclosingRootCandidate{ID: id, Root: root})
 	}
-	if selectedID != "" {
-		return selectedID, nil
+	if nearest, ok := workspacepkg.SelectNearestEnclosingRoot(target, candidates); ok {
+		return nearest.ID, nil
 	}
 	return "", &workspacePathNotRegisteredError{path: target}
-}
-
-func cliWorkspaceRootContains(root string, target string) (bool, error) {
-	relative, err := filepath.Rel(root, target)
-	if err != nil {
-		return false, fmt.Errorf("cli: compare workspace root %q with path %q: %w", root, target, err)
-	}
-	return relative == "." ||
-		(relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))), nil
 }
 
 func workspaceRefLooksLikePath(ref string) bool {

@@ -26,8 +26,7 @@ Never guess a tool schema from this reference. Resolve canonical `compozy__tool_
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
 
-Scoped tools take optional `workspace` (ID/name/path). Sessions inherit scope; operators may
-override.
+`workspace` is optional. Bound sessions cannot override or use `global`/`all`; operators can.
 
 ## Discovery And Catalog Toolsets
 

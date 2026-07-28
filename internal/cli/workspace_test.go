@@ -516,6 +516,42 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 			t.Fatalf("executeRootCommand(blank workspace) error = %v, want errWorkspaceReferenceRequired", err)
 		}
 	})
+
+	t.Run("Should propagate configured session identity lookup failures", func(t *testing.T) {
+		t.Parallel()
+
+		lookupErr := errors.New("session lookup failed")
+		workspaceLookups := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{}, lookupErr
+			},
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				workspaceLookups++
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-cwd", RootDir: "/workspace/project"},
+				}, nil
+			},
+		})
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-configured"
+			case agentidentity.EnvAgent:
+				return "coder"
+			default:
+				return ""
+			}
+		}
+
+		_, _, err := executeRootCommand(t, deps, "workspace", "info", "-o", "json")
+		if !errors.Is(err, lookupErr) {
+			t.Fatalf("executeRootCommand(workspace info) error = %v, want session lookup failure", err)
+		}
+		if workspaceLookups != 0 {
+			t.Fatalf("workspace lookups = %d, want 0 after session lookup failure", workspaceLookups)
+		}
+	})
 }
 
 func TestWorkspaceOutputFormats(t *testing.T) {

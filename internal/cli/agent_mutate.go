@@ -63,19 +63,9 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
-			workspaceRef, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
-				return fmt.Errorf("cli: resolve update workspace: %w", err)
-			}
-			workspace, err := resolveOptionalWorkspaceOverride(
-				cmd.Context(),
-				cmd,
-				deps,
-				client,
-				workspaceRef,
-			)
-			if err != nil {
-				return fmt.Errorf("cli: resolve update workspace: %w", err)
+				return fmt.Errorf("cli: prepare update workspace: %w", err)
 			}
 			request, err := updateAgentRequestFromFlags(
 				cmd,
@@ -118,19 +108,9 @@ func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
-			workspaceRef, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
-				return fmt.Errorf("cli: resolve delete workspace: %w", err)
-			}
-			workspace, err := resolveOptionalWorkspaceOverride(
-				cmd.Context(),
-				cmd,
-				deps,
-				client,
-				workspaceRef,
-			)
-			if err != nil {
-				return fmt.Errorf("cli: resolve delete workspace: %w", err)
+				return fmt.Errorf("cli: prepare delete workspace: %w", err)
 			}
 			result, err := client.DeleteAgent(cmd.Context(), args[0], workspace)
 			if err != nil {

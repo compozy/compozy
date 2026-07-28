@@ -1039,6 +1039,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		bundleService := &nativeBundleServiceStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			BundleService: func() core.BundleService { return bundleService },
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -1187,6 +1188,36 @@ func TestDaemonNativeTools(t *testing.T) {
 		if observer.catalogCall != 0 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
 		}
+	})
+
+	t.Run("Should fail closed for unresolved and global native workspace inputs", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := toolspkg.Descriptor{
+			ID:      toolspkg.ToolIDBundlesActivate,
+			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
+			InputSchema: json.RawMessage(
+				`{"type":"object","properties":{"scope":{"type":"string"},"workspace":{"type":"string"}}}`,
+			),
+			Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDBundles},
+		}
+		var unavailableBinder *nativeWorkspaceInputBinder
+		_, err := unavailableBinder.BindCallInput(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			descriptor,
+			json.RawMessage(`{"workspace":"alpha"}`),
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+
+		binder := newNativeWorkspaceInputBinder(nil)
+		_, err = binder.BindCallInput(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
+			descriptor,
+			json.RawMessage(`{"scope":"global"}`),
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
 	})
 
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
@@ -3005,7 +3036,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			scope,
+			toolspkg.Scope{SessionID: scope.SessionID, WorkspaceID: scope.WorkspaceID, Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskCreate,
 				Input:  json.RawMessage(`{"scope":"global","title":"root task"}`),
@@ -5610,6 +5641,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should enforce caller workspace for native workspace projections", func(t *testing.T) {
 		t.Parallel()
 
+		var resolveErr error
 		workspaces := apitest.StubWorkspaceService{
 			ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
 				return []workspacepkg.Workspace{
@@ -5628,6 +5660,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			},
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if resolveErr != nil {
+					return workspacepkg.ResolvedWorkspace{}, resolveErr
+				}
 				switch ref {
 				case "ws-a":
 					return workspacepkg.ResolvedWorkspace{
@@ -5667,6 +5702,19 @@ func TestDaemonNativeTools(t *testing.T) {
 				listResult.Structured,
 			)
 		}
+
+		workspaceResolveErr := errors.New("workspace resolver failed")
+		resolveErr = workspaceResolveErr
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceList, Input: json.RawMessage(`{}`)},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if !errors.Is(err, workspaceResolveErr) {
+			t.Fatalf("Registry.Call(workspace_list resolver failure) error = %v, want wrapped resolver error", err)
+		}
+		resolveErr = nil
 
 		_, err = registry.Call(
 			t.Context(),
@@ -6740,8 +6788,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				Tasks:   tasks,
-				Bridges: bridges,
+				Tasks:      tasks,
+				Bridges:    bridges,
+				Workspaces: nativeNetworkTestWorkspaceService(t),
 			}, nativeApproveAllPolicyInputs())
 
 			subscribeResult, err := registry.Call(
@@ -6865,8 +6914,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks:   tasks,
-			Bridges: bridges,
+			Tasks:      tasks,
+			Bridges:    bridges,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		subscribeResult, err := registry.Call(
@@ -7003,8 +7053,9 @@ func TestDaemonNativeTools(t *testing.T) {
 					}},
 				}
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-					Tasks:   tasks,
-					Bridges: bridges,
+					Tasks:      tasks,
+					Bridges:    bridges,
+					Workspaces: nativeNetworkTestWorkspaceService(t),
 				}, nativeApproveAllPolicyInputs())
 
 				_, err := registry.Call(

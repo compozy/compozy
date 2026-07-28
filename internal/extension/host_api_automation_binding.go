@@ -22,26 +22,15 @@ func (h *HostAPIHandler) automationJobForBoundSession(
 		return automation.GetJob(ctx, jobID)
 	}
 
-	query := automationpkg.JobListQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: strings.TrimSpace(boundWorkspaceID),
-		Limit:       automationpkg.MaxListLimit,
+	job, err := automation.GetJob(ctx, jobID)
+	if err != nil {
+		return automationpkg.Job{}, automationpkg.ErrJobNotFound
 	}
-	for {
-		page, listErr := automation.ListJobs(ctx, query)
-		if listErr != nil {
-			return automationpkg.Job{}, listErr
-		}
-		for _, job := range page.Jobs {
-			if strings.TrimSpace(job.ID) == jobID {
-				return job, nil
-			}
-		}
-		if !page.HasMore || strings.TrimSpace(page.NextCursor) == "" {
-			return automationpkg.Job{}, automationpkg.ErrJobNotFound
-		}
-		query.Cursor = page.NextCursor
+	if job.Scope != automationpkg.AutomationScopeWorkspace ||
+		strings.TrimSpace(job.WorkspaceID) != strings.TrimSpace(boundWorkspaceID) {
+		return automationpkg.Job{}, automationpkg.ErrJobNotFound
 	}
+	return job, nil
 }
 
 func (h *HostAPIHandler) automationTriggerForBoundSession(
@@ -58,26 +47,15 @@ func (h *HostAPIHandler) automationTriggerForBoundSession(
 		return automation.GetTrigger(ctx, triggerID)
 	}
 
-	query := automationpkg.TriggerListQuery{
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		WorkspaceID: strings.TrimSpace(boundWorkspaceID),
-		Limit:       automationpkg.MaxListLimit,
+	trigger, err := automation.GetTrigger(ctx, triggerID)
+	if err != nil {
+		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 	}
-	for {
-		page, listErr := automation.ListTriggers(ctx, query)
-		if listErr != nil {
-			return automationpkg.Trigger{}, listErr
-		}
-		for _, trigger := range page.Triggers {
-			if strings.TrimSpace(trigger.ID) == triggerID {
-				return trigger, nil
-			}
-		}
-		if !page.HasMore || strings.TrimSpace(page.NextCursor) == "" {
-			return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
-		}
-		query.Cursor = page.NextCursor
+	if trigger.Scope != automationpkg.AutomationScopeWorkspace ||
+		strings.TrimSpace(trigger.WorkspaceID) != strings.TrimSpace(boundWorkspaceID) {
+		return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 	}
+	return trigger, nil
 }
 
 func (h *HostAPIHandler) requireBoundAutomationRunFilter(

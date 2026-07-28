@@ -48,7 +48,6 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	if trusted != "" &&
 		!scope.Operator &&
-		nativeDescriptorUsesToolset(descriptor, toolspkg.ToolsetIDAutomation) &&
 		nativeInputHasGlobalScope(payload) {
 		return nil, nativeScopeMismatchError(descriptor.ID, nativeWorkspaceInputKey)
 	}
@@ -176,7 +175,7 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	ref string,
 ) error {
 	if b == nil || b.workspaces == nil {
-		return setNativeWorkspaceInput(payload, ref)
+		return nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := b.workspaces.Resolve(ctx, ref)
 	if err != nil {
@@ -243,10 +242,6 @@ func nativeWorkspaceSchemaObject(raw json.RawMessage) map[string]json.RawMessage
 		return nil
 	}
 	return schema
-}
-
-func nativeDescriptorUsesToolset(descriptor toolspkg.Descriptor, id toolspkg.ToolsetID) bool {
-	return slices.Contains(descriptor.Toolsets, id)
 }
 
 func nativeWorkspaceObjectInputError(id toolspkg.ToolID, cause error) error {

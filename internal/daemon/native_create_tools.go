@@ -194,7 +194,7 @@ func (n *daemonNativeTools) agentCreate(
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		entry.Origin = contract.AgentOriginWorkspace
-		entry.WorkspaceID = strings.TrimSpace(scope.WorkspaceID)
+		entry.WorkspaceID = strings.TrimSpace(createReq.Workspace)
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(entry, &runtimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)

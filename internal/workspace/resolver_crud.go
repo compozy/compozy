@@ -412,9 +412,19 @@ func (r *Resolver) lookupWorkspaceByStableIdentity(ctx context.Context, workspac
 }
 
 func (r *Resolver) lookupWorkspaceBySameRoot(ctx context.Context, canonicalPath string) (Workspace, error) {
-	targetInfo, err := os.Stat(canonicalPath)
+	canonicalTarget, err := canonicalRoot(canonicalPath)
 	if err != nil {
-		return Workspace{}, fmt.Errorf("workspace: stat workspace root %q: %w", canonicalPath, err)
+		if errors.Is(err, ErrWorkspaceRootMissing) || errors.Is(err, os.ErrNotExist) {
+			return Workspace{}, ErrWorkspaceNotFound
+		}
+		return Workspace{}, fmt.Errorf("workspace: canonicalize workspace root %q: %w", canonicalPath, err)
+	}
+	targetInfo, err := os.Stat(canonicalTarget)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Workspace{}, ErrWorkspaceNotFound
+		}
+		return Workspace{}, fmt.Errorf("workspace: stat workspace root %q: %w", canonicalTarget, err)
 	}
 
 	workspaces, err := r.store.ListWorkspaces(ctx)

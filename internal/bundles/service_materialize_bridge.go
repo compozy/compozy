@@ -13,8 +13,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/resources"
-
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *Service) materializeBridge(
@@ -103,17 +101,15 @@ func (s *Service) resolveWorkspace(
 		return "", errors.New("bundles: workspace reference is required")
 	}
 
-	var resolved workspacepkg.ResolvedWorkspace
-	var err error
+	workspaceRef := trimmed
 	if isPathLikeWorkspaceRef(trimmed) {
-		normalized, normalizeErr := compozyconfig.ResolvePath(trimmed)
-		if normalizeErr != nil {
-			return "", normalizeErr
+		normalizedRef, err := compozyconfig.ResolvePath(trimmed)
+		if err != nil {
+			return "", err
 		}
-		resolved, err = s.workspaceResolver.Resolve(ctx, normalized)
-	} else {
-		resolved, err = s.workspaceResolver.Resolve(ctx, trimmed)
+		workspaceRef = normalizedRef
 	}
+	resolved, err := s.workspaceResolver.Resolve(ctx, workspaceRef)
 	if err != nil {
 		return "", err
 	}

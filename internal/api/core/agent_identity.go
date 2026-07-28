@@ -33,6 +33,8 @@ func StatusForAgentIdentityError(err error) int {
 		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable),
 		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+		return http.StatusNotFound
 	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
 		return http.StatusForbidden
 	case errors.Is(err, agentidentity.ErrIdentityRequired),
@@ -132,11 +134,11 @@ func (h *BaseHandlers) resolveExpectedWorkspaceID(ctx context.Context, ref strin
 			workspacepkg.ErrWorkspaceResolverUnavailable,
 		)
 	}
-	workspace, err := h.Workspaces.Get(ctx, target)
+	resolved, err := h.Workspaces.Resolve(ctx, target)
 	if err != nil {
 		return "", fmt.Errorf("api: resolve requested workspace %q: %w", target, err)
 	}
-	workspaceID := strings.TrimSpace(workspace.ID)
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
 	if workspaceID == "" {
 		return "", fmt.Errorf("api: resolved workspace %q has no id", target)
 	}

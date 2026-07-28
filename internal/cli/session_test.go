@@ -289,8 +289,45 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			if decoded.ID != "sess-1" {
 				t.Fatalf("decoded.ID = %q, want %q", decoded.ID, "sess-1")
 			}
+			if tt.name == "Should use an explicit cwd" &&
+				!strings.Contains(stdout, `"resolution_source": "cwd"`) {
+				t.Fatalf("session new output = %s, want cwd resolution provenance", stdout)
+			}
 		})
 	}
+
+	t.Run("Should propagate non-fallback cwd resolution failures", func(t *testing.T) {
+		t.Parallel()
+
+		resolveErr := errors.New("workspace resolver unavailable")
+		createCalls := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, resolveErr
+			},
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				createCalls++
+				return SessionRecord{ID: "unexpected"}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"new",
+			"--cwd",
+			"/workspace/project",
+			"-o",
+			"json",
+		)
+		if !errors.Is(err, resolveErr) {
+			t.Fatalf("executeRootCommand(session new --cwd) error = %v, want resolver failure", err)
+		}
+		if createCalls != 0 {
+			t.Fatalf("CreateSession() calls = %d, want 0 after resolver failure", createCalls)
+		}
+	})
 
 	t.Run("Should reject a registered cwd outside the active session workspace", func(t *testing.T) {
 		t.Parallel()

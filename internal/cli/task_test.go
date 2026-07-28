@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -191,6 +192,14 @@ func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
 
 		var gotRequest CreateTaskRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          "agent-session",
+					AgentName:   "coder",
+					WorkspaceID: "alpha",
+					State:       session.StateActive,
+				}, nil
+			},
 			createTaskFn: func(_ context.Context, request CreateTaskRequest) (TaskRecord, error) {
 				gotRequest = request
 				return TaskRecord{
@@ -374,6 +383,49 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				}
 				if len(listed.Tasks) != 1 || listed.Tasks[0].ID != "task-1" {
 					t.Fatalf("listed tasks = %#v, want one task summary", listed)
+				}
+			},
+		},
+		{
+			name: "Should canonicalize a workspace filter for all-scope task lists",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var listQuery TaskListQuery
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+						if ref != "alpha-alias" {
+							t.Fatalf("GetWorkspace() ref = %q, want alpha-alias", ref)
+						}
+						return WorkspaceDetailRecord{
+							Workspace: WorkspaceRecord{ID: "ws-alpha", RootDir: "/workspace/alpha"},
+						}, nil
+					},
+					listTasksFn: func(
+						_ context.Context,
+						query TaskListQuery,
+					) ([]TaskCatalogItemRecord, error) {
+						listQuery = query
+						return nil, nil
+					},
+				})
+
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					"task",
+					"list",
+					"--scope",
+					"all",
+					"--workspace",
+					"alpha-alias",
+					"-o",
+					"json",
+				); err != nil {
+					t.Fatalf("task list --scope all error = %v", err)
+				}
+				if listQuery.Scope != taskpkg.CatalogScopeAll || listQuery.Workspace != "ws-alpha" {
+					t.Fatalf("listQuery = %#v, want all scope with canonical workspace", listQuery)
 				}
 			},
 		},

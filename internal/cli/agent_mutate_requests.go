@@ -63,17 +63,7 @@ func createAgentRequestFromFlags(
 	if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	workspaceRef, err := commandWorkspaceFlag(cmd)
-	if err != nil {
-		return contract.CreateAgentRequest{}, err
-	}
-	workspace, err := resolveOptionalWorkspaceOverride(
-		cmd.Context(),
-		cmd,
-		deps,
-		client,
-		workspaceRef,
-	)
+	workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -150,38 +140,18 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	workspaceRef, err := commandWorkspaceFlag(cmd)
-	if err != nil {
-		return contract.DuplicateAgentRequest{}, err
-	}
 	createScope, err := parseAgentCreateScope(scope)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	var workspace string
-	if createScope == contract.AgentCreateScopeWorkspace {
-		resolution, err := resolveCommandWorkspace(
-			cmd.Context(),
-			cmd,
-			deps,
-			client,
-			workspaceResolutionRequest{FlagRef: workspaceRef},
-		)
-		if err != nil {
-			return contract.DuplicateAgentRequest{}, err
-		}
-		workspace = resolution.ID
-	} else {
-		workspace, err = resolveOptionalWorkspaceOverride(
-			cmd.Context(),
-			cmd,
-			deps,
-			client,
-			workspaceRef,
-		)
-		if err != nil {
-			return contract.DuplicateAgentRequest{}, err
-		}
+	workspace, err := resolveWorkspaceFlagOverride(
+		cmd,
+		deps,
+		client,
+		createScope == contract.AgentCreateScopeWorkspace,
+	)
+	if err != nil {
+		return contract.DuplicateAgentRequest{}, err
 	}
 	overrides, err := duplicateAgentOverridesFromFlags(cmd, flags)
 	if err != nil {

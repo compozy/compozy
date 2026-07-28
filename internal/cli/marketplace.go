@@ -42,6 +42,9 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			if limit <= 0 {
 				return fmt.Errorf("cli: marketplace limit must be positive: %d", limit)
 			}
+			if strings.TrimSpace(kind) == "" && strings.TrimSpace(cursor) != "" {
+				return errors.New("cli: --cursor requires --kind")
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -55,9 +58,6 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 				query = args[0]
 			}
 			if strings.TrimSpace(kind) == "" {
-				if strings.TrimSpace(cursor) != "" {
-					return errors.New("cli: --cursor requires --kind")
-				}
 				response, err := client.SearchMarketplace(cmd.Context(), query, limit, scope)
 				if err != nil {
 					return err
