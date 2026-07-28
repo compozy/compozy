@@ -422,6 +422,15 @@ jobs:
           # PR-only rule; its ci(release): subject keeps automation inert.
           token: ${{ secrets.RELEASE_TOKEN }}
 
+      - name: Checkout release workflow tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-workflow-tools
+          sparse-checkout: scripts/release-publication-state.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Prepare Go temporary directory
         env:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
@@ -449,7 +458,7 @@ jobs:
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: scripts/release-publication-state.sh
+        run: .release-workflow-tools/scripts/release-publication-state.sh
 
       - name: Setup Release Tools
         if: steps.publication.outputs.already_published != 'true'
