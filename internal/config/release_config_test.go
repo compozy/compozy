@@ -172,7 +172,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		assertEqualString(t, "npms[0].tag", stringAt(t, npm, "tag"), "{{ .Env.NPM_TAG }}")
 	})
 
-	t.Run("Should consume planner publication policy without an AUR target", func(t *testing.T) {
+	t.Run("Should use supported publication policy without an AUR target", func(t *testing.T) {
 		t.Parallel()
 
 		release := mapAt(t, cfg, "release")
@@ -180,7 +180,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			t,
 			"release.prerelease",
 			stringAt(t, release, "prerelease"),
-			"{{ .Env.GITHUB_PRERELEASE }}",
+			"auto",
 		)
 		assertEqualString(
 			t,

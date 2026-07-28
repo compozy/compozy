@@ -7,10 +7,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -313,37 +315,73 @@ func terminateProcess(t *testing.T, pid int) {
 		t.Errorf("terminate descendant process %d: %v", pid, err)
 		return
 	}
-	if waitForProcessExit(pid, 2*time.Second) {
+	exited, err := waitForProcessExit(pid, 2*time.Second)
+	if err != nil {
+		t.Errorf("wait for descendant process %d after termination: %v", pid, err)
+		return
+	}
+	if exited {
 		return
 	}
 	if err := unix.Kill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 		t.Errorf("kill descendant process %d: %v", pid, err)
 		return
 	}
-	if !waitForProcessExit(pid, 2*time.Second) {
+	exited, err = waitForProcessExit(pid, 2*time.Second)
+	if err != nil {
+		t.Errorf("wait for descendant process %d after kill: %v", pid, err)
+		return
+	}
+	if !exited {
 		t.Errorf("descendant process %d did not exit", pid)
 	}
 }
 
-func waitForProcessExit(pid int, timeout time.Duration) bool {
+func waitForProcessExit(pid int, timeout time.Duration) (bool, error) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
-		err := unix.Kill(pid, 0)
-		if errors.Is(err, syscall.ESRCH) {
-			return true
-		}
+		exited, err := processExited(pid)
 		if err != nil {
-			return false
+			return false, err
+		}
+		if exited {
+			return true, nil
 		}
 
 		select {
 		case <-ticker.C:
 		case <-timer.C:
-			return false
+			return false, nil
 		}
 	}
+}
+
+func processExited(pid int) (bool, error) {
+	err := unix.Kill(pid, 0)
+	if errors.Is(err, syscall.ESRCH) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("probe process %d: %w", pid, err)
+	}
+	if runtime.GOOS != "linux" {
+		return false, nil
+	}
+
+	status, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read process %d state: %w", pid, err)
+	}
+	commandEnd := strings.LastIndexByte(string(status), ')')
+	if commandEnd < 0 || len(status) <= commandEnd+2 || status[commandEnd+1] != ' ' {
+		return false, fmt.Errorf("parse process %d state", pid)
+	}
+	return status[commandEnd+2] == 'Z', nil
 }
