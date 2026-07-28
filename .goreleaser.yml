@@ -181,7 +181,9 @@ release:
   name_template: "CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}"
   mode: replace
   draft: false
-  prerelease: "{{ .Env.GITHUB_PRERELEASE }}"
+  # This field does not support templates. The release planner enforces that
+  # beta versions carry prerelease data while stable and legacy versions do not.
+  prerelease: auto
   make_latest: "{{ .Env.GITHUB_MAKE_LATEST }}"
   extra_files:
     - glob: ./packages/site/public/install.sh

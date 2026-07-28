@@ -442,7 +442,94 @@ jobs:
 
       - uses: ./.github/actions/setup-git-cliff
 
+      - name: Resolve publication state
+        id: publication
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is required to publish @compozy/cli"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org
+
+          npm_view_output="$(mktemp)"
+          if npm view "@compozy/cli@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
+            published_version="$(tr -d '[:space:]' <"$npm_view_output")"
+            if [[ "${published_version}" != "${RELEASE_VERSION}" ]]; then
+              echo "::error::npm resolved ${published_version}, want ${RELEASE_VERSION}"
+              exit 1
+            fi
+
+            release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")" || {
+              echo "::error::npm is published but the matching GitHub Release is missing"
+              exit 1
+            }
+            RELEASE_JSON="${release_json}" node --input-type=module -e '
+              const release = JSON.parse(process.env.RELEASE_JSON);
+              if (release.tag_name !== process.env.RELEASE_TAG) {
+                throw new Error(
+                  "release tag is " + release.tag_name + ", want " + process.env.RELEASE_TAG,
+                );
+              }
+              if (release.target_commitish !== process.env.RELEASE_COMMIT) {
+                throw new Error(
+                  "release target is " +
+                    release.target_commitish +
+                    ", want " +
+                    process.env.RELEASE_COMMIT,
+                );
+              }
+              if (release.draft) {
+                throw new Error("published recovery cannot reuse a draft GitHub Release");
+              }
+            '
+
+            recovery_dir="${RUNNER_TEMP}/release-recovery"
+            mkdir -p "${recovery_dir}"
+            gh release download "${RELEASE_TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern checksums.txt \
+              --dir "${recovery_dir}"
+            asset_names="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[].name')"
+            for required_asset in checksums.txt checksums.txt.sigstore.json install.sh; do
+              if ! grep -Fqx "${required_asset}" <<<"${asset_names}"; then
+                echo "::error::Published recovery is missing ${required_asset}"
+                exit 1
+              fi
+            done
+            while IFS= read -r artifact; do
+              published_artifact="${artifact//\~/.}"
+              if ! grep -Fqx "${published_artifact}" <<<"${asset_names}"; then
+                echo "::error::Published recovery is missing checksum-backed asset ${artifact}"
+                exit 1
+              fi
+            done < <(awk '{print $2}' "${recovery_dir}/checksums.txt")
+
+            echo "already_published=true" >>"${GITHUB_OUTPUT}"
+            echo "Reusing complete publication for ${RELEASE_TAG}"
+            exit 0
+          fi
+
+          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
+            if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+              echo "::error::GitHub Release exists but npm ${RELEASE_VERSION} is missing"
+              exit 1
+            fi
+            echo "already_published=false" >>"${GITHUB_OUTPUT}"
+            echo "@compozy/cli@${RELEASE_VERSION} is not published yet"
+          else
+            cat "$npm_view_output"
+            echo "::error::Could not confirm @compozy/cli@${RELEASE_VERSION} is unpublished"
+            exit 1
+          fi
+
       - name: Setup Release Tools
+        if: steps.publication.outputs.already_published != 'true'
         uses: ./.github/actions/setup-release
         with:
           goreleaser-distribution: goreleaser-pro
@@ -452,29 +539,8 @@ jobs:
           setup-qemu: false
           cosign-version: "v2.2.4"
 
-      - name: Verify npm publish authentication
-        env:
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: |
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is required to publish @compozy/cli"
-            exit 1
-          fi
-          npm whoami --registry=https://registry.npmjs.org
-          npm_view_output="$(mktemp)"
-          if npm view "@compozy/cli@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
-            echo "::error::@compozy/cli@${RELEASE_VERSION} is already published and npm versions are immutable"
-            exit 1
-          fi
-          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
-            echo "@compozy/cli@${RELEASE_VERSION} is not published yet"
-          else
-            cat "$npm_view_output"
-            echo "::error::Could not confirm @compozy/cli@${RELEASE_VERSION} is unpublished"
-            exit 1
-          fi
-
       - name: Validate generated release assets
+        if: steps.publication.outputs.already_published != 'true'
         run: |
           if [ ! -s RELEASE_BODY.md ]; then
             echo "::error::Missing or empty RELEASE_BODY.md; release-pr must generate the current release body"
@@ -554,6 +620,7 @@ jobs:
       # "## 0.3.0"). Derive the published body outside the checkout so
       # GoReleaser's clean-tree validation remains meaningful.
       - name: Prepare published release body
+        if: steps.publication.outputs.already_published != 'true'
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
@@ -567,6 +634,7 @@ jobs:
           head -1 "${release_body}"
 
       - uses: goreleaser/goreleaser-action@v6
+        if: steps.publication.outputs.already_published != 'true'
         with:
           distribution: goreleaser-pro
           version: v2.17.1
@@ -584,7 +652,6 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
-          GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}
           GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
           HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
@@ -633,11 +700,24 @@ jobs:
           git -C .release-homebrew config user.email "github-actions[bot]@users.noreply.github.com"
           git -C .release-homebrew add Formula/compozy.rb
           if git -C .release-homebrew diff --cached --quiet; then
-            echo "::error::Homebrew formula did not change for ${RELEASE_TAG}"
-            exit 1
+            echo "Homebrew formula already matches ${RELEASE_TAG}"
+            exit 0
           fi
           git -C .release-homebrew commit -m "compozy ${RELEASE_TAG}"
           git -C .release-homebrew push origin HEAD:main
+
+      - name: Apply published GitHub channel policy
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}
+          GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
+        run: |
+          set -euo pipefail
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+            -F prerelease="${GITHUB_PRERELEASE}" \
+            -f make_latest="${GITHUB_MAKE_LATEST}" >/dev/null
 
       - name: Verify published channel policy
         env:
