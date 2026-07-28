@@ -41,6 +41,16 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 			},
 		},
 		snapshots: map[string]apicore.RunSnapshot{
+			"run-1": {
+				Run: apicore.Run{
+					RunID:       "run-1",
+					Mode:        "exec",
+					Status:      "failed",
+					StartedAt:   base,
+					EndedAt:     timePointer(base.Add(time.Minute)),
+					WorkspaceID: "ws-1",
+				},
+			},
 			"run-2": {
 				Run: apicore.Run{
 					RunID:       "run-2",
@@ -104,6 +114,27 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 		if len(got) != 2 || got[0].RunID != "run-2" || got[1].RunID != "run-1" {
 			t.Fatalf("List() = %#v, want run-2 then run-1", got)
 		}
+		if got[0].Speed != kinds.SpeedFast {
+			t.Fatalf("List()[0].Speed = %q, want fast", got[0].Speed)
+		}
+		wantListedResolutions := map[int]kinds.SpeedResolution{
+			0: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusApplied,
+			},
+			1: {
+				Requested: kinds.SpeedFast,
+				Status:    kinds.SpeedResolutionStatusUnsupported,
+				Reason:    kinds.SpeedResolutionReasonCapabilityAbsent,
+			},
+		}
+		if !reflect.DeepEqual(got[0].SpeedResolutions, wantListedResolutions) {
+			t.Fatalf(
+				"List()[0].SpeedResolutions = %#v, want %#v",
+				got[0].SpeedResolutions,
+				wantListedResolutions,
+			)
+		}
 
 		run, err := Open("/workspace", "run-2")
 		if err != nil {
@@ -152,6 +183,25 @@ func TestTailAndWatchWorkspaceUseDaemonBackedHTTPTransport(t *testing.T) {
 					Timestamp: now.Add(time.Second),
 					Sequence:  1,
 				},
+			},
+			"run-watch": {
+				Run: apicore.Run{
+					RunID:     "run-watch",
+					Mode:      "exec",
+					Status:    "running",
+					StartedAt: now,
+				},
+				Jobs: []apicore.RunJobState{{
+					Index: 0,
+					Summary: &apicore.RunJobSummary{
+						Index: 0,
+						Speed: kinds.SpeedFast,
+						SpeedResolution: &kinds.SpeedResolution{
+							Requested: kinds.SpeedFast,
+							Status:    kinds.SpeedResolutionStatusApplied,
+						},
+					},
+				}},
 			},
 		},
 		events: map[string]apicore.RunEventPage{
@@ -221,10 +271,16 @@ func TestTailAndWatchWorkspaceUseDaemonBackedHTTPTransport(t *testing.T) {
 		if created.Kind != RunEventCreated {
 			t.Fatalf("created event = %#v, want created", created)
 		}
+		if created.Summary == nil || created.Summary.Speed != kinds.SpeedFast {
+			t.Fatalf("created summary = %#v, want fast speed", created.Summary)
+		}
 		changed := awaitRunEvent(t, runEvents, runErrs, 2*time.Second)
 		if changed.Kind != RunEventStatusChanged || changed.Summary == nil ||
 			changed.Summary.Status != publicRunStatusFailed {
 			t.Fatalf("changed event = %#v, want failed status change", changed)
+		}
+		if changed.Summary.Speed != kinds.SpeedFast {
+			t.Fatalf("changed summary speed = %q, want fast", changed.Summary.Speed)
 		}
 	})
 }

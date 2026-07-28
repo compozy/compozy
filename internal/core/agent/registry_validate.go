@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 var ErrRuntimeConfigNil = errors.New("runtime config is nil")
@@ -23,6 +24,9 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 		return fmt.Errorf("invalid --ide value %q: must be %s", cfg.IDE, quotedSupportedIDEs())
 	}
 	if err := validateRuntimeAccessMode(cfg.AccessMode); err != nil {
+		return err
+	}
+	if err := validateRuntimeSpeed(cfg.Speed); err != nil {
 		return err
 	}
 	if err := validateAddDirSupport("--add-dir", spec, cfg.AddDirs); err != nil {
@@ -47,6 +51,20 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", cfg.RetryBackoffMultiplier)
 	}
 	return nil
+}
+
+func validateRuntimeSpeed(speed kinds.Speed) error {
+	switch speed {
+	case "", kinds.SpeedNormal, kinds.SpeedFast:
+		return nil
+	default:
+		return fmt.Errorf(
+			"invalid speed value %q: must be %q or %q",
+			speed,
+			kinds.SpeedNormal,
+			kinds.SpeedFast,
+		)
+	}
 }
 
 // ValidateAddDirSupport verifies that the selected runtime supports extra writable roots.

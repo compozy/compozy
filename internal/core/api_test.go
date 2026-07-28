@@ -3,7 +3,10 @@ package core
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestConfigValidateRejectsNegativeTailLines(t *testing.T) {
@@ -74,6 +77,23 @@ func TestConfigValidateAcceptsAddDirsForSupportedIDE(t *testing.T) {
 	}.Validate()
 	if err != nil {
 		t.Fatalf("expected supported add-dir runtime to validate: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsInvalidSpeed(t *testing.T) {
+	t.Parallel()
+
+	err := Config{
+		IDE:   IDECodex,
+		Speed: kinds.Speed("turbo"),
+	}.Validate()
+	if err == nil {
+		t.Fatal("expected invalid speed to fail validation")
+	}
+	if !strings.Contains(err.Error(), "speed") ||
+		!strings.Contains(err.Error(), string(kinds.SpeedNormal)) ||
+		!strings.Contains(err.Error(), string(kinds.SpeedFast)) {
+		t.Fatalf("unexpected invalid speed error: %v", err)
 	}
 }
 

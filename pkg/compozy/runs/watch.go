@@ -67,7 +67,7 @@ func WatchWorkspace(ctx context.Context, workspaceRoot string) (<-chan RunEvent,
 					}
 					continue
 				}
-				if err := diffWorkspaceRuns(ctx, known, current, out); err != nil {
+				if err := diffWorkspaceRuns(ctx, client, cleanRoot, known, current, out); err != nil {
 					if !sendRunError(ctx, errs, err) {
 						return
 					}
@@ -81,6 +81,8 @@ func WatchWorkspace(ctx context.Context, workspaceRoot string) (<-chan RunEvent,
 
 func diffWorkspaceRuns(
 	ctx context.Context,
+	client daemonRunReader,
+	workspaceRoot string,
 	known map[string]RunSummary,
 	current []RunSummary,
 	out chan<- RunEvent,
@@ -88,7 +90,15 @@ func diffWorkspaceRuns(
 	currentByID := make(map[string]RunSummary, len(current))
 	for i := range current {
 		currentByID[current[i].RunID] = current[i]
-		if err := applyWorkspaceRunSummary(ctx, current[i].RunID, current[i], known, out); err != nil {
+		if err := applyWorkspaceRunSummary(
+			ctx,
+			client,
+			workspaceRoot,
+			current[i].RunID,
+			current[i],
+			known,
+			out,
+		); err != nil {
 			return err
 		}
 	}
@@ -110,30 +120,34 @@ func diffWorkspaceRuns(
 
 func applyWorkspaceRunSummary(
 	ctx context.Context,
+	client daemonRunReader,
+	workspaceRoot string,
 	runID string,
 	summary RunSummary,
 	known map[string]RunSummary,
 	out chan<- RunEvent,
 ) error {
 	previous, exists := known[runID]
-	known[runID] = summary
-
-	switch {
-	case !exists:
-		return sendWorkspaceEvent(ctx, out, RunEvent{
-			Kind:    RunEventCreated,
-			RunID:   runID,
-			Summary: summaryPointer(summary),
-		})
-	case previous.Status != summary.Status:
-		return sendWorkspaceEvent(ctx, out, RunEvent{
-			Kind:    RunEventStatusChanged,
-			RunID:   runID,
-			Summary: summaryPointer(summary),
-		})
-	default:
+	if exists && previous.Status == summary.Status {
+		known[runID] = summary
 		return nil
 	}
+
+	hydrated, err := hydrateRunSummaryDetails(ctx, client, workspaceRoot, summary)
+	if err != nil {
+		return err
+	}
+	known[runID] = hydrated
+
+	kind := RunEventCreated
+	if exists {
+		kind = RunEventStatusChanged
+	}
+	return sendWorkspaceEvent(ctx, out, RunEvent{
+		Kind:    kind,
+		RunID:   runID,
+		Summary: summaryPointer(hydrated),
+	})
 }
 
 func sendWorkspaceEvent(ctx context.Context, out chan<- RunEvent, event RunEvent) error {

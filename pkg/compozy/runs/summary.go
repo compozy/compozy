@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -41,7 +42,9 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	summaries, err := client.ListRuns(context.Background(), cleanWorkspaceRoot(workspaceRoot), opts)
+	ctx := context.Background()
+	cleanRoot := cleanWorkspaceRoot(workspaceRoot)
+	summaries, err := client.ListRuns(ctx, cleanRoot, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +59,36 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 	if opts.Limit > 0 && len(filtered) > opts.Limit {
 		filtered = filtered[:opts.Limit]
 	}
+	for i := range filtered {
+		hydrated, hydrateErr := hydrateRunSummaryDetails(ctx, client, cleanRoot, filtered[i])
+		if hydrateErr != nil {
+			return nil, hydrateErr
+		}
+		filtered[i] = hydrated
+	}
 	return filtered, nil
+}
+
+func hydrateRunSummaryDetails(
+	ctx context.Context,
+	client daemonRunReader,
+	workspaceRoot string,
+	summary RunSummary,
+) (RunSummary, error) {
+	detailed, err := client.OpenRun(ctx, workspaceRoot, summary.RunID)
+	if err != nil {
+		return RunSummary{}, fmt.Errorf("hydrate run summary %q: %w", summary.RunID, err)
+	}
+
+	summary.IDE = firstNonEmpty(detailed.IDE, summary.IDE)
+	summary.Model = firstNonEmpty(detailed.Model, summary.Model)
+	if detailed.Speed != "" {
+		summary.Speed = detailed.Speed
+	}
+	if detailed.SpeedResolutions != nil {
+		summary.SpeedResolutions = cloneSpeedResolutions(detailed.SpeedResolutions)
+	}
+	return summary, nil
 }
 
 func matchesListOptions(summary RunSummary, opts ListOptions) bool {
