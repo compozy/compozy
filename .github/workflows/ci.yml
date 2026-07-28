@@ -215,6 +215,7 @@ jobs:
       - name: Run Go static verification
         run: |
           make fmt-check
+          make source-size
           make go-lint
 
   go-test:

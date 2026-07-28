@@ -19,6 +19,17 @@ func Deps() error {
 	return sh.RunV("go", "mod", "tidy")
 }
 
+// DepsCheck verifies that the module graph is tidy and its downloaded content is intact.
+func DepsCheck() error {
+	if err := sh.RunV("go", "mod", "tidy", "-diff"); err != nil {
+		return fmt.Errorf("check tidy module graph: %w", err)
+	}
+	if err := sh.RunV("go", "mod", "verify"); err != nil {
+		return fmt.Errorf("verify module graph: %w", err)
+	}
+	return nil
+}
+
 func Fmt() error {
 	files, err := goFiles(".")
 	if err != nil {
@@ -55,7 +66,7 @@ func Lint() error {
 	if err := SourceSize(); err != nil {
 		return err
 	}
-	if err := goLint(); err != nil {
+	if err := GoLint(); err != nil {
 		return err
 	}
 	return BunLint()
@@ -63,6 +74,9 @@ func Lint() error {
 
 // GoLint runs the complete Go-only static analysis gate.
 func GoLint() error {
+	if err := SourcePolicy(); err != nil {
+		return err
+	}
 	return goLint()
 }
 

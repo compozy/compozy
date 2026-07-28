@@ -4,8 +4,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/compozy/compozy/internal/codegen/openapits"
@@ -105,30 +103,4 @@ type webAssetsSemver struct {
 	major int
 	minor int
 	patch int
-}
-
-func availableWebOpenAPIArtifacts() ([]openapits.Artifact, error) {
-	artifacts := make([]openapits.Artifact, 0, len(webOpenAPIArtifacts))
-	for _, artifact := range webOpenAPIArtifacts {
-		if artifact.SpecPath == "" {
-			continue
-		}
-		if _, err := os.Stat(artifact.SpecPath); err != nil {
-			if os.IsNotExist(err) {
-				if artifact.OutputPath != "" {
-					if _, outputErr := os.Stat(artifact.OutputPath); outputErr == nil {
-						return nil, fmt.Errorf(
-							"%s exists but %s is missing; remove the generated file or restore the spec",
-							artifact.OutputPath,
-							artifact.SpecPath,
-						)
-					}
-				}
-				continue
-			}
-			return nil, err
-		}
-		artifacts = append(artifacts, artifact)
-	}
-	return artifacts, nil
 }

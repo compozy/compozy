@@ -8266,6 +8266,84 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	return registry
 }
 
+func TestValidateNativeToolBindings(t *testing.T) {
+	t.Parallel()
+
+	available := func(context.Context, toolspkg.Scope) toolspkg.Availability {
+		return toolspkg.Available()
+	}
+	call := func(
+		context.Context,
+		toolspkg.Scope,
+		toolspkg.CallRequest,
+	) (toolspkg.ToolResult, error) {
+		return toolspkg.ToolResult{}, nil
+	}
+	descriptor := toolspkg.Descriptor{ID: toolspkg.ToolID("compozy__test")}
+	validBinding := nativeToolBinding{call: call, availability: available}
+
+	t.Run("Should accept an exact executable binding set", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateNativeToolBindings(
+			[]toolspkg.Descriptor{descriptor},
+			map[toolspkg.ToolID]nativeToolBinding{descriptor.ID: validBinding},
+		)
+		if err != nil {
+			t.Fatalf("validateNativeToolBindings() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject missing and unreachable bindings", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateNativeToolBindings(
+			[]toolspkg.Descriptor{descriptor},
+			map[toolspkg.ToolID]nativeToolBinding{
+				toolspkg.ToolID("compozy__stale"): validBinding,
+			},
+		)
+		if err == nil {
+			t.Fatal("validateNativeToolBindings() error = nil, want bijection failure")
+		}
+		if !strings.Contains(err.Error(), "missing=[compozy__test]") ||
+			!strings.Contains(err.Error(), "extra=[compozy__stale]") {
+			t.Fatalf("validateNativeToolBindings() error = %v, want missing and extra IDs", err)
+		}
+	})
+
+	t.Run("Should reject duplicate descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateNativeToolBindings(
+			[]toolspkg.Descriptor{descriptor, descriptor},
+			map[toolspkg.ToolID]nativeToolBinding{descriptor.ID: validBinding},
+		)
+		if err == nil {
+			t.Fatal("validateNativeToolBindings() error = nil, want duplicate descriptor failure")
+		}
+		if !strings.Contains(err.Error(), "duplicate_descriptors=[compozy__test]") {
+			t.Fatalf("validateNativeToolBindings() error = %v, want duplicate descriptor ID", err)
+		}
+	})
+
+	t.Run("Should reject non-executable binding functions", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateNativeToolBindings(
+			[]toolspkg.Descriptor{descriptor},
+			map[toolspkg.ToolID]nativeToolBinding{descriptor.ID: {}},
+		)
+		if err == nil {
+			t.Fatal("validateNativeToolBindings() error = nil, want nil function failure")
+		}
+		if !strings.Contains(err.Error(), "nil_calls=[compozy__test]") ||
+			!strings.Contains(err.Error(), "nil_availability=[compozy__test]") {
+			t.Fatalf("validateNativeToolBindings() error = %v, want nil function IDs", err)
+		}
+	})
+}
+
 type nativeToolPolicySessionStub struct {
 	info *session.Info
 	err  error

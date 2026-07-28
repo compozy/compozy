@@ -23,7 +23,7 @@ func Codegen() error {
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "all"); err != nil {
 		return err
 	}
-	artifacts, err := availableWebOpenAPIArtifacts()
+	artifacts, err := webOpenAPIArtifactsForGeneration()
 	if err != nil {
 		return err
 	}
@@ -37,6 +37,9 @@ func Codegen() error {
 
 func CodegenCheck() error {
 	ctx := context.Background()
+	if err := DepsCheck(); err != nil {
+		return err
+	}
 	if err := storeschema.CheckAtlas(ctx, "."); err != nil {
 		return err
 	}
@@ -49,7 +52,7 @@ func CodegenCheck() error {
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "check"); err != nil {
 		return err
 	}
-	artifacts, err := availableWebOpenAPIArtifacts()
+	artifacts, err := webOpenAPIArtifactsForCheck()
 	if err != nil {
 		return err
 	}
