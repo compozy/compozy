@@ -17,6 +17,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -31,12 +32,18 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:                   "sess-1",
-			Name:                 "demo",
-			AgentName:            "coder",
-			Provider:             "fake",
-			Model:                "  gpt-test  ",
-			ReasoningEffort:      "  high  ",
+			ID:              "sess-1",
+			Name:            "demo",
+			AgentName:       "coder",
+			Provider:        "fake",
+			Model:           "  gpt-test  ",
+			ReasoningEffort: "  high  ",
+			Speed:           speedpkg.SpeedFast,
+			SpeedResolution: &speedpkg.Resolution{
+				Requested: speedpkg.SpeedFast,
+				Status:    speedpkg.ResolutionUnsupported,
+				Reason:    speedpkg.ReasonCapabilityAbsent,
+			},
 			WorkspaceID:          "ws_alpha",
 			Workspace:            "/workspace",
 			NetworkParticipation: testLiveParticipation("ws_alpha", "builders"),
@@ -127,6 +134,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.ReasoningEffort != "high" {
 			t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
+		}
+		if payload.Speed != contract.SpeedFast ||
+			payload.SpeedResolution == nil ||
+			payload.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
+			payload.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
+			t.Fatalf(
+				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
+				payload.Speed,
+				payload.SpeedResolution,
+			)
 		}
 		if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
 			t.Fatalf("payload session fields = %#v", payload)

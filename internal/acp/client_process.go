@@ -14,6 +14,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -111,6 +112,13 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	}
 	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
+	if normalized.Speed != "" {
+		parsedSpeed, parseErr := speedpkg.Parse(string(normalized.Speed))
+		if parseErr != nil {
+			return StartOpts{}, fmt.Errorf("acp: validate speed: %w", parseErr)
+		}
+		normalized.Speed = parsedSpeed
+	}
 
 	return normalized, nil
 }

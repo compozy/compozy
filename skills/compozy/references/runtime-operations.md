@@ -69,7 +69,7 @@ cannot be validated fail closed.
 
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
-    compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort high --prompt "Inspect the failing build."
+    compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast --prompt "Inspect the failing build."
     compozy session new --agent general --no-wait -o json
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
@@ -102,7 +102,10 @@ API until it becomes `active` or durably `stopped` with `failure.kind=startup_fa
 
 Use `--prompt` with non-whitespace text to atomically create a session and stage its first user turn.
 Compozy persists the `starting` session and the trimmed prompt before returning, then dispatches the
-prompt once after the selected provider, model, and reasoning effort become active. Empty or
+prompt once after the selected provider, model, reasoning effort, and requested speed become active. Speed defaults
+to `normal`; `fast` is applied only through an unambiguous ACP select/value-ID option. An absent or
+ambiguous speed capability is reported as `unsupported` without failing startup, while a provider
+rejection fails before the first prompt with `speed_rejected`. Empty or
 whitespace-only values keep create-only behavior. `--no-wait --prompt` returns the durable `starting`
 record with the prompt still queued. A startup failure retains that prompt for an explicit resume;
 deleting the session removes it. Do not send the same prompt again after create.

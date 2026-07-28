@@ -49,6 +49,10 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
 	}
+	requestedSpeed, err := normalizeRequestedSpeed(meta.Speed)
+	if err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: validate resume speed for %q: %w", meta.ID, err)
+	}
 
 	return sessionStartSpec{
 		sessionID:               meta.ID,
@@ -60,6 +64,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		provider:                strings.TrimSpace(meta.Provider),
 		model:                   strings.TrimSpace(meta.Model),
 		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
+		speed:                   requestedSpeed,
 		permissions:             compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:               resolvedWorkspace,
 		networkParticipation:    meta.NetworkSpecSnapshot(),

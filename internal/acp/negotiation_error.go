@@ -14,6 +14,7 @@ const (
 	NegotiationCodeModelUnavailable           = diagnosticcontract.CodeModelUnavailable
 	NegotiationCodeReasoningOptionMissing     = diagnosticcontract.CodeReasoningOptionMissing
 	NegotiationCodeReasoningEffortUnsupported = diagnosticcontract.CodeReasoningEffortUnsupported
+	NegotiationCodeSpeedRejected              = diagnosticcontract.CodeSpeedRejected
 )
 
 // NegotiationError reports one model or reasoning request rejected before the first prompt.

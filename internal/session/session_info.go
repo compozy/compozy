@@ -3,6 +3,7 @@ package session
 import (
 	"strings"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -27,6 +28,8 @@ func (s *Session) Info() *Info {
 		Provider:             s.Provider,
 		Model:                s.Model,
 		ReasoningEffort:      s.ReasoningEffort,
+		Speed:                s.Speed,
+		SpeedResolution:      speedpkg.CloneResolution(s.SpeedResolution),
 		WorkspaceID:          s.WorkspaceID,
 		Workspace:            s.Workspace,
 		NetworkParticipation: s.NetworkParticipation,

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/spf13/cobra"
 )
 
@@ -13,8 +14,8 @@ const sessionCreateExample = `  # Start a session in the current workspace using
   # Start a named session for a specific registered workspace and agent
   compozy session new --workspace checkout-api --agent reviewer --name review-api
 
-  # Override provider, model, and reasoning effort for this session only
-  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max
+  # Override provider, model, reasoning effort, and speed for this session only
+  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max --speed fast
 
   # Create the session and dispatch its first prompt after runtime activation
   compozy session new --prompt "Inspect the failing build and propose a fix"
@@ -31,6 +32,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		model           string
 		prompt          string
 		reasoningEffort string
+		requestedSpeed  string
 		workspaceRef    string
 		noWait          bool
 		networkFlags    networkParticipationFlags
@@ -54,12 +56,17 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			parsedSpeed, err := speedpkg.Parse(requestedSpeed)
+			if err != nil {
+				return err
+			}
 
 			created, err := client.CreateSession(cmd.Context(), CreateSessionRequest{
 				AgentName:            agentName,
 				Provider:             strings.TrimSpace(provider),
 				Model:                strings.TrimSpace(model),
 				ReasoningEffort:      contract.ReasoningEffort(strings.TrimSpace(reasoningEffort)),
+				Speed:                parsedSpeed,
 				Prompt:               strings.TrimSpace(prompt),
 				Name:                 name,
 				Workspace:            workspace,
@@ -88,6 +95,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&provider, sessionProviderKey, "", "Optional provider override for this session")
 	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
 	cmd.Flags().StringVar(&prompt, "prompt", "", "Initial prompt to dispatch after the session becomes active")
+	cmd.Flags().StringVar(&requestedSpeed, "speed", string(speedpkg.SpeedNormal), "Runtime speed (normal|fast)")
 	cmd.Flags().BoolVar(&noWait, "no-wait", false, "Return after the durable starting session is accepted")
 	cmd.Flags().StringVar(
 		&reasoningEffort,

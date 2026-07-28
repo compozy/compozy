@@ -136,9 +136,9 @@ func steerPromptMeta(input SteerInput) (map[string]any, error) {
 		meta = make(map[string]any)
 	}
 	meta["busy_input"] = map[string]any{
-		"mode":             "steer",
-		"queue_entry_id":   strings.TrimSpace(input.QueueEntryID),
-		"queue_generation": input.QueueGeneration,
+		sessionConfigModeKey: "steer",
+		"queue_entry_id":     strings.TrimSpace(input.QueueEntryID),
+		"queue_generation":   input.QueueGeneration,
 	}
 	return meta, nil
 }

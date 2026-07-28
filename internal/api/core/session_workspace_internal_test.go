@@ -50,13 +50,13 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 	t.Run("Should validate create session runtime overrides", func(t *testing.T) {
 		t.Parallel()
 
-		if err := validateCreateSessionRuntimeOverrides("core-test", "", "gpt-5.4", ""); !errors.Is(
+		if err := validateCreateSessionRuntimeOverrides("core-test", "", "gpt-5.4", "", ""); !errors.Is(
 			err,
 			session.ErrInvalidRuntimeOverride,
 		) {
 			t.Fatalf("validateCreateSessionRuntimeOverrides(model) error = %v, want ErrInvalidRuntimeOverride", err)
 		}
-		if err := validateCreateSessionRuntimeOverrides("core-test", "", "", "high"); !errors.Is(
+		if err := validateCreateSessionRuntimeOverrides("core-test", "", "", "high", ""); !errors.Is(
 			err,
 			session.ErrInvalidRuntimeOverride,
 		) {
@@ -70,6 +70,7 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 			"codex",
 			"",
 			"ultra",
+			"",
 		)
 		if !errors.Is(err, session.ErrInvalidRuntimeOverride) {
 			t.Fatalf(
@@ -84,8 +85,17 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		if got, want := statusForSessionError(err), http.StatusUnprocessableEntity; got != want {
 			t.Fatalf("statusForSessionError(reasoning enum) = %d, want %d", got, want)
 		}
-		if err := validateCreateSessionRuntimeOverrides("core-test", "codex", "gpt-5.4", "high"); err != nil {
+		if err := validateCreateSessionRuntimeOverrides("core-test", "codex", "gpt-5.4", "high", "fast"); err != nil {
 			t.Fatalf("validateCreateSessionRuntimeOverrides(valid) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject an invalid speed override", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateCreateSessionRuntimeOverrides("core-test", "", "", "", "turbo")
+		if !errors.Is(err, session.ErrInvalidRuntimeOverride) {
+			t.Fatalf("validateCreateSessionRuntimeOverrides(speed) error = %v, want ErrInvalidRuntimeOverride", err)
 		}
 	})
 

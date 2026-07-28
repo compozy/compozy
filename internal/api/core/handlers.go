@@ -66,6 +66,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Provider:             strings.TrimSpace(req.Provider),
 		Model:                strings.TrimSpace(req.Model),
 		ReasoningEffort:      strings.TrimSpace(string(req.ReasoningEffort)),
+		Speed:                req.Speed,
 		Name:                 req.Name,
 		Workspace:            strings.TrimSpace(req.Workspace),
 		WorkspacePath:        strings.TrimSpace(req.WorkspacePath),

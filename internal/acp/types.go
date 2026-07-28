@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -62,6 +63,7 @@ type StartOpts struct {
 	SystemPromptDelivery SystemPromptDeliveryMode
 	PreferredModel       string
 	ReasoningEffort      string
+	Speed                speedpkg.Speed
 	ResumeSessionID      string
 	Launcher             sandbox.Launcher
 	ToolHost             sandbox.ToolHost
@@ -183,6 +185,7 @@ type Caps struct {
 	SupportsLoadSession bool
 	SupportedModes      []string
 	ConfigOptions       []SessionConfigOption
+	SpeedResolution     *speedpkg.Resolution
 }
 
 // CloneCaps returns a deep copy of ACP caps.
@@ -191,6 +194,7 @@ func CloneCaps(caps Caps) Caps {
 		SupportsLoadSession: caps.SupportsLoadSession,
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
 		ConfigOptions:       CloneSessionConfigOptions(caps.ConfigOptions),
+		SpeedResolution:     speedpkg.CloneResolution(caps.SpeedResolution),
 	}
 }
 

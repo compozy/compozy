@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
@@ -175,6 +176,9 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[bridgepkg.DeliveryMode]():             deliveryModeValues(),
 		reflect.TypeFor[modelcatalog.ReasoningEffort]():       modelcatalog.ReasoningEffortValues(),
 		reflect.TypeFor[modelcatalog.ReasoningSource]():       modelcatalog.ReasoningSourceValues(),
+		reflect.TypeFor[speedpkg.Speed]():                     speedpkg.Values(),
+		reflect.TypeFor[speedpkg.ResolutionStatus]():          speedpkg.ResolutionStatusValues(),
+		reflect.TypeFor[speedpkg.ResolutionReason]():          speedpkg.ResolutionReasonValues(),
 		reflect.TypeFor[modelcatalog.CostStatus]():            modelcatalog.CostStatusValues(),
 		reflect.TypeFor[modelcatalog.CostSource]():            modelcatalog.CostSourceValues(),
 		reflect.TypeFor[session.Type]():                       sessionTypeValues(),

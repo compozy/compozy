@@ -13074,6 +13074,8 @@ export interface operations {
           prompt_overlay?: string;
           provider?: string;
           spawn_role: string;
+          /** @enum {string} */
+          speed?: "normal" | "fast";
           /** Format: int64 */
           ttl_seconds: number;
         };
@@ -13295,6 +13297,20 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
+                } | null;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+                speed_resolution?: {
+                  /** @enum {string} */
+                  reason?:
+                    | "capability_absent"
+                    | "capability_ambiguous"
+                    | "value_ambiguous"
+                    | "provider_rejected";
+                  /** @enum {string} */
+                  requested: "normal" | "fast";
+                  /** @enum {string} */
+                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -45947,6 +45963,20 @@ export interface operations {
                 state?: string;
               } | null;
               /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
+              } | null;
+              /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
               /** @enum {string} */
@@ -46178,6 +46208,8 @@ export interface operations {
           provider?: string;
           /** @enum {string} */
           reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+          /** @enum {string} */
+          speed?: "normal" | "fast";
           workspace?: string;
           workspace_path?: string;
         };
@@ -46366,6 +46398,20 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
+              } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -46792,6 +46838,20 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
+              } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -81325,6 +81385,20 @@ export interface operations {
                 state?: string;
               } | null;
               /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
+              } | null;
+              /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
               /** @enum {string} */
@@ -91284,6 +91358,20 @@ export interface operations {
                   state?: string;
                 } | null;
                 /** @enum {string} */
+                speed?: "normal" | "fast";
+                speed_resolution?: {
+                  /** @enum {string} */
+                  reason?:
+                    | "capability_absent"
+                    | "capability_ambiguous"
+                    | "value_ambiguous"
+                    | "provider_rejected";
+                  /** @enum {string} */
+                  requested: "normal" | "fast";
+                  /** @enum {string} */
+                  status: "applied" | "unsupported" | "rejected";
+                } | null;
+                /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 stop_detail?: string;
                 /** @enum {string} */
@@ -91658,6 +91746,20 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
+                } | null;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+                speed_resolution?: {
+                  /** @enum {string} */
+                  reason?:
+                    | "capability_absent"
+                    | "capability_ambiguous"
+                    | "value_ambiguous"
+                    | "provider_rejected";
+                  /** @enum {string} */
+                  requested: "normal" | "fast";
+                  /** @enum {string} */
+                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -92043,6 +92145,20 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
+                } | null;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+                speed_resolution?: {
+                  /** @enum {string} */
+                  reason?:
+                    | "capability_absent"
+                    | "capability_ambiguous"
+                    | "value_ambiguous"
+                    | "provider_rejected";
+                  /** @enum {string} */
+                  requested: "normal" | "fast";
+                  /** @enum {string} */
+                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -95115,6 +95231,20 @@ export interface operations {
                 state?: string;
               } | null;
               /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
+              } | null;
+              /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
               /** @enum {string} */
@@ -95589,6 +95719,20 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
+              } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -96116,6 +96260,20 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
+              } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
+              speed_resolution?: {
+                /** @enum {string} */
+                reason?:
+                  | "capability_absent"
+                  | "capability_ambiguous"
+                  | "value_ambiguous"
+                  | "provider_rejected";
+                /** @enum {string} */
+                requested: "normal" | "fast";
+                /** @enum {string} */
+                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -99323,6 +99481,20 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
+                } | null;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
+                speed_resolution?: {
+                  /** @enum {string} */
+                  reason?:
+                    | "capability_absent"
+                    | "capability_ambiguous"
+                    | "value_ambiguous"
+                    | "provider_rejected";
+                  /** @enum {string} */
+                  requested: "normal" | "fast";
+                  /** @enum {string} */
+                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";

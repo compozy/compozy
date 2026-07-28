@@ -20,6 +20,8 @@ func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error
 		{Label: sessionNameValue, Value: stringOrDash(info.Name)},
 		{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
 		{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
+		{Label: "Speed", Value: stringOrDash(string(info.Speed))},
+		{Label: "Speed Outcome", Value: sessionSpeedOutcome(info)},
 		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
 		{Label: sessionChannelValue, Value: sessionResolvedChannel(info)},
 		{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
@@ -73,6 +75,8 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		sessionNameKey,
 		sessionAgentNameKey,
 		sessionProviderKey,
+		"speed",
+		"speed_outcome",
 		"sandbox_backend",
 		workspaceSkillSource,
 		sessionChannelKey,
@@ -92,6 +96,8 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		info.Name,
 		info.AgentName,
 		info.Provider,
+		string(info.Speed),
+		sessionSpeedOutcome(info),
 		sessionSandboxBackend(info),
 		displaySessionWorkspace(info),
 		sessionResolvedChannelRaw(info),
@@ -107,6 +113,16 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		formatTime(info.CreatedAt),
 		formatTime(info.UpdatedAt),
 	}), nil
+}
+
+func sessionSpeedOutcome(info SessionRecord) string {
+	if info.SpeedResolution == nil {
+		return ""
+	}
+	if info.SpeedResolution.Reason == "" {
+		return string(info.SpeedResolution.Status)
+	}
+	return string(info.SpeedResolution.Status) + ":" + string(info.SpeedResolution.Reason)
 }
 
 func sessionResumeEmptyBundle() outputBundle {

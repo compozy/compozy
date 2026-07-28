@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -48,7 +49,13 @@ func validateCreateSessionRequest(prefix string, workspaceRef string, workspaceP
 // validateCreateSessionRuntimeOverrides enforces the model + reasoning_effort
 // invariants for create-session payloads. Provider must be set when either
 // override is present, and reasoning_effort must match the supported enum.
-func validateCreateSessionRuntimeOverrides(prefix string, provider string, model string, reasoningEffort string) error {
+func validateCreateSessionRuntimeOverrides(
+	prefix string,
+	provider string,
+	model string,
+	reasoningEffort string,
+	requestedSpeed string,
+) error {
 	trimmedProvider := strings.TrimSpace(provider)
 	trimmedModel := strings.TrimSpace(model)
 	trimmedEffort := strings.TrimSpace(reasoningEffort)
@@ -61,6 +68,11 @@ func validateCreateSessionRuntimeOverrides(prefix string, provider string, model
 		}
 		if err := session.ValidateReasoningEffort(trimmedEffort); err != nil {
 			return prefixedRuntimeOverrideErr(prefix, err)
+		}
+	}
+	if strings.TrimSpace(requestedSpeed) != "" {
+		if _, err := speedpkg.Parse(requestedSpeed); err != nil {
+			return prefixedRuntimeOverrideErr(prefix, fmt.Errorf("%w: %w", session.ErrInvalidRuntimeOverride, err))
 		}
 	}
 	return nil

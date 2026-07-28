@@ -145,5 +145,16 @@ func (d *Driver) applySessionConfiguration(
 			fmt.Errorf("acp: set session reasoning effort for %q: %w", normalized.AgentName, err),
 		)
 	}
+
+	stageStartedAt = time.Now()
+	applied, err = d.applySessionSpeed(ctx, process, normalized.Speed)
+	d.logStartStage(normalized, process, "set_speed", stageOutcome(err, !applied), stageStartedAt)
+	if err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session speed negotiation failed",
+			fmt.Errorf("acp: set session speed for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }

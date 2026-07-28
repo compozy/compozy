@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session/inputqueue"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -24,6 +25,7 @@ type CreateOpts struct {
 	Provider             string
 	Model                string
 	ReasoningEffort      string
+	Speed                speedpkg.Speed
 	CWD                  string
 	SandboxRef           string
 	DisableSandbox       bool

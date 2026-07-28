@@ -10,6 +10,7 @@ import (
 
 const (
 	sessionConfigModelKey        = "model"
+	sessionConfigModeKey         = "mode"
 	sessionModeAgent             = "agent"
 	sessionModeAsk               = "ask"
 	sessionModeBypassPermissions = "bypassPermissions"
@@ -28,7 +29,7 @@ func (d *Driver) applySessionMode(
 	if modeID == "" {
 		return false, nil
 	}
-	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode"); ok &&
+	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); ok &&
 		strings.TrimSpace(option.Current) == modeID {
 		return false, nil
 	}
@@ -43,7 +44,7 @@ func (d *Driver) applySessionMode(
 		},
 	)
 	if err == nil {
-		process.setConfigOptionCurrent("mode", modeID)
+		process.setConfigOptionCurrent(sessionConfigModeKey, modeID)
 	}
 	return true, err
 }

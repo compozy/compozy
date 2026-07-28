@@ -7,6 +7,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -20,6 +21,7 @@ type sessionStartSpec struct {
 	provider                 string
 	model                    string
 	reasoningEffort          string
+	speed                    speedpkg.Speed
 	permissions              compozyconfig.PermissionMode
 	sandboxDisabled          bool
 	workspace                workspacepkg.ResolvedWorkspace
@@ -58,4 +60,11 @@ type sessionStartSpec struct {
 	soulDigest               string
 	parentSoulDigest         string
 	soulSnapshot             *soul.Snapshot
+}
+
+func normalizeRequestedSpeed(requested speedpkg.Speed) (speedpkg.Speed, error) {
+	if requested == "" {
+		requested = speedpkg.SpeedNormal
+	}
+	return speedpkg.Parse(string(requested))
 }

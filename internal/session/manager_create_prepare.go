@@ -54,6 +54,10 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	requestedSpeed, err := normalizeRequestedSpeed(opts.Speed)
+	if err != nil {
+		return sessionStartSpec{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+	}
 
 	return sessionStartSpec{
 		sessionID:                sessionID,
@@ -63,6 +67,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		provider:                 strings.TrimSpace(opts.Provider),
 		model:                    strings.TrimSpace(opts.Model),
 		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
+		speed:                    requestedSpeed,
 		permissions:              opts.Permissions,
 		sandboxDisabled:          sandboxDisabled,
 		workspace:                resolvedWorkspace,

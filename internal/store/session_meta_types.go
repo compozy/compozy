@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // SessionSandboxMeta is the persisted runtime sandbox state for a session.
@@ -32,6 +33,8 @@ type SessionMeta struct {
 	Provider             string                     `json:"provider,omitempty"`
 	Model                string                     `json:"model,omitempty"`
 	ReasoningEffort      string                     `json:"reasoning_effort,omitempty"`
+	Speed                speedpkg.Speed             `json:"speed,omitempty"`
+	SpeedResolution      *speedpkg.Resolution       `json:"speed_resolution,omitempty"`
 	EffectivePermissions string                     `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                     `json:"workspace_id,omitempty"`
 	CWD                  string                     `json:"cwd,omitempty"`
@@ -94,6 +97,9 @@ func (m SessionMeta) Validate() error {
 	if err := validateSessionCreationMetadata(m); err != nil {
 		return err
 	}
+	if err := validateSessionSpeedMetadata(m.Speed, m.SpeedResolution); err != nil {
+		return err
+	}
 	seenCommands := make(map[string]struct{}, len(m.AdvertisedCommands))
 	for _, command := range m.AdvertisedCommands {
 		if err := command.Validate(); err != nil {
@@ -107,6 +113,31 @@ func (m SessionMeta) Validate() error {
 	}
 	if err := validateSessionSoulProvenance(m.SoulSnapshotID, m.SoulDigest); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateSessionSpeedMetadata(speed speedpkg.Speed, resolution *speedpkg.Resolution) error {
+	if speed != "" {
+		if _, err := speedpkg.Parse(string(speed)); err != nil {
+			return fmt.Errorf("store: validate session speed: %w", err)
+		}
+	}
+	if resolution == nil {
+		return nil
+	}
+	if err := speedpkg.ValidateResolution(*resolution); err != nil {
+		return fmt.Errorf("store: validate session speed resolution: %w", err)
+	}
+	if speed == "" {
+		return fmt.Errorf("store: session speed resolution requires speed")
+	}
+	if resolution.Requested != speed {
+		return fmt.Errorf(
+			"store: session speed resolution requested %q does not match speed %q",
+			resolution.Requested,
+			speed,
+		)
 	}
 	return nil
 }

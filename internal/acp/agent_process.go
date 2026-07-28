@@ -9,6 +9,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/sandbox"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -140,6 +141,15 @@ func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
 	p.Caps.ConfigOptions = CloneSessionConfigOptions(options)
+}
+
+func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
+	if p == nil {
+		return
+	}
+	p.capsMu.Lock()
+	defer p.capsMu.Unlock()
+	p.Caps.SpeedResolution = speedpkg.CloneResolution(resolution)
 }
 
 // ToolHost returns the sandbox-owned tool host used by this process.

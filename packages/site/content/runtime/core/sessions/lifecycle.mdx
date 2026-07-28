@@ -52,6 +52,7 @@ compozy session new \
   --provider codex \
   --model gpt-5.6-sol \
   --reasoning-effort high \
+  --speed fast \
   --prompt "Review the current changes and report correctness risks."
 ```
 
@@ -67,6 +68,7 @@ curl -X POST http://localhost:2123/api/sessions \
     "provider": "codex",
     "model": "gpt-5.6-sol",
     "reasoning_effort": "high",
+    "speed": "fast",
     "prompt": "Review the current changes and report correctness risks."
   }'
 ```
@@ -98,8 +100,10 @@ Behind that request, Compozy:
 Prompt staging is part of durable admission. If the queue rejects the prompt, Compozy removes the new
 session, its catalog row, and its session directory instead of returning `201`. Omitting `prompt`,
 sending an empty string, or sending only whitespace keeps create-only behavior and does not enqueue
-a turn. The selected provider, model, and reasoning effort are fixed for the session and apply before
-its first prompt is dispatched.
+a turn. The selected provider, model, reasoning effort, and speed are fixed for the session and apply
+before its first prompt is dispatched. Speed defaults to `normal`; `fast` is applied only through an
+unambiguous ACP select/value-ID option. Unsupported speed capabilities remain observable without
+blocking startup, while a provider rejection fails startup with `speed_rejected`.
 
 `compozy session new` waits for step 9 by default so interactive callers receive an active session or a
 startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers

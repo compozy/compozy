@@ -185,7 +185,8 @@ Discovery uses the resolved provider auth, env, and home policy and never create
 When a discovery path is unavailable or fails, the model catalog records a source status and falls
 back to stale or lower-priority rows; session creation never depends on a successful discovery.
 
-Session creation can override `provider`, `model`, and `reasoning_effort` for one launch. Authoring
+Session creation can override `provider`, `model`, `reasoning_effort`, and `speed` for one launch. Speed
+is provider-neutral, accepts `normal | fast`, and defaults to `normal`. Authoring
 accepts a custom model ID as a candidate because `models.curated` is metadata, not an allowlist. The
 active ACP adapter must still advertise or accept that exact ID; otherwise start fails with
 `model_unavailable` instead of falling back.
@@ -201,9 +202,13 @@ application strategy. It is distinct from explicit effort `none`, which is sent 
 the active model advertises it.
 
 Negotiation order is deterministic: session mode, model, the refreshed config-option snapshot
-returned by that model change, reasoning effort, then the first prompt. Empty effort sends no RPC;
+returned by that model change, reasoning effort, speed, then the first prompt. Empty effort sends no RPC;
 explicit `none` does. The live ACP snapshot is authoritative even when its effort set is empty.
 Missing or unsupported model/reasoning options fail before the first prompt with stable diagnostics.
+Speed V1 writes only an unambiguous ACP select/value-ID option; boolean speed options remain
+unsupported until the released ACP capability contract can advertise boolean writes. Missing or
+ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns
+`speed_rejected` before the first prompt.
 
 See [Provider Model Catalog](/runtime/core/agents/model-catalog) for the curated Claude/Codex seeds,
 curated/all views, curation surfaces, and error codes.

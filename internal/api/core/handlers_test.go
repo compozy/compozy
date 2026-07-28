@@ -583,6 +583,12 @@ func TestCreateSessionNegotiationFailuresReturnStableDiagnostics(t *testing.T) {
 			stage:     "reasoning effort",
 			requested: "max",
 		},
+		{
+			name:      "Should return speed_rejected",
+			code:      acp.NegotiationCodeSpeedRejected,
+			stage:     "speed",
+			requested: "fast",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

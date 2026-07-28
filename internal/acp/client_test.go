@@ -20,6 +20,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1168,6 +1169,107 @@ func TestStartUsesSetConfigOptionForReasoningEffortWhenAvailable(t *testing.T) {
 	})
 }
 
+func TestStartNegotiatesRequestedSpeed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply fast speed through session config", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-set-config-speed.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			Speed: speedpkg.SpeedFast,
+			Env:   helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if request.ConfigID != "speed" || request.Value != "fast" {
+			t.Fatalf("set-config request = %#v, want speed=fast", request)
+		}
+		resolution := proc.CapsSnapshot().SpeedResolution
+		if resolution == nil ||
+			resolution.Requested != speedpkg.SpeedFast ||
+			resolution.Status != speedpkg.ResolutionApplied {
+			t.Fatalf("speed resolution = %#v, want applied fast", resolution)
+		}
+	})
+
+	t.Run("Should continue with an unsupported outcome when speed is absent", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-speed-unsupported.jsonl")
+		proc := startHelperProcess(t, driver, "config_options_no_model", "", StartOpts{
+			Speed: speedpkg.SpeedFast,
+			Env:   helperEnvWithCapture("config_options_no_model", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent without an advertised speed option")
+		}
+		resolution := proc.CapsSnapshot().SpeedResolution
+		if resolution == nil ||
+			resolution.Status != speedpkg.ResolutionUnsupported ||
+			resolution.Reason != speedpkg.ReasonCapabilityAbsent {
+			t.Fatalf("speed resolution = %#v, want unsupported capability_absent", resolution)
+		}
+	})
+
+	t.Run("Should fail atomically with a typed diagnostic when the provider rejects speed", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "helper",
+			Command:     helperCommand(t),
+			Cwd:         t.TempDir(),
+			Env:         helperEnv("config_options_reject_speed", ""),
+			Permissions: compozyconfig.PermissionModeApproveAll,
+			Speed:       speedpkg.SpeedFast,
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want failed setup cleanup")
+		}
+		var negotiationErr *NegotiationError
+		if !errors.As(err, &negotiationErr) ||
+			negotiationErr.Code != NegotiationCodeSpeedRejected ||
+			negotiationErr.Stage != "speed" ||
+			negotiationErr.Requested != "fast" {
+			t.Fatalf("Start() error = %v, want speed_rejected NegotiationError", err)
+		}
+	})
+}
+
+func TestMatchSpeedConfigRejectsAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject multiple speed capabilities", func(t *testing.T) {
+		t.Parallel()
+
+		option := sessionConfigOptionFromSDKForTest(t, helperSpeedConfigOption("normal"))
+		match, reason := matchSpeedConfig(speedpkg.SpeedFast, []SessionConfigOption{option, option})
+		if match != nil || reason != speedpkg.ReasonCapabilityAmbiguous {
+			t.Fatalf("matchSpeedConfig() = %#v, %q, want capability ambiguity", match, reason)
+		}
+	})
+
+	t.Run("Should reject speed values without one normal and one fast choice", func(t *testing.T) {
+		t.Parallel()
+
+		option := sessionConfigOptionFromSDKForTest(t, helperSpeedConfigOption("normal"))
+		option.Values = option.Values[:1]
+		match, reason := matchSpeedConfig(speedpkg.SpeedFast, []SessionConfigOption{option})
+		if match != nil || reason != speedpkg.ReasonValueAmbiguous {
+			t.Fatalf("matchSpeedConfig() = %#v, %q, want value ambiguity", match, reason)
+		}
+	})
+}
+
 func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 	t.Parallel()
 
@@ -2029,6 +2131,7 @@ func startHelperProcess(
 	if overrides.ReasoningEffort != "" {
 		opts.ReasoningEffort = overrides.ReasoningEffort
 	}
+	opts.Speed = overrides.Speed
 	opts.ResumeSessionID = overrides.ResumeSessionID
 	opts.Launcher = overrides.Launcher
 	opts.ToolHost = overrides.ToolHost
@@ -2567,6 +2670,7 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		}, nil
 	}
 	if a.scenario == "config_options" ||
+		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
 		a.scenario == "model_specific_config_options" ||
@@ -2906,6 +3010,9 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	if request.ValueId != nil {
 		configID := string(request.ValueId.ConfigId)
 		value := acpsdk.SessionConfigValueId(strings.TrimSpace(string(request.ValueId.Value)))
+		if a.scenario == "config_options_reject_speed" && configID == "speed" {
+			return acpsdk.SetSessionConfigOptionResponse{}, errors.New("provider rejected speed")
+		}
 		if a.scenario == "model_specific_config_options" && configID == "model" {
 			a.configOptions = append(
 				helperModelConfigOptions(string(value)),
@@ -2935,19 +3042,39 @@ func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOp
 
 func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.SessionConfigOption {
 	options := helperModelConfigOptions(modelCurrent)
-	options = append(options, helperSelectConfigOption(
-		"reasoning_effort",
-		"Reasoning effort",
-		reasoningCurrent,
-		"minimal",
-		"none",
-		"low",
-		"medium",
-		"high",
-		"xhigh",
-		"max",
-	))
+	options = append(
+		options,
+		helperSelectConfigOption(
+			"reasoning_effort",
+			"Reasoning effort",
+			reasoningCurrent,
+			"minimal",
+			"none",
+			"low",
+			"medium",
+			"high",
+			"xhigh",
+			"max",
+		),
+		helperSpeedConfigOption("normal"),
+	)
 	return options
+}
+
+func helperSpeedConfigOption(current string) acpsdk.SessionConfigOption {
+	option := helperSelectConfigOption("speed", "Speed", current, "normal", "fast")
+	category := acpsdk.SessionConfigOptionCategory(speedConfigCategory)
+	option.Select.Category = &category
+	return option
+}
+
+func sessionConfigOptionFromSDKForTest(t *testing.T, option acpsdk.SessionConfigOption) SessionConfigOption {
+	t.Helper()
+	converted, ok := sessionConfigOptionFromSDK(option)
+	if !ok {
+		t.Fatalf("sessionConfigOptionFromSDK(%#v) did not convert", option)
+	}
+	return converted
 }
 
 func reasoningACPProviderConfig() *compozyconfig.ProviderConfig {

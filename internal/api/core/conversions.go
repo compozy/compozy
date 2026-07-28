@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 
 	"github.com/compozy/compozy/internal/store"
 
@@ -39,6 +40,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		Provider:                     info.Provider,
 		Model:                        strings.TrimSpace(info.Model),
 		ReasoningEffort:              contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
+		Speed:                        info.Speed,
+		SpeedResolution:              speedpkg.CloneResolution(info.SpeedResolution),
 		WorkspaceID:                  ref.WorkspaceID,
 		WorkspacePath:                ref.WorkspacePath,
 		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),

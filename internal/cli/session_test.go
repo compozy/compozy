@@ -155,6 +155,9 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 				if request.Provider != "codex" || request.Model != "gpt-5.6-sol" || request.ReasoningEffort != "high" {
 					t.Fatalf("CreateSession() runtime overrides = %#v", request)
 				}
+				if request.Speed != contract.SpeedFast {
+					t.Fatalf("CreateSession() Speed = %q, want fast", request.Speed)
+				}
 				return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
 			},
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
@@ -177,6 +180,8 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 			"gpt-5.6-sol",
 			"--reasoning-effort",
 			"high",
+			"--speed",
+			"fast",
 			"-o",
 			"json",
 		)
@@ -189,6 +194,24 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 		}
 		if decoded.State != session.StateStarting {
 			t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
+		}
+	})
+}
+
+func TestSessionNewRejectsInvalidSpeed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject invalid speed before creating a session", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				t.Fatal("CreateSession() called with invalid speed")
+				return SessionRecord{}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "session", "new", "--speed", "turbo"); err == nil {
+			t.Fatal("executeRootCommand(session new --speed turbo) error = nil")
 		}
 	})
 }
@@ -1937,10 +1960,16 @@ func TestSessionBundleRendersProviderInHumanAndToon(t *testing.T) {
 	t.Parallel()
 
 	bundle := sessionBundle(SessionRecord{
-		ID:            "sess-1",
-		Name:          "demo",
-		AgentName:     "coder",
-		Provider:      "fake",
+		ID:        "sess-1",
+		Name:      "demo",
+		AgentName: "coder",
+		Provider:  "fake",
+		Speed:     contract.SpeedFast,
+		SpeedResolution: &contract.SpeedResolution{
+			Requested: contract.SpeedFast,
+			Status:    contract.SpeedResolutionUnsupported,
+			Reason:    contract.SpeedResolutionReasonCapabilityAbsent,
+		},
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
 		State:         session.StateActive,
@@ -1954,15 +1983,21 @@ func TestSessionBundleRendersProviderInHumanAndToon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sessionBundle().human() error = %v", err)
 	}
-	if !strings.Contains(strings.ToLower(human), "provider") || !strings.Contains(human, "fake") {
-		t.Fatalf("sessionBundle().human() = %q, want provider output", human)
+	if !strings.Contains(strings.ToLower(human), "provider") ||
+		!strings.Contains(human, "fake") ||
+		!strings.Contains(human, "fast") ||
+		!strings.Contains(human, "unsupported:capability_absent") {
+		t.Fatalf("sessionBundle().human() = %q, want provider and speed output", human)
 	}
 
 	toon, err := bundle.toon()
 	if err != nil {
 		t.Fatalf("sessionBundle().toon() error = %v", err)
 	}
-	if !strings.Contains(strings.ToLower(toon), "provider") || !strings.Contains(toon, "fake") {
-		t.Fatalf("sessionBundle().toon() = %q, want provider output", toon)
+	if !strings.Contains(strings.ToLower(toon), "provider") ||
+		!strings.Contains(toon, "fake") ||
+		!strings.Contains(toon, "fast") ||
+		!strings.Contains(toon, "unsupported:capability_absent") {
+		t.Fatalf("sessionBundle().toon() = %q, want provider and speed output", toon)
 	}
 }

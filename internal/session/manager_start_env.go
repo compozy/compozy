@@ -27,6 +27,7 @@ func (m *Manager) sessionStartOpts(
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
 		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
+		Speed:           session.Speed,
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 	}

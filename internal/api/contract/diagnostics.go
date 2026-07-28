@@ -116,6 +116,7 @@ const (
 	CodeProviderTransientFailure      = diagnosticcontract.CodeProviderTransientFailure
 	CodeReasoningEffortUnsupported    = diagnosticcontract.CodeReasoningEffortUnsupported
 	CodeReasoningOptionMissing        = diagnosticcontract.CodeReasoningOptionMissing
+	CodeSpeedRejected                 = diagnosticcontract.CodeSpeedRejected
 	CodeRoleAgentNotFound             = diagnosticcontract.CodeRoleAgentNotFound
 	CodeRoleResolutionFailed          = diagnosticcontract.CodeRoleResolutionFailed
 	CodeRoleUnknown                   = diagnosticcontract.CodeRoleUnknown

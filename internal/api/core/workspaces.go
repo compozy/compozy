@@ -265,6 +265,7 @@ func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRe
 		req.Provider,
 		req.Model,
 		string(req.ReasoningEffort),
+		string(req.Speed),
 	)
 }
 

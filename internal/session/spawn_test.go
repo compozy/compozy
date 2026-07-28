@@ -9,6 +9,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -303,6 +304,51 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
 			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should inherit parent speed unless the child explicitly overrides it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Speed:     speedpkg.SpeedFast,
+			Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+
+		inherited, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(inherited) error = %v", err)
+		}
+		cleanupSessionStop(t, h, inherited.ID)
+		if got, want := inherited.Info().Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("inherited child speed = %q, want %q", got, want)
+		}
+
+		overridden, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Speed:           speedpkg.SpeedNormal,
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(overridden) error = %v", err)
+		}
+		cleanupSessionStop(t, h, overridden.ID)
+		if got, want := overridden.Info().Speed, speedpkg.SpeedNormal; got != want {
+			t.Fatalf("overridden child speed = %q, want %q", got, want)
 		}
 	})
 }

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -108,6 +109,10 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMet
 }
 
 func sessionInfoFromMeta(meta store.SessionMeta) *Info {
+	requestedSpeed := meta.Speed
+	if requestedSpeed == "" {
+		requestedSpeed = speedpkg.SpeedNormal
+	}
 	return &Info{
 		ID:                   meta.ID,
 		Name:                 meta.Name,
@@ -115,6 +120,8 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		Provider:             meta.Provider,
 		Model:                strings.TrimSpace(meta.Model),
 		ReasoningEffort:      strings.TrimSpace(meta.ReasoningEffort),
+		Speed:                requestedSpeed,
+		SpeedResolution:      speedpkg.CloneResolution(meta.SpeedResolution),
 		WorkspaceID:          meta.WorkspaceID,
 		NetworkParticipation: meta.NetworkSpecSnapshot(),
 		NetworkOwnerKey:      meta.NetworkOwnerKeySnapshot(),

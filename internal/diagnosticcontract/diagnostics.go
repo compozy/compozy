@@ -132,6 +132,7 @@ const (
 	CodeProviderTransientFailure      = "provider_transient_failure"
 	CodeReasoningEffortUnsupported    = "reasoning_effort_unsupported"
 	CodeReasoningOptionMissing        = "reasoning_option_missing"
+	CodeSpeedRejected                 = "speed_rejected"
 	CodeRoleAgentNotFound             = "role_agent_not_found"
 	CodeRoleResolutionFailed          = "role_resolution_failed"
 	CodeRoleUnknown                   = "role_unknown"
@@ -260,6 +261,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderTransientFailure, Category: CategoryProvider},
 	{Code: CodeReasoningEffortUnsupported, Category: CategoryProvider},
 	{Code: CodeReasoningOptionMissing, Category: CategoryProvider},
+	{Code: CodeSpeedRejected, Category: CategoryProvider},
 	{Code: CodeRoleAgentNotFound, Category: CategoryConfig},
 	{Code: CodeRoleResolutionFailed, Category: CategoryConfig},
 	{Code: CodeRoleUnknown, Category: CategoryConfig},

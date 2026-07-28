@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -57,6 +58,8 @@ type Info struct {
 	Provider             string
 	Model                string
 	ReasoningEffort      string
+	Speed                speedpkg.Speed
+	SpeedResolution      *speedpkg.Resolution
 	WorkspaceID          string
 	Workspace            string
 	NetworkParticipation participation.Spec
@@ -92,6 +95,8 @@ type Session struct {
 	Provider             string
 	Model                string
 	ReasoningEffort      string
+	Speed                speedpkg.Speed
+	SpeedResolution      *speedpkg.Resolution
 	EffectivePermissions string
 	WorkspaceID          string
 	Workspace            string

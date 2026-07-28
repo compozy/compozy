@@ -22,7 +22,7 @@ func (s *sessionStartSpec) newStartingSession(
 	return &Session{
 		ID: s.sessionID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),
-		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), WorkspaceID: s.workspace.ID,
+		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed, WorkspaceID: s.workspace.ID,
 		Workspace: s.workspace.RootDir, CWD: s.cwd, NetworkParticipation: s.networkParticipation,
 		NetworkOwnerKey: s.networkOwnerKey,
 		Type:            normalizeSessionType(s.sessionType),

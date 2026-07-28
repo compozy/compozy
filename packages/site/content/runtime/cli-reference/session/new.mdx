@@ -20,8 +20,8 @@ compozy session new [flags]
   # Start a named session for a specific registered workspace and agent
   compozy session new --workspace checkout-api --agent reviewer --name review-api
 
-  # Override provider, model, and reasoning effort for this session only
-  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max
+  # Override provider, model, reasoning effort, and speed for this session only
+  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max --speed fast
 
   # Create the session and dispatch its first prompt after runtime activation
   compozy session new --prompt "Inspect the failing build and propose a fix"

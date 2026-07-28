@@ -24330,6 +24330,13 @@
                   "spawn_role": {
                     "type": "string"
                   },
+                  "speed": {
+                    "enum": [
+                      "normal",
+                      "fast"
+                    ],
+                    "type": "string"
+                  },
                   "ttl_seconds": {
                     "format": "int64",
                     "type": "integer"
@@ -25091,6 +25098,47 @@
                                   "type": "string"
                                 }
                               },
+                              "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "speed_resolution": {
+                              "nullable": true,
+                              "properties": {
+                                "reason": {
+                                  "enum": [
+                                    "capability_absent",
+                                    "capability_ambiguous",
+                                    "value_ambiguous",
+                                    "provider_rejected"
+                                  ],
+                                  "type": "string"
+                                },
+                                "requested": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "applied",
+                                    "unsupported",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "requested",
+                                "status"
+                              ],
                               "type": "object"
                             },
                             "state": {
@@ -113702,6 +113750,47 @@
                             },
                             "type": "object"
                           },
+                          "speed": {
+                            "enum": [
+                              "normal",
+                              "fast"
+                            ],
+                            "type": "string"
+                          },
+                          "speed_resolution": {
+                            "nullable": true,
+                            "properties": {
+                              "reason": {
+                                "enum": [
+                                  "capability_absent",
+                                  "capability_ambiguous",
+                                  "value_ambiguous",
+                                  "provider_rejected"
+                                ],
+                                "type": "string"
+                              },
+                              "requested": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "applied",
+                                  "unsupported",
+                                  "rejected"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "requested",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
                           "state": {
                             "enum": [
                               "starting",
@@ -114346,6 +114435,13 @@
                     ],
                     "type": "string"
                   },
+                  "speed": {
+                    "enum": [
+                      "normal",
+                      "fast"
+                    ],
+                    "type": "string"
+                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -114948,6 +115044,47 @@
                               "type": "string"
                             }
                           },
+                          "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
+                        },
+                        "speed_resolution": {
+                          "nullable": true,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "capability_absent",
+                                "capability_ambiguous",
+                                "value_ambiguous",
+                                "provider_rejected"
+                              ],
+                              "type": "string"
+                            },
+                            "requested": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "applied",
+                                "unsupported",
+                                "rejected"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "requested",
+                            "status"
+                          ],
                           "type": "object"
                         },
                         "state": {
@@ -116135,6 +116272,47 @@
                               "type": "string"
                             }
                           },
+                          "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
+                        },
+                        "speed_resolution": {
+                          "nullable": true,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "capability_absent",
+                                "capability_ambiguous",
+                                "value_ambiguous",
+                                "provider_rejected"
+                              ],
+                              "type": "string"
+                            },
+                            "requested": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "applied",
+                                "unsupported",
+                                "rejected"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "requested",
+                            "status"
+                          ],
                           "type": "object"
                         },
                         "state": {
@@ -202687,6 +202865,47 @@
                             },
                             "type": "object"
                           },
+                          "speed": {
+                            "enum": [
+                              "normal",
+                              "fast"
+                            ],
+                            "type": "string"
+                          },
+                          "speed_resolution": {
+                            "nullable": true,
+                            "properties": {
+                              "reason": {
+                                "enum": [
+                                  "capability_absent",
+                                  "capability_ambiguous",
+                                  "value_ambiguous",
+                                  "provider_rejected"
+                                ],
+                                "type": "string"
+                              },
+                              "requested": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "applied",
+                                  "unsupported",
+                                  "rejected"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "requested",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
                           "state": {
                             "enum": [
                               "starting",
@@ -229516,6 +229735,47 @@
                                 },
                                 "type": "object"
                               },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              },
+                              "speed_resolution": {
+                                "nullable": true,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "capability_absent",
+                                      "capability_ambiguous",
+                                      "value_ambiguous",
+                                      "provider_rejected"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "requested": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "applied",
+                                      "unsupported",
+                                      "rejected"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "requested",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
                               "state": {
                                 "enum": [
                                   "starting",
@@ -230654,6 +230914,47 @@
                                     "type": "string"
                                   }
                                 },
+                                "type": "object"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              },
+                              "speed_resolution": {
+                                "nullable": true,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "capability_absent",
+                                      "capability_ambiguous",
+                                      "value_ambiguous",
+                                      "provider_rejected"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "requested": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "applied",
+                                      "unsupported",
+                                      "rejected"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "requested",
+                                  "status"
+                                ],
                                 "type": "object"
                               },
                               "state": {
@@ -231817,6 +232118,47 @@
                                     "type": "string"
                                   }
                                 },
+                                "type": "object"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
+                              },
+                              "speed_resolution": {
+                                "nullable": true,
+                                "properties": {
+                                  "reason": {
+                                    "enum": [
+                                      "capability_absent",
+                                      "capability_ambiguous",
+                                      "value_ambiguous",
+                                      "provider_rejected"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "requested": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "enum": [
+                                      "applied",
+                                      "unsupported",
+                                      "rejected"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "requested",
+                                  "status"
+                                ],
                                 "type": "object"
                               },
                               "state": {
@@ -240192,6 +240534,47 @@
                           },
                           "type": "object"
                         },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
+                        },
+                        "speed_resolution": {
+                          "nullable": true,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "capability_absent",
+                                "capability_ambiguous",
+                                "value_ambiguous",
+                                "provider_rejected"
+                              ],
+                              "type": "string"
+                            },
+                            "requested": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "applied",
+                                "unsupported",
+                                "rejected"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "requested",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "state": {
                           "enum": [
                             "starting",
@@ -241332,6 +241715,47 @@
                               "type": "string"
                             }
                           },
+                          "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
+                        },
+                        "speed_resolution": {
+                          "nullable": true,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "capability_absent",
+                                "capability_ambiguous",
+                                "value_ambiguous",
+                                "provider_rejected"
+                              ],
+                              "type": "string"
+                            },
+                            "requested": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "applied",
+                                "unsupported",
+                                "rejected"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "requested",
+                            "status"
+                          ],
                           "type": "object"
                         },
                         "state": {
@@ -242791,6 +243215,47 @@
                               "type": "string"
                             }
                           },
+                          "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
+                        },
+                        "speed_resolution": {
+                          "nullable": true,
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "capability_absent",
+                                "capability_ambiguous",
+                                "value_ambiguous",
+                                "provider_rejected"
+                              ],
+                              "type": "string"
+                            },
+                            "requested": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "status": {
+                              "enum": [
+                                "applied",
+                                "unsupported",
+                                "rejected"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "requested",
+                            "status"
+                          ],
                           "type": "object"
                         },
                         "state": {
@@ -250226,6 +250691,47 @@
                                   "type": "string"
                                 }
                               },
+                              "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
+                            },
+                            "speed_resolution": {
+                              "nullable": true,
+                              "properties": {
+                                "reason": {
+                                  "enum": [
+                                    "capability_absent",
+                                    "capability_ambiguous",
+                                    "value_ambiguous",
+                                    "provider_rejected"
+                                  ],
+                                  "type": "string"
+                                },
+                                "requested": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "applied",
+                                    "unsupported",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "requested",
+                                "status"
+                              ],
                               "type": "object"
                             },
                             "state": {

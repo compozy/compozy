@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	booleanTrueText = "true"
+	booleanFalseText = "false"
+	booleanTrueText  = "true"
 )
 
 // SessionConfigOptionKind identifies the ACP config option shape Compozy exposes.
@@ -88,7 +89,7 @@ func sessionConfigOptionFromSDK(option acpsdk.SessionConfigOption) (SessionConfi
 		if id == "" {
 			return SessionConfigOption{}, false
 		}
-		current := "false"
+		current := booleanFalseText
 		if booleanOption.CurrentValue {
 			current = booleanTrueText
 		}

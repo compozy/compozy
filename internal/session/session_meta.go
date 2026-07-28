@@ -2,6 +2,7 @@ package session
 
 import (
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -24,6 +25,8 @@ func (s *Session) Meta() store.SessionMeta {
 		Provider:             s.Provider,
 		Model:                s.Model,
 		ReasoningEffort:      s.ReasoningEffort,
+		Speed:                s.Speed,
+		SpeedResolution:      speedpkg.CloneResolution(s.SpeedResolution),
 		EffectivePermissions: s.EffectivePermissions,
 		WorkspaceID:          s.WorkspaceID,
 		CWD:                  s.CWD,

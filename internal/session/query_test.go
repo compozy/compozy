@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1462,6 +1463,9 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	}
 	if got := info.ReasoningEffort; got != "high" {
 		t.Fatalf("sessionInfoFromMeta().ReasoningEffort = %q, want %q", got, "high")
+	}
+	if got := info.Speed; got != speedpkg.SpeedNormal {
+		t.Fatalf("sessionInfoFromMeta().Speed = %q, want %q for legacy metadata", got, speedpkg.SpeedNormal)
 	}
 	if got := info.NetworkOwnerKey; got != "session:sess-1" {
 		t.Fatalf("sessionInfoFromMeta().NetworkOwnerKey = %q, want %q", got, "session:sess-1")

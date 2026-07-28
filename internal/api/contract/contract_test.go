@@ -15,6 +15,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -319,10 +320,15 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			Provider:        "fake",
 			Model:           "gpt-test",
 			ReasoningEffort: "high",
-			WorkspaceID:     "ws_alpha",
-			Workspace:       "/workspace",
-			State:           session.StateActive,
-			ACPSessionID:    "acp-123",
+			Speed:           speedpkg.SpeedFast,
+			SpeedResolution: &speedpkg.Resolution{
+				Requested: speedpkg.SpeedFast,
+				Status:    speedpkg.ResolutionApplied,
+			},
+			WorkspaceID:  "ws_alpha",
+			Workspace:    "/workspace",
+			State:        session.StateActive,
+			ACPSessionID: "acp-123",
 			Lineage: &store.SessionLineage{
 				RootSessionID:    "sess-1",
 				SpawnDepth:       0,
@@ -363,9 +369,16 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			got["provider"] != "fake" ||
 			got["model"] != "gpt-test" ||
 			got["reasoning_effort"] != "high" ||
+			got["speed"] != "fast" ||
 			got["workspace_id"] != "ws_alpha" ||
 			got["workspace_path"] != "/workspace" {
 			t.Fatalf("session JSON = %#v", got)
+		}
+		speedResolution, ok := got["speed_resolution"].(map[string]any)
+		if !ok ||
+			speedResolution["requested"] != "fast" ||
+			speedResolution["status"] != "applied" {
+			t.Fatalf("speed_resolution JSON = %#v", got["speed_resolution"])
 		}
 		if _, exists := got["stop_reason"]; exists {
 			t.Fatalf("session JSON should omit empty stop_reason: %#v", got)
@@ -582,7 +595,7 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		}
 	})
 
-	t.Run("Should round-trip model and reasoning_effort overrides", func(t *testing.T) {
+	t.Run("Should round-trip runtime overrides", func(t *testing.T) {
 		t.Parallel()
 
 		req := contract.CreateSessionRequest{
@@ -590,6 +603,7 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 			Provider:        "codex",
 			Model:           "gpt-5.4",
 			ReasoningEffort: "high",
+			Speed:           contract.SpeedFast,
 			Workspace:       "alpha",
 		}
 		raw, err := json.Marshal(req)
@@ -600,14 +614,18 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		if err := json.Unmarshal(raw, &decoded); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if decoded.Model != "gpt-5.4" || decoded.ReasoningEffort != "high" {
+		if decoded.Model != "gpt-5.4" ||
+			decoded.ReasoningEffort != "high" ||
+			decoded.Speed != contract.SpeedFast {
 			t.Fatalf("decoded = %#v", decoded)
 		}
 		var shape map[string]any
 		if err := json.Unmarshal(raw, &shape); err != nil {
 			t.Fatalf("json.Unmarshal(map) error = %v", err)
 		}
-		if shape["model"] != "gpt-5.4" || shape["reasoning_effort"] != "high" {
+		if shape["model"] != "gpt-5.4" ||
+			shape["reasoning_effort"] != "high" ||
+			shape["speed"] != "fast" {
 			t.Fatalf("shape = %#v", shape)
 		}
 	})
@@ -640,7 +658,7 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		}
 	})
 
-	t.Run("Should omit model and reasoning_effort cleanly when absent", func(t *testing.T) {
+	t.Run("Should omit optional runtime controls cleanly when absent", func(t *testing.T) {
 		t.Parallel()
 
 		req := contract.CreateSessionRequest{AgentName: "coder", Workspace: "alpha"}
@@ -648,8 +666,14 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal() error = %v", err)
 		}
-		if strings.Contains(string(raw), "model") || strings.Contains(string(raw), "reasoning_effort") {
-			t.Fatalf("raw = %s", string(raw))
+		var shape map[string]any
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		for _, field := range []string{"model", "reasoning_effort", "speed"} {
+			if _, ok := shape[field]; ok {
+				t.Fatalf("shape = %#v, want %q omitted", shape, field)
+			}
 		}
 	})
 

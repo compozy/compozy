@@ -50,7 +50,7 @@ func (p *AgentProcess) handleSessionUpdateWithContext(ctx context.Context, param
 		p.setConfigOptions(sessionConfigOptionsFromSDK(notification.Update.ConfigOptionUpdate.ConfigOptions))
 	}
 	if notification.Update.CurrentModeUpdate != nil {
-		p.setConfigOptionCurrent("mode", string(notification.Update.CurrentModeUpdate.CurrentModeId))
+		p.setConfigOptionCurrent(sessionConfigModeKey, string(notification.Update.CurrentModeUpdate.CurrentModeId))
 	}
 
 	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())

@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -694,6 +695,115 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		if got, want := readMeta(t, session.MetaPath()).ReasoningEffort, "max"; got != want {
 			t.Fatalf("meta.ReasoningEffort = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should default speed to normal and persist the negotiated outcome", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if got, want := opts.Speed, speedpkg.SpeedNormal; got != want {
+				t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
+			}
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-speed-normal")
+			proc.handle.Caps.SpeedResolution = &speedpkg.Resolution{
+				Requested: speedpkg.SpeedNormal,
+				Status:    speedpkg.ResolutionApplied,
+			}
+			return proc, nil
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		stopped := false
+		t.Cleanup(func() {
+			if !stopped {
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			}
+		})
+
+		info := session.Info()
+		if got, want := info.Speed, speedpkg.SpeedNormal; got != want {
+			t.Fatalf("session.Info().Speed = %q, want %q", got, want)
+		}
+		if info.SpeedResolution == nil || info.SpeedResolution.Status != speedpkg.ResolutionApplied {
+			t.Fatalf("session.Info().SpeedResolution = %#v, want applied", info.SpeedResolution)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if got, want := meta.Speed, speedpkg.SpeedNormal; got != want {
+			t.Fatalf("meta.Speed = %q, want %q", got, want)
+		}
+		if meta.SpeedResolution == nil || meta.SpeedResolution.Status != speedpkg.ResolutionApplied {
+			t.Fatalf("meta.SpeedResolution = %#v, want applied", meta.SpeedResolution)
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		stopped = true
+		hydrated, err := h.manager.Status(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Status(stopped) error = %v", err)
+		}
+		if hydrated.Speed != speedpkg.SpeedNormal ||
+			hydrated.SpeedResolution == nil ||
+			hydrated.SpeedResolution.Status != speedpkg.ResolutionApplied {
+			t.Fatalf("Status(stopped) speed fields = %q, %#v", hydrated.Speed, hydrated.SpeedResolution)
+		}
+	})
+
+	t.Run("Should pass an explicit fast speed to the driver", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if got, want := opts.Speed, speedpkg.SpeedFast; got != want {
+				t.Fatalf("StartOpts.Speed = %q, want %q", got, want)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-speed-fast"), nil
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Speed:     speedpkg.SpeedFast,
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		if got, want := readMeta(t, session.MetaPath()).Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("meta.Speed = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject an invalid speed before driver startup", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Speed:     speedpkg.Speed("turbo"),
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
 		}
 	})
 }

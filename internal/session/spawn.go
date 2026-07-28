@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -40,6 +41,7 @@ type SpawnOpts struct {
 	Provider             string
 	Model                string
 	ReasoningEffort      string
+	Speed                speedpkg.Speed
 	Name                 string
 	Workspace            string
 	WorkspacePath        string
@@ -95,6 +97,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		Provider:             normalized.Provider,
 		Model:                normalized.Model,
 		ReasoningEffort:      normalized.ReasoningEffort,
+		Speed:                normalized.Speed,
 		Name:                 normalized.Name,
 		Workspace:            workspaceRef,
 		WorkspacePath:        workspacePath,
@@ -130,6 +133,9 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
+	if normalized.Speed == "" {
+		normalized.Speed = parent.Speed
+	}
 	if err := validateSpawnWorkspace(parent, normalized); err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -162,6 +168,13 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Model = strings.TrimSpace(normalized.Model)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
+	if normalized.Speed != "" {
+		parsedSpeed, err := speedpkg.Parse(string(normalized.Speed))
+		if err != nil {
+			return SpawnOpts{}, spawnValidation(err.Error())
+		}
+		normalized.Speed = parsedSpeed
+	}
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
 	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)

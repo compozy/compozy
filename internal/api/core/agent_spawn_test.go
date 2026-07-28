@@ -14,6 +14,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +38,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 			Name:                 opts.Name,
 			AgentName:            opts.AgentName,
 			Provider:             opts.Provider,
+			Speed:                opts.Speed,
 			WorkspaceID:          "ws-1",
 			Workspace:            "/workspace/project",
 			NetworkParticipation: testLiveParticipation("ws-1", "builders"),
@@ -59,6 +61,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	body := []byte(`{
 		"agent_name":"coder",
 		"provider":"codex",
+		"speed":"fast",
 		"name":"child",
 		"prompt_overlay":"focus",
 		"spawn_role":"worker",
@@ -83,6 +86,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	if got.ParentSessionID != "sess-parent" ||
 		got.AgentName != "coder" ||
 		got.Provider != "codex" ||
+		got.Speed != speedpkg.SpeedFast ||
 		got.Name != "child" ||
 		got.PromptOverlay != "focus" ||
 		got.SpawnRole != "worker" ||

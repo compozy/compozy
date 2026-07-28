@@ -20,6 +20,7 @@ type CreateSessionRequest struct {
 	Provider             string                 `json:"provider,omitempty"`
 	Model                string                 `json:"model,omitempty"`
 	ReasoningEffort      ReasoningEffort        `json:"reasoning_effort,omitempty"`
+	Speed                Speed                  `json:"speed,omitempty"`
 	Prompt               string                 `json:"prompt,omitempty"`
 	Name                 string                 `json:"name,omitempty"`
 	Workspace            string                 `json:"workspace,omitempty"`
@@ -42,6 +43,8 @@ type SessionPayload struct {
 	Provider                     string              `json:"provider"`
 	Model                        string              `json:"model,omitempty"`
 	ReasoningEffort              ReasoningEffort     `json:"reasoning_effort,omitempty"`
+	Speed                        Speed               `json:"speed,omitempty"`
+	SpeedResolution              *SpeedResolution    `json:"speed_resolution,omitempty"`
 	WorkspaceID                  string              `json:"workspace_id,omitempty"`
 	WorkspacePath                string              `json:"workspace_path,omitempty"`
 	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`

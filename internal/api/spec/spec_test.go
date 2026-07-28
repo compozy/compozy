@@ -622,6 +622,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"xhigh",
 					"max",
 				)
+				assertEnumValues(
+					t,
+					propertySchema(t, createSessionSchema, "speed"),
+					"normal",
+					"fast",
+				)
 			},
 		},
 		{
@@ -1846,6 +1852,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"auto_stop_on_parent",
 					"permissions",
 				)
+				assertEnumValues(t, propertySchema(t, spawnSchema, "speed"), "normal", "fast")
 				spawnResponse := jsonResponseSchema(t, spawnOperation, 201)
 				lineageSchema := propertySchema(t, propertySchema(t, spawnResponse, "spawn"), "lineage")
 				assertRequired(
