@@ -358,9 +358,7 @@ describe("Comparison", () => {
     expect(screen.queryByText(/None, single agent/)).toBeNull();
   });
 
-  it("keeps the local evidence paths out of the rendered page", () => {
-    // sourcePath is the source of record for each scope claim, but `.resources/…` does not
-    // resolve for a visitor. landing-truth.test.tsx owns validating the values themselves.
+  it("keeps internal research paths out of the rendered page", () => {
     render(<Comparison />);
     expect(screen.queryByText(/^Source:/)).toBeNull();
     expect(screen.queryByText(/\.resources\//)).toBeNull();

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -8,22 +8,11 @@ const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
 const runtimeRoot = resolve(siteRoot, "content/runtime");
-const comparisonPath = resolve(landingRoot, "comparison.tsx");
 const providerSourceRoot = resolve(repoRoot, "internal/config");
 const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
   resolve(landingRoot, file)
 );
 const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;
-
-const approvedMarketSources = new Set([
-  ".resources/orca/src/main/ghostty/index.ts",
-  ".resources/mastra/mastracode/factory/README.md",
-  ".resources/paperclip/README.md",
-  ".resources/smithers/README.md",
-  ".resources/openclaw/README.md",
-  ".resources/synara/apps/marketing/src/pages/index.astro",
-  ".resources/t3code/README.md",
-]);
 
 const deepCitationTargets = new Map([
   ["hooks catalog", "/runtime/core/hooks"],
@@ -172,23 +161,6 @@ var builtinProviders = map[string]ProviderConfig{
     expect(() => builtinProviderNamesFromSource(source)).toThrow(
       "unresolved builtin provider display name: unresolvedDisplayName"
     );
-  });
-
-  it("keeps named market scopes attached to present, approved evidence sources", () => {
-    const source = readFileSync(comparisonPath, "utf8");
-    const citedPaths = [...source.matchAll(/sourcePath:\s*"([^"]+)"/g)].map(
-      match => match[1] ?? ""
-    );
-
-    expect(citedPaths.length).toBeGreaterThan(0);
-    expect(
-      citedPaths.flatMap(sourcePath => {
-        if (!approvedMarketSources.has(sourcePath)) return [`unapproved source: ${sourcePath}`];
-        if (!existsSync(resolve(repoRoot, sourcePath))) return [`missing source: ${sourcePath}`];
-        return [];
-      })
-    ).toEqual([]);
-    expect(source).not.toMatch(/\b(?:none provides|has no equivalent|lacks an? equivalent)\b/i);
   });
 
   it("points landing source citations at the specific docs they name", () => {

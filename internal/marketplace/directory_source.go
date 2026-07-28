@@ -27,7 +27,7 @@ func NewDirectorySource(kind Kind, baseURL string) (*DirectorySource, error) {
 		return nil, err
 	}
 	parsed, err := url.Parse(strings.TrimSpace(baseURL))
-	if err != nil || parsed.Scheme != "file" || parsed.Host != "" || parsed.User != nil ||
+	if err != nil || parsed.Scheme != protocolFile || parsed.Host != "" || parsed.User != nil ||
 		parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, errors.New("marketplace catalog: base URL must be an absolute file URL")
 	}

@@ -6,10 +6,21 @@ import { describe, expect, it } from "vitest";
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 
-const activeProtocolDocs = [
-  "docs/rfcs/003_compozy-network-v0.md",
-  "docs/rfcs/004_compozy-network-v1.md",
-  "docs/_memory/glossary.md",
+const publicProtocolDocs = listMDXDocs(resolve(siteRoot, "content/protocol"));
+const currentProtocolContractDocs = [
+  "packages/site/content/protocol/delivery.mdx",
+  "packages/site/content/protocol/ed25519-jcs.mdx",
+  "packages/site/content/protocol/envelope.mdx",
+  "packages/site/content/protocol/examples.mdx",
+  "packages/site/content/protocol/implementation-status.mdx",
+  "packages/site/content/protocol/interactions.mdx",
+  "packages/site/content/protocol/overview.mdx",
+] as const;
+const protocolEnvelopeDocs = [
+  "packages/site/content/protocol/ed25519-jcs.mdx",
+  "packages/site/content/protocol/envelope.mdx",
+  "packages/site/content/protocol/examples.mdx",
+  "packages/site/content/protocol/message-kinds.mdx",
 ] as const;
 
 function listMDXDocs(dir: string): string[] {
@@ -24,8 +35,7 @@ function listMDXDocs(dir: string): string[] {
 }
 
 const workspaceQualifiedProtocolDocs = [
-  "docs/rfcs/003_compozy-network-v0.md",
-  ...listMDXDocs(resolve(siteRoot, "content/protocol")),
+  ...publicProtocolDocs,
   ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
   "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
   "docs/_memory/glossary.md",
@@ -101,7 +111,7 @@ function location(example: JSONExample): string {
   return `${relative(repoRoot, resolve(repoRoot, example.path))}#json-${example.index + 1}`;
 }
 
-describe("protocol RFC hard cut", () => {
+describe("protocol hard cut", () => {
   it("keeps active protocol docs free of removed wire terms", () => {
     const removedPatterns = [
       /\binteraction_id\b/,
@@ -113,7 +123,7 @@ describe("protocol RFC hard cut", () => {
       /message kind[^.\n]*direct/i,
     ];
 
-    const violations = activeProtocolDocs.flatMap(path => {
+    const violations = currentProtocolContractDocs.flatMap(path => {
       const content = readRepoFile(path);
       return removedPatterns.flatMap(pattern =>
         [
@@ -155,29 +165,32 @@ describe("protocol RFC hard cut", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps RFC 003 as current in-process v0 and RFC 004 as future v1 trust work", () => {
-    const rfc003 = readRepoFile("docs/rfcs/003_compozy-network-v0.md");
-    expect(rfc003).toContain("**Status:** Current runtime contract");
-    expect(rfc003).toContain("compozy-network/v0");
-    expect(rfc003).toContain("The current CompozyOS runtime has no remote carrier");
-    expect(rfc003).toContain("The durable commit is acceptance");
-    expect(rfc003).not.toContain("RFC 006");
+  it("keeps shipped docs truthful about current v0 and future v1 trust work", () => {
+    const implementationStatus = readRepoFile(
+      "packages/site/content/protocol/implementation-status.mdx"
+    );
+    expect(implementationStatus).toContain(
+      "The current Compozy Runtime implements `compozy-network/v0`"
+    );
+    expect(implementationStatus).toContain("External transport | Not shipped in this release.");
+    expect(implementationStatus).toContain(
+      "Trust verification | Not shipped; opaque `proof` only."
+    );
 
-    const rfc004 = readRepoFile("docs/rfcs/004_compozy-network-v1.md");
-    expect(rfc004).toContain("**Status:** Future draft profile");
-    expect(rfc004).toContain("future auth/proofs/trust-profile work");
-    expect(rfc004).toContain("[RFC 003: Compozy Network v0](003_compozy-network-v0.md)");
-    expect(rfc004).not.toContain("RFC 006");
+    const trustProfile = readRepoFile("packages/site/content/protocol/ed25519-jcs.mdx");
+    expect(trustProfile).toContain("The Compozy Network v1 baseline trust profile");
+    expect(trustProfile).toContain("v0 implementation: it preserves `proof` as opaque JSON");
+    expect(trustProfile).toMatch(/does not\s+yet verify Ed25519 proofs/);
   });
 
-  it("keeps active RFCs free of the retired broker binding", () => {
+  it("keeps current protocol contract docs free of the retired broker binding", () => {
     const retiredBindingPatterns = [
       /\bNATS\b/,
       /\bJetStream\b/,
       /broker[- ](?:backed|managed|cluster|subject)/i,
     ];
 
-    const violations = activeProtocolDocs.flatMap(path => {
+    const violations = currentProtocolContractDocs.flatMap(path => {
       const content = readRepoFile(path);
       return retiredBindingPatterns.flatMap(pattern =>
         [
@@ -194,11 +207,8 @@ describe("protocol RFC hard cut", () => {
     expect(violations).toEqual([]);
   });
 
-  it("requires active RFC envelope examples to carry workspace_id", () => {
-    const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_compozy-network-v0.md",
-      "docs/rfcs/004_compozy-network-v1.md",
-    ]);
+  it("requires public protocol envelope examples to carry workspace_id", () => {
+    const envelopes = activeEnvelopeExamples(protocolEnvelopeDocs);
 
     const violations = envelopes.flatMap(example => {
       const workspaceID = stringField(example.value, "workspace_id");
@@ -209,10 +219,7 @@ describe("protocol RFC hard cut", () => {
   });
 
   it("requires conversation-bearing examples to use one explicit surface container", () => {
-    const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_compozy-network-v0.md",
-      "docs/rfcs/004_compozy-network-v1.md",
-    ]);
+    const envelopes = activeEnvelopeExamples(protocolEnvelopeDocs);
 
     const violations = envelopes.flatMap(example => {
       const envelope = example.value;
@@ -249,10 +256,7 @@ describe("protocol RFC hard cut", () => {
   });
 
   it("uses work_id only on lifecycle-bearing examples", () => {
-    const envelopes = activeEnvelopeExamples([
-      "docs/rfcs/003_compozy-network-v0.md",
-      "docs/rfcs/004_compozy-network-v1.md",
-    ]);
+    const envelopes = activeEnvelopeExamples(protocolEnvelopeDocs);
 
     const violations = envelopes.flatMap(example => {
       const envelope = example.value;
@@ -288,19 +292,16 @@ describe("protocol RFC hard cut", () => {
     expect(violations).toEqual([]);
   });
 
-  it("documents RFC 004 signed fields and proves examples carry them when present", () => {
-    const rfc004 = readRepoFile("docs/rfcs/004_compozy-network-v1.md");
-    for (const signedField of [
-      "`surface` when present",
-      "`thread_id` when present",
-      "`direct_id` when present",
-      "`work_id` when present",
-    ]) {
-      expect(rfc004).toContain(signedField);
-    }
+  it("documents v1 signed fields and proves public examples carry them when present", () => {
+    const trustProfilePath = "packages/site/content/protocol/ed25519-jcs.mdx";
+    const trustProfile = readRepoFile(trustProfilePath);
+    expect(trustProfile).toContain(
+      "conversation surface fields `surface`, `thread_id`, and `direct_id` when present"
+    );
+    expect(trustProfile).toContain("work lifecycle field `work_id` when present");
 
-    const verifiedExamples = activeEnvelopeExamples(["docs/rfcs/004_compozy-network-v1.md"]).filter(
-      example => isRecord(example.value.proof)
+    const verifiedExamples = activeEnvelopeExamples([trustProfilePath]).filter(example =>
+      isRecord(example.value.proof)
     );
     expect(verifiedExamples.length).toBeGreaterThanOrEqual(2);
 
@@ -324,6 +325,5 @@ describe("protocol RFC hard cut", () => {
     });
 
     expect(violations).toEqual([]);
-    expect(verifiedExamples.some(example => stringField(example.value, "work_id"))).toBe(true);
   });
 });

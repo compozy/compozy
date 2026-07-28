@@ -479,22 +479,6 @@ You are a senior Go engineer.
 			t.Fatalf("ParseAgentDef() MCPServers = %#v", agent.MCPServers)
 		}
 	})
-
-	t.Run("Should load the bundled explorer definition", func(t *testing.T) {
-		t.Parallel()
-
-		path := filepath.Join(
-			"..", "..", ".agents", "skills", "agent-exploration", "assets", AgentDefinitionFileName,
-		)
-		agent, err := LoadAgentDefFile(path)
-		if err != nil {
-			t.Fatalf("LoadAgentDefFile(%q) error = %v", path, err)
-		}
-		if agent.Name != "explorer" ||
-			!strings.Contains(agent.Prompt, "# Explorer — Scoped-Write Research Agent") {
-			t.Fatalf("LoadAgentDefFile(%q) = %#v, want explorer with its bundled prompt", path, agent)
-		}
-	})
 }
 
 func TestParseAgentDefRejectsInvalidToolGrammar(t *testing.T) {

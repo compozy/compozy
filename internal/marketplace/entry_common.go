@@ -11,6 +11,7 @@ import (
 var entryIDPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]+$`)
 
 const (
+	protocolFile  = "file"
 	protocolHTTP  = "http"
 	protocolHTTPS = "https"
 )

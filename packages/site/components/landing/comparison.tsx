@@ -7,13 +7,6 @@ type MarketScope = {
   name: string;
   scope: string;
   layer: string;
-  /**
-   * Source of record for the scope claim (COPY.md §7, Required Evidence). Intentionally not
-   * rendered: the landing states the scope, the repo carries the receipt, and a local
-   * `.resources/` path does not resolve for a visitor. `lib/__tests__/landing-truth.test.tsx`
-   * validates every value against the approved set and asserts it exists on disk.
-   */
-  sourcePath?: string;
   highlight?: boolean;
 };
 
@@ -22,31 +15,26 @@ const MARKET_SCOPES: MarketScope[] = [
     name: "Paperclip",
     scope: "Open-source orchestration for teams of AI agents.",
     layer: "Orchestration",
-    sourcePath: ".resources/paperclip/README.md",
   },
   {
     name: "Smithers",
     scope: "A durable coding-agent workflow runtime with replay and fork controls.",
     layer: "Durable workflow runtime",
-    sourcePath: ".resources/smithers/README.md",
   },
   {
     name: "OpenClaw",
     scope: "A personal AI assistant that connects channels, tools, and automation on your devices.",
     layer: "Personal assistant",
-    sourcePath: ".resources/openclaw/README.md",
   },
   {
     name: "T3 Code",
     scope: "A minimal web GUI for coding agents across several providers.",
     layer: "Coding interface",
-    sourcePath: ".resources/t3code/README.md",
   },
   {
     name: "Mastra Factory",
     scope: "An agent-powered software delivery environment built on Mastra.",
     layer: "Software factory",
-    sourcePath: ".resources/mastra/mastracode/factory/README.md",
   },
   {
     name: "CompozyOS",

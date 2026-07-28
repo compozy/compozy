@@ -16,7 +16,7 @@ func NewSource(kind Kind, baseURL string, client *http.Client) (Source, error) {
 	switch parsed.Scheme {
 	case protocolHTTP, protocolHTTPS:
 		return NewHTTPSource(kind, baseURL, client)
-	case "file":
+	case protocolFile:
 		return NewDirectorySource(kind, baseURL)
 	default:
 		return nil, errors.New("marketplace catalog: base URL must use http, https, or file")
