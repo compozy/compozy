@@ -533,6 +533,21 @@ jobs:
           git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
           git push origin "refs/tags/${RELEASE_TAG}"
 
+      # RELEASE_BODY.md carries the release PR's base-version heading (e.g.
+      # "## 0.3.0"); align the ephemeral runner copy with the published
+      # version so a beta body never advertises the stable version. No-op
+      # for stable releases.
+      - name: Align release body heading with the published version
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          sed -i -E "1s/^## [^ ]+/## ${RELEASE_VERSION}/" RELEASE_BODY.md
+          if ! head -1 RELEASE_BODY.md | grep -F "## ${RELEASE_VERSION}" >/dev/null; then
+            echo "::warning::RELEASE_BODY.md heading did not align with ${RELEASE_VERSION}"
+          fi
+          head -1 RELEASE_BODY.md
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
