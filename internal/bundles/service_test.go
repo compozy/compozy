@@ -1449,51 +1449,51 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 	}
 }
 
-func TestServiceActivateWorkspacePathUsesResolveOrRegister(t *testing.T) {
+func TestServiceActivateWorkspacePathUsesReadOnlyResolution(t *testing.T) {
 	t.Parallel()
 
-	store := newMemoryStore()
-	called := false
-	resolver := memoryWorkspaceResolver{
-		resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
-			if idOrPath != "ws-path" {
-				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
-			}
-			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-path",
-					RootDir: filepath.Join(t.TempDir(), "workspace"),
-					Name:    "path-workspace",
-				},
-			}, nil
-		},
-		resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
-			called = true
-			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{
-					ID:      "ws-path",
-					RootDir: path,
-					Name:    "path-workspace",
-				},
-			}, nil
-		},
-	}
-	service := newMarketingService(store, WithWorkspaceResolver(resolver))
+	t.Run("Should resolve a workspace path without auto-registering it", func(t *testing.T) {
+		t.Parallel()
 
-	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName: "marketing-team",
-		BundleName:    "marketing",
-		ProfileName:   "default",
-		Scope:         ScopeWorkspace,
-		Workspace:     filepath.Join(t.TempDir(), "workspace"),
+		store := newMemoryStore()
+		called := false
+		workspacePath := filepath.Join(t.TempDir(), "workspace")
+		resolver := memoryWorkspaceResolver{
+			resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+				if idOrPath != workspacePath && idOrPath != "ws-path" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				called = true
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      "ws-path",
+						RootDir: workspacePath,
+						Name:    "path-workspace",
+					},
+				}, nil
+			},
+			resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+				t.Fatalf("ResolveOrRegister() path = %q, want activation to stay registration-free", path)
+				return workspacepkg.ResolvedWorkspace{}, nil
+			},
+		}
+		service := newMarketingService(store, WithWorkspaceResolver(resolver))
+
+		preview, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeWorkspace,
+			Workspace:     workspacePath,
+		})
+		if err != nil {
+			t.Fatalf("Activate(path workspace) error = %v", err)
+		}
+		if !called {
+			t.Fatal("Resolve was not called for path-like workspace ref")
+		}
+		if got, want := preview.Activation.WorkspaceID, "ws-path"; got != want {
+			t.Fatalf("WorkspaceID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Activate(path workspace) error = %v", err)
-	}
-	if !called {
-		t.Fatal("ResolveOrRegister was not called for path-like workspace ref")
-	}
-	if got, want := preview.Activation.WorkspaceID, "ws-path"; got != want {
-		t.Fatalf("WorkspaceID = %q, want %q", got, want)
-	}
 }

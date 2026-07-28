@@ -16123,6 +16123,26 @@
     "/api/agent/channels": {
       "get": {
         "operationId": "listAgentChannels",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -16463,6 +16483,26 @@
     "/api/agent/channels/reply": {
       "post": {
         "operationId": "replyAgentChannelMessage",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -17019,6 +17059,24 @@
       "get": {
         "operationId": "receiveAgentChannelMessages",
         "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Coordination channel id",
             "in": "path",
@@ -17602,6 +17660,24 @@
         "operationId": "sendAgentChannelMessage",
         "parameters": [
           {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Coordination channel id",
             "in": "path",
             "name": "channel",
@@ -18162,6 +18238,26 @@
     "/api/agent/context": {
       "get": {
         "operationId": "getAgentContext",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -21303,6 +21399,24 @@
         "operationId": "getAgentCoordinatorConfig",
         "parameters": [
           {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Workspace id or path",
             "in": "query",
             "name": "workspace",
@@ -21707,6 +21821,26 @@
     "/api/agent/me": {
       "get": {
         "operationId": "getAgentMe",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -22803,6 +22937,26 @@
     "/api/agent/soul": {
       "get": {
         "operationId": "getAgentSoul",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -23347,6 +23501,26 @@
     "/api/agent/soul/validate": {
       "post": {
         "operationId": "validateAgentSoul",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -24058,6 +24232,26 @@
     "/api/agent/spawn": {
       "post": {
         "operationId": "spawnAgentSession",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -25381,6 +25575,26 @@
     "/api/agent/tasks/claim-next": {
       "post": {
         "operationId": "claimNextAgentTask",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -26601,6 +26815,24 @@
         "operationId": "completeAgentTaskRun",
         "parameters": [
           {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Task run id",
             "in": "path",
             "name": "run_id",
@@ -27371,6 +27603,24 @@
       "post": {
         "operationId": "failAgentTaskRun",
         "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Task run id",
             "in": "path",
@@ -28143,6 +28393,24 @@
         "operationId": "heartbeatAgentTaskRun",
         "parameters": [
           {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Task run id",
             "in": "path",
             "name": "run_id",
@@ -28910,6 +29178,24 @@
       "post": {
         "operationId": "releaseAgentTaskRun",
         "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Task run id",
             "in": "path",

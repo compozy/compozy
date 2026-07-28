@@ -34,7 +34,7 @@ func newMemoryDecisionsListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
+			selector, err := resolveMemorySelectorFlags(cmd, deps, client, flags, memorySelectorOptions{})
 			if err != nil {
 				return err
 			}

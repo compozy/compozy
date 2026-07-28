@@ -34,7 +34,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			baseRequest, err := buildTaskCreateRequest(cmd, taskCreateInput{
+			baseRequest, err := buildTaskCreateRequest(cmd, deps, client, taskCreateInput{
 				ID:                 id,
 				Identifier:         identifier,
 				ScopeRaw:           scopeRaw,
@@ -65,7 +65,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		StringVar(&identifier, taskIdentifierKey, "", "Human-friendly child task identifier")
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: global or workspace")
 	cmd.Flags().
-		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
+		StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
 	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Child task title")
 	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Child task description")

@@ -149,8 +149,18 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 			}
 			sessionID := ""
 			if latest {
+				workspaceID, err := resolveOptionalWorkspaceOverride(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceFilter,
+				)
+				if err != nil {
+					return err
+				}
 				page, err := client.ListSessions(cmd.Context(), SessionListQuery{
-					Workspace: workspaceFilter,
+					Workspace: workspaceID,
 					Resumable: true,
 					Sort:      session.ListSortLastActivity,
 					Limit:     1,
@@ -173,7 +183,8 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&latest, "latest", false, "Attach to the latest eligible session")
-	cmd.Flags().StringVar(&workspaceFilter, workspaceSkillSource, "", "Filter --latest by workspace name or ID")
+	cmd.Flags().
+		StringVar(&workspaceFilter, workspaceSkillSource, "", "Override --latest workspace filter (ID, name, or path)")
 	return cmd
 }
 

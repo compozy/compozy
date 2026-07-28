@@ -186,7 +186,7 @@ describe("useTaskStream", () => {
       queryKey: ["tasks", "timeline"],
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "context-bundle"],
+      queryKey: ["tasks", "agent-context"],
     });
 
     unmount();

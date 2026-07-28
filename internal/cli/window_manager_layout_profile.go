@@ -56,7 +56,8 @@ func newLayoutProfileListCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -96,7 +97,8 @@ func newLayoutProfileGetCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -115,7 +117,7 @@ func newLayoutProfilePutCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaceID, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+			client, workspaceID, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -124,10 +126,6 @@ func newLayoutProfilePutCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			spec, err := readLayoutProfileSpec(cmd, file)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
@@ -150,7 +148,8 @@ func newLayoutProfilePutCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().
 		StringVar(&scope, layoutProfileScopeFlag, layoutProfileScopeWorkspace, "Visibility scope: workspace or global")
 	cmd.Flags().
@@ -172,7 +171,7 @@ func newLayoutProfileDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaceID, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+			client, workspaceID, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -182,10 +181,6 @@ func newLayoutProfileDeleteCommand(deps commandDeps) *cobra.Command {
 					layoutProfileVersionFlag,
 					fmt.Errorf("cli: --%s is required", layoutProfileVersionFlag),
 				)
-			}
-			client, err := windowManagerClientFromDeps(deps)
-			if err != nil {
-				return err
 			}
 			if err := client.DeleteWindowManagerLayoutProfile(
 				cmd.Context(),
@@ -202,7 +197,8 @@ func newLayoutProfileDeleteCommand(deps commandDeps) *cobra.Command {
 			))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Int64Var(&expectedVersion, layoutProfileVersionFlag, 0, "Version this delete removes")
 	return cmd
 }
@@ -212,11 +208,7 @@ func listLayoutProfiles(
 	deps commandDeps,
 	workspace string,
 ) (contract.ResourcesResponse, error) {
-	workspaceID, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-	if err != nil {
-		return contract.ResourcesResponse{}, err
-	}
-	client, err := windowManagerClientFromDeps(deps)
+	client, workspaceID, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 	if err != nil {
 		return contract.ResourcesResponse{}, err
 	}

@@ -47,3 +47,75 @@ func TestModernizeSQLCGenerated(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateSQLCPackageRegistry(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstPackage        = "internal/example/first"
+		secondPackage       = "internal/example/second"
+		unregisteredPackage = "internal/example/unregistered"
+	)
+
+	t.Run("Should accept the exact discovered sqlc package set", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeSQLCConfig(t, root, firstPackage)
+		writeSQLCConfig(t, root, secondPackage)
+
+		err := validateSQLCPackageRegistry(root, []string{
+			secondPackage,
+			firstPackage,
+		})
+		if err != nil {
+			t.Fatalf("validateSQLCPackageRegistry() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject an unregistered production sqlc package", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeSQLCConfig(t, root, firstPackage)
+		writeSQLCConfig(t, root, unregisteredPackage)
+
+		err := validateSQLCPackageRegistry(root, []string{firstPackage})
+		if err == nil {
+			t.Fatal("validateSQLCPackageRegistry() error = nil, want registry drift")
+		}
+		if !strings.Contains(err.Error(), unregisteredPackage) {
+			t.Fatalf("validateSQLCPackageRegistry() error = %v, want discovered package", err)
+		}
+	})
+
+	t.Run("Should reject a registered package without sqlc configuration", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeSQLCConfig(t, root, firstPackage)
+
+		err := validateSQLCPackageRegistry(root, []string{
+			firstPackage,
+			secondPackage,
+		})
+		if err == nil {
+			t.Fatal("validateSQLCPackageRegistry() error = nil, want registry drift")
+		}
+		if !strings.Contains(err.Error(), secondPackage) {
+			t.Fatalf("validateSQLCPackageRegistry() error = %v, want missing registered package", err)
+		}
+	})
+}
+
+func writeSQLCConfig(t *testing.T, root string, packagePath string) {
+	t.Helper()
+
+	dir := filepath.Join(root, packagePath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sqlc.yaml"), []byte("version: \"2\"\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(sqlc.yaml) error = %v", err)
+	}
+}

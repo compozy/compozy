@@ -59,8 +59,7 @@ function invalidateReviewQueries(
     queryClient.invalidateQueries({ queryKey: tasksKeys.lists() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.contextBundle() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.agentContext() })
+    queryClient.invalidateQueries({ queryKey: tasksKeys.agentContextsRoot() })
   );
 
   return Promise.all(pending);

@@ -12,7 +12,7 @@ import (
 )
 
 type networkUsageInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	OwnerKind   string `json:"owner_kind,omitempty"`
 	OwnerID     string `json:"owner_id,omitempty"`
 	RunID       string `json:"run_id,omitempty"`

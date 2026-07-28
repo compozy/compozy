@@ -122,10 +122,26 @@ func DeriveAutomationActorContext(actorRef string, originRef string) (ActorConte
 // DeriveExtensionActorContext derives one trusted extension actor context. If
 // originRef is empty, the actor ref is reused as the durable origin ref.
 func DeriveExtensionActorContext(actorRef string, originRef string) (ActorContext, error) {
+	return DeriveExtensionActorContextForWorkspace(actorRef, "", originRef)
+}
+
+// DeriveExtensionActorContextForWorkspace derives one trusted extension actor
+// constrained to a registered workspace.
+func DeriveExtensionActorContextForWorkspace(
+	actorRef string,
+	workspaceID string,
+	originRef string,
+) (ActorContext, error) {
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindExtension, actorRef, OriginKindExtension, originRef, CallerScope{})
+	return deriveActorContext(
+		ActorKindExtension,
+		actorRef,
+		OriginKindExtension,
+		originRef,
+		CallerScope{WorkspaceID: strings.TrimSpace(workspaceID)},
+	)
 }
 
 // DeriveNetworkPeerActorContext derives one trusted network-peer actor

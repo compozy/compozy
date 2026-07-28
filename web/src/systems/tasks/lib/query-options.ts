@@ -4,7 +4,6 @@ import {
   getAgentContext,
   getTask,
   getTaskBridgeNotificationSubscription,
-  getTaskContextBundle,
   getTaskDashboard,
   getTaskExecutionProfile,
   getTaskInbox,
@@ -24,6 +23,7 @@ import { tasksKeys } from "./query-keys";
 import { taskInboxPageRequest, taskInboxStableFilter } from "./task-inbox-query";
 import { taskListPageRequest, taskListStableFilter } from "./task-list-query";
 import type {
+  AgentContextIdentity,
   TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskInboxFilter,
@@ -203,20 +203,10 @@ export function taskRunReviewDetailOptions(reviewId: string, enabled = true) {
   });
 }
 
-export function agentContextOptions(enabled = true) {
+export function agentContextOptions(identity: AgentContextIdentity, enabled = true) {
   return queryOptions({
-    queryKey: tasksKeys.agentContext(),
-    queryFn: ({ signal }) => getAgentContext(signal),
-    staleTime: LIVE_STALE_TIME,
-    refetchInterval: LIVE_REFETCH_INTERVAL,
-    enabled,
-  });
-}
-
-export function taskContextBundleOptions(enabled = true) {
-  return queryOptions({
-    queryKey: tasksKeys.contextBundle(),
-    queryFn: ({ signal }) => getTaskContextBundle(signal),
+    queryKey: tasksKeys.agentContext(identity),
+    queryFn: ({ signal }) => getAgentContext(identity, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled,

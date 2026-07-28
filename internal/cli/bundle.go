@@ -74,7 +74,10 @@ func newBundlePreviewCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request := bundleActivationRequestFromFlags(flags)
+			request, err := bundleActivationRequestFromFlags(cmd, deps, client, flags)
+			if err != nil {
+				return err
+			}
 			item, err := client.PreviewBundleActivation(cmd.Context(), request)
 			if err != nil {
 				return err
@@ -96,7 +99,10 @@ func newBundleActivateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request := bundleActivationRequestFromFlags(flags)
+			request, err := bundleActivationRequestFromFlags(cmd, deps, client, flags)
+			if err != nil {
+				return err
+			}
 			item, err := client.ActivateBundle(cmd.Context(), request)
 			if err != nil {
 				return err

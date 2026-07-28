@@ -29,8 +29,10 @@ adapting the surrounding JSON shape to that client:
 }
 ```
 
-`--workspace` accepts a workspace ID, name, or path. The daemon must already be running under the
-same `COMPOZY_HOME` as the relay.
+The relay uses the shared CLI context chain: `--workspace`, `COMPOZY_WORKSPACE`, validated session
+identity, then cwd discovery. The flag accepts an ID, name, or path and overrides the inferred
+workspace. Keep the explicit override in client configuration when the client's launch directory is
+not stable. The daemon must already be running under the same `COMPOZY_HOME` as the relay.
 
 Stdio does not add a bearer-token exchange. The local process that starts the command receives the
 published operator authority for the bound workspace. Stdout carries MCP protocol frames only;

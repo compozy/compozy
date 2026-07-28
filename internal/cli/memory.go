@@ -153,7 +153,13 @@ func newMemoryShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -201,7 +207,13 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultScope: defaultScope})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultScope: defaultScope},
+			)
 			if err != nil {
 				return err
 			}
@@ -260,7 +272,13 @@ func newMemoryEditCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -312,7 +330,13 @@ func newMemoryDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -346,7 +370,13 @@ func newMemorySearchCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}

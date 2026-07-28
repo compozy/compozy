@@ -55,7 +55,7 @@ func runWindowMoveCommand(
 	if err != nil {
 		return err
 	}
-	request, err := flags.request(cmd, contract.WindowManagerCommandWindowMove, payload)
+	request, err := flags.request(cmd, deps, contract.WindowManagerCommandWindowMove, payload)
 	if err != nil {
 		return err
 	}
@@ -149,6 +149,7 @@ func newWindowSwapCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowSwap,
 				contract.WindowManagerSwapWindowsPayload{
 					FirstWindowID: windowmanager.WindowID(firstID), SecondWindowID: windowmanager.WindowID(secondID),
@@ -186,6 +187,7 @@ func newWindowFloatCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowToggleFloating,
 				contract.WindowManagerToggleFloatingPayload{
 					WindowID: windowmanager.WindowID(windowID), FloatingRect: rect,
@@ -222,6 +224,7 @@ func newWindowZoomCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowZoom,
 				contract.WindowManagerZoomWindowPayload{
 					WindowID: windowmanager.WindowID(windowID),

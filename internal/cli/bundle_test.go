@@ -15,7 +15,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured ActivateBundleRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			activateBundleFn: func(_ context.Context, request ActivateBundleRequest) (BundleActivationRecord, error) {
 				captured = request
 				return sampleBundleActivationRecord(), nil
@@ -73,7 +73,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured ActivateBundleRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			previewBundleActivationFn: func(
 				_ context.Context,
 				request ActivateBundleRequest,
@@ -125,7 +125,7 @@ func TestBundleCommands(t *testing.T) {
 	t.Run("Should list catalog profiles with agent counts", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listBundleCatalogFn: func(context.Context) ([]BundleCatalogRecord, error) {
 				return []BundleCatalogRecord{{
 					ExtensionName: "marketing-team",
@@ -154,7 +154,7 @@ func TestBundleCommands(t *testing.T) {
 	t.Run("Should list active bundle activations", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listBundleActivationsFn: func(context.Context) ([]BundleActivationRecord, error) {
 				item := sampleBundleActivationRecord()
 				item.SpecDrift = true
@@ -190,7 +190,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var capturedID string
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getBundleActivationFn: func(_ context.Context, id string) (BundleActivationRecord, error) {
 				capturedID = id
 				return sampleBundleActivationRecord(), nil
@@ -224,7 +224,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured UpdateBundleActivationRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			updateBundleActivationFn: func(
 				_ context.Context,
 				id string,
@@ -260,7 +260,7 @@ func TestBundleCommands(t *testing.T) {
 	t.Run("Should require expected-version before calling the client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(
 			t,
 			deps,
@@ -278,7 +278,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured UpdateBundleActivationRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			updateBundleActivationFn: func(
 				_ context.Context,
 				_ string,
@@ -308,7 +308,7 @@ func TestBundleCommands(t *testing.T) {
 		t.Parallel()
 
 		var capturedID string
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			deactivateBundleFn: func(_ context.Context, id string) error {
 				capturedID = id
 				return nil
@@ -334,7 +334,7 @@ func TestBundleCommands(t *testing.T) {
 	t.Run("Should expose bundle network settings", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			bundleNetworkSettingsFn: func(context.Context) (BundleNetworkSettingsRecord, error) {
 				return BundleNetworkSettingsRecord{
 					DeclaredChannels: []DeclaredNetworkChannelRecord{{

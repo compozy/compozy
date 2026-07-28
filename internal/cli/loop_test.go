@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
@@ -90,6 +91,14 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		var capturedCredentials agentidentity.Credentials
 		deps := newTestDeps(t, &stubClient{
 			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          "sess-author",
+					AgentName:   "coder",
+					WorkspaceID: "ws-alpha",
+					State:       session.StateActive,
+				}, nil
+			},
 			runLoopFn: func(
 				_ context.Context,
 				workspaceID string,
@@ -332,6 +341,14 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		var capturedCredentials agentidentity.Credentials
 		deps := newTestDeps(t, &stubClient{
 			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          "sess-author",
+					AgentName:   "coder",
+					WorkspaceID: "ws-alpha",
+					State:       session.StateActive,
+				}, nil
+			},
 			approveLoopRunFn: func(
 				_ context.Context,
 				workspaceID string,

@@ -101,9 +101,7 @@ func (m *Manager) recordInactivePromptInputEvent(
 		return err
 	}
 	m.publishSessionEventByID(ctx, sessionID, persisted)
-	if m.notifier != nil {
-		m.notifier.OnAgentEvent(ctx, sessionID, event)
-	}
+	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, meta), event)
 	return nil
 }
 

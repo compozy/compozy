@@ -22,6 +22,7 @@ func newWindowNavigateCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowNavigate,
 				contract.WindowManagerNavigateWindowPayload{
 					WindowID: windowmanager.WindowID(windowID),

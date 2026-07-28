@@ -22,7 +22,7 @@ func (n *daemonNativeTools) hooksList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	filter, err := hookCatalogFilter(req.ToolID, input, scope)
+	filter, err := n.hookCatalogFilter(ctx, req.ToolID, input, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookCatalogFilterError(req.ToolID, err)
 	}
@@ -46,7 +46,7 @@ func (n *daemonNativeTools) hooksInfo(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	filter, err := hookCatalogFilter(req.ToolID, input.hooksListInput, scope)
+	filter, err := n.hookCatalogFilter(ctx, req.ToolID, input.hooksListInput, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookCatalogFilterError(req.ToolID, err)
 	}
@@ -109,7 +109,7 @@ func (n *daemonNativeTools) hooksRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
 	}
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

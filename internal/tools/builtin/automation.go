@@ -282,7 +282,7 @@ const automationJobsListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"scope":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"source":{"type":"string","enum":["config","package","dynamic"]},
 		"enabled":{"type":"boolean"},
 		"loop":{"type":"string"},
@@ -297,7 +297,8 @@ const automationJobIDInputSchema = `{
 	"type":"object",
 	"required":["job_id"],
 	"properties":{
-		"job_id":{"type":"string"}
+		"job_id":{"type":"string"},
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -327,7 +328,7 @@ const automationTriggersListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"scope":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"event":{"type":"string"},
 		"source":{"type":"string","enum":["config","package","dynamic"]},
 		"enabled":{"type":"boolean"},
@@ -343,7 +344,8 @@ const automationTriggerIDInputSchema = `{
 	"type":"object",
 	"required":["trigger_id"],
 	"properties":{
-		"trigger_id":{"type":"string"}
+		"trigger_id":{"type":"string"},
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -379,7 +381,8 @@ const automationRunIDInputSchema = `{
 	"type":"object",
 	"required":["run_id"],
 	"properties":{
-		"run_id":{"type":"string"}
+		"run_id":{"type":"string"},
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -388,7 +391,7 @@ const automationJobProperties = `{
 	"scope":{"type":"string"},
 	"name":{"type":"string"},
 	"agent_name":{"type":"string"},
-	"workspace_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"prompt":{"type":"string"},
 	"schedule":` + automationScheduleInputSchema + `,
 	"task":{"type":"object"},
@@ -399,6 +402,7 @@ const automationJobProperties = `{
 
 const automationJobPatchProperties = `{
 	"job_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"name":{"type":"string"},
 	"prompt":{"type":"string"},
 	"schedule":` + automationScheduleInputSchema + `,
@@ -412,7 +416,7 @@ const automationTriggerProperties = `{
 	"scope":{"type":"string"},
 	"name":{"type":"string"},
 	"agent_name":{"type":"string"},
-	"workspace_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"prompt":{"type":"string"},
 	"event":{"type":"string"},
 	"filter":{"type":"object"},
@@ -426,6 +430,7 @@ const automationTriggerProperties = `{
 
 const automationTriggerPatchProperties = `{
 	"trigger_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"name":{"type":"string"},
 	"prompt":{"type":"string"},
 	"event":{"type":"string"},
@@ -440,6 +445,7 @@ const automationTriggerPatchProperties = `{
 
 const automationJobHistoryProperties = `{
 	"job_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},
@@ -448,6 +454,7 @@ const automationJobHistoryProperties = `{
 
 const automationTriggerHistoryProperties = `{
 	"trigger_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},
@@ -457,6 +464,7 @@ const automationTriggerHistoryProperties = `{
 const automationRunQueryProperties = `{
 	"job_id":{"type":"string"},
 	"trigger_id":{"type":"string"},
+	"workspace":{"type":"string"},
 	"status":{"type":"string"},
 	"since":{"type":"string"},
 	"until":{"type":"string"},

@@ -1889,27 +1889,69 @@ func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
 func TestManagerStartWrapsSyncConfigDefinitionFailure(t *testing.T) {
 	t.Parallel()
 
-	h := newManagerHarness(t)
-	manager := h.newManager(t, compozyconfig.AutomationConfig{
-		Enabled:           true,
-		Timezone:          DefaultTimezone,
-		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
-		DefaultFireLimit:  DefaultFireLimitConfig(),
-		Jobs: []compozyconfig.AutomationJob{
-			managerConfigJob(AutomationScopeWorkspace, "missing-workspace", "", ScheduleSpec{
-				Mode:     ScheduleModeEvery,
-				Interval: "1h",
-			}),
-		},
+	t.Run("Should wrap a missing workspace reference", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerHarness(t)
+		manager := h.newManager(t, compozyconfig.AutomationConfig{
+			Enabled:           true,
+			Timezone:          DefaultTimezone,
+			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  DefaultFireLimitConfig(),
+			Jobs: []compozyconfig.AutomationJob{
+				managerConfigJob(AutomationScopeWorkspace, "missing-workspace", "", ScheduleSpec{
+					Mode:     ScheduleModeEvery,
+					Interval: "1h",
+				}),
+			},
+		})
+
+		err := manager.Start(h.ctx)
+		if err == nil {
+			t.Fatal("manager.Start() error = nil, want non-nil")
+		}
+		if got := err.Error(); !containsAll(
+			got,
+			"automation: sync config definitions",
+			"workspace reference is required",
+		) {
+			t.Fatalf("manager.Start() error = %q, want wrapped sync context", got)
+		}
 	})
 
-	err := manager.Start(h.ctx)
-	if err == nil {
-		t.Fatal("manager.Start() error = nil, want non-nil")
-	}
-	if got := err.Error(); !containsAll(got, "automation: sync config definitions", "workspace reference is required") {
-		t.Fatalf("manager.Start() error = %q, want wrapped sync context", got)
-	}
+	t.Run("Should reject an unregistered path without registering it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerHarness(t)
+		unregistered := filepath.Join(t.TempDir(), "unregistered")
+		if err := os.MkdirAll(unregistered, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", unregistered, err)
+		}
+		manager := h.newManager(t, compozyconfig.AutomationConfig{
+			Enabled:           true,
+			Timezone:          DefaultTimezone,
+			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  DefaultFireLimitConfig(),
+			Jobs: []compozyconfig.AutomationJob{
+				managerConfigJob(AutomationScopeWorkspace, "unregistered-workspace", unregistered, ScheduleSpec{
+					Mode:     ScheduleModeEvery,
+					Interval: "1h",
+				}),
+			},
+		})
+
+		err := manager.Start(h.ctx)
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("manager.Start() error = %v, want ErrWorkspaceNotFound", err)
+		}
+		workspaces, listErr := h.db.ListWorkspaces(h.ctx)
+		if listErr != nil {
+			t.Fatalf("resolver.List() error = %v", listErr)
+		}
+		if got, want := len(workspaces), 1; got != want {
+			t.Fatalf("registered workspace count = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestManagerTriggerJobReturnsStoredRunOnDispatchFailure(t *testing.T) {

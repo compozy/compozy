@@ -2,9 +2,9 @@ package builtin
 
 const taskPromoteFromThreadInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","thread_id","origin_message_id"],
+	"required":["channel","thread_id","origin_message_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"origin_message_id":{"type":"string"},

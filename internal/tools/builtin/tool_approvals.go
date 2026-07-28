@@ -68,7 +68,7 @@ const toolApprovalsSetInputSchema = `{
 		"decision":{"type":"string","enum":["allow","reject"]},
 		"scope":{"type":"string","enum":["agent","tool"]},
 		"agent_name":{"type":"string","minLength":1},
-		"workspace_id":{"type":"string","minLength":1}
+		"workspace":{"type":"string","minLength":1}
 	},
 	"additionalProperties":false
 }`
@@ -76,7 +76,7 @@ const toolApprovalsSetInputSchema = `{
 const toolApprovalsListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"workspace_id":{"type":"string","minLength":1}
+		"workspace":{"type":"string","minLength":1}
 	},
 	"additionalProperties":false
 }`
@@ -86,7 +86,7 @@ const toolApprovalsRevokeInputSchema = `{
 	"required":["id"],
 	"properties":{
 		"id":{"type":"string","minLength":1},
-		"workspace_id":{"type":"string","minLength":1}
+		"workspace":{"type":"string","minLength":1}
 	},
 	"additionalProperties":false
 }`

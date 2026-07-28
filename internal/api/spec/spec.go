@@ -272,7 +272,11 @@ func Document() (*openapi3.T, error) {
 		return nil, fmt.Errorf("register window-manager component schemas: %w", err)
 	}
 
-	for _, opSpec := range Operations() {
+	operations := Operations()
+	if err := validateOperationRegistry(operations); err != nil {
+		return nil, fmt.Errorf("validate operation registry: %w", err)
+	}
+	for _, opSpec := range operations {
 		operation, err := buildOperation(doc.Components.Schemas, opSpec)
 		if err != nil {
 			return nil, fmt.Errorf("build %s %s: %w", opSpec.Method, opSpec.Path, err)

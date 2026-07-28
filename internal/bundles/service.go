@@ -339,10 +339,3 @@ type ownedHeartbeatResource struct {
 	Scope resources.ResourceScope
 	Spec  heartbeat.ResourceSpec
 }
-
-type workspaceResolutionMode uint8
-
-const (
-	workspaceResolutionReadOnly workspaceResolutionMode = iota
-	workspaceResolutionRegisterPaths
-)

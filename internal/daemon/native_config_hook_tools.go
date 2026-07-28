@@ -39,7 +39,7 @@ const (
 )
 
 func (n *daemonNativeTools) configShow(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
@@ -47,7 +47,11 @@ func (n *daemonNativeTools) configShow(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	cfg, workspaceRoot, err := n.loadNativeConfig(input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	cfg, workspaceRoot, err := n.loadNativeConfig(workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)
 	}
@@ -61,7 +65,7 @@ func (n *daemonNativeTools) configShow(
 }
 
 func (n *daemonNativeTools) configList(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
@@ -69,7 +73,11 @@ func (n *daemonNativeTools) configList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	cfg, workspaceRoot, err := n.loadNativeConfig(input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	cfg, workspaceRoot, err := n.loadNativeConfig(workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)
 	}
@@ -83,7 +91,7 @@ func (n *daemonNativeTools) configList(
 }
 
 func (n *daemonNativeTools) configGet(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
@@ -91,7 +99,11 @@ func (n *daemonNativeTools) configGet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	cfg, workspaceRoot, err := n.loadNativeConfig(input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	cfg, workspaceRoot, err := n.loadNativeConfig(workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)
 	}
@@ -114,7 +126,7 @@ func (n *daemonNativeTools) configGet(
 }
 
 func (n *daemonNativeTools) configDiff(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
@@ -122,7 +134,11 @@ func (n *daemonNativeTools) configDiff(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceRoot, err := nativeOptionalWorkspaceRoot(input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceRoot, err = nativeOptionalWorkspaceRoot(workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 	}
@@ -155,7 +171,7 @@ func (n *daemonNativeTools) configDiff(
 }
 
 func (n *daemonNativeTools) configPath(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
@@ -184,7 +200,11 @@ func (n *daemonNativeTools) configPath(
 		"selected_config_target":      selected.Path(),
 	}
 	if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(input.WorkspaceRoot) != "" {
-		workspaceRoot, err := nativeRequiredWorkspaceRoot(input.WorkspaceRoot)
+		workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		workspaceRoot, err = nativeRequiredWorkspaceRoot(workspaceRoot)
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 		}

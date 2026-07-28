@@ -85,7 +85,7 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 	var seenList MemoryListQuery
 	var seenShowSelector MemorySelectorQuery
 	var seenSearch MemorySearchRequest
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listMemoryFn: func(_ context.Context, query MemoryListQuery) (MemoryListRecord, error) {
 			seenList = query
 			return MemoryListRecord{Memories: []contract.MemoryEntrySummaryPayload{{
@@ -243,7 +243,7 @@ func TestMemoryDecisionCommands(t *testing.T) {
 		t.Parallel()
 
 		var seen MemoryDecisionListQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listMemoryDecisionsFn: func(
 				_ context.Context,
 				query MemoryDecisionListQuery,
@@ -289,7 +289,7 @@ func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
 		t.Parallel()
 
 		var remaining time.Duration
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
 				deadline, ok := ctx.Deadline()
 				if !ok {
@@ -316,7 +316,7 @@ func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
 		t.Parallel()
 
 		var remaining time.Duration
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
 				deadline, ok := ctx.Deadline()
 				if !ok {
@@ -352,7 +352,7 @@ func TestMemoryWriteEditDeleteAndReindexUsePublicPayloads(t *testing.T) {
 	var editRequest MemoryEditRequest
 	var deleteSelector MemorySelectorQuery
 	var reindexRequest MemoryReindexRequest
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createMemoryFn: func(_ context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error) {
 			createRequest = request
 			return MemoryMutationRecord{
@@ -467,7 +467,7 @@ func TestMemoryNestedOperationsCallDaemonClient(t *testing.T) {
 	t.Parallel()
 
 	calls := make(map[string]bool)
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		memoryHealthFn: func(_ context.Context, workspace string) (MemoryHealthRecord, error) {
 			calls["health"] = workspace == "/workspace/project"
 			return MemoryHealthRecord{Status: "ok", Enabled: true, Configured: true}, nil
@@ -578,7 +578,7 @@ func TestMemoryNestedOperationsCallDaemonClient(t *testing.T) {
 func TestMemorySelectorValidationAndUnsupportedCommands(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	if _, _, err := executeRootCommand(
 		t,
 		deps,
@@ -661,10 +661,18 @@ func TestMemoryBundleHelpers(t *testing.T) {
 	if _, err := parseOptionalMemoryType("bogus"); err == nil {
 		t.Fatal("parseOptionalMemoryType(bogus) error = nil, want non-nil")
 	}
-	if _, err := resolveMemoryContentValue(newTestDeps(t, &stubClient{}), "@", strings.NewReader("")); err == nil {
+	if _, err := resolveMemoryContentValue(
+		newWorkspaceTestDeps(t, &stubClient{}),
+		"@",
+		strings.NewReader(""),
+	); err == nil {
 		t.Fatal("resolveMemoryContentValue(@) error = nil, want non-nil")
 	}
-	if _, err := resolveMemoryContentValue(newTestDeps(t, &stubClient{}), "-", strings.NewReader("")); err == nil {
+	if _, err := resolveMemoryContentValue(
+		newWorkspaceTestDeps(t, &stubClient{}),
+		"-",
+		strings.NewReader(""),
+	); err == nil {
 		t.Fatal("resolveMemoryContentValue(empty stdin) error = nil, want non-nil")
 	}
 	if _, err := readOptionalCommandInput(nil); err != nil {

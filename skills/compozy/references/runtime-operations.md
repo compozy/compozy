@@ -60,6 +60,13 @@ The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta
 
 Use structured output when agents need to inspect or route results.
 
+Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,
+`COMPOZY_WORKSPACE`, validated session identity, then cwd discovery. `--workspace` is an override,
+not a prerequisite, and accepts an ID, name, or path. Inside a workspace-bound session, omit the
+workspace argument unless an explicit override is required. Absent or partial credentials, and
+validated global or workspace-less identities, fall through to cwd. Configured credentials that
+cannot be validated fail closed.
+
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort high --prompt "Inspect the failing build."
@@ -158,13 +165,15 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 ## MCP Serve
 
-Use `compozy mcp serve --workspace <id|name|path>` to expose the approved Host API subset to a trusted
-external MCP client over stdio. The command is a foreground relay to the running daemon; it does not
-start another daemon or open stores directly. Published names use `compozy_host__<family>__<verb>`, not
-the native `compozy__*` namespace. Sessions, workspace-safe task operations, Network, memory, and
-resources are included; target-only task mutations and unrelated Host API families are excluded.
+Use `compozy mcp serve` to expose the approved Host API subset to a trusted external MCP client over
+stdio. It infers the workspace through the shared context chain; pass
+`--workspace <id|name|path>` only when the client's launch directory is not the intended workspace.
+The command is a foreground relay to the running daemon; it does not start another daemon or open
+stores directly. Published names use `compozy_host__<family>__<verb>`, not the native `compozy__*`
+namespace. Sessions, workspace-safe task operations, Network, memory, and resources are included;
+target-only task mutations and unrelated Host API families are excluded.
 
-The workspace is mandatory and injected into every call. Conflicting caller workspace fields are
+The resolved workspace binding is injected into every call. Conflicting caller workspace fields are
 rejected, so a relay bound to one workspace cannot read another workspace's data. Stdio has no
 separate authentication exchange: the spawning process receives operator authority for the
 published methods in that workspace.

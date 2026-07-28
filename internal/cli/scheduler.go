@@ -183,9 +183,19 @@ func newSchedulerBacklogCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspace,
+			)
+			if err != nil {
+				return err
+			}
 			record, err := client.SchedulerBacklog(cmd.Context(), SchedulerBacklogQuery{
 				Limit:         last,
-				WorkspaceID:   strings.TrimSpace(workspace),
+				WorkspaceID:   workspaceID,
 				IncludePaused: includePaused,
 			})
 			if err != nil {
@@ -195,7 +205,7 @@ func newSchedulerBacklogCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&last, "last", 50, "Maximum queued runs to return")
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Filter queued runs by workspace ID")
+	cmd.Flags().StringVar(&workspace, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().BoolVar(&includePaused, "include-paused", false, "Include queued runs blocked by task pause")
 	return cmd
 }

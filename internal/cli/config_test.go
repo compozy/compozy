@@ -21,7 +21,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Run("Should mutate validate and inspect a temporary home", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		homePaths, err := deps.resolveHome()
 		if err != nil {
 			t.Fatalf("resolveHome() error = %v", err)
@@ -178,7 +178,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	for _, testCase := range []struct {
 		path      string
 		rawValue  string
@@ -311,7 +311,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{})
+			deps := newWorkspaceTestDeps(t, &stubClient{})
 			out, _, err := executeRootCommand(t, deps, "config", "set", tt.path, tt.value, "-o", "json")
 			if err != nil {
 				t.Fatalf("config set %s error = %v", tt.path, err)
@@ -343,7 +343,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 	t.Run("Should reject global-only Marketplace catalog writes at workspace scope", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		workspaceRoot := t.TempDir()
 		_, _, err := executeRootCommand(
 			t,
@@ -390,7 +390,7 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 		},
 	}
 
-	deps := newTestDeps(t, client)
+	deps := newWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -463,7 +463,7 @@ func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *test
 		},
 	}
 
-	deps := newTestDeps(t, client)
+	deps := newWorkspaceTestDeps(t, client)
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -511,7 +511,7 @@ func TestConfigSetRejectsLegacyEnvironmentMutationPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{})
+			deps := newWorkspaceTestDeps(t, &stubClient{})
 			_, _, err := executeRootCommand(t, deps, "config", "set", tt.path, "local")
 			if err == nil {
 				t.Fatalf("config set %s error = nil, want unsupported path", tt.path)
@@ -526,7 +526,7 @@ func TestConfigSetRejectsLegacyEnvironmentMutationPaths(t *testing.T) {
 func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	workspaceRoot := t.TempDir()
 	dotenvPath := filepath.Join(workspaceRoot, ".env")
 	before := "COMPOZY_TASK09_API_KEY=very-secret\u200b-token OTHER=value\n"
@@ -582,6 +582,10 @@ func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *te
 
 func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	nested := filepath.Join(workspaceRoot, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll(nested) error = %v", err)
+	}
 	dotEnvHome := filepath.Join(t.TempDir(), "dotenv-home")
 	processHome := filepath.Join(t.TempDir(), "process-home")
 	dotenvPath := filepath.Join(workspaceRoot, ".env")
@@ -589,9 +593,15 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 		t.Fatalf("os.WriteFile(.env) error = %v", err)
 	}
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{
+		getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+			return WorkspaceDetailRecord{
+				Workspace: WorkspaceRecord{ID: "ws-root", RootDir: workspaceRoot},
+			}, nil
+		},
+	})
 	deps.getwd = func() (string, error) {
-		return workspaceRoot, nil
+		return nested, nil
 	}
 	deps.resolveHomeForWorkspace = compozyconfig.ResolveHomePathsForWorkspace
 
@@ -599,9 +609,9 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	if err := os.Unsetenv("COMPOZY_HOME"); err != nil {
 		t.Fatalf("os.Unsetenv(COMPOZY_HOME) error = %v", err)
 	}
-	stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+	stdout, _, err := executeRootCommand(t, deps, "config", "validate", "--repair-env", "-o", "json")
 	if err != nil {
-		t.Fatalf("config validate error = %v", err)
+		t.Fatalf("config validate --repair-env from nested cwd error = %v", err)
 	}
 	var cwdRecord configValidateRecord
 	if err := json.Unmarshal([]byte(stdout), &cwdRecord); err != nil {
@@ -609,6 +619,9 @@ func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
 	}
 	if cwdRecord.ConfigFile != filepath.Join(dotEnvHome, compozyconfig.ConfigName) {
 		t.Fatalf("ConfigFile = %q, want dotenv home", cwdRecord.ConfigFile)
+	}
+	if cwdRecord.WorkspaceRoot != workspaceRoot {
+		t.Fatalf("WorkspaceRoot = %q, want %q", cwdRecord.WorkspaceRoot, workspaceRoot)
 	}
 
 	stdout, _, err = executeRootCommand(t, deps, "config", "validate", "--workspace", workspaceRoot, "-o", "json")
@@ -671,7 +684,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 			t.Fatalf("os.WriteFile(config) error = %v", err)
 		}
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
@@ -720,7 +733,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 			t.Fatalf("os.WriteFile(config) error = %v", err)
 		}
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
 			return homePaths, nil
 		}
@@ -758,7 +771,7 @@ func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
 func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -825,13 +838,115 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read the cwd workspace overlay from a nested directory", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		nested := filepath.Join(workspaceRoot, "nested")
+		if err := os.MkdirAll(nested, 0o755); err != nil {
+			t.Fatalf("MkdirAll(nested) error = %v", err)
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-root", RootDir: workspaceRoot},
+				}, nil
+			},
+		})
+		deps.getwd = func() (string, error) { return nested, nil }
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"network.live.defaults.max_wakes",
+			"12",
+			"--scope",
+			"workspace",
+		); err != nil {
+			t.Fatalf("config set workspace overlay error = %v", err)
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"get",
+			"network.live.defaults.max_wakes",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config get from nested cwd error = %v", err)
+		}
+		var record configValueRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config get) error = %v", err)
+		}
+		if got := int(record.Value.(float64)); got != 12 {
+			t.Fatalf("config get value = %#v, want 12", record.Value)
+		}
+	})
+
+	t.Run("Should honor an explicit workspace when selecting the global home", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		cwd := t.TempDir()
+		workspaceHome, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom(workspace) error = %v", err)
+		}
+		cwdHome, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom(cwd) error = %v", err)
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-explicit", RootDir: workspaceRoot},
+				}, nil
+			},
+		})
+		deps.getwd = func() (string, error) { return cwd, nil }
+		deps.resolveHomeForWorkspace = func(path string) (compozyconfig.HomePaths, error) {
+			if path == workspaceRoot {
+				return workspaceHome, nil
+			}
+			return cwdHome, nil
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"defaults.provider",
+			"claude",
+			"--workspace",
+			workspaceRoot,
+		); err != nil {
+			t.Fatalf("config set global with explicit workspace error = %v", err)
+		}
+		if _, err := os.Stat(workspaceHome.ConfigFile); err != nil {
+			t.Fatalf("Stat(workspace global config) error = %v", err)
+		}
+		if _, err := os.Stat(cwdHome.ConfigFile); !os.IsNotExist(err) {
+			t.Fatalf("Stat(cwd global config) error = %v, want not exist", err)
+		}
+	})
+}
+
 func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should write valid agent Soul and Heartbeat overlays and reject invalid values", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		homePaths, err := deps.resolveHome()
 		if err != nil {
 			t.Fatalf("resolveHome() error = %v", err)
@@ -923,7 +1038,7 @@ func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
 func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -1293,7 +1408,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	if _, _, err := executeRootCommand(t, deps, "config", "set", "sandboxes.dev.backend", "local"); err != nil {
 		t.Fatalf("config set sandbox backend error = %v", err)
 	}
@@ -1321,7 +1436,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 		t.Fatalf("secret config set record = %#v, want redacted placeholder", setRecord)
 	}
 
-	managedDeps := newTestDeps(t, &stubClient{})
+	managedDeps := newWorkspaceTestDeps(t, &stubClient{})
 	managedDeps.getenv = func(key string) string {
 		if key == compozyupdate.ManagedEnvName {
 			return "homebrew"
@@ -1340,7 +1455,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 func TestCompletionCommandEmitsShellCompletion(t *testing.T) {
 	t.Parallel()
 
-	out, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "completion", "bash")
+	out, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "completion", "bash")
 	if err != nil {
 		t.Fatalf("completion bash error = %v", err)
 	}

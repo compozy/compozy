@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestHumanOutputProducesStyledTable(t *testing.T) {
@@ -14,7 +17,7 @@ func TestHumanOutputProducesStyledTable(t *testing.T) {
 	t.Run("Should produce styled table", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listAgentsFn: func(_ context.Context, _ AgentQuery) ([]AgentRecord, error) {
 				return []AgentRecord{{
 					Name:        "coder",
@@ -43,7 +46,7 @@ func TestJSONOutputProducesValidJSON(t *testing.T) {
 	t.Run("Should produce valid JSON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listSessionsFn: func(_ context.Context, _ SessionListQuery) ([]SessionRecord, error) {
 				return []SessionRecord{{
 					ID:            "sess-1",
@@ -79,7 +82,7 @@ func TestToonOutputProducesToonDocument(t *testing.T) {
 	t.Run("Should produce TOON document", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listAgentsFn: func(_ context.Context, _ AgentQuery) ([]AgentRecord, error) {
 				return []AgentRecord{{Name: "coder", Provider: "codex", Tools: []string{"shell"}}}, nil
 			},
@@ -96,6 +99,65 @@ func TestToonOutputProducesToonDocument(t *testing.T) {
 			t.Fatalf("toon output = %q, want TOON header", stdout)
 		}
 	})
+}
+
+func TestWorkspaceResolutionFormatting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		format string
+		items  []map[string]string
+	}{
+		{name: "Should annotate JSON output", format: "json", items: []map[string]string{{"id": "one"}}},
+		{name: "Should preserve literal HTML characters", format: "json", items: []map[string]string{{"id": "<one>"}}},
+		{name: "Should annotate populated JSONL output", format: "jsonl", items: []map[string]string{{"id": "one"}}},
+		{name: "Should annotate empty JSONL output", format: "jsonl"},
+		{name: "Should prefix TOON output", format: "toon", items: []map[string]string{{"id": "one"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &cobra.Command{Use: "format-test"}
+			cmd.SetContext(context.Background())
+			cmd.Flags().String(outputFlagName, tt.format, "")
+			var stdout bytes.Buffer
+			cmd.SetOut(&stdout)
+			recordWorkspaceResolution(cmd, workspaceResolution{ID: "ws-1", Source: workspaceResolutionCWD})
+			bundle := listBundle(
+				map[string]any{"items": tt.items},
+				tt.items,
+				"Items",
+				[]string{"ID"},
+				"items",
+				[]string{"id"},
+				func(item map[string]string) []string { return []string{item["id"]} },
+				func(item map[string]string) []string { return []string{item["id"]} },
+			)
+			if err := writeCommandOutput(cmd, bundle); err != nil {
+				t.Fatalf("writeCommandOutput(%s) error = %v", tt.format, err)
+			}
+			if !strings.Contains(stdout.String(), "resolution_source") ||
+				!strings.Contains(stdout.String(), workspaceResolutionCWD) {
+				t.Fatalf("%s output = %q, want cwd resolution provenance", tt.format, stdout.String())
+			}
+			if tt.format == "jsonl" && len(tt.items) > 0 {
+				var row map[string]any
+				if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &row); err != nil {
+					t.Fatalf("json.Unmarshal(populated JSONL) error = %v", err)
+				}
+				if row["resolution_source"] != workspaceResolutionCWD {
+					t.Fatalf("JSONL resolution_source = %#v, want %q", row["resolution_source"], workspaceResolutionCWD)
+				}
+			}
+			if len(tt.items) > 0 && tt.items[0]["id"] == "<one>" {
+				if !strings.Contains(stdout.String(), "<one>") || strings.Contains(stdout.String(), `\u003c`) {
+					t.Fatalf("JSON output = %q, want unescaped literal HTML characters", stdout.String())
+				}
+			}
+		})
+	}
 }
 
 func TestAgentCategoryLabel(t *testing.T) {

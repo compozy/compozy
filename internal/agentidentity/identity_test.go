@@ -106,18 +106,6 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			wantExit:          ExitUnauthorized,
 		},
 		{
-			name: "Should reject conflicting credential and expected workspaces",
-			credentials: Credentials{
-				SessionID:   "sess-1",
-				AgentName:   "coder",
-				WorkspaceID: "ws-2",
-			},
-			session:           active,
-			expectedWorkspace: "ws-1",
-			wantErr:           ErrIdentityUnauthorized,
-			wantExit:          ExitUnauthorized,
-		},
-		{
 			name: "Should accept valid cli identity",
 			credentials: Credentials{
 				SessionID: " sess-1 ",
@@ -130,9 +118,8 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 		{
 			name: "Should accept valid uds identity",
 			credentials: Credentials{
-				SessionID:   "sess-1",
-				AgentName:   "coder",
-				WorkspaceID: "ws-1",
+				SessionID: "sess-1",
+				AgentName: "coder",
 			},
 			session:    active,
 			originKind: taskpkg.OriginKindUDS,

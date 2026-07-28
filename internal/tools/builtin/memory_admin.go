@@ -405,22 +405,16 @@ func memoryAdminSchema(required []string, properties string) string {
 }
 
 const memoryAdminSelectorProperties = `"scope":{"type":"string","enum":["","global","workspace","agent"]}` +
-	`,"workspace_id":{"type":"string"}` +
 	`,"workspace":{"type":"string"}` +
-	`,"agent_name":{"type":"string"}` +
-	`,"agent_tier":{"type":"string","enum":["","workspace","global"]}`
-
-const memoryAdminSelectorPayloadProperties = `"scope":{"type":"string","enum":["","global","workspace","agent"]}` +
-	`,"workspace_id":{"type":"string"}` +
 	`,"agent_name":{"type":"string"}` +
 	`,"agent_tier":{"type":"string","enum":["","workspace","global"]}`
 
 var (
 	memoryAdminSelectorInputSchema   = memoryAdminSchema(nil, memoryAdminSelectorProperties)
-	memoryAdminSelectorPayloadSchema = memoryAdminSchema(nil, memoryAdminSelectorPayloadProperties)
+	memoryAdminSelectorPayloadSchema = memoryAdminSchema(nil, memoryAdminSelectorProperties)
 	memoryAdminHealthInputSchema     = memoryAdminSchema(
 		nil,
-		`"workspace_id":{"type":"string"},"workspace":{"type":"string"}`,
+		`"workspace":{"type":"string"}`,
 	)
 	memoryAdminHistoryInputSchema = memoryAdminSchema(
 		nil,
@@ -462,22 +456,22 @@ var (
 		nil,
 		`"failure_id":{"type":"string"},"session_id":{"type":"string"}`,
 	)
-	memoryAdminWorkspaceInputSchema    = memoryAdminSchema(nil, `"workspace_id":{"type":"string"}`)
+	memoryAdminWorkspaceInputSchema    = memoryAdminSchema(nil, `"workspace":{"type":"string"}`)
 	memoryAdminProviderNameInputSchema = memoryAdminSchema(
 		[]string{"name"},
-		`"name":{"type":"string"},"workspace_id":{"type":"string"}`,
+		`"name":{"type":"string"},"workspace":{"type":"string"}`,
 	)
 	memoryAdminProviderLifecycleInputSchema = memoryAdminSchema(
 		[]string{"name"},
-		`"name":{"type":"string"},"workspace_id":{"type":"string"},"reason":{"type":"string"}`,
+		`"name":{"type":"string"},"workspace":{"type":"string"},"reason":{"type":"string"}`,
 	)
 	memoryAdminSessionIDInputSchema = memoryAdminSchema(
-		[]string{descriptorWorkspaceIDKey, memoryAdminSessionIDKey},
-		`"workspace_id":{"type":"string"},"session_id":{"type":"string"}`,
+		[]string{memoryAdminSessionIDKey},
+		`"workspace":{"type":"string"},"session_id":{"type":"string"}`,
 	)
 	memoryAdminSessionReplayInputSchema = memoryAdminSchema(
-		[]string{descriptorWorkspaceIDKey, memoryAdminSessionIDKey},
-		`"workspace_id":{"type":"string"},"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
+		[]string{memoryAdminSessionIDKey},
+		`"workspace":{"type":"string"},"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
 	)
 	memoryAdminSessionsPruneInputSchema = memoryAdminSchema(
 		[]string{"older_than_hours"},

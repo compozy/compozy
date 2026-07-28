@@ -40,12 +40,12 @@ func retiredNativeLoopRuntimePath(raw json.RawMessage) (string, bool) {
 }
 
 func nativeLoopWorkspaceID(id toolspkg.ToolID, workspaceID string, scope toolspkg.Scope) (string, error) {
-	resolved, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
+	resolved, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(resolved) == "" {
-		return "", nativeRequiredInputError(id, "workspace_id")
+		return "", nativeRequiredInputError(id, nativeWorkspaceInputKey)
 	}
 	return strings.TrimSpace(resolved), nil
 }
@@ -190,7 +190,7 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 }
 
 type nativeLoopWorkspaceInput struct {
-	WorkspaceID string              `json:"workspace_id,omitempty"`
+	WorkspaceID string              `json:"workspace,omitempty"`
 	Q           string              `json:"q,omitempty"`
 	Kind        looppkg.CatalogKind `json:"kind,omitempty"`
 	Category    string              `json:"category,omitempty"`
@@ -201,30 +201,30 @@ type nativeLoopWorkspaceInput struct {
 }
 
 type nativeLoopNameInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Name        string `json:"name"`
 }
 
 type nativeLoopRunIDInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 }
 
 type nativeLoopValidateInput struct {
-	WorkspaceID string         `json:"workspace_id,omitempty"`
+	WorkspaceID string         `json:"workspace,omitempty"`
 	Name        string         `json:"name,omitempty"`
 	Definition  dsl.Definition `json:"definition"`
 }
 
 type nativeLoopCreateInput struct {
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	WorkspaceID     string          `json:"workspace,omitempty"`
 	Definition      *dsl.Definition `json:"definition,omitempty"`
 	ForkFromName    string          `json:"fork_from_name,omitempty"`
 	ExpectedVersion *int            `json:"expected_version,omitempty"`
 }
 
 type nativeLoopRunInput struct {
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	WorkspaceID          string                 `json:"workspace,omitempty"`
 	Name                 string                 `json:"name"`
 	Inputs               map[string]any         `json:"inputs,omitempty"`
 	ParentLoopRunID      string                 `json:"parent_loop_run_id,omitempty"`
@@ -234,20 +234,20 @@ type nativeLoopRunInput struct {
 }
 
 type nativeLoopRunsInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	LoopName    string `json:"loop_name,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 type nativeLoopConfigureInput struct {
-	WorkspaceID string             `json:"workspace_id,omitempty"`
+	WorkspaceID string             `json:"workspace,omitempty"`
 	Name        string             `json:"name"`
 	Config      looppkg.LoopConfig `json:"config"`
 }
 
 type nativeLoopApproveInput struct {
-	WorkspaceID       string `json:"workspace_id,omitempty"`
+	WorkspaceID       string `json:"workspace,omitempty"`
 	RunID             string `json:"run_id"`
 	GateID            string `json:"gate_id"`
 	Decision          string `json:"decision"`

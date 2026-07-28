@@ -26,6 +26,8 @@ Never guess a tool schema from this reference. Resolve canonical `compozy__tool_
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
 
+`workspace` is optional. Bound sessions cannot override or use `global`/`all`; operators can.
+
 ## Discovery And Catalog Toolsets
 
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
@@ -154,8 +156,8 @@ run history stays uncounted and must be bounded. Other `compozy__automation_*` t
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
 deleted; dynamic definitions are fully mutable.
 
-`compozy__automation_suggestions_{list,accept,dismiss}` requires `workspace_id`: list pending; accept
-creates, dismiss latches. Relist on CAS conflict.
+`compozy__automation_suggestions_{list,accept,dismiss}` accepts optional `workspace`; list, accept, or
+dismiss; retry CAS conflicts.
 
 `compozy__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind cursors bind the
 query, scope, workspace, and source projection; grouped searches omit them. Paging and installed

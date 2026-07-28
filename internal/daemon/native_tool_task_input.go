@@ -22,7 +22,7 @@ type taskCreateInput struct {
 	ID                   string                 `json:"id,omitempty"`
 	Identifier           string                 `json:"identifier,omitempty"`
 	Scope                string                 `json:"scope"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	WorkspaceID          string                 `json:"workspace,omitempty"`
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 	Title                string                 `json:"title"`
 	Description          string                 `json:"description,omitempty"`
@@ -137,7 +137,7 @@ type taskRecoverInput struct {
 }
 
 type taskPromoteFromThreadInput struct {
-	WorkspaceID     string          `json:"workspace_id"`
+	WorkspaceID     string          `json:"workspace"`
 	Channel         string          `json:"channel"`
 	ThreadID        string          `json:"thread_id"`
 	OriginMessageID string          `json:"origin_message_id"`

@@ -232,7 +232,7 @@ const loopListInputSchema = `{
 	"type":"object",
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"q":{"type":"string"},
 		"kind":{"type":"string","enum":["read_only","workspace"]},
 		"category":{"type":"string"},
@@ -256,7 +256,7 @@ const goalReportInputSchema = `{
 	"required":["status"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"status":{"type":"string","enum":["complete","blocked"]},
 		"evidence":{"type":"string","maxLength":16384}
 	}
@@ -267,7 +267,7 @@ const loopNameInputSchema = `{
 	"required":["name"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"name":{"type":"string","minLength":1}
 	}
 }`
@@ -277,7 +277,7 @@ const loopValidateInputSchema = `{
 	"required":["definition"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"name":{"type":"string"},
 		"definition":{"type":"object","additionalProperties":true}
 	}
@@ -287,7 +287,7 @@ const loopCreateInputSchema = `{
 	"type":"object",
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"definition":{"type":"object","additionalProperties":true},
 		"fork_from_name":{"type":"string"},
 		"expected_version":{"type":"integer","minimum":0}
@@ -299,7 +299,7 @@ const loopRunInputSchema = `{
 	"required":["name"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"name":{"type":"string","minLength":1},
 		"inputs":{"type":"object","additionalProperties":true},
 		"parent_loop_run_id":{"type":"string"},
@@ -314,7 +314,7 @@ const loopRunIDInputSchema = `{
 	"required":["run_id"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"run_id":{"type":"string","minLength":1}
 	}
 }`
@@ -323,7 +323,7 @@ const loopRunsInputSchema = `{
 	"type":"object",
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"loop_name":{"type":"string"},
 		"status":{"type":"string"},
 		"limit":{"type":"integer","minimum":1}
@@ -335,7 +335,7 @@ const loopTurnsInputSchema = `{
 	"required":["run_id"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"run_id":{"type":"string","minLength":1},
 		"node":{"type":"string","minLength":1},
 		"item":{"type":"integer","minimum":0},
@@ -349,7 +349,7 @@ const loopConfigureInputSchema = `{
 	"required":["name","config"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"name":{"type":"string","minLength":1},
 		"config":{"type":"object","additionalProperties":true}
 	}
@@ -360,7 +360,7 @@ const loopApproveInputSchema = `{
 	"required":["run_id","gate_id","decision"],
 	"additionalProperties":false,
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"run_id":{"type":"string","minLength":1},
 		"gate_id":{"type":"string","minLength":1},
 		"decision":{"type":"string","enum":["approve","request_changes","reject"]},

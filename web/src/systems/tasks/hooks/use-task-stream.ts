@@ -47,8 +47,7 @@ function invalidateLiveTaskStreamQueries(queryClient: QueryClient, taskId: strin
   void queryClient.invalidateQueries({ queryKey: tasksKeys.timelineRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.runsRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.runDetails() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.contextBundle() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.agentContext() });
+  void queryClient.invalidateQueries({ queryKey: tasksKeys.agentContextsRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.reviewsRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.bridgeNotificationsRoot() });
 }

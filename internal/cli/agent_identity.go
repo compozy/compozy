@@ -11,6 +11,10 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+type agentSessionClient interface {
+	GetSession(context.Context, string) (SessionRecord, error)
+}
+
 func agentCredentialsFromEnv(deps commandDeps) agentidentity.Credentials {
 	return agentidentity.Credentials{
 		SessionID: strings.TrimSpace(deps.getenv(agentidentity.EnvSessionID)),
@@ -21,7 +25,7 @@ func agentCredentialsFromEnv(deps commandDeps) agentidentity.Credentials {
 func resolveAgentCallerFromEnv(
 	ctx context.Context,
 	deps commandDeps,
-	client DaemonClient,
+	client agentSessionClient,
 	expectedWorkspaceID string,
 	originRef string,
 ) (agentidentity.Caller, error) {
@@ -41,7 +45,7 @@ func resolveAgentCallerFromEnv(
 	})
 }
 
-func agentSessionLookup(client DaemonClient) agentidentity.SessionLookup {
+func agentSessionLookup(client agentSessionClient) agentidentity.SessionLookup {
 	return func(ctx context.Context, sessionID string) (agentidentity.SessionSnapshot, error) {
 		record, err := client.GetSession(ctx, sessionID)
 		if err != nil {

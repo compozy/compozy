@@ -48,7 +48,7 @@ func newSkillInspectCommand(deps commandDeps) *cobra.Command {
   compozy skill inspect code-review`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.inspect"))
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps)
 			if err != nil {
 				return err
 			}
@@ -84,7 +84,7 @@ func newSkillInspectCommand(deps commandDeps) *cobra.Command {
 		&workspace,
 		workspaceSkillSource,
 		"",
-		"Resolve the daemon-managed skill from a workspace id, name, or path",
+		"Override workspace context (ID, name, or path)",
 	)
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd

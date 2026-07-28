@@ -248,19 +248,23 @@ describe("review adapters", () => {
 });
 
 describe("agent context adapters", () => {
+  const identity = { agentName: "worker", sessionId: "session_001" };
+
   it("Should fetch the full agent context", async () => {
     mockJsonResponse({ context: agentContextFixture });
 
-    const result = await getAgentContext();
+    const result = await getAgentContext(identity);
 
     expect(result).toEqual(agentContextFixture);
-    await expectFetchRequest({ path: "/api/agent/context" });
+    const request = await expectFetchRequest({ path: "/api/agent/context" });
+    expect(request.headers.get("X-Compozy-Agent")).toBe(identity.agentName);
+    expect(request.headers.get("X-Compozy-Session-ID")).toBe(identity.sessionId);
   });
 
   it("Should extract the task bundle from agent context", async () => {
     mockJsonResponse({ context: agentContextFixture });
 
-    const result = await getTaskContextBundle();
+    const result = await getTaskContextBundle(identity);
 
     expect(result).toEqual(taskContextBundleFixture);
   });
@@ -273,7 +277,7 @@ describe("agent context adapters", () => {
       },
     });
 
-    const result = await getTaskContextBundle();
+    const result = await getTaskContextBundle(identity);
     expect(result).toBeNull();
   });
 });

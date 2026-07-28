@@ -36,11 +36,7 @@ func newDesktopListCommand(deps commandDeps) *cobra.Command {
 		Example: "  compozy desktop list --workspace ws_1234 -o json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -51,7 +47,8 @@ func newDesktopListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, windowManagerDesktopListBundle(snapshot.Desktops))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -85,6 +82,7 @@ func newDesktopCreateCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandDesktopCreate,
 				contract.WindowManagerCreateDesktopPayload{
 					DesktopID: windowmanager.DesktopID(strings.TrimSpace(desktopID)),
@@ -130,6 +128,7 @@ func newDesktopUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandDesktopUpdate,
 				contract.WindowManagerUpdateDesktopPayload{
 					DesktopID: windowmanager.DesktopID(desktopID), Name: name,
@@ -172,6 +171,7 @@ func newDesktopReorderCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandDesktopReorder,
 				contract.WindowManagerReorderDesktopPayload{
 					DesktopID: windowmanager.DesktopID(desktopID), Order: order,
@@ -210,6 +210,7 @@ func newDesktopSwitchCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandDesktopSwitch,
 				contract.WindowManagerSwitchDesktopPayload{
 					DesktopID: windowmanager.DesktopID(desktopID),
@@ -248,6 +249,7 @@ func newDesktopDeleteCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandDesktopDelete,
 				contract.WindowManagerDeleteDesktopPayload{
 					DesktopID: windowmanager.DesktopID(desktopID), DestinationID: destinationID,
@@ -282,11 +284,7 @@ func newDesktopClientsListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: windowManagerListKey, Short: "List connected client-local desktop views", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -297,7 +295,8 @@ func newDesktopClientsListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, windowManagerClientListBundle(response.Clients))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -306,7 +305,7 @@ func newDesktopClientsRegisterCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "register", Short: "Register or refresh a client-local desktop view", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -315,10 +314,6 @@ func newDesktopClientsRegisterCommand(deps commandDeps) *cobra.Command {
 				windowManagerClientFlag,
 				clientID,
 			)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
@@ -343,7 +338,8 @@ func newDesktopClientsRegisterCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&clientID, windowManagerClientFlag, "", "Stable client ID; generated when omitted")
 	cmd.Flags().StringVar(&activeDesktop, "desktop", "", "Initial active desktop ID")
 	return cmd
@@ -354,15 +350,11 @@ func newDesktopClientsUnregisterCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "unregister", Short: "Remove a connected client-local view", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
 			clientID, err := requiredWindowManagerFlag(clientID, windowManagerClientFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
@@ -379,7 +371,8 @@ func newDesktopClientsUnregisterCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&clientID, windowManagerClientFlag, "", "Connected client ID")
 	return cmd
 }

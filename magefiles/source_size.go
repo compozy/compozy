@@ -53,6 +53,27 @@ var excludedProductionSourceSegments = map[string]struct{}{
 	"tests":      {},
 }
 
+// SourceSize verifies that handwritten production sources stay within the hard line limit.
+func SourceSize() error {
+	violations, err := inspectProductionSourceLineLimit(".")
+	if err != nil {
+		return fmt.Errorf("inspect production source line limit: %w", err)
+	}
+	for _, violation := range violations {
+		fmt.Printf(
+			"VIOLATION: production source exceeds %d lines: %s (%d lines)\n",
+			maxProductionSourceLines,
+			violation.path,
+			violation.lines,
+		)
+	}
+	if len(violations) > 0 {
+		return fmt.Errorf("found %d production source size violations", len(violations))
+	}
+	fmt.Printf("OK: production sources respect the %d-line limit\n", maxProductionSourceLines)
+	return nil
+}
+
 func inspectProductionSourceLineLimit(root string) ([]productionSourceSizeViolation, error) {
 	trackedFiles, err := listTrackedFiles(root)
 	if err != nil {

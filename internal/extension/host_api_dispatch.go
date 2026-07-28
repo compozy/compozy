@@ -37,7 +37,12 @@ func (h *HostAPIHandler) Handle(
 		return nil, normalizeHostAPIRPCError(method, err)
 	}
 
-	result, err := handler(withHostAPIExtensionName(ctx, extName), params)
+	hostCtx := withHostAPIExtensionName(ctx, extName)
+	params, err := h.bindWorkspaceScopedParams(hostCtx, method, params)
+	if err != nil {
+		return nil, normalizeHostAPIRPCError(method, err)
+	}
+	result, err := handler(hostCtx, params)
 	if err != nil {
 		return nil, normalizeHostAPIRPCError(method, err)
 	}

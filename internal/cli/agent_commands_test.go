@@ -21,7 +21,7 @@ import (
 func TestAgentListAndInfoCommands(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should list and inspect global agents", func(t *testing.T) {
+	t.Run("Should list and inspect agents from the inferred workspace", func(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
@@ -45,10 +45,10 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			}},
 		}
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listAgentsFn: func(_ context.Context, query AgentQuery) ([]AgentRecord, error) {
-				if query.Workspace != "" {
-					t.Fatalf("ListAgents() workspace = %q, want empty", query.Workspace)
+				if query.Workspace != "/workspace/project" {
+					t.Fatalf("ListAgents() workspace = %q, want inferred workspace", query.Workspace)
 				}
 				return []AgentRecord{agent}, nil
 			},
@@ -56,8 +56,8 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 				if name != agent.Name {
 					t.Fatalf("GetAgent() name = %q, want %q", name, agent.Name)
 				}
-				if query.Workspace != "" {
-					t.Fatalf("GetAgent() workspace = %q, want empty", query.Workspace)
+				if query.Workspace != "/workspace/project" {
+					t.Fatalf("GetAgent() workspace = %q, want inferred workspace", query.Workspace)
 				}
 				return agent, nil
 			},
@@ -136,7 +136,7 @@ func TestAgentCommandsPassWorkspaceQuery(t *testing.T) {
 
 		const workspace = "ws-test"
 		agent := AgentRecord{Name: "founder", Provider: "codex", Prompt: "lead"}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listAgentsFn: func(_ context.Context, query AgentQuery) ([]AgentRecord, error) {
 				if query.Workspace != workspace {
 					t.Fatalf("ListAgents() workspace = %q, want %q", query.Workspace, workspace)
@@ -208,7 +208,7 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Parallel()
 
 			called := false
-			deps := newTestDeps(t, &stubClient{
+			deps := newWorkspaceTestDeps(t, &stubClient{
 				createAgentFn: func(context.Context, contract.CreateAgentRequest) (AgentRecord, error) {
 					called = true
 					return AgentRecord{}, nil
@@ -225,7 +225,7 @@ func TestAgentCreateCommand(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			createAgentFn: func(_ context.Context, request contract.CreateAgentRequest) (AgentRecord, error) {
 				if request.Scope != contract.AgentCreateScopeWorkspace || request.Workspace != workspaceRoot {
 					t.Fatalf("CreateAgent() scope/workspace = %q/%q", request.Scope, request.Workspace)
@@ -295,7 +295,7 @@ func TestAgentCreateCommand(t *testing.T) {
 	t.Run("Should allow onboarding as an ordinary agent name", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{createAgentFn: func(
+		deps := newWorkspaceTestDeps(t, &stubClient{createAgentFn: func(
 			_ context.Context,
 			request contract.CreateAgentRequest,
 		) (AgentRecord, error) {
@@ -334,7 +334,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 				called = true
 				return AgentRecord{}, nil
@@ -358,7 +358,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1", DefinitionDigest: "digest-1",
 			Skills: &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(_ context.Context, name string, query AgentQuery) (AgentRecord, error) {
 				if name != "coder" || query.Workspace != "ws-1" {
 					t.Fatalf("GetAgent() = %q/%#v", name, query)
@@ -402,7 +402,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 			DefinitionDigest: "digest-1",
 			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 				return current, nil
 			},
@@ -438,7 +438,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 		t.Parallel()
 
 		missing := filepath.Join(t.TempDir(), "missing.md")
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 				return AgentRecord{Name: "coder", Provider: "fake", Prompt: "Code."}, nil
 			},
@@ -454,7 +454,7 @@ func TestAgentUpdateCommand(t *testing.T) {
 	t.Run("Should render a digest conflict as structured invalid input", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 				return AgentRecord{Name: "coder", Provider: "fake", Prompt: "Code."}, nil
 			},
@@ -482,7 +482,7 @@ func TestAgentDeleteCommand(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			deleteAgentFn: func(context.Context, string, string) (contract.DeleteAgentResponse, error) {
 				called = true
 				return contract.DeleteAgentResponse{}, nil
@@ -509,7 +509,7 @@ func TestAgentDeleteCommand(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			deleteAgentFn: func(context.Context, string, string) (contract.DeleteAgentResponse, error) {
 				called = true
 				return contract.DeleteAgentResponse{}, nil
@@ -524,7 +524,7 @@ func TestAgentDeleteCommand(t *testing.T) {
 	t.Run("Should emit the unshadowed origin in structured output", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			deleteAgentFn: func(_ context.Context, name string, workspace string) (contract.DeleteAgentResponse, error) {
 				if name != "coder" || workspace != "ws-1" {
 					t.Fatalf("DeleteAgent() = %q/%q", name, workspace)
@@ -546,28 +546,41 @@ func TestAgentDeleteCommand(t *testing.T) {
 func TestAgentDuplicateCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should require a workspace for workspace scope before calling the daemon", func(t *testing.T) {
+	t.Run("Should infer a workspace for workspace scope", func(t *testing.T) {
 		t.Parallel()
 
-		called := false
-		deps := newTestDeps(t, &stubClient{
-			duplicateAgentFn: func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error) {
-				called = true
-				return AgentRecord{}, nil
+		var captured contract.DuplicateAgentRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project" {
+					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-cwd"}}, nil
+			},
+			duplicateAgentFn: func(
+				_ context.Context,
+				_ string,
+				request contract.DuplicateAgentRequest,
+			) (AgentRecord, error) {
+				captured = request
+				return AgentRecord{Name: "reviewer"}, nil
 			},
 		})
 		_, _, err := executeRootCommand(
 			t, deps, "agent", "duplicate", "coder", "reviewer", "--scope", "workspace",
 		)
-		if err == nil || !strings.Contains(err.Error(), "--workspace is required") || called {
-			t.Fatalf("agent duplicate workspace error/called = %v/%t", err, called)
+		if err != nil {
+			t.Fatalf("agent duplicate error = %v", err)
+		}
+		if captured.Workspace != "ws-cwd" {
+			t.Fatalf("request.Workspace = %q, want ws-cwd", captured.Workspace)
 		}
 	})
 
 	t.Run("Should map override flags to one server-side duplicate request", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			duplicateAgentFn: func(_ context.Context, source string, request contract.DuplicateAgentRequest) (AgentRecord, error) {
 				if source != "coder" {
 					t.Fatalf("DuplicateAgent() source = %q", source)
@@ -601,7 +614,7 @@ func TestAgentDuplicateCommand(t *testing.T) {
 	t.Run("Should render an existing target conflict deterministically", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			duplicateAgentFn: func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error) {
 				return AgentRecord{}, &daemonAPIError{
 					statusCode: http.StatusConflict,
@@ -624,7 +637,7 @@ func TestAgentWorkspaceFlagRejectsEmptyExplicitValue(t *testing.T) {
 	t.Run("Should reject an explicitly blank workspace flag", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(t, deps, "agent", "list", "--workspace", " ")
 		if err == nil {
 			t.Fatal("agent list --workspace blank error = nil, want error")
@@ -641,7 +654,7 @@ func TestAgentDefinitionDaemonErrors(t *testing.T) {
 	t.Run("Should preserve a not-found API error and unavailable exit code", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 				return AgentRecord{}, &daemonAPIError{
 					statusCode: http.StatusNotFound,

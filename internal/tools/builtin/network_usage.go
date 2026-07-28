@@ -21,9 +21,8 @@ func networkUsageDescriptor() toolspkg.Descriptor {
 
 const networkUsageInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"owner_kind":{"type":"string","enum":["session","task_run","loop_run","automation_run"]},
 		"owner_id":{"type":"string"},
 		"run_id":{"type":"string"},

@@ -14,7 +14,7 @@ func TestHooksListCommandPassesFiltersAndRendersJSON(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery HookCatalogQuery
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		hookCatalogFn: func(_ context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
 			seenQuery = query
 			return []HookCatalogRecord{{
@@ -69,7 +69,7 @@ func TestHooksListCommandPassesFiltersAndRendersJSON(t *testing.T) {
 func TestHooksListCommandRendersHumanAndToon(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		hookCatalogFn: func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error) {
 			return []HookCatalogRecord{{
 				Order:       1,
@@ -105,7 +105,7 @@ func TestHooksInfoCommandReturnsAllMatchesAcrossFormats(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery HookCatalogQuery
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		hookCatalogFn: func(_ context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
 			seenQuery = query
 			return []HookCatalogRecord{
@@ -234,7 +234,7 @@ func TestHooksEventsCommandPassesFiltersAndRendersFormats(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery HookEventsQuery
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		hookEventsFn: func(_ context.Context, query HookEventsQuery) ([]HookEventRecord, error) {
 			seenQuery = query
 			return []HookEventRecord{{
@@ -283,7 +283,7 @@ func TestHooksEventsCommandPassesFiltersAndRendersFormats(t *testing.T) {
 func TestHooksRunsCommandRequiresSession(t *testing.T) {
 	t.Parallel()
 
-	code, _, stderr := executeRootCommandWithExit(t, newTestDeps(t, &stubClient{}), "hooks", "runs")
+	code, _, stderr := executeRootCommandWithExit(t, newWorkspaceTestDeps(t, &stubClient{}), "hooks", "runs")
 	if code != 1 {
 		t.Fatalf("executeRootCommandWithExit() code = %d, want 1", code)
 	}
@@ -297,7 +297,7 @@ func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 
 	var seenQuery HookRunsQuery
 	var seenWorkspace string
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		hookRunsFn: func(_ context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error) {
 			seenWorkspace = workspaceRef
 			seenQuery = query

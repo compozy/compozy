@@ -29,7 +29,8 @@ func runAutomationJobsCreate(
 		return err
 	}
 	scope, workspaceID, err := resolveAutomationScopeWorkspace(
-		cmd.Context(),
+		cmd,
+		deps,
 		client,
 		input.ScopeRaw,
 		input.WorkspaceRef,

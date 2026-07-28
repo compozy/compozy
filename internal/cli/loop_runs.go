@@ -61,13 +61,12 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopOutputBundle(response, message))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&loopName, loopLoopKey, "", "Filter by Loop name")
 	cmd.Flags().StringVar(&status, loopStatusKey, "", "Filter by Loop run status")
 	cmd.Flags().StringVar(&origin, "origin", "", "Filter by run origin: catalog or session")
 	cmd.Flags().StringVar(&originSession, "origin-session", "", "Filter by origin session ID")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum runs to return")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	return cmd
 }
 
@@ -99,13 +98,12 @@ func newLoopTurnsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopTurnsOutputBundle(page))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&runID, "run", "", "Loop run ID")
 	cmd.Flags().StringVar(&nodeID, "node", "", "Filter by Goal node ID")
 	cmd.Flags().IntVar(&itemIndex, "item", 0, "Filter by nonnegative item index")
 	cmd.Flags().Int64Var(&afterSeq, "after-seq", 0, "Resume after this run-wide Goal sequence")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 200; defaults to 50")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, "run")
 	return cmd
 }
@@ -221,8 +219,7 @@ func newLoopApproveCommand(deps commandDeps) *cobra.Command {
 }
 
 func addLoopRunIDFlags(cmd *cobra.Command, workspaceRef *string, runID *string) {
-	cmd.Flags().StringVar(workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(runID, loopRunIDKey, "", "Loop run ID")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopRunIDKey)
 }

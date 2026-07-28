@@ -370,24 +370,17 @@ func resolveWorkspaceRef(
 		return "", errors.New("daemon: dream workspace is required")
 	}
 
-	var (
-		resolved workspacepkg.ResolvedWorkspace
-		err      error
-	)
+	target := trimmedRef
 	if isPathLikeWorkspaceRef(trimmedRef) {
 		normalizedPath, normalizeErr := compozyconfig.ResolvePath(trimmedRef)
 		if normalizeErr != nil {
 			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, normalizeErr)
 		}
-		resolved, err = resolver.ResolveOrRegister(ctx, normalizedPath)
-		if err != nil {
-			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, err)
-		}
-	} else {
-		resolved, err = resolver.Resolve(ctx, trimmedRef)
-		if err != nil {
-			return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, err)
-		}
+		target = normalizedPath
+	}
+	resolved, err := resolver.Resolve(ctx, target)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve dream workspace %q: %w", workspaceRef, err)
 	}
 
 	if strings.TrimSpace(resolved.ID) == "" {

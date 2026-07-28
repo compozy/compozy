@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SecretRefResolver resolves env: and vault: refs for extension launch bindings.
@@ -44,6 +45,14 @@ func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 func WithSourceSessionManager(manager resources.SourceSessionManager) Option {
 	return func(mgr *Manager) {
 		mgr.sourceSessions = manager
+	}
+}
+
+// WithWorkspaceResolver binds workspace-scoped extension sessions to the registered
+// workspace that owns their manifest path.
+func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
+	return func(manager *Manager) {
+		manager.workspaceResolver = resolver
 	}
 }
 

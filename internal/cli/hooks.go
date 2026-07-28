@@ -56,8 +56,19 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			hooks, err := client.HookCatalog(cmd.Context(), query)
+			workspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				query.Workspace,
+			)
+			if err != nil {
+				return err
+			}
+			resolvedQuery := query
+			resolvedQuery.Workspace = workspaceID
+			hooks, err := client.HookCatalog(cmd.Context(), resolvedQuery)
 			if err != nil {
 				return err
 			}
@@ -65,7 +76,8 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&query.Workspace, "workspace", "", "Filter by workspace name or ID")
+	cmd.Flags().
+		StringVar(&query.Workspace, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&query.Agent, "agent", "", "Filter by agent name")
 	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
 	cmd.Flags().StringVar(&query.Source, automationSourceKey, "", "Filter by hook source")
@@ -85,8 +97,17 @@ func newHooksInfoCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			hooks, err := client.HookCatalog(cmd.Context(), HookCatalogQuery{Workspace: workspace})
+			workspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspace,
+			)
+			if err != nil {
+				return err
+			}
+			hooks, err := client.HookCatalog(cmd.Context(), HookCatalogQuery{Workspace: workspaceID})
 			if err != nil {
 				return err
 			}
@@ -106,7 +127,8 @@ func newHooksInfoCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Resolve hooks in one workspace context")
+	cmd.Flags().
+		StringVar(&workspace, "workspace", "", "Override workspace context (ID, name, or path)")
 	return cmd
 }
 
@@ -162,7 +184,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 				query.Since = since.UTC().Format(time.RFC3339Nano)
 			}
 
-			workspace, err := resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, workspaceRef)
+			workspace, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -180,7 +202,8 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace name, ID, or path")
+	cmd.Flags().
+		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
 }
 

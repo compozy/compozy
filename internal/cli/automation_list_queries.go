@@ -1,15 +1,16 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/spf13/cobra"
 )
 
 func parseAutomationJobListQuery(
-	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
 	client DaemonClient,
 	scopeRaw string,
 	workspaceRef string,
@@ -32,12 +33,16 @@ func parseAutomationJobListQuery(
 	}
 	query.Scope = scope
 
-	if trimmed := strings.TrimSpace(workspaceRef); trimmed != "" {
-		workspaceID, err := resolveAutomationWorkspaceID(ctx, client, trimmed)
-		if err != nil {
-			return AutomationJobQuery{}, err
-		}
-		query.WorkspaceID = workspaceID
+	if resolution, ok, err := resolveWorkspaceOverrideOnly(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceRef,
+	); err != nil {
+		return AutomationJobQuery{}, err
+	} else if ok {
+		query.WorkspaceID = resolution.ID
 	}
 
 	source, err := parseOptionalAutomationSource(sourceRaw)
@@ -56,7 +61,8 @@ func parseAutomationJobListQuery(
 }
 
 func parseAutomationTriggerListQuery(
-	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
 	client DaemonClient,
 	scopeRaw string,
 	workspaceRef string,
@@ -82,12 +88,16 @@ func parseAutomationTriggerListQuery(
 	}
 	query.Scope = scope
 
-	if trimmed := strings.TrimSpace(workspaceRef); trimmed != "" {
-		workspaceID, err := resolveAutomationWorkspaceID(ctx, client, trimmed)
-		if err != nil {
-			return AutomationTriggerQuery{}, err
-		}
-		query.WorkspaceID = workspaceID
+	if resolution, ok, err := resolveWorkspaceOverrideOnly(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceRef,
+	); err != nil {
+		return AutomationTriggerQuery{}, err
+	} else if ok {
+		query.WorkspaceID = resolution.ID
 	}
 
 	source, err := parseOptionalAutomationSource(sourceRaw)

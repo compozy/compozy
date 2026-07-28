@@ -43,7 +43,7 @@ func newMCPServeCommand(deps commandDeps) *cobra.Command {
 			return deps.runMCPServe(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.Workspace, "workspace", "", "Workspace ID, name, or path to bind")
+	cmd.Flags().StringVar(&opts.Workspace, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&opts.Transport, "transport", mcpServeTransportStdio, "MCP transport: stdio or http")
 	cmd.Flags().StringVar(&opts.Listen, "listen", "", "Loopback host:port for HTTP transport")
 	cmd.Flags().StringVar(
@@ -52,7 +52,6 @@ func newMCPServeCommand(deps commandDeps) *cobra.Command {
 		mcpServeTokenEnv,
 		"Environment variable containing the HTTP bearer token",
 	)
-	mustMarkFlagRequired(cmd, "workspace")
 	return cmd
 }
 
@@ -79,6 +78,17 @@ func runMCPServe(ctx context.Context, deps commandDeps, opts mcpServeOptions) er
 	if !ok {
 		return errors.New("cli: daemon client does not support MCP Host API relay")
 	}
+	resolution, err := resolveCommandWorkspace(
+		ctx,
+		nil,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: opts.Workspace},
+	)
+	if err != nil {
+		return err
+	}
+	opts.Workspace = resolution.ID
 
 	if transport == mcpServeTransportStdio {
 		return mcppkg.ServeStdio(

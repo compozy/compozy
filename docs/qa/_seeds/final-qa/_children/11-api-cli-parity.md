@@ -992,7 +992,7 @@ cleanup: `compozy session stop $S`; kill any leftover background CLI processes.
   - `/Users/pedronauck/Dev/compozy/compozy/internal/api/udsapi/prompt.go:22-74`.
   - `/Users/pedronauck/Dev/compozy/compozy/internal/api/udsapi/sessions.go:20-…`.
 - Identity:
-  - `/Users/pedronauck/Dev/compozy/compozy/internal/agentidentity/identity.go:18-247` (env vars `COMPOZY_SESSION_ID`/`COMPOZY_AGENT`; UDS headers `X-Compozy-Session-ID`/`X-Compozy-Agent`/`X-Compozy-Workspace-ID`; exit codes 64/65/77/69).
+  - `/Users/pedronauck/Dev/compozy/compozy/internal/agentidentity/identity.go` (env vars `COMPOZY_SESSION_ID`/`COMPOZY_AGENT`; UDS headers `X-Compozy-Session-ID`/`X-Compozy-Agent`; workspace identity comes from the validated session).
 - CLI:
   - `/Users/pedronauck/Dev/compozy/compozy/internal/cli/root.go:21-303` (root construction, format flags, deps wiring).
   - `/Users/pedronauck/Dev/compozy/compozy/internal/cli/format.go:20-27` (output formats).

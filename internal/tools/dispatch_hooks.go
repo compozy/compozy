@@ -39,9 +39,6 @@ func (r *RuntimeRegistry) runPreCallHook(
 			reasons...,
 		)
 	}
-	if err := validateCallInput(target.descriptor, normalizeCallInput(patched.Input)); err != nil {
-		return req, err
-	}
 	if err := validateHookCallRequestIdentity(req, patched); err != nil {
 		return req, err
 	}

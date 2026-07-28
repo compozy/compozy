@@ -300,20 +300,6 @@ func Boundaries() error {
 		violations++
 	}
 
-	sourceSizeViolations, err := inspectProductionSourceLineLimit(".")
-	if err != nil {
-		return fmt.Errorf("inspect production source line limit: %w", err)
-	}
-	for _, violation := range sourceSizeViolations {
-		fmt.Printf(
-			"VIOLATION: production source exceeds %d lines: %s (%d lines)\n",
-			maxProductionSourceLines,
-			violation.path,
-			violation.lines,
-		)
-		violations++
-	}
-
 	if violations > 0 {
 		return fmt.Errorf("found %d boundary violations", violations)
 	}

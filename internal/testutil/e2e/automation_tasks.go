@@ -188,7 +188,6 @@ func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set(agentidentity.HeaderSessionID, strings.TrimSpace(session.ID))
 	request.Header.Set(agentidentity.HeaderAgent, strings.TrimSpace(session.AgentName))
-	request.Header.Set(agentidentity.HeaderWorkspaceID, strings.TrimSpace(session.WorkspaceID))
 
 	response, err := h.UDSClient.Do(request)
 	if err != nil {
@@ -250,9 +249,8 @@ func (h *RuntimeHarness) CompleteClaimedTaskRunForSession(
 		http.MethodPost,
 		request,
 		map[string]string{
-			agentidentity.HeaderSessionID:   session.ID,
-			agentidentity.HeaderAgent:       session.AgentName,
-			agentidentity.HeaderWorkspaceID: session.WorkspaceID,
+			agentidentity.HeaderSessionID: session.ID,
+			agentidentity.HeaderAgent:     session.AgentName,
 		},
 	)
 	if err != nil {

@@ -85,7 +85,7 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := agentQueryFromCommand(cmd)
+			query, err := agentQueryFromCommand(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -96,7 +96,7 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentListBundle(agents))
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve agents from a workspace id, name, or path")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	return cmd
 }
 
@@ -119,7 +119,7 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := agentQueryFromCommand(cmd)
+			query, err := agentQueryFromCommand(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -130,16 +130,33 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentBundle(agent))
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve the agent from a workspace id, name, or path")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	return cmd
 }
 
-func agentQueryFromCommand(cmd *cobra.Command) (AgentQuery, error) {
+func agentQueryFromCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+) (AgentQuery, error) {
 	workspace, err := commandWorkspaceFlag(cmd)
 	if err != nil {
 		return AgentQuery{}, err
 	}
-	return AgentQuery{Workspace: workspace}, nil
+	resolution, resolved, err := resolveContextualCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspace,
+	)
+	if err != nil {
+		return AgentQuery{}, err
+	}
+	if !resolved {
+		return AgentQuery{}, nil
+	}
+	return AgentQuery{Workspace: resolution.ID}, nil
 }
 
 func agentListBundle(items []AgentRecord) outputBundle {

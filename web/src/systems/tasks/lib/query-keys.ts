@@ -1,4 +1,5 @@
 import type {
+  AgentContextIdentity,
   TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
   TaskInboxFilter,
@@ -139,8 +140,9 @@ export const tasksKeys = {
   reviewDetail: (reviewId: string) => [...tasksKeys.reviewsRoot(), "detail", reviewId] as const,
 
   // Agent task context bundle (extracted from /api/agent/context)
-  agentContext: () => [...tasksKeys.all, "agent-context"] as const,
-  contextBundle: () => [...tasksKeys.all, "context-bundle"] as const,
+  agentContextsRoot: () => [...tasksKeys.all, "agent-context"] as const,
+  agentContext: (identity: AgentContextIdentity) =>
+    [...tasksKeys.agentContextsRoot(), identity.sessionId, identity.agentName] as const,
 
   // SSE stream metadata (resume seed reflects after_sequence + last-event-id intent)
   streamsRoot: () => [...tasksKeys.all, "stream"] as const,

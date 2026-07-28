@@ -5,7 +5,7 @@ title: Operate one Compozy workspace from an external MCP client
 persona: Ada
 journey: J-operate-compozy-from-mcp-client
 expected: A trusted MCP client lists sessions and creates a task through a workspace-bound stdio relay, the effects match the native HTTP API, workspace B data stays unreachable, and loopback HTTP rejects missing or incorrect bearer tokens.
-entry_points: compozy mcp serve --workspace; MCP stdio client; MCP streamable HTTP client; native HTTP API
+entry_points: compozy mcp serve; compozy mcp serve --workspace; MCP stdio client; MCP streamable HTTP client; native HTTP API
 qa_status: untested
 bug_ids:
 fix_status:
@@ -26,10 +26,18 @@ token and with an incorrect token, then connect with the exact token sourced fro
 environment variable. Confirm non-loopback startup is rejected and stopping the foreground process
 leaves no relay listener or registered façade principal.
 
+Launch once from inside workspace A without `--workspace` and confirm cwd inference binds A. Launch
+again with an explicit workspace B override and confirm the façade rewrites every Host API request
+to B and rejects conflicting caller input.
+
 QA impact 2026-07-18: new workspace-bound MCP façade and public `compozy mcp serve` CLI behavior.
 Planning flag only; no QA session ran in this implementation slice.
 
 Phase C planning 2026-07-19: linked to J-operate-compozy-from-mcp-client; settles US-010 (ADR-008).
+
+QA impact 2026-07-28: MCP serve now uses the shared CLI resolution chain, and its projection consumes
+the extension Host API workspace-binding authority. The scenario was already untested; no QA replay
+ran in this implementation slice.
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 

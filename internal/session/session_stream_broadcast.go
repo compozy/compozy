@@ -250,9 +250,21 @@ func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, ev
 		sessionIDFieldKey: target,
 		"sequence":        sequence,
 	}
-	if info, err := m.Status(ctx, target); err == nil && info != nil {
-		payload[workspaceIDFieldKey] = info.WorkspaceID
+	info, err := m.Status(ctx, target)
+	if err != nil || info == nil {
+		if m.logger != nil {
+			m.logger.ErrorContext(
+				ctx,
+				"session: stream diagnostic requires session identity",
+				"session_id",
+				target,
+				"error",
+				err,
+			)
+		}
+		return
 	}
+	payload[workspaceIDFieldKey] = info.WorkspaceID
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		if m.logger != nil {
@@ -263,7 +275,7 @@ func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, ev
 	if m.notifier == nil {
 		return
 	}
-	m.notifier.OnAgentEvent(ctx, target, acp.AgentEvent{
+	m.notifyAgentEventFromInfo(ctx, info, acp.AgentEvent{
 		Type: eventType,
 		Raw:  raw,
 	})

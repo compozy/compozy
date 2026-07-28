@@ -58,7 +58,7 @@ func (s stubUpdateManager) Finalize(applied compozyupdate.AppliedBinary) error {
 func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	deps.getenv = func(key string) string {
 		if key == compozyupdate.ManagedEnvName {
 			return "homebrew"
@@ -143,7 +143,7 @@ func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
 func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -214,7 +214,7 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
 		return stubUpdateManager{
 			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
@@ -249,7 +249,7 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		triggerSettingsRestartFn: func(context.Context) (SettingsRestartActionRecord, error) {
 			return SettingsRestartActionRecord{OperationID: "op-123", Status: "pending"}, nil
 		},
@@ -303,7 +303,7 @@ func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -339,7 +339,7 @@ func TestConfigEditUsesEditorAndValidatesResult(t *testing.T) {
 func TestUninstallContinuesWhenRunningDaemonAlreadyExited(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	homePaths, err := deps.resolveHome()
 	if err != nil {
 		t.Fatalf("resolveHome() error = %v", err)
@@ -375,7 +375,7 @@ func TestUninstallIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{})
+			deps := newWorkspaceTestDeps(t, &stubClient{})
 			homePaths, err := deps.resolveHome()
 			if err != nil {
 				t.Fatalf("resolveHome() error = %v", err)

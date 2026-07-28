@@ -144,7 +144,13 @@ func (f *HostAPIFacade) InvokeHostAPI(
 		return nil, errors.New("mcp: resolved workspace identity is incomplete")
 	}
 
-	boundParams, err := bindHostAPIParams(params, decision.Binding, workspaceID, workspaceRoot)
+	binding, ok := extensionpkg.HostAPIWorkspaceBindingFor(
+		extensionprotocol.HostAPIMethod(strings.TrimSpace(method)),
+	)
+	if !ok || binding == workspaceBindingNone {
+		return nil, fmt.Errorf("mcp: host api method %q has no workspace binding", method)
+	}
+	boundParams, err := bindHostAPIParams(ctx, params, binding, workspaceID, workspaceRoot, f.workspaces)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: bind %q to workspace: %w", method, err)
 	}

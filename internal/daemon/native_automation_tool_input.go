@@ -9,22 +9,25 @@ import (
 )
 
 type automationJobIDInput struct {
-	JobID string `json:"job_id"`
+	JobID       string `json:"job_id"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type automationTriggerIDInput struct {
-	TriggerID string `json:"trigger_id"`
+	TriggerID   string `json:"trigger_id"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type automationRunIDInput struct {
-	RunID string `json:"run_id"`
+	RunID       string `json:"run_id"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type automationJobCreateInput struct {
 	Scope       automationpkg.Scope            `json:"scope"`
 	Name        string                         `json:"name"`
 	AgentName   string                         `json:"agent_name"`
-	WorkspaceID string                         `json:"workspace_id,omitempty"`
+	WorkspaceID string                         `json:"workspace,omitempty"`
 	Prompt      string                         `json:"prompt"`
 	Schedule    automationpkg.ScheduleSpec     `json:"schedule"`
 	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
@@ -49,14 +52,15 @@ func (i automationJobCreateInput) request() contract.CreateJobRequest {
 }
 
 type automationJobUpdateInput struct {
-	JobID     string                         `json:"job_id"`
-	Name      *string                        `json:"name,omitempty"`
-	Prompt    *string                        `json:"prompt,omitempty"`
-	Schedule  *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
-	Task      *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	Enabled   *bool                          `json:"enabled,omitempty"`
-	Retry     *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	JobID       string                         `json:"job_id"`
+	WorkspaceID string                         `json:"workspace,omitempty"`
+	Name        *string                        `json:"name,omitempty"`
+	Prompt      *string                        `json:"prompt,omitempty"`
+	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
+	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
+	Enabled     *bool                          `json:"enabled,omitempty"`
+	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 }
 
 func (i automationJobUpdateInput) request() contract.UpdateJobRequest {
@@ -75,7 +79,7 @@ type automationTriggerCreateInput struct {
 	Scope              automationpkg.Scope            `json:"scope"`
 	Name               string                         `json:"name"`
 	AgentName          string                         `json:"agent_name"`
-	WorkspaceID        string                         `json:"workspace_id,omitempty"`
+	WorkspaceID        string                         `json:"workspace,omitempty"`
 	Prompt             string                         `json:"prompt"`
 	Event              string                         `json:"event"`
 	Filter             map[string]string              `json:"filter,omitempty"`
@@ -115,6 +119,7 @@ func (i automationTriggerCreateInput) webhookSecretWrite() automationpkg.Webhook
 
 type automationTriggerUpdateInput struct {
 	TriggerID          string                         `json:"trigger_id"`
+	WorkspaceID        string                         `json:"workspace,omitempty"`
 	Name               *string                        `json:"name,omitempty"`
 	Prompt             *string                        `json:"prompt,omitempty"`
 	Event              *string                        `json:"event,omitempty"`

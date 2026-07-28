@@ -93,7 +93,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 
 	cmd.AddCommand(newNetworkStatusCommand(deps))
 	cmd.PersistentFlags().
-		StringVar(&workspaceRef, "workspace", "", "Workspace root, name, or ID for scoped network data")
+		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.AddCommand(newNetworkPeersCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkChannelsCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkThreadsCommand(deps, &workspaceRef))
@@ -129,7 +129,7 @@ func resolveNetworkWorkspaceRef(
 	if workspaceRef != nil {
 		raw = strings.TrimSpace(*workspaceRef)
 	}
-	return resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, raw)
+	return resolveCLIWorkspaceRouteRef(cmd, deps, client, raw)
 }
 
 func newNetworkStatusCommand(deps commandDeps) *cobra.Command {

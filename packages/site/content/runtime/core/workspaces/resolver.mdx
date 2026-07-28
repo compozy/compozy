@@ -101,16 +101,37 @@ of by the workspace resolver.
 
 ## Resolution Inputs
 
-Compozy resolves workspaces from three kinds of input:
+Compozy resolves a workspace reference from three forms:
 
-| Input          | Example                       | Lookup                                                         |
-| -------------- | ----------------------------- | -------------------------------------------------------------- |
-| Workspace ID   | `ws_8f33a913d23c4fd1`         | Primary key lookup.                                            |
-| Workspace name | `checkout-api`                | Unique name lookup.                                            |
-| Absolute path  | `/Users/you/src/checkout-api` | Canonical path lookup after `filepath.Abs` and `EvalSymlinks`. |
+| Input          | Example                                | Lookup                                                             |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------ |
+| Workspace ID   | `ws_8f33a913d23c4fd1`                  | Primary key lookup.                                                |
+| Workspace name | `checkout-api`                         | Unique name lookup.                                                |
+| Absolute path  | `/Users/you/src/checkout-api/internal` | Canonical path discovery of the nearest enclosing registered root. |
 
 Relative paths are not accepted by API workspace create/resolve requests or by `compozy session new
 --cwd`. The resolver itself also requires the path to exist and to be a directory.
+
+### CLI context chain
+
+Every workspace-scoped CLI command uses one precedence chain:
+
+1. A positional workspace ref, when the command accepts one.
+2. `--workspace <id|name|path>`.
+3. `COMPOZY_WORKSPACE`.
+4. A validated `COMPOZY_SESSION_ID` plus `COMPOZY_AGENT` identity.
+5. Current-working-directory discovery.
+
+`--workspace` is an override, not a prerequisite. Structured JSON, JSONL, and TOON output includes
+`resolution_source` so an agent can see which tier won. Partial, stale, global, or workspace-less
+session credentials fall through to cwd discovery. If no tier resolves, the command returns one
+deterministic error that names the attempted tiers and tells you to register the directory or pass
+an override.
+
+Cwd and path discovery choose the nearest registered root that contains the path. A nested
+registered workspace therefore wins over its parent. Canonical path comparison prevents sibling
+prefix matches and preserves symlink resolution. Additional directories extend agent and skill
+discovery only; they do not establish workspace ownership for cwd discovery.
 
 ## Register A Workspace
 
@@ -142,14 +163,17 @@ Compozy can also register a workspace on demand:
 compozy session new --cwd /Users/you/src/checkout-api --agent reviewer
 ```
 
-When `--cwd` points to a path that is not registered yet, `ResolveOrRegister` canonicalizes the
-path, creates a registration, and resolves the new workspace before starting the session.
+When `--cwd` points to a path outside every registered workspace, `ResolveOrRegister` canonicalizes
+the path, creates a registration, and resolves the new workspace before starting the session. A path
+inside a registered workspace resolves the nearest enclosing root and never creates a nested
+registration.
 
-The CLI default is also path-based. If you run `compozy session new` without `--workspace` or `--cwd`,
-the CLI sends its current working directory as `workspace_path`, so that directory is resolved or
-registered automatically.
+If you run `compozy session new` without `--workspace` or `--cwd`, the CLI applies the shared context
+chain. Cwd is the final tier; an unregistered project directory is auto-registered, while any
+subdirectory of a registered project binds to its nearest enclosing workspace.
 
-Use `--workspace` when you want to target an existing registration by name or ID:
+Use `--workspace` when you want to override the inferred workspace with an existing registration by
+ID, name, or path:
 
 ```bash
 compozy session new --workspace checkout-api --agent reviewer
@@ -247,7 +271,7 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 
 | Case                             | Result                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Unknown ID, name, or path        | `workspace not found`; HTTP status `404`.                                                                                |
+| Unknown ID, name, or path        | `workspace not found`; HTTP status `404`. CLI inference errors also name every attempted tier and the registration fix.  |
 | Registered root no longer exists | `workspace root directory no longer exists`; HTTP status `410`.                                                          |
 | Root exists but is a file        | Validation error; HTTP status `500` through resolver paths or `400` for API path validation failures.                    |
 | Duplicate name                   | `workspace name already in use`; HTTP status `409`.                                                                      |

@@ -1,20 +1,26 @@
 package cli
 
 import (
+	"fmt"
 	"sort"
 
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/spf13/cobra"
 )
 
-func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (compozyconfig.Config, string, error) {
-	workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
+func loadConfigForDisplay(
+	cmd *cobra.Command,
+	deps commandDeps,
+	workspaceRoot string,
+) (compozyconfig.Config, string, error) {
+	workspace, resolved, err := resolveContextualConfigWorkspaceRoot(cmd, deps, workspaceRoot)
 	if err != nil {
 		return compozyconfig.Config{}, "", err
 	}
 	homeWorkspace := workspace
-	if homeWorkspace == "" {
+	if !resolved {
 		homeWorkspace, err = currentWorkingDirectory(deps)
 		if err != nil {
 			return compozyconfig.Config{}, "", err
@@ -25,7 +31,7 @@ func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (compozyconfig
 		return compozyconfig.Config{}, "", err
 	}
 	loadOptions := []compozyconfig.LoadOption{}
-	if workspace != "" {
+	if resolved {
 		loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
 	}
 	cfg, err := compozyconfig.LoadForHome(homePaths, loadOptions...)
@@ -36,6 +42,7 @@ func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (compozyconfig
 }
 
 func configWriteTarget(
+	cmd *cobra.Command,
 	deps commandDeps,
 	scopeRaw string,
 	workspaceRoot string,
@@ -44,14 +51,21 @@ func configWriteTarget(
 	if err != nil {
 		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 	}
-	workspace := ""
+	var workspace string
 	if scope == compozyconfig.WriteScopeWorkspace {
-		workspace, err = resolveConfigWorkspaceRoot(deps, workspaceRoot)
+		workspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
 		if err != nil {
 			return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 		}
 	} else {
-		workspace, err = currentWorkingDirectory(deps)
+		var resolved bool
+		workspace, resolved, err = resolveContextualConfigWorkspaceRoot(cmd, deps, workspaceRoot)
+		if err != nil {
+			return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
+		}
+		if !resolved {
+			workspace, err = currentWorkingDirectory(deps)
+		}
 		if err != nil {
 			return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 		}
@@ -82,18 +96,33 @@ func parseWriteScope(raw string) (compozyconfig.WriteScope, error) {
 	return scope, nil
 }
 
-func resolveConfigWorkspaceRoot(deps commandDeps, raw string) (string, error) {
-	if strings.TrimSpace(raw) != "" {
-		return compozyconfig.ResolvePath(raw)
-	}
-	return currentWorkingDirectory(deps)
+func resolveConfigWorkspaceRoot(cmd *cobra.Command, deps commandDeps, raw string) (string, error) {
+	return resolveCommandWorkspaceRoot(cmd, deps, raw)
 }
 
-func resolveOptionalConfigWorkspaceRoot(raw string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return "", nil
+func resolveContextualConfigWorkspaceRoot(
+	cmd *cobra.Command,
+	deps commandDeps,
+	raw string,
+) (string, bool, error) {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return "", false, err
 	}
-	return compozyconfig.ResolvePath(raw)
+	resolution, ok, err := resolveContextualCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		raw,
+	)
+	if err != nil || !ok {
+		return "", ok, err
+	}
+	if resolution.Root == "" {
+		return "", false, fmt.Errorf("cli: resolved workspace %q has no root directory", resolution.ID)
+	}
+	return resolution.Root, true, nil
 }
 
 func scopeForWorkspace(workspaceRoot string) string {

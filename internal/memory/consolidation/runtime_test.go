@@ -407,8 +407,8 @@ func testNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	workspace := filepath.Join(t.TempDir(), "workspace")
 	resolver := &fakeWorkspaceResolver{
-		resolveOrRegisterResolved: workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-created", RootDir: workspace},
+		resolveResolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-registered", RootDir: workspace},
 		},
 	}
 
@@ -439,8 +439,8 @@ func testNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	if got := sessions.createCall(0).AgentName; got != "memory-agent" {
 		t.Fatalf("Create() agent = %q, want explicit configured memory-agent", got)
 	}
-	if got := sessions.createCall(0).Workspace; got != "ws-created" {
-		t.Fatalf("Create() workspace = %q, want ws-created", got)
+	if got := sessions.createCall(0).Workspace; got != "ws-registered" {
+		t.Fatalf("Create() workspace = %q, want ws-registered", got)
 	}
 	if got := sessions.createCall(0).WorkspacePath; got != "" {
 		t.Fatalf("Create() workspace_path = %q, want empty", got)
@@ -450,9 +450,6 @@ func testNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 	}
 	if got := sessions.stopCount(); got != 1 || sessions.stopCall(0) != "dream-1" {
 		t.Fatalf("Stop() calls = %d, want stop for created dream session", got)
-	}
-	if got := resolver.resolveOrRegisterCalls; got != 1 {
-		t.Fatalf("ResolveOrRegister() calls = %d, want 1", got)
 	}
 }
 

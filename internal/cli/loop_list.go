@@ -28,7 +28,7 @@ func newLoopListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopListBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&query.Search, "query", "", "Search Loop name or contract goal")
 	cmd.Flags().StringVar(&query.Kind, "kind", "", "Filter by kind: read_only or workspace")
 	cmd.Flags().StringVar(&query.Category, "category", "", "Filter by exact catalog category")
@@ -36,7 +36,6 @@ func newLoopListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Sort, "sort", looppkg.CatalogSortName, "Stable ordering: name")
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from an opaque Loop catalog cursor")
 	cmd.Flags().IntVar(&query.Limit, "limit", 0, "Maximum Loops to return (default 50, max 200)")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	return cmd
 }
 

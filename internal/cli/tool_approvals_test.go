@@ -34,7 +34,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"set",
@@ -65,7 +65,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 
 		_, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, &stubClient{}),
+			newWorkspaceTestDeps(t, &stubClient{}),
 			"tool",
 			"approvals",
 			"set",
@@ -101,7 +101,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"list",
@@ -133,7 +133,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"revoke",
@@ -156,12 +156,41 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require an explicit workspace", func(t *testing.T) {
+	t.Run("Should infer the workspace from cwd", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "tool", "approvals", "list")
-		if err == nil {
-			t.Fatal("tool approvals list without workspace error = nil")
+		var listedWorkspaceID string
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project" {
+					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-cwd", RootDir: ref},
+				}, nil
+			},
+			listToolApprovalGrantsFn: func(
+				_ context.Context,
+				workspaceID string,
+			) (ToolApprovalGrantListRecord, error) {
+				listedWorkspaceID = workspaceID
+				return ToolApprovalGrantListRecord{}, nil
+			},
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"tool",
+			"approvals",
+			"list",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("tool approvals list error = %v", err)
+		}
+		if listedWorkspaceID != "ws-cwd" {
+			t.Fatalf("ListToolApprovalGrants() workspace = %q, want ws-cwd", listedWorkspaceID)
 		}
 	})
 }

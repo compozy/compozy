@@ -61,7 +61,7 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 
 		stdout, stderr, err := executeMCPAuthCommandWithInput(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"one-time-code\n",
 			"mcp", "authorize", "linear", "--manual", "-o", "json",
 		)
@@ -117,7 +117,7 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 
 		_, _, err := executeMCPAuthCommandWithInput(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"code\n",
 			"mcp", "auth", "login", "linear", "--manual",
 		)
@@ -144,7 +144,7 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"mcp", "auth", "status", "filesystem", "-o", "json",
 		)
 		if err != nil {
@@ -156,7 +156,7 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 
 		_, _, err = executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"mcp", "authorize", "filesystem",
 		)
 		if err == nil || !strings.Contains(err.Error(), "does not configure OAuth") {
@@ -206,7 +206,7 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 
 		input := newDelayedMCPAuthReader(200 * time.Millisecond)
 		client := newClient(nil)
-		cmd := newRootCommand(newTestDeps(t, client))
+		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
 		cmd.SetArgs([]string{"mcp", "authorize", "linear", "--manual", "--timeout", "20ms"})
 		err := cmd.ExecuteContext(t.Context())
@@ -228,7 +228,7 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 		})
 		_, _, err := executeMCPAuthCommandWithInput(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"one-time-code\n",
 			"mcp", "authorize", "linear", "--manual", "--timeout", "20ms",
 		)
@@ -376,7 +376,7 @@ func TestMCPAuthorizeWaitsForAChangedConfirmedCredential(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"mcp", "authorize", "linear", "--timeout", "2s", "-o", "json",
 		)
 		if err != nil {
@@ -426,7 +426,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			status.TokenPresent = false
 			return status, nil
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(
 			t,

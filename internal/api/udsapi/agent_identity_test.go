@@ -63,16 +63,6 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "Should reject workspace mismatches",
-			headers: map[string]string{
-				agentidentity.HeaderSessionID:   "sess-1",
-				agentidentity.HeaderAgent:       "coder",
-				agentidentity.HeaderWorkspaceID: "ws-2",
-			},
-			statusInfo: active,
-			wantStatus: http.StatusForbidden,
-		},
-		{
 			name: "Should preserve lookup unavailable status",
 			headers: map[string]string{
 				agentidentity.HeaderSessionID: "sess-1",
@@ -145,9 +135,8 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
 		recorder := performAgentMeRequest(t, engine, map[string]string{
-			agentidentity.HeaderSessionID:   "sess-1",
-			agentidentity.HeaderAgent:       "coder",
-			agentidentity.HeaderWorkspaceID: "ws-1",
+			agentidentity.HeaderSessionID: "sess-1",
+			agentidentity.HeaderAgent:     "coder",
 		})
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())

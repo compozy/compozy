@@ -46,7 +46,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, workspacePath, err := resolveSessionCreateWorkspace(deps, workspaceRef, cwd)
+			workspace, workspacePath, err := resolveSessionCreateWorkspace(cmd, deps, client, workspaceRef, cwd)
 			if err != nil {
 				return err
 			}
@@ -80,7 +80,8 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
-	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Registered workspace name or ID")
+	cmd.Flags().
+		StringVar(&workspaceRef, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
 	bindNamedNetworkParticipationFlags(cmd, &networkFlags)

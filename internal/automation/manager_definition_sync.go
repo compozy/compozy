@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -281,19 +279,15 @@ func (m *Manager) resolveConfigWorkspace(
 		return "", errors.New("automation: workspace reference is required")
 	}
 
-	var (
-		resolved workspacepkg.ResolvedWorkspace
-		err      error
-	)
+	ref := trimmedRef
 	if isPathLikeWorkspaceRef(trimmedRef) {
-		normalizedPath, normalizeErr := compozyconfig.ResolvePath(trimmedRef)
-		if normalizeErr != nil {
-			return "", fmt.Errorf("automation: resolve config workspace %q: %w", trimmedRef, normalizeErr)
+		normalizedRef, err := compozyconfig.ResolvePath(trimmedRef)
+		if err != nil {
+			return "", fmt.Errorf("automation: resolve config workspace %q: %w", trimmedRef, err)
 		}
-		resolved, err = m.workspaceResolver.ResolveOrRegister(ctx, normalizedPath)
-	} else {
-		resolved, err = m.workspaceResolver.Resolve(ctx, trimmedRef)
+		ref = normalizedRef
 	}
+	resolved, err := m.workspaceResolver.Resolve(ctx, ref)
 	if err != nil {
 		return "", err
 	}
