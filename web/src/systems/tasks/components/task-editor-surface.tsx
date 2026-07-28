@@ -12,10 +12,10 @@ import {
 } from "@compozy/ui";
 
 import {
-  NetworkParticipationFields,
   isNetworkParticipationDraftValid,
   networkParticipationDraftFromValues,
-} from "@/systems/network";
+} from "@/lib/network-participation";
+import { NetworkParticipationFields } from "@/systems/network";
 import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import type { TaskEditorDraft } from "../lib/task-editor";

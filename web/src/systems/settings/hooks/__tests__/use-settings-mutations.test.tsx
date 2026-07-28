@@ -49,8 +49,8 @@ import {
   settingsMemoryConfigFixture,
 } from "../../mocks/fixtures";
 import { settingsRolesSectionFixture } from "../../mocks/roles-fixtures";
-import { initialSettingsRestartState } from "../../stores/settings-restart-store";
-import { useSettingsRestartStore } from "../../stores/use-settings-restart-store";
+import { settingsRestartStore } from "../../stores/settings-restart-store";
+import { resetSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
   useDeleteSettingsMCPServer,
   useDeleteSettingsProvider,
@@ -92,13 +92,7 @@ const generalMutation = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
 });
 
 afterEach(() => {
@@ -140,12 +134,16 @@ describe("useUpdateSettingsGeneral", () => {
       });
     });
 
-    expect(useSettingsRestartStore.getState().lastMutation?.restartRequired).toBe(true);
-    expect(useSettingsRestartStore.getState().lastMutation?.warnings).toEqual([
+    expect(settingsRestartStore.getSnapshot().context.lastMutation?.restartRequired).toBe(true);
+    expect(settingsRestartStore.getSnapshot().context.lastMutation?.warnings).toEqual([
       "restart the daemon",
     ]);
-    expect(useSettingsRestartStore.getState().lastMutation?.nextAction).toBe("restart-daemon");
-    expect(useSettingsRestartStore.getState().lastMutation?.applyRecordId).toBe("cfg_apply_001");
+    expect(settingsRestartStore.getSnapshot().context.lastMutation?.nextAction).toBe(
+      "restart-daemon"
+    );
+    expect(settingsRestartStore.getSnapshot().context.lastMutation?.applyRecordId).toBe(
+      "cfg_apply_001"
+    );
 
     const memoryInvalidations = invalidateSpy.mock.calls.filter(([arg]) =>
       JSON.stringify(arg?.queryKey).includes("memory")
@@ -251,7 +249,7 @@ describe("useReloadSettings", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.all });
     });
 
-    expect(useSettingsRestartStore.getState().lastMutation?.activeGeneration).toBe(42);
+    expect(settingsRestartStore.getSnapshot().context.lastMutation?.activeGeneration).toBe(42);
   });
 });
 
@@ -361,7 +359,7 @@ describe("mcp auth mutations", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.mcpRoot() });
     });
     // Auth is a runtime op, not a config edit: it must not queue a pending restart.
-    expect(useSettingsRestartStore.getState().lastMutation).toBeNull();
+    expect(settingsRestartStore.getSnapshot().context.lastMutation).toBeNull();
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith(
       "linear",
       { scope: "workspace", workspace_id: "ws_alpha" },

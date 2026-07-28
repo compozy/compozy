@@ -3,16 +3,16 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
 import {
-  loopTargetAvailabilityMessage,
-  useLoopTargetCatalog,
-  type LoopTargetDraft,
-} from "@/systems/loops";
-import {
   isNetworkParticipationDraftValid,
   networkParticipationDraftFromPayload,
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
-} from "@/systems/network";
+} from "@/lib/network-participation";
+import {
+  loopTargetAvailabilityMessage,
+  useLoopTargetCatalog,
+  type LoopTargetDraft,
+} from "@/systems/loops";
 
 import {
   automationTargetMode,

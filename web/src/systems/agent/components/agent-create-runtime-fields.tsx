@@ -25,7 +25,6 @@ export interface AgentCreateRuntimeFieldsProps extends ComponentProps<"div"> {
   errors: Record<string, string | undefined>;
   modelCatalogError: string | null;
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onRefreshCatalog: () => void;
@@ -51,7 +50,6 @@ export function AgentCreateRuntimeFields({
   errors,
   modelCatalogError,
   modelCatalogLoading,
-  modelCatalogLoaded,
   modelCatalogRefreshing,
   onDraftChange,
   onRefreshCatalog,
@@ -112,7 +110,6 @@ export function AgentCreateRuntimeFields({
         ) : null}
         <RuntimeSelector
           ariaLabelledby="agent-create-runtime-label"
-          catalogLoaded={modelCatalogLoaded}
           disabled={providersLoading || providerOptions.length === 0}
           loading={modelCatalogLoading}
           models={runtimeModels}

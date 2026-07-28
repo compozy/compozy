@@ -21,8 +21,7 @@ import {
   getSettingsNetwork,
   updateSettingsNetwork,
 } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsNetworkSection } from "@/systems/settings";
 import { settingsNetworkSectionFixture } from "@/systems/settings/mocks";
 import { useSettingsNetworkPage } from "../use-settings-network-page";
@@ -42,13 +41,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getSettingsNetwork).mockResolvedValue(networkEnvelope);
 });
 

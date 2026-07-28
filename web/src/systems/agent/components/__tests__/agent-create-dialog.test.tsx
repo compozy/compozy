@@ -13,6 +13,10 @@ import {
   type AgentCreateDialogDraft,
 } from "../../lib/agent-create-draft";
 
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => ({ data: undefined }),
+}));
+
 const providers: RuntimeProviderOption[] = [
   { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
   { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
@@ -61,7 +65,6 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     providersError: null,
     runtimeModels,
     modelCatalogLoading: false,
-    modelCatalogLoaded: true,
     modelCatalogRefreshing: false,
     modelCatalogError: null,
     submitError: null,
@@ -82,7 +85,7 @@ function renderStatefulDialog(props: Partial<AgentCreateDialogProps> = {}) {
   }
 
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <Harness />
     </UIProvider>
   );

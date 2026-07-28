@@ -4,6 +4,8 @@ import {
   type OsDesktopRuntimeStore,
   type OsOpenTarget,
   type OsWindowRoute,
+  type WindowManagerCommandOutcome,
+  type WindowManagerOpenOutcome,
 } from "./os-types";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
@@ -30,32 +32,25 @@ export interface OsRouterPort {
   replace(route: OsWindowRoute): void;
 }
 
-type RoutingStoreState = Pick<
-  OsDesktopRuntimeStore,
-  | "client"
-  | "windows"
-  | "focusedId"
-  | "openOrFocus"
-  | "closeWindow"
-  | "focusWindow"
-  | "minimizeWindow"
-  | "zoomWindow"
->;
-
-interface StoreLike {
-  getState(): RoutingStoreState;
-}
+type RoutingManager = {
+  getState(): Pick<OsDesktopRuntimeStore, "client" | "windows" | "focusedId">;
+  openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
+  closeWindow(windowId: string): Promise<boolean>;
+  focusWindow(windowId: string): WindowManagerCommandOutcome;
+  minimizeWindow(windowId: string): Promise<boolean>;
+  zoomWindow(windowId: string): WindowManagerCommandOutcome;
+};
 
 export class RoutingCoordinator {
-  private readonly store: StoreLike;
+  private readonly manager: RoutingManager;
   private readonly router: OsRouterPort;
   private phase: "hydrating" | "ready" = "hydrating";
   private cycle: "boot" | "workspace-switch" = "boot";
   private initialIntent: OsWindowRoute | null = null;
   private currentRoute: OsWindowRoute | null = null;
 
-  constructor(store: StoreLike, router: OsRouterPort) {
-    this.store = store;
+  constructor(manager: RoutingManager, router: OsRouterPort) {
+    this.manager = manager;
     this.router = router;
   }
 
@@ -100,7 +95,7 @@ export class RoutingCoordinator {
       this.reconcile(intent);
       return;
     }
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
     if (focused) this.replaceRoute(focused.route);
   }
@@ -113,7 +108,7 @@ export class RoutingCoordinator {
    */
   reportAuthoritativeState(): void {
     if (this.phase !== "ready") return;
-    const state = this.store.getState();
+    const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
     if (state.focusedId !== null && !focused) return;
@@ -124,12 +119,13 @@ export class RoutingCoordinator {
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
-    const state = this.store.getState();
-    const outcome = state.openOrFocus(target);
+    const outcome = this.manager.openOrFocus(target);
     if (!(await outcome.completion)) return null;
     const id = outcome.windowId;
     const route =
-      target.route ?? this.store.getState().windows[id]?.route ?? defaultOsWindowRoute(target.app);
+      target.route ??
+      this.manager.getState().windows[id]?.route ??
+      defaultOsWindowRoute(target.app);
     this.pushRoute(route);
     return id;
   }
@@ -140,33 +136,33 @@ export class RoutingCoordinator {
    * history entry and reconciliation follows it (rule 3 coalescing).
    */
   async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || opts.viaLink || (state.focusedId === windowId && !win.minimized)) return false;
-    const outcome = state.focusWindow(windowId);
+    const outcome = this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
-    const focused = this.store.getState().windows[windowId];
+    const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
     return focused !== undefined;
   }
 
   /** Close: successor focus follows ADR-002 (next-top window, else desktop). */
   async userClose(windowId: string): Promise<boolean> {
-    const state = this.store.getState();
+    const state = this.manager.getState();
     if (!state.windows[windowId]) return false;
     const wasFocused = state.focusedId === windowId;
-    if (!(await state.closeWindow(windowId))) return false;
+    if (!(await this.manager.closeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
     return true;
   }
 
   /** Minimize: when focus moves to a successor, the URL follows it. */
   async userMinimize(windowId: string): Promise<boolean> {
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
     const wasFocused = state.focusedId === windowId;
-    if (!(await state.minimizeWindow(windowId))) return false;
+    if (!(await this.manager.minimizeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
     return true;
   }
@@ -177,11 +173,11 @@ export class RoutingCoordinator {
    * preceding the durable command with a competing presentation command.
    */
   async userZoom(windowId: string): Promise<boolean> {
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
     const wasFocused = state.focusedId === windowId;
-    const outcome = state.zoomWindow(windowId);
+    const outcome = this.manager.zoomWindow(windowId);
     if (!(await outcome.completion)) return false;
     if (!wasFocused) this.pushRoute(win.route);
     return true;
@@ -201,7 +197,7 @@ export class RoutingCoordinator {
   }
 
   private navigateToFocusedOrDesktop(): void {
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
     this.pushRoute(focused ? focused.route : { pathname: "/", search: {} });
   }
@@ -224,7 +220,7 @@ export class RoutingCoordinator {
   private reconcile(route: OsWindowRoute): void {
     const resolved = resolveAppForPath(route.pathname);
     if (!resolved) return;
-    const state = this.store.getState();
+    const state = this.manager.getState();
     const { app, instanceKey } = resolved;
     if (route.pathname === "/") {
       const existing = state.windows[osWindowId(app.id)];
@@ -236,7 +232,7 @@ export class RoutingCoordinator {
       ) {
         return;
       }
-      state.openOrFocus({ app: app.id, route });
+      this.manager.openOrFocus({ app: app.id, route });
       return;
     }
     const existingId = osWindowId(app.id, instanceKey);
@@ -249,7 +245,7 @@ export class RoutingCoordinator {
     ) {
       return;
     }
-    state.openOrFocus({
+    this.manager.openOrFocus({
       app: app.id,
       instanceKey: instanceKey ?? undefined,
       route,

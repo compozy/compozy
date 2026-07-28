@@ -1,14 +1,20 @@
+import { useLayoutEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useSelector } from "@xstate/store-react";
 import { Plus } from "lucide-react";
-import { useState } from "react";
 
+import { Button } from "@compozy/ui";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { Button, toast } from "@compozy/ui";
 
 import { NetworkCreateChannelDialog } from "../components/network-create-channel-dialog";
-import { createNetworkChannelDraft, sortAgentsForNetwork } from "../lib/network-formatters";
+import { sortAgentsForNetwork } from "../lib/network-formatters";
+import { networkCreateChannelLogic } from "./network-create-channel-store";
 import { useCreateNetworkChannel } from "./use-network-actions";
+
+export { networkCreateChannelLogic } from "./network-create-channel-store";
 
 export function useNetworkCreateChannelAction({
   enabled,
@@ -25,54 +31,55 @@ export function useNetworkCreateChannelAction({
     (activeWorkspace?.id === requestedWorkspaceId ? activeWorkspace : undefined);
   const agentsQuery = useAgents(requestedWorkspaceId);
   const createChannel = useCreateNetworkChannel({ workspaceId: requestedWorkspaceId });
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createDraft, setCreateDraft] = useState(createNetworkChannelDraft);
+  const { store } = useStoreBinding(requestedWorkspaceId, () =>
+    networkCreateChannelLogic.createStore()
+  );
+  const createDraft = useSelector(store, snapshot => snapshot.context.draft);
+  const createOpen = useSelector(store, snapshot => snapshot.context.open);
+  const dialogWorkspaceId = useSelector(store, snapshot => snapshot.context.dialogWorkspaceId);
+  const pendingRequest = useSelector(store, snapshot => snapshot.context.pendingRequest);
+
+  useLayoutEffect(
+    () => () => {
+      store.trigger.lifecycleDisposed();
+    },
+    [store]
+  );
+  const dialogIsCurrentWorkspace = dialogWorkspaceId === requestedWorkspaceId;
   const sortedAgents = sortAgentsForNetwork(agentsQuery.data ?? []);
   const canCreateChannel =
     enabled &&
     requestedWorkspaceId != null &&
+    dialogIsCurrentWorkspace &&
     createDraft.channelName.trim() !== "" &&
     createDraft.purpose.trim() !== "" &&
-    createDraft.selectedAgentNames.length > 0;
+    createDraft.selectedAgentNames.length > 0 &&
+    pendingRequest === null;
 
   const openNetworkSettings = () => {
     void navigate({ to: "/settings/network" });
   };
-
-  const handleCreateChannel = async () => {
-    if (!enabled || !requestedWorkspaceId || !canCreateChannel) {
-      return;
-    }
-
-    try {
-      // `coordinator_peer_id` is deliberately absent: the daemon rejects it under
-      // any policy but `coordinator`, and coordinator is not writable at create
-      // time because member peers do not exist until this call provisions them.
-      const response = await createChannel.mutateAsync({
-        agent_names: createDraft.selectedAgentNames,
-        channel: createDraft.channelName.trim(),
-        fanout_policy: createDraft.fanoutPolicy,
-        purpose: createDraft.purpose.trim(),
-        workspace_id: requestedWorkspaceId,
-      });
-      const channel = response.channel.channel;
-      setCreateDraft(createNetworkChannelDraft());
-      setCreateOpen(false);
-      void navigate({
-        params: { workspaceId: requestedWorkspaceId, channel },
-        to: "/network/$workspaceId/$channel/threads",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create network channel";
-      toast.error(message);
-    }
+  const handleCreateChannel = () => {
+    if (!enabled || !requestedWorkspaceId || !canCreateChannel) return;
+    store.trigger.channelCreationRequested({
+      create: input => createChannel.mutateAsync(input),
+      navigate: async target => {
+        await navigate({
+          params: { workspaceId: target.workspaceId, channel: target.channel },
+          to: "/network/$workspaceId/$channel/threads",
+        });
+      },
+      workspaceId: requestedWorkspaceId,
+    });
   };
 
   const action = enabled ? (
     <Button
       data-testid="network-open-create-dialog"
       disabled={agentsQuery.isLoading || requestedWorkspaceId == null}
-      onClick={() => setCreateOpen(true)}
+      onClick={() => {
+        if (requestedWorkspaceId) store.trigger.dialogOpened({ workspaceId: requestedWorkspaceId });
+      }}
       size="sm"
       type="button"
       variant="outline"
@@ -86,18 +93,24 @@ export function useNetworkCreateChannelAction({
       agents={sortedAgents}
       canSubmit={canCreateChannel}
       draft={createDraft}
-      isSubmitting={createChannel.isPending}
+      isSubmitting={
+        dialogIsCurrentWorkspace && pendingRequest?.workspaceId === requestedWorkspaceId
+      }
       onAgentSelectionChange={selectedAgentNames =>
-        setCreateDraft(current => ({ ...current, selectedAgentNames }))
+        store.trigger.agentSelectionChanged({ selectedAgentNames })
       }
-      onChannelNameChange={channelName => setCreateDraft(current => ({ ...current, channelName }))}
-      onFanoutPolicyChange={fanoutPolicy =>
-        setCreateDraft(current => ({ ...current, fanoutPolicy }))
-      }
-      onOpenChange={setCreateOpen}
-      onPurposeChange={purpose => setCreateDraft(current => ({ ...current, purpose }))}
+      onChannelNameChange={channelName => store.trigger.channelNameEntered({ channelName })}
+      onFanoutPolicyChange={fanoutPolicy => store.trigger.fanoutPolicyChanged({ fanoutPolicy })}
+      onOpenChange={open => {
+        if (open && requestedWorkspaceId) {
+          store.trigger.dialogOpened({ workspaceId: requestedWorkspaceId });
+          return;
+        }
+        store.trigger.dialogClosed();
+      }}
+      onPurposeChange={purpose => store.trigger.purposeEntered({ purpose })}
       onSubmit={handleCreateChannel}
-      open={createOpen}
+      open={createOpen && dialogIsCurrentWorkspace}
       workspaceName={requestedWorkspace?.name}
     />
   );

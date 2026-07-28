@@ -205,7 +205,7 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/react/SKILL.md",
-            "computedHash": "06efc72eb62d612c9ce8befc5b5dec92fb19c085852e32e216c8ccaac21c5909"
+            "computedHash": "b53cd064fbdb3fc652c581d3bc1b8c79e2051ad04e73080023fcf073b97188c2"
         },
         "refactoring-analysis": {
             "source": "pedronauck/skills",
@@ -245,6 +245,12 @@
             "sourceType": "github",
             "skillPath": "skills/skeeper/SKILL.md",
             "computedHash": "fee0e0b10b743d95df50c6ba27d6babf72c1edc9d2b3870de575b60a1e820cc5"
+        },
+        "state-management": {
+            "source": "statelyai/skills",
+            "sourceType": "github",
+            "skillPath": "skills/state-management/SKILL.md",
+            "computedHash": "9ffa1a782596760da82692c08eaebbb8edb5e473b627bc819bbef8ae7e56d9b9"
         },
         "storybook-stories": {
             "source": "pedronauck/skills",
@@ -342,6 +348,12 @@
             "sourceType": "github",
             "skillPath": "skills/mine/writing-tech-post/SKILL.md",
             "computedHash": "85eb0c44c33aa5bbaba632199df202aeec5705a3b2a0d0878582ceae1bcd539c"
+        },
+        "xstate-store": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/xstate-store/SKILL.md",
+            "computedHash": "d865271d57d55fe1ff761b29c35325f6228c979800151ce84a39fe38705081a8"
         },
         "zod": {
             "source": "pedronauck/skills",

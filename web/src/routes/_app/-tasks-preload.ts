@@ -3,16 +3,23 @@ import type { TasksRouteSearch } from "@/systems/tasks";
 
 import { statusOptions } from "@/systems/status";
 import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
-import { taskDashboardOptions, taskInboxBadgeOptions, tasksListOptions } from "@/systems/tasks";
+import {
+  parseTasksSurfaceMode,
+  taskDashboardOptions,
+  taskInboxBadgeOptions,
+  taskListFilterFromRouteSearch,
+  tasksListOptions,
+} from "@/systems/tasks";
 import { workspacesListOptions } from "@/systems/workspace";
-import { defaultTaskCatalogFilter, taskScopeForActiveWorkspace } from "@/systems/tasks";
+import { taskScopeForActiveWorkspace } from "@/systems/tasks";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 export async function preloadTasksRoute(
   queryClient: QueryClient,
-  mode: TasksRouteSearch["mode"]
+  search: TasksRouteSearch
 ): Promise<void> {
+  const mode = parseTasksSurfaceMode(search);
   const [workspaceId, statusResult, workspacesResult] = await Promise.all([
     resolveActiveWorkspaceId(queryClient),
     queryClient.ensureQueryData(statusOptions()).catch(() => null),
@@ -44,9 +51,15 @@ export async function preloadTasksRoute(
         })
       )
     );
-  } else if (mode !== "inbox") {
+  } else if (mode === "inbox") {
+    // The inbox query is stale-on-read and owns its mount refetch. Preloading it
+    // would make hover intent perform an unconditional request and then refetch
+    // again when the route mounts.
+  } else {
     queries.unshift(
-      queryClient.ensureInfiniteQueryData(tasksListOptions(defaultTaskCatalogFilter(scope)))
+      queryClient.ensureInfiniteQueryData(
+        tasksListOptions(taskListFilterFromRouteSearch(scope, search))
+      )
     );
   }
   await settleRouteQueries(queries);

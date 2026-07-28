@@ -28,11 +28,16 @@ export { workspaceDetailOptions, workspacesListOptions } from "./lib/query-optio
 // Hooks
 export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export {
-  useActiveWorkspaceStore,
-  useActiveWorkspaceStoreHasHydrated,
+  activeWorkspaceStore,
+  isActiveWorkspaceStoreHydrated,
+  rehydrateActiveWorkspaceStore,
+  useSelectedWorkspaceId,
 } from "./hooks/use-active-workspace-store";
 export { useUserHomeDir } from "./hooks/use-user-home-dir";
-export { resetUserHomeDirStore, useUserHomeDirStore } from "./hooks/use-user-home-dir-store";
+export {
+  clearActiveWorkspaceSelection,
+  setActiveWorkspaceId,
+} from "./stores/active-workspace-store";
 export {
   useCreateWorkspace,
   useDeleteWorkspace,

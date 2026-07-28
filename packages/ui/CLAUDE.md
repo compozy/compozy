@@ -4,7 +4,7 @@
 
 ## Tripwires
 
-- **No domain imports.** Nothing from `web/src/**`, `@/systems/**`, TanStack, `compozy-openapi` types, or zustand. A primitive that owns a query, store, or SSE subscription belongs in `web/src/systems/<domain>/` instead.
+- **No domain imports.** Nothing from `web/src/**`, `@/systems/**`, TanStack, `compozy-openapi` types, or product-domain stores such as `@xstate/store`. A primitive that owns a query, store, or SSE subscription belongs in `web/src/systems/<domain>/` instead.
 - **No Compozy-specific defaults in primitive props** — defaults stay generic or become required props.
 - **Reference artwork never extends brand primitives** — a mark/asset that exists only to match a mock or prototype is placeholder; render the real brand asset or a domain component in `web/src/systems/<domain>/`. `Logo` variants change only by explicit design-system decision (L-032).
 - **No new export without a colocated story and a test in the same PR.** Tests live in the nearest `__tests__/` beside the source.

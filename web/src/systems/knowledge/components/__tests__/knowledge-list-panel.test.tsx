@@ -62,7 +62,7 @@ function renderPanel(props: Partial<React.ComponentProps<typeof KnowledgeListPan
     ...props,
   };
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <KnowledgeListPanel {...merged} />
     </UIProvider>
   );
@@ -204,7 +204,7 @@ describe("KnowledgeListPanel", () => {
     expect(onLoadMore).toHaveBeenCalledOnce();
 
     rerender(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeListPanel
           hasMore
           isLoadingMore

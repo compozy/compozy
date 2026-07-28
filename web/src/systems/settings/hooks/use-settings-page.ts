@@ -29,17 +29,11 @@ function useSettingsPage(options: UseSettingsPageOptions = {}) {
   }
 
   const isRestartNoticeVisible =
-    (restart.isRestartRequired && !restart.isNoticeSnoozed) ||
-    restart.isPolling ||
-    restart.isSuccessful ||
-    restart.isFailed;
+    (restart.isRestartRequired && !restart.isNoticeSnoozed) || restart.operationId !== null;
 
   const restartNotice = {
     isVisible: isRestartNoticeVisible,
     isRestartRequired: restart.isRestartRequired,
-    isPolling: restart.isPolling,
-    isSuccessful: restart.isSuccessful,
-    isFailed: restart.isFailed,
     operationId: restart.operationId,
     status: restart.status,
     failureReason: restart.failureReason,

@@ -2,7 +2,7 @@ import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption } from "@/systems/workspace";
 
-import type { NetworkParticipationStrategy } from "@/systems/network";
+import type { NetworkParticipationStrategy } from "@/lib/network-participation";
 
 export interface SessionCreateDialogDraft {
   agentName: string;

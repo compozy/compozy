@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   inspectorOpen: false,
+  useInspectorState: vi.fn(),
   useChannelMembers: vi.fn(() => ({ members: [] })),
 }));
 
@@ -12,14 +13,17 @@ vi.mock("../use-channel-members", () => ({
   useChannelMembers: mocks.useChannelMembers,
 }));
 vi.mock("../use-inspector-state", () => ({
-  useInspectorState: () => ({
-    close: vi.fn(),
-    open: mocks.inspectorOpen,
-    openWith: vi.fn(),
-    setTab: vi.fn(),
-    tab: "members",
-    toggle: vi.fn(),
-  }),
+  useInspectorState: (...args: unknown[]) => {
+    mocks.useInspectorState(...args);
+    return {
+      close: vi.fn(),
+      open: mocks.inspectorOpen,
+      openWith: vi.fn(),
+      setTab: vi.fn(),
+      tab: "members",
+      toggle: vi.fn(),
+    };
+  },
 }));
 
 import { useNetworkInspectorView } from "../use-network-inspector-view";
@@ -37,6 +41,10 @@ describe("useNetworkInspectorView", () => {
 
     expect(mocks.useChannelMembers).toHaveBeenCalledWith("ops", {
       enabled: false,
+      workspaceId: "ws_route",
+    });
+    expect(mocks.useInspectorState).toHaveBeenCalledWith({
+      channel: "ops",
       workspaceId: "ws_route",
     });
   });

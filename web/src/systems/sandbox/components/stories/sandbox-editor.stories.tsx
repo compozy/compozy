@@ -127,3 +127,9 @@ export const SaveError: Story = {
   render: () =>
     harness({ error: "The daemon rejected the replace: sandbox profile is referenced." }),
 };
+
+/** An accepted save disables the complete form until the request settles. */
+export const Saving: Story = {
+  args: {},
+  render: () => harness({ isSaving: true }),
+};

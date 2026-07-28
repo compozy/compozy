@@ -39,7 +39,6 @@ interface AgentCreateDialogProps {
   providersError: string | null;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   submitError: string | null;
@@ -70,7 +69,6 @@ function AgentCreateDialog({
   providersError,
   runtimeModels,
   modelCatalogLoading,
-  modelCatalogLoaded,
   modelCatalogRefreshing,
   modelCatalogError,
   submitError,
@@ -201,7 +199,6 @@ function AgentCreateDialog({
                 draft={draft}
                 errors={visibleErrors}
                 modelCatalogError={modelCatalogError}
-                modelCatalogLoaded={modelCatalogLoaded}
                 modelCatalogLoading={modelCatalogLoading}
                 modelCatalogRefreshing={modelCatalogRefreshing}
                 onDraftChange={onDraftChange}

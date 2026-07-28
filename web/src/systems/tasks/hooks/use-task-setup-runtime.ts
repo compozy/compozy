@@ -41,7 +41,6 @@ export function useTaskSetupRuntime(workspaceId?: string | null) {
 
   return {
     catalogError: catalog.error,
-    catalogLoaded: catalog.loaded,
     catalogLoading: catalog.loading,
     catalogRefreshing: catalog.refreshing,
     models: catalog.models,

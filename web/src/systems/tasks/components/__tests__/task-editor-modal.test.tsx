@@ -17,6 +17,10 @@ import type { TaskTemplateId } from "../../lib/task-templates";
 import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
 import type { TaskRecord } from "../../types";
 
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => ({ data: undefined }),
+}));
+
 interface RenderModalOptions {
   mode?: TaskEditorModalMode;
   templateId?: TaskTemplateId;

@@ -1,8 +1,14 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { settingsRestartStore } from "@/systems/settings/stores/settings-restart-store";
+import { settingsKeys } from "@/systems/settings/lib/query-keys";
 
-import type { SettingsRestartStatusName, SettingsSectionName } from "@/systems/settings";
+import type {
+  SettingsRestartStatus,
+  SettingsRestartStatusName,
+  SettingsSectionName,
+} from "@/systems/settings";
 
 type RestartOverrides = {
   operationId?: string | null;
@@ -24,6 +30,7 @@ export function StorybookRestartPhaseSetup({
   section: SettingsSectionName;
   overrides: RestartOverrides;
 }) {
+  const queryClient = useQueryClient();
   const {
     activeSessionCount = 0,
     failureReason,
@@ -33,9 +40,8 @@ export function StorybookRestartPhaseSetup({
   } = overrides;
 
   useEffect(() => {
-    const store = useSettingsRestartStore.getState();
-    store.recordMutation(
-      mutationRestartRequired
+    settingsRestartStore.trigger.settingsMutationRecorded({
+      mutation: mutationRestartRequired
         ? {
             section,
             restartRequired: true,
@@ -43,23 +49,35 @@ export function StorybookRestartPhaseSetup({
             warnings: [],
             completedAt: "2026-04-18T01:00:00Z",
           }
-        : null
-    );
+        : null,
+    });
     if (operationId && status) {
-      store.startRestart({
-        operationId,
+      settingsRestartStore.trigger.restartOperationStarted({ operationId });
+      const timestamp = "2026-04-18T01:00:00Z";
+      const snapshot: SettingsRestartStatus = {
+        active_session_count: activeSessionCount,
+        failure_reason: failureReason,
+        old_pid: 1000,
+        old_socket_path: "/tmp/agh-story.sock",
+        old_started_at: timestamp,
+        operation_id: operationId,
+        started_at: timestamp,
         status,
-        activeSessionCount,
-      });
-      store.updateRestart({
-        status,
-        activeSessionCount,
-        failureReason,
-      });
+        updated_at: timestamp,
+      };
+      queryClient.setQueryData(settingsKeys.restartStatus(operationId), snapshot);
     } else {
-      store.clearRestart();
+      settingsRestartStore.trigger.restartOperationCleared();
     }
-  }, [activeSessionCount, failureReason, mutationRestartRequired, operationId, section, status]);
+  }, [
+    activeSessionCount,
+    failureReason,
+    mutationRestartRequired,
+    operationId,
+    queryClient,
+    section,
+    status,
+  ]);
 
   return null;
 }

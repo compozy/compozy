@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -85,6 +85,8 @@ vi.mock("../use-agents", () => ({
 }));
 
 import { useAgentCreateDialog } from "../use-agent-create-dialog";
+import { agentCreateDialogLogic } from "../agent-create-dialog-logic";
+import { createDefaultAgentCreateDraft } from "../../lib/agent-create-draft";
 
 const activeWorkspace = {
   id: "ws_alpha",
@@ -239,6 +241,36 @@ describe("useAgentCreateDialog", () => {
       params: { name: "release-captain" },
     });
     expect(result.current.open).toBe(false);
+  });
+
+  it("Should stay closed after a committed create fails to navigate", async () => {
+    mockNavigate.mockRejectedValue(new Error("router unavailable"));
+    const { result } = renderAgentCreateDialog();
+
+    act(() => {
+      result.current.openDialog();
+      result.current.onDraftChange({
+        ...result.current.draft,
+        name: "release-captain",
+        provider: "codex",
+        prompt: "Own release readiness.",
+      });
+    });
+    act(() => {
+      result.current.onSubmit();
+    });
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("router unavailable");
+      expect(result.current.open).toBe(false);
+    });
+    expect(mockCreateAgent).toHaveBeenCalledOnce();
+
+    act(() => {
+      result.current.openDialog();
+    });
+    expect(result.current.open).toBe(true);
+    expect(mockCreateAgent).toHaveBeenCalledOnce();
   });
 
   it("fails closed and keeps the dialog open when a corrupt draft carries an off-contract reasoning effort", async () => {
@@ -422,6 +454,43 @@ describe("useAgentCreateDialog", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/agents/$name",
       params: { name: "release-captain-copy" },
+    });
+  });
+
+  it("Should start one mutation and fence its stale completion after a new draft opens", () => {
+    const store = agentCreateDialogLogic.createStore({
+      initialDraft: createDefaultAgentCreateDraft(true),
+    });
+    const execute = vi.fn(() => new Promise<never>(() => {}));
+    const firstDraft = { ...createDefaultAgentCreateDraft(true), name: "first" };
+    const secondDraft = { ...createDefaultAgentCreateDraft(true), name: "second" };
+
+    store.trigger.createOpened({ draft: firstDraft });
+    store.trigger.submissionRequested({
+      execute,
+      failureMessage: "Failed to create agent.",
+    });
+    store.trigger.submissionRequested({
+      execute,
+      failureMessage: "Failed to create agent.",
+    });
+    const firstAttempt = store.getSnapshot().context;
+    expect(firstAttempt.status).toBe("submitting");
+    expect(execute).toHaveBeenCalledOnce();
+    if (firstAttempt.status !== "submitting") {
+      throw new Error("The first submission did not start.");
+    }
+
+    store.trigger.dialogDismissed({ draft: createDefaultAgentCreateDraft(true) });
+    store.trigger.createOpened({ draft: secondDraft });
+    store.trigger.submissionSucceeded({
+      agentName: "first",
+      attempt: firstAttempt.attempt,
+    });
+
+    expect(store.getSnapshot().context).toMatchObject({
+      status: "editing",
+      draft: secondDraft,
     });
   });
 });

@@ -1,232 +1,79 @@
 ---
 name: react
-description: Comprehensive React development guide covering component architecture, hooks, state management, TypeScript integration, useEffect patterns, and testing with Vitest. Use when creating React components, custom hooks, managing state, or any frontend React code. Essential for React 19+ development. Don't use for React Native, non-React frameworks (Vue, Svelte, Solid), or backend-only Node.js code.
+description: React 19 development under the React Compiler. Use when writing React components or hooks, deciding whether a useMemo/useCallback/memo belongs in the code, diagnosing a component the compiler skipped, reaching for useEffect, choosing where state lives, typing props or refs in TypeScript, wiring Actions or use(), setting up babel-plugin-react-compiler or eslint-plugin-react-hooks, or testing components with Vitest. Don't use for React Native, non-React frameworks (Vue, Svelte, Solid), or backend-only Node.js code.
 allowed-tools: Read, Grep, Glob
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
 ---
-# React Development Guide
+# React
 
-This skill provides comprehensive guidelines, patterns, and best practices for React development in this project.
+Targets **React 19.2** and **React Compiler 1.0** (`babel-plugin-react-compiler`), linted by **`eslint-plugin-react-hooks` 7.1+**. Match the task to one or more Branches rows and read every listed file **in full** before producing output — those references are the contract; the tripwires below are only a final self-check.
 
-## Quick Start
+## The compiler is the optimizer
 
-1. **Best Practices**: For component architecture, state management, and TypeScript integration, read `references/best-practices.md`
-2. **Element wrappers**: If a component renders a single native element (`button`, `input`, `a`, …), extend that element’s props (`React.ComponentProps<"…">`) and spread `...props` — see **Extend native element props** below and `references/best-practices.md` → *Extending HTML Elements*.
-3. **useEffect Patterns**: For understanding when to use (and avoid) useEffect, read `references/useeffect-patterns.md`
-4. **Data Fetching**: For TanStack Query patterns, use the `tanstack` skill
-5. **Forms**: For form handling with TanStack Form, use the `tanstack` skill
+The compiler applies the equivalent of `memo` to every component and memoizes calculations inside components and hooks, at build time. It does this *more* granularly than hand-written hooks can — it memoizes after early returns, where `useMemo` is structurally forbidden.
 
-## Core Principles
+The price is that the **Rules of React** stopped being style advice and became a build-time contract. When a component violates them, the compiler **bails**: it silently skips optimizing that component and moves on. The build stays green, the tests stay green, and the component is simply never optimized. Write code the compiler cannot bail on.
 
-- **Functional Components Only**: Use functional components exclusively - class components are legacy
-- **Single Responsibility**: Keep components small and focused on a single purpose
-- **Separation of Concerns**: Extract behavior logic into custom hooks, keep components focused on rendering
-- **Feature-Based Organization**: Co-locate related files by feature, not by type
-- **React 19+ Features**: Embrace modern React features (`use()`, Actions, `useOptimistic()`)
+Two consequences that invert pre-compiler habits:
 
-## Extend native element props
+- Reflexive `useMemo`/`useCallback` on cheap values is now noise, and an **incomplete dependency array is worse than no memoization at all** — the compiler refuses to optimize a component whose manual memoization it cannot match.
+- A rule violation costs optimization silently rather than raising an error, so the lint rules are the only thing standing between you and a quietly unoptimized app. Enable them before enabling the compiler.
 
-**Default rule for wrappers:** whenever a component’s root output is a **single native element**, its props interface MUST extend that element’s intrinsic props — same contract as shadcn/ui-generated primitives. Callers keep access to `aria-*`, `data-*`, `onClick`, `disabled`, etc., without bespoke passthrough lists.
+## Decide memoization first
 
-**Do this:**
+| Situation | Do |
+| --- | --- |
+| New value or callback consumed only by render/JSX | Write it plainly; the compiler memoizes it |
+| Value feeds a `useEffect` (or another hook's) dependency array and identity must hold | Keep `useMemo`/`useCallback` — the escape hatch react.dev names by name |
+| Value crosses to a non-compiled consumer (vanilla lib instance, `addEventListener`, uncompiled package) | Keep manual memoization |
+| Manual memoization you keep for any reason | Make its deps exhaustive, or the component bails |
+| Working memoization in existing code | Leave it — removing it changes compilation output; test before touching |
+| Same expensive call repeated across components | Compiler memoization is per-component, never shared; hoist to a module-level cache or the data layer |
+| Expensive work in a plain module-level util | Not memoized at all; the compiler only covers components and hooks |
+| `memo()` with a custom `areEqual` comparator | Keep it; the compiler has no equivalent |
 
-| Requirement | Detail |
-| ------------- | ------ |
-| Base type | `interface XProps extends React.ComponentProps<"button">` (or `"input"`, `"a"`, `"div"`, …) |
-| Spreading | Destructure your custom fields, then `{...props}` (and merged `className`) onto the DOM node |
-| Ref | Use `React.forwardRef` and the matching element ref type when refs are needed |
+*Done when:* every memoization in the output traces to a row above, and no row was satisfied by adding a hook the compiler already covers.
 
-```typescript
-interface TextFieldProps extends React.ComponentProps<"input"> {
-  label: string;
-  error?: string;
-}
+## Branches
 
-function TextField({ label, error, className, ...props }: TextFieldProps) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span>{label}</span>
-      <input className={cn("rounded border px-2 py-1", error && "border-destructive", className)} {...props} />
-      {error ? <span className="text-destructive text-sm">{error}</span> : null}
-    </label>
-  );
-}
-```
+| When you are… | Read in full |
+| --- | --- |
+| Writing or reviewing any component or hook body — purity, mutation, refs, globals | `references/rules-of-react.md` |
+| Removing, keeping, or debating a `useMemo`/`useCallback`/`memo`, or a component was skipped by the compiler | `references/compiler.md` |
+| Installing or configuring the compiler, the lint preset, or adopting it incrementally | `references/compiler-setup.md` |
+| Reaching for `useEffect`, or deriving/syncing state | `references/effects.md` |
+| Shaping components, composition, props, or TypeScript types | `references/components-and-types.md` |
+| Choosing where state lives, wiring context or an external store | `references/state.md` |
+| Using `use()`, Actions, `useOptimistic`, `<Activity>`, metadata, or other React 19 APIs | `references/react19-apis.md` |
+| Writing or fixing component/hook tests | `references/testing.md` |
 
-**Variants + CVA:** if you use `class-variance-authority`, combine intrinsic props with `VariantProps<typeof variants>` (often `extends React.ButtonHTMLAttributes<HTMLButtonElement>`). Follow the **`shadcn`** skill patterns.
+*Done when:* every matched reference was read, the code follows its patterns, and no tripwire is violated.
 
-**Deep dive:** `references/best-practices.md` → *Extending HTML Elements*.
+## Tripwires
 
-## Quick Reference Tables
+**Purity** — render computes from props, state, and context only. `Math.random()`, `Date.now()`, `new Date()`, `crypto.randomUUID()`, and `performance.now()` belong in a state initializer, an event handler, or an effect.
 
-### State Management Hierarchy
+**Mutation** — props, state, hook arguments, hook return values, and any value already handed to JSX are read-only; copy before changing (`setItems([...items].sort())`). A value created in this render that never escapes is yours to mutate freely.
 
-| Priority | Tool | Use Case |
-|----------|------|----------|
-| 1 | `useState`/`useReducer` | Component-specific UI state |
-| 2 | Zustand | Shared client state across components |
-| 3 | TanStack Query | Server state and data synchronization |
-| 4 | URL state | Shareable application state (TanStack Router) |
+**Reassignment** — treat a destructured prop as read-only: rename on destructure (`{ value: valueFromProps }`) and derive a new `const`.
 
-### useEffect Decision Tree
+**Refs** — read and write `ref.current` in effects and event handlers. During render the only sanctioned touch is one-time lazy init: `if (ref.current === null) ref.current = …`.
 
-| Situation | DON'T | DO |
-|-----------|-------|-----|
-| Derived state from props/state | `useState` + `useEffect` | Calculate during render |
-| Expensive calculations | `useEffect` to cache | `useMemo` |
-| Reset state on prop change | `useEffect` with `setState` | `key` prop |
-| User event responses | `useEffect` watching state | Event handler directly |
-| Notify parent of changes | `useEffect` calling `onChange` | Call in event handler |
-| Fetch data | `useEffect` without cleanup | `useEffect` with cleanup OR TanStack Query |
+**Globals** — module scope holds constants; per-render values live in `useState`/`useContext` and outward writes in an effect. Counters, arrays, and ad-hoc caches touched during render break Fast Refresh and forfeit compilation.
 
-### When You DO Need Effects
+**Components are static** — declare components and hooks at module scope. Defining one inside another component (or returning one from a factory) makes a new type every render, resetting state and tearing down DOM.
 
-- Synchronizing with **external systems** (non-React widgets, browser APIs)
-- **Subscriptions** to external stores (use `useSyncExternalStore` when possible)
-- **Analytics/logging** that runs because component displayed
-- **Data fetching** with proper cleanup (or use TanStack Query)
+**Effects** — an effect exists to synchronize with something outside React. Synchronous `setState` in an effect to derive or copy state is an error-level lint violation; compute during render instead.
 
-### When You DON'T Need Effects
+**Errors** — child render errors are caught by an Error Boundary, never by `try`/`catch` around JSX.
 
-1. **Transforming data for rendering** - Calculate at top level, re-runs automatically
-2. **Handling user events** - Use event handlers, you know exactly what happened
-3. **Deriving state** - Just compute it: `const fullName = firstName + ' ' + lastName`
-4. **Chaining state updates** - Calculate all next state in the event handler
+**Refs are props** — `forwardRef` is deprecated in 19; accept `ref` in the props type. Likewise `<Context value={…}>`, not `<Context.Provider>`.
 
-## TypeScript Integration
+**Escape hatch** — `"use no memo"` is a bisection tool carrying a written reason and a removal plan, not a fix. Its count is a codebase-health metric.
 
-```typescript
-// CORRECT: Type props directly (never use React.FC)
-interface BrandButtonProps {
-  variant: "primary" | "secondary";
-  children: React.ReactNode;
-}
+## Related skills
 
-function BrandButton({ variant, children }: BrandButtonProps) {
-  return <button type="button" className={variant}>{children}</button>;
-}
-
-// When wrapping a native element, extend its props — see "Extend native element props" above
-interface IconButtonProps extends React.ComponentProps<"button"> {
-  icon: React.ReactNode;
-}
-```
-
-## Custom Hooks Guidelines
-
-- Extract non-visual logic into custom hooks
-- Keep hooks focused on single purpose
-- Use clear naming: `useXxx` pattern
-- Return arrays for state-like hooks, objects for complex returns
-
-```typescript
-// State-like hook returns array
-function useToggle(initial = false) {
-  const [value, setValue] = useState(initial);
-  const toggle = useCallback(() => setValue((v) => !v), []);
-  return [value, toggle] as const;
-}
-
-// Complex hook returns object
-function useUser(id: string) {
-  const query = useQuery({ queryKey: ["user", id], queryFn: () => fetchUser(id) });
-  return {
-    user: query.data,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
-  };
-}
-```
-
-## Component Architecture Pattern
-
-```typescript
-// CORRECT: Hook handles all logic, component handles rendering
-function useIssueSearch(projectId: string) {
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<Filters>({});
-
-  const issues = useQuery({
-    queryKey: ["issues", projectId, query, filters],
-    queryFn: () => searchIssues(projectId, query, filters),
-  });
-
-  return {
-    query,
-    setQuery,
-    filters,
-    setFilters,
-    issues: issues.data ?? [],
-    isLoading: issues.isLoading,
-  };
-}
-
-function IssueList({ projectId }: { projectId: string }) {
-  const { query, setQuery, issues, isLoading } = useIssueSearch(projectId);
-
-  return (
-    <div>
-      <SearchInput value={query} onChange={setQuery} />
-      {isLoading ? <Loading /> : <IssueTable issues={issues} />}
-    </div>
-  );
-}
-```
-
-## File Naming Conventions
-
-| Type | Pattern | Example |
-|------|---------|---------|
-| Components | kebab-case.tsx | `user-avatar.tsx` |
-| Hooks | use-kebab-case.ts | `use-user-data.ts` |
-| Utilities | camelCase.ts | `formatDate.ts` |
-| Types | types.ts | `types.ts` |
-| Tests | *.test.tsx | `user-avatar.test.tsx` |
-
-## Testing with Vitest
-
-```typescript
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { renderHook, act } from "@testing-library/react";
-
-describe("MyComponent", () => {
-  it("renders correctly", () => {
-    render(<MyComponent />);
-    expect(screen.getByText("Hello")).toBeInTheDocument();
-  });
-});
-
-describe("useMyHook", () => {
-  it("returns expected value", () => {
-    const { result } = renderHook(() => useMyHook());
-    expect(result.current.value).toBe(expected);
-  });
-});
-```
-
-## Validation Checklist
-
-Before finishing a task involving React:
-
-- [ ] Components are functional and follow single responsibility principle
-- [ ] Behavior logic is extracted into custom hooks
-- [ ] TypeScript props are typed directly (not using `React.FC`); native wrappers extend `React.ComponentProps<"…">` (or `ButtonHTMLAttributes` + variants per `shadcn` skill) and forward `...props`
-- [ ] State management follows the hierarchy (local -> Zustand -> TanStack Query -> URL)
-- [ ] useEffect is only used for external system synchronization
-- [ ] Error boundaries are in place for error handling
-- [ ] Loading and error states are handled
-- [ ] Accessibility requirements are met (semantic HTML, keyboard navigation)
-- [ ] Tests are written for components and hooks
-- [ ] Run `pnpm run lint`, `pnpm run typecheck`, and `pnpm run test`
-
-## Detailed References
-
-For comprehensive guidance, consult these reference files:
-
-- `references/best-practices.md` - Component architecture, TypeScript, state management, React 19+ features, testing patterns
-- `references/useeffect-patterns.md` - When to use/avoid useEffect, anti-patterns, and better alternatives
+`tanstack` for TanStack Query, Router, and Form. `xstate-store` for `@xstate/store`. `shadcn` for component primitives and CVA variants. `tailwindcss` for styling. `vitest` for runner configuration beyond `references/testing.md`.

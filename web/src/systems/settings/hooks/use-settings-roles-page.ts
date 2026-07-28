@@ -1,4 +1,7 @@
-import { useRef, useState, type SetStateAction } from "react";
+import { useRef, useState } from "react";
+import { useSelector } from "@xstate/store-react";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   SettingsApiError,
@@ -27,6 +30,7 @@ import type { RoleName, SettingsRolesConfig, SettingsUpdateRolesRequest } from "
 import { useRolesDisclosure, type RolesDisclosure } from "./use-roles-disclosure";
 import { useRolesRuntimeOptions, type RolesRuntimeOptions } from "./use-roles-runtime-options";
 import { useSettingsPage } from "./use-settings-page";
+import { settingsRolesDraftLogic, shouldAdoptRolesBaseline } from "./settings-roles-draft-logic";
 
 type NumberErrors = Record<string, string | null>;
 
@@ -72,18 +76,31 @@ export function useSettingsRolesPage() {
   const status = statusQuery.data ?? null;
   const envelope = configQuery.data ?? null;
 
-  const [draftOverride, setDraftOverride] = useState<SettingsRolesConfig | null>();
-  const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+  const baseline = envelope?.config ?? null;
+  const { store: draftLogic } = useStoreBinding(
+    "settings-roles",
+    () =>
+      settingsRolesDraftLogic.createStore({
+        baseline,
+        lastAppliedLabel: null,
+      }),
+    previous =>
+      settingsRolesDraftLogic.createStore({
+        baseline,
+        lastAppliedLabel: previous.getSnapshot().context.lastAppliedLabel,
+      }),
+    current => shouldAdoptRolesBaseline(current.store.getSnapshot().context, baseline)
+  );
+  const draftFlow = useSelector(draftLogic, snapshot => snapshot.context);
   const [numberErrors, setNumberErrors] = useState<NumberErrors>({});
   const [draftRevision, setDraftRevision] = useState(0);
   const fieldRefs = useRef(new Map<string, HTMLElement | null>());
 
-  const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
-  const setDraft = (update: SetStateAction<SettingsRolesConfig | null>) => {
-    setDraftOverride(current => {
-      const resolved = current === undefined ? (envelope?.config ?? null) : current;
-      return typeof update === "function" ? update(resolved) : update;
-    });
+  const draft = draftFlow.draft;
+  const setDraft = (
+    update: (current: SettingsRolesConfig | null) => SettingsRolesConfig | null
+  ) => {
+    draftLogic.trigger.draftChanged({ draft: update(draft) });
   };
 
   const isDirty =
@@ -143,7 +160,7 @@ export function useSettingsRolesPage() {
 
   const handleReset = () => {
     if (envelope) {
-      setDraft(envelope.config);
+      draftLogic.trigger.draftReset({ baseline: envelope.config });
     }
     setNumberErrors({});
     setDraftRevision(current => current + 1);
@@ -160,8 +177,8 @@ export function useSettingsRolesPage() {
       return;
     }
     const body: SettingsUpdateRolesRequest = { config: draft };
-    mutation.mutate(body, {
-      onSuccess: () => setLastAppliedLabel("Saved · applied immediately"),
+    draftLogic.trigger.saveRequested({
+      execute: () => mutation.mutateAsync(body),
     });
   };
 
@@ -181,10 +198,10 @@ export function useSettingsRolesPage() {
     isInvalid,
     draftRevision,
     validationErrors,
-    isSaving: mutation.isPending,
+    isSaving: draftFlow.pendingSaveAttempt !== null,
     saveError: errorMessage(mutation.error),
     warnings: mutation.data?.warnings,
-    lastAppliedLabel,
+    lastAppliedLabel: draftFlow.lastAppliedLabel,
     restart: page.restart,
     setRoleEnabled,
     setRoleAgent,

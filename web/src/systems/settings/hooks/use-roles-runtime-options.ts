@@ -11,8 +11,6 @@ export interface RolesRuntimeOptions {
   agents: AgentPayload[];
   /** Catalog read in flight; drives the selector's list loading state. */
   loading: boolean;
-  /** Catalog has resolved at least once; gates the favorites purge. */
-  catalogLoaded: boolean;
   catalogError: string | null;
   catalogStale: boolean;
   refresh: () => void;
@@ -40,7 +38,6 @@ export function useRolesRuntimeOptions(): RolesRuntimeOptions {
     models: catalog.models,
     agents: agentsQuery.data ?? [],
     loading: catalog.loading || providersQuery.isLoading,
-    catalogLoaded: catalog.loaded,
     catalogError: catalog.error,
     catalogStale: catalog.stale,
     refresh: catalog.refresh,

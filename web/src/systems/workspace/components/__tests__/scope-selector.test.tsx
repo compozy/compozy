@@ -1,11 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { resetUserHomeDirStore, useUserHomeDirStore } from "../../hooks/use-user-home-dir-store";
+import { statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
+
 import { ScopeSelector } from "../scope-selector";
 
 const workspaces = [
@@ -13,36 +16,43 @@ const workspaces = [
   { id: "ws_beta", name: "beta", root_dir: "/workspace/beta" },
 ];
 
-function renderScopeSelector(props: Partial<ComponentProps<typeof ScopeSelector>> = {}) {
+function renderScopeSelector(
+  props: Partial<ComponentProps<typeof ScopeSelector>> = {},
+  userHomeDir?: string
+) {
   const onScopeChange = vi.fn();
   const onWorkspaceChange = vi.fn();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+  });
+  queryClient.setQueryData(statusKeys.current(), {
+    ...statusFixture,
+    daemon: {
+      ...statusFixture.daemon,
+      user_home_dir: userHomeDir ?? statusFixture.daemon.user_home_dir,
+    },
+  });
 
   render(
-    <UIProvider reducedMotion="always">
-      <ScopeSelector
-        scope="workspace"
-        workspaceId="ws_alpha"
-        workspaces={workspaces}
-        onScopeChange={onScopeChange}
-        onWorkspaceChange={onWorkspaceChange}
-        testIdPrefix="task"
-        {...props}
-      />
-    </UIProvider>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <ScopeSelector
+          scope="workspace"
+          workspaceId="ws_alpha"
+          workspaces={workspaces}
+          onScopeChange={onScopeChange}
+          onWorkspaceChange={onWorkspaceChange}
+          testIdPrefix="task"
+          {...props}
+        />
+      </UIProvider>
+    </QueryClientProvider>
   );
 
   return { onScopeChange, onWorkspaceChange };
 }
 
 describe("ScopeSelector", () => {
-  beforeEach(() => {
-    resetUserHomeDirStore();
-  });
-
-  afterEach(() => {
-    resetUserHomeDirStore();
-  });
-
   it("Should request global scope from workspace mode", async () => {
     const user = userEvent.setup();
     const { onScopeChange } = renderScopeSelector();
@@ -71,8 +81,7 @@ describe("ScopeSelector", () => {
 
   it("Should promote scope to global when the home workspace is selected", async () => {
     const user = userEvent.setup();
-    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
-    const { onScopeChange, onWorkspaceChange } = renderScopeSelector();
+    const { onScopeChange, onWorkspaceChange } = renderScopeSelector({}, "/workspace/beta");
 
     await user.click(screen.getByTestId("task-workspace-select"));
     await user.click(screen.getByTestId("task-workspace-item-ws_beta"));
@@ -83,8 +92,7 @@ describe("ScopeSelector", () => {
 
   it("Should keep workspace scope when a non-home workspace is selected", async () => {
     const user = userEvent.setup();
-    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
-    const { onScopeChange, onWorkspaceChange } = renderScopeSelector();
+    const { onScopeChange, onWorkspaceChange } = renderScopeSelector({}, "/workspace/beta");
 
     await user.click(screen.getByTestId("task-workspace-select"));
     await user.click(screen.getByTestId("task-workspace-item-ws_alpha"));
@@ -109,9 +117,8 @@ describe("ScopeSelector", () => {
 
   it("Should pin the home workspace first and mark it in the compact command selector", async () => {
     const user = userEvent.setup();
-    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
 
-    renderScopeSelector();
+    renderScopeSelector({}, "/workspace/beta");
 
     await user.click(screen.getByTestId("task-workspace-select"));
 

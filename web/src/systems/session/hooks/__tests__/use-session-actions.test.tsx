@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSessionStore } from "../use-session-store";
+import { sessionStore } from "../../stores/session-store";
 import {
   useClearSessionConversation,
   useCreateSession,
@@ -114,7 +114,7 @@ function transcriptCache(messageId = "history-1"): SessionTranscriptData {
 describe("session actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useSessionStore.setState({ drafts: {} });
+    sessionStore.trigger.allDraftsDiscarded();
   });
 
   afterEach(() => {
@@ -189,7 +189,7 @@ describe("session actions", () => {
     queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), [
       { id: "turn-1" },
     ]);
-    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
+    sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
       wrapper: createWrapper(queryClient),
@@ -209,7 +209,7 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       []
     );
-    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
+    expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
   it("useClearSessionConversation rolls back optimistic cache changes on failure", async () => {
@@ -227,7 +227,7 @@ describe("session actions", () => {
       transcriptSnapshot
     );
     queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), historySnapshot);
-    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
+    sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
       wrapper: createWrapper(queryClient),
@@ -243,7 +243,7 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       historySnapshot
     );
-    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
+    expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {
@@ -265,7 +265,7 @@ describe("session actions", () => {
     queryClient.setQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id), [
       { id: "event-1" },
     ]);
-    useSessionStore.getState().setDraft(createdSession.id, { text: "remove me" });
+    sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "remove me" });
 
     const { result } = renderHook(() => useDeleteSession(), {
       wrapper: createWrapper(queryClient),
@@ -289,7 +289,7 @@ describe("session actions", () => {
     expect(
       queryClient.getQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id))
     ).toBeUndefined();
-    expect(useSessionStore.getState().drafts[createdSession.id]).toBeUndefined();
+    expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
@@ -313,7 +313,7 @@ describe("session actions", () => {
     );
     queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), historySnapshot);
     queryClient.setQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id), eventsSnapshot);
-    useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
+    sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "keep me" });
 
     const { result } = renderHook(() => useDeleteSession(), {
       wrapper: createWrapper(queryClient),
@@ -336,7 +336,7 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id))).toEqual(
       eventsSnapshot
     );
-    expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
+    expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
   it("useRepairSession invalidates the owning session query tree after repair completes", async () => {

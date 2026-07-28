@@ -32,13 +32,14 @@ import {
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { useNotificationPresets } from "@/systems/notifications";
 import { useOnboardingStatus } from "@/systems/onboarding";
-import { homeActivityOptions, homeOverviewOptions, useHomePrefsStore } from "@/systems/dashboard";
+import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
 import {
   taskDashboardOptions,
   useTaskDashboard,
+  useTaskInbox,
   useTaskInboxBadge,
   useTasks,
 } from "@/systems/tasks";
@@ -54,7 +55,7 @@ import {
   useSettingsUpdate,
 } from "@/systems/settings";
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
-import { useActiveWorkspaceStore, useWorkspace, useWorkspaces } from "@/systems/workspace";
+import { setActiveWorkspaceId, useWorkspace, useWorkspaces } from "@/systems/workspace";
 import { routeLoader } from "@/test/route-options";
 
 const adapterMocks = vi.hoisted(() => ({
@@ -369,9 +370,18 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listMemories],
   },
   {
-    name: "tasks → exact active-workspace infinite catalog options",
+    name: "tasks → exact route-filtered active-workspace catalog options",
     load: queryClient =>
-      invokeLoader(TasksRoute, { ...context(queryClient), deps: { mode: undefined } }),
+      invokeLoader(TasksRoute, {
+        ...context(queryClient),
+        deps: {
+          owner: "agent_session:product",
+          priority: "high" as const,
+          query: "review",
+          sort: "priority" as const,
+          status: "failed" as const,
+        },
+      }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
@@ -380,7 +390,12 @@ const cases: PreloadCase[] = [
           workspace: workspace.id,
           include_drafts: true,
           limit: 50,
-          sort: "recent",
+          owner_kind: "agent_session",
+          owner_ref: "product",
+          priority: "high",
+          query: "review",
+          sort: "priority",
+          status: "failed",
         });
         useTaskInboxBadge({ scope: "workspace", workspace: workspace.id, limit: 1 });
       }),
@@ -794,6 +809,9 @@ const cases: PreloadCase[] = [
 
 describe("route query preloading", () => {
   beforeEach(() => {
+    homePrefsStore.trigger.usageWindowSelected({ usageWindow: 30 });
+    homePrefsStore.trigger.systemPanelClosed();
+
     for (const request of Object.values(adapterMocks)) {
       request.mockReset();
     }
@@ -901,7 +919,7 @@ describe("route query preloading", () => {
     adapterMocks.getLoopRun.mockResolvedValue({
       run: { loop_name: "review", status: "running" },
     });
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: workspace.id });
+    setActiveWorkspaceId(workspace.id);
   });
 
   it.each(cases)("Should reuse the preloaded cache for $name", async testCase => {
@@ -1017,16 +1035,43 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should skip the full task catalog preload for inbox mode", async () => {
+  it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();
+    const scope = { scope: "workspace" as const, workspace: workspace.id };
 
     await expect(
-      invokeLoader(TasksRoute, { ...context(queryClient), deps: { mode: "inbox" as const } })
+      invokeLoader(TasksRoute, {
+        ...context(queryClient),
+        deps: {
+          mode: "inbox" as const,
+          inboxLane: "approvals" as const,
+          inboxPriority: "high" as const,
+          inboxQuery: "release",
+          inboxStatus: "pending" as const,
+          inboxUnread: true as const,
+        },
+      })
     ).resolves.toBeUndefined();
 
     expect(adapterMocks.listTasks).not.toHaveBeenCalled();
     expect(adapterMocks.getTaskInbox).toHaveBeenCalledTimes(1);
     expect(adapterMocks.getTaskDashboard).not.toHaveBeenCalled();
+
+    const unmount = mountQueries(queryClient, () => {
+      useTaskInbox({
+        ...scope,
+        lane: "approvals",
+        priority: "high",
+        query: "release",
+        status: "pending",
+        unread: true,
+        limit: 50,
+      });
+      useTaskInboxBadge({ ...scope, limit: 1 });
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getTaskInbox).toHaveBeenCalledTimes(2);
+    unmount();
     queryClient.clear();
   });
 
@@ -1100,7 +1145,7 @@ describe("route query preloading", () => {
     const selectedWorkspace = { ...workspace, id: "ws_selected", name: "selected-workspace" };
     const queryClient = createQueryClient();
     adapterMocks.fetchWorkspaces.mockResolvedValueOnce([workspace, selectedWorkspace]);
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: selectedWorkspace.id });
+    setActiveWorkspaceId(selectedWorkspace.id);
 
     await invokeLoader(HomeRoute, context(queryClient));
     expect(adapterMocks.fetchAgents).toHaveBeenCalledTimes(1);
@@ -1124,10 +1169,14 @@ describe("route query preloading", () => {
     // (/home/operator), so the home surface renders a project workspace. Its
     // overview, activity, and task-dashboard reads must warm under the workspace
     // key — the undefined-workspace (whole-system) key must never be created.
+    homePrefsStore.trigger.usageWindowSelected({ usageWindow: 7 });
+    homePrefsStore.trigger.systemPanelOpened();
+
     const queryClient = createQueryClient();
     await invokeLoader(HomeRoute, context(queryClient));
 
-    const usageWindow = useHomePrefsStore.getState().usageWindow;
+    const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
+    expect(usageWindow).toBe(7);
     const scopedKeys = [
       homeOverviewOptions({ workspace: workspace.id, usageWindow }).queryKey,
       homeActivityOptions({ workspace_id: workspace.id }).queryKey,

@@ -225,6 +225,9 @@ describe("AgentAuthoredFileEditor", () => {
     await user.type(screen.getByTestId("agent-soul-textarea"), " changed");
     await user.click(screen.getByTestId("agent-soul-save"));
     expect(await screen.findByText("This file changed elsewhere. Reload and retry.")).toBeVisible();
+    await user.type(screen.getByTestId("agent-soul-textarea"), " again");
+    expect(screen.getByText("This file changed elsewhere. Reload and retry.")).toBeVisible();
+    expect(screen.getByTestId("agent-soul-reload")).toBeVisible();
     await user.click(screen.getByTestId("agent-soul-reload"));
     expect(retry).toHaveBeenCalledTimes(1);
     expect((screen.getByTestId("agent-soul-textarea") as HTMLTextAreaElement).value).not.toContain(

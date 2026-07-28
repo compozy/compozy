@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useSelector } from "@xstate/store-react";
+import { useEffect } from "react";
 
 import {
   useRegisterBridgeWebhook,
@@ -9,24 +9,17 @@ import {
   type BridgeProvider,
   type BridgeSecretBinding,
   type BridgeSummary,
-  type BridgeVerifyResponse,
-  type BridgeWebhookRegistrationResponse,
 } from "@/systems/bridges";
-import { projectBridgeSetup, summarizeBridgeCheckStatus } from "@/systems/bridges/lib/bridge-setup";
+import { projectBridgeSetup } from "@/systems/bridges/lib/bridge-setup";
+import { useStoreBinding } from "@/hooks/use-store-binding";
+
+import { createBridgeSetupFlowLogic } from "./bridge-setup-flow-store";
 
 interface BridgeSetupFlowInput {
   bindings: BridgeSecretBinding[];
   bridge: BridgeSummary | undefined;
   health: BridgeHealth | undefined;
   provider: BridgeProvider | undefined;
-}
-
-interface BridgeSetupEvidence {
-  bridgeId: string;
-  registrationFingerprint: string;
-  registration: BridgeWebhookRegistrationResponse | null;
-  verificationFingerprint: string;
-  verification: BridgeVerifyResponse | null;
 }
 
 interface BridgeSetupEvidenceFingerprints {
@@ -79,33 +72,39 @@ function setupEvidenceFingerprints(
 }
 
 export function useBridgeSetupFlow({ bindings, bridge, health, provider }: BridgeSetupFlowInput) {
-  const [evidence, setEvidence] = useState<BridgeSetupEvidence | null>(null);
-  const operationRef = useRef(0);
   const verifyMutation = useVerifyBridge();
   const registerMutation = useRegisterBridgeWebhook();
-
-  useEffect(
-    () => () => {
-      operationRef.current += 1;
-    },
-    []
-  );
-
   const fingerprints = setupEvidenceFingerprints(bridge, bindings, provider);
-  const registrationRevisionRef = useRef(fingerprints.registration);
-  const verificationRevisionRef = useRef(fingerprints.verification);
+  const bridgeId = bridge?.id ?? null;
+  const registrationFingerprint = fingerprints.registration;
+  const verificationFingerprint = fingerprints.verification;
+  const input = {
+    bridgeId,
+    registrationFingerprint,
+    verificationFingerprint,
+  };
+  const bindingKey = bridge?.id ?? "no-bridge";
+  const { store } = useStoreBinding(bindingKey, () =>
+    createBridgeSetupFlowLogic().createStore(input)
+  );
+  const state = useSelector(store, snapshot => snapshot.context);
+
   useEffect(() => {
-    registrationRevisionRef.current = fingerprints.registration;
-    verificationRevisionRef.current = fingerprints.verification;
-  }, [fingerprints.registration, fingerprints.verification]);
-  const evidenceMatchesBridge = evidence !== null && evidence.bridgeId === bridge?.id;
+    store.trigger.factsChanged({
+      bridgeId,
+      registrationFingerprint,
+      verificationFingerprint,
+    });
+  }, [bridgeId, registrationFingerprint, store, verificationFingerprint]);
+
+  const evidenceMatchesBridge = state.bridgeId !== null && state.bridgeId === bridge?.id;
   const currentRegistration =
-    evidenceMatchesBridge && evidence.registrationFingerprint === fingerprints.registration
-      ? evidence.registration
+    evidenceMatchesBridge && state.registrationFingerprint === fingerprints.registration
+      ? state.registration
       : null;
   const currentVerification =
-    evidenceMatchesBridge && evidence.verificationFingerprint === fingerprints.verification
-      ? evidence.verification
+    evidenceMatchesBridge && state.verificationFingerprint === fingerprints.verification
+      ? state.verification
       : null;
   const projection = bridge
     ? projectBridgeSetup({
@@ -118,167 +117,29 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
       })
     : null;
 
-  const clearEvidence = () => {
-    operationRef.current += 1;
-    setEvidence(null);
-  };
-
-  const clearVerification = () => {
-    operationRef.current += 1;
-    setEvidence(current =>
-      current === null
-        ? null
-        : {
-            ...current,
-            verification: null,
-            verificationFingerprint: verificationRevisionRef.current,
-          }
-    );
-  };
-
-  const verify = async () => {
-    if (!bridge) return;
-    const operation = operationRef.current + 1;
-    operationRef.current = operation;
-    const operationFingerprint = fingerprints.verification;
-
-    setEvidence(current => ({
-      bridgeId: bridge.id,
-      registrationFingerprint: fingerprints.registration,
-      registration:
-        current?.bridgeId === bridge.id &&
-        current.registrationFingerprint === fingerprints.registration
-          ? current.registration
-          : null,
-      verificationFingerprint: fingerprints.verification,
-      verification: null,
-    }));
-
-    try {
-      const result = await verifyMutation.mutateAsync({ id: bridge.id });
-      if (
-        operationRef.current !== operation ||
-        verificationRevisionRef.current !== operationFingerprint
-      ) {
-        return;
-      }
-      if (result.bridge_instance_id !== bridge.id) {
-        toast.error("The verification response did not match the selected bridge.");
-        return;
-      }
-      setEvidence(current => ({
-        bridgeId: bridge.id,
-        registrationFingerprint: fingerprints.registration,
-        registration:
-          current?.bridgeId === bridge.id &&
-          current.registrationFingerprint === fingerprints.registration
-            ? current.registration
-            : null,
-        verificationFingerprint: fingerprints.verification,
-        verification: result,
-      }));
-      toastVerificationResult(summarizeBridgeCheckStatus(result.checks), bridge.display_name);
-    } catch (error) {
-      if (
-        operationRef.current !== operation ||
-        verificationRevisionRef.current !== operationFingerprint
-      ) {
-        return;
-      }
-      toast.error(error instanceof Error ? error.message : "Failed to verify bridge");
-    }
-  };
-
-  const registerWebhook = async () => {
-    if (!bridge) return;
-    const operation = operationRef.current + 1;
-    operationRef.current = operation;
-    const operationFingerprint = fingerprints.registration;
-
-    setEvidence({
-      bridgeId: bridge.id,
-      registrationFingerprint: fingerprints.registration,
-      registration: null,
-      verificationFingerprint: fingerprints.verification,
-      verification: null,
-    });
-
-    try {
-      const result = await registerMutation.mutateAsync({ id: bridge.id });
-      if (
-        operationRef.current !== operation ||
-        registrationRevisionRef.current !== operationFingerprint
-      ) {
-        return;
-      }
-      if (result.bridge_instance_id !== bridge.id) {
-        toast.error("The registration response did not match the selected bridge.");
-        return;
-      }
-      setEvidence({
-        bridgeId: bridge.id,
-        registrationFingerprint: fingerprints.registration,
-        registration: result,
-        verificationFingerprint: fingerprints.verification,
-        verification: null,
-      });
-      toastRegistrationResult(result, bridge.display_name);
-    } catch (error) {
-      if (
-        operationRef.current !== operation ||
-        registrationRevisionRef.current !== operationFingerprint
-      ) {
-        return;
-      }
-      toast.error(error instanceof Error ? error.message : "Failed to register bridge webhook");
-    }
-  };
-
   return {
-    clearEvidence,
-    clearVerification,
-    isRegistering: registerMutation.isPending,
-    isVerifying: verifyMutation.isPending,
+    clearEvidence: () => store.trigger.evidenceCleared(),
+    clearVerification: () => store.trigger.verificationCleared(),
+    isRegistering: state.phase === "registering",
+    isVerifying: state.phase === "verifying",
     projection,
-    registerWebhook,
-    verify,
+    registerWebhook: () => {
+      if (bridge) {
+        store.trigger.registrationRequested({
+          bridgeId: bridge.id,
+          bridgeName: bridge.display_name,
+          register: bridgeId => registerMutation.mutateAsync({ id: bridgeId }),
+        });
+      }
+    },
+    verify: () => {
+      if (bridge) {
+        store.trigger.verificationRequested({
+          bridgeId: bridge.id,
+          bridgeName: bridge.display_name,
+          verify: bridgeId => verifyMutation.mutateAsync({ id: bridgeId }),
+        });
+      }
+    },
   };
-}
-
-function toastVerificationResult(
-  status: ReturnType<typeof summarizeBridgeCheckStatus>,
-  bridgeName: string
-) {
-  switch (status) {
-    case "pass":
-      toast.success(`Verified bridge ${bridgeName}.`);
-      return;
-    case "warn":
-      toast.warning(`Verification completed with warnings for ${bridgeName}.`);
-      return;
-    case "fail":
-      toast.error(`Verification found setup issues for ${bridgeName}.`);
-      return;
-    case "skipped":
-      toast.info(`Verification checks were skipped for ${bridgeName}.`);
-      return;
-    case null:
-      toast.warning(`Verification returned no checks for ${bridgeName}.`);
-  }
-}
-
-function toastRegistrationResult(result: BridgeWebhookRegistrationResponse, bridgeName: string) {
-  switch (result.status) {
-    case "pass":
-      toast.success(`Registered the webhook for ${bridgeName}.`);
-      return;
-    case "warn":
-      toast.warning(result.remediation || `Webhook registration is uncertain for ${bridgeName}.`);
-      return;
-    case "fail":
-      toast.error(result.remediation || "Telegram webhook registration failed.");
-      return;
-    case "skipped":
-      toast.info(result.remediation || `Webhook registration was skipped for ${bridgeName}.`);
-  }
 }

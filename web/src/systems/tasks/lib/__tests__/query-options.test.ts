@@ -92,6 +92,7 @@ describe("tasks dashboard and inbox options", () => {
     expect(dashboardOptions.staleTime).toBe(15_000);
     expect(dashboardOptions.refetchInterval).toBe(30_000);
     expect(inboxOptions.staleTime).toBe(0);
+    expect(inboxOptions.refetchOnMount).toBeUndefined();
     expect(inboxOptions.refetchInterval).toBeUndefined();
     expect(inboxBadgeOptions.staleTime).toBe(15_000);
     expect(inboxOptions.initialPageParam).toBeUndefined();

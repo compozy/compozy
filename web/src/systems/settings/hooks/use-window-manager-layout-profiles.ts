@@ -1,5 +1,7 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { createStoreLogic } from "@xstate/store";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   deleteWindowManagerLayoutProfile,
@@ -15,6 +17,297 @@ import type {
   WindowManagerLayoutScopeKind,
 } from "../lib/window-manager-layout-types";
 
+export type WindowManagerLayoutProfileEditorPhase =
+  | "baseline"
+  | "draft"
+  | "dirty"
+  | "saving"
+  | "conflict"
+  | "error";
+
+interface ProfileDraft {
+  aspect: WindowManagerLayoutAspect;
+  displayName: string;
+  id: string;
+  overflow: WindowManagerLayoutOverflow;
+  scope: WindowManagerLayoutScopeKind;
+}
+
+interface WindowManagerLayoutProfileStoreContext extends ProfileDraft {
+  error: Error | null;
+  operation: number;
+  pendingDelete: WindowManagerLayoutResourceRecord | null;
+  pendingLoad: WindowManagerLayoutResourceRecord | null;
+  phase: WindowManagerLayoutProfileEditorPhase;
+  revision: number;
+  selected: WindowManagerLayoutResourceRecord | null;
+}
+
+interface SaveProfileExecutionInput {
+  document: WindowManagerLayoutDocument;
+  draft: ProfileDraft;
+  expectedVersion: number;
+  workspaceId: string;
+}
+
+type WindowManagerLayoutProfileEvents = {
+  deleteCancelled: {};
+  deleteConfirmed: {
+    execute: (record: WindowManagerLayoutResourceRecord) => Promise<unknown>;
+  };
+  deleteFailed: { error: Error; operation: number; revision: number };
+  deleteRequested: { record: WindowManagerLayoutResourceRecord };
+  deleteSucceeded: {
+    operation: number;
+    record: WindowManagerLayoutResourceRecord;
+    revision: number;
+  };
+  draftChanged: { patch: Partial<ProfileDraft> };
+  loadCancelled: {};
+  loadConfirmed: {};
+  loadRequested: { draftDirty: boolean; record: WindowManagerLayoutResourceRecord };
+  profileSelected: { record: WindowManagerLayoutResourceRecord };
+  saveFailed: { error: Error; operation: number; revision: number };
+  saveRequested: {
+    document: WindowManagerLayoutDocument;
+    execute: (input: SaveProfileExecutionInput) => Promise<WindowManagerLayoutResourceRecord>;
+    workspaceId: string;
+  };
+  saveSucceeded: {
+    operation: number;
+    previous: WindowManagerLayoutResourceRecord | null;
+    record: WindowManagerLayoutResourceRecord;
+    revision: number;
+  };
+  startNew: {};
+};
+
+type WindowManagerLayoutProfileEmitted = {
+  profileDeleted: { record: WindowManagerLayoutResourceRecord };
+  profileLoadAccepted: { record: WindowManagerLayoutResourceRecord };
+  profileSaved: {
+    previous: WindowManagerLayoutResourceRecord | null;
+    record: WindowManagerLayoutResourceRecord;
+  };
+};
+
+const emptyProfileDraft: ProfileDraft = {
+  aspect: "any",
+  displayName: "",
+  id: "",
+  overflow: "stack",
+  scope: "workspace",
+};
+
+function contextFromRecord(record: WindowManagerLayoutResourceRecord): ProfileDraft {
+  return {
+    aspect: record.spec.aspectVariant,
+    displayName: record.spec.displayName,
+    id: record.id,
+    overflow: record.spec.overflowPolicy,
+    scope: record.scope.kind,
+  };
+}
+
+function isConflictError(error: Error): boolean {
+  return Reflect.get(error, "status") === 409;
+}
+
+export const windowManagerLayoutProfileEditorLogic = createStoreLogic<
+  WindowManagerLayoutProfileStoreContext,
+  WindowManagerLayoutProfileEvents,
+  WindowManagerLayoutProfileEmitted
+>({
+  context: (): WindowManagerLayoutProfileStoreContext => ({
+    ...emptyProfileDraft,
+    error: null,
+    operation: 0,
+    pendingDelete: null,
+    pendingLoad: null,
+    phase: "baseline",
+    revision: 0,
+    selected: null,
+  }),
+  on: {
+    deleteCancelled: context =>
+      context.phase === "saving" ? undefined : { ...context, pendingDelete: null },
+    deleteConfirmed: (context, event, enqueue) => {
+      if (!context.pendingDelete || context.phase === "saving") return;
+      const operation = context.operation + 1;
+      const record = context.pendingDelete;
+      const revision = context.revision;
+      enqueue.effect(async ({ trigger }) => {
+        try {
+          await event.execute(record);
+          trigger.deleteSucceeded({ operation, record, revision });
+        } catch (cause) {
+          trigger.deleteFailed({
+            error:
+              cause instanceof Error ? cause : new Error("Unable to delete the layout profile."),
+            operation,
+            revision,
+          });
+        }
+      });
+      return {
+        ...context,
+        error: null,
+        operation,
+        phase: "saving",
+      };
+    },
+    deleteFailed: (context, event: { error: Error; operation: number; revision: number }) => {
+      if (context.operation !== event.operation) return;
+      return {
+        ...context,
+        error: event.error,
+        phase: isConflictError(event.error) ? "conflict" : "error",
+      };
+    },
+    deleteRequested: (context, event: { record: WindowManagerLayoutResourceRecord }) => ({
+      ...context,
+      pendingDelete: event.record,
+    }),
+    deleteSucceeded: (context, event, enqueue) => {
+      if (context.operation !== event.operation) return;
+      enqueue.emit.profileDeleted({ record: event.record });
+      if (context.revision !== event.revision) {
+        const deletedSelected =
+          context.selected !== null &&
+          layoutProfileResourceKey(context.selected) === layoutProfileResourceKey(event.record);
+        return {
+          ...context,
+          pendingDelete: null,
+          selected: deletedSelected ? null : context.selected,
+        };
+      }
+      return {
+        ...emptyProfileDraft,
+        error: null,
+        operation: context.operation,
+        pendingDelete: null,
+        pendingLoad: null,
+        phase: "baseline",
+        revision: context.revision + 1,
+        selected: null,
+      };
+    },
+    draftChanged: (context, event: { patch: Partial<ProfileDraft> }) => ({
+      ...context,
+      ...event.patch,
+      revision: context.revision + 1,
+      error: null,
+      phase: "dirty",
+    }),
+    loadCancelled: context => ({ ...context, pendingLoad: null }),
+    loadConfirmed: (context, _event, enqueue) => {
+      const record = context.pendingLoad;
+      if (!record) return;
+      enqueue.emit.profileLoadAccepted({ record });
+      return {
+        ...context,
+        ...contextFromRecord(record),
+        pendingLoad: null,
+        phase: "draft",
+        revision: context.revision + 1,
+        selected: record,
+      };
+    },
+    loadRequested: (context, event, enqueue) => {
+      if (event.draftDirty) return { ...context, pendingLoad: event.record };
+      enqueue.emit.profileLoadAccepted({ record: event.record });
+      return {
+        ...context,
+        ...contextFromRecord(event.record),
+        pendingLoad: null,
+        phase: "draft",
+        revision: context.revision + 1,
+        selected: event.record,
+      };
+    },
+    profileSelected: (context, event: { record: WindowManagerLayoutResourceRecord }) => ({
+      ...context,
+      ...contextFromRecord(event.record),
+      error: null,
+      phase: "draft",
+      revision: context.revision + 1,
+      selected: event.record,
+    }),
+    saveFailed: (context, event: { error: Error; operation: number; revision: number }) => {
+      if (context.operation !== event.operation) return;
+      return {
+        ...context,
+        error: event.error,
+        phase: isConflictError(event.error) ? "conflict" : "error",
+      };
+    },
+    saveRequested: (context, event, enqueue) => {
+      if (
+        context.phase === "saving" ||
+        context.id.trim() === "" ||
+        context.displayName.trim() === ""
+      ) {
+        return;
+      }
+      const operation = context.operation + 1;
+      const previous = context.selected;
+      const revision = context.revision;
+      const draft: ProfileDraft = {
+        aspect: context.aspect,
+        displayName: context.displayName,
+        id: context.id,
+        overflow: context.overflow,
+        scope: context.scope,
+      };
+      const expectedVersion =
+        previous !== null && previous.id === context.id.trim() ? previous.version : 0;
+      enqueue.effect(async ({ trigger }) => {
+        try {
+          const record = await event.execute({
+            document: event.document,
+            draft,
+            expectedVersion,
+            workspaceId: event.workspaceId,
+          });
+          trigger.saveSucceeded({ operation, previous, record, revision });
+        } catch (cause) {
+          trigger.saveFailed({
+            error: cause instanceof Error ? cause : new Error("Unable to save the layout profile."),
+            operation,
+            revision,
+          });
+        }
+      });
+      return { ...context, error: null, operation, phase: "saving" };
+    },
+    saveSucceeded: (context, event, enqueue) => {
+      if (context.operation !== event.operation) return;
+      enqueue.emit.profileSaved({ previous: event.previous, record: event.record });
+      if (context.revision !== event.revision) {
+        return { ...context, error: null, selected: event.record };
+      }
+      return {
+        ...context,
+        ...contextFromRecord(event.record),
+        error: null,
+        phase: "draft",
+        revision: context.revision + 1,
+        selected: event.record,
+      };
+    },
+    startNew: context => ({
+      ...context,
+      ...emptyProfileDraft,
+      error: null,
+      pendingDelete: null,
+      pendingLoad: null,
+      phase: "draft",
+      revision: context.revision + 1,
+      selected: null,
+    }),
+  },
+});
+
 export function useWindowManagerLayoutProfiles({
   workspaceId,
   document,
@@ -25,157 +318,110 @@ export function useWindowManagerLayoutProfiles({
   workspaceId: string;
   document: WindowManagerLayoutDocument;
   profiles: readonly WindowManagerLayoutResourceRecord[];
-  /** Loading over unapplied edits discards them, so it asks first. */
   draftDirty: boolean;
   onLoad: (document: WindowManagerLayoutDocument) => void;
 }) {
+  const store = useStore(windowManagerLayoutProfileEditorLogic);
+  const context = useSelector(store, snapshot => snapshot.context);
   const queryClient = useQueryClient();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const selected =
-    profiles.find(profile => layoutProfileResourceKey(profile) === selectedKey) ?? null;
-  const [id, setId] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [aspect, setAspect] = useState<WindowManagerLayoutAspect>("any");
-  const [overflow, setOverflow] = useState<WindowManagerLayoutOverflow>("stack");
-  const [scope, setScope] = useState<WindowManagerLayoutScopeKind>("workspace");
-  const [pendingLoad, setPendingLoad] = useState<WindowManagerLayoutResourceRecord | null>(null);
-  const [deleteRequested, setDeleteRequested] = useState(false);
+  const selectedKey = context.selected ? layoutProfileResourceKey(context.selected) : null;
 
-  const save = useMutation({
-    mutationFn: () => {
-      const normalizedId = id.trim();
-      return putWindowManagerLayoutProfile(
-        {
-          version: 1,
-          id: normalizedId,
-          displayName: displayName.trim(),
-          aspectVariant: aspect,
-          participantSlots: Object.keys(document.windows),
-          overflowPolicy: overflow,
-          document,
-        },
-        scope,
-        workspaceId,
-        selected !== null && selected.id === normalizedId ? selected.version : 0
+  useEffect(() => {
+    const deleted = store.on("profileDeleted", event => {
+      queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
+        settingsKeys.windowManagerLayoutProfiles(workspaceId),
+        current =>
+          (current ?? []).filter(
+            item => layoutProfileResourceKey(item) !== layoutProfileResourceKey(event.record)
+          )
       );
-    },
-    onSuccess: record => {
-      const previousKey = selected === null ? null : layoutProfileResourceKey(selected);
-      setSelectedKey(layoutProfileResourceKey(record));
+    });
+    const loaded = store.on("profileLoadAccepted", event => {
+      onLoad({ ...structuredClone(event.record.spec.document), workspaceId });
+    });
+    const saved = store.on("profileSaved", event => {
+      const previousKey = event.previous ? layoutProfileResourceKey(event.previous) : null;
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
         settingsKeys.windowManagerLayoutProfiles(workspaceId),
         current => [
           ...(current ?? []).filter(item => {
             const key = layoutProfileResourceKey(item);
-            return key !== layoutProfileResourceKey(record) && key !== previousKey;
+            return key !== layoutProfileResourceKey(event.record) && key !== previousKey;
           }),
-          record,
+          event.record,
         ]
       );
-    },
-  });
+    });
+    return () => {
+      deleted.unsubscribe();
+      loaded.unsubscribe();
+      saved.unsubscribe();
+    };
+  }, [onLoad, queryClient, store, workspaceId]);
 
-  const remove = useMutation({
-    mutationFn: () => {
-      if (selected === null) throw new Error("Select a saved profile first.");
-      return deleteWindowManagerLayoutProfile(workspaceId, selected.id, selected.version);
-    },
-    onSuccess: () => {
-      if (selected === null) return;
-      queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
-        settingsKeys.windowManagerLayoutProfiles(workspaceId),
-        current =>
-          (current ?? []).filter(
-            item => layoutProfileResourceKey(item) !== layoutProfileResourceKey(selected)
-          )
-      );
-      // The whole form belonged to the deleted record — clearing only the name
-      // and id left its scope, screen shape and overflow behind as defaults for
-      // the next profile.
-      startNew();
-      setDeleteRequested(false);
-    },
-  });
-
-  /** Fills the editor form from a record without touching the layout draft. */
-  const selectProfile = (record: WindowManagerLayoutResourceRecord) => {
-    setSelectedKey(layoutProfileResourceKey(record));
-    setId(record.id);
-    setDisplayName(record.spec.displayName);
-    setAspect(record.spec.aspectVariant);
-    setOverflow(record.spec.overflowPolicy);
-    setScope(record.scope.kind);
-  };
-
-  const loadIntoDraft = (record: WindowManagerLayoutResourceRecord) => {
-    selectProfile(record);
-    onLoad({ ...structuredClone(record.spec.document), workspaceId });
-  };
-
-  const requestLoad = (record: WindowManagerLayoutResourceRecord) => {
-    if (draftDirty) {
-      setPendingLoad(record);
-      return;
-    }
-    loadIntoDraft(record);
-  };
-
-  const confirmLoad = () => {
-    if (pendingLoad === null) return;
-    loadIntoDraft(pendingLoad);
-    setPendingLoad(null);
-  };
-
-  const cancelLoad = () => setPendingLoad(null);
-
+  const saveProfile = () =>
+    store.trigger.saveRequested({
+      document,
+      workspaceId,
+      execute: input =>
+        putWindowManagerLayoutProfile(
+          {
+            version: 1,
+            id: input.draft.id.trim(),
+            displayName: input.draft.displayName.trim(),
+            aspectVariant: input.draft.aspect,
+            participantSlots: Object.keys(input.document.windows),
+            overflowPolicy: input.draft.overflow,
+            document: input.document,
+          },
+          input.draft.scope,
+          input.workspaceId,
+          input.expectedVersion
+        ),
+    });
+  const selectProfile = (record: WindowManagerLayoutResourceRecord) =>
+    store.trigger.profileSelected({ record });
+  const requestLoad = (record: WindowManagerLayoutResourceRecord) =>
+    store.trigger.loadRequested({ draftDirty, record });
+  const confirmLoad = () => store.trigger.loadConfirmed();
   const requestDelete = () => {
-    if (selected === null) return;
-    setDeleteRequested(true);
+    if (context.selected) store.trigger.deleteRequested({ record: context.selected });
   };
-
-  const cancelDelete = () => setDeleteRequested(false);
-
-  const confirmDelete = () => {
-    if (selected === null) return;
-    remove.mutate();
-  };
-
-  function startNew() {
-    setSelectedKey(null);
-    setId("");
-    setDisplayName("");
-    setAspect("any");
-    setOverflow("stack");
-    setScope("workspace");
-  }
+  const confirmDelete = () =>
+    store.trigger.deleteConfirmed({
+      execute: record => deleteWindowManagerLayoutProfile(workspaceId, record.id, record.version),
+    });
 
   return {
-    aspect,
-    cancelDelete,
-    cancelLoad,
+    aspect: context.aspect,
+    cancelDelete: () => store.trigger.deleteCancelled(),
+    cancelLoad: () => store.trigger.loadCancelled(),
     confirmDelete,
     confirmLoad,
-    displayName,
-    error: save.error ?? remove.error,
-    id,
-    overflow,
-    pendingDelete: deleteRequested && selected !== null ? selected : null,
-    pendingLoad,
+    displayName: context.displayName,
+    error: context.error,
+    id: context.id,
+    overflow: context.overflow,
+    pendingDelete: context.pendingDelete,
+    pendingLoad: context.pendingLoad,
+    phase: context.phase,
     profiles,
-    remove,
     requestDelete,
     requestLoad,
-    save,
-    scope,
+    saveProfile,
+    scope: context.scope,
     selectProfile,
-    selected,
+    selected: context.selected,
     selectedKey,
-    setAspect,
-    setDisplayName,
-    setId,
-    setOverflow,
-    setScope,
-    startNew,
+    setAspect: (aspect: WindowManagerLayoutAspect) =>
+      store.trigger.draftChanged({ patch: { aspect } }),
+    setDisplayName: (displayName: string) => store.trigger.draftChanged({ patch: { displayName } }),
+    setId: (id: string) => store.trigger.draftChanged({ patch: { id } }),
+    setOverflow: (overflow: WindowManagerLayoutOverflow) =>
+      store.trigger.draftChanged({ patch: { overflow } }),
+    setScope: (scope: WindowManagerLayoutScopeKind) =>
+      store.trigger.draftChanged({ patch: { scope } }),
+    startNew: () => store.trigger.startNew(),
   };
 }
 

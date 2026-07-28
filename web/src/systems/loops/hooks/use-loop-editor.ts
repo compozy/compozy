@@ -11,7 +11,6 @@ import { toast } from "sonner";
 
 import { useLoop, useLoopAnnotations } from "./use-loops";
 import { usePatchLoop, usePutLoopAnnotations, useValidateLoop } from "./use-loop-actions";
-import { LoopValidationError } from "../adapters/loops-api";
 import {
   definitionToGraph,
   editorEdgeId,
@@ -26,7 +25,7 @@ import {
   type EditableLoopContractField,
 } from "../lib/loop-editor-definition";
 import { isNodeIdPath, renameNodeId, setNodeField } from "../lib/loop-editor-draft";
-import { applyLintToNodes, buildLintState, type LoopLintState } from "../lib/loop-editor-lint";
+import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
 import type { PaletteItem } from "../lib/loop-palette";
@@ -55,9 +54,9 @@ export interface UseLoopEditorResult {
   /** Increments only on a selection switch (not a rename) — the inspector's remount key. */
   selectionSeq: number;
   sidebarTab: LoopEditorSidebarTab;
-  setSidebarTab: (tab: LoopEditorSidebarTab) => void;
+  selectSidebarTab: (tab: LoopEditorSidebarTab) => void;
   view: LoopEditorView;
-  setView: (view: LoopEditorView) => void;
+  selectView: (view: LoopEditorView) => void;
   isDirty: boolean;
   positionsDirty: boolean;
   lint: LoopLintState;
@@ -75,9 +74,9 @@ export interface UseLoopEditorResult {
   changeContract: (field: EditableLoopContractField, value: string) => void;
   addNode: (item: PaletteItem) => void;
   autoLayout: () => void;
-  validate: () => Promise<void>;
-  publish: () => Promise<LoopDetail | null>;
-  savePositions: () => Promise<void>;
+  validate: () => void;
+  publish: () => void;
+  savePositions: () => void;
 }
 
 /**
@@ -87,7 +86,11 @@ export interface UseLoopEditorResult {
  * (expected_version CAS), and the positions save. The GUI never owns invariants — every
  * chip and per-node badge comes from a `validate`/publish verdict.
  */
-export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorResult {
+export function useLoopEditor(
+  workspaceId: string,
+  name: string,
+  onPublished?: (loop: LoopDetail) => void
+): UseLoopEditorResult {
   const enabled = workspaceId !== "" && name !== "";
   const loopQuery = useLoop(workspaceId, name, enabled);
   const annotationsQuery = useLoopAnnotations(workspaceId, name, enabled);
@@ -98,6 +101,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   const {
     addNode,
     baseDefinition,
+    busy,
     edges,
     initialize,
     isDirty,
@@ -111,26 +115,28 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     structuralRevision,
     validateFailed,
     view,
-    setBaseDefinition,
-    setDirty,
-    setEdges,
-    setLint,
-    setNodes,
-    setPositionsDirty,
-    setPublishError,
-    setSelectedNodeId,
-    setSelectionSeq,
-    setSidebarTab,
-    setValidateFailed,
-    setView,
-    markStructureChanged,
+    applyGraphEdges,
+    applyGraphNodes,
+    applyLayout,
+    changeContract: changeEditorContract,
+    changeNodeField,
+    connectNodes,
+    renameNode,
+    requestPositionsSave,
+    requestPublish,
+    requestValidation,
+    selectNode: selectEditorNode,
+    selectSidebarTab,
+    selectView,
+    store,
   } = useLoopEditorState();
 
   const initedKeyRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Monotonic token so an out-of-order debounced validate never overwrites a newer verdict.
-  const validateSeqRef = useRef(0);
   const annotationsErrorNotifiedRef = useRef(false);
+  const handlePublished = useEffectEvent((loop: LoopDetail) => {
+    onPublished?.(loop);
+  });
 
   // Seed the editable draft once the definition + settled sidecar arrive. This syncs
   // server state into local editor state (a legit external-system → draft sync).
@@ -163,35 +169,23 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     if (!annotationsQuery.isError) annotationsErrorNotifiedRef.current = false;
   }, [annotationsQuery.isError]);
 
-  const runValidation = async (options: { notify?: boolean } = {}) => {
-    const base = baseDefinition;
-    if (!base) return;
-    const definition = graphToDefinition(base, nodes, edges);
-    const seq = ++validateSeqRef.current;
-    try {
-      const result = await validateMutation.mutateAsync({
-        workspaceId,
-        name,
-        data: { definition },
-      });
-      // Drop a stale verdict: a later validate has already superseded this one.
-      if (seq !== validateSeqRef.current) return;
-      setValidateFailed(false);
-      const state = buildLintState(result);
-      setLint(state);
-      setNodes(current => applyLintToNodes(current, state.byNode));
-    } catch {
-      // A transport failure never fabricates a pass/fail (the daemon linter is the only
-      // invariant authority). Mark the failure AND demote the verdict to unvalidated so a
-      // stale "all pass" from a prior verdict can't linger over an edited graph the daemon
-      // never confirmed — the dock shows "unavailable — retry", not a claimed pass.
-      if (seq === validateSeqRef.current) {
-        setValidateFailed(true);
-        setLint(current => (current.validated ? { ...current, validated: false } : current));
-      }
-      if (options.notify) toast.error("Validation could not reach the daemon. Try again.");
-    }
-  };
+  useEffect(() => {
+    const published = store.on("publishCompleted", event => handlePublished(event.loop));
+    return () => {
+      published.unsubscribe();
+    };
+  }, [store]);
+
+  const runValidation = (options: { notify?: boolean } = {}) =>
+    requestValidation(
+      definition =>
+        validateMutation.mutateAsync({
+          workspaceId,
+          name,
+          data: { definition },
+        }),
+      options.notify ?? false
+    );
 
   // Live re-lint after structural edits so the chips + Publish gate stay truthful.
   // The Effect Event reads the latest draft without making the debounce depend on
@@ -208,61 +202,47 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   }, [structuralRevision]);
 
   const onNodesChange = (changes: NodeChange<EditorNode>[]) => {
-    setNodes(current => applyNodeChanges(changes, current));
+    let positionsChanged = false;
     let structureChanged = false;
     for (const change of changes) {
-      if (change.type === "position") setPositionsDirty(true);
-      if (change.type === "remove") {
-        setDirty(true);
-        structureChanged = true;
-      }
+      if (change.type === "position") positionsChanged = true;
+      if (change.type === "remove") structureChanged = true;
     }
-    if (structureChanged) markStructureChanged();
+    applyGraphNodes(applyNodeChanges(changes, nodes), positionsChanged, structureChanged);
   };
 
   const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
-    setEdges(current => applyEdgeChanges(changes, current));
-    if (changes.some(change => change.type === "remove")) {
-      setDirty(true);
-      markStructureChanged();
-    }
+    applyGraphEdges(
+      applyEdgeChanges(changes, edges),
+      changes.some(change => change.type === "remove")
+    );
   };
 
   const onConnect = (connection: Connection) => {
     const { source, target } = connection;
     if (!source || !target) return;
-    setEdges(current => {
-      const edge: EditorEdge = {
-        id: editorEdgeId(source, target, current.length),
-        source,
-        target,
-        data: { raw: { from: source, to: target } },
-      };
-      return addEdge(edge, current);
-    });
-    setDirty(true);
-    markStructureChanged();
+    const edge: EditorEdge = {
+      id: editorEdgeId(source, target, edges.length),
+      source,
+      target,
+      data: { raw: { from: source, to: target } },
+    };
+    connectNodes(addEdge(edge, edges));
   };
 
   // Bumped on a genuine selection *switch* (click / reveal / add) but NOT on a rename of the
   // already-selected node, so the inspector's field container is keyed by this — a rename
   // never remounts it (which would drop focus after each keystroke, R-001 round 7).
   const selectNode = (id: string | null) => {
-    setSelectedNodeId(id);
-    setSelectionSeq(seq => seq + 1);
-    if (id != null) setSidebarTab("node");
+    selectEditorNode(id);
   };
   const revealNode = (id: string) => {
-    setSelectedNodeId(id);
-    setSelectionSeq(seq => seq + 1);
-    setSidebarTab("node");
-    setView("graph");
+    selectEditorNode(id, true);
   };
 
   const changeField = (path: FieldPath, value: unknown) => {
     const targetId = selectedNodeId;
     if (!targetId) return;
-    setPublishError(null);
     if (isNodeIdPath(path)) {
       const newId = String(value).trim();
       if (newId === "" || newId === targetId) return;
@@ -271,90 +251,43 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       // rejects it. The author keeps the old id until they pick a free one.
       if (nodes.some(node => node.id === newId)) return;
       const renamed = renameNodeId(nodes, edges, targetId, newId);
-      setNodes(renamed.nodes);
-      setEdges(renamed.edges);
-      setSelectedNodeId(newId);
+      renameNode(renamed.edges, renamed.nodes, newId);
     } else {
-      setNodes(current => setNodeField(current, targetId, path, value));
+      changeNodeField(setNodeField(nodes, targetId, path, value));
     }
-    setDirty(true);
-    markStructureChanged();
   };
 
   const changeContract = (field: EditableLoopContractField, value: string) => {
-    setPublishError(null);
-    setBaseDefinition(current =>
-      current ? withLoopContractField(current, field, value) : current
+    changeEditorContract(
+      baseDefinition ? withLoopContractField(baseDefinition, field, value) : null
     );
-    setDirty(true);
-    markStructureChanged();
   };
 
-  const publish = async (): Promise<LoopDetail | null> => {
-    const base = baseDefinition;
-    if (!base) return null;
-
+  const publish = () => {
     // Publish validates atomically on the daemon. Its verdict must not be overwritten by an
     // older passive validation that was queued or already in flight for the same draft.
-    validateSeqRef.current += 1;
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
 
-    setPublishError(null);
-    const definition = graphToDefinition(base, nodes, edges);
-    try {
-      const updated = await patchMutation.mutateAsync({
+    requestPublish((definition, expectedVersion) =>
+      patchMutation.mutateAsync({
         workspaceId,
         name,
-        data: { definition, expected_version: base.meta.version ?? null },
-      });
-      setBaseDefinition(editorDefinitionFromLoop(updated));
-      setDirty(false);
-      // A successful publish means the daemon accepted the definition — a validated-clean
-      // state, not the pre-validation neutral state.
-      const clean = buildLintState({ valid: true, errors: [] });
-      setLint(clean);
-      setNodes(current => applyLintToNodes(current, clean.byNode));
-      return updated;
-    } catch (error) {
-      // A publish 422 carries the same per-node lint body as validate — map it back onto
-      // nodes + chips immediately (task-22 MUST), not just a generic banner.
-      if (error instanceof LoopValidationError) {
-        const state = buildLintState(error.result);
-        setLint(state);
-        setNodes(current => applyLintToNodes(current, state.byNode));
-        setPublishError(
-          `Publish rejected — ${state.errorCount} issue${state.errorCount === 1 ? "" : "s"} to resolve.`
-        );
-        return null;
-      }
-      setPublishError(error instanceof Error ? error.message : "Failed to publish loop");
-      return null;
-    }
+        data: { definition, expected_version: expectedVersion },
+      })
+    );
   };
 
   const autoLayout = () => {
-    setNodes(current => layoutEditorGraph(current, edges, []));
-    setPositionsDirty(true);
+    applyLayout(layoutEditorGraph(nodes, edges, []));
   };
 
-  const savePositions = async () => {
-    const annotations = nodes.map(node => ({
-      node_id: node.id,
-      x: Math.round(node.position.x),
-      y: Math.round(node.position.y),
-    }));
-    try {
-      await annotationsMutation.mutateAsync({ workspaceId, name, data: { annotations } });
-      setPositionsDirty(false);
-    } catch {
-      // Mirror the load-failure toast: a save failure keeps the "Layout unsaved" chip and
-      // must not be silently swallowed by the caller's `void`.
-      toast.error("Could not save node positions. Try again.");
-    }
-  };
+  const savePositions = () =>
+    requestPositionsSave(annotations =>
+      annotationsMutation.mutateAsync({ workspaceId, name, data: { annotations } })
+    );
 
   const selectedNode = nodes.find(node => node.id === selectedNodeId) ?? null;
   const selectedFields = selectedNode
@@ -377,9 +310,6 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
           ? "error"
           : "ready";
 
-  const busy =
-    validateMutation.isPending || patchMutation.isPending || annotationsMutation.isPending;
-
   return {
     status,
     loop: loopQuery.data,
@@ -392,9 +322,9 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     selectedFields,
     selectionSeq,
     sidebarTab,
-    setSidebarTab,
+    selectSidebarTab,
     view,
-    setView,
+    selectView,
     isDirty,
     positionsDirty,
     lint,

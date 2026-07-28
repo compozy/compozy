@@ -4,9 +4,13 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
+import { statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
 
 import { useActiveWorkspace } from "../use-active-workspace";
-import { useActiveWorkspaceStore } from "../use-active-workspace-store";
+import { activeWorkspaceStore, rehydrateActiveWorkspaceStore } from "../use-active-workspace-store";
+import { setActiveWorkspaceId } from "../../stores/active-workspace-store";
+import { useUserHomeDir } from "../use-user-home-dir";
 import {
   useDeleteWorkspace,
   useCreateWorkspace,
@@ -58,7 +62,7 @@ function makeWorkspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayl
 describe("workspace hooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
+    setActiveWorkspaceId(null);
   });
 
   afterEach(() => {
@@ -238,43 +242,22 @@ describe("workspace hooks", () => {
 describe("useActiveWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
+    setActiveWorkspaceId(null);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("waits for persisted selection hydration before auto-selecting the first workspace", async () => {
-    vi.spyOn(useActiveWorkspaceStore.persist, "hasHydrated").mockReturnValue(false);
-    vi.mocked(fetchWorkspaces).mockResolvedValue([
-      makeWorkspace({ id: "ws_alpha", name: "alpha" }),
-      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
-    ]);
-
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    const { result } = renderHook(() => useActiveWorkspace(), {
-      wrapper: createWrapper(queryClient),
-    });
-
-    await waitFor(() => {
-      expect(result.current.workspaces).toHaveLength(2);
-    });
-
-    expect(result.current.activeWorkspaceId).toBeNull();
-    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeNull();
-  });
-
   it("uses the persisted selected workspace after rehydration", async () => {
+    setActiveWorkspaceId("ws_alpha");
+    expect(window.localStorage.getItem("compozy:active-workspace:v2")).toContain("ws_alpha");
     window.localStorage.setItem(
-      "compozy:active-workspace",
-      JSON.stringify({ state: { selectedWorkspaceId: "ws_beta" }, version: 0 })
+      "compozy:active-workspace:v2",
+      JSON.stringify({ context: { selectedWorkspaceId: "ws_beta" }, version: 0 })
     );
     await act(async () => {
-      await useActiveWorkspaceStore.persist.rehydrate();
+      await rehydrateActiveWorkspaceStore();
     });
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),
@@ -294,5 +277,51 @@ describe("useActiveWorkspace", () => {
     });
 
     expect(result.current.activeWorkspace?.name).toBe("beta");
+  });
+
+  it("derives a valid fallback without rewriting the persisted preference", async () => {
+    setActiveWorkspaceId("ws_missing");
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace({ id: "ws_alpha", name: "alpha" }),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    const { result } = renderHook(() => useActiveWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.activeWorkspaceId).toBe("ws_alpha"));
+    expect(result.current.selectedWorkspaceId).toBe("ws_missing");
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe("ws_missing");
+  });
+});
+
+describe("useUserHomeDir", () => {
+  it("reads the daemon home directory directly from the status query", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+    });
+    queryClient.setQueryData(statusKeys.current(), {
+      ...statusFixture,
+      daemon: { ...statusFixture.daemon, user_home_dir: "/workspace/home-one" },
+    });
+
+    const { result } = renderHook(() => useUserHomeDir(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(result.current).toBe("/workspace/home-one");
+
+    act(() => {
+      queryClient.setQueryData(statusKeys.current(), {
+        ...statusFixture,
+        daemon: { ...statusFixture.daemon, user_home_dir: "/workspace/home-two" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current).toBe("/workspace/home-two");
+    });
   });
 });

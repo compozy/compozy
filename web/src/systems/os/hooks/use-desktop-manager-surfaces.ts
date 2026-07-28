@@ -1,4 +1,4 @@
-import { useShallow } from "zustand/shallow";
+import { shallowEqual } from "@xstate/store";
 
 import { getOsApp } from "../lib/app-registry";
 import { useDesktop } from "./use-desktop";
@@ -25,11 +25,12 @@ export function useDesktopManagerSurfaces() {
       state.client !== null && state.hydration === "live" && state.connectionStatus === "connected"
   );
   const projection = useDesktop(
-    useShallow(state => ({
+    state => ({
       desktops: state.desktops,
       projections: state.projections,
       windows: state.windows,
-    }))
+    }),
+    shallowEqual
   );
   const windowsByDesktop = new Map<string, Array<(typeof projection.windows)[string]>>();
   for (const windowRecord of Object.values(projection.windows)) {

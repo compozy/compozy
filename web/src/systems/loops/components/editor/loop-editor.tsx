@@ -1,6 +1,5 @@
 import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { toast } from "sonner";
 
 import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
@@ -35,20 +34,11 @@ type ReadyEditor = UseLoopEditorResult & {
  * (useLoopEditor); this composition wires the surfaces and the publish → run handoff.
  */
 export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: LoopEditorProps) {
-  const editor = useLoopEditor(workspaceId, name);
+  const editor = useLoopEditor(workspaceId, name, onPublished);
   const readyEditor: ReadyEditor | null =
     editor.status === "ready" && editor.loop && editor.definition
       ? { ...editor, loop: editor.loop, definition: editor.definition }
       : null;
-
-  const handlePublish = async () => {
-    if (!readyEditor) return;
-    const updated = await readyEditor.publish();
-    if (updated) {
-      toast.success(`Published ${updated.name} v${updated.version}`);
-      onPublished?.(updated);
-    }
-  };
 
   useTopbarSlot({
     ...topbarIdentity,
@@ -64,7 +54,7 @@ export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: L
         busy={readyEditor.busy}
         publishDisabled={readyEditor.publishDisabled}
         onValidate={() => void readyEditor.validate()}
-        onPublish={() => void handlePublish()}
+        onPublish={readyEditor.publish}
       />
     ) : undefined,
   });
@@ -108,7 +98,7 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
           busy={editor.busy}
           positionsDirty={editor.positionsDirty}
           view={editor.view}
-          onViewChange={editor.setView}
+          onViewChange={editor.selectView}
           onAutoLayout={editor.autoLayout}
           onSaveLayout={() => void editor.savePositions()}
         />
@@ -167,7 +157,7 @@ function LoopEditorReady({ editor }: { editor: ReadyEditor }) {
             inspectorDisabled={editor.busy}
             onChangeField={editor.changeField}
             sidebarTab={editor.sidebarTab}
-            onSidebarTabChange={editor.setSidebarTab}
+            onSidebarTabChange={editor.selectSidebarTab}
           />
         </div>
       </div>

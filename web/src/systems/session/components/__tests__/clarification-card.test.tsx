@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../adapters/session-clarification-api", async importOriginal => {
@@ -139,7 +139,12 @@ describe("ClarificationDataPart — pending", () => {
         choice_index: 1,
       }
     );
-    resolveAnswer?.();
+    await act(async () => {
+      resolveAnswer?.();
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("clarification-card")).not.toBeInTheDocument();
+    });
   });
 
   it("Should hide the card after a successful answer", async () => {

@@ -1,7 +1,7 @@
 import { createContext } from "react";
 
-import type { UseNetworkListFiltersResult } from "../hooks/use-network-list-filters";
+import type { NetworkListFiltersStore } from "../hooks/use-network-list-filters";
 
-const NetworkListFiltersContext = createContext<UseNetworkListFiltersResult | null>(null);
+const NetworkListFiltersContext = createContext<NetworkListFiltersStore | null>(null);
 
 export { NetworkListFiltersContext };

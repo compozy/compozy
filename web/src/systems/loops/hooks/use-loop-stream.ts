@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
@@ -22,8 +22,15 @@ interface UseLoopStreamOptions {
   enabled?: boolean;
   afterSequence?: number;
   eventSourceFactory?: LoopStreamEventSourceFactory;
-  onEvent?: (payload: LoopRunEventFrame) => void;
+  onEvent?: (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => void;
   onError?: (error: unknown) => void;
+  onSubscriptionOpened?: (subscription: LoopStreamSubscription) => void;
+}
+
+export interface LoopStreamSubscription {
+  generation: number;
+  runId: string;
+  workspaceId: string;
 }
 
 // CompozyOS Loop SSE emits named events via `event: <kind>` from the run-events writer
@@ -116,14 +123,21 @@ export function useLoopStream(
     eventSourceFactory: customEventSourceFactory,
     onEvent,
     onError,
+    onSubscriptionOpened,
   }: UseLoopStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
   const trimmedWorkspace = workspaceId.trim();
   const trimmedRun = runId.trim();
+  const nextGeneration = useRef(0);
 
-  const notifyEvent = useEffectEvent((payload: LoopRunEventFrame) => {
-    onEvent?.(payload);
+  const notifyEvent = useEffectEvent(
+    (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => {
+      onEvent?.(payload, subscription);
+    }
+  );
+  const notifySubscriptionOpened = useEffectEvent((subscription: LoopStreamSubscription) => {
+    onSubscriptionOpened?.(subscription);
   });
   const notifyError = useEffectEvent((error: unknown, fallback: string) => {
     if (onError) {
@@ -148,6 +162,13 @@ export function useLoopStream(
       after_sequence: afterSequence === undefined ? undefined : String(afterSequence),
     });
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
+    const subscription = {
+      generation: nextGeneration.current + 1,
+      runId: trimmedRun,
+      workspaceId: trimmedWorkspace,
+    };
+    nextGeneration.current = subscription.generation;
+    notifySubscriptionOpened(subscription);
 
     const handleFrame = (event: MessageEvent) => {
       if (typeof event.data !== "string") {
@@ -173,7 +194,7 @@ export function useLoopStream(
           kind === "status_changed"
         );
       }
-      notifyEvent(payload);
+      notifyEvent(payload, subscription);
       if (isTerminalStatusFrame(kind, payload)) {
         source.close();
       }

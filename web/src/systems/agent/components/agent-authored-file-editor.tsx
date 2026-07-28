@@ -88,6 +88,10 @@ export function AgentAuthoredFileEditor({
     onSave,
     onRestore,
   });
+  const saving = editor.phase === "saving";
+  const validating = editor.phase === "validating";
+  const conflict = editor.phase === "conflict";
+  const saveError = conflict || editor.phase === "failed" ? editor.error : null;
   const handleReload = () => {
     editor.handleReload();
     onRetry();
@@ -137,10 +141,10 @@ export function AgentAuthoredFileEditor({
                 type="button"
                 size="sm"
                 onClick={() => void editor.handleCreate()}
-                disabled={editor.saving}
+                disabled={saving}
                 data-testid={`agent-${kind}-create`}
               >
-                {editor.saving ? <Spinner className="size-3" /> : null}
+                {saving ? <Spinner className="size-3" /> : null}
                 Create {editor.fileLabel}
               </Button>
             }
@@ -150,8 +154,8 @@ export function AgentAuthoredFileEditor({
         </AgentPanelBox>
         <AuthoredFileWriteRecovery
           kind={kind}
-          saveError={editor.saveError}
-          conflict={editor.conflict}
+          saveError={saveError}
+          conflict={conflict}
           onReload={handleReload}
         />
       </div>
@@ -192,7 +196,7 @@ export function AgentAuthoredFileEditor({
           variant="mono"
           value={editor.draft}
           onChange={event => editor.setDraft(event.target.value)}
-          disabled={editor.saving}
+          disabled={saving}
           className="min-h-64 rounded-none border-0 border-b border-line-soft"
           data-testid={`agent-${kind}-textarea`}
           aria-label={`${editor.fileLabel} body`}
@@ -219,8 +223,8 @@ export function AgentAuthoredFileEditor({
 
         <AuthoredFileWriteRecovery
           kind={kind}
-          saveError={editor.saveError}
-          conflict={editor.conflict}
+          saveError={saveError}
+          conflict={conflict}
           onReload={handleReload}
         />
 
@@ -230,11 +234,11 @@ export function AgentAuthoredFileEditor({
             size="sm"
             variant="ghost"
             onClick={() => void editor.handleValidate()}
-            disabled={editor.validating || editor.saving}
+            disabled={validating || saving}
             data-testid={`agent-${kind}-validate`}
           >
-            {editor.validating ? <Spinner className="size-3" /> : null}
-            {editor.validating ? "Validating…" : "Validate"}
+            {validating ? <Spinner className="size-3" /> : null}
+            {validating ? "Validating…" : "Validate"}
           </Button>
           <span className="min-w-0 flex-1" />
           <Button
@@ -250,11 +254,11 @@ export function AgentAuthoredFileEditor({
             type="button"
             size="sm"
             onClick={() => void editor.handleSave()}
-            disabled={!editor.dirty || editor.saving}
+            disabled={!editor.dirty || saving}
             data-testid={`agent-${kind}-save`}
           >
-            {editor.saving ? <Spinner className="size-3" /> : null}
-            {editor.saving ? "Saving…" : "Save"}
+            {saving ? <Spinner className="size-3" /> : null}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </div>
 
@@ -287,7 +291,7 @@ export function AgentAuthoredFileEditor({
                         size="sm"
                         variant="ghost"
                         onClick={() => void editor.handleRestore(id)}
-                        disabled={!id || editor.saving}
+                        disabled={!id || saving}
                         data-testid={`agent-${kind}-restore-${id}`}
                       >
                         Restore
@@ -301,11 +305,7 @@ export function AgentAuthoredFileEditor({
         ) : null}
       </AgentPanelBox>
       <span className="sr-only" aria-live="polite">
-        {editor.saving
-          ? `Saving ${editor.fileLabel}`
-          : editor.validating
-            ? `Validating ${editor.fileLabel}`
-            : ""}
+        {saving ? `Saving ${editor.fileLabel}` : validating ? `Validating ${editor.fileLabel}` : ""}
       </span>
     </div>
   );

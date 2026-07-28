@@ -19,9 +19,6 @@ const diagnosticRoles = buildRolesViewModel(
 const restartBanner = {
   isVisible: false,
   isRestartRequired: false,
-  isPolling: false,
-  isSuccessful: false,
-  isFailed: false,
   operationId: null,
   status: null,
   activeSessionCount: 0,
@@ -45,7 +42,6 @@ const runtimeOptions: RolesRuntimeOptions = {
   ],
   agents: [],
   loading: false,
-  catalogLoaded: true,
   catalogError: null,
   catalogStale: false,
   refresh: vi.fn(),

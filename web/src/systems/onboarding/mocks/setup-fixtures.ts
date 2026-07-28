@@ -53,7 +53,6 @@ export const onboardingDefaultModelFixture: OnboardingDefaultModelApi = {
   envVar: "",
   apiKey: "",
   catalogLoading: false,
-  catalogLoaded: true,
   catalogRefreshing: false,
   catalogError: null,
   missingEnvVar: false,

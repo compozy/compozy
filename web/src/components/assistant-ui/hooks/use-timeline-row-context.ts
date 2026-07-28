@@ -1,23 +1,45 @@
-import { createContext, use, type Dispatch, type SetStateAction } from "react";
+import { createContext, use } from "react";
 import { flushSync } from "react-dom";
+import { createStoreLogic } from "@xstate/store";
 
-export type TimelineExpansionSetter = Dispatch<SetStateAction<Set<string>>>;
+export type TimelineExpansion = "work-group" | "turn" | "changed-files";
 
-// Shared per-timeline row state fed through context so the row renderer stays
-// referentially stable (no closure deps) and each memoized `TimelineRowContent`
-// skips re-render when its structurally-shared row ref is unchanged. Expansion
-// state + toggle callbacks propagate through the memo boundary instead of riding
-// fresh render closures.
-export interface TimelineRowSharedState {
-  expandedTurns: ReadonlySet<string>;
-  setExpandedWorkGroups: TimelineExpansionSetter;
-  setExpandedTurns: TimelineExpansionSetter;
-  setExpandedChangedFiles: TimelineExpansionSetter;
+function toggled(ids: ReadonlySet<string>, id: string): Set<string> {
+  const next = new Set(ids);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
 }
 
-export const TimelineRowContext = createContext<TimelineRowSharedState | null>(null);
+export const timelineRowLogic = createStoreLogic({
+  context: (_input: undefined) => ({
+    expandedWorkGroups: new Set<string>(),
+    expandedTurns: new Set<string>(),
+    expandedChangedFiles: new Set<string>(),
+  }),
+  on: {
+    workGroupExpansionToggled: (context, event: { id: string }) => ({
+      ...context,
+      expandedWorkGroups: toggled(context.expandedWorkGroups, event.id),
+    }),
+    turnExpansionToggled: (context, event: { id: string }) => ({
+      ...context,
+      expandedTurns: toggled(context.expandedTurns, event.id),
+    }),
+    changedFilesExpansionToggled: (context, event: { id: string }) => ({
+      ...context,
+      expandedChangedFiles: toggled(context.expandedChangedFiles, event.id),
+    }),
+  },
+});
 
-export function useTimelineRowContext(): TimelineRowSharedState {
+export type TimelineRowStore = ReturnType<typeof timelineRowLogic.createStore>;
+
+// Context provides only the stable, per-message store handle. Each row selects
+// its own primitive expansion state so other rows ignore unrelated transitions.
+export const TimelineRowContext = createContext<TimelineRowStore | null>(null);
+
+export function useTimelineRowContext(): TimelineRowStore {
   const context = use(TimelineRowContext);
   if (!context) {
     throw new Error("Timeline row views must render within a TimelineRowContext provider");
@@ -26,7 +48,8 @@ export function useTimelineRowContext(): TimelineRowSharedState {
 }
 
 export function toggleTimelineExpansion(
-  setter: TimelineExpansionSetter,
+  store: TimelineRowStore,
+  expansion: TimelineExpansion,
   id: string,
   button: HTMLElement | null
 ): void {
@@ -34,12 +57,17 @@ export function toggleTimelineExpansion(
   const previousHeight = viewport?.scrollHeight ?? 0;
   const previousTop = viewport?.scrollTop ?? 0;
   flushSync(() => {
-    setter(previous => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    switch (expansion) {
+      case "work-group":
+        store.trigger.workGroupExpansionToggled({ id });
+        break;
+      case "turn":
+        store.trigger.turnExpansionToggled({ id });
+        break;
+      case "changed-files":
+        store.trigger.changedFilesExpansionToggled({ id });
+        break;
+    }
   });
   if (!viewport) return;
   viewport.scrollTop = previousTop + viewport.scrollHeight - previousHeight;

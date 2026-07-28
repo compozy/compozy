@@ -14,7 +14,7 @@ import {
   stopSession,
 } from "../adapters/session-api";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { useSessionStore } from "./use-session-store";
+import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
 import {
   invalidateSessionMutationQueries,
@@ -83,7 +83,7 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
     mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
     onSuccess: (_data, id) => {
       const successWorkspaceId = requireWorkspace(workspaceId);
-      useSessionStore.getState().clearDraft(id);
+      sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byId(id), exact: true });
 

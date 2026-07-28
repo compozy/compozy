@@ -12,7 +12,10 @@ import { describe, expect, it } from "vitest";
 
 import type { WindowManagerConfig } from "@/systems/os";
 
-import { useWindowManagerConfigEditor } from "../use-window-manager-config-editor";
+import {
+  useWindowManagerConfigEditor,
+  windowManagerConfigEditorLogic,
+} from "../use-window-manager-config-editor";
 
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
@@ -32,13 +35,16 @@ const CONFIG: WindowManagerConfig = {
   shortcuts: {},
 };
 
-function renderEditor() {
+function renderEditor(initial = CONFIG) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
-  return renderHook(() => useWindowManagerConfigEditor(CONFIG), { wrapper });
+  return renderHook(({ baseline }) => useWindowManagerConfigEditor(baseline), {
+    initialProps: { baseline: initial },
+    wrapper,
+  });
 }
 
 function fields(problems: ReadonlyArray<{ field: string }>) {
@@ -46,6 +52,44 @@ function fields(problems: ReadonlyArray<{ field: string }>) {
 }
 
 describe("useWindowManagerConfigEditor", () => {
+  it("Should preserve a dirty draft when a newer baseline is rendered", () => {
+    const { result, rerender } = renderEditor();
+    act(() => {
+      result.current.setDraft(current => ({ ...current, historyLimit: 101 }));
+    });
+    rerender({ baseline: { ...CONFIG, historyLimit: 99 } });
+
+    expect(result.current.draft.historyLimit).toBe(101);
+    expect(result.current.phase).toBe("dirty");
+  });
+
+  it("Should ignore a late save result after a newer draft transition", () => {
+    const store = windowManagerConfigEditorLogic.createStore({ baseline: CONFIG });
+    let snapshot = store.getInitialSnapshot();
+    const revision = JSON.stringify(CONFIG);
+    [snapshot] = store.transition(snapshot, {
+      type: "draftChanged",
+      draft: { ...CONFIG, historyLimit: 101 },
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "saveRequested",
+      execute: async () => undefined,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "draftChanged",
+      draft: { ...CONFIG, historyLimit: 102 },
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "saveSucceeded",
+      operation: 1,
+      revision,
+      draftRevision: 1,
+    });
+
+    expect(snapshot.context.draft.historyLimit).toBe(102);
+    expect(snapshot.context.phase).toBe("dirty");
+  });
+
   it("Should allow saving a changed draft that is within range", () => {
     const { result } = renderEditor();
     act(() => {

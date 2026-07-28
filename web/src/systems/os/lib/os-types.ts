@@ -127,24 +127,6 @@ export interface OsDesktopRuntimeStore {
   hydration: OsHydration;
   connectionStatus: WindowManagerConnectionStatus;
   desktopBounds: OsDesktopBounds | null;
-  openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
-  closeWindow(id: string): Promise<boolean>;
-  focusWindow(id: string): WindowManagerCommandOutcome;
-  minimizeWindow(id: string): Promise<boolean>;
-  restoreWindow(id: string): void;
-  zoomWindow(id: string): WindowManagerCommandOutcome;
-  toggleFloating(id: string): void;
-  moveWindow(id: string, input: MoveWindowInput): void;
-  arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): WindowManagerCommandOutcome;
-  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
-  balanceLayout(groupId?: string, splitId?: string): void;
-  navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
-  toggleRailGroup(agentId: string): void;
-  setWallpaper(wallpaper: OsWallpaper): void;
-  setDockMagnify(on: boolean): void;
-  setReduceMotion(on: boolean): void;
-  setDesktopBounds(bounds: OsDesktopBounds): void;
 }
 
 export interface OsDesktopRuntime {
@@ -161,6 +143,24 @@ export interface WindowManagerController extends OsDesktopRuntime {
   setClient(client: WindowManagerClientView | null): void;
   setConnectionStatus(status: WindowManagerConnectionStatus): void;
   setLoadError(error: Error | null): void;
+  openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
+  closeWindow(id: string): Promise<boolean>;
+  focusWindow(id: string): WindowManagerCommandOutcome;
+  minimizeWindow(id: string): Promise<boolean>;
+  restoreWindow(id: string): void;
+  zoomWindow(id: string): WindowManagerCommandOutcome;
+  toggleFloating(id: string): void;
+  moveWindow(id: string, input: MoveWindowInput): WindowManagerCommandOutcome;
+  arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
+  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): WindowManagerCommandOutcome;
+  resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
+  balanceLayout(groupId?: string, splitId?: string): void;
+  navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
+  toggleRailGroup(agentId: string): void;
+  setWallpaper(wallpaper: OsWallpaper): void;
+  setDockMagnify(on: boolean): void;
+  setReduceMotion(on: boolean): void;
+  setDesktopBounds(bounds: OsDesktopBounds): void;
   createDesktop(): void;
   renameDesktop(desktopId: string, name: string): void;
   reorderDesktop(desktopId: string, order: number): void;

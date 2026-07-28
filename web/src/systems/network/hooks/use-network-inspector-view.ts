@@ -26,7 +26,7 @@ export function useNetworkInspectorView({
   enabled,
   workspaceId,
 }: UseNetworkInspectorViewArgs): UseNetworkInspectorViewResult {
-  const inspector = useInspectorState(channel);
+  const inspector = useInspectorState({ channel, workspaceId });
   const queryEnabled = enabled && inspector.open && Boolean(channel);
   const members = useChannelMembers(channel, { enabled: queryEnabled, workspaceId });
 

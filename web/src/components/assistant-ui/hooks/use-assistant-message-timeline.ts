@@ -1,5 +1,6 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import {
   computeStableSessionRows,
@@ -12,6 +13,7 @@ import {
   type StableSessionRowsState,
 } from "../session-timeline.logic";
 import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
+import { timelineRowLogic } from "./use-timeline-row-context";
 import type { GoalPromptMeta } from "@/systems/session/types";
 
 // A turn is "working" while it streams: assistant-ui marks the message status
@@ -143,16 +145,18 @@ export function useAssistantMessageTimeline() {
     typeof message.id === "string" && message.id.length > 0 ? message.id : undefined
   );
   const goal = goalPromptMeta(message.content);
-  const [expandedWorkGroups, setExpandedWorkGroups] = useState<Set<string>>(() => new Set());
-  const [expandedTurns, setExpandedTurns] = useState<Set<string>>(() => new Set());
-  const [expandedChangedFiles, setExpandedChangedFiles] = useState<Set<string>>(() => new Set());
+  const timelineStore = useStore(timelineRowLogic, undefined);
+  const expandedWorkGroups = useSelector(timelineStore, state => state.context.expandedWorkGroups);
+  const expandedChangedFiles = useSelector(
+    timelineStore,
+    state => state.context.expandedChangedFiles
+  );
   const [stableRows, setStableRows] = useState<StableSessionRowsState>(EMPTY_STABLE_SESSION_ROWS);
 
   const derivedRows = deriveSessionRows(parts, {
     foldSettledTurns: true,
     interruptedTurnIds: interruptedTurns,
     expandedWorkGroupIds: expandedWorkGroups,
-    expandedTurnIds: expandedTurns,
     expandedChangedFilesIds: expandedChangedFiles,
   });
   const nextStableRows = computeStableSessionRows(derivedRows, stableRows);
@@ -162,20 +166,12 @@ export function useAssistantMessageTimeline() {
   const rows = nextStableRows.result;
 
   return {
-    expandedTurns,
-    expandedWorkGroups,
     rows,
     goal,
-    setExpandedChangedFiles,
-    setExpandedTurns,
-    setExpandedWorkGroups,
+    timelineStore,
   } satisfies {
-    expandedTurns: ReadonlySet<string>;
-    expandedWorkGroups: ReadonlySet<string>;
     rows: SessionRow[];
     goal: GoalPromptMeta | null;
-    setExpandedChangedFiles: typeof setExpandedChangedFiles;
-    setExpandedTurns: typeof setExpandedTurns;
-    setExpandedWorkGroups: typeof setExpandedWorkGroups;
+    timelineStore: typeof timelineStore;
   };
 }

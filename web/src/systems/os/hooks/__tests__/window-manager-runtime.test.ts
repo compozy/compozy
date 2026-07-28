@@ -14,6 +14,7 @@ import {
   selectDesktopTransitionIntent,
   windowManagerStore,
 } from "../../stores/window-manager-store";
+import { beginWindowManagerCommand } from "../../stores/window-manager-store-commands";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
@@ -106,8 +107,8 @@ function snapshotWithAgentsRoute(
 }
 
 afterEach(() => {
-  windowManagerStore.getState().actions.unbindClient();
-  windowManagerStore.getState().actions.setWorkArea(null);
+  windowManagerStore.trigger.bindingUnbound();
+  windowManagerStore.trigger.workAreaMeasured({ workArea: null });
   vi.clearAllMocks();
 });
 
@@ -118,7 +119,7 @@ describe("WindowManagerRuntime", () => {
 
     runtime.stop();
     runtime.start();
-    windowManagerStore.getState().actions.setConnectionStatus("connected");
+    windowManagerStore.trigger.connectionStatusChanged({ status: "connected" });
 
     expect(runtime.getState().connectionStatus).toBe("connected");
     runtime.stop();
@@ -168,9 +169,7 @@ describe("WindowManagerRuntime", () => {
     runtime.start();
     const onProjection = vi.fn();
     const unsubscribe = runtime.subscribe(onProjection);
-    const actions = windowManagerStore.getState().actions;
-
-    actions.beginGesture({
+    windowManagerStore.trigger.gestureBegan({
       pointerId: 4,
       point: { x: 640, y: 90 },
       workArea: { x: 0, y: 0, w: 1280, h: 800 },
@@ -182,12 +181,20 @@ describe("WindowManagerRuntime", () => {
         moveMode: "window",
       },
     });
-    actions.previewGesture({ x: 320, y: 100 }, null, { x: 0, y: 0, w: 1280, h: 800 });
-    actions.previewGesture({ x: 12, y: 120 }, null, { x: 0, y: 0, w: 1280, h: 800 });
+    windowManagerStore.trigger.gesturePreviewed({
+      point: { x: 320, y: 100 },
+      preview: null,
+      currentWorkArea: { x: 0, y: 0, w: 1280, h: 800 },
+    });
+    windowManagerStore.trigger.gesturePreviewed({
+      point: { x: 12, y: 120 },
+      preview: null,
+      currentWorkArea: { x: 0, y: 0, w: 1280, h: 800 },
+    });
 
     expect(onProjection).not.toHaveBeenCalled();
 
-    actions.setConnectionStatus("connecting");
+    windowManagerStore.trigger.connectionStatusChanged({ status: "connecting" });
 
     expect(onProjection).toHaveBeenCalledOnce();
     unsubscribe();
@@ -210,7 +217,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
     expect(
-      windowManagerStore.getState().actions.beginCommand({
+      beginWindowManagerCommand(windowManagerStore, {
         id: "command:pending",
         kind: "window.move",
         expectedRevision: 7,
@@ -220,7 +227,7 @@ describe("WindowManagerRuntime", () => {
     runtime.switchDesktop("desktop:two");
     await flushCommandQueue();
 
-    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toBeNull();
+    expect(selectDesktopTransitionIntent(windowManagerStore.getSnapshot().context)).toBeNull();
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();
     runtime.stop();
   });
@@ -249,8 +256,8 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    const first = runtime.getState().focusWindow("app:first");
-    const second = runtime.getState().focusWindow("app:second");
+    const first = runtime.focusWindow("app:first");
+    const second = runtime.focusWindow("app:second");
     expect(first.accepted).toBe(true);
     expect(second.accepted).toBe(true);
     await Promise.all([first.completion, second.completion]);
@@ -293,8 +300,8 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    const first = runtime.getState().navigateWindow("app:agents", releaseRoute);
-    const second = runtime.getState().navigateWindow("app:agents", opsRoute);
+    const first = runtime.navigateWindow("app:agents", releaseRoute);
+    const second = runtime.navigateWindow("app:agents", opsRoute);
 
     const routeWhileQueued = runtime.getState().windows["app:agents"]?.route;
     await flushCommandQueue();
@@ -360,7 +367,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    const outcome = runtime.getState().navigateWindow("app:agents", rejectedRoute);
+    const outcome = runtime.navigateWindow("app:agents", rejectedRoute);
 
     const optimisticRoute = runtime.getState().windows["app:agents"]?.route;
     await expect(outcome.completion).resolves.toBe(false);
@@ -404,8 +411,8 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    const first = runtime.getState().focusWindow("app:first");
-    const stale = runtime.getState().focusWindow("app:stale");
+    const first = runtime.focusWindow("app:first");
+    const stale = runtime.focusWindow("app:stale");
     await flushCommandQueue();
 
     const nextSnapshot = { ...SNAPSHOT, workspaceId: "workspace:next" };
@@ -450,7 +457,7 @@ describe("WindowManagerRuntime", () => {
       focusOrder: [],
       connectedAt: "2026-07-22T00:00:00Z",
     });
-    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toBeNull();
+    expect(selectDesktopTransitionIntent(windowManagerStore.getSnapshot().context)).toBeNull();
 
     // A zoom or cross-desktop focus arrives as a reconciled client frame with
     // no locally staged intent; the runtime supplies the transition itself.
@@ -464,7 +471,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual({
+    expect(selectDesktopTransitionIntent(windowManagerStore.getSnapshot().context)).toEqual({
       fromDesktopId: "desktop:one",
       toDesktopId: "desktop:two",
       direction: "later",
@@ -496,7 +503,7 @@ describe("WindowManagerRuntime", () => {
       direction: "later",
       mode: "slide",
     } as const;
-    windowManagerStore.getState().actions.setTransitionIntent(staged);
+    windowManagerStore.trigger.transitionIntentChanged({ intent: staged });
 
     runtime.setClient({
       workspaceId: "workspace:test",
@@ -508,7 +515,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual(staged);
+    expect(selectDesktopTransitionIntent(windowManagerStore.getSnapshot().context)).toEqual(staged);
     runtime.stop();
   });
 
@@ -536,15 +543,17 @@ describe("WindowManagerRuntime", () => {
 
     runtime.switchDesktop("desktop:two");
     runtime.bind({ workspaceId: "workspace:next", clientId: "client:next" });
-    windowManagerStore.getState().actions.setTransitionIntent({
-      fromDesktopId: "desktop:next-one",
-      toDesktopId: "desktop:next-two",
-      direction: "later",
-      mode: "crossfade",
+    windowManagerStore.trigger.transitionIntentChanged({
+      intent: {
+        fromDesktopId: "desktop:next-one",
+        toDesktopId: "desktop:next-two",
+        direction: "later",
+        mode: "crossfade",
+      },
     });
     rejectCommand(new Error("old binding failed"));
     await vi.waitFor(() => {
-      expect(selectDesktopTransitionIntent(windowManagerStore.getState())).toEqual({
+      expect(selectDesktopTransitionIntent(windowManagerStore.getSnapshot().context)).toEqual({
         fromDesktopId: "desktop:next-one",
         toDesktopId: "desktop:next-two",
         direction: "later",
@@ -622,7 +631,7 @@ describe("WindowManagerRuntime", () => {
       connectedAt: "2026-07-22T00:00:00Z",
     });
 
-    runtime.getState().openOrFocus({
+    runtime.openOrFocus({
       app: "tasks",
       route: {
         pathname: "/tasks",
@@ -664,9 +673,12 @@ describe("WindowManagerRuntime", () => {
     };
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), snapshot);
     queryClient.setQueryData(windowManagerKeys.config(), config);
-    windowManagerStore
-      .getState()
-      .actions.setWorkArea({ rect: { x: 10, y: 20, w: 1200, h: 800 }, origin: { x: 0, y: 0 } });
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: {
+        rect: { x: 10, y: 20, w: 1200, h: 800 },
+        origin: { x: 0, y: 0 },
+      },
+    });
     vi.mocked(executeWindowManagerCommand).mockReturnValue(
       new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
     );
@@ -737,9 +749,7 @@ describe("WindowManagerRuntime", () => {
 
     expect(outcome.accepted).toBe(true);
     await expect(outcome.completion).resolves.toBe(false);
-    const floating = runtime
-      .getState()
-      .commitFloatingRect("app:agents", { x: 120, y: 90, w: 640, h: 480 });
+    const floating = runtime.commitFloatingRect("app:agents", { x: 120, y: 90, w: 640, h: 480 });
     expect(floating.accepted).toBe(true);
     await expect(floating.completion).resolves.toBe(false);
     expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
@@ -756,9 +766,7 @@ describe("WindowManagerRuntime", () => {
 
     expect(outcome.accepted).toBe(false);
     await expect(outcome.completion).resolves.toBe(false);
-    const floating = runtime
-      .getState()
-      .commitFloatingRect("app:missing", { x: 120, y: 90, w: 640, h: 480 });
+    const floating = runtime.commitFloatingRect("app:missing", { x: 120, y: 90, w: 640, h: 480 });
     expect(floating.accepted).toBe(false);
     await expect(floating.completion).resolves.toBe(false);
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();

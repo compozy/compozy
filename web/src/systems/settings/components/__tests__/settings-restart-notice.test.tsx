@@ -10,10 +10,7 @@ describe("SettingsRestartNotice", () => {
         restart={{
           activeSessionCount: 0,
           dismiss: vi.fn(),
-          isFailed: false,
-          isPolling: false,
           isRestartRequired: true,
-          isSuccessful: false,
           isTriggerPending: true,
           isVisible: true,
           operationId: null,

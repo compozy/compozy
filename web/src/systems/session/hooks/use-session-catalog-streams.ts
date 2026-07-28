@@ -1,10 +1,15 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useStore, useSelector } from "@xstate/store-react";
+import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionCatalogEventPayload } from "../types";
+import {
+  sessionCatalogStreamsLogic,
+  type SessionCatalogStreamStatus,
+} from "./session-catalog-streams-store";
 
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
 
@@ -21,32 +26,7 @@ interface UseSessionCatalogStreamsOptions {
   eventSourceFactory?: SessionCatalogEventSourceFactory;
 }
 
-export type SessionCatalogStreamStatus = "disabled" | "connecting" | "live" | "stale";
-
-interface SessionCatalogStatusStore {
-  getSnapshot: () => SessionCatalogStreamStatus;
-  subscribe: (listener: () => void) => () => void;
-  set: (status: SessionCatalogStreamStatus) => void;
-}
-
-function createSessionCatalogStatusStore(
-  initialStatus: SessionCatalogStreamStatus
-): SessionCatalogStatusStore {
-  let status = initialStatus;
-  const listeners = new Set<() => void>();
-  return {
-    getSnapshot: () => status,
-    subscribe: listener => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    set: nextStatus => {
-      if (nextStatus === status) return;
-      status = nextStatus;
-      for (const listener of listeners) listener();
-    },
-  };
-}
+export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store";
 
 export function sessionCatalogStreamURL(): string {
   return "/api/sessions/catalog-stream";
@@ -144,35 +124,26 @@ export function useSessionCatalogStreams(
     workspaceKey !== "" &&
     typeof window !== "undefined" &&
     (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
-  const [statusStore] = useState(() =>
-    createSessionCatalogStatusStore(canConnect ? "connecting" : "disabled")
-  );
-  const status = useSyncExternalStore(
-    statusStore.subscribe,
-    statusStore.getSnapshot,
-    statusStore.getSnapshot
-  );
+  const store = useStore(sessionCatalogStreamsLogic);
+  const status = useSelector(store, snapshot => snapshot.context.status);
 
   useEffect(() => {
     if (!canConnect) {
-      statusStore.set("disabled");
+      store.trigger.connectionDisabled();
       return undefined;
     }
 
-    statusStore.set("connecting");
-    try {
-      const close = openSessionCatalogStream(
-        queryClient,
-        workspaceKey.split("\u0000"),
-        eventSourceFactory ?? defaultEventSourceFactory,
-        statusStore.set
-      );
-      return close;
-    } catch {
-      statusStore.set("stale");
-      return undefined;
-    }
-  }, [canConnect, eventSourceFactory, queryClient, statusStore, workspaceKey]);
+    store.trigger.connectionRequested({
+      connect: onStatusChange =>
+        openSessionCatalogStream(
+          queryClient,
+          workspaceKey.split("\u0000"),
+          eventSourceFactory ?? defaultEventSourceFactory,
+          onStatusChange
+        ),
+    });
+    return () => store.trigger.connectionDisabled();
+  }, [canConnect, eventSourceFactory, queryClient, store, workspaceKey]);
 
   return status;
 }

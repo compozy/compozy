@@ -1,0 +1,215 @@
+{
+  "skill_name": "state-management",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "improve this React component's state handling.\n\n```tsx\nfunction ProductList({ products, initialQuery }: { products: Product[]; initialQuery: string }) {\n  const [query, setQuery] = useState(initialQuery);\n  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);\n  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);\n  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);\n  const [isLoading, setIsLoading] = useState(false);\n  const [isLoaded, setIsLoaded] = useState(false);\n  const [isError, setIsError] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n\n  useEffect(() => {\n    setQuery(initialQuery);\n  }, [initialQuery]);\n\n  useEffect(() => {\n    setFilteredProducts(products.filter((product) => product.name.includes(query)));\n  }, [products, query]);\n\n  useEffect(() => {\n    setSelectedProduct(products.find((product) => product.id === selectedProductId) ?? null);\n  }, [products, selectedProductId]);\n\n  async function refresh() {\n    setIsLoading(true);\n    setIsLoaded(false);\n    setIsError(false);\n    try {\n      await reloadProducts();\n      setIsLoaded(true);\n    } catch (err) {\n      setIsError(true);\n      setError(String(err));\n    } finally {\n      setIsLoading(false);\n    }\n  }\n\n  return null;\n}\n```",
+      "expected_output": "A React-specific review and refactor plan that removes derived state and synchronization effects, collapses async booleans into an explicit status, and keeps the solution local unless a broader ownership need is shown.",
+      "files": [],
+      "expectations": [
+        "The answer identifies `filteredProducts` as derived state and moves it to render-time calculation or a selector/helper rather than storing it.",
+        "The answer identifies `selectedProduct` as derivable from `selectedProductId` plus `products` and avoids storing both without a clear cache boundary.",
+        "The answer calls out the prop-to-state mirroring of `initialQuery` and either removes it or explains the controlled reset semantics needed if it is intentional.",
+        "The answer replaces `isLoading`/`isLoaded`/`isError` with a single finite status or discriminated union.",
+        "The answer does not recommend Redux, Zustand, XState, or another new library as the primary fix.",
+        "The answer treats effects as a smell here because they synchronize derivable state rather than interact with external systems."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "improve this Zustand checkout store design. The current store has `isCartOpen`, `isAddressStep`, `isPaymentStep`, `isReviewStep`, `isSubmitting`, `isSubmitted`, `hasSubmitError`, `submitError`, `cartItems`, `cartTotal`, `selectedShippingRate`, `availableShippingRates`, `canSubmit`, and actions named `setIsSubmitting`, `setCartTotal`, `setCanSubmit`, `setSubmitError`.",
+      "expected_output": "A Zustand design that keeps source state minimal, derives totals and readiness with selectors, models the checkout step and submission status explicitly, and uses domain actions rather than raw setters.",
+      "files": [],
+      "expectations": [
+        "The answer separates source state from derived state and does not store `cartTotal` or `canSubmit` as authoritative fields.",
+        "The answer collapses step booleans into one explicit checkout step such as `cart`, `address`, `payment`, or `review`.",
+        "The answer collapses submission booleans into a finite submission status such as `idle`, `submitting`, `submitted`, or `failed`.",
+        "The answer proposes domain action names like `checkout.started`, `address.completed`, `payment.selected`, `order.submitted`, or equivalent non-setter names.",
+        "The answer uses Zustand selectors or selector helpers for derived reads.",
+        "The answer avoids turning Zustand into a bag of unrelated setters."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "review this Redux slice shape for a teams page.\n\n```ts\ntype TeamsState = {\n  teams: Team[];\n  teamsById: Record<string, Team>;\n  filteredTeams: Team[];\n  activeTeam: Team | null;\n  activeTeamId: string | null;\n  searchText: string;\n  sortBy: 'name' | 'createdAt';\n  isLoading: boolean;\n  isSuccess: boolean;\n  isError: boolean;\n  errorMessage: string | null;\n};\n```\n\nThe page has search, sort, a details panel, and loads teams from the API.",
+      "expected_output": "A Redux-oriented redesign that normalizes source data, moves filtered/sorted/selected views into selectors, and models request lifecycle with a finite status.",
+      "files": [],
+      "expectations": [
+        "The answer identifies duplicated entity storage between `teams` and `teamsById` and recommends one normalized source of truth or a clear adapter-managed shape.",
+        "The answer moves `filteredTeams` to selectors instead of storing it.",
+        "The answer avoids storing both `activeTeam` and `activeTeamId` as source state.",
+        "The answer replaces request booleans with a finite `status` or discriminated request state.",
+        "The answer distinguishes URL-worthy state such as search and sort when shareability/back-button behavior matters.",
+        "The answer maps the model to Redux concepts such as slices, selectors, and normalized state without generic library swapping."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "improve this Pinia todo store model. Watchers keep `visibleTodos`, `completedCount`, `activeCount`, and `selectedTodo` synced whenever `todos`, `filter`, or `selectedTodoId` change. There are also booleans `isIdle`, `isSaving`, `isSaved`, and `isSaveError`.",
+      "expected_output": "A Vue/Pinia model that moves derived values to getters/computed values, stores source facts only, and replaces save booleans with an explicit status.",
+      "files": [],
+      "expectations": [
+        "The answer says watcher-based synchronization of `visibleTodos`, counts, and `selectedTodo` is unnecessary derived state.",
+        "The answer moves those derived reads to Pinia getters or Vue computed values.",
+        "The answer stores `selectedTodoId` rather than a separately synchronized selected object.",
+        "The answer collapses save booleans into one finite save status.",
+        "The answer keeps Pinia-specific advice in terms of state, getters, and actions.",
+        "The answer does not recommend React/Redux patterns as the main solution."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "model this account onboarding flow in TypeScript. The user starts at `profile`, then `billing`, then `inviteTeam`, then `done`. They can go back, but cannot submit billing until the billing form is valid. Submitting billing is async and may fail.",
+      "expected_output": "A library-agnostic TypeScript state model with finite states, events, transitions, guards, and derived helpers rather than boolean flags.",
+      "files": [],
+      "expectations": [
+        "The answer models the current step with an explicit finite state instead of booleans like `isProfileStep`.",
+        "The answer models billing submission with explicit async status or state-specific fields.",
+        "The answer defines domain events such as profile completion, billing submission requested, billing succeeded, billing failed, back navigation, or equivalents.",
+        "The answer includes a pure transition function or transition sketch.",
+        "The answer handles the billing-valid guard without storing redundant `canSubmitBilling` as source state unless justified.",
+        "The answer does not push a framework or state library as necessary."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "help me organize the state for a search page. It has server-loaded results, a search query, filters, sort, pagination, a selected result details drawer, local unsaved notes for the selected result, and polling that refreshes results every 30 seconds. We're using React.",
+      "expected_output": "A placement-focused model that separates URL state, server cache, local UI state, local draft state, and ephemeral polling concerns.",
+      "files": [],
+      "expectations": [
+        "The answer classifies query, filters, sort, and pagination as likely URL state if sharing, refresh, and back/forward behavior matter.",
+        "The answer classifies server-loaded results and polling freshness as server state or query/cache-layer concerns.",
+        "The answer treats the selected result drawer state as local or URL-backed depending on product requirements, and explains that decision point.",
+        "The answer separates unsaved notes as local draft/client state rather than overwriting server result data directly.",
+        "The answer treats polling timers, abort controllers, or subscriptions as ephemeral mutable/effect-boundary concerns, not render source state.",
+        "The answer avoids collapsing all of this into one global store by default."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "improve this TypeScript state type. I keep getting bugs where the UI shows success and an error at the same time.\n\n```ts\ntype ImportState = {\n  isParsing: boolean;\n  isUploading: boolean;\n  isComplete: boolean;\n  error: string | null;\n  file: File | null;\n  parsedRows: Row[] | null;\n  uploadId: string | null;\n};\n```\n\nThe flow is select file -> parse file -> upload rows -> complete. Parsing and uploading can fail separately.",
+      "expected_output": "A TypeScript redesign using a discriminated union or explicit finite states so state-specific data and errors are only present where valid.",
+      "files": [],
+      "expectations": [
+        "The answer identifies impossible combinations caused by independent booleans and nullable fields.",
+        "The answer proposes a discriminated union or equivalent finite state model.",
+        "The answer gives state-specific fields, such as parse errors only in parse failure and upload IDs only when uploading/uploaded.",
+        "The answer defines or sketches events/transitions for file selected, parse succeeded, parse failed, upload succeeded, and upload failed.",
+        "The answer avoids using a single loose object with more booleans as the fix.",
+        "The answer mentions exhaustiveness or narrowing benefits if TypeScript is used."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Create a React component for an inbox. It receives `messages` as a prop. Users can search, filter by `unread` or `archived`, select a message, mark the selected message as read, archive it, and refresh the list from the server.",
+      "expected_output": "A React creation answer that keeps the inbox source state minimal, derives visible messages and selected message, and models refresh lifecycle without independent request booleans.",
+      "files": [],
+      "expectations": [
+        "The answer stores filter/search input and selected message ID as source state rather than storing a synchronized visible message list.",
+        "The answer derives visible messages from `messages`, search text, and filter instead of storing them as source state.",
+        "The answer derives the selected message from `selectedMessageId` plus `messages` rather than storing both the selected object and ID.",
+        "The answer models refresh lifecycle with a finite status or discriminated union rather than independent booleans like `isLoading`, `isLoaded`, and `isError`.",
+        "The answer does not mirror the `messages` prop into local state unless it clearly explains a local-draft or optimistic-update boundary.",
+        "The answer keeps server refresh concerns separate from local view state."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Create a React checkout form. The user chooses a shipping address, selects a shipping method, enters payment details, reviews the order, and submits it. Shipping methods are loaded after an address is chosen, and submitting the order can fail.",
+      "expected_output": "A React creation answer that models checkout as explicit steps plus async lifecycles, derives totals/readiness, and avoids several independent step/submission flags.",
+      "files": [],
+      "expectations": [
+        "The answer models the current checkout step as one explicit value rather than booleans for each step.",
+        "The answer models shipping-method loading and order submission with explicit finite statuses or discriminated unions.",
+        "The answer derives review totals and submit readiness from cart, shipping method, payment validity, and current status rather than storing them as source state.",
+        "The answer defines meaningful events or handlers for domain transitions such as address chosen, shipping loaded, payment changed, review reached, and order submitted.",
+        "The answer prevents invalid states such as being on review without required address/shipping/payment data.",
+        "The answer does not introduce a global store or state-machine library as necessary for the basic component unless it explains why the requirements require it."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Create a plain JavaScript state module for a kanban board. It has columns, cards, search, labels, a selected card details panel, drag-and-drop moves, completed-card counts per column, and undo for the last move.",
+      "expected_output": "A plain JavaScript creation answer with a minimal source state, derived selectors for views/counts/selection, event-style transitions for moves, and explicit history for undo.",
+      "files": [],
+      "expectations": [
+        "The answer separates source state such as columns, cards, search, labels, selected card ID, and move history from derived values.",
+        "The answer derives visible cards and completed-card counts with selectors/functions rather than storing synchronized copies.",
+        "The answer derives selected card details from selected ID plus cards rather than storing a duplicate selected card object.",
+        "The answer represents drag-and-drop as an event/transition that updates card placement consistently.",
+        "The answer stores enough history for undo without duplicating the entire derived board view unnecessarily.",
+        "The answer uses plain JavaScript or TypeScript-style functions and does not require React, Redux, Zustand, or another library."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Create a React CSV import flow. Users choose a file, preview parsed rows, fix row errors, upload the valid rows, retry after failures, and see a completion screen with the upload ID.",
+      "expected_output": "A React creation answer that represents the import workflow as explicit finite states with state-specific data and derives validation summaries rather than storing independent workflow booleans.",
+      "files": [],
+      "expectations": [
+        "The answer models the import flow with explicit states or a discriminated union rather than independent booleans like parsing, uploading, complete, and error.",
+        "The answer keeps state-specific data in the states where it is valid, such as parsed rows after parsing and upload ID only after upload success.",
+        "The answer derives row error counts, valid rows, and whether upload is available from the row data rather than storing those as authoritative fields.",
+        "The answer defines events or handlers for file selection, parse success/failure, row edit, upload requested, upload success, upload failure, retry, and reset.",
+        "The answer avoids effect-driven synchronization of parsed row summaries.",
+        "The answer prevents impossible states such as complete with an upload error or uploading without parsed valid rows."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "Create a React product comparison page. Users can search products, filter by category, select up to four products to compare, pin one product as the baseline, remove products, and fetch updated prices in the background.",
+      "expected_output": "A React creation answer that stores IDs and user inputs, derives visible/selected/baseline product views, models background price refresh explicitly, and enforces selection invariants.",
+      "files": [],
+      "expectations": [
+        "The answer stores selected product IDs and baseline product ID rather than duplicating selected product objects.",
+        "The answer derives visible products from products, search, and category filter instead of storing a filtered list.",
+        "The answer enforces the maximum of four selected products and handles baseline removal or invalid baseline IDs explicitly.",
+        "The answer models background price refresh separately from local comparison state.",
+        "The answer derives comparison rows or table data from selected IDs plus products rather than storing synchronized comparison data.",
+        "The answer avoids using effects to keep filtered, selected, or comparison data synchronized when selectors/render-time derivation would suffice."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Create a plain JavaScript module for a music player queue. It should support loading a playlist, selecting a track, play/pause, next/previous, shuffle, repeat-one, repeat-all, buffering, playback errors, and restoring from a saved snapshot.",
+      "expected_output": "A plain JavaScript creation answer that models player modes and queue data explicitly, derives current/next/previous track views, and keeps persistence focused on source state.",
+      "files": [],
+      "expectations": [
+        "The answer models playback/buffering/error modes explicitly rather than with multiple independent booleans like playing, paused, buffering, and errored.",
+        "The answer stores playlist/queue source data and current track ID or index, while deriving current, next, and previous tracks.",
+        "The answer models repeat mode as one explicit value such as `off`, `one`, or `all`, not several booleans.",
+        "The answer defines events or transition functions for loading, selecting, play, pause, next, previous, buffering, error, recover, and restore.",
+        "The answer persists and restores source state/snapshot data without persisting derived views as authoritative state.",
+        "The answer keeps the implementation library-free and does not assume React state."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "is this code okay?\n\n```tsx\nfunction TeamDirectory({ teams, initialDepartment }: { teams: Team[]; initialDepartment: string }) {\n  const [department, setDepartment] = useState(initialDepartment);\n  const [visibleTeams, setVisibleTeams] = useState<Team[]>([]);\n  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);\n  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);\n  const [memberCount, setMemberCount] = useState(0);\n  const [canInvite, setCanInvite] = useState(false);\n  const [isLoading, setIsLoading] = useState(false);\n  const [isReady, setIsReady] = useState(false);\n  const [isError, setIsError] = useState(false);\n  const [errorMessage, setErrorMessage] = useState<string | null>(null);\n\n  useEffect(() => {\n    setDepartment(initialDepartment);\n  }, [initialDepartment]);\n\n  useEffect(() => {\n    const nextTeams = teams.filter((team) => team.department === department);\n    setVisibleTeams(nextTeams);\n    setMemberCount(nextTeams.reduce((total, team) => total + team.members.length, 0));\n  }, [teams, department]);\n\n  useEffect(() => {\n    const nextSelectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;\n    setSelectedTeam(nextSelectedTeam);\n    setCanInvite(Boolean(nextSelectedTeam && nextSelectedTeam.members.length < 10));\n  }, [teams, selectedTeamId]);\n\n  async function refreshTeams() {\n    setIsLoading(true);\n    setIsReady(false);\n    setIsError(false);\n\n    try {\n      await reloadTeams();\n      setIsReady(true);\n    } catch (error) {\n      setIsError(true);\n      setErrorMessage(String(error));\n    } finally {\n      setIsLoading(false);\n    }\n  }\n\n  return null;\n}\n```",
+      "expected_output": "A vague review answer that still identifies normal-looking React state anti-patterns: synchronized derived state, duplicated selection, prop mirroring, and independent async booleans.",
+      "files": [],
+      "expectations": [
+        "The answer identifies `visibleTeams`, `memberCount`, and `canInvite` as derived values that should not be synchronized into state.",
+        "The answer identifies `selectedTeam` as derivable from `selectedTeamId` plus `teams` and avoids storing both as source state.",
+        "The answer discusses the `initialDepartment` prop mirror and either removes it or explains when resetting local input from prop changes is intentional.",
+        "The answer replaces `isLoading`, `isReady`, `isError`, and `errorMessage` with one finite request state or discriminated union.",
+        "The answer treats the effects as synchronization smells rather than accepting them as normal React bookkeeping.",
+        "The answer does not recommend a new global state library as the primary fix."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Create a React page for a customer account. It receives `customerId`, loads the customer profile and invoices, shows the invoice count, lets the user select an invoice to see details, has a refresh button, and reloads when `customerId` changes.",
+      "expected_output": "A React data-fetching creation answer that separates server data from local UI state, avoids a fragile `useEffect` plus independent boolean loading model, and derives counts/selection from source data.",
+      "files": [],
+      "expectations": [
+        "The answer treats customer profile and invoices as server state and either recommends a query/cache layer or clearly isolates fetch lifecycle from local UI state.",
+        "The answer avoids storing `invoiceCount` as source state and derives it from invoices.",
+        "The answer stores selected invoice ID rather than duplicating the selected invoice object, and derives selected invoice details from invoices plus ID.",
+        "The answer models loading/error/success/refetching with explicit status or query state instead of independent booleans.",
+        "The answer handles `customerId` changes without stale response bugs, such as by using query keys, cancellation, request IDs, or ignoring outdated responses.",
+        "The answer does not present a bare `useEffect` plus `isLoading`/`setIsLoading` pattern as the complete solution without discussing the server-state boundary."
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { SessionCreateProvider, type SessionCreateContextValue } from "@/systems/session";
+import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 
 import type { HomeAgentRow } from "../../hooks/use-home-agents";
 import type { HomeSystemModel } from "../../hooks/use-home-system";
@@ -21,12 +21,7 @@ import { HomeWorkingNow } from "../home-working-now";
 
 const NOW = Date.parse("2026-07-23T12:00:00Z");
 
-const STORY_SESSION_CREATE: SessionCreateContextValue = {
-  openForAgent: () => {},
-  isCreating: false,
-  pendingAgentName: null,
-  hasActiveWorkspace: true,
-};
+const STORY_SESSION_CREATE_STORE = createSessionCreateStore();
 
 const overview = makeHomeOverview({
   pulse: {
@@ -241,7 +236,7 @@ function HomeDashboardStory({
   const workingNowIsError = workingNowStatus === "error";
   const visibleWorkingNowCards = workingNowIsError ? [] : workingNowCards;
   return (
-    <SessionCreateProvider value={STORY_SESSION_CREATE}>
+    <SessionCreateProvider store={STORY_SESSION_CREATE_STORE}>
       <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
         <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
         <div className="flex flex-col gap-6">

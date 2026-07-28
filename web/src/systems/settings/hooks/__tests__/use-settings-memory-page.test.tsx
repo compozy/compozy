@@ -28,8 +28,7 @@ const triggerDreamMock = {
 
 import { getSettingsMemory, updateSettingsMemory } from "@/systems/settings/adapters/settings-api";
 import { settingsMemoryConfigFixture } from "@/systems/settings/mocks/fixtures";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsMemorySection } from "@/systems/settings";
 import { useSettingsMemoryPage } from "../use-settings-memory-page";
 
@@ -64,13 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   triggerDreamMock.mutate.mockReset();
   triggerDreamMock.isPending = false;
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getSettingsMemory).mockResolvedValue(memoryEnvelope);
 });
 

@@ -6,7 +6,10 @@ import {
   isTerminalRestartStatus,
   RESTART_TERMINAL_STATUSES,
 } from "../restart-status";
-import { settingsRestartPresentation } from "../restart-presentation";
+import {
+  settingsRestartPresentation,
+  type SettingsRestartViewState,
+} from "../restart-presentation";
 
 describe("restart status helpers", () => {
   it("treats only ready and failed as terminal", () => {
@@ -28,12 +31,9 @@ describe("restart status helpers", () => {
 });
 
 describe("settingsRestartPresentation", () => {
-  const baseState = {
+  const baseState: SettingsRestartViewState = {
     isVisible: true,
     isRestartRequired: true,
-    isPolling: false,
-    isSuccessful: false,
-    isFailed: false,
     operationId: null,
     status: null,
     activeSessionCount: 0,
@@ -71,7 +71,7 @@ describe("settingsRestartPresentation", () => {
     },
     {
       name: "polling",
-      state: { isPolling: true },
+      state: { operationId: "op_polling", status: "stopping" },
       expected: {
         phase: "polling",
         tone: "info",
@@ -84,7 +84,7 @@ describe("settingsRestartPresentation", () => {
     },
     {
       name: "successful",
-      state: { isRestartRequired: false, isSuccessful: true },
+      state: { isRestartRequired: false, operationId: "op_success", status: "ready" },
       expected: {
         phase: "successful",
         tone: "success",
@@ -97,7 +97,7 @@ describe("settingsRestartPresentation", () => {
     },
     {
       name: "failed",
-      state: { isFailed: true, failureReason: "helper spawn failed" },
+      state: { operationId: "op_failed", status: "failed", failureReason: "helper spawn failed" },
       expected: {
         phase: "failed",
         tone: "danger",
@@ -108,7 +108,7 @@ describe("settingsRestartPresentation", () => {
         triggerPending: false,
       },
     },
-  ])("projects the $name phase exhaustively", ({ state, expected }) => {
+  ] as const)("projects the $name phase exhaustively", ({ state, expected }) => {
     expect(settingsRestartPresentation({ ...baseState, ...state })).toMatchObject(expected);
   });
 

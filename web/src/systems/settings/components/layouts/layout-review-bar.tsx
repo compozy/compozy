@@ -19,7 +19,7 @@ type ReviewTone = "neutral" | "warning" | "success" | "danger";
  */
 export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
   const reviewing = editor.review.isFetching;
-  const applying = editor.apply.isPending;
+  const applying = editor.phase === "saving";
   const diagnostics = editor.validation?.valid === false ? editor.validation.diagnostics : [];
   const status = describe(editor, { reviewing, applying, problems: diagnostics.length });
   const error = editor.importError ?? errorMessage(editor.mutationError);

@@ -15,8 +15,8 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 }));
 
 import { getSettingsRestartStatus } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { settingsRestartStore } from "@/systems/settings/stores/settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { useSettingsPage } from "../use-settings-page";
 
 function createWrapper() {
@@ -33,13 +33,7 @@ function createWrapper() {
 beforeEach(() => {
   matchedRoutes = {};
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
 });
 
 afterEach(() => {
@@ -97,7 +91,10 @@ describe("useSettingsPage", () => {
 
     expect(result.current.restart.isVisible).toBe(false);
     expect(result.current.restart.isRestartRequired).toBe(false);
-    expect(result.current.restart.isPolling).toBe(false);
+    expect(result.current.restart.status).toBeNull();
+    expect(result.current.restart).not.toHaveProperty("isPolling");
+    expect(result.current.restart).not.toHaveProperty("isSuccessful");
+    expect(result.current.restart).not.toHaveProperty("isFailed");
   });
 
   it("shows the notice and polling state once restart begins", async () => {
@@ -116,16 +113,16 @@ describe("useSettingsPage", () => {
     const { result } = renderHook(() => useSettingsPage(), { wrapper });
 
     act(() => {
-      useSettingsRestartStore.getState().recordMutation({
-        section: "general",
-        restartRequired: true,
-        warnings: [],
-        completedAt: new Date().toISOString(),
+      settingsRestartStore.trigger.settingsMutationRecorded({
+        mutation: {
+          section: "general",
+          restartRequired: true,
+          warnings: [],
+          completedAt: new Date().toISOString(),
+        },
       });
-      useSettingsRestartStore.getState().startRestart({
+      settingsRestartStore.trigger.restartOperationStarted({
         operationId: "op_page",
-        status: "pending",
-        activeSessionCount: 1,
       });
     });
 
@@ -136,6 +133,5 @@ describe("useSettingsPage", () => {
     expect(result.current.restart.isVisible).toBe(true);
     expect(result.current.restart.operationId).toBe("op_page");
     expect(result.current.restart.isRestartRequired).toBe(true);
-    expect(result.current.restart.isPolling).toBe(true);
   });
 });

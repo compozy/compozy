@@ -1,10 +1,10 @@
-import type { UpdateTaskRequest } from "../types";
 import {
   networkParticipationDraftFromPayload,
   networkParticipationDraftFromValues,
   serializeNetworkParticipation,
   type NetworkParticipationStrategy,
-} from "@/systems/network";
+} from "@/lib/network-participation";
+import type { UpdateTaskRequest } from "../types";
 import type { TaskTemplateId } from "./task-templates";
 import { applyTemplateToCreatePayload, getTaskTemplate } from "./task-templates";
 import type {

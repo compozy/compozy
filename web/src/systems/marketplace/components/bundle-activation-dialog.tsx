@@ -21,23 +21,17 @@ import { useBundleActivationDialog } from "./use-bundle-activation-dialog";
 
 interface BundleActivationDialogProps {
   data: MarketplaceEntryResponse;
-  open: boolean;
   workspaceId?: string | null;
   onOpenChange: (open: boolean) => void;
 }
 
-function BundleActivationDialog({
-  data,
-  open,
-  workspaceId,
-  onOpenChange,
-}: BundleActivationDialogProps) {
+function BundleActivationDialog({ data, workspaceId, onOpenChange }: BundleActivationDialogProps) {
   const bundle = data.bundle;
   const {
-    activate,
     activateBundle,
     confirmNetworkRequirement,
     error,
+    phase,
     preview,
     profile,
     rerunPreview,
@@ -45,12 +39,18 @@ function BundleActivationDialog({
     setConfirmNetworkRequirement,
     setProfile,
     setScope,
-  } = useBundleActivationDialog({ data, onOpenChange, open, workspaceId });
+  } = useBundleActivationDialog({ data, onOpenChange, workspaceId });
 
   if (!bundle) return null;
+  const isActivating = phase === "activating";
+  const isPreviewing = phase === "preview-pending" || phase === "previewing";
+  const handleOpenChange = (open: boolean) => {
+    if (!open && isActivating) return;
+    onOpenChange(open);
+  };
   const requiresNetworkConfirmation = Boolean(preview.data?.activation.network_requirement_digest);
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open>
       <DialogContent
         aria-describedby="bundle-preview-description"
         className="sm:max-w-(--width-modal-md)"
@@ -152,10 +152,10 @@ function BundleActivationDialog({
           <section className="flex flex-col gap-2.5" aria-live="polite">
             <div className="flex items-center gap-2">
               <h3 className="text-small-body font-medium text-fg-strong">What changes</h3>
-              {preview.isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {isPreviewing ? <Spinner aria-hidden="true" className="size-3" /> : null}
             </div>
             {preview.data ? <BundlePreviewInventory data={preview.data} /> : null}
-            {preview.isPending && !preview.data ? (
+            {isPreviewing && !preview.data ? (
               <div className="flex min-h-32 items-center justify-center rounded-md bg-canvas text-small-body text-muted">
                 Loading preview
               </div>
@@ -186,8 +186,8 @@ function BundleActivationDialog({
 
         <DialogFooter variant="ruled">
           <Button
-            disabled={activate.isPending}
-            onClick={() => onOpenChange(false)}
+            disabled={isActivating}
+            onClick={() => handleOpenChange(false)}
             type="button"
             variant="ghost"
           >
@@ -197,16 +197,16 @@ function BundleActivationDialog({
             data-testid="bundle-activate-confirm"
             disabled={
               !preview.data ||
-              preview.isPending ||
-              activate.isPending ||
+              isPreviewing ||
+              isActivating ||
               Boolean(error) ||
               (requiresNetworkConfirmation && !confirmNetworkRequirement)
             }
             onClick={() => void activateBundle()}
             type="button"
           >
-            {activate.isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {activate.isPending ? "Activating…" : "Activate"}
+            {isActivating ? <Spinner aria-hidden="true" className="size-3" /> : null}
+            {isActivating ? "Activating…" : "Activate"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,17 +1,21 @@
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { awaitStoreRequest } from "@/lib/store-request";
 
 import { supportApi } from "../adapters/support-api";
 import { supportKeys } from "../lib/query-keys";
 import type { SupportBundleDownloadResult, SupportBundleOperation } from "../types";
+import {
+  createSupportBundleDownloadLogic,
+  type SupportBundleDownloadInput,
+  type SupportBundleRequestSettlement,
+} from "./support-bundle-download-store";
 
-interface SupportBundleDownloadInput {
-  includeStatus?: boolean;
-  yes: true;
-}
+const supportBundleDownloadLogic = createSupportBundleDownloadLogic();
 
 const SUPPORT_BUNDLE_POLL_INTERVAL_MS = 750;
-const SUPPORT_BUNDLE_POLL_TIMEOUT_MS = 120_000;
 
 function supportBundleFileName(operation: SupportBundleOperation): string {
   const fileName = operation.file_name?.trim();
@@ -45,8 +49,7 @@ async function waitForSupportBundle(
   operationId: string,
   signal: AbortSignal
 ): Promise<SupportBundleOperation> {
-  const deadline = Date.now() + SUPPORT_BUNDLE_POLL_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+  while (true) {
     const operation = await supportApi.get(operationId, signal);
     if (operation.status === "completed") return operation;
     if (operation.status === "failed") {
@@ -54,7 +57,6 @@ async function waitForSupportBundle(
     }
     await delay(SUPPORT_BUNDLE_POLL_INTERVAL_MS, signal);
   }
-  throw new Error("Support bundle did not complete within 2 minutes");
 }
 
 function downloadBlob(blob: Blob, fileName: string) {
@@ -70,66 +72,52 @@ function downloadBlob(blob: Blob, fileName: string) {
 
 async function createAndDownloadSupportBundle(
   { includeStatus = true, yes }: SupportBundleDownloadInput,
-  controller: AbortController,
-  onOperation: (operation: SupportBundleOperation) => void,
-  onSettled: () => void
+  signal: AbortSignal,
+  onOperation: (operation: SupportBundleOperation) => void
 ): Promise<SupportBundleDownloadResult> {
-  const timeout = globalThis.setTimeout(
-    () => controller.abort(new Error("Support bundle did not complete within 2 minutes")),
-    SUPPORT_BUNDLE_POLL_TIMEOUT_MS
-  );
-  try {
-    const created = await supportApi.create(
-      { include_status: includeStatus, yes },
-      controller.signal
-    );
-    onOperation(created);
-    const completed = await waitForSupportBundle(created.operation_id, controller.signal);
-    onOperation(completed);
-    const blob = await supportApi.download(completed.operation_id, controller.signal);
-    const fileName = supportBundleFileName(completed);
-    downloadBlob(blob, fileName);
-    return { operation: completed, fileName };
-  } finally {
-    globalThis.clearTimeout(timeout);
-    onSettled();
-  }
+  const created = await supportApi.create({ include_status: includeStatus, yes }, signal);
+  onOperation(created);
+  const completed = await waitForSupportBundle(created.operation_id, signal);
+  onOperation(completed);
+  const blob = await supportApi.download(completed.operation_id, signal);
+  const fileName = supportBundleFileName(completed);
+  downloadBlob(blob, fileName);
+  return { operation: completed, fileName };
 }
 
 export function useSupportBundleDownload() {
   const queryClient = useQueryClient();
-  const [operation, setOperation] = useState<SupportBundleOperation | null>(null);
-  const activeRequestRef = useRef<AbortController | null>(null);
+  const store = useStore(supportBundleDownloadLogic);
+  const state = useSelector(store, snapshot => snapshot.context);
 
-  useEffect(() => () => activeRequestRef.current?.abort(), []);
-
-  const mutation = useMutation({
-    mutationFn: (input: SupportBundleDownloadInput): Promise<SupportBundleDownloadResult> => {
-      activeRequestRef.current?.abort();
-      const controller = new AbortController();
-      activeRequestRef.current = controller;
-      return createAndDownloadSupportBundle(input, controller, setOperation, () => {
-        if (activeRequestRef.current === controller) activeRequestRef.current = null;
-      });
-    },
-    onSuccess: result => {
-      queryClient.setQueryData(supportKeys.bundle(result.operation.operation_id), result.operation);
-    },
-  });
-
-  const create = (input: SupportBundleDownloadInput) => mutation.mutateAsync(input);
-  const reset = () => {
-    activeRequestRef.current?.abort();
-    activeRequestRef.current = null;
-    setOperation(null);
-    mutation.reset();
-  };
+  useEffect(() => () => store.trigger.lifecycleReset(), [store]);
 
   return {
-    create,
-    operation,
-    isPending: mutation.isPending,
-    error: mutation.error,
-    reset,
+    create: (input: SupportBundleDownloadInput) =>
+      awaitStoreRequest<
+        { requestId: number },
+        SupportBundleRequestSettlement,
+        SupportBundleDownloadResult
+      >({
+        notAcceptedMessage: "Support bundle request was not accepted",
+        request: () =>
+          store.trigger.downloadRequested({ execute: createAndDownloadSupportBundle, input }),
+        resolveSettlement: event => {
+          if (event.outcome === "completed") {
+            queryClient.setQueryData(
+              supportKeys.bundle(event.result.operation.operation_id),
+              event.result.operation
+            );
+            return event.result;
+          }
+          throw event.error;
+        },
+        subscribeAccepted: listener => store.on("requestAccepted", listener),
+        subscribeSettled: listener => store.on("requestSettled", listener),
+      }),
+    operation: state.operation,
+    isPending: state.phase === "pending",
+    error: state.error,
+    reset: () => store.trigger.lifecycleReset(),
   };
 }

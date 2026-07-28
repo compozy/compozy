@@ -3,28 +3,28 @@
 // Owning layer: active-workspace store ↔ routing coordinator boundary.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
+import { setActiveWorkspaceId } from "@/systems/workspace/stores/active-workspace-store";
 
 import { subscribeWorkspaceSwitchBarrier } from "../workspace-switch-barrier";
 
 afterEach(() => {
-  useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
+  setActiveWorkspaceId(null);
 });
 
 describe("subscribeWorkspaceSwitchBarrier", () => {
   it("Should enter the barrier inside the workspace selection update", () => {
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "workspace:one" });
+    setActiveWorkspaceId("workspace:one");
     const order: string[] = [];
     const beginWorkspaceSwitch = vi.fn(() => order.push("barrier"));
     const unsubscribe = subscribeWorkspaceSwitchBarrier({ beginWorkspaceSwitch });
 
-    useActiveWorkspaceStore.getState().setSelectedWorkspaceId("workspace:two");
+    setActiveWorkspaceId("workspace:two");
     order.push("after-selection");
 
     expect(order).toEqual(["barrier", "after-selection"]);
     expect(beginWorkspaceSwitch).toHaveBeenCalledOnce();
 
-    useActiveWorkspaceStore.getState().setSelectedWorkspaceId("workspace:two");
+    setActiveWorkspaceId("workspace:two");
     expect(beginWorkspaceSwitch).toHaveBeenCalledOnce();
     unsubscribe();
   });

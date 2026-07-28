@@ -7,6 +7,13 @@ import {
 
 type WindowManagerSnapshot = typeof windowManagerSnapshotFixture;
 type WindowManagerClient = ReturnType<typeof windowManagerClientFixture>;
+type WindowManagerSnapshotFactory = (workspaceId: string) => WindowManagerSnapshot;
+
+const defaultSnapshotFactory: WindowManagerSnapshotFactory = workspaceId => {
+  const snapshot = structuredClone(windowManagerSnapshotFixture);
+  snapshot.workspace_id = workspaceId;
+  return snapshot;
+};
 
 interface OpenWindowSpec {
   id: string;
@@ -121,6 +128,8 @@ export class StorybookWindowManagerMockRuntime {
   private readonly snapshots = new Map<string, WindowManagerSnapshot>();
   private readonly clients = new Map<string, Map<string, WindowManagerClient>>();
 
+  constructor(private readonly snapshotFactory = defaultSnapshotFactory) {}
+
   reset(): void {
     this.snapshots.clear();
     this.clients.clear();
@@ -161,8 +170,7 @@ export class StorybookWindowManagerMockRuntime {
     const existing = this.snapshots.get(workspaceId);
     if (existing) return existing;
 
-    const snapshot = structuredClone(windowManagerSnapshotFixture);
-    snapshot.workspace_id = workspaceId;
+    const snapshot = structuredClone(this.snapshotFactory(workspaceId));
     this.snapshots.set(workspaceId, snapshot);
     return snapshot;
   }

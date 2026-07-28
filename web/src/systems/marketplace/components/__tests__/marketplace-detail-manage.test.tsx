@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   skillError: null as Error | null,
   extensionError: null as Error | null,
   extensionLoading: false,
-  isAwaiting: false,
+  authorizePhase: "idle" as "idle" | "waiting",
   mcpQueryCalls: [] as Array<{
     filter: { scope?: string; workspace_id?: string };
     options?: { enabled?: boolean; refetchInterval?: number };
@@ -62,7 +62,7 @@ vi.mock("@/systems/settings", async importOriginal => {
     useMCPAuthorize: () => ({
       acknowledgeStatus: mocks.acknowledgeStatus,
       beginAuthorize: mocks.beginAuthorize,
-      isAwaiting: mocks.isAwaiting,
+      phase: mocks.authorizePhase,
     }),
   };
 });
@@ -230,10 +230,10 @@ vi.mock("@/systems/extensions", () => ({
       refetch: vi.fn(),
     },
     navigate: mocks.extensionNavigate,
-    provenanceOpen: false,
-    removeOpen: false,
-    setProvenanceOpen: vi.fn(),
-    setRemoveOpen: vi.fn(),
+    activeDialog: null,
+    dismissDialog: vi.fn(),
+    requestProvenance: vi.fn(),
+    requestRemoval: vi.fn(),
     toggle: { isPending: false, mutate: mocks.extensionToggle },
   }),
 }));
@@ -245,7 +245,7 @@ describe("Marketplace installed-detail management", () => {
     mocks.disableSkillError = null;
     mocks.extensionError = null;
     mocks.extensionLoading = false;
-    mocks.isAwaiting = false;
+    mocks.authorizePhase = "idle";
     mocks.mcpQueryCalls.length = 0;
     mocks.globalMCP = { data: undefined, error: null, isLoading: false, refetch: vi.fn() };
     mocks.workspaceMCP = { data: undefined, error: null, isLoading: false, refetch: vi.fn() };
@@ -572,12 +572,12 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByRole("status", { name: "Detail authorization scope" })).toHaveTextContent(
       "global"
     );
-    expect(mocks.beginAuthorize).toHaveBeenCalledWith("oauth-server", {
+    expect(mocks.beginAuthorize).toHaveBeenCalledWith({ scope: "global" }, "oauth-server", {
       status: "needs_login",
       tokenPresent: false,
     });
 
-    mocks.isAwaiting = true;
+    mocks.authorizePhase = "waiting";
     server.auth_status = {
       refreshable: true,
       scope: "global",

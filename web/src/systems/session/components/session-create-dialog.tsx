@@ -16,7 +16,7 @@ import type { AgentPayload } from "@/systems/agent";
 import {
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
-} from "@/systems/network";
+} from "@/lib/network-participation";
 import {
   RuntimeSelector,
   type RuntimeModelOption,
@@ -216,7 +216,6 @@ function SessionCreateDialog({
               onSubmitDraft={submitIfAllowed}
               runtimeControl={
                 <RuntimeSelector
-                  catalogLoaded={catalogLoaded}
                   catalogStatus={
                     <CatalogStatusLine
                       error={catalogError}

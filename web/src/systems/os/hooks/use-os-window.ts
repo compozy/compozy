@@ -15,10 +15,10 @@ import { resolveSnapTarget, type OccupiedSnapCandidate } from "../lib/snap-targe
 import type { OsRect, OsWindow, WindowManagerCommandOutcome } from "../lib/os-types";
 import { snapTargetConfigFromConfig } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
+import { finishWindowManagerGesture } from "../stores/window-manager-store-commands";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 import {
-  useWindowManagerActions,
   useWindowManagerGestureActive,
   useWindowManagerWorkArea,
 } from "./use-window-manager-store";
@@ -76,7 +76,7 @@ function dragPoint(event: OsDragEvent): { x: number; y: number } | null {
 function layerPoint(event: OsDragEvent): { x: number; y: number } | null {
   const client = dragPoint(event);
   if (client === null) return null;
-  const origin = windowManagerStore.getState().workArea?.origin;
+  const origin = windowManagerStore.getSnapshot().context.workArea?.origin;
   if (origin === undefined) return null;
   return { x: client.x - origin.x, y: client.y - origin.y };
 }
@@ -101,8 +101,7 @@ function modifierActive(
 
 /** Semantic window gestures; pixels remain preview-only until one command commits. */
 export function useOsWindow(windowId: string): OsWindowModel {
-  const { store, manager, coordinator } = useOsShell();
-  const actions = useWindowManagerActions();
+  const { manager, coordinator } = useOsShell();
   const gestureActive = useWindowManagerGestureActive(windowId);
   const workArea = useWindowManagerWorkArea();
   const win = useDesktop(state => state.windows[windowId]);
@@ -124,10 +123,15 @@ export function useOsWindow(windowId: string): OsWindowModel {
 
   useEffect(() => {
     if (!gestureActive) return;
-    return bindLayoutGestureCancellation(window, actions.cancelGesture);
-  }, [actions, gestureActive]);
+    return bindLayoutGestureCancellation(window, (reason, point) => {
+      windowManagerStore.trigger.gestureCancelled({
+        reason,
+        ...(point ? { point } : {}),
+      });
+    });
+  }, [gestureActive]);
   const candidates = (): OccupiedSnapCandidate[] => {
-    const state = store.getState();
+    const state = manager.getState();
     if (!win) return [];
     return Object.values(state.windows).flatMap(window =>
       window.id === windowId ||
@@ -165,12 +169,12 @@ export function useOsWindow(windowId: string): OsWindowModel {
   };
 
   const swapModifierHeld = (event: OsDragEvent): boolean => {
-    const modifier = store.getState().windowManagerConfig?.swapModifier;
+    const modifier = manager.getState().windowManagerConfig?.swapModifier;
     return modifier !== undefined && modifier !== "none" && modifierActive(event, modifier);
   };
 
   const snapBackToAuthoritative = () => {
-    const authoritative = store.getState().windows[windowId];
+    const authoritative = manager.getState().windows[windowId];
     if (authoritative) {
       applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
     }
@@ -185,10 +189,10 @@ export function useOsWindow(windowId: string): OsWindowModel {
     const gestureAttempt = rollbackAttemptRef.current;
     if (gestureAttempt === null || gestureAttemptRef.current !== gestureAttempt) return;
     rollbackAttemptRef.current = null;
-    const authoritative = store.getState().windows[windowId];
+    const authoritative = manager.getState().windows[windowId];
     if (!authoritative) return;
     applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
-  }, [rollbackEpoch, store, windowId]);
+  }, [manager, rollbackEpoch, windowId]);
 
   const reconcileGestureOutcome = (
     outcome: WindowManagerCommandOutcome,
@@ -207,7 +211,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
 
   // Escape cancelled the gesture: snap back to the source rect instead of tracking the pointer.
   const snapBackCancelled = (): boolean => {
-    const gesture = windowManagerStore.getState().gesture;
+    const gesture = windowManagerStore.getSnapshot().context.gesture;
     if (gesture?.status !== "cancelled" || gesture.source.windowId !== windowId) return false;
     snapBackToAuthoritative();
     return true;
@@ -215,12 +219,12 @@ export function useOsWindow(windowId: string): OsWindowModel {
 
   const settleUncommittedDrag = () => {
     const gestureAttempt = gestureAttemptRef.current;
-    actions.clearGesture();
+    windowManagerStore.trigger.gestureCleared();
     scheduleAuthoritativeRollback(gestureAttempt);
   };
 
   const settleCancelledDrag = (): boolean => {
-    const gesture = windowManagerStore.getState().gesture;
+    const gesture = windowManagerStore.getSnapshot().context.gesture;
     if (gesture?.status !== "cancelled" || gesture.source.windowId !== windowId) return false;
     settleUncommittedDrag();
     return true;
@@ -234,13 +238,13 @@ export function useOsWindow(windowId: string): OsWindowModel {
 
   const handleDragStart: RndDragCallback = (event, _data) => {
     const point = layerPoint(event);
-    const state = store.getState();
+    const state = manager.getState();
     const config = state.windowManagerConfig;
     if (!point || !workArea || !win || !state.snapshot || config === null) return;
     gestureAttemptRef.current += 1;
     const moveGroup =
       config.dragAwayPolicy === "group" || modifierActive(event, config.groupMoveModifier);
-    actions.beginGesture({
+    windowManagerStore.trigger.gestureBegan({
       pointerId: 0,
       point,
       workArea: workArea.rect,
@@ -257,28 +261,28 @@ export function useOsWindow(windowId: string): OsWindowModel {
   const handleDrag: RndDragCallback = (event, _data) => {
     if (snapBackCancelled()) return;
     const point = layerPoint(event);
-    const gesture = windowManagerStore.getState().gesture;
-    const currentWorkArea = windowManagerStore.getState().workArea?.rect;
+    const gesture = windowManagerStore.getSnapshot().context.gesture;
+    const currentWorkArea = windowManagerStore.getSnapshot().context.workArea?.rect;
     if (!point || gesture?.status !== "active" || !currentWorkArea) return;
-    actions.previewGesture(
+    windowManagerStore.trigger.gesturePreviewed({
       point,
-      targetAt(point, gesture.workArea, swapModifierHeld(event)),
-      currentWorkArea
-    );
+      preview: targetAt(point, gesture.workArea, swapModifierHeld(event)),
+      currentWorkArea,
+    });
   };
 
   const handleDragStop: RndDragCallback = (event, data) => {
     if (settleCancelledDrag()) return;
     const point = layerPoint(event) ?? { x: data.x, y: data.y };
-    const state = store.getState();
-    const currentGesture = windowManagerStore.getState().gesture;
-    const currentWorkArea = windowManagerStore.getState().workArea?.rect;
+    const state = manager.getState();
+    const currentGesture = windowManagerStore.getSnapshot().context.gesture;
+    const currentWorkArea = windowManagerStore.getSnapshot().context.workArea?.rect;
     if (!win || !state.snapshot || currentGesture?.status !== "active" || !currentWorkArea) {
       settleUncommittedDrag();
       return;
     }
     const target = targetAt(point, currentGesture.workArea, swapModifierHeld(event));
-    const decision = actions.finishGesture({
+    const decision = finishWindowManagerGesture(windowManagerStore, {
       finalPoint: point,
       finalTarget: target,
       currentRevision: state.snapshot.revision,
@@ -301,7 +305,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
     }
     if (decision?.reason === "no-target") {
       const gestureAttempt = gestureAttemptRef.current;
-      const outcome = manager.getState().commitFloatingRect(
+      const outcome = manager.commitFloatingRect(
         windowId,
         { ...win.rect, x: data.x, y: data.y },
         {
@@ -314,14 +318,14 @@ export function useOsWindow(windowId: string): OsWindowModel {
       );
       reconcileGestureOutcome(outcome, gestureAttempt);
     }
-    actions.clearGesture();
+    windowManagerStore.trigger.gestureCleared();
   };
 
   const handleResizeStop: RndResizeCallback = (_event, _direction, element, _delta, position) => {
     if (!win || win.placement !== "floating") return;
     const gestureAttempt = gestureAttemptRef.current + 1;
     gestureAttemptRef.current = gestureAttempt;
-    const outcome = manager.getState().commitFloatingRect(windowId, {
+    const outcome = manager.commitFloatingRect(windowId, {
       x: position.x,
       y: position.y,
       w: element.offsetWidth,
@@ -344,13 +348,13 @@ export function useOsWindow(windowId: string): OsWindowModel {
       else void coordinator.userZoom(windowId);
     },
     handlePointerEnter: () => {
-      const state = store.getState();
+      const state = manager.getState();
       if (state.windowManagerConfig?.focusFollowsPointer) {
         void coordinator.userFocus(windowId);
       }
     },
     handlePointerDownCapture: event => {
-      if (store.getState().windowManagerConfig?.focusPolicy === "click_directional") {
+      if (manager.getState().windowManagerConfig?.focusPolicy === "click_directional") {
         activate(event.target);
       }
     },
@@ -363,6 +367,6 @@ export function useOsWindow(windowId: string): OsWindowModel {
 }
 
 function windowManagerStoreGesture() {
-  const session = windowManagerStore.getState().gesture;
+  const session = windowManagerStore.getSnapshot().context.gesture;
   return session?.status === "active" ? session.preview : null;
 }

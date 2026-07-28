@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { useSelector } from "@xstate/store-react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { createElement, Profiler, useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
@@ -9,7 +10,35 @@ import type { AllModelsListResponse, AllModelsRefreshResponse } from "@/systems/
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
-import { useSessionCreateDialog, type SessionCreateDialogApi } from "../use-session-create-dialog";
+import { createSessionCreateStore } from "../../stores/session-create-store";
+import {
+  useSessionCreateDialogController,
+  useSessionCreateDialogViewModel,
+  type SessionCreateDialogApi,
+  type SessionCreateDialogController,
+} from "../use-session-create-dialog";
+
+type SessionCreateDialogTestHarness = SessionCreateDialogApi & {
+  openDialog: (agentName: string) => void;
+};
+
+function useSessionCreateDialog(context: {
+  agents: AgentPayload[] | undefined;
+  activeWorkspace: WorkspacePayload | undefined;
+}): SessionCreateDialogTestHarness {
+  const controller = useSessionCreateDialogController();
+  const dialog = useSessionCreateDialogViewModel(context, controller.store);
+  return {
+    ...dialog,
+    openDialog: agentName => {
+      if (!context.activeWorkspace) return;
+      controller.store.trigger.dialogOpened({
+        agentName,
+        workspaceId: context.activeWorkspace.id,
+      });
+    },
+  };
+}
 
 type ProviderModelPayload = AllModelsListResponse["models"][number];
 
@@ -23,7 +52,6 @@ const visibleCatalogFlags = {
 const {
   mockNavigate,
   mockMutateAsync,
-  mockToastError,
   mockUseCreateSessionPending,
   mockWorkspaceQuery,
   mockWorkspaceListRef,
@@ -33,7 +61,6 @@ const {
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
-  mockToastError: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
   mockWorkspaceQuery: vi.fn(),
   mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
@@ -46,17 +73,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: mockToastError,
-  },
-}));
-
-vi.mock("@/systems/agent", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/agent")>("@/systems/agent");
-
+vi.mock("@/systems/agent/hooks/use-agents", () => {
   return {
-    ...actual,
     useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
       mockUseAgents(workspaceId, options),
   };
@@ -286,7 +304,6 @@ describe("useSessionCreateDialog", () => {
     mockNavigate.mockResolvedValue(undefined);
     mockMutateAsync.mockReset();
     mockMutateAsync.mockResolvedValue(createdSession);
-    mockToastError.mockReset();
     mockWorkspaceQuery.mockReset();
     mockWorkspaceListRef.current = [activeWorkspace];
     mockUseAgents.mockReset();
@@ -321,6 +338,138 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
+  it("Should resolve an empty public new-session intent to the first available agent", () => {
+    mockUseAgents.mockReturnValue({ data: agents });
+    const store = createSessionCreateStore();
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialogViewModel({ agents, activeWorkspace }, store),
+      { wrapper }
+    );
+
+    act(() => store.trigger.dialogOpened({ agentName: "", workspaceId: activeWorkspace.id }));
+
+    expect(result.current.selectedAgentName).toBe("claude-agent");
+    expect(store.getSnapshot().context.open).toBe(true);
+  });
+
+  it("Should isolate draft and busy selector updates between shell store instances", () => {
+    const firstController = { current: undefined as SessionCreateDialogController | undefined };
+    const secondController = { current: undefined as SessionCreateDialogController | undefined };
+    const firstShellRenders = { current: 0 };
+    const secondShellRenders = { current: 0 };
+    const firstDraftRenders = { current: 0 };
+    const secondDraftRenders = { current: 0 };
+    const firstBusyRenders = { current: 0 };
+    const secondBusyRenders = { current: 0 };
+
+    function DraftProbe({
+      store,
+      testId,
+    }: {
+      store: SessionCreateDialogController["store"];
+      testId: string;
+    }) {
+      const agentName = useSelector(store, snapshot => snapshot.context.draft.agentName);
+      return <output data-testid={testId}>{agentName}</output>;
+    }
+
+    function BusyProbe({
+      store,
+      testId,
+    }: {
+      store: SessionCreateDialogController["store"];
+      testId: string;
+    }) {
+      const isSubmitting = useSelector(store, snapshot => snapshot.context.isSubmitting);
+      return <output data-testid={testId}>{String(isSubmitting)}</output>;
+    }
+
+    function ShellControllerProbe({
+      onController,
+    }: {
+      onController: (controller: SessionCreateDialogController) => void;
+    }) {
+      const nextController = useSessionCreateDialogController();
+      useEffect(() => {
+        onController(nextController);
+      }, [nextController, onController]);
+      return null;
+    }
+
+    render(
+      <>
+        <Profiler id="first-shell" onRender={() => (firstShellRenders.current += 1)}>
+          <ShellControllerProbe
+            onController={controller => {
+              firstController.current = controller;
+            }}
+          />
+        </Profiler>
+        <Profiler id="second-shell" onRender={() => (secondShellRenders.current += 1)}>
+          <ShellControllerProbe
+            onController={controller => {
+              secondController.current = controller;
+            }}
+          />
+        </Profiler>
+      </>
+    );
+
+    const firstStore = firstController.current?.store;
+    const secondStore = secondController.current?.store;
+    if (!firstStore || !secondStore) {
+      throw new Error("Session-create controller probes did not mount.");
+    }
+
+    render(
+      <>
+        <Profiler id="first-draft" onRender={() => (firstDraftRenders.current += 1)}>
+          <DraftProbe store={firstStore} testId="first-shell-draft" />
+        </Profiler>
+        <Profiler id="second-draft" onRender={() => (secondDraftRenders.current += 1)}>
+          <DraftProbe store={secondStore} testId="second-shell-draft" />
+        </Profiler>
+        <Profiler id="first-busy" onRender={() => (firstBusyRenders.current += 1)}>
+          <BusyProbe store={firstStore} testId="first-shell-busy" />
+        </Profiler>
+        <Profiler id="second-busy" onRender={() => (secondBusyRenders.current += 1)}>
+          <BusyProbe store={secondStore} testId="second-shell-busy" />
+        </Profiler>
+      </>
+    );
+
+    act(() => {
+      firstStore.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });
+    });
+
+    expect(screen.getByTestId("first-shell-draft")).toHaveTextContent("claude-agent");
+    expect(screen.getByTestId("second-shell-draft")).toHaveTextContent("");
+    expect(firstShellRenders.current).toBe(1);
+    expect(secondShellRenders.current).toBe(1);
+    expect(firstDraftRenders.current).toBe(2);
+    expect(secondDraftRenders.current).toBe(1);
+    expect(firstBusyRenders.current).toBe(1);
+    expect(secondBusyRenders.current).toBe(1);
+
+    act(() => {
+      firstStore.trigger.submissionRequested({
+        agentName: "claude-agent",
+        workspaceId: "ws_alpha",
+        execute: () => new Promise<SessionPayload>(() => {}),
+      });
+    });
+
+    expect(screen.getByTestId("first-shell-busy")).toHaveTextContent("true");
+    expect(screen.getByTestId("second-shell-busy")).toHaveTextContent("false");
+    expect(firstShellRenders.current).toBe(1);
+    expect(secondShellRenders.current).toBe(1);
+    expect(firstDraftRenders.current).toBe(2);
+    expect(secondDraftRenders.current).toBe(1);
+    expect(firstBusyRenders.current).toBe(2);
+    expect(secondBusyRenders.current).toBe(1);
+  });
+
   it("Should derive the default provider once workspace providers arrive after opening", async () => {
     workspaceQueryResult = {
       data: {
@@ -338,7 +487,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     expect(result.current.selectedAgentName).toBe("codex-agent");
@@ -377,7 +526,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     act(() => {
       result.current.onSessionNameChange("  Investigate checkout latency  ");
       result.current.onWorkspacePathChange("  services/checkout  ");
@@ -400,7 +549,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     act(() => result.current.onWorkspacePathChange("../other-workspace"));
     await submitWithPrompt(result);
 
@@ -416,7 +565,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     await submitWithPrompt(result);
 
     const payload = mockMutateAsync.mock.calls.at(-1)?.[0] as Record<string, unknown>;
@@ -433,7 +582,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     act(() => result.current.onModeChange("advanced"));
     act(() => {
       result.current.onWorkspacePathChange("services/checkout");
@@ -467,7 +616,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     expect(result.current.workspaceId).toBe("ws_alpha");
 
     act(() => result.current.onWorkspaceChange("ws_beta"));
@@ -499,7 +648,7 @@ describe("useSessionCreateDialog", () => {
       wrapper,
     });
 
-    act(() => result.current.openForAgent("claude-agent"));
+    act(() => result.current.openDialog("claude-agent"));
     expect(result.current.agents.map(agent => agent.name)).toEqual(["claude-agent", "codex-agent"]);
 
     act(() => result.current.onWorkspaceChange(betaWorkspace.id));
@@ -520,7 +669,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("unavailable-agent");
+      result.current.openDialog("unavailable-agent");
     });
 
     await waitFor(() => {
@@ -564,7 +713,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("inherited-agent");
+      result.current.openDialog("inherited-agent");
     });
 
     await waitFor(() => {
@@ -593,18 +742,21 @@ describe("useSessionCreateDialog", () => {
     });
     let blockingDialogPresentWhenNavigationStarted: boolean | undefined;
     let composerPresentWhenNavigationStarted: boolean | undefined;
-    let dialog: SessionCreateDialogApi | undefined;
+    const dialog = { current: undefined as SessionCreateDialogTestHarness | undefined };
 
     const { wrapper } = createWrapper();
     const Harness = () => {
-      dialog = useSessionCreateDialog({ agents, activeWorkspace });
-      return dialog.open
+      const nextDialog = useSessionCreateDialog({ agents, activeWorkspace });
+      useEffect(() => {
+        dialog.current = nextDialog;
+      }, [nextDialog]);
+      return nextDialog.open
         ? createElement("div", { role: "dialog" }, "Starting session")
         : createElement("textarea", { "aria-label": "Session composer", readOnly: true });
     };
     const getDialog = () => {
-      if (!dialog) throw new Error("Session create dialog harness did not render");
-      return dialog;
+      if (!dialog.current) throw new Error("Session create dialog harness did not render");
+      return dialog.current;
     };
 
     render(createElement(Harness), { wrapper });
@@ -617,20 +769,14 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      getDialog().openForAgent("codex-agent");
+      getDialog().openDialog("codex-agent");
     });
     act(() => {
       getDialog().onPromptChange(FIRST_MESSAGE);
     });
 
-    let submitSettled = false;
-    let submitPromise: Promise<void> | undefined;
     act(() => {
-      submitPromise = getDialog()
-        .submit()
-        .then(() => {
-          submitSettled = true;
-        });
+      getDialog().submit();
     });
 
     try {
@@ -644,15 +790,12 @@ describe("useSessionCreateDialog", () => {
       expect(blockingDialogPresentWhenNavigationStarted).toBe(false);
       expect(composerPresentWhenNavigationStarted).toBe(true);
       expect(getDialog().open).toBe(false);
-      await waitFor(() => {
-        expect(submitSettled).toBe(true);
-      });
       expect(getDialog().pendingAgentName).toBeNull();
       expect(getDialog().pendingWorkspaceId).toBeNull();
     } finally {
       await act(async () => {
         resolveNavigation?.();
-        await submitPromise;
+        await navigation;
       });
     }
   });
@@ -664,7 +807,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     expect(result.current.hasProviderOptions).toBe(true);
@@ -683,7 +826,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("claude-agent");
+      result.current.openDialog("claude-agent");
     });
 
     expect(result.current.runtimeValue.provider).toBe("claude");
@@ -710,7 +853,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
       });
       await submitWithPrompt(result, `  \n${FIRST_MESSAGE}\n  `);
 
@@ -727,7 +870,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
       });
       await submitWithPrompt(result, "   \n  ");
 
@@ -746,7 +889,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
       });
       act(() => {
         result.current.onRuntimeChange({
@@ -777,21 +920,19 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
         result.current.onPromptChange(FIRST_MESSAGE);
       });
 
-      let firstSubmit: Promise<void> | undefined;
-      let secondSubmit: Promise<void> | undefined;
       act(() => {
-        firstSubmit = result.current.submit();
-        secondSubmit = result.current.submit();
+        result.current.submit();
+        result.current.submit();
       });
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
 
       await act(async () => {
         resolveCreate?.(createdSession);
-        await Promise.all([firstSubmit, secondSubmit]);
+        await Promise.resolve();
       });
     });
 
@@ -802,7 +943,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
       });
       await submitWithPrompt(result);
 
@@ -818,7 +959,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
       act(() => {
         result.current.onPromptChange(FIRST_MESSAGE);
@@ -841,7 +982,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
       await waitFor(() => {
         expect(result.current.runtimeModels.length).toBeGreaterThan(0);
@@ -860,7 +1001,7 @@ describe("useSessionCreateDialog", () => {
         result.current.onOpenChange(false);
       });
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
 
       expect(result.current.open).toBe(true);
@@ -882,7 +1023,7 @@ describe("useSessionCreateDialog", () => {
       );
 
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
       act(() => {
         result.current.onPromptChange(FIRST_MESSAGE);
@@ -903,7 +1044,7 @@ describe("useSessionCreateDialog", () => {
 
       rerender({ workspace: otherWorkspace });
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
 
       expect(result.current.promptValue).toBe("");
@@ -923,7 +1064,7 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => {
-        result.current.openForAgent("claude-agent");
+        result.current.openDialog("claude-agent");
       });
       act(() => {
         result.current.onPromptChange(FIRST_MESSAGE);
@@ -935,7 +1076,7 @@ describe("useSessionCreateDialog", () => {
         result.current.onOpenChange(false);
       });
       act(() => {
-        result.current.openForAgent("codex-agent");
+        result.current.openDialog("codex-agent");
       });
 
       expect(result.current.promptValue).toBe(FIRST_MESSAGE);
@@ -957,7 +1098,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -982,7 +1123,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1022,7 +1163,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1057,7 +1198,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1100,7 +1241,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(
@@ -1135,7 +1276,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(
@@ -1176,7 +1317,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(
@@ -1204,7 +1345,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("cursor-agent");
+      result.current.openDialog("cursor-agent");
     });
 
     await waitFor(() => {
@@ -1227,7 +1368,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1254,7 +1395,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1289,7 +1430,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1351,7 +1492,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {
@@ -1421,7 +1562,7 @@ describe("useSessionCreateDialog", () => {
     );
 
     act(() => {
-      result.current.openForAgent("codex-agent");
+      result.current.openDialog("codex-agent");
     });
 
     await waitFor(() => {

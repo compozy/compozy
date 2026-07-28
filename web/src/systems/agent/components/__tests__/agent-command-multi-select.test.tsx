@@ -19,7 +19,7 @@ describe("AgentCommandMultiSelect", () => {
   it("Should mark currently selected items with data-checked=true", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer" }), makeAgent({ name: "coder" })]}
           value={["writer"]}
@@ -37,7 +37,7 @@ describe("AgentCommandMultiSelect", () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer" }), makeAgent({ name: "coder" })]}
           value={["writer"]}
@@ -55,7 +55,7 @@ describe("AgentCommandMultiSelect", () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer" }), makeAgent({ name: "coder" })]}
           value={["writer", "coder"]}
@@ -72,7 +72,7 @@ describe("AgentCommandMultiSelect", () => {
   it("Should remain open after a selection", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer" }), makeAgent({ name: "coder" })]}
           value={[]}
@@ -89,7 +89,7 @@ describe("AgentCommandMultiSelect", () => {
   it("Should render provider metadata for each item", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer", provider: "claude" })]}
           value={[]}
@@ -105,7 +105,7 @@ describe("AgentCommandMultiSelect", () => {
   it("Should preserve custom item test IDs supplied by the consumer", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandMultiSelect
           agents={[makeAgent({ name: "writer" })]}
           value={[]}

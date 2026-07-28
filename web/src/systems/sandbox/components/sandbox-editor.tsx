@@ -128,7 +128,11 @@ export function SandboxEditor({
         />
       }
     >
-      <div className="flex flex-col">
+      <fieldset
+        className="m-0 flex min-w-0 flex-col border-0 p-0"
+        data-testid="sandbox-editor-fields"
+        disabled={isSaving}
+      >
         <SandboxEditorSimpleSection
           draft={draft}
           isCreate={isCreate}
@@ -144,7 +148,7 @@ export function SandboxEditor({
             secretEnvErrors={secretEnvErrors}
           />
         ) : null}
-      </div>
+      </fieldset>
     </SettingsEditorDialog>
   );
 }

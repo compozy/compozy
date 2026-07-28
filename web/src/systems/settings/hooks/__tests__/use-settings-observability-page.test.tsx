@@ -21,8 +21,7 @@ import {
   getSettingsObservability,
   updateSettingsObservability,
 } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsObservabilitySection } from "@/systems/settings";
 import { useSettingsObservabilityPage } from "../use-settings-observability-page";
 
@@ -66,13 +65,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getSettingsObservability).mockResolvedValue(envelope);
 });
 

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Layers } from "lucide-react";
+import type { ComponentProps } from "react";
 
 import { Dialog, DialogContent } from "../../dialog";
 import { dialogShellClass } from "../../../lib/dialog-shell";
@@ -23,8 +24,10 @@ const meta: Meta<typeof EntityDialogBody> = {
 };
 
 export default meta;
-// Derive from the component so its discriminated-union props remain intact.
-type Story = StoryObj<typeof EntityDialogBody>;
+// Storybook intersects discriminated-union component props when deriving args,
+// which collapses EntityDialogBodyProps to `never`. These stories compose the
+// union branches explicitly, so their controls contract is the shared div base.
+type Story = StoryObj<ComponentProps<"div">>;
 
 function Placeholder({ label }: { label: string }) {
   return (

@@ -11,6 +11,10 @@ import type { WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
 
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => ({ data: undefined }),
+}));
+
 const agents: AgentPayload[] = [
   {
     name: "claude-agent",
@@ -122,7 +126,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 
 function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <SessionCreateDialog {...makeProps(overrides)} />
     </UIProvider>
   );

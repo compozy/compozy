@@ -37,6 +37,14 @@ const mockPermissionData: CompozyPermissionData = {
 const WORKSPACE_ID = "ws_alpha";
 const SESSION_ID = "sess-001";
 
+function createDeferredPromise() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(settle => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 describe("PermissionPrompt — inline sticky anatomy", () => {
   beforeEach(() => {
     vi.mocked(approveSession).mockResolvedValue(undefined);
@@ -211,6 +219,85 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(approveSession).toHaveBeenCalledOnce();
     await act(async () => resolveRequest?.());
     await waitFor(() => expect(onResolved).toHaveBeenCalledOnce());
+  });
+
+  it("Should resolve through the callback from the render that submits", async () => {
+    const previousOnResolved = vi.fn();
+    const currentOnResolved = vi.fn();
+    const { rerender } = render(
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={previousOnResolved}
+      />
+    );
+
+    rerender(
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={currentOnResolved}
+      />
+    );
+    fireEvent.click(screen.getByTestId("permission-allow-once"));
+
+    await waitFor(() => expect(currentOnResolved).toHaveBeenCalledOnce());
+    expect(previousOnResolved).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a replacement permission actionable when the prior approval settles late", async () => {
+    const firstApproval = createDeferredPromise();
+    const secondApproval = createDeferredPromise();
+    vi.mocked(approveSession)
+      .mockReturnValueOnce(firstApproval.promise)
+      .mockReturnValueOnce(secondApproval.promise);
+    const onResolved = vi.fn();
+    const { rerender } = render(
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("permission-allow-once"));
+    rerender(
+      <PermissionPrompt
+        permission={{
+          ...mockPermission,
+          requestId: "req-456",
+          toolName: "Write",
+          resource: "/workspace/new.txt",
+        }}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
+    );
+
+    expect(screen.getByText("/workspace/new.txt")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("permission-allow-once"));
+
+    await act(async () => {
+      firstApproval.resolve();
+      await firstApproval.promise;
+    });
+
+    expect(onResolved).not.toHaveBeenCalled();
+    expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeDisabled();
+
+    await act(async () => {
+      secondApproval.resolve();
+      await secondApproval.promise;
+    });
+
+    await waitFor(() => expect(onResolved).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
   });
 
   it("Should call approveSession with allow-always on Allow Always click", async () => {

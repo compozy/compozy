@@ -1,44 +1,46 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createStore } from "@xstate/store";
+import { persist } from "@xstate/store/persist";
+import { useSelector } from "@xstate/store-react";
 
 import { normalizeHomeUsageWindow, type HomeUsageWindow } from "../types";
 
-interface HomePrefsStore {
+interface HomePrefsContext {
   usageWindow: HomeUsageWindow;
   systemOpen: boolean;
-  actions: {
-    setUsageWindow: (window: HomeUsageWindow) => void;
-    setSystemOpen: (open: boolean) => void;
+}
+
+function mergeHomePrefs(
+  persisted: Partial<HomePrefsContext>,
+  current: HomePrefsContext
+): HomePrefsContext {
+  return {
+    usageWindow: normalizeHomeUsageWindow(persisted.usageWindow ?? current.usageWindow),
+    systemOpen: persisted.systemOpen ?? current.systemOpen,
   };
 }
 
-export const useHomePrefsStore = create<HomePrefsStore>()(
-  persist(
-    set => ({
-      usageWindow: 30,
-      systemOpen: false,
-      actions: {
-        setUsageWindow: window => set({ usageWindow: normalizeHomeUsageWindow(window) }),
-        setSystemOpen: open => set({ systemOpen: open }),
-      },
+export const homePrefsStore = createStore({
+  context: {
+    usageWindow: 30 as HomeUsageWindow,
+    systemOpen: false,
+  },
+  on: {
+    usageWindowSelected: (context, event: { usageWindow: number }) => ({
+      ...context,
+      usageWindow: normalizeHomeUsageWindow(event.usageWindow),
     }),
-    {
-      name: "compozy:home-prefs",
-      partialize: state => ({ usageWindow: state.usageWindow, systemOpen: state.systemOpen }),
-      merge: (persisted, current) => {
-        const incoming = (persisted ?? {}) as Partial<HomePrefsStore>;
-        return {
-          ...current,
-          ...incoming,
-          usageWindow: normalizeHomeUsageWindow(incoming.usageWindow ?? current.usageWindow),
-          actions: current.actions,
-        };
-      },
-    }
-  )
+    systemPanelOpened: context => ({ ...context, systemOpen: true }),
+    systemPanelClosed: context => ({ ...context, systemOpen: false }),
+  },
+}).with(
+  persist({
+    name: "compozy:home-prefs:v2",
+    merge: mergeHomePrefs,
+  })
 );
 
 export const useHomeUsageWindow = (): HomeUsageWindow =>
-  useHomePrefsStore(state => state.usageWindow);
-export const useHomeSystemOpen = (): boolean => useHomePrefsStore(state => state.systemOpen);
-export const useHomePrefsActions = () => useHomePrefsStore(state => state.actions);
+  useSelector(homePrefsStore, snapshot => snapshot.context.usageWindow);
+
+export const useHomeSystemOpen = (): boolean =>
+  useSelector(homePrefsStore, snapshot => snapshot.context.systemOpen);

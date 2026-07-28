@@ -5,7 +5,6 @@ import type {
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
-  WindowManagerActions,
   WindowManagerBinding,
   WindowManagerDiagnostic,
   WindowManagerOverlay,
@@ -85,8 +84,4 @@ export function selectWindowManagerDiagnostic(
   state: WindowManagerStoreState
 ): WindowManagerDiagnostic | null {
   return state.commandState.diagnostic;
-}
-
-export function selectWindowManagerActions(state: WindowManagerStoreState): WindowManagerActions {
-  return state.actions;
 }

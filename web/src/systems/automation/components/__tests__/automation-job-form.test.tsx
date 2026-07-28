@@ -6,7 +6,11 @@ import { agentFixtures } from "@/systems/agent/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
 
 vi.mock("@/systems/loops/hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
@@ -85,7 +89,15 @@ function renderJobForm({
     );
   }
 
-  const view = render(<Harness />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+  });
+  queryClient.setQueryData(statusKeys.current(), statusFixture);
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  );
 
   return { onCancel, onChange, onSubmit, ...view };
 }

@@ -18,7 +18,12 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sessionKeys, type SessionPayload } from "@/systems/session";
-import { useActiveWorkspaceStore, workspaceKeys, type WorkspacePayload } from "@/systems/workspace";
+import {
+  activeWorkspaceStore,
+  setActiveWorkspaceId,
+  workspaceKeys,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 import { routeBeforeLoad, routeLoader } from "@/test/route-options";
 import type { AgentSessionRouteLoaderData } from "../-agent-session-route-loader";
 import { prefetchAgentSessionRoute } from "../-agent-session-route-loader";
@@ -148,7 +153,7 @@ function buildSessionDeepLinkRouter() {
 describe("cross-workspace session deep-link router integration", () => {
   beforeEach(() => {
     localStorage.clear();
-    useActiveWorkspaceStore.setState({ selectedWorkspaceId: BENCH_WORKSPACE_ID });
+    setActiveWorkspaceId(BENCH_WORKSPACE_ID);
   });
 
   it("Should select the owning workspace when a session link crosses workspaces", async () => {
@@ -162,8 +167,10 @@ describe("cross-workspace session deep-link router integration", () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
     });
-    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe(PRIMARY_WORKSPACE_ID);
-    expect(localStorage.getItem("compozy:active-workspace")).toContain(PRIMARY_WORKSPACE_ID);
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
+      PRIMARY_WORKSPACE_ID
+    );
+    expect(localStorage.getItem("compozy:active-workspace:v2")).toContain(PRIMARY_WORKSPACE_ID);
   });
 
   it("Should adopt the owner on every cross-workspace hop, both directions", async () => {
@@ -174,13 +181,17 @@ describe("cross-workspace session deep-link router integration", () => {
     fireEvent.click(screen.getByRole("link", { name: "Open primary session" }));
     await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
     await waitFor(() => {
-      expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe(PRIMARY_WORKSPACE_ID);
+      expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
+        PRIMARY_WORKSPACE_ID
+      );
     });
     fireEvent.click(screen.getByRole("link", { name: "Open bench permalink" }));
 
     await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
     await waitFor(() => {
-      expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+      expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
+        BENCH_WORKSPACE_ID
+      );
     });
   });
 
@@ -194,6 +205,6 @@ describe("cross-workspace session deep-link router integration", () => {
     });
 
     expect(data.workspaceId).toBe(PRIMARY_WORKSPACE_ID);
-    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
   });
 });

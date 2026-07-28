@@ -5,9 +5,10 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { sessionStore } from "@/systems/session/stores/session-store";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
@@ -23,6 +24,12 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/sessio
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { TimelineRowContent } from "../session-timeline-render";
+import {
+  TimelineRowContext,
+  timelineRowLogic,
+  toggleTimelineExpansion,
+  useTimelineRowContext,
+} from "../hooks/use-timeline-row-context";
 import {
   computeStableSessionRows,
   deriveSessionRows,
@@ -1315,6 +1322,85 @@ describe("SessionThread streaming render-count", () => {
 
     expect(stateRef.current.result[0]).toBe(settledRowAtMount);
   });
+
+  function TimelineExpansionSubscriptionProbe({
+    id,
+    renders,
+  }: {
+    id: string;
+    renders: { current: number };
+  }) {
+    const store = useTimelineRowContext();
+    const expanded = useSelector(store, state => state.context.expandedTurns.has(id));
+    renders.current += 1;
+    return (
+      <button
+        type="button"
+        aria-label={`Toggle ${id}`}
+        onClick={() => toggleTimelineExpansion(store, "turn", id, null)}
+      >
+        {expanded ? "expanded" : "collapsed"}
+      </button>
+    );
+  }
+
+  function TimelineSubscriptionHarness({
+    streamText,
+    firstRenders,
+    secondRenders,
+  }: {
+    streamText: string;
+    firstRenders: { current: number };
+    secondRenders: { current: number };
+  }) {
+    const store = useStore(timelineRowLogic, undefined);
+    const [children] = useState(() => (
+      <>
+        <TimelineExpansionSubscriptionProbe id="turn-one" renders={firstRenders} />
+        <TimelineExpansionSubscriptionProbe id="turn-two" renders={secondRenders} />
+      </>
+    ));
+    return (
+      <>
+        <TimelineRowContext.Provider value={store}>{children}</TimelineRowContext.Provider>
+        <output data-testid="timeline-stream-text">{streamText}</output>
+      </>
+    );
+  }
+
+  it("Should isolate timeline row expansion subscribers from stream chunks and sibling toggles", () => {
+    const firstRenders = { current: 0 };
+    const secondRenders = { current: 0 };
+    const view = render(
+      <TimelineSubscriptionHarness
+        streamText="chunk one"
+        firstRenders={firstRenders}
+        secondRenders={secondRenders}
+      />
+    );
+
+    expect(firstRenders.current).toBe(1);
+    expect(secondRenders.current).toBe(1);
+
+    view.rerender(
+      <TimelineSubscriptionHarness
+        streamText="chunk one, chunk two"
+        firstRenders={firstRenders}
+        secondRenders={secondRenders}
+      />
+    );
+    expect(screen.getByTestId("timeline-stream-text")).toHaveTextContent("chunk one, chunk two");
+    expect(firstRenders.current).toBe(1);
+    expect(secondRenders.current).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle turn-one" }));
+    expect(firstRenders.current).toBe(2);
+    expect(secondRenders.current).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle turn-two" }));
+    expect(firstRenders.current).toBe(2);
+    expect(secondRenders.current).toBe(2);
+  });
 });
 
 // Suite: composer running-state semantics + queued-prompt strip (task 35).
@@ -1355,12 +1441,26 @@ describe("SessionThread composer running semantics", () => {
     vi.stubGlobal("fetch", createFetchMock());
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    act(() => {
+      sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    });
+  });
+
+  it("Should persist direct input changes under the active session only", async () => {
+    const user = userEvent.setup();
+    renderComposer({ isSessionRunning: false });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "keep this draft");
+
+    expect(sessionStore.getSnapshot().context.drafts).toEqual({
+      [primarySessionFixture.id]: "keep this draft",
+    });
   });
 
   it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
@@ -1397,6 +1497,22 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("queue failed");
     });
+    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+  });
+
+  it("Should silently preserve the draft when the queue owner is replaced", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.reject(new DOMException("Busy input request was canceled", "AbortError"))
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "queue this follow-up");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(toast.error).not.toHaveBeenCalled();
     expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
   });
 

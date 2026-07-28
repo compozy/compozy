@@ -9,10 +9,10 @@ import {
   Spinner,
 } from "@compozy/ui";
 import {
-  NetworkParticipationFields,
   networkParticipationDraftFromPayload,
   serializeNetworkParticipation,
-} from "@/systems/network";
+} from "@/lib/network-participation";
+import { NetworkParticipationFields } from "@/systems/network";
 
 import {
   setLoopTargetInput,

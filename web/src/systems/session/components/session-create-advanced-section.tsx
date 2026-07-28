@@ -1,6 +1,7 @@
 import { Field, FieldContent, FieldDescription, FieldLabel, FormSection, Input } from "@compozy/ui";
 
-import { NetworkParticipationFields, type NetworkParticipationDraft } from "@/systems/network";
+import type { NetworkParticipationDraft } from "@/lib/network-participation";
+import { NetworkParticipationFields } from "@/systems/network";
 
 interface SessionCreateAdvancedSectionProps {
   networkParticipation: NetworkParticipationDraft;

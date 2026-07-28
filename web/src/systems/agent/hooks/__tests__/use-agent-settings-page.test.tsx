@@ -4,16 +4,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { primaryAgentFixture } from "@/systems/agent/testing";
 
 const mocks = vi.hoisted(() => ({
+  agent: undefined as unknown,
   navigate: vi.fn(),
   updateMutate: vi.fn(),
+  updateMutateAsync: vi.fn(),
   refetch: vi.fn(),
   toastSuccess: vi.fn(),
+  workspaceId: "ws-test",
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
 vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess } }));
 vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws-test", activeWorkspace: { name: "Test" } }),
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: mocks.workspaceId,
+    activeWorkspace: { name: "Test" },
+  }),
   useWorkspace: () => ({ data: { providers: [] }, isLoading: false }),
 }));
 vi.mock("@/systems/settings", () => ({
@@ -32,12 +38,16 @@ vi.mock("@/systems/model-catalog", () => ({
 }));
 vi.mock("../use-agents", () => ({
   useAgent: () => ({
-    data: { ...primaryAgentFixture, origin: "workspace" },
+    data: mocks.agent,
     isLoading: false,
     error: null,
     refetch: mocks.refetch,
   }),
-  useUpdateAgent: () => ({ mutate: mocks.updateMutate, isPending: false }),
+  useUpdateAgent: () => ({
+    mutate: mocks.updateMutate,
+    mutateAsync: mocks.updateMutateAsync,
+    isPending: false,
+  }),
 }));
 vi.mock("../use-agent-delete-flow", () => ({
   useAgentDeleteFlow: () => ({
@@ -58,6 +68,10 @@ import { useAgentSettingsPage } from "../use-agent-settings-page";
 describe("useAgentSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.updateMutateAsync = vi.fn();
+    mocks.refetch = vi.fn();
+    mocks.agent = { ...primaryAgentFixture, origin: "workspace" };
+    mocks.workspaceId = "ws-test";
     mocks.refetch.mockResolvedValue({
       data: { ...primaryAgentFixture, origin: "workspace", prompt: "Reloaded prompt" },
     });
@@ -71,9 +85,18 @@ describe("useAgentSettingsPage", () => {
 
     act(() => result.current.patchDraft({ prompt: "Updated prompt" }));
     expect(result.current.dirty).toBe(true);
-    act(() => result.current.onSave());
+    mocks.updateMutateAsync.mockResolvedValueOnce({
+      ...primaryAgentFixture,
+      origin: "workspace",
+      prompt: "Updated prompt",
+    });
+    act(() => {
+      result.current.onSave();
+      result.current.onSave();
+    });
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
 
-    const [variables, callbacks] = mocks.updateMutate.mock.calls.at(-1)!;
+    const variables = mocks.updateMutateAsync.mock.calls.at(-1)![0];
     expect(variables).toMatchObject({
       name: primaryAgentFixture.name,
       params: {
@@ -83,27 +106,54 @@ describe("useAgentSettingsPage", () => {
       },
     });
 
-    act(() =>
-      callbacks.onSuccess({ ...primaryAgentFixture, origin: "workspace", prompt: "Updated prompt" })
-    );
+    await waitFor(() => expect(result.current.dirty).toBe(false));
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Changes saved");
     expect(result.current.dirty).toBe(false);
   });
 
   it("Should render conflict recovery and reload the fresh digest before retry", async () => {
-    const { result } = renderHook(() =>
+    const { result, rerender } = renderHook(() =>
       useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => result.current.patchDraft({ prompt: "Conflicting prompt" }));
+    mocks.updateMutateAsync.mockRejectedValueOnce(new AgentDigestConflictError("stale"));
     act(() => result.current.onSave());
-    const callbacks = mocks.updateMutate.mock.calls.at(-1)![1];
-    act(() => callbacks.onError(new AgentDigestConflictError("stale")));
 
-    expect(result.current.conflictBanner).toMatch(/changed elsewhere/i);
-    await act(async () => result.current.onReloadAndRetry());
-    expect(mocks.refetch).toHaveBeenCalledTimes(1);
-    expect(result.current.draft?.prompt).toBe("Reloaded prompt");
+    await waitFor(() => expect(result.current.phase).toBe("conflict"));
+    expect(result.current.error).toMatch(/changed elsewhere/i);
+    const previousRefetch = mocks.refetch;
+    const currentRefetch = vi.fn().mockResolvedValue({
+      data: { ...primaryAgentFixture, origin: "workspace", prompt: "Reloaded prompt" },
+    });
+    mocks.refetch = currentRefetch;
+    rerender();
+    act(() => result.current.onReloadAndRetry());
+    await waitFor(() => expect(currentRefetch).toHaveBeenCalledTimes(1));
+    expect(previousRefetch).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.draft?.prompt).toBe("Reloaded prompt"));
+  });
+
+  it("Should save through the mutation callback from the render that issues the intent", async () => {
+    const { result, rerender } = renderHook(() =>
+      useAgentSettingsPage({ name: primaryAgentFixture.name, section: "instructions" })
+    );
+    await waitFor(() => expect(result.current.draft).not.toBeNull());
+    act(() => result.current.patchDraft({ prompt: "Current callback prompt" }));
+    const previousSave = mocks.updateMutateAsync;
+    const currentSave = vi.fn().mockResolvedValue({
+      ...primaryAgentFixture,
+      origin: "workspace",
+      prompt: "Current callback prompt",
+    });
+    mocks.updateMutateAsync = currentSave;
+    rerender();
+
+    act(() => result.current.onSave());
+
+    await waitFor(() => expect(result.current.dirty).toBe(false));
+    expect(previousSave).not.toHaveBeenCalled();
+    expect(currentSave).toHaveBeenCalledOnce();
   });
 
   it("Should keep Save focusable-but-blocked with a caption after a permission denial", async () => {
@@ -112,14 +162,12 @@ describe("useAgentSettingsPage", () => {
     );
     await waitFor(() => expect(result.current.draft).not.toBeNull());
     act(() => result.current.patchDraft({ prompt: "Denied prompt" }));
+    mocks.updateMutateAsync.mockRejectedValueOnce(new AgentApiError("forbidden", 403));
     act(() => result.current.onSave());
-    const callbacks = mocks.updateMutate.mock.calls.at(-1)![1];
-    act(() => callbacks.onError(new AgentApiError("forbidden", 403)));
 
-    expect(result.current.mutationDenied).toBe(true);
+    await waitFor(() => expect(result.current.phase).toBe("denied"));
     expect(result.current.saveBlocked).toBe(true);
     expect(result.current.saveBlockedCaption).toBe("Editing is not permitted for this agent.");
-    expect(result.current.fieldsReadOnly).toBe(true);
   });
 
   it("Should navigate between sections, detail, and provider settings", async () => {
@@ -143,5 +191,34 @@ describe("useAgentSettingsPage", () => {
       params: { name: primaryAgentFixture.name },
     });
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings/providers" });
+  });
+
+  it("Should expose a replacement agent draft in every render without leaking dirty state", () => {
+    const renderedPrompts: Array<string | null> = [];
+    const { result, rerender } = renderHook(
+      ({ name }: { name: string }) => {
+        const page = useAgentSettingsPage({ name, section: "instructions" });
+        renderedPrompts.push(page.draft?.prompt ?? null);
+        return page;
+      },
+      { initialProps: { name: primaryAgentFixture.name } }
+    );
+
+    act(() => result.current.patchDraft({ prompt: "Dirty prompt" }));
+    expect(result.current.draft?.prompt).toBe("Dirty prompt");
+
+    mocks.agent = {
+      ...primaryAgentFixture,
+      name: "replacement-agent",
+      definition_digest: "replacement-digest",
+      prompt: "Replacement prompt",
+      origin: "workspace",
+    };
+    renderedPrompts.length = 0;
+    rerender({ name: "replacement-agent" });
+
+    expect(renderedPrompts.length).toBeGreaterThan(0);
+    expect(renderedPrompts.every(prompt => prompt === "Replacement prompt")).toBe(true);
+    expect(result.current.dirty).toBe(false);
   });
 });

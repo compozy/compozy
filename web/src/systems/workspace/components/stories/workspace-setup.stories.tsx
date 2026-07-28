@@ -6,7 +6,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
-import { statusFixture } from "@/systems/status/mocks/fixtures";
+import { statusFixture } from "@/systems/status/mocks";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks/fixtures";
 
 import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-content";

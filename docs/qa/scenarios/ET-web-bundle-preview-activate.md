@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Profile, scope, and primary-channel changes request a fresh read-only preview; conflicts remain explicit; Activate projects exactly the previewed resources and updates installed state.
 entry_points: /marketplace/bundle/$entryId; bundle Activate action
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: BUG-20260714-keyboard-focus-invisible fixed
 retest_status: Preview remained write-free, activation survived reload in 15 seconds, and keyboard focus passed the shared two-pixel contract
@@ -17,3 +17,7 @@ overlaps: ET-web-bundle-activation-detail
 ---
 
 Added by marketplace Task 06. Cover global and workspace scope, both bind states, a 409 or 422 conflict, loading-disable behavior, cancellation without writes, and fresh-read confirmation after activation.
+
+QA impact 2026-07-26: accepted activation and trust-confirmation operations reject dialog dismissal
+until settlement and publish lifecycle-independent feedback. Historical evidence is retained; status
+reset to untested and no QA replay ran.

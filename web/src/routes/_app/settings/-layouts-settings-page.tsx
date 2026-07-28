@@ -174,7 +174,7 @@ function LayoutsSettingsView({
   const saveBarState = useSettingsSaveBarState({
     isDirty: configEditor.dirty,
     isInvalid: configEditor.problems.length > 0,
-    isSaving: configEditor.isSaving,
+    isSaving: configEditor.phase === "saving",
     error: configEditor.error instanceof Error ? configEditor.error.message : null,
     warnings: configEditor.problems.map(problem => problem.message),
   });

@@ -1,10 +1,10 @@
-import type { StateCreator } from "zustand";
+import { createStore } from "@xstate/store";
+import { createJSONStorage, persist } from "@xstate/store/persist";
 
 import type {
   ConfigApplyLifecycle,
   SettingsApplyNextAction,
   SettingsMutationResult,
-  SettingsRestartStatusName,
 } from "../types";
 
 export interface PendingSettingsMutation {
@@ -21,76 +21,51 @@ export interface PendingSettingsMutation {
 
 export interface SettingsRestartState {
   operationId: string | null;
-  status: SettingsRestartStatusName | null;
-  activeSessionCount: number;
-  failureReason?: string;
   lastMutation: PendingSettingsMutation | null;
   mutationGeneration: number;
   snoozedMutationGeneration: number | null;
 }
 
-export interface SettingsRestartActions {
-  startRestart: (payload: {
-    operationId: string;
-    status: SettingsRestartStatusName;
-    activeSessionCount: number;
-  }) => void;
-  updateRestart: (payload: {
-    status: SettingsRestartStatusName;
-    activeSessionCount?: number;
-    failureReason?: string;
-  }) => void;
-  clearRestart: () => void;
-  dismissRestartNotice: () => void;
-  recordMutation: (payload: PendingSettingsMutation | null) => void;
-}
-
-export type SettingsRestartStore = SettingsRestartState & SettingsRestartActions;
-
-export const initialSettingsRestartState: SettingsRestartState = {
+const initialSettingsRestartState: SettingsRestartState = {
   operationId: null,
-  status: null,
-  activeSessionCount: 0,
-  failureReason: undefined,
   lastMutation: null,
   mutationGeneration: 0,
   snoozedMutationGeneration: null,
 };
 
-export const createSettingsRestartStore: StateCreator<SettingsRestartStore> = set => ({
-  ...initialSettingsRestartState,
-  startRestart: ({ operationId, status, activeSessionCount }) =>
-    set({
-      operationId,
-      status,
-      activeSessionCount,
-      failureReason: undefined,
+export const settingsRestartStorageKey = "compozy:settings:restart:v3";
+
+const settingsRestartStorage = createJSONStorage(() => sessionStorage);
+
+export const settingsRestartStore = createStore({
+  context: initialSettingsRestartState,
+  on: {
+    settingsMutationRecorded: (context, event: { mutation: PendingSettingsMutation | null }) => ({
+      ...context,
+      lastMutation: event.mutation,
+      mutationGeneration: context.mutationGeneration + 1,
+      snoozedMutationGeneration: null,
     }),
-  updateRestart: ({ status, activeSessionCount, failureReason }) =>
-    set(state => ({
-      status,
-      activeSessionCount: activeSessionCount ?? state.activeSessionCount,
-      failureReason,
-    })),
-  clearRestart: () =>
-    set(state => ({
-      ...initialSettingsRestartState,
-      lastMutation: state.lastMutation,
-      mutationGeneration: state.mutationGeneration,
-      snoozedMutationGeneration: state.snoozedMutationGeneration,
-    })),
-  dismissRestartNotice: () =>
-    set(state => ({
-      ...initialSettingsRestartState,
-      lastMutation: state.lastMutation,
-      mutationGeneration: state.mutationGeneration,
-      snoozedMutationGeneration: state.lastMutation?.restartRequired
-        ? state.mutationGeneration
+    restartOperationStarted: (context, event: { operationId: string }) => ({
+      ...context,
+      operationId: event.operationId,
+    }),
+    restartOperationCleared: context => ({
+      ...context,
+      operationId: null,
+    }),
+    restartStateReset: () => initialSettingsRestartState,
+    restartNoticeDismissed: context => ({
+      ...context,
+      operationId: null,
+      snoozedMutationGeneration: context.lastMutation?.restartRequired
+        ? context.mutationGeneration
         : null,
-    })),
-  recordMutation: lastMutation =>
-    set(state => ({
-      lastMutation,
-      mutationGeneration: state.mutationGeneration + 1,
-    })),
-});
+    }),
+  },
+}).with(
+  persist({
+    name: settingsRestartStorageKey,
+    storage: settingsRestartStorage,
+  })
+);

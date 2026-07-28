@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { Button, Pill, Section } from "@compozy/ui";
 
-import { useMCPAuthorize } from "@/systems/settings";
+import { isMCPAuthorizeAwaiting, useMCPAuthorize } from "@/systems/settings";
 import {
   authorizeLabel,
   composeMCPRowStatus,
@@ -56,10 +56,11 @@ function MarketplaceDetailMCPManage({
   const baseServer = findInstalledMCPServer(entry, query.data?.mcp_servers ?? []);
 
   const authFilter = baseServer ? deriveMCPAuthFilter(baseServer) : null;
-  const authorize = useMCPAuthorize(authFilter);
-  const { acknowledgeStatus, isAwaiting } = authorize;
+  const authorize = useMCPAuthorize();
+  const { acknowledgeStatus } = authorize;
+  const awaitingAuthorization = isMCPAuthorizeAwaiting(authorize.phase);
   const authPollQuery = useSettingsMCPServers(queryFilter, {
-    enabled: queryEnabled && isAwaiting,
+    enabled: queryEnabled && awaitingAuthorization,
     refetchInterval: SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval,
   });
   const server = findInstalledMCPServer(
@@ -69,11 +70,11 @@ function MarketplaceDetailMCPManage({
 
   useEffect(() => {
     const status = server?.auth_status;
-    if (isAwaiting && status?.status) {
+    if (awaitingAuthorization && status?.status) {
       // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent -- This consumes daemon auth-status updates from the scoped query and advances the local authorization controller; it does not pass child-owned data to a parent.
       acknowledgeStatus(status.status, Boolean(status.token_present));
     }
-  }, [acknowledgeStatus, isAwaiting, server?.auth_status]);
+  }, [acknowledgeStatus, awaitingAuthorization, server?.auth_status]);
 
   if (!server) {
     return (
@@ -114,10 +115,10 @@ function MarketplaceDetailMCPManage({
             <div>
               <Button
                 data-testid="mcp-authorize-btn"
-                disabled={!authFilter || authorize.isAwaiting}
+                disabled={!authFilter || awaitingAuthorization}
                 onClick={() => {
                   if (!authFilter) return;
-                  void authorize.beginAuthorize(server.name, {
+                  authorize.beginAuthorize(authFilter, server.name, {
                     status: server.auth_status?.status ?? "needs_login",
                     tokenPresent: Boolean(server.auth_status?.token_present),
                   });

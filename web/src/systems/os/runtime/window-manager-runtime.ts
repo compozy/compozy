@@ -41,6 +41,7 @@ import {
   pixelRectToNormalized,
 } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
+import { advanceWindowManagerPlacementCycle } from "../stores/window-manager-store-commands";
 import { randomWindowManagerId, WindowManagerRuntimeCore } from "./window-manager-runtime-core";
 
 function rejectedCommandOutcome(): WindowManagerCommandOutcome {
@@ -76,11 +77,13 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       payload: { desktop_id: desktopId },
     });
     if (accepted.accepted && current !== null && current !== desktopId && config !== null) {
-      windowManagerStore.getState().actions.setTransitionIntent({
-        fromDesktopId: current,
-        toDesktopId: desktopId,
-        direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
-        mode: this.reduceMotion ? "instant" : config.desktopTransition,
+      windowManagerStore.trigger.transitionIntentChanged({
+        intent: {
+          fromDesktopId: current,
+          toDesktopId: desktopId,
+          direction: this.desktopTransitionDirection(this.view.desktops, current, desktopId),
+          mode: this.reduceMotion ? "instant" : config.desktopTransition,
+        },
       });
     }
   }
@@ -121,7 +124,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
   tileWindow(windowId: string, edge: SnapSide | SnapCorner): void {
     const config = this.view.windowManagerConfig;
     if (!this.view.windows[windowId] || config === null) return;
-    const cycleStep = windowManagerStore.getState().actions.nextPlacementCycle(windowId, edge);
+    const cycleStep = advanceWindowManagerPlacementCycle(windowManagerStore, windowId, edge);
     this.applySnapTarget(
       windowId,
       createTileSnapTarget(
@@ -141,9 +144,10 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
   ): WindowManagerCommandOutcome {
     const window = this.view.windows[windowId];
     if (!window) return rejectedCommandOutcome();
-    windowManagerStore
-      .getState()
-      .actions.trackPlacementTarget(windowId, target.kind === "tile" ? target.edge : null);
+    windowManagerStore.trigger.placementTargetTracked({
+      windowId,
+      edge: target.kind === "tile" ? target.edge : null,
+    });
     if (target.kind === "zoom") {
       return this.zoomWindow(windowId);
     }
@@ -222,7 +226,8 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       snapshot && globalConfig
         ? effectiveWindowManagerConfig(globalConfig, snapshot.overrides)
         : null;
-    const { seamPreview, connectionStatus, workArea, routeIntents } = windowManagerStore.getState();
+    const { seamPreview, connectionStatus, workArea, routeIntents } =
+      windowManagerStore.getSnapshot().context;
     const projections = buildWindowManagerProjections(
       snapshot,
       this.client,
@@ -276,28 +281,10 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
         height: area.h,
         origin: workAreaOrigin,
       },
-      openOrFocus: this.openOrFocus,
-      closeWindow: this.closeWindow,
-      focusWindow: this.focusWindow,
-      minimizeWindow: this.minimizeWindow,
-      restoreWindow: this.restoreWindow,
-      zoomWindow: this.zoomWindow,
-      toggleFloating: this.toggleFloating,
-      moveWindow: this.moveWindow,
-      arrangeLayout: this.arrangeLayout,
-      commitFloatingRect: this.commitFloatingRect,
-      resizeLayout: this.resizeLayout,
-      balanceLayout: this.balanceLayout,
-      navigateWindow: this.navigateWindow,
-      toggleRailGroup: this.toggleRailGroup,
-      setWallpaper: this.setWallpaper,
-      setDockMagnify: this.setDockMagnify,
-      setReduceMotion: this.setReduceMotion,
-      setDesktopBounds: this.setDesktopBounds,
     };
   }
 
-  private openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome => {
+  openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome => {
     const id = osWindowId(target.app, target.instanceKey);
     const existing = this.view.windows[id];
     if (existing) {
@@ -324,46 +311,46 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     return { windowId: id, ...outcome };
   };
 
-  private closeWindow = (id: string): Promise<boolean> => {
+  closeWindow = (id: string): Promise<boolean> => {
     return this.dispatch({
       commandId: "window.close",
       payload: { window_id: id, minimize: false },
     }).completion;
   };
 
-  private focusWindow = (id: string): WindowManagerCommandOutcome => {
+  focusWindow = (id: string): WindowManagerCommandOutcome => {
     return this.dispatch({
       commandId: "window.focus",
       payload: { window_id: id, direction: "" },
     });
   };
 
-  private minimizeWindow = (id: string): Promise<boolean> => {
+  minimizeWindow = (id: string): Promise<boolean> => {
     return this.dispatch({
       commandId: "window.close",
       payload: { window_id: id, minimize: true },
     }).completion;
   };
 
-  private restoreWindow = (id: string): void => {
+  restoreWindow = (id: string): void => {
     const window = this.view.snapshot?.windows[id];
     if (!window) return;
     this.dispatch(restoreWindowCommand(window));
   };
 
-  private zoomWindow = (id: string): WindowManagerCommandOutcome => {
+  zoomWindow = (id: string): WindowManagerCommandOutcome => {
     return this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
   };
 
-  private toggleFloating = (id: string): void => {
+  toggleFloating = (id: string): void => {
     this.dispatch({ commandId: "window.toggle_floating", payload: { window_id: id } });
   };
 
-  private moveWindow = (id: string, input: MoveWindowInput): WindowManagerCommandOutcome => {
+  moveWindow = (id: string, input: MoveWindowInput): WindowManagerCommandOutcome => {
     return this.dispatch(moveWindowCommand(id, input, this.workArea()));
   };
 
-  private arrangeLayout = (anchorId: string, preset: OsArrangePreset): void => {
+  arrangeLayout = (anchorId: string, preset: OsArrangePreset): void => {
     const anchor = this.view.windows[anchorId];
     if (!anchor) return;
     const peers = arrangePeerWindows(this.view.windows, anchorId);
@@ -371,7 +358,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     if (command !== null) this.dispatch(command);
   };
 
-  private commitFloatingRect = (
+  commitFloatingRect = (
     id: string,
     rect: OsRect,
     drop?: OsFloatingDrop
@@ -392,7 +379,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
-  private resizeLayout = (
+  resizeLayout = (
     splitId: string,
     boundaryIndex: number,
     delta: number
@@ -404,7 +391,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
-  private balanceLayout = (groupId?: string, splitId?: string): void => {
+  balanceLayout = (groupId?: string, splitId?: string): void => {
     this.dispatch({
       commandId: "layout.balance",
       payload: {
@@ -414,7 +401,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
-  private navigateWindow = (id: string, route: OsWindowRoute): WindowManagerCommandOutcome => {
+  navigateWindow = (id: string, route: OsWindowRoute): WindowManagerCommandOutcome => {
     const outcome = this.dispatch({
       commandId: "window.navigate",
       payload: { window_id: id, route },
@@ -422,21 +409,20 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     if (!outcome.accepted) return outcome;
 
     const intentId = randomWindowManagerId("wm-route");
-    const actions = windowManagerStore.getState().actions;
-    actions.setRouteIntent({ id: intentId, windowId: id, route });
+    windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
     this.publish();
 
     return {
       accepted: true,
       completion: outcome.completion.then(applied => {
-        actions.clearRouteIntent(id, intentId);
+        windowManagerStore.trigger.routeIntentCleared({ windowId: id, intentId });
         this.publish();
         return applied;
       }),
     };
   };
 
-  private toggleRailGroup = (agentId: string): void => {
+  toggleRailGroup = (agentId: string): void => {
     const normalized = agentId.trim();
     if (!normalized) return;
     this.railCollapsedAgentIds = this.railCollapsedAgentIds.includes(normalized)
@@ -445,26 +431,28 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     this.publish();
   };
 
-  private setWallpaper = (wallpaper: OsWallpaper): void => {
+  setWallpaper = (wallpaper: OsWallpaper): void => {
     this.wallpaper = wallpaper;
     this.publish();
   };
 
-  private setDockMagnify = (on: boolean): void => {
+  setDockMagnify = (on: boolean): void => {
     this.dockMagnify = on;
     this.publish();
   };
 
-  private setReduceMotion = (on: boolean): void => {
+  setReduceMotion = (on: boolean): void => {
     this.reduceMotion = on;
     this.publish();
   };
 
-  private setDesktopBounds = (bounds: OsDesktopBounds): void => {
+  setDesktopBounds = (bounds: OsDesktopBounds): void => {
     if (bounds.width <= 0 || bounds.height <= 0) return;
-    windowManagerStore.getState().actions.setWorkArea({
-      rect: { x: 0, y: 0, w: bounds.width, h: bounds.height },
-      origin: { x: bounds.origin.x, y: bounds.origin.y },
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: {
+        rect: { x: 0, y: 0, w: bounds.width, h: bounds.height },
+        origin: { x: bounds.origin.x, y: bounds.origin.y },
+      },
     });
   };
 }

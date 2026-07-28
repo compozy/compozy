@@ -91,10 +91,6 @@ vi.mock("@/systems/settings", async () => {
         error: null,
         prior: null,
         mode: null,
-        isBeginning: false,
-        isExchanging: false,
-        isAwaiting: phase === "waiting",
-        isOpen: phase !== "idle",
         beginAuthorize: (...args: unknown[]) => {
           mocks.beginAuthorize(...args);
           setPhase("waiting");
@@ -126,6 +122,7 @@ vi.mock("../../hooks/use-marketplace-actions", () => ({
     error: null,
     isPending: false,
     mutate: mocks.previewBundle,
+    mutateAsync: mocks.previewBundle,
   }),
   useUpdateMarketplaceSkill: () => ({ mutateAsync: mocks.updateSkill }),
   useUpdateMarketplaceExtension: () => ({
@@ -287,6 +284,7 @@ function setup(entry: MarketplaceListing) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.previewData = marketplaceBundlePreviewFixture;
+  mocks.previewBundle.mockResolvedValue(marketplaceBundlePreviewFixture);
   mocks.activateBundle.mockResolvedValue({});
   mocks.installExtension.mockResolvedValue({
     extension: {
@@ -367,7 +365,7 @@ describe("useMarketplaceActionController", () => {
 
     await waitFor(() => expect(mocks.beginAuthorize).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("global");
-    expect(mocks.beginAuthorize).toHaveBeenCalledWith("linear", {
+    expect(mocks.beginAuthorize).toHaveBeenCalledWith({ scope: "global" }, "linear", {
       status: "needs_login",
       tokenPresent: false,
     });

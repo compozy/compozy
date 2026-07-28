@@ -3,10 +3,30 @@ import { describe, expect, it } from "vitest";
 import { parseTaskWindowLocation } from "../task-window-location";
 
 describe("parseTaskWindowLocation", () => {
-  it("Should fall back to the list mode when the tasks search mode is invalid", () => {
-    expect(parseTaskWindowLocation({ pathname: "/tasks", search: { mode: "bogus" } })).toEqual({
+  it("Should retain valid catalog filters while rejecting invalid route values", () => {
+    expect(
+      parseTaskWindowLocation({
+        pathname: "/tasks",
+        search: {
+          mode: "bogus",
+          owner: "agent_session:product",
+          priority: "high",
+          query: "review",
+          status: "failed",
+          inboxUnread: true,
+          inboxStatus: "bogus",
+        },
+      })
+    ).toEqual({
       kind: "catalog",
       mode: "list",
+      search: {
+        owner: "agent_session:product",
+        priority: "high",
+        query: "review",
+        status: "failed",
+        inboxUnread: true,
+      },
     });
   });
 

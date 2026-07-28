@@ -45,7 +45,7 @@ The dominant architectural truth for testing: **execution is detached from the r
 - **Filesystem browse:** `GET /api/fs/browse` (`routes.go:63-66`) backs the onboarding/workspace directory picker (`onboarding/components/directory-browser.tsx`).
 - **Web home dashboard:** `/_app/` shows daemon status card (version, connection) + metric grid (active sessions, workspaces, agents, uptime) with loading/error/disconnected states (`routes/_app/index.tsx`).
 - **Session permalink redirect:** `/_app/session/$id` resolves the session's agent and redirects to `/agents/$name/sessions/$id`, with not-found fallback (`routes/_app/session.$id.tsx`).
-- **Active-workspace selection:** Web persists an active workspace (zustand store `useActiveWorkspaceStore`, `useActiveWorkspace`) that scopes session lists and mutations; a workspace guard redirects when a session's workspace differs (`agents.$name.sessions.$id.tsx:166`).
+- **Active-workspace selection:** Web persists an active workspace in `@xstate/store` (`activeWorkspaceStore`, `useActiveWorkspace`) to scope session lists and mutations; a workspace guard redirects when a session's workspace differs (`agents.$name.sessions.$id.tsx:166`).
 
 ### Candidate user stories
 

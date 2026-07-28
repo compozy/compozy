@@ -1,12 +1,10 @@
-import { useReducer } from "react";
-
 import { useNavigate } from "@tanstack/react-router";
+import { useSelector } from "@xstate/store-react";
 
 import { toast } from "@compozy/ui";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
-  applyLoopEventFrame,
-  emptyLoopRunLiveState,
   isTerminalLoopStatus,
   type LoopGateDecision,
   mergeGoalTurnTimeline,
@@ -22,6 +20,7 @@ import {
   useRunLoop,
   useStopLoopRun,
 } from "@/systems/loops";
+import { loopRunPageLogic } from "./use-loop-run-page-state";
 
 /**
  * The live run-page view-model (redesign spec §2-§5): composes the run
@@ -33,6 +32,11 @@ import {
  */
 export function useLoopRunPage(workspaceId: string, runId: string) {
   const navigate = useNavigate();
+  const bindingKey = `${workspaceId}\u0000${runId}`;
+  const { store: runPageStore } = useStoreBinding(bindingKey, () =>
+    loopRunPageLogic.createStore({ workspaceId, runId })
+  );
+  const live = useSelector(runPageStore, state => state.context.live);
   const enabled = workspaceId !== "" && runId !== "";
   const runQuery = useLoopRun(workspaceId, runId, enabled);
   const run = runQuery.data?.run;
@@ -47,11 +51,19 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   );
   const definition = executedDefinition ?? loopQuery.data?.definition;
 
-  const [live, dispatch] = useReducer(applyLoopEventFrame, undefined, emptyLoopRunLiveState);
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
   // Terminal runs replay their retained status event once so generation-zero
   // failures remain visible after navigation or reload; the hook closes on it.
-  useLoopStream(workspaceId, runId, { enabled: runQuery.isSuccess, onEvent: dispatch });
+  useLoopStream(workspaceId, runId, {
+    enabled: runQuery.isSuccess,
+    onSubscriptionOpened: subscription =>
+      runPageStore.trigger.streamSubscriptionOpened(subscription),
+    onEvent: (frame, subscription) =>
+      runPageStore.trigger.streamFrameReceived({
+        frame,
+        generation: subscription.generation,
+      }),
+  });
   const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });
   const goalTurns = mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns);
 

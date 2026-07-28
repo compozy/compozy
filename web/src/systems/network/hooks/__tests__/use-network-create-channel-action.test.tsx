@@ -16,6 +16,7 @@ type DialogProps = {
   draft: ReturnType<typeof import("../../lib/network-formatters").createNetworkChannelDraft>;
   isSubmitting: boolean;
   onChannelNameChange: (value: string) => void;
+  onFanoutPolicyChange: (value: "all_members" | "capability_match" | "coordinator") => void;
   onOpenChange: (open: boolean) => void;
   onPurposeChange: (value: string) => void;
   onAgentSelectionChange: (agentNames: string[]) => void;
@@ -125,6 +126,31 @@ describe("useNetworkCreateChannelAction", () => {
     });
 
     expect(mutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("Should preserve the channel draft when the dialog closes and reopens", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider reducedMotion="always">
+        <Harness enabled />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("network-open-create-dialog"));
+    act(() => {
+      latestDialogProps?.onChannelNameChange("deployments");
+      latestDialogProps?.onPurposeChange("Coordinate deploy verification");
+      latestDialogProps?.onAgentSelectionChange([agentFixtures[0]!.name]);
+      latestDialogProps?.onOpenChange(false);
+    });
+
+    expect(latestDialogProps?.open).toBe(false);
+    await user.click(screen.getByTestId("network-open-create-dialog"));
+    expect(latestDialogProps?.draft).toMatchObject({
+      channelName: "deployments",
+      purpose: "Coordinate deploy verification",
+      selectedAgentNames: [agentFixtures[0]!.name],
+    });
   });
 
   it("Should submit successfully with async control flow and navigate to the new channel", async () => {

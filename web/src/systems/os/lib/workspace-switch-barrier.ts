@@ -1,4 +1,4 @@
-import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
+import { activeWorkspaceStore } from "@/systems/workspace";
 
 import type { RoutingCoordinator } from "./routing-coordinator";
 
@@ -6,9 +6,12 @@ import type { RoutingCoordinator } from "./routing-coordinator";
 export function subscribeWorkspaceSwitchBarrier(
   coordinator: Pick<RoutingCoordinator, "beginWorkspaceSwitch">
 ): () => void {
-  return useActiveWorkspaceStore.subscribe((state, previous) => {
-    if (state.selectedWorkspaceId !== previous.selectedWorkspaceId) {
-      coordinator.beginWorkspaceSwitch();
-    }
-  });
+  let previousWorkspaceId = activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId;
+  return activeWorkspaceStore.subscribe(snapshot => {
+    const nextWorkspaceId = snapshot.context.selectedWorkspaceId;
+    if (nextWorkspaceId === previousWorkspaceId) return;
+
+    previousWorkspaceId = nextWorkspaceId;
+    coordinator.beginWorkspaceSwitch();
+  }).unsubscribe;
 }

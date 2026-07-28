@@ -14,9 +14,6 @@ type Mutation = {
 type RestartBanner = {
   isVisible: boolean;
   isRestartRequired: boolean;
-  isPolling: boolean;
-  isSuccessful: boolean;
-  isFailed: boolean;
   operationId: string | null;
   status: string | null;
   failureReason?: string;
@@ -134,9 +131,6 @@ let pageState: {
 const restartBanner: RestartBanner = {
   isVisible: false,
   isRestartRequired: false,
-  isPolling: false,
-  isSuccessful: false,
-  isFailed: false,
   operationId: null,
   status: null,
   failureReason: undefined,

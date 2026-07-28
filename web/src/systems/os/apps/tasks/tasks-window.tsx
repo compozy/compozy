@@ -17,7 +17,7 @@ export function TasksWindow({ windowId }: { windowId: string }) {
   if (parsed.kind === "create") {
     return (
       <>
-        <TasksCatalogLocation mode={parsed.mode} />
+        <TasksCatalogLocation search={parsed.search} />
         <TaskCreateDialog catalogMode={parsed.mode} search={parsed.search} />
       </>
     );
@@ -36,5 +36,5 @@ export function TasksWindow({ windowId }: { windowId: string }) {
   if (parsed.kind === "run") {
     return <TaskRunLocation runId={parsed.runId} taskId={parsed.taskId} />;
   }
-  return <TasksCatalogLocation mode={parsed.mode} />;
+  return <TasksCatalogLocation search={parsed.search} />;
 }

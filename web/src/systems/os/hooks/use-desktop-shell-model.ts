@@ -1,9 +1,8 @@
 import { useState } from "react";
 
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
-import { useSessionCatalogStreams, useSessionCreateDialog } from "@/systems/session";
+import { useSessionCatalogStreams, useSessionCreateDialogController } from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
-import { useSyncUserHomeDir } from "@/systems/workspace/hooks/use-sync-user-home-dir";
 
 /**
  * Desktop-shell view model: the surviving responsibilities of the deleted
@@ -12,7 +11,6 @@ import { useSyncUserHomeDir } from "@/systems/workspace/hooks/use-sync-user-home
  * sidebar).
  */
 export function useDesktopShellModel() {
-  useSyncUserHomeDir();
   const {
     workspaces,
     hasWorkspaces,
@@ -33,10 +31,7 @@ export function useDesktopShellModel() {
   const sessionCatalogStreamStatus = useSessionCatalogStreams(workspaces, {
     enabled: hasWorkspaces,
   });
-  const sessionCreate = useSessionCreateDialog({
-    agents: workspaceAgents,
-    activeWorkspace,
-  });
+  const sessionCreate = useSessionCreateDialogController();
   const agentCreate = useAgentCreateDialog({
     activeWorkspace,
     workspaceProviders: activeWorkspaceDetail.data?.providers ?? [],
@@ -51,6 +46,7 @@ export function useDesktopShellModel() {
     hasWorkspaces,
     activeWorkspace,
     activeWorkspaceId,
+    workspaceAgents,
     setActiveWorkspaceId,
     areWorkspacesLoading,
     workspacesError,

@@ -42,10 +42,10 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
     bundles,
     detail,
     navigate,
-    provenanceOpen,
-    removeOpen,
-    setProvenanceOpen,
-    setRemoveOpen,
+    activeDialog,
+    dismissDialog,
+    requestProvenance,
+    requestRemoval,
     toggle,
   } = state;
   const data = detail.data;
@@ -91,11 +91,9 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setProvenanceOpen(true)}>
-                Provenance
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={requestProvenance}>Provenance</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-danger" onClick={() => setRemoveOpen(true)}>
+              <DropdownMenuItem className="text-danger" onClick={requestRemoval}>
                 Remove…
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -222,20 +220,20 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
       />
       <ExtensionProvenanceDialog
         extension={extension}
-        onOpenChange={setProvenanceOpen}
-        open={provenanceOpen}
+        onOpenChange={open => (open ? requestProvenance() : dismissDialog())}
+        open={activeDialog === "provenance"}
       />
       <RemoveExtensionDialog
         activeBundles={bundles.data}
         dependencyError={bundles.error}
         dependencyLoading={bundles.isLoading}
         extension={extension}
-        onOpenChange={setRemoveOpen}
+        onOpenChange={open => (open ? requestRemoval() : dismissDialog())}
         onRemoved={() =>
           void navigate({ search: { tab: "installed" }, to: "/marketplace/extensions" })
         }
         onRetryDependencies={() => void bundles.refetch()}
-        open={removeOpen}
+        open={activeDialog === "remove"}
       />
     </>
   );

@@ -10,7 +10,6 @@ import {
 import { NetworkShell, type ChannelTab } from "@/systems/network/components/shell";
 import {
   NetworkListFiltersProvider,
-  useNetworkListFilters,
   type NetworkChannelSummary,
   type NetworkRecentEntry,
   type NetworkSurface,
@@ -75,14 +74,12 @@ function NetworkShellHarness({
   const pinnedSet = new Set(channels.slice(0, 1).map(channel => channel.channel));
   const pinned = channels.filter(channel => pinnedSet.has(channel.channel));
   const unpinned = channels.filter(channel => !pinnedSet.has(channel.channel));
-  const filters = useNetworkListFilters({
-    workspaceId: storyDefaultWorkspaceId,
-    channel: channels[0]?.channel ?? "",
-  });
-
   return (
     <PanelSurface className="min-h-[760px]">
-      <NetworkListFiltersProvider value={filters}>
+      <NetworkListFiltersProvider
+        channel={channels[0]?.channel ?? ""}
+        workspaceId={storyDefaultWorkspaceId}
+      >
         <NetworkShell
           workspaceId={storyDefaultWorkspaceId}
           activeChannel={channels[0] ?? null}

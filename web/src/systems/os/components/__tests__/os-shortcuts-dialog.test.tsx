@@ -21,7 +21,7 @@ function createShell(): OsShellHandle {
   const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
   const coordinator = new RoutingCoordinator(manager, router);
   coordinator.completeHydration();
-  return { store: manager, manager, coordinator };
+  return { projection: manager.projectionAtom, manager, coordinator };
 }
 
 describe("OsShortcutsDialog", () => {

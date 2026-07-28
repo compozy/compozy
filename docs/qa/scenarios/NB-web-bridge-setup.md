@@ -26,3 +26,7 @@ QA 2026-07-13: browser create, daemon manifest copy, bindings, inline failed-che
 Phase D responsive impact flag 2026-07-13: the bridge detail panel now reflows secret fields, complete vault references, and provider/config metadata at 320px instead of forcing horizontal overflow. Status reset to `untested`; historical browser QA evidence remains intact. No QA retest ran.
 
 Phase D source-freeze impact flag 2026-07-13: the bridge create dialog now also reflows step navigation, provider cards, and actions at 320px. Status remains `untested`; historical browser QA evidence remains intact. No QA retest ran.
+
+QA impact 2026-07-26: setup facts are adopted by bridge identity and scalar fingerprints; refreshed
+Query facts can invalidate stale evidence without canceling an accepted registration or verification.
+Status remains untested; no QA replay ran.

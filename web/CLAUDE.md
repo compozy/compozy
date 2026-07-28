@@ -1,15 +1,16 @@
 # Web Frontend
 
-React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, shadcn/ui (base-nova), Zustand, Zod. oxfmt + oxlint. (Root `CLAUDE.md` rules apply — this file adds web-specific ones.)
+React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, shadcn/ui (base-nova), `@xstate/store`, Zod. oxfmt + oxlint. (Root `CLAUDE.md` rules apply — this file adds web-specific ones.)
 
 ## Critical Rules
 
 - **`make bun-lint`, `make bun-typecheck`, and `make bun-test` MUST pass** before completing any web task. Zero warnings/errors; oxlint is zero-tolerance.
 - **Frontend typecheck/test validation MUST use Turborepo from the repo root.** Never use `make web-typecheck`, `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
 - **Files are kebab-case** (shadcn convention): components `kebab-case.tsx`, hooks `use-kebab-case.ts`, utils `kebab-case.ts`, API services `<domain>-api.ts`.
-- **Native DOM wrappers**: if a component's root is a single native element, its props MUST extend that element's intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` (use `forwardRef` when refs apply). CVA + `VariantProps` per the `shadcn` skill. Canonical: `.agents/skills/react/SKILL.md` → _Extend native element props_.
+- **Native DOM wrappers**: if a component's root is a single native element, its props MUST extend that element's intrinsic type (`React.ComponentProps<"…">`), merge `className`, accept `ref` through those React 19 props, and spread `{...props}`. CVA + `VariantProps` per the `shadcn` skill. Canonical: `.agents/skills/react/references/components-and-types.md` → _Extend native element props_.
 - **Eyebrow markup is mandatory** for every uppercase label: use `<Eyebrow>` from `@compozy/ui` (children + `className` only) **or** the `eyebrow` utility class (from `packages/ui/src/tokens.css`) on structural elements; tone via `className` (`text-(--muted)`, `text-(--accent)`, signal palette). Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples IS the utility and is **forbidden** (`compozy-design-system/no-inline-eyebrow`), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract: **Inter UC 11/600/-0.005em** (`--text-eyebrow`, `--tracking-eyebrow`). Full rule: `DESIGN.md` §3 + lesson `L-022`.
 - **Test placement before any Vitest/Playwright file.** Name the invariant, owning layer, and canonical suite; update existing route/hook/component/story/e2e suites first. No CSS-literal/snapshot/generated/prose tests unless that artifact is the product contract and no stronger gate exists.
+- **Client-state ownership:** TanStack Query owns server state, `@xstate/store` owns domain interaction state, and mutable Contexts inject store handles instead of snapshots; component stores use `useStore`, with `useStoreBinding` reserved for pure pre-commit identity/baseline replacement, while current callbacks enter as events.
 - **Storybook setup is validation infrastructure, not product behavior.** Don't test `.storybook/main`, decorator arrays, story globs, or bootstrap unless the task names the visual-QA contract it protects. Prefer Storybook build/capture, `list-stories`, and rendered-story smoke. Static exceptions need a `KEEP:` note.
 - **Isolated-daemon QA reads `COMPOZY_WEB_API_PROXY_TARGET`** from the active bootstrap manifest/env — never hardcode `http://localhost:2123`.
 
@@ -31,7 +32,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`             | `shadcn`                            |
 | Routing                       | `tanstack`                                                          |                                     |
 | Data boundaries               | `eng-data-boundaries`                                               | `tanstack` + `app-renderer-systems` |
-| State management              | `zustand`                                                           |                                     |
+| State management              | `state-management` + `xstate-store`                                 |                                     |
 | Schema / Validation           | `zod`                                                               | `typescript-advanced`               |
 | Web testing                   | `eng-consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                     |
 | TypeScript (types)            | `typescript-advanced`                                               | `context7`                          |
@@ -79,7 +80,7 @@ web/src/
 │   ├── adapters/            # API service layer (<domain>-api.ts + error class)
 │   ├── lib/                 # query-keys.ts, query-options.ts, schemas, constants
 │   ├── hooks/               # query / mutation / view-model hooks
-│   ├── contexts/ stores/    # React contexts / Zustand|XState (optional)
+│   ├── contexts/ stores/    # Store-handle DI / XState stores (optional)
 │   ├── components/          # domain UI
 │   └── guards/              # route guards (optional)
 ├── components/          # App-shell shared components (generic primitives come from @compozy/ui — see packages/ui/CLAUDE.md)

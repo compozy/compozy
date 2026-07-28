@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
@@ -142,10 +142,11 @@ import {
   taskDashboardFixture,
   taskTriageStateFixture,
 } from "@/systems/tasks/mocks/fixtures";
-import type { TaskListFilter, TaskListPage } from "@/systems/tasks";
-import { tasksKeys } from "@/systems/tasks";
+import type { TaskListFilter, TaskListPage, TasksRouteSearch } from "@/systems/tasks";
+import { tasksKeys, validateTasksSearch } from "@/systems/tasks";
 
-import { useTasksPage, type UseTasksPageOptions } from "../use-tasks-page";
+import { useTasksPage } from "../use-tasks-page";
+import { tasksPageActionsLogic } from "../tasks-page-actions-store";
 
 function createQueryClient() {
   return new QueryClient({
@@ -156,6 +157,14 @@ function createQueryClient() {
 function createWrapper(queryClient = createQueryClient()) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+function useControlledTasksPage(initialSearch: TasksRouteSearch = {}) {
+  const [search, setSearch] = useState(initialSearch);
+  return useTasksPage({
+    search,
+    onSearchChange: update => setSearch(current => update(current)),
+  });
 }
 
 const taskFixture = buildTaskFixture({
@@ -242,8 +251,42 @@ afterEach(() => {
 });
 
 describe("useTasksPage", () => {
+  it("ignores a stale row completion token", () => {
+    const store = tasksPageActionsLogic.createStore();
+    const request = {
+      execute: () => new Promise<never>(() => undefined),
+      failureMessage: "Failed to approve task",
+      id: "task_001",
+      kind: "approve" as const,
+    };
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "actionRequested",
+      ...request,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "actionSucceeded",
+      ...request,
+      token: 0,
+    });
+
+    expect(snapshot.context.pending.approve.task_001).toBe(1);
+  });
+
+  it("keeps independently validated list and inbox filters in route search", () => {
+    expect(
+      validateTasksSearch({
+        status: "failed",
+        inboxUnread: true,
+        inboxStatus: "invalid",
+      })
+    ).toEqual({ status: "failed", inboxUnread: true });
+  });
+
   it("exposes exact list state, counts, and derived flags", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useControlledTasksPage(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.visibleTasks).toHaveLength(3);
@@ -332,7 +375,7 @@ describe("useTasksPage", () => {
   });
 
   it("keeps full catalogs mode-scoped while retaining the minimal inbox badge read", async () => {
-    const { result } = renderHook(() => useTasksPage({ mode: "dashboard" }), {
+    const { result } = renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
     });
 
@@ -358,11 +401,11 @@ describe("useTasksPage", () => {
 
   it("swaps to inbox reads when the inbox tab is active", async () => {
     const { result, rerender } = renderHook(
-      (options?: UseTasksPageOptions) => useTasksPage(options),
-      { wrapper: createWrapper() }
+      ({ search }: { search: TasksRouteSearch }) => useTasksPage({ search }),
+      { initialProps: { search: {} }, wrapper: createWrapper() }
     );
 
-    rerender({ mode: "inbox" });
+    rerender({ search: { mode: "inbox" } });
 
     await waitFor(() => {
       expect(getTaskInbox).toHaveBeenCalled();
@@ -375,7 +418,7 @@ describe("useTasksPage", () => {
   });
 
   it("maps inbox lane, status, priority, unread, and search into the backend query", async () => {
-    const { result } = renderHook(() => useTasksPage({ mode: "inbox" }), {
+    const { result } = renderHook(() => useControlledTasksPage({ mode: "inbox" }), {
       wrapper: createWrapper(),
     });
 
@@ -406,7 +449,7 @@ describe("useTasksPage", () => {
   });
 
   it("maps the active workspace scope into the dashboard query", async () => {
-    const { result } = renderHook(() => useTasksPage({ mode: "dashboard" }), {
+    const { result } = renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
     });
 
@@ -423,7 +466,7 @@ describe("useTasksPage", () => {
 
   it("maps the home workspace into global dashboard and backlog queries", async () => {
     workspaceMockState.selectedWorkspaceId = "ws_home";
-    renderHook(() => useTasksPage({ mode: "dashboard" }), {
+    renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
     });
 
@@ -441,7 +484,9 @@ describe("useTasksPage", () => {
   });
 
   it("updates search params without losing active workspace scope", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useControlledTasksPage(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.visibleTasks).toHaveLength(3);
@@ -468,8 +513,31 @@ describe("useTasksPage", () => {
     );
   });
 
+  it("Should keep the search draft responsive and publish only the latest debounced query", async () => {
+    const onSearchChange = vi.fn();
+    const { result } = renderHook(() => useTasksPage({ search: {}, onSearchChange }), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      result.current.setSearchQuery("r");
+      result.current.setSearchQuery("re");
+      result.current.setSearchQuery("review");
+    });
+
+    expect(result.current.searchQuery).toBe("review");
+    expect(onSearchChange).not.toHaveBeenCalled();
+    await waitFor(() => expect(onSearchChange).toHaveBeenCalledTimes(1));
+    const update = onSearchChange.mock.calls[0]?.[0] as (
+      current: TasksRouteSearch
+    ) => TasksRouteSearch;
+    expect(update({ status: "ready" })).toEqual({ query: "review", status: "ready" });
+  });
+
   it("retries a failed task continuation without restarting the catalog", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useControlledTasksPage(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
 
     vi.mocked(listTasks).mockRejectedValueOnce(new Error("next page failed"));
@@ -523,7 +591,9 @@ describe("useTasksPage", () => {
       page: { has_more: false, limit: 50, total: 0 },
       tasks: [],
     });
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useControlledTasksPage(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.ownerOptions).toHaveLength(2));
 
     const agentOwner = result.current.ownerOptions[1];
@@ -544,21 +614,23 @@ describe("useTasksPage", () => {
   it("delegates triage actions and retries a failed run by run id", async () => {
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
-    await act(async () => {
-      await result.current.handleApproveTask("task_001");
-      await result.current.handleRejectTask("task_001");
-      await result.current.handleArchiveTask("task_001");
-      await result.current.handleDismissTask("task_001");
-      await result.current.handleMarkTaskRead("task_001");
-      await result.current.handleRetryRun("run_001");
+    act(() => {
+      result.current.handleApproveTask("task_001");
+      result.current.handleRejectTask("task_001");
+      result.current.handleArchiveTask("task_001");
+      result.current.handleDismissTask("task_001");
+      result.current.handleMarkTaskRead("task_001");
+      result.current.handleRetryRun("run_001");
     });
 
-    expect(approveTask).toHaveBeenCalledWith("task_001");
-    expect(rejectTask).toHaveBeenCalledWith("task_001");
-    expect(archiveTask).toHaveBeenCalledWith("task_001");
-    expect(dismissTask).toHaveBeenCalledWith("task_001");
-    expect(markTaskRead).toHaveBeenCalledWith("task_001");
-    expect(retryTaskRun).toHaveBeenCalledWith("run_001", {});
+    await waitFor(() => {
+      expect(approveTask).toHaveBeenCalledWith("task_001");
+      expect(rejectTask).toHaveBeenCalledWith("task_001");
+      expect(archiveTask).toHaveBeenCalledWith("task_001");
+      expect(dismissTask).toHaveBeenCalledWith("task_001");
+      expect(markTaskRead).toHaveBeenCalledWith("task_001");
+      expect(retryTaskRun).toHaveBeenCalledWith("run_001", {});
+    });
   });
 
   it("blocks duplicate retry submission while preserving the pending run identity", async () => {
@@ -568,20 +640,18 @@ describe("useTasksPage", () => {
     );
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
-    let first: Promise<void> | undefined;
-    await act(async () => {
-      first = result.current.handleRetryRun("run_001");
-      void result.current.handleRetryRun("run_001");
-      await Promise.resolve();
+    act(() => {
+      result.current.handleRetryRun("run_001");
+      result.current.handleRetryRun("run_001");
     });
 
-    expect(retryTaskRun).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(retryTaskRun).toHaveBeenCalledTimes(1));
     expect(result.current.pendingRetryIds.has("run_001")).toBe(true);
 
     await act(async () => {
       resolveRetry?.({ id: "run_retry" });
-      await first;
+      await Promise.resolve();
     });
-    expect(result.current.pendingRetryIds.has("run_001")).toBe(false);
+    await waitFor(() => expect(result.current.pendingRetryIds.has("run_001")).toBe(false));
   });
 });

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useSelector } from "@xstate/store-react";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   providerNeedsAuth,
@@ -12,26 +13,20 @@ import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/sett
 import type { SessionProviderOption } from "@/systems/workspace";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 
-import { isAgentDigestConflict } from "../adapters/agent-api";
 import {
-  buildSettingsDraftFromAgent,
-  buildUpdateAgentParams,
+  createAgentSettingsEditorLogic,
+  shouldAdoptAgentSettingsSource,
+  type AgentSettingsEditorState,
+} from "../stores/agent-settings-editor-store";
+import {
   isAgentSettingsDraftDirty,
   validateAgentSettingsDraft,
   type AgentSettingsDraft,
 } from "../lib/agent-settings-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
-import type { AgentPayload } from "../types";
 import { useAgent, useUpdateAgent } from "./use-agents";
 import { useAgentDeleteFlow } from "./use-agent-delete-flow";
 import { useUnsavedGuard } from "./use-unsaved-guard";
-
-function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
 
 function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
   const displayName = provider.settings.display_name?.trim();
@@ -73,38 +68,38 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     enabled: activeWorkspaceId !== null,
   });
 
-  const agent = agentQuery.data;
-  const agentKey = agent?.definition_digest ?? "pending";
-  const [editorState, setEditorState] = useState<{
-    baseline: AgentPayload | null;
-    draft: AgentSettingsDraft | null;
-    key: string;
-  }>({ baseline: null, draft: null, key: agentKey });
-  const baselineAgent =
-    editorState.key === agentKey ? (editorState.baseline ?? agent ?? null) : (agent ?? null);
-  const draft =
-    editorState.key === agentKey
-      ? (editorState.draft ?? (agent ? buildSettingsDraftFromAgent(agent) : null))
-      : agent
-        ? buildSettingsDraftFromAgent(agent)
-        : null;
-  const [conflictBanner, setConflictBanner] = useState<string | null>(null);
-  const [mutationDenied, setMutationDenied] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const draftSafe = draft;
-  const dirty = Boolean(
-    baselineAgent && draftSafe && isAgentSettingsDraftDirty(draftSafe, baselineAgent)
+  const resourceKey = JSON.stringify([activeWorkspaceId, name]);
+  const { store } = useStoreBinding(
+    resourceKey,
+    () =>
+      createAgentSettingsEditorLogic().createStore({
+        resourceKey,
+        agent: agentQuery.data,
+      }),
+    () =>
+      createAgentSettingsEditorLogic().createStore({
+        resourceKey,
+        agent: agentQuery.data,
+      }),
+    (current, nextResourceKey) =>
+      current.key !== nextResourceKey ||
+      shouldAdoptAgentSettingsSource(current.store.getSnapshot().context, agentQuery.data)
   );
-  const validation = draftSafe ? validateAgentSettingsDraft(draftSafe) : null;
+  const editor = useSelector(store, snapshot => snapshot.context);
+
+  const draft = editor.draft;
+  const dirty = isEditorDirty(editor);
+  const validation = draft ? validateAgentSettingsDraft(draft) : null;
   const canSave = Boolean(validation?.canSave);
+  const mutationDenied = editor.phase === "denied";
+  const editorError = "error" in editor ? editor.error : null;
   const saveBlocked = dirty && (!canSave || mutationDenied);
   const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
 
   const guard = useUnsavedGuard({ dirty, entityName: name });
-  const deleteFlow = useAgentDeleteFlow({ agent, workspaceId: activeWorkspaceId });
+  const deleteFlow = useAgentDeleteFlow({ agent: agentQuery.data, workspaceId: activeWorkspaceId });
 
-  const useWorkspaceProviders = agent?.origin === "workspace";
+  const useWorkspaceProviders = agentQuery.data?.origin === "workspace";
   const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
   const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
@@ -116,108 +111,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     id: option.id,
     needsAuth: option.needs_auth,
   }));
-  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agent) });
-
-  const setDraft = (next: AgentSettingsDraft) => {
-    setEditorState({ baseline: baselineAgent, draft: next, key: agentKey });
-    setSaveError(null);
-    setConflictBanner(null);
-  };
-
-  const patchDraft = (patch: Partial<AgentSettingsDraft>) => {
-    setEditorState({
-      baseline: baselineAgent,
-      draft: draftSafe ? { ...draftSafe, ...patch } : null,
-      key: agentKey,
-    });
-    setSaveError(null);
-    setConflictBanner(null);
-  };
-
-  const onDiscard = () => {
-    if (!baselineAgent) return;
-    setEditorState({
-      baseline: baselineAgent,
-      draft: buildSettingsDraftFromAgent(baselineAgent),
-      key: baselineAgent.definition_digest,
-    });
-    setSaveError(null);
-    setConflictBanner(null);
-  };
-
-  const onReloadAndRetry = async () => {
-    setConflictBanner(null);
-    setSaveError(null);
-    const result = await agentQuery.refetch();
-    if (result.data) {
-      setEditorState({
-        baseline: result.data,
-        draft: buildSettingsDraftFromAgent(result.data),
-        key: result.data.definition_digest,
-      });
-    }
-  };
-
-  const onSave = () => {
-    if (!draftSafe || !agent || saveBlocked || updateAgent.isPending) return;
-    const params = buildUpdateAgentParams(draftSafe, activeWorkspaceId);
-    if (!params) return;
-
-    setSaveError(null);
-    setConflictBanner(null);
-    setMutationDenied(false);
-
-    updateAgent.mutate(
-      { name: agent.name, params, cacheWorkspace: activeWorkspaceId },
-      {
-        onSuccess: updated => {
-          setEditorState({
-            baseline: updated,
-            draft: buildSettingsDraftFromAgent(updated),
-            key: updated.definition_digest,
-          });
-          toast.success("Changes saved");
-        },
-        onError: error => {
-          if (isAgentDigestConflict(error)) {
-            setConflictBanner(
-              "This agent changed elsewhere. Reload the latest definition, then retry your edits."
-            );
-            return;
-          }
-          const status =
-            error && typeof error === "object" && "status" in error
-              ? Number((error as { status?: number }).status)
-              : NaN;
-          if (status === 403) {
-            setMutationDenied(true);
-            return;
-          }
-          setSaveError(describeError("Couldn't save agent", error));
-        },
-      }
-    );
-  };
-
-  const setSection = (next: AgentSettingsSection) => {
-    void navigate({
-      to: "/agents/$name/settings",
-      params: { name },
-      search: { section: next },
-      replace: true,
-    });
-  };
-
-  const onBackToDetail = () => {
-    void navigate({
-      to: "/agents/$name",
-      params: { name },
-    });
-  };
-
-  const onOpenProviderSettings = () => {
-    void navigate({ to: "/settings/providers" });
-  };
+  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agentQuery.data) });
 
   const saveBlockedCaption = mutationDenied
     ? "Editing is not permitted for this agent."
@@ -226,35 +120,43 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       : undefined;
 
   return {
-    agent,
+    agent: agentQuery.data,
     agentLoading: agentQuery.isLoading,
     agentError: (agentQuery.error as Error | null) ?? null,
-    draft: draftSafe,
-    setDraft,
-    patchDraft,
+    draft,
+    setDraft: (next: AgentSettingsDraft) => store.trigger.draftReplaced({ draft: next }),
+    patchDraft: (patch: Partial<AgentSettingsDraft>) => store.trigger.draftPatched({ patch }),
     dirty,
     validation,
     canSave,
     saveBlocked,
     saveBlockedCaption,
     section,
-    setSection,
-    onSave,
-    onDiscard,
-    onReloadAndRetry,
-    onBackToDetail,
-    onOpenProviderSettings,
-    isSaving: updateAgent.isPending,
-    saveError,
-    conflictBanner,
-    mutationDenied,
-    fieldsDisabled: updateAgent.isPending,
-    fieldsReadOnly: mutationDenied,
+    setSection: (next: AgentSettingsSection) => {
+      void navigate({
+        to: "/agents/$name/settings",
+        params: { name },
+        search: { section: next },
+        replace: true,
+      });
+    },
+    onSave: () =>
+      store.trigger.saveRequested({
+        name,
+        save: updateAgent.mutateAsync,
+        workspaceId: activeWorkspaceId,
+      }),
+    onDiscard: () => store.trigger.discardRequested(),
+    onReloadAndRetry: () =>
+      store.trigger.reloadRequested({ reload: async () => (await agentQuery.refetch()).data }),
+    onBackToDetail: () => void navigate({ to: "/agents/$name", params: { name } }),
+    onOpenProviderSettings: () => void navigate({ to: "/settings/providers" }),
+    phase: editor.phase,
+    error: editorError,
     providerOptions,
     providersLoading,
     runtimeModels: catalog.models as RuntimeModelOption[],
     modelCatalogLoading: catalog.loading,
-    modelCatalogLoaded: catalog.loaded,
     modelCatalogRefreshing: catalog.refreshing,
     modelCatalogError: catalog.error,
     onRefreshCatalog: catalog.refresh,
@@ -262,4 +164,10 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     deleteFlow,
     unsavedGuardDialog: guard.confirmDialog,
   };
+}
+
+function isEditorDirty(editor: AgentSettingsEditorState): boolean {
+  return Boolean(
+    editor.baseline && editor.draft && isAgentSettingsDraftDirty(editor.draft, editor.baseline)
+  );
 }

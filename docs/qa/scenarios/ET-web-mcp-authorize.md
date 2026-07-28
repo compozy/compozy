@@ -32,3 +32,7 @@ fallback that creates a new `mode=manual` session rather than exchanging against
 
 QA impact 2026-07-18: global MCP definitions included in workspace reads authorize against their
 global effective source instead of an unavailable workspace target.
+
+QA impact 2026-07-26: browser and manual authorization completion is fenced and delivered by the
+store even if the initiating hook unmounts; retries cannot settle an older attempt. Status remains
+untested; no QA replay ran.

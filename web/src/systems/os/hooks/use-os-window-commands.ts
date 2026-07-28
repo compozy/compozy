@@ -62,7 +62,7 @@ export interface OsWindowCommandsModel {
  * close/minimize — a pre-existing divergence, tracked separately.
  */
 export function useOsWindowCommands(): OsWindowCommandsModel {
-  const { coordinator, manager, store } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const focusedWindow = useDesktop(state =>
     state.presentation === "floating" && state.focusedId !== null
       ? state.windows[state.focusedId]
@@ -96,13 +96,10 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
       : {
           close: () => void coordinator.userClose(focusedId),
           minimize: () => void coordinator.userMinimize(focusedId),
-          zoom:
-            presentation === "floating"
-              ? () => void manager.getState().zoomWindow(focusedId)
-              : null,
+          zoom: presentation === "floating" ? () => void manager.zoomWindow(focusedId) : null,
           makeFloating:
             focusedWindow && focusedWindow.placement !== "floating"
-              ? () => manager.getState().toggleFloating(focusedId)
+              ? () => manager.toggleFloating(focusedId)
               : null,
         };
 
@@ -114,7 +111,7 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
       commandsAvailable && focusedWindow && windowManagerConfig ? WINDOW_PLACEMENT_COMMANDS : [],
     arrangeCommands: commandsAvailable && hasArrangePeer ? WINDOW_ARRANGE_COMMANDS : [],
     dispatchPlacement: command => {
-      const state = store.getState();
+      const state = manager.getState();
       if (
         !windowManagerCommandsAvailable(state) ||
         state.focusedId === null ||
@@ -125,13 +122,13 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
       dispatchWindowPlacement(manager, state.focusedId, command);
     },
     dispatchArrange: command => {
-      const state = store.getState();
+      const state = manager.getState();
       if (!windowManagerCommandsAvailable(state) || state.focusedId === null) return;
-      state.arrangeLayout(state.focusedId, command.preset);
+      manager.arrangeLayout(state.focusedId, command.preset);
     },
     canToggleFloating: hasFocusedWindow,
     toggleFloating: () => {
-      if (focusedId !== null) manager.getState().toggleFloating(focusedId);
+      if (focusedId !== null) manager.toggleFloating(focusedId);
     },
     canBalanceLayout: hasFocusedWindow,
     balanceLayout: () => manager.balanceFocusedLayout(),

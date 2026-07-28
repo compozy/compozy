@@ -1,11 +1,10 @@
-import { useStore } from "zustand";
+import { useSelector } from "@xstate/store-react";
 
 import type { SnapTarget } from "../lib/snap-targets";
 import {
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
-  selectWindowManagerActions,
   selectWindowManagerConflict,
   selectWindowManagerDiagnostic,
   selectWindowManagerGestureActive,
@@ -15,7 +14,6 @@ import {
   type DesktopOverviewSegmentRequest,
   type DesktopTransitionIntent,
   type PendingWindowManagerCommand,
-  type WindowManagerActions,
   type WindowManagerDiagnostic,
   type WindowManagerOverlay,
   type WindowManagerRevisionConflict,
@@ -24,41 +22,49 @@ import {
 } from "../stores/window-manager-store";
 
 export function useWindowManagerWorkArea(): WindowManagerWorkArea | null {
-  return useStore(windowManagerStore, selectWindowManagerWorkArea);
+  return useSelector(windowManagerStore, snapshot => selectWindowManagerWorkArea(snapshot.context));
 }
 
 export function useWindowManagerOverlay(): WindowManagerOverlay | null {
-  return useStore(windowManagerStore, selectWindowManagerOverlay);
+  return useSelector(windowManagerStore, snapshot => selectWindowManagerOverlay(snapshot.context));
 }
 
 export function useDesktopOverviewSegmentRequest(): DesktopOverviewSegmentRequest | null {
-  return useStore(windowManagerStore, selectDesktopOverviewSegmentRequest);
+  return useSelector(windowManagerStore, snapshot =>
+    selectDesktopOverviewSegmentRequest(snapshot.context)
+  );
 }
 
 export function useDesktopTransitionIntent(): DesktopTransitionIntent | null {
-  return useStore(windowManagerStore, selectDesktopTransitionIntent);
+  return useSelector(windowManagerStore, snapshot =>
+    selectDesktopTransitionIntent(snapshot.context)
+  );
 }
 
 export function useWindowManagerGestureActive(windowId: string): boolean {
-  return useStore(windowManagerStore, state => selectWindowManagerGestureActive(state, windowId));
+  return useSelector(windowManagerStore, snapshot =>
+    selectWindowManagerGestureActive(snapshot.context, windowId)
+  );
 }
 
 export function useWindowManagerGesturePreview(): SnapTarget | null {
-  return useStore(windowManagerStore, selectWindowManagerGesturePreview);
+  return useSelector(windowManagerStore, snapshot =>
+    selectWindowManagerGesturePreview(snapshot.context)
+  );
 }
 
 export function usePendingWindowManagerCommand(): PendingWindowManagerCommand | null {
-  return useStore(windowManagerStore, selectPendingWindowManagerCommand);
+  return useSelector(windowManagerStore, snapshot =>
+    selectPendingWindowManagerCommand(snapshot.context)
+  );
 }
 
 export function useWindowManagerConflict(): WindowManagerRevisionConflict | null {
-  return useStore(windowManagerStore, selectWindowManagerConflict);
+  return useSelector(windowManagerStore, snapshot => selectWindowManagerConflict(snapshot.context));
 }
 
 export function useWindowManagerDiagnostic(): WindowManagerDiagnostic | null {
-  return useStore(windowManagerStore, selectWindowManagerDiagnostic);
-}
-
-export function useWindowManagerActions(): WindowManagerActions {
-  return useStore(windowManagerStore, selectWindowManagerActions);
+  return useSelector(windowManagerStore, snapshot =>
+    selectWindowManagerDiagnostic(snapshot.context)
+  );
 }

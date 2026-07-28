@@ -27,3 +27,7 @@ QA impact 2026-07-26: first-message creation is atomic and RuntimeSelector lives
 src: web/src/systems/session/components/session-create-dialog.tsx; web/src/systems/session/components/session-create-simple-section.tsx; web/src/systems/session/components/session-create-advanced-section.tsx; web/src/systems/session/hooks/use-session-create-dialog.ts
 
 inventory: Needs QA
+
+QA impact 2026-07-26: opening the create flow without an explicit agent now resolves against the
+live Query-backed agent catalog, including the first available agent after an initially empty read.
+Status remains untested; no QA replay ran.

@@ -28,3 +28,7 @@ slow or unavailable.
 QA impact 2026-07-18: direct Dashboard navigation now preloads and reuses its dashboard summary,
 scheduler status, scheduler backlog, and Inbox badge queries while continuing to skip the unrelated
 full task catalog.
+
+QA impact 2026-07-26: mode changes now clear hidden List search state, URL updates are debounced,
+whitespace-only searches stay absent, and Inbox freshness remains Query-owned. Status remains
+untested; no QA replay ran.

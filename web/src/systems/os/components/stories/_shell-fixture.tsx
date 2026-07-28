@@ -11,6 +11,7 @@ import type {
 } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
+import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 
 const ROUTER: OsRouterPort = { navigate: () => {}, replace: () => {} };
 
@@ -20,10 +21,10 @@ const ROUTER: OsRouterPort = { navigate: () => {}, replace: () => {} };
  */
 export function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}) {
   const manager = new WindowManagerRuntime(new QueryClient());
-  if (collapsedAgent) manager.getState().toggleRailGroup(collapsedAgent);
+  if (collapsedAgent) manager.toggleRailGroup(collapsedAgent);
   const coordinator = new RoutingCoordinator(manager, ROUTER);
   coordinator.completeHydration();
-  return { store: manager, manager, coordinator } satisfies OsShellHandle;
+  return { projection: manager.projectionAtom, manager, coordinator } satisfies OsShellHandle;
 }
 
 const STORY_DESKTOP_ID = "desktop:story";
@@ -133,6 +134,17 @@ export function createLiveStoryShell(): OsShellHandle {
     hydration: "live",
     connectionStatus: "connected",
     desktopBounds: { width: 1440, height: 900, origin: { x: 0, y: 0 } },
+  };
+  const projection = createWindowManagerProjectionAtom(state);
+  const controller: WindowManagerController = {
+    getState: () => state,
+    getInitialState: () => state,
+    subscribe: () => () => undefined,
+    bind: fn(),
+    unbind: fn(),
+    setClient: fn(),
+    setConnectionStatus: fn(),
+    setLoadError: fn(),
     openOrFocus: target => ({ windowId: `app:${target.app}`, ...outcome() }),
     closeWindow: async () => true,
     focusWindow: () => outcome(),
@@ -140,7 +152,7 @@ export function createLiveStoryShell(): OsShellHandle {
     restoreWindow: fn(),
     zoomWindow: () => outcome(),
     toggleFloating: fn(),
-    moveWindow: fn(),
+    moveWindow: () => outcome(),
     arrangeLayout: fn(),
     commitFloatingRect: () => outcome(),
     resizeLayout: () => outcome(),
@@ -151,16 +163,6 @@ export function createLiveStoryShell(): OsShellHandle {
     setDockMagnify: fn(),
     setReduceMotion: fn(),
     setDesktopBounds: fn(),
-  };
-  const controller: WindowManagerController = {
-    getState: () => state,
-    getInitialState: () => state,
-    subscribe: () => () => undefined,
-    bind: fn(),
-    unbind: fn(),
-    setClient: fn(),
-    setConnectionStatus: fn(),
-    setLoadError: fn(),
     createDesktop: fn(),
     renameDesktop: fn(),
     reorderDesktop: fn(),
@@ -178,7 +180,7 @@ export function createLiveStoryShell(): OsShellHandle {
     refreshSnapshot: fn(),
   };
   return {
-    store: controller,
+    projection,
     manager: controller,
     coordinator: new RoutingCoordinator(controller, ROUTER),
   };

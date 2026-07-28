@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
+import {
+  networkParticipationDraftFromValues,
+  networkParticipationValidationMessage,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+} from "@/lib/network-participation";
 import { resolveAgentRuntimeValue, useAgents, type AgentPayload } from "@/systems/agent";
 import {
   deriveActiveSessionOptions,
@@ -11,12 +17,6 @@ import {
   type ProviderModelPayload,
   type RuntimeCatalogProvider,
 } from "@/systems/model-catalog";
-import {
-  networkParticipationDraftFromValues,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
-  type NetworkParticipationDraft,
-} from "@/systems/network";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,
@@ -30,32 +30,22 @@ import type {
 import { toWorkspaceCommandSelectOptions, useWorkspace, useWorkspaces } from "@/systems/workspace";
 
 import {
-  ADVANCED_DEFAULTS,
-  applySessionAgentSelection,
-  describeError,
   describeWorkspaceError,
-  EMPTY_SESSION_CREATE_DRAFT,
   normalizeEffort,
   resolveSessionWorkspacePath,
   resolveSelectedProvider,
-  RUNTIME_OVERRIDE_DEFAULTS,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
 import {
   MODEL_CATALOG_PENDING,
   validateSessionModelSelection,
 } from "../lib/session-model-selection";
-import type { SessionPayload } from "../types";
+import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
 import { useCreateSession } from "./use-session-actions";
 
 interface SessionCreateDialogContext {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
-}
-
-interface SessionNavigationTarget {
-  agentName: string;
-  sessionId: string;
 }
 
 export interface SessionCreateDialogState {
@@ -88,7 +78,6 @@ export interface SessionCreateDialogState {
 }
 
 export interface SessionCreateDialogApi extends SessionCreateDialogState {
-  openForAgent: (agentName: string) => void;
   onOpenChange: (open: boolean) => void;
   onModeChange: (mode: EntityMode) => void;
   onAgentChange: (agentName: string) => void;
@@ -101,19 +90,25 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   networkParticipation: NetworkParticipationDraft;
   refreshCatalog: () => void;
   openProviderSettings: () => void;
-  submit: () => Promise<void>;
+  submit: () => void;
 }
 
-export function useSessionCreateDialog({
-  agents,
-  activeWorkspace,
-}: SessionCreateDialogContext): SessionCreateDialogApi {
+export interface SessionCreateDialogController {
+  store: SessionCreateStore;
+}
+
+export function useSessionCreateDialogController(): SessionCreateDialogController {
+  return { store: useStore(sessionCreateStoreLogic) };
+}
+
+export function useSessionCreateDialogViewModel(
+  { agents, activeWorkspace }: SessionCreateDialogContext,
+  store: SessionCreateStore
+): SessionCreateDialogApi {
   const navigate = useNavigate();
   const createSession = useCreateSession();
-
-  const [open, setOpenState] = useState(false);
-  const [mode, setMode] = useState<EntityMode>("simple");
-  const [draft, setDraft] = useState<SessionCreateDialogDraft>(EMPTY_SESSION_CREATE_DRAFT);
+  const flow = useSelector(store, snapshot => snapshot.context);
+  const { draft } = flow;
 
   const workspaceId = draft.workspaceId || (activeWorkspace?.id ?? "");
   const workspaceAgentsQuery = useAgents(workspaceId, { enabled: workspaceId.length > 0 });
@@ -129,30 +124,14 @@ export function useSessionCreateDialog({
     (activeWorkspace?.id === workspaceId ? activeWorkspace : undefined);
   const providerOptions: SessionProviderOption[] = workspaceDetail?.providers ?? [];
 
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
-  const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
-  const [navigationTarget, setNavigationTarget] = useState<SessionNavigationTarget | null>(null);
-  const navigatedTarget = useRef<SessionNavigationTarget | null>(null);
-  const submitInFlight = useRef(false);
-
-  useEffect(() => {
-    if (!navigationTarget || navigatedTarget.current === navigationTarget) return;
-    navigatedTarget.current = navigationTarget;
-    void navigate({
-      to: "/agents/$name/sessions/$id",
-      params: { name: navigationTarget.agentName, id: navigationTarget.sessionId },
-    });
-  }, [navigate, navigationTarget]);
-
-  // The shell's active-workspace list only seeds this dialog for its initial workspace.
-  // A dialog-local workspace selection owns a distinct query identity and must never reuse
-  // an agent population fetched for a different workspace.
   const agentList =
     workspaceAgentsQuery.data ?? (workspaceId === activeWorkspace?.id ? (agents ?? []) : []);
-  const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
+  const selectedAgent =
+    agentList.find(agent => agent.name === draft.agentName) ??
+    (flow.open ? agentList[0] : undefined);
+  const selectedAgentName = selectedAgent?.name ?? draft.agentName;
   const selectedProvider = resolveSelectedProvider(
-    draft.agentName,
+    selectedAgentName,
     draft.providerOverride,
     selectedAgent,
     providerOptions
@@ -163,11 +142,10 @@ export function useSessionCreateDialog({
     ...(option.harness?.trim() ? { harness: option.harness.trim() } : {}),
     runtime_provider: option.runtime_provider?.trim() || option.name,
   }));
-
   const catalogProviders: RuntimeCatalogProvider[] = runtimeProviders.map(entry => ({
     id: entry.id,
   }));
-  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
+  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: flow.open });
   const runtimeModels = catalog.models;
   const catalogModels: ProviderModelPayload[] = catalog.payloadsByProvider[selectedProvider] ?? [];
 
@@ -202,105 +180,40 @@ export function useSessionCreateDialog({
     catalogError: catalog.error,
   });
 
-  const openForAgent = (agentName: string) => {
-    if (!activeWorkspace) {
-      toast.error("Select an active workspace before starting a session.");
-      return;
-    }
-    const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
-    const nextAgentName = matched?.name ?? agentName;
-    setDraft(current => applySessionAgentSelection(current, nextAgentName, activeWorkspace.id));
-    setMode("simple");
-    setSubmitError(null);
-    setOpenState(true);
-  };
+  useEffect(() => {
+    if (!flow.navigationTarget) return;
+    const { attempt, session } = flow.navigationTarget;
+    store.trigger.navigationRequested({
+      attempt,
+      execute: async () => {
+        await navigate({
+          to: "/agents/$name/sessions/$id",
+          params: { name: session.agent_name, id: session.id },
+        });
+      },
+    });
+  }, [flow.navigationTarget, navigate, store]);
 
-  const onModeChange = (next: EntityMode) => {
-    setMode(next);
-    if (next === "advanced") return;
-    setSubmitError(null);
-    setDraft(current => ({ ...current, ...ADVANCED_DEFAULTS }));
-  };
-
-  const onWorkspaceChange = (nextWorkspaceId: string) => {
-    setSubmitError(null);
-    setDraft(current => ({
-      ...current,
-      workspaceId: nextWorkspaceId,
-      agentName: "",
-      prompt: "",
-      ...RUNTIME_OVERRIDE_DEFAULTS,
-      ...ADVANCED_DEFAULTS,
-    }));
-  };
-
-  const onSessionNameChange = (sessionName: string) => {
-    setDraft(current => ({ ...current, sessionName }));
-  };
-
-  const onWorkspacePathChange = (workspacePath: string) => {
-    setDraft(current => ({ ...current, workspacePath }));
-  };
-
-  const handleOpenChange = (next: boolean) => {
-    setOpenState(next);
-    if (!next) setSubmitError(null);
-  };
-
-  const onAgentChange = (agentName: string) => {
-    setSubmitError(null);
-    setDraft(current => ({
-      ...applySessionAgentSelection(current, agentName, workspaceId),
-      sessionName: current.sessionName,
-    }));
-  };
-
-  const onPromptChange = (prompt: string) => {
-    setSubmitError(null);
-    setDraft(current => ({ ...current, prompt }));
-  };
-
-  const onNetworkParticipationChange = (next: NetworkParticipationDraft) => {
-    setSubmitError(null);
-    setDraft(current => ({
-      ...current,
-      networkParticipationMode: next.mode,
-      networkChannelId: next.channelId,
-      networkChannelStrategy: next.channelStrategy,
-    }));
-  };
-
-  const onRuntimeChange = (next: RuntimeSelectorValue) => {
-    setSubmitError(null);
-    setDraft(current => ({
-      ...current,
-      providerOverride: next.provider,
-      modelOverride: next.model,
-      reasoningEffort: normalizeEffort(next.reasoning_effort),
-    }));
-  };
-
-  const openProviderSettings = () => {
-    setOpenState(false);
-    void navigate({ to: "/settings/providers" });
-  };
-
-  const submit = async () => {
-    if (submitInFlight.current || !targetWorkspace) return;
-    const agentName = draft.agentName.trim();
+  const submit = () => {
+    if (!targetWorkspace || flow.isSubmitting) return;
+    const agentName = selectedAgentName.trim();
     const provider = selectedProvider.trim();
     const prompt = draft.prompt.trim();
     if (agentName.length === 0) return;
     if (prompt.length === 0) {
-      setSubmitError("Write the first message before starting the session.");
+      store.trigger.validationFailed({
+        message: "Write the first message before starting the session.",
+      });
       return;
     }
     if (provider.length === 0) {
-      setSubmitError("Choose a provider configured for this workspace.");
+      store.trigger.validationFailed({
+        message: "Choose a provider configured for this workspace.",
+      });
       return;
     }
     if (!modelSelection.valid) {
-      setSubmitError(modelSelection.error ?? MODEL_CATALOG_PENDING);
+      store.trigger.validationFailed({ message: modelSelection.error ?? MODEL_CATALOG_PENDING });
       return;
     }
     const networkParticipation = networkParticipationDraftFromValues(
@@ -312,66 +225,47 @@ export function useSessionCreateDialog({
       "named",
     ]);
     if (participationError) {
-      setSubmitError(participationError);
+      store.trigger.validationFailed({ message: participationError });
       return;
     }
-
-    setSubmitError(null);
-    setPendingAgentName(agentName);
-    setPendingWorkspaceId(targetWorkspace.id);
+    const workspacePathResolution = resolveSessionWorkspacePath(
+      targetWorkspace.root_dir,
+      draft.workspacePath
+    );
+    if ("error" in workspacePathResolution) {
+      store.trigger.validationFailed({ message: workspacePathResolution.error });
+      return;
+    }
 
     const hasRuntimeOverride = draft.providerOverride.trim().length > 0;
     const modelOverride = hasRuntimeOverride ? draft.modelOverride.trim() : "";
     const reasoningEffort =
       hasRuntimeOverride && selectedReasoning !== "" ? selectedReasoning : undefined;
     const sessionName = draft.sessionName.trim();
-    const workspacePathResolution = resolveSessionWorkspacePath(
-      targetWorkspace.root_dir,
-      draft.workspacePath
-    );
-    if ("error" in workspacePathResolution) {
-      setSubmitError(workspacePathResolution.error);
-      return;
-    }
     const workspacePath = workspacePathResolution.workspacePath;
 
-    submitInFlight.current = true;
-    let session: SessionPayload;
-    try {
-      session = await createSession.mutateAsync({
-        agent_name: agentName,
-        prompt,
-        ...(sessionName.length > 0 ? { name: sessionName } : {}),
-        ...(workspacePath.length > 0
-          ? { workspace_path: workspacePath }
-          : { workspace: targetWorkspace.id }),
-        ...(hasRuntimeOverride ? { provider } : {}),
-        ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
-        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-        network_participation: serializeNetworkParticipation(networkParticipation),
-      });
-    } catch (error) {
-      submitInFlight.current = false;
-      const message = describeError("Failed to create session.", error);
-      setSubmitError(message);
-      toast.error(message);
-      setPendingAgentName(null);
-      setPendingWorkspaceId(null);
-      return;
-    }
-
-    submitInFlight.current = false;
-    setDraft(EMPTY_SESSION_CREATE_DRAFT);
-    setMode("simple");
-    setOpenState(false);
-    setPendingAgentName(null);
-    setPendingWorkspaceId(null);
-    setNavigationTarget({ agentName: session.agent_name, sessionId: session.id });
+    store.trigger.submissionRequested({
+      agentName,
+      workspaceId: targetWorkspace.id,
+      execute: () =>
+        createSession.mutateAsync({
+          agent_name: agentName,
+          prompt,
+          ...(sessionName.length > 0 ? { name: sessionName } : {}),
+          ...(workspacePath.length > 0
+            ? { workspace_path: workspacePath }
+            : { workspace: targetWorkspace.id }),
+          ...(hasRuntimeOverride ? { provider } : {}),
+          ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
+          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+          network_participation: serializeNetworkParticipation(networkParticipation),
+        }),
+    });
   };
 
   const effectiveProvider = resolveAgentRuntimeValue(selectedAgent).provider.trim();
   const providerUnavailable =
-    draft.agentName.trim().length > 0 &&
+    selectedAgentName.trim().length > 0 &&
     draft.providerOverride.trim().length === 0 &&
     effectiveProvider.length > 0 &&
     !providerOptions.some(option => option.name === effectiveProvider);
@@ -382,8 +276,8 @@ export function useSessionCreateDialog({
       : null;
 
   return {
-    open,
-    mode,
+    open: flow.open,
+    mode: flow.mode,
     agents: agentList,
     workspace: targetWorkspace,
     workspaces: workspaceOptions,
@@ -393,7 +287,7 @@ export function useSessionCreateDialog({
     providersLoading: workspaceId.length > 0 && workspaceDetailLoading,
     providersError,
     hasProviderOptions: providerOptions.length > 0,
-    selectedAgentName: draft.agentName,
+    selectedAgentName,
     runtimeValue,
     runtimeProviders,
     runtimeModels,
@@ -403,28 +297,43 @@ export function useSessionCreateDialog({
     catalogError: catalog.error,
     catalogRefreshing: catalog.refreshing,
     catalogRefreshError: catalog.refreshError,
-    isSubmitting: createSession.isPending,
-    submitError,
-    pendingAgentName,
-    pendingWorkspaceId,
+    isSubmitting: flow.isSubmitting,
+    submitError: flow.submitError,
+    pendingAgentName: flow.pendingAgentName,
+    pendingWorkspaceId: flow.pendingWorkspaceId,
     promptValue: draft.prompt,
-    openForAgent,
-    onOpenChange: handleOpenChange,
-    onModeChange,
-    onAgentChange,
-    onWorkspaceChange,
-    onSessionNameChange,
-    onWorkspacePathChange,
-    onPromptChange,
-    onRuntimeChange,
-    onNetworkParticipationChange,
+    onOpenChange: open => store.trigger.dialogOpenChanged({ open }),
+    onModeChange: mode => store.trigger.modeSelected({ mode }),
+    onAgentChange: agentName => store.trigger.agentSelected({ agentName, workspaceId }),
+    onWorkspaceChange: nextWorkspaceId =>
+      store.trigger.workspaceSelected({ workspaceId: nextWorkspaceId }),
+    onSessionNameChange: sessionName => store.trigger.sessionNameChanged({ sessionName }),
+    onWorkspacePathChange: workspacePath => store.trigger.workspacePathChanged({ workspacePath }),
+    onPromptChange: prompt => store.trigger.promptChanged({ prompt }),
+    onRuntimeChange: next =>
+      store.trigger.runtimeSelected({
+        providerOverride: next.provider,
+        modelOverride: next.model,
+        reasoningEffort: normalizeEffort(next.reasoning_effort),
+      }),
+    onNetworkParticipationChange: next =>
+      store.trigger.networkParticipationSelected({
+        networkParticipationMode: next.mode,
+        networkChannelId: next.channelId,
+        networkChannelStrategy: next.channelStrategy,
+      }),
     networkParticipation: networkParticipationDraftFromValues(
       draft.networkParticipationMode,
       draft.networkChannelId,
       draft.networkChannelStrategy
     ),
     refreshCatalog: catalog.refresh,
-    openProviderSettings,
+    openProviderSettings: () => {
+      store.trigger.providerSettingsRequested();
+      void navigate({ to: "/settings/providers" });
+    },
     submit,
   };
 }
+
+export type { SessionCreateDialogDraft };

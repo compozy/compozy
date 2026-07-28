@@ -1,12 +1,7 @@
 import { createContext } from "react";
 
-export interface SessionCreateContextValue {
-  openForAgent: (agentName: string) => void;
-  isCreating: boolean;
-  pendingAgentName: string | null;
-  hasActiveWorkspace: boolean;
-}
+import type { SessionCreateStore } from "../stores/session-create-store";
 
-const SessionCreateContext = createContext<SessionCreateContextValue | null>(null);
+const SessionCreateContext = createContext<SessionCreateStore | null>(null);
 
 export { SessionCreateContext };

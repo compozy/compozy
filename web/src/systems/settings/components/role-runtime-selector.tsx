@@ -39,7 +39,6 @@ export function RoleRuntimeSelector({
       providers={options.providers}
       models={options.models}
       loading={options.loading}
-      catalogLoaded={options.catalogLoaded}
       refreshing={options.refreshing}
       onRefreshCatalog={options.refresh}
       disabled={disabled}

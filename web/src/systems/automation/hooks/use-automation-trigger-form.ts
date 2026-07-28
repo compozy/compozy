@@ -1,15 +1,15 @@
 import type { FormEvent } from "react";
 
 import {
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromPayload,
+} from "@/lib/network-participation";
+import {
   loopTargetAvailabilityMessage,
   useLoopTargetCatalog,
   type LoopAutomationStartKind,
   type LoopTargetDraft,
 } from "@/systems/loops";
-import {
-  isNetworkParticipationDraftValid,
-  networkParticipationDraftFromPayload,
-} from "@/systems/network";
 
 import {
   automationTargetMode,

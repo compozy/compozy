@@ -121,13 +121,13 @@ export {
 } from "./lib/session-running";
 
 // Stores
-export { useSessionStore } from "./hooks/use-session-store";
+export { useSessionComposerDraft, useSessionGoalFeedback } from "./hooks/use-session-store";
 export type {
-  ComposerDraft,
-  SessionState as SessionStoreState,
-  SessionActions,
+  SessionGoalFeedback,
+  SessionStoreContext,
   SessionStore,
 } from "./stores/session-store";
+export { sessionStore } from "./stores/session-store";
 
 // Hooks
 export {
@@ -190,21 +190,29 @@ export {
   type SessionPromptActionParams,
 } from "./hooks/use-session-actions";
 export {
-  useSessionCreateDialog,
+  useSessionCreateDialogController,
+  useSessionCreateDialogViewModel,
   type SessionCreateDialogApi,
+  type SessionCreateDialogController,
+  type SessionCreateDialogDraft,
   type SessionCreateDialogState,
 } from "./hooks/use-session-create-dialog";
+export { SessionCreateProvider } from "./contexts/session-create-context";
 export {
-  SessionCreateProvider,
-  type SessionCreateContextValue,
-} from "./contexts/session-create-context";
-export { useSessionCreate } from "./hooks/use-session-create";
+  useSessionCreateActions,
+  useSessionCreateHasActiveWorkspace,
+  useSessionCreateIsCreating,
+  useSessionCreatePendingAgentName,
+  useSessionCreateStore,
+} from "./hooks/use-session-create";
+export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
 // Components
 export {
   SessionCreateDialog,
   type SessionCreateDialogProps,
 } from "./components/session-create-dialog";
+export { SessionCreateDialogHost } from "./components/session-create-dialog-host";
 export {
   SessionResumeFailure,
   type SessionResumeFailureProps,

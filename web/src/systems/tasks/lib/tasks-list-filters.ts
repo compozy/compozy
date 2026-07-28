@@ -48,7 +48,7 @@ export function taskOwnerFilterValue(owner: TaskFilterOwnerOption): string {
   return `${encodeURIComponent(owner.kind)}:${encodeURIComponent(owner.ref)}`;
 }
 
-function taskOwnerFilterFromValue(value: string | undefined): TaskFilterOwnerOption | null {
+export function taskOwnerFilterFromValue(value: string | undefined): TaskFilterOwnerOption | null {
   if (!value) return null;
   const separator = value.indexOf(":");
   if (separator < 1) return null;

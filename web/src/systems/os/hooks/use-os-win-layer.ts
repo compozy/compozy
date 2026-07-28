@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
-import { useShallow } from "zustand/shallow";
+import { shallowEqual } from "@xstate/store";
 
 import type { LayoutDesktop, LayoutProjection } from "../lib/window-manager-types";
 import type { OsPresentation, OsViewportState } from "../lib/os-types";
@@ -23,17 +23,18 @@ export interface OsWinLayerModel {
 
 /** Measures one shared work area and groups the Query projection by desktop. */
 export function useOsWinLayer(): OsWinLayerModel {
-  const { store } = useOsShell();
+  const { manager } = useOsShell();
   const layerRef = useRef<HTMLDivElement | null>(null);
   const presentation = useDesktop(state => state.presentation);
   const viewportState = useDesktop(state => state.viewportState);
   const projection = useDesktop(
-    useShallow(state => ({
+    state => ({
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
       projections: state.projections,
       windows: state.windows,
-    }))
+    }),
+    shallowEqual
   );
   const windowIdsByDesktop = new Map<string, string[]>();
   for (const window of Object.values(projection.windows)) {
@@ -55,7 +56,7 @@ export function useOsWinLayer(): OsWinLayerModel {
     if (!layer) return;
     const measure = (size?: { width: number; height: number }) => {
       const bounds = layer.getBoundingClientRect();
-      store.getState().setDesktopBounds({
+      manager.setDesktopBounds({
         width: size?.width ?? bounds.width,
         height: size?.height ?? bounds.height,
         origin: { x: bounds.left, y: bounds.top },
@@ -76,7 +77,7 @@ export function useOsWinLayer(): OsWinLayerModel {
       window.removeEventListener("resize", refreshOrigin);
       window.removeEventListener("orientationchange", refreshOrigin);
     };
-  }, [presentation, store, viewportState]);
+  }, [manager, presentation, viewportState]);
 
   return {
     layerRef,

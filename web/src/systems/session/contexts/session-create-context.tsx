@@ -1,17 +1,14 @@
 import type { ReactNode } from "react";
 
-import {
-  SessionCreateContext,
-  type SessionCreateContextValue,
-} from "./session-create-context-value";
+import type { SessionCreateStore } from "../stores/session-create-store";
+import { SessionCreateContext } from "./session-create-context-value";
 
 interface SessionCreateProviderProps {
-  value: SessionCreateContextValue;
+  store: SessionCreateStore;
   children: ReactNode;
 }
 
-export function SessionCreateProvider({ value, children }: SessionCreateProviderProps) {
-  return <SessionCreateContext.Provider value={value}>{children}</SessionCreateContext.Provider>;
+/** Supplies only the per-shell store handle; consumers select their own slices. */
+export function SessionCreateProvider({ store, children }: SessionCreateProviderProps) {
+  return <SessionCreateContext.Provider value={store}>{children}</SessionCreateContext.Provider>;
 }
-
-export type { SessionCreateContextValue };

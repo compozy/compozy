@@ -1,13 +1,12 @@
 import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
-import { useSettingsPage } from "./use-settings-page";
 import {
   SettingsApiError,
   useDeleteSettingsProvider,
   usePutSettingsProvider,
   useSettingsProviders,
   type ProviderDraft,
-  type SettingsMutationResult,
   type SettingsProviderEntry,
 } from "@/systems/settings";
 import {
@@ -26,31 +25,22 @@ import {
   type ProviderStateLabel,
 } from "@/systems/settings/lib/provider-state";
 
+import {
+  settingsProvidersInspectorLogic,
+  type ProviderInspectorState,
+} from "./settings-providers-inspector-logic";
+import { useSettingsPage } from "./use-settings-page";
+
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError) return error.message;
   if (error instanceof Error) return error.message;
   return null;
 }
 
-export type ProviderInspectorState =
-  | { mode: "closed" }
-  | { mode: "inspect"; entry: SettingsProviderEntry }
-  | {
-      mode: "edit";
-      entry: SettingsProviderEntry;
-      draft: ProviderDraft;
-      cameFrom: "inspect" | "external";
-    }
-  | { mode: "create"; draft: ProviderDraft };
-
-type DeleteState = { mode: "closed" } | { mode: "open"; entry: SettingsProviderEntry };
-
-export type ProviderLastAction =
-  | { kind: "saved"; name: string; result: SettingsMutationResult }
-  | { kind: "deleted"; name: string; result: SettingsMutationResult; hadFallback: boolean };
-
-type LastAction = ProviderLastAction | null;
-
+export type {
+  ProviderInspectorState,
+  ProviderLastAction,
+} from "./settings-providers-inspector-logic";
 export type { ProviderDraft };
 
 function isProviderInspectorValid(
@@ -69,15 +59,12 @@ export function useSettingsProvidersPage() {
   const putMutation = usePutSettingsProvider();
   const deleteMutation = useDeleteSettingsProvider();
   const page = useSettingsPage({ currentSlug: "providers" });
-
-  const [inspector, setInspector] = useState<ProviderInspectorState>({ mode: "closed" });
-  const [deleteTarget, setDeleteTarget] = useState<DeleteState>({ mode: "closed" });
-  const [lastAction, setLastAction] = useState<LastAction>(null);
+  const inspectorStore = useStore(settingsProvidersInspectorLogic);
+  const inspectorFlow = useSelector(inspectorStore, snapshot => snapshot.context);
   const [filters, setFilters] = useState<ProviderFilterState>(DEFAULT_PROVIDER_FILTERS);
 
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
-
   const providerStates = providers.map(deriveProviderStateLabel);
   const counts = {
     total: providers.length,
@@ -86,7 +73,6 @@ export function useSettingsProvidersPage() {
     needsSetup: providerStates.filter(state => state !== "installed" && state !== "binary-missing")
       .length,
   };
-
   const filteredProviders = applyProviderFilters(providers, filters);
 
   const setStatusFilter = (next: ProviderStateLabel | null) => {
@@ -98,98 +84,59 @@ export function useSettingsProvidersPage() {
 
   const openInspect = (entry: SettingsProviderEntry) => {
     putMutation.reset();
-    setInspector({ mode: "inspect", entry });
+    inspectorStore.trigger.inspectOpened({ entry });
   };
-
   const openCreate = () => {
     putMutation.reset();
-    setInspector({ mode: "create", draft: emptyProviderDraft() });
+    inspectorStore.trigger.createOpened({ draft: emptyProviderDraft() });
   };
-
   const switchToEdit = () => {
-    setInspector(current => {
-      if (current.mode !== "inspect") return current;
-      return {
-        mode: "edit",
-        entry: current.entry,
-        draft: providerDraftFromEntry(current.entry),
-        cameFrom: "inspect",
-      };
-    });
+    const inspector = inspectorFlow.inspector;
+    if (inspector.mode === "inspect") {
+      inspectorStore.trigger.switchToEdit({ draft: providerDraftFromEntry(inspector.entry) });
+    }
   };
-
   const cancelEdit = () => {
+    if (inspectorFlow.pendingSave !== null) return;
     putMutation.reset();
-    setInspector(current => {
-      if (current.mode === "edit" && current.cameFrom === "inspect") {
-        return { mode: "inspect", entry: current.entry };
-      }
-      return { mode: "closed" };
-    });
+    inspectorStore.trigger.editCancelled();
   };
-
   const closeInspector = () => {
-    setInspector({ mode: "closed" });
+    if (inspectorFlow.pendingSave !== null) return;
+    inspectorStore.trigger.editorDismissed();
     putMutation.reset();
   };
-
   const updateDraft = (updater: (draft: ProviderDraft) => ProviderDraft) => {
-    setInspector(current => {
-      if (current.mode !== "edit" && current.mode !== "create") return current;
-      return { ...current, draft: updater(current.draft) };
-    });
+    const inspector = inspectorFlow.inspector;
+    if (inspector.mode === "edit" || inspector.mode === "create") {
+      inspectorStore.trigger.draftChanged({ draft: updater(inspector.draft) });
+    }
   };
 
-  const inspectorIsValid = isProviderInspectorValid(inspector, providers);
-
+  const inspectorIsValid = isProviderInspectorValid(inspectorFlow.inspector, providers);
   const saveInspector = () => {
-    if (inspector.mode !== "edit" && inspector.mode !== "create") return;
-    if (!inspectorIsValid) return;
+    const inspector = inspectorFlow.inspector;
+    if ((inspector.mode !== "edit" && inspector.mode !== "create") || !inspectorIsValid) return;
     const name = inspector.draft.name.trim();
     const body = providerDraftToRequest(inspector.draft);
-    putMutation.mutate(
-      { name, body },
-      {
-        onSuccess: result => {
-          setLastAction({ kind: "saved", name, result });
-          setInspector({ mode: "closed" });
-        },
-      }
-    );
-  };
-
-  const openDelete = (entry: SettingsProviderEntry) => {
-    deleteMutation.reset();
-    setDeleteTarget({ mode: "open", entry });
-  };
-
-  const closeDelete = () => {
-    setDeleteTarget({ mode: "closed" });
-    deleteMutation.reset();
-  };
-
-  const confirmDelete = () => {
-    if (deleteTarget.mode === "closed") return;
-    const target = deleteTarget.entry;
-    deleteMutation.mutate(target.name, {
-      onSuccess: result => {
-        setLastAction({
-          kind: "deleted",
-          name: target.name,
-          result,
-          hadFallback: Boolean(target.fallback),
-        });
-        setDeleteTarget({ mode: "closed" });
-        setInspector(current =>
-          current.mode === "inspect" && current.entry.name === target.name
-            ? { mode: "closed" }
-            : current
-        );
-      },
+    inspectorStore.trigger.saveRequested({
+      execute: () => putMutation.mutateAsync({ name, body }),
+      name,
     });
   };
-
-  const dismissLastAction = () => setLastAction(null);
+  const openDelete = (entry: SettingsProviderEntry) => {
+    deleteMutation.reset();
+    inspectorStore.trigger.deleteOpened({ entry });
+  };
+  const closeDelete = () => {
+    if (inspectorFlow.pendingDeleteAttempt !== null) return;
+    inspectorStore.trigger.deleteCancelled();
+    deleteMutation.reset();
+  };
+  const confirmDelete = () => {
+    if (!inspectorFlow.deleteTarget) return;
+    inspectorStore.trigger.deleteRequested({ execute: name => deleteMutation.mutateAsync(name) });
+  };
 
   return {
     isLoading: query.isLoading,
@@ -202,11 +149,11 @@ export function useSettingsProvidersPage() {
     setNameQuery,
     counts,
     restart: page.restart,
-    inspector,
+    inspector: inspectorFlow.inspector,
     inspectorIsValid,
-    inspectorError: errorMessage(putMutation.error),
+    inspectorError: inspectorFlow.saveError,
     inspectorWarnings: putMutation.data?.warnings,
-    inspectorIsSaving: putMutation.isPending,
+    inspectorIsSaving: inspectorFlow.pendingSave !== null,
     openInspect,
     openCreate,
     switchToEdit,
@@ -214,13 +161,15 @@ export function useSettingsProvidersPage() {
     closeInspector,
     updateDraft,
     saveInspector,
-    deleteTarget,
+    deleteTarget: inspectorFlow.deleteTarget
+      ? { mode: "open" as const, entry: inspectorFlow.deleteTarget }
+      : { mode: "closed" as const },
     deleteError: errorMessage(deleteMutation.error),
-    deleteIsPending: deleteMutation.isPending,
+    deleteIsPending: inspectorFlow.pendingDeleteAttempt !== null,
     openDelete,
     closeDelete,
     confirmDelete,
-    lastAction,
-    dismissLastAction,
+    lastAction: inspectorFlow.lastAction,
+    dismissLastAction: () => inspectorStore.trigger.lastActionDismissed(),
   };
 }

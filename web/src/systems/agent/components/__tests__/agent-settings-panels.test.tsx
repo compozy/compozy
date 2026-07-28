@@ -65,11 +65,8 @@ function props(section: AgentSettingsSection, overrides: Partial<AgentSettingsPa
     agent: currentAgent,
     draft,
     validation: validateAgentSettingsDraft(draft),
-    disabled: false,
-    readOnly: false,
-    mutationDenied: false,
-    saveError: null,
-    conflictBanner: null,
+    phase: "ready",
+    error: null,
     onReloadAndRetry: vi.fn(),
     onPatch: vi.fn(),
     onDelete: vi.fn(),
@@ -78,7 +75,6 @@ function props(section: AgentSettingsSection, overrides: Partial<AgentSettingsPa
     providersLoading: false,
     runtimeModels: [],
     modelCatalogLoading: false,
-    modelCatalogLoaded: true,
     modelCatalogRefreshing: false,
     modelCatalogError: null,
     onRefreshCatalog: vi.fn(),
@@ -210,9 +206,7 @@ describe("AgentSettingsPanels", () => {
     const view = render(
       <AgentSettingsPanels
         {...props("instructions", {
-          mutationDenied: true,
-          readOnly: true,
-          saveError: null,
+          phase: "denied",
         })}
       />
     );
@@ -226,9 +220,7 @@ describe("AgentSettingsPanels", () => {
     view.rerender(
       <AgentSettingsPanels
         {...props("basics", {
-          mutationDenied: true,
-          readOnly: true,
-          saveError: null,
+          phase: "denied",
         })}
       />
     );
@@ -239,12 +231,9 @@ describe("AgentSettingsPanels", () => {
     expect(category).not.toBeDisabled();
   });
 
-  it("Should disable delete when read-only or mutation-denied", () => {
+  it("Should disable delete while the editor is denied", () => {
     const onDelete = vi.fn();
-    const view = render(<AgentSettingsPanels {...props("danger", { onDelete, readOnly: true })} />);
-    expect(screen.getByTestId("agent-settings-delete")).toBeDisabled();
-
-    view.rerender(<AgentSettingsPanels {...props("danger", { onDelete, mutationDenied: true })} />);
+    render(<AgentSettingsPanels {...props("danger", { onDelete, phase: "denied" })} />);
     expect(screen.getByTestId("agent-settings-delete")).toBeDisabled();
     expect(onDelete).not.toHaveBeenCalled();
   });

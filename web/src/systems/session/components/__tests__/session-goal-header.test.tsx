@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { sessionStore } from "@/systems/session/stores/session-store";
 import type { SessionGoalCommandResult, SessionGoalSnapshot } from "@/systems/session/types";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
@@ -136,7 +136,7 @@ describe("SessionGoalHeader", () => {
     goalReads = 0;
     commands = [];
     FakeEventSource.latest = null;
-    useSessionStore.setState({ goalResults: {}, goalResultCommands: {} });
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: SESSION_ID });
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal(
       "fetch",
@@ -219,16 +219,16 @@ describe("SessionGoalHeader", () => {
   it("Should preserve the current stale-replacement snapshot and prefill its exact run id", async () => {
     const current = snapshot({ objective: "Current objective" });
     visibleGoal = current;
-    useSessionStore.getState().setGoalResult(
-      SESSION_ID,
-      {
+    sessionStore.trigger.goalCommandReported({
+      sessionId: SESSION_ID,
+      result: {
         outcome: "error",
         reason_code: "goal_replace_stale",
         replaced_run_id: null,
         snapshot: current,
       },
-      "/goal Requested replacement"
-    );
+      command: "/goal Requested replacement",
+    });
     const setComposerText = vi.fn();
     renderHeader(setComposerText);
 

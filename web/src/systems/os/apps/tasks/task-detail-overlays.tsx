@@ -53,7 +53,6 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
           models: controller.setupRuntime.models,
           providersLoading: controller.setupRuntime.providersLoading,
           catalogLoading: controller.setupRuntime.catalogLoading,
-          catalogLoaded: controller.setupRuntime.catalogLoaded,
           catalogRefreshing: controller.setupRuntime.catalogRefreshing,
           errorMessage:
             controller.setupRuntime.providersError ?? controller.setupRuntime.catalogError,

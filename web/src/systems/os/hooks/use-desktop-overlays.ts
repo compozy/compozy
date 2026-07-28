@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { useWindowManagerActions, useWindowManagerOverlay } from "./use-window-manager-store";
+import { windowManagerStore } from "../stores/window-manager-store";
+import { useWindowManagerOverlay } from "./use-window-manager-store";
 
 /**
  * One id per shell overlay, including one per menubar menu. Sharing a single
@@ -29,18 +30,20 @@ type LocalDesktopOverlay = Exclude<DesktopOverlay, "desktops">;
 export function useDesktopOverlays() {
   const [localOverlay, setLocalOverlay] = useState<LocalDesktopOverlay | null>(null);
   const windowManagerOverlay = useWindowManagerOverlay();
-  const actions = useWindowManagerActions();
   const activeOverlay: DesktopOverlay | null =
     windowManagerOverlay?.kind === "desktops-overview" ? "desktops" : localOverlay;
 
   const setOverlayOpen = (overlay: DesktopOverlay, open: boolean) => {
     if (overlay === "desktops") {
       setLocalOverlay(null);
-      if (open) actions.openOverlay({ kind: "desktops-overview" });
-      else actions.closeOverlay();
+      if (open) {
+        windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } });
+      } else {
+        windowManagerStore.trigger.overlayClosed();
+      }
       return;
     }
-    if (open) actions.closeOverlay();
+    if (open) windowManagerStore.trigger.overlayClosed();
     setLocalOverlay(current => {
       if (open) return overlay;
       return current === overlay ? null : current;

@@ -48,12 +48,10 @@ vi.mock("@/systems/agent/hooks/use-agent-delete-flow", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
-  useSessionCreate: () => ({
-    hasActiveWorkspace: true,
-    isCreating: false,
-    openForAgent: vi.fn(),
-    pendingAgentName: null,
-  }),
+  useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
+  useSessionCreateHasActiveWorkspace: () => true,
+  useSessionCreateIsCreating: () => false,
+  useSessionCreatePendingAgentName: () => null,
 }));
 
 vi.mock("@/systems/workspace", () => ({

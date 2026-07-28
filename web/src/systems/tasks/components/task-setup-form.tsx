@@ -26,7 +26,6 @@ export interface TaskSetupFormProps {
     models: RuntimeModelOption[];
     providersLoading: boolean;
     catalogLoading: boolean;
-    catalogLoaded: boolean;
     catalogRefreshing: boolean;
     errorMessage?: string | null;
     onRefreshCatalog: () => void;
@@ -94,7 +93,6 @@ export function TaskSetupForm({ value, onChange, runtime }: TaskSetupFormProps) 
           <FieldLabel id="tasks-setup-worker-runtime-label">Runtime</FieldLabel>
           <RuntimeSelector
             ariaLabelledby="tasks-setup-worker-runtime-label"
-            catalogLoaded={runtime.catalogLoaded}
             loading={runtime.catalogLoading}
             models={runtime.models}
             onChange={next =>
@@ -186,7 +184,6 @@ export function TaskSetupForm({ value, onChange, runtime }: TaskSetupFormProps) 
           <FieldLabel id="tasks-setup-review-runtime-label">Reviewer runtime</FieldLabel>
           <RuntimeSelector
             ariaLabelledby="tasks-setup-review-runtime-label"
-            catalogLoaded={runtime.catalogLoaded}
             loading={runtime.catalogLoading}
             models={runtime.models}
             onChange={next =>

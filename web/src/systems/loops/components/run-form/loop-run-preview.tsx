@@ -1,5 +1,5 @@
 import { Eyebrow, MonoId, Pill } from "@compozy/ui";
-import type { NetworkParticipationDraft } from "@/systems/network";
+import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
 import {
   resolveLoopEffectiveConfig,

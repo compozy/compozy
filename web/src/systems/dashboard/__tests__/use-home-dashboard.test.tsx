@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { statusFixture } from "@/systems/status/mocks/fixtures";
+import { statusFixture } from "@/systems/status/mocks";
 
 import { makeHomeOverview } from "../mocks/fixtures";
 
@@ -22,8 +22,8 @@ vi.mock("../adapters/overview-api", async importOriginal => {
   };
 });
 
-// The home dir now flows from the awaited daemon status query (not the Zustand
-// store), so drive it through the real status adapter.
+// The home dir now flows from the awaited daemon status query, not a client store,
+// so drive it through the real status adapter.
 vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/status/adapters/daemon-api")>();
   return {
@@ -58,6 +58,7 @@ vi.mock("@/systems/status", async importOriginal => {
   };
 });
 
+import { homePrefsStore } from "../hooks/use-home-prefs-store";
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
 
 function wrapper() {
@@ -69,6 +70,8 @@ function wrapper() {
 
 describe("useHomeDashboard", () => {
   beforeEach(() => {
+    homePrefsStore.trigger.usageWindowSelected({ usageWindow: 30 });
+    homePrefsStore.trigger.systemPanelClosed();
     getHomeOverview.mockReset();
     getHomeActivity.mockReset();
     getHomeActivity.mockResolvedValue([]);

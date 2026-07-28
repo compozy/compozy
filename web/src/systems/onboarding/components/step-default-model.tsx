@@ -72,7 +72,6 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
             providers={model.runtimeProviders}
             models={model.runtimeModels}
             loading={model.catalogLoading}
-            catalogLoaded={model.catalogLoaded}
             refreshing={model.catalogRefreshing}
             onRefreshCatalog={model.onRefreshCatalog}
             disabled={model.runtimeProviders.length === 0}

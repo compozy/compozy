@@ -1,22 +1,21 @@
-import { useSyncExternalStore } from "react";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import {
-  createActiveWorkspaceStore,
-  type ActiveWorkspaceStore,
+import { useSelector } from "@xstate/store-react";
+import { isHydrated, rehydrateStore } from "@xstate/store/persist";
+import { activeWorkspaceSelectors, activeWorkspaceStore } from "../stores/active-workspace-store";
+
+export {
+  activeWorkspaceStore,
+  clearActiveWorkspaceSelection,
+  setActiveWorkspaceId,
 } from "../stores/active-workspace-store";
 
-export const useActiveWorkspaceStore = create<ActiveWorkspaceStore>()(
-  persist(createActiveWorkspaceStore, {
-    name: "compozy:active-workspace",
-    partialize: state => ({ selectedWorkspaceId: state.selectedWorkspaceId }),
-  })
-);
+export function useSelectedWorkspaceId(): string | null {
+  return useSelector(activeWorkspaceSelectors.selectedWorkspaceId);
+}
 
-export function useActiveWorkspaceStoreHasHydrated(): boolean {
-  return useSyncExternalStore(
-    listener => useActiveWorkspaceStore.persist.onFinishHydration(listener),
-    () => useActiveWorkspaceStore.persist.hasHydrated(),
-    () => false
-  );
+export function isActiveWorkspaceStoreHydrated(): boolean {
+  return isHydrated(activeWorkspaceStore);
+}
+
+export function rehydrateActiveWorkspaceStore(): Promise<void> {
+  return rehydrateStore(activeWorkspaceStore);
 }

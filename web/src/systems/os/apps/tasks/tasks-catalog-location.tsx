@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
 import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@compozy/ui";
@@ -12,8 +12,11 @@ import {
   TasksListSurface,
   TasksListToolbar,
   taskCatalogSearchFor,
+  taskModeSearchFor,
   useTasksPage,
+  validateTasksSearch,
   type TaskTemplateId,
+  type TasksRouteSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
 
@@ -30,16 +33,27 @@ const TASK_MODE_ITEMS: ReadonlyArray<{
   { value: "inbox", label: "Inbox", testId: "tasks-mode-inbox" },
 ];
 
-export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
+export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
   const { coordinator } = useOsShell();
-  const page = useTasksPage({ mode });
+  const routeNavigate = useNavigate();
+  const mode: TaskViewMode = search.mode ?? "list";
+  const page = useTasksPage({
+    search,
+    onSearchChange: update => {
+      void routeNavigate({
+        to: "/tasks",
+        search: current => update(validateTasksSearch(current)),
+        replace: true,
+      });
+    },
+  });
   const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
     void coordinator.userOpen({ app: "tasks", route: { pathname, search } });
   // The create dialog layers over this catalog, so the active view rides along
   // and dismissal lands back on the view the operator was reading.
   const openCreate = (template?: TaskTemplateId) =>
     navigate("/tasks/new", {
-      ...taskCatalogSearchFor(mode),
+      ...taskCatalogSearchFor(mode, search),
       ...(template && template !== DEFAULT_TASK_TEMPLATE_ID ? { template } : {}),
     });
   const modeNav = (
@@ -52,10 +66,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
           render={
             <Link
               activeOptions={{ exact: true, includeSearch: true }}
-              onClick={() => {
-                if (item.value !== mode) page.setSearchQuery("");
-              }}
-              search={item.value === "list" ? {} : { mode: item.value }}
+              search={taskModeSearchFor(item.value, search)}
               to="/tasks"
             />
           }

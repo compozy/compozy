@@ -1,27 +1,16 @@
-import { useState } from "react";
-
-import { toast } from "@compozy/ui";
+import { useEffect, useEffectEvent } from "react";
 import {
   networkParticipationDraftFromPayload,
   isNetworkParticipationDraftValid,
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
-} from "@/systems/network";
+} from "@/lib/network-participation";
 
-import {
-  buildConfigOverrides,
-  initialOverrideDraft,
-  type LoopOverrideDraft,
-} from "../lib/loop-overrides";
-import {
-  initialRunInputs,
-  isRunFormValid,
-  type LoopRunInputs,
-  missingRequiredInputs,
-  serializeRunInputs,
-} from "../lib/loop-run-form";
-import type { LoopDetail, LoopDryRunPreview, LoopEffectiveConfig } from "../types";
+import { buildConfigOverrides, type LoopOverrideDraft } from "../lib/loop-overrides";
+import { isRunFormValid, missingRequiredInputs, serializeRunInputs } from "../lib/loop-run-form";
+import type { LoopDetail, LoopEffectiveConfig } from "../types";
 import { useRunLoop } from "./use-loop-actions";
+import { useLoopRunFormState } from "./use-loop-run-form-state";
 
 interface UseLoopRunFormOptions {
   workspaceId: string;
@@ -45,16 +34,22 @@ export function useLoopRunForm({
 }: UseLoopRunFormOptions) {
   const contract = loop.definition.contract;
   const schema = loop.definition.inputs;
-  const [inputs, setInputs] = useState<LoopRunInputs>(() => initialRunInputs(schema));
-  const [overrides, setOverrides] = useState<LoopOverrideDraft>(() =>
-    initialOverrideDraft(effectiveConfig)
-  );
-  const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>(() =>
-    networkParticipationDraftFromPayload(loop.definition.network_participation)
-  );
-  const [networkParticipationOverridden, setNetworkParticipationOverridden] = useState(false);
-  const [plan, setPlan] = useState<LoopDryRunPreview | null>(null);
-  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const formState = useLoopRunFormState({
+    effectiveConfig,
+    networkParticipation: networkParticipationDraftFromPayload(
+      loop.definition.network_participation
+    ),
+    schema,
+  });
+  const {
+    inputs,
+    networkParticipation,
+    networkParticipationOverridden,
+    overrides,
+    pendingRequest,
+    plan,
+    submitAttempted,
+  } = formState;
 
   const runMutation = useRunLoop();
   const dryMutation = useRunLoop();
@@ -63,8 +58,18 @@ export function useLoopRunForm({
     isRunFormValid(schema, inputs) &&
     (!networkParticipationOverridden ||
       isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]));
-  const busy = runMutation.isPending || dryMutation.isPending;
+  const busy = pendingRequest !== null;
   const configOverrides = buildConfigOverrides(overrides, effectiveConfig);
+  const handleRunStarted = useEffectEvent((runId: string) => onRunStarted?.(runId));
+
+  useEffect(() => {
+    const runStarted = formState.store.on("runStarted", event => {
+      if (event.runId) handleRunStarted(event.runId);
+    });
+    return () => {
+      runStarted.unsubscribe();
+    };
+  }, [formState.store]);
 
   function requestBody() {
     return {
@@ -77,50 +82,38 @@ export function useLoopRunForm({
   }
 
   function setInput(name: string, value: unknown) {
-    setPlan(null);
-    setInputs(prev => ({ ...prev, [name]: value }));
+    formState.setInput(name, value);
   }
 
   function setOverridesDraft(next: LoopOverrideDraft) {
-    setPlan(null);
-    setOverrides(next);
+    formState.setOverrides(next);
   }
 
   function setNetworkParticipationDraft(next: NetworkParticipationDraft) {
-    setPlan(null);
-    setNetworkParticipationOverridden(true);
-    setNetworkParticipation(next);
+    formState.setNetworkParticipation(next);
   }
 
   function handleDryRun() {
-    setSubmitAttempted(true);
-    if (!valid || busy) return;
-    dryMutation.mutate(
-      { workspaceId, name: loop.name, data: requestBody(), dry: true },
-      {
-        onSuccess: result => {
-          setPlan(result.dry_run ?? null);
-          toast.success("Dry run passed — inputs valid, plan rendered");
-        },
-        onError: error => toast.error(error instanceof Error ? error.message : "Dry run failed"),
-      }
+    if (!valid) {
+      formState.markSubmissionAttempted();
+      return;
+    }
+    if (busy) return;
+    const body = requestBody();
+    formState.requestDryRun(() =>
+      dryMutation.mutateAsync({ workspaceId, name: loop.name, data: body, dry: true })
     );
   }
 
   function handleRun() {
-    setSubmitAttempted(true);
-    if (!valid || busy) return;
-    runMutation.mutate(
-      { workspaceId, name: loop.name, data: requestBody(), dry: false },
-      {
-        onSuccess: result => {
-          const runId = result.run?.id;
-          toast.success(runId ? `Run started · ${runId}` : "Run started");
-          if (runId) onRunStarted?.(runId);
-        },
-        onError: error =>
-          toast.error(error instanceof Error ? error.message : `Failed to run ${loop.name}`),
-      }
+    if (!valid) {
+      formState.markSubmissionAttempted();
+      return;
+    }
+    if (busy) return;
+    const body = requestBody();
+    formState.requestRun(loop.name, () =>
+      runMutation.mutateAsync({ workspaceId, name: loop.name, data: body, dry: false })
     );
   }
 

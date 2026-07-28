@@ -6,7 +6,11 @@ import { agentFixtures } from "@/systems/agent/mocks";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
 
 const loopsState = vi.hoisted(() => ({ current: [] as unknown[] }));
 
@@ -71,7 +75,15 @@ function renderTriggerForm({
     );
   }
 
-  render(<Harness />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+  });
+  queryClient.setQueryData(statusKeys.current(), statusFixture);
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  );
 
   return { onCancel, onChange, onSubmit };
 }

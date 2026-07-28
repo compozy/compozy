@@ -90,7 +90,7 @@ export function LayoutProfileGrid({ editor, document }: LayoutProfileGridProps) 
             The layout in the editor is untouched.
           </>
         }
-        isPending={editor.remove.isPending}
+        isPending={editor.phase === "saving"}
         open={editor.pendingDelete !== null}
         title="Delete this saved layout?"
         onConfirm={editor.confirmDelete}

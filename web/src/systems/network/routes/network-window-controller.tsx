@@ -30,14 +30,9 @@ export function NetworkWindowController({
   navigation,
 }: NetworkWindowControllerProps) {
   const view = useNetworkRouteView({ active, location, navigation });
-  const { page, activeChannel, activeTab, activeThreadId, activeDirectId, hasUnread } = view;
+  const { page, activeChannel, activeThreadId } = view;
   const workspaceId = view.activeWorkspaceId ?? "";
   const activeChannelKey = activeChannel?.channel ?? null;
-  const filters = useNetworkListFilters({
-    workspaceId,
-    channel: activeChannelKey ?? "",
-    enabled: Boolean(activeChannelKey),
-  });
 
   const closeThread = () => {
     if (!workspaceId || !activeChannelKey) return;
@@ -116,46 +111,77 @@ export function NetworkWindowController({
     );
   }
 
+  return (
+    <>
+      <NetworkListFiltersProvider channel={activeChannelKey ?? ""} workspaceId={workspaceId}>
+        <NetworkWindowReadyController
+          closeThread={closeThread}
+          openThreadMain={openThreadMain}
+          view={view}
+          workspaceId={workspaceId}
+        />
+      </NetworkListFiltersProvider>
+      {view.networkCreate.dialog}
+    </>
+  );
+}
+
+interface NetworkWindowReadyControllerProps {
+  closeThread: () => void;
+  openThreadMain: () => void;
+  view: ReturnType<typeof useNetworkRouteView>;
+  workspaceId: string;
+}
+
+function NetworkWindowReadyController({
+  closeThread,
+  openThreadMain,
+  view,
+  workspaceId,
+}: NetworkWindowReadyControllerProps) {
+  const { page, activeChannel, activeTab, activeThreadId, activeDirectId, hasUnread } = view;
+  const activeChannelKey = activeChannel?.channel ?? null;
+  const filters = useNetworkListFilters({
+    workspaceId,
+    channel: activeChannelKey ?? "",
+    enabled: Boolean(activeChannelKey),
+  });
+
   if (page.channels.length === 0 && !page.isChannelsLoading) {
     return (
-      <>
-        <NetworkListFiltersProvider value={filters}>
-          <NetworkShell
-            workspaceId={workspaceId}
-            activeChannel={null}
-            activeChannelDetail={null}
-            activeDirectId={null}
-            activeTab="threads"
-            directCount={null}
-            directs={[]}
-            hasUnread={() => false}
-            inspectorOpen={false}
-            loading={{ channels: false, directs: false, recents: false }}
-            isPinned={() => false}
-            onInspectorToggle={() => undefined}
-            onTogglePinned={page.togglePinned}
-            openWorkCount={0}
-            pinnedChannels={[]}
-            recents={[]}
-            rightRailMode="thread"
-            rightRailOpen={false}
-            selfSessionId={null}
-            threadCount={null}
-            unpinnedChannels={[]}
-          >
-            <div
-              className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-              data-testid="network-no-channels-state"
-            >
-              <NetworkEmpty
-                className="max-w-xl"
-                onOpenSettings={view.networkCreate.openNetworkSettings}
-              />
-            </div>
-          </NetworkShell>
-        </NetworkListFiltersProvider>
-        {view.networkCreate.dialog}
-      </>
+      <NetworkShell
+        workspaceId={workspaceId}
+        activeChannel={null}
+        activeChannelDetail={null}
+        activeDirectId={null}
+        activeTab="threads"
+        directCount={null}
+        directs={[]}
+        hasUnread={() => false}
+        inspectorOpen={false}
+        loading={{ channels: false, directs: false, recents: false }}
+        isPinned={() => false}
+        onInspectorToggle={() => undefined}
+        onTogglePinned={page.togglePinned}
+        openWorkCount={0}
+        pinnedChannels={[]}
+        recents={[]}
+        rightRailMode="thread"
+        rightRailOpen={false}
+        selfSessionId={null}
+        threadCount={null}
+        unpinnedChannels={[]}
+      >
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-no-channels-state"
+        >
+          <NetworkEmpty
+            className="max-w-xl"
+            onOpenSettings={view.networkCreate.openNetworkSettings}
+          />
+        </div>
+      </NetworkShell>
     );
   }
 
@@ -183,57 +209,52 @@ export function NetworkWindowController({
         workEntries={view.openWork.entries}
       />
     ) : null;
-
   const threadCount = activeChannelKey ? filters.threadsQuery.total : null;
   const directCount = activeChannelKey ? filters.directsQuery.total : null;
 
   return (
-    <>
-      <NetworkListFiltersProvider value={filters}>
-        <NetworkShell
+    <NetworkShell
+      workspaceId={workspaceId}
+      activeChannel={activeChannel}
+      activeChannelDetail={null}
+      activeDirectId={activeDirectId}
+      activeTab={activeTab}
+      directCount={directCount}
+      directs={view.railView.directs.directs}
+      hasUnread={hasUnread}
+      inspectorOpen={inspector.open}
+      loading={{
+        channels: page.isChannelsLoading,
+        directs: view.railView.directs.isLoading,
+        recents: page.isRecentsLoading,
+      }}
+      isPinned={page.isPinned}
+      onInspectorToggle={inspector.toggle}
+      onTogglePinned={page.togglePinned}
+      openWorkCount={view.openWork.openCount}
+      pinnedChannels={page.pinnedChannels}
+      recents={page.recents}
+      rightRailContent={rightRailContent}
+      rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
+      rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
+      selfSessionId={view.railView.session.session?.sessionId ?? null}
+      threadCount={threadCount}
+      unpinnedChannels={page.unpinnedChannels}
+    >
+      {activeChannel && workspaceId ? (
+        <NetworkWindowContent
+          filters={filters}
           workspaceId={workspaceId}
-          activeChannel={activeChannel}
-          activeChannelDetail={null}
-          activeDirectId={activeDirectId}
+          channel={activeChannel.channel}
+          fanoutPolicy={activeChannel.fanout_policy ?? null}
           activeTab={activeTab}
-          directCount={directCount}
-          directs={view.railView.directs.directs}
-          hasUnread={hasUnread}
-          inspectorOpen={inspector.open}
-          loading={{
-            channels: page.isChannelsLoading,
-            directs: view.railView.directs.isLoading,
-            recents: page.isRecentsLoading,
-          }}
-          isPinned={page.isPinned}
-          onInspectorToggle={inspector.toggle}
-          onTogglePinned={page.togglePinned}
-          openWorkCount={view.openWork.openCount}
-          pinnedChannels={page.pinnedChannels}
-          recents={page.recents}
-          rightRailContent={rightRailContent}
-          rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
-          rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
-          selfSessionId={view.railView.session.session?.sessionId ?? null}
-          threadCount={threadCount}
-          unpinnedChannels={page.unpinnedChannels}
-        >
-          {activeChannel && workspaceId ? (
-            <NetworkWindowContent
-              workspaceId={workspaceId}
-              channel={activeChannel.channel}
-              fanoutPolicy={activeChannel.fanout_policy ?? null}
-              activeTab={activeTab}
-              activeThreadId={activeThreadId}
-              activeDirectId={activeDirectId}
-              threadView={view.location.view}
-              onCloseThread={closeThread}
-              onOpenThreadMain={openThreadMain}
-            />
-          ) : null}
-        </NetworkShell>
-      </NetworkListFiltersProvider>
-      {view.networkCreate.dialog}
-    </>
+          activeThreadId={activeThreadId}
+          activeDirectId={activeDirectId}
+          threadView={view.location.view}
+          onCloseThread={closeThread}
+          onOpenThreadMain={openThreadMain}
+        />
+      ) : null}
+    </NetworkShell>
   );
 }

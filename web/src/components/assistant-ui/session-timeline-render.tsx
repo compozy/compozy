@@ -1,6 +1,7 @@
 import { ChevronRight, CircleStop } from "lucide-react";
 import { useRef } from "react";
 import type { ReactNode } from "react";
+import { useSelector } from "@xstate/store-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -22,7 +23,6 @@ import { Link } from "@tanstack/react-router";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
   TimelineRowContext,
-  type TimelineRowSharedState,
   toggleTimelineExpansion,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
@@ -196,27 +196,29 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
 }
 
 function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
-  const { setExpandedWorkGroups } = useTimelineRowContext();
+  const store = useTimelineRowContext();
   return (
     <WorkToggleButton
       row={row}
-      onToggle={button => toggleTimelineExpansion(setExpandedWorkGroups, row.groupId, button)}
+      onToggle={button => toggleTimelineExpansion(store, "work-group", row.groupId, button)}
     />
   );
 }
 
 function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
-  const { setExpandedChangedFiles } = useTimelineRowContext();
+  const store = useTimelineRowContext();
   return (
     <SessionChangedFilesRowView
       row={row}
-      onToggle={button => toggleTimelineExpansion(setExpandedChangedFiles, row.id, button)}
+      onToggle={button => toggleTimelineExpansion(store, "changed-files", row.id, button)}
     />
   );
 }
 
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
-  const { expandedTurns, setExpandedTurns } = useTimelineRowContext();
+  const store = useTimelineRowContext();
+  const turnId = row.turnId ?? row.id;
+  const expanded = useSelector(store, state => state.context.expandedTurns.has(turnId));
   // An interrupted turn keeps its work expanded so the operator keeps their
   // place; the fold row becomes a danger-toned interruption label above the
   // always-visible work (never a collapsing disclosure).
@@ -234,13 +236,12 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
       </div>
     );
   }
-  const expanded = expandedTurns.has(row.turnId ?? row.id);
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <TurnFoldButton
         row={row}
         expanded={expanded}
-        onToggle={button => toggleTimelineExpansion(setExpandedTurns, row.turnId ?? row.id, button)}
+        onToggle={button => toggleTimelineExpansion(store, "turn", turnId, button)}
       />
       {expanded ? (
         <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
@@ -251,9 +252,8 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
 
 // Structural sharing (`computeStableSessionRows`) keeps unchanged row inputs
 // referentially stable so the React Compiler can reuse their rendered subtrees.
-// Interactive variants read callbacks and expansion from `TimelineRowContext`;
-// toggles update their consumers while steady-state streaming leaves the context
-// untouched.
+// Interactive variants select their own expansion state from the stable store
+// handle in `TimelineRowContext`.
 export function TimelineRowContent({ row }: { row: SessionRow }) {
   switch (row.kind) {
     case "text":
@@ -311,26 +311,10 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
 }
 
 export function AssistantMessageTimeline() {
-  const {
-    expandedTurns,
-    goal,
-    rows,
-    setExpandedChangedFiles,
-    setExpandedTurns,
-    setExpandedWorkGroups,
-  } = useAssistantMessageTimeline();
-  // The React Compiler stabilizes this context value and its callbacks while
-  // their inputs remain unchanged, so steady-state streaming does not invalidate
-  // interactive row consumers.
-  const sharedState: TimelineRowSharedState = {
-    expandedTurns,
-    setExpandedWorkGroups,
-    setExpandedTurns,
-    setExpandedChangedFiles,
-  };
+  const { goal, rows, timelineStore } = useAssistantMessageTimeline();
 
   return (
-    <TimelineRowContext.Provider value={sharedState}>
+    <TimelineRowContext.Provider value={timelineStore}>
       {goal ? <GoalPromptNotice goal={goal} /> : null}
       {renderTimelineRows(rows)}
     </TimelineRowContext.Provider>

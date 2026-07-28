@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { agentFixtures } from "@/systems/agent/mocks";
-import type { NetworkParticipationDraft } from "@/systems/network";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,

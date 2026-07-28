@@ -2,7 +2,13 @@ import type { ReactNode } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 
 import {
-  SessionTranscriptThreadContext,
+  SessionTranscriptErrorContext,
+  SessionTranscriptFetchingOlderContext,
+  SessionTranscriptHasOlderContext,
+  SessionTranscriptLoadOlderContext,
+  SessionTranscriptMessagesContext,
+  SessionTranscriptRetryContext,
+  SessionTranscriptStatusContext,
   type SessionTranscriptThreadStatus,
 } from "./session-transcript-thread-context-value";
 
@@ -27,20 +33,21 @@ export function SessionTranscriptThreadProvider({
   loadOlder?: () => void;
   retry: () => void;
 }) {
-  const contextValue = {
-    messages,
-    status,
-    isPending: status === "pending",
-    isError: status === "error",
-    error,
-    hasOlder,
-    isFetchingOlder,
-    loadOlder,
-    retry,
-  };
   return (
-    <SessionTranscriptThreadContext.Provider value={contextValue}>
-      {children}
-    </SessionTranscriptThreadContext.Provider>
+    <SessionTranscriptMessagesContext.Provider value={messages}>
+      <SessionTranscriptStatusContext.Provider value={status}>
+        <SessionTranscriptErrorContext.Provider value={error}>
+          <SessionTranscriptRetryContext.Provider value={retry}>
+            <SessionTranscriptHasOlderContext.Provider value={hasOlder}>
+              <SessionTranscriptFetchingOlderContext.Provider value={isFetchingOlder}>
+                <SessionTranscriptLoadOlderContext.Provider value={loadOlder}>
+                  {children}
+                </SessionTranscriptLoadOlderContext.Provider>
+              </SessionTranscriptFetchingOlderContext.Provider>
+            </SessionTranscriptHasOlderContext.Provider>
+          </SessionTranscriptRetryContext.Provider>
+        </SessionTranscriptErrorContext.Provider>
+      </SessionTranscriptStatusContext.Provider>
+    </SessionTranscriptMessagesContext.Provider>
   );
 }

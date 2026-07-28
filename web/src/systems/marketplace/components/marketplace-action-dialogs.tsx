@@ -65,7 +65,6 @@ function MarketplaceActionDialogs({
           onOpenChange={open => {
             if (!open) onBundleClose();
           }}
-          open
           workspaceId={workspaceId}
         />
       ) : null}

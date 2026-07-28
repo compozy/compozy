@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 
 import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@compozy/ui";
 
-import { useSessionCreate } from "@/systems/session";
+import { useSessionCreateActions } from "@/systems/session";
 
 import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
@@ -102,7 +102,7 @@ function HomeWorkingNowPartialNote() {
  */
 export function HomeWorkingNow({ cards, total, status, errorMessage }: HomeWorkingNowProps) {
   const nowSeconds = useElapsedNowSeconds();
-  const sessionCreate = useSessionCreate();
+  const sessionCreate = useSessionCreateActions();
 
   return (
     <Section

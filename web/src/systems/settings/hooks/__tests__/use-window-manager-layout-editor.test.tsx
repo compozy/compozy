@@ -10,7 +10,10 @@ import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { useWindowManagerLayoutEditor } from "../use-window-manager-layout-editor";
+import {
+  useWindowManagerLayoutEditor,
+  windowManagerLayoutEditorLogic,
+} from "../use-window-manager-layout-editor";
 import type {
   WindowManagerLayoutDocument,
   WindowManagerLayoutState,
@@ -78,6 +81,37 @@ function renameDesktop(document: WindowManagerLayoutDocument, name: string) {
 }
 
 describe("useWindowManagerLayoutEditor", () => {
+  it("Should fence a stale daemon baseline during render-time reconciliation", () => {
+    const { result, rerender } = renderEditor(stateAt(42, "Ship"));
+    rerender({ state: stateAt(41, "Build") });
+
+    expect(result.current.revision).toBe(42);
+    expect(result.current.draft.desktops[0]?.name).toBe("Ship");
+  });
+
+  it("Should ignore a late Apply result after the draft changes", () => {
+    const store = windowManagerLayoutEditorLogic.createStore({ initial: stateAt(42, "Ship") });
+    let snapshot = store.getInitialSnapshot();
+    const fingerprint = snapshot.context.baselineFingerprint;
+    [snapshot] = store.transition(snapshot, {
+      type: "applyRequested",
+      execute: async () => undefined,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "draftChanged",
+      draft: renameDesktop(snapshot.context.draft, "Mine"),
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "applySucceeded",
+      fingerprint,
+      operation: 1,
+      revision: 42,
+    });
+
+    expect(snapshot.context.draft.desktops[0]?.name).toBe("Mine");
+    expect(snapshot.context.phase).toBe("dirty");
+  });
+
   it("Should follow the daemon while the draft is untouched", () => {
     const { result, rerender } = renderEditor(stateAt(41, "Build"));
     expect(result.current.dirty).toBe(false);
