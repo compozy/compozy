@@ -17,7 +17,6 @@ type DeliveryOperation<TResult> =
   | { phase: "failed"; requestId: number; error: string };
 
 export interface BridgeDeliveryTestsState {
-  bridge: BridgeSummary | undefined;
   draft: BridgeTestDeliveryDraft;
   dryRun: DeliveryOperation<TestBridgeDeliveryResponse>;
   sendTest: DeliveryOperation<SendBridgeTestResponse>;
@@ -27,6 +26,7 @@ type BridgeDeliveryEventPayloadMap = {
   reset: { bridge?: BridgeSummary };
   draftChanged: { draft: BridgeTestDeliveryDraft };
   dryRunSubmitted: {
+    bridge?: BridgeSummary;
     execute: (
       bridge: BridgeSummary,
       draft: BridgeTestDeliveryDraft
@@ -39,8 +39,12 @@ type BridgeDeliveryEventPayloadMap = {
       draft: BridgeTestDeliveryDraft
     ) => Promise<SendBridgeTestResponse>;
   };
-  dryRunResolved: { requestId: number; result: TestBridgeDeliveryResponse };
-  sendTestResolved: { requestId: number; result: SendBridgeTestResponse };
+  dryRunResolved: {
+    bridgeName: string;
+    requestId: number;
+    result: TestBridgeDeliveryResponse;
+  };
+  sendTestResolved: { bridgeName: string; requestId: number; result: SendBridgeTestResponse };
   dryRunFailed: { requestId: number; error: string };
   sendTestFailed: { requestId: number; error: string };
 };
@@ -50,14 +54,12 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
   BridgeDeliveryEventPayloadMap
 >({
   context: {
-    bridge: undefined,
     draft: createBridgeTestDeliveryDraft(),
     dryRun: idleOperation<TestBridgeDeliveryResponse>(),
     sendTest: idleOperation<SendBridgeTestResponse>(),
   },
   on: {
     reset: (context, event) => ({
-      bridge: event.bridge,
       draft: createBridgeTestDeliveryDraft(event.bridge),
       dryRun: idleOperation<TestBridgeDeliveryResponse>(context.dryRun.requestId + 1),
       sendTest: idleOperation<SendBridgeTestResponse>(context.sendTest.requestId + 1),
@@ -67,12 +69,17 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
       draft: event.draft,
     }),
     dryRunSubmitted: (context, event, enqueue) => {
-      if (!context.bridge || context.dryRun.phase === "submitting") return;
+      if (!event.bridge || context.dryRun.phase === "submitting") return;
       const requestId = context.dryRun.requestId + 1;
-      const { bridge, draft } = context;
+      const { bridge } = event;
+      const { draft } = context;
       enqueue.effect(async ({ trigger }) => {
         try {
-          trigger.dryRunResolved({ requestId, result: await event.execute(bridge, draft) });
+          trigger.dryRunResolved({
+            bridgeName: bridge.display_name,
+            requestId,
+            result: await event.execute(bridge, draft),
+          });
         } catch (error) {
           trigger.dryRunFailed({
             requestId,
@@ -95,7 +102,11 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
       const bridge = event.bridge;
       enqueue.effect(async ({ trigger }) => {
         try {
-          trigger.sendTestResolved({ requestId, result: await event.execute(bridge, draft) });
+          trigger.sendTestResolved({
+            bridgeName: bridge.display_name,
+            requestId,
+            result: await event.execute(bridge, draft),
+          });
         } catch (error) {
           trigger.sendTestFailed({
             requestId,
@@ -103,7 +114,7 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
           });
         }
       });
-      return { ...context, bridge, sendTest: { phase: "submitting", requestId } };
+      return { ...context, sendTest: { phase: "submitting", requestId } };
     },
     dryRunResolved: (context, event, enqueue) => {
       if (context.dryRun.phase !== "submitting" || context.dryRun.requestId !== event.requestId) {
@@ -111,7 +122,7 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
       }
       enqueue.effect(() =>
         notifyUser({
-          message: `Resolved delivery target for ${context.bridge?.display_name ?? "bridge"}.`,
+          message: `Resolved delivery target for ${event.bridgeName}.`,
           tone: "success",
         })
       );
@@ -129,7 +140,7 @@ export const bridgeDeliveryTestsLogic = createStoreLogic<
       }
       enqueue.effect(() =>
         notifyUser({
-          message: `Sent a test message through ${context.bridge?.display_name ?? "bridge"}.`,
+          message: `Sent a test message through ${event.bridgeName}.`,
           tone: "success",
         })
       );

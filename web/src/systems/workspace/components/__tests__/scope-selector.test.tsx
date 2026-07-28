@@ -1,13 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
-
-import { statusKeys } from "@/systems/status";
-import { statusFixture } from "@/systems/status/mocks";
 
 import { ScopeSelector } from "../scope-selector";
 
@@ -22,31 +18,20 @@ function renderScopeSelector(
 ) {
   const onScopeChange = vi.fn();
   const onWorkspaceChange = vi.fn();
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
-  });
-  queryClient.setQueryData(statusKeys.current(), {
-    ...statusFixture,
-    daemon: {
-      ...statusFixture.daemon,
-      user_home_dir: userHomeDir ?? statusFixture.daemon.user_home_dir,
-    },
-  });
 
   render(
-    <QueryClientProvider client={queryClient}>
-      <UIProvider reducedMotion="never" skipAnimations>
-        <ScopeSelector
-          scope="workspace"
-          workspaceId="ws_alpha"
-          workspaces={workspaces}
-          onScopeChange={onScopeChange}
-          onWorkspaceChange={onWorkspaceChange}
-          testIdPrefix="task"
-          {...props}
-        />
-      </UIProvider>
-    </QueryClientProvider>
+    <UIProvider reducedMotion="never" skipAnimations>
+      <ScopeSelector
+        scope="workspace"
+        userHomeDir={userHomeDir}
+        workspaceId="ws_alpha"
+        workspaces={workspaces}
+        onScopeChange={onScopeChange}
+        onWorkspaceChange={onWorkspaceChange}
+        testIdPrefix="task"
+        {...props}
+      />
+    </UIProvider>
   );
 
   return { onScopeChange, onWorkspaceChange };

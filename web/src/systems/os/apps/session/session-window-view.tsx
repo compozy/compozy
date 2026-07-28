@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 
 import { Spinner } from "@compozy/ui";
 
-import { SessionChatRuntimeProvider, useSessionById } from "@/systems/session";
+import { SessionChatRuntimeProvider, type SessionPayload } from "@/systems/session";
 
 import { SessionWindowContent } from "./session-window-content";
 
@@ -10,14 +10,19 @@ export function SessionWindowView({
   name,
   id,
   workspaceId,
+  session,
+  isLoading,
+  error,
   onDeleteSuccess,
 }: {
   name: string;
   id: string;
   workspaceId: string;
+  session: SessionPayload | undefined;
+  isLoading: boolean;
+  error: Error | null;
   onDeleteSuccess: () => void;
 }) {
-  const { data: session, isLoading, error } = useSessionById(id, workspaceId);
   const sessionWorkspaceId = session?.workspace_id?.trim();
 
   if (isLoading) {

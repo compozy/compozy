@@ -34,8 +34,8 @@ export function useHomeAttentionActions(): HomeAttentionActions {
   const pendingIds = new Set<string>();
   const resolvedById: Record<string, HomeAttentionResolvedKind> = {};
   for (const [id, operation] of Object.entries(operations)) {
-    if (operation.pending) pendingIds.add(id);
-    if (operation.resolved !== undefined) resolvedById[id] = operation.resolved;
+    if (operation.status === "pending") pendingIds.add(id);
+    if (operation.status === "resolved") resolvedById[id] = operation.resolved;
   }
 
   const refreshOverview = () =>

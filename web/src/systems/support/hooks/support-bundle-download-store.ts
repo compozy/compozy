@@ -58,7 +58,7 @@ type SupportBundleDownloadTrigger = TriggerObject<SupportBundleDownloadEventPayl
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000;
 
 export function createSupportBundleDownloadLogic(options: SupportBundleDownloadOptions = {}) {
-  const activeRequests = new WeakMap<object, ActiveRequest>();
+  const activeRequests = new WeakMap<SupportBundleDownloadTrigger, ActiveRequest>();
   const timeoutMs = options.timeoutMs ?? DEFAULT_OPERATION_TIMEOUT_MS;
 
   return createStoreLogic<
@@ -117,7 +117,7 @@ export function createSupportBundleDownloadLogic(options: SupportBundleDownloadO
 
 function startRequest(
   execute: SupportBundleDownloadExecution,
-  activeRequests: WeakMap<object, ActiveRequest>,
+  activeRequests: WeakMap<SupportBundleDownloadTrigger, ActiveRequest>,
   trigger: SupportBundleDownloadTrigger,
   input: SupportBundleDownloadInput,
   requestId: number,
@@ -139,7 +139,7 @@ function startRequest(
 
 async function executeRequest(
   execute: SupportBundleDownloadExecution,
-  activeRequests: WeakMap<object, ActiveRequest>,
+  activeRequests: WeakMap<SupportBundleDownloadTrigger, ActiveRequest>,
   trigger: SupportBundleDownloadTrigger,
   activeRequest: ActiveRequest,
   input: SupportBundleDownloadInput,
@@ -180,7 +180,7 @@ async function executeRequest(
 }
 
 function cancelActiveRequest(
-  activeRequests: WeakMap<object, ActiveRequest>,
+  activeRequests: WeakMap<SupportBundleDownloadTrigger, ActiveRequest>,
   trigger: SupportBundleDownloadTrigger,
   message: string
 ) {

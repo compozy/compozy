@@ -25,3 +25,7 @@ The dialog host is `TaskEditorModal`; the window scoping comes from `OverlayCont
 src: web/src/systems/os/apps/tasks/task-editor-dialogs.tsx; web/src/systems/os/apps/tasks/tasks-window.tsx; web/src/systems/os/apps/tasks/task-window-location.ts; web/src/systems/tasks/components/task-editor-modal.tsx
 
 inventory: Needs QA
+
+QA impact 2026-07-28: selecting a task template now changes only `template` and preserves the
+catalog's mode, query, status, priority, sort, lane, and group filters. Status remains untested; no
+QA replay ran.

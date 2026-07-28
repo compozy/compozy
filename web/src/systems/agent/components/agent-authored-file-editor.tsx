@@ -6,7 +6,6 @@ import { Button, Empty, Pill, Skeleton, Spinner, Textarea } from "@compozy/ui";
 import {
   useAgentAuthoredFileEditor,
   type AuthoredFileKind,
-  type AuthoredFilePayload,
 } from "../hooks/use-agent-authored-file-editor";
 import type {
   AgentHeartbeatHistoryResponse,
@@ -18,23 +17,34 @@ import { AgentPanelBox } from "./agent-panel-box";
 
 export type { AuthoredFileKind };
 
-export interface AgentAuthoredFileEditorProps {
+interface AgentAuthoredFileEditorBaseProps {
   resourceKey: string;
-  kind: AuthoredFileKind;
-  payload: AgentSoulPayload | AgentHeartbeatPayload | undefined;
   isLoading: boolean;
   isError: boolean;
-  history: AgentSoulHistoryResponse | AgentHeartbeatHistoryResponse | undefined;
   onValidate: (body: string) => Promise<{
     diagnostics?: Array<{ message: string; line?: number; source_path?: string }>;
     validation_status?: string;
   }>;
-  onSave: (body: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
-  onRestore: (revisionId: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
   onRetry: () => void;
   /** Extra content rendered above the editor (heartbeat status/wake). */
   headerSlot?: ReactNode;
 }
+
+export type AgentAuthoredFileEditorProps =
+  | (AgentAuthoredFileEditorBaseProps & {
+      kind: "soul";
+      payload: AgentSoulPayload | undefined;
+      history: AgentSoulHistoryResponse | undefined;
+      onSave: (body: string, expectedDigest: string) => Promise<AgentSoulPayload>;
+      onRestore: (revisionId: string, expectedDigest: string) => Promise<AgentSoulPayload>;
+    })
+  | (AgentAuthoredFileEditorBaseProps & {
+      kind: "heartbeat";
+      payload: AgentHeartbeatPayload | undefined;
+      history: AgentHeartbeatHistoryResponse | undefined;
+      onSave: (body: string, expectedDigest: string) => Promise<AgentHeartbeatPayload>;
+      onRestore: (revisionId: string, expectedDigest: string) => Promise<AgentHeartbeatPayload>;
+    });
 
 function AuthoredFileWriteRecovery({
   kind,
@@ -66,28 +76,9 @@ function AuthoredFileWriteRecovery({
   );
 }
 
-export function AgentAuthoredFileEditor({
-  resourceKey,
-  kind,
-  payload,
-  isLoading,
-  isError,
-  history,
-  onValidate,
-  onSave,
-  onRestore,
-  onRetry,
-  headerSlot,
-}: AgentAuthoredFileEditorProps) {
-  const editor = useAgentAuthoredFileEditor({
-    resourceKey,
-    kind,
-    payload,
-    history,
-    onValidate,
-    onSave,
-    onRestore,
-  });
+export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
+  const { kind, isLoading, isError, onRetry, headerSlot } = props;
+  const editor = useAgentAuthoredFileEditor(props);
   const saving = editor.phase === "saving";
   const validating = editor.phase === "validating";
   const conflict = editor.phase === "conflict";

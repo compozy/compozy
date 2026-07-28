@@ -12,7 +12,7 @@ describe("marketplace MCP editor logic", () => {
     const store = marketplaceMCPEditorLogic.createStore();
     vi.mocked(toast.success).mockClear();
 
-    store.trigger.createOpened({
+    store.trigger.editorOpened({
       editor: {
         draft: emptyDraft("stdio"),
         mode: "create",

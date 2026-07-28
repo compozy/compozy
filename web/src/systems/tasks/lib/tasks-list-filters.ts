@@ -1,6 +1,6 @@
 import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
-import type { TaskOwnerKind, TaskPriority, TaskStatus } from "../types";
+import type { TaskListSortKey, TaskOwnerKind, TaskPriority, TaskStatus } from "../types";
 import { taskOwnerKindLabel, taskPriorityLabel, taskStatusLabel } from "./task-formatters";
 
 export type TaskFilterFieldKey = "status" | "owner" | "priority";
@@ -22,7 +22,7 @@ export interface TaskFilterHandlers {
   onPriorityChange: (next: TaskPriority | null) => void;
 }
 
-const STATUS_OPTIONS: TaskStatus[] = [
+export const TASK_STATUS_OPTIONS = [
   "in_progress",
   "ready",
   "blocked",
@@ -32,9 +32,18 @@ const STATUS_OPTIONS: TaskStatus[] = [
   "completed",
   "failed",
   "canceled",
-];
+] as const satisfies readonly TaskStatus[];
 
-const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "medium", "low"];
+export const TASK_PRIORITY_OPTIONS = [
+  "urgent",
+  "high",
+  "medium",
+  "low",
+] as const satisfies readonly TaskPriority[];
+export const TASK_LIST_SORT_OPTIONS = [
+  "recent",
+  "priority",
+] as const satisfies readonly TaskListSortKey[];
 const OWNER_KINDS: TaskOwnerKind[] = [
   "agent_session",
   "automation",
@@ -80,13 +89,13 @@ export function buildTaskFilterFields(
       key: "status",
       label: "Status",
       type: "select",
-      options: STATUS_OPTIONS.map(value => ({ value, label: taskStatusLabel(value) })),
+      options: TASK_STATUS_OPTIONS.map(value => ({ value, label: taskStatusLabel(value) })),
     },
     {
       key: "priority",
       label: "Priority",
       type: "select",
-      options: PRIORITY_OPTIONS.map(value => ({ value, label: taskPriorityLabel(value) })),
+      options: TASK_PRIORITY_OPTIONS.map(value => ({ value, label: taskPriorityLabel(value) })),
     },
     {
       key: "owner",
@@ -150,10 +159,12 @@ export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilt
 
 function asTaskStatus(value: string | undefined): TaskStatus | null {
   if (!value) return null;
-  return (STATUS_OPTIONS as readonly string[]).includes(value) ? (value as TaskStatus) : null;
+  return (TASK_STATUS_OPTIONS as readonly string[]).includes(value) ? (value as TaskStatus) : null;
 }
 
 function asTaskPriority(value: string | undefined): TaskPriority | null {
   if (!value) return null;
-  return (PRIORITY_OPTIONS as readonly string[]).includes(value) ? (value as TaskPriority) : null;
+  return (TASK_PRIORITY_OPTIONS as readonly string[]).includes(value)
+    ? (value as TaskPriority)
+    : null;
 }

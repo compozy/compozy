@@ -133,12 +133,7 @@ export function taskDashboardOptions(filters: TaskDashboardFilter = {}, enabled 
   });
 }
 
-function taskInboxQueryOptions(
-  filters: TaskInboxFilter,
-  enabled: boolean,
-  staleTime: number,
-  refetchOnMount?: boolean
-) {
+function taskInboxQueryOptions(filters: TaskInboxFilter, enabled: boolean, staleTime: number) {
   const stableFilters = taskInboxStableFilter(filters);
   return infiniteQueryOptions({
     queryKey: tasksKeys.inbox(stableFilters),
@@ -147,7 +142,6 @@ function taskInboxQueryOptions(
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime,
-    refetchOnMount,
     enabled,
   });
 }

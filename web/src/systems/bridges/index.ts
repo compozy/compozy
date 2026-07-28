@@ -93,6 +93,7 @@ export {
 export {
   getBridgeSetupProfile,
   projectBridgeSetup,
+  summarizeBridgeCheckStatus,
   type BridgeSetupChecklistItem,
   type BridgeSetupChecklistItemId,
   type BridgeSetupFacts,

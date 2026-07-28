@@ -17,7 +17,6 @@ import {
 } from "@/systems/agent";
 import {
   useSessionCreateActions,
-  useSessionCreateHasActiveWorkspace,
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
   type SessionPayload,
@@ -63,7 +62,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
   const { openForAgent } = useSessionCreateActions();
-  const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
+  const hasActiveWorkspace = activeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
   const pendingAgentName = useSessionCreatePendingAgentName();
   const createHost = useAgentCreateHost();

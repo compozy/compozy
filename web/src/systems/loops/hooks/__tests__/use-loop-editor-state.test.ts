@@ -103,7 +103,7 @@ describe("loopEditorLogic", () => {
     });
   });
 
-  it("Should advance the published version while preserving edits made during the request", async () => {
+  it("Should settle a stale publish without completing the current editor flow", async () => {
     const store = loopEditorLogic.createStore(undefined);
     const loop = loopDetailByName.get("software-delivery")!;
     const publish = deferred<typeof loop>();
@@ -120,7 +120,23 @@ describe("loopEditorLogic", () => {
       expect(store.getSnapshot().context.baseDefinition?.meta.version).toBe(loop.version + 1);
     });
     expect(store.getSnapshot().context.isDirty).toBe(true);
-    expect(published).toHaveBeenCalledOnce();
+    expect(published).not.toHaveBeenCalled();
+  });
+
+  it("Should complete the current editor flow after a matching publish", async () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const loop = loopDetailByName.get("software-delivery")!;
+    const published = vi.fn();
+    store.on("publishCompleted", published);
+    store.trigger.draftInitialized({ definition: loop.definition, edges: [], nodes: [] });
+    store.trigger.publishRequested({
+      execute: async () => ({ ...loop, version: loop.version + 1 }),
+    });
+
+    await vi.waitFor(() => {
+      expect(store.getSnapshot().context.pendingPublishGeneration).toBeNull();
+      expect(published).toHaveBeenCalledOnce();
+    });
   });
 
   it("Should surface a publish failure even when the draft changed after submission", async () => {

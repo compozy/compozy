@@ -18,17 +18,19 @@ interface SessionCreateNavigationTarget {
   session: SessionPayload;
 }
 
+type SessionCreateOperation =
+  | { status: "idle" }
+  | { agentName: string; attempt: number; status: "submitting"; workspaceId: string }
+  | { status: "navigation-pending"; target: SessionCreateNavigationTarget }
+  | { attempt: number; status: "navigating" };
+
 interface SessionCreateStoreContext {
   open: boolean;
   mode: EntityMode;
   draft: SessionCreateDialogDraft;
   submitError: string | null;
-  isSubmitting: boolean;
   attempt: number;
-  navigationAttempt: number | null;
-  navigationTarget: SessionCreateNavigationTarget | null;
-  pendingAgentName: string | null;
-  pendingWorkspaceId: string | null;
+  operation: SessionCreateOperation;
 }
 
 type SessionCreateStoreEvents = {
@@ -71,30 +73,27 @@ export const sessionCreateStoreLogic = createStoreLogic<
     mode: "simple",
     draft: EMPTY_SESSION_CREATE_DRAFT,
     submitError: null,
-    isSubmitting: false,
     attempt: 0,
-    navigationAttempt: null,
-    navigationTarget: null,
-    pendingAgentName: null,
-    pendingWorkspaceId: null,
+    operation: { status: "idle" },
   },
   on: {
-    dialogOpened: (context, event) => ({
-      ...context,
-      open: true,
-      mode: "simple",
-      draft: applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
-      navigationAttempt: null,
-      navigationTarget: null,
-      submitError: null,
-    }),
+    dialogOpened: (context, event) => {
+      if (context.operation.status === "submitting") return;
+      return {
+        ...context,
+        open: true,
+        mode: "simple",
+        draft: applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+        operation: { status: "idle" },
+        submitError: null,
+      };
+    },
     dialogOpenChanged: (context, event) => {
-      if (context.isSubmitting && !event.open) return;
+      if (context.operation.status === "submitting") return;
       return {
         ...context,
         open: event.open,
-        navigationAttempt: event.open ? null : context.navigationAttempt,
-        navigationTarget: event.open ? null : context.navigationTarget,
+        operation: event.open ? { status: "idle" } : context.operation,
         submitError: event.open ? context.submitError : null,
       };
     },
@@ -148,13 +147,13 @@ export const sessionCreateStoreLogic = createStoreLogic<
       submitError: null,
     }),
     providerSettingsRequested: context =>
-      context.isSubmitting ? undefined : { ...context, open: false },
+      context.operation.status === "submitting" ? undefined : { ...context, open: false },
     validationFailed: (context, event) => ({
       ...context,
       submitError: event.message,
     }),
     submissionRequested: (context, event, enqueue) => {
-      if (context.isSubmitting) return;
+      if (context.operation.status !== "idle") return;
       const attempt = context.attempt + 1;
       enqueue.effect(async ({ trigger }) => {
         try {
@@ -169,40 +168,54 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         attempt,
-        isSubmitting: true,
-        navigationAttempt: null,
-        navigationTarget: null,
-        pendingAgentName: event.agentName,
-        pendingWorkspaceId: event.workspaceId,
+        operation: {
+          agentName: event.agentName,
+          attempt,
+          status: "submitting",
+          workspaceId: event.workspaceId,
+        },
         submitError: null,
       };
     },
     submissionFailed: (context, event, enqueue) => {
-      if (!context.isSubmitting || context.attempt !== event.attempt) return;
+      if (
+        context.operation.status !== "submitting" ||
+        context.operation.attempt !== event.attempt
+      ) {
+        return;
+      }
       enqueue.effect(() => notifyUser({ message: event.message, tone: "error" }));
       return {
         ...context,
-        isSubmitting: false,
-        pendingAgentName: null,
-        pendingWorkspaceId: null,
+        operation: { status: "idle" },
         submitError: event.message,
       };
     },
-    sessionCreated: (context, event) =>
-      context.isSubmitting && context.attempt === event.attempt
-        ? {
-            ...context,
-            open: false,
-            mode: "simple",
-            draft: EMPTY_SESSION_CREATE_DRAFT,
-            isSubmitting: false,
-            navigationTarget: { attempt: event.attempt, session: event.session },
-            pendingAgentName: null,
-            pendingWorkspaceId: null,
-          }
-        : undefined,
+    sessionCreated: (context, event) => {
+      if (
+        context.operation.status !== "submitting" ||
+        context.operation.attempt !== event.attempt
+      ) {
+        return;
+      }
+      return {
+        ...context,
+        open: false,
+        mode: "simple",
+        draft: EMPTY_SESSION_CREATE_DRAFT,
+        operation: {
+          status: "navigation-pending",
+          target: { attempt: event.attempt, session: event.session },
+        },
+      };
+    },
     navigationRequested: (context, event, enqueue) => {
-      if (context.navigationTarget?.attempt !== event.attempt) return;
+      if (
+        context.operation.status !== "navigation-pending" ||
+        context.operation.target.attempt !== event.attempt
+      ) {
+        return;
+      }
       enqueue.effect(async ({ trigger }) => {
         try {
           await event.execute();
@@ -214,16 +227,21 @@ export const sessionCreateStoreLogic = createStoreLogic<
           });
         }
       });
-      return { ...context, navigationAttempt: event.attempt, navigationTarget: null };
+      return { ...context, operation: { attempt: event.attempt, status: "navigating" } };
     },
     navigationCompleted: (context, event) =>
-      context.navigationAttempt === event.attempt
-        ? { ...context, navigationAttempt: null }
+      context.operation.status === "navigating" && context.operation.attempt === event.attempt
+        ? { ...context, operation: { status: "idle" } }
         : undefined,
     navigationFailed: (context, event, enqueue) => {
-      if (context.navigationAttempt !== event.attempt) return;
+      if (
+        context.operation.status !== "navigating" ||
+        context.operation.attempt !== event.attempt
+      ) {
+        return;
+      }
       enqueue.effect(() => notifyUser({ message: event.message, tone: "error" }));
-      return { ...context, navigationAttempt: null, submitError: event.message };
+      return { ...context, operation: { status: "idle" }, submitError: event.message };
     },
   },
 });

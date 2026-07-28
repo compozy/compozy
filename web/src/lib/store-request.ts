@@ -35,23 +35,28 @@ export function awaitStoreRequest<
       settled?.unsubscribe();
     };
 
-    accepted = subscribeAccepted(event => {
-      requestId ??= event.requestId;
-    });
-    settled = subscribeSettled(event => {
-      if (event.requestId !== requestId) return;
-      cleanup();
-      try {
-        resolve(resolveSettlement(event));
-      } catch (error) {
-        reject(error);
-      }
-    });
+    try {
+      accepted = subscribeAccepted(event => {
+        requestId ??= event.requestId;
+      });
+      settled = subscribeSettled(event => {
+        if (event.requestId !== requestId) return;
+        cleanup();
+        try {
+          resolve(resolveSettlement(event));
+        } catch (error) {
+          reject(error);
+        }
+      });
 
-    request();
-    if (requestId === undefined) {
+      request();
+      if (requestId === undefined) {
+        cleanup();
+        reject(new Error(notAcceptedMessage));
+      }
+    } catch (error) {
       cleanup();
-      reject(new Error(notAcceptedMessage));
+      reject(error);
     }
   });
 }

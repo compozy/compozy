@@ -97,6 +97,7 @@ export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
+export type { QueuedPrompt } from "./lib/queued-prompt";
 export { sessionKeys } from "./lib/query-keys";
 export {
   sessionClarificationsOptions,

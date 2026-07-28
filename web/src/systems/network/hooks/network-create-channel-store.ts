@@ -151,6 +151,9 @@ function enqueueCreateChannel(
   enqueue: NetworkCreateChannelEnqueue,
   request: CreateChannelRequestFence
 ) {
+  // `coordinator_peer_id` is deliberately absent: the daemon rejects it under
+  // any policy but `coordinator`, and coordinator is not writable at create
+  // time because member peers do not exist until this call provisions them.
   const input: CreateNetworkChannelRequest = {
     agent_names: context.draft.selectedAgentNames,
     channel: context.draft.channelName.trim(),

@@ -46,6 +46,7 @@ interface AgentCreateDialogProps {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
+  userHomeDir: string | undefined;
   initialMode?: EntityMode;
 }
 
@@ -76,6 +77,7 @@ function AgentCreateDialog({
   hasActiveWorkspace,
   workspaceId,
   workspaceName,
+  userHomeDir,
   initialMode = "simple",
 }: AgentCreateDialogProps) {
   const { handleOpenChange, mode, revealAdvancedWhenBlocked, setMode, validation, visibleErrors } =
@@ -172,6 +174,7 @@ function AgentCreateDialog({
                     size="compact"
                     testIdPrefix="agent-create-workspace"
                     triggerTestId="agent-create-workspace-select"
+                    userHomeDir={userHomeDir}
                     value={workspaceId ?? null}
                     workspaces={workspaceOptions}
                   />

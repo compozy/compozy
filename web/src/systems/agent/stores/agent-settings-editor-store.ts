@@ -2,7 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import { isAgentDigestConflict } from "../adapters/agent-api";
+import { AgentApiError, isAgentDigestConflict } from "../adapters/agent-api";
 import {
   buildSettingsDraftFromAgent,
   buildUpdateAgentParams,
@@ -131,7 +131,7 @@ export function createAgentSettingsEditorLogic() {
             const conflict = isAgentDigestConflict(error);
             trigger.saveFailed({
               requestId,
-              kind: conflict ? "conflict" : statusCode(error) === 403 ? "denied" : "failed",
+              kind: conflict ? "conflict" : isAgentPermissionDenied(error) ? "denied" : "failed",
               error: conflict
                 ? "This agent changed elsewhere. Reload the latest definition, then retry your edits."
                 : errorMessage(error, "Couldn't save agent"),
@@ -217,9 +217,8 @@ function toReady(context: AgentSettingsEditorState): AgentSettingsEditorReady {
   return { ...ready, phase: "ready" };
 }
 
-function statusCode(error: unknown): number | undefined {
-  if (!error || typeof error !== "object" || !("status" in error)) return undefined;
-  return Number((error as { status?: unknown }).status);
+function isAgentPermissionDenied(error: unknown): boolean {
+  return error instanceof AgentApiError && error.status === 403;
 }
 
 function errorMessage(error: unknown, fallback: string): string {

@@ -79,6 +79,7 @@ function JobFormHarness({
           onCancel={() => undefined}
           onChange={setDraft}
           onSubmit={() => undefined}
+          userHomeDir={undefined}
           workspaces={storyWorkspaces}
         />
       </div>

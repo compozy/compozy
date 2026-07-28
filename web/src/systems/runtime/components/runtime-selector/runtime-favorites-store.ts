@@ -53,6 +53,36 @@ function acceptsKey(key: string, validKeys: readonly string[]): boolean {
   return key.length > 0 && validKeys.includes(key);
 }
 
+interface PersistedRuntimeFavorites {
+  context: RuntimeFavoritesState;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === "string");
+}
+
+function isPersistedRuntimeFavorites(value: unknown): value is PersistedRuntimeFavorites {
+  if (!isRecord(value) || !isRecord(value.context)) return false;
+  return isStringArray(value.context.favorites) && isStringArray(value.context.recents);
+}
+
+function parsePersistedRuntimeFavorites(value: string): RuntimeFavoritesState | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (isPersistedRuntimeFavorites(parsed)) return parsed.context;
+  } catch (error) {
+    console.warn("Failed to parse runtime favorites persistence payload", error);
+    return null;
+  }
+
+  console.warn("Invalid runtime favorites persistence payload");
+  return null;
+}
+
 /** Pure preference transitions; catalog identities are passed only at event boundaries. */
 export const runtimeFavoritesConfig = createStoreConfig<
   RuntimeFavoritesState,
@@ -92,9 +122,10 @@ const runtimeFavoritesStorage: StateStorage = {
     writeFavoritesList(RECENTS_STORAGE_KEY, []);
   },
   setItem: (_name, value) => {
-    const persisted = JSON.parse(value) as PersistStorageValue<RuntimeFavoritesState>;
-    writeFavoritesList(FAVORITES_STORAGE_KEY, persisted.context.favorites ?? []);
-    writeFavoritesList(RECENTS_STORAGE_KEY, persisted.context.recents ?? []);
+    const persisted = parsePersistedRuntimeFavorites(value);
+    if (!persisted) return;
+    writeFavoritesList(FAVORITES_STORAGE_KEY, persisted.favorites);
+    writeFavoritesList(RECENTS_STORAGE_KEY, persisted.recents);
   },
 };
 

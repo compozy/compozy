@@ -4,8 +4,9 @@ import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import type { QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
-import { SessionComposerQueuedPrompts, type QueuedPrompt } from "./session-composer-queued-prompts";
+import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,

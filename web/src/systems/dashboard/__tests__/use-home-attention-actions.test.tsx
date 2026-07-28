@@ -135,7 +135,10 @@ describe("useHomeAttentionActions", () => {
       requestId: firstRequest.requestId - 1,
     });
 
-    expect(snapshot.context.operations["task-a"]).toMatchObject({ pending: true, requestId: 1 });
+    expect(snapshot.context.operations["task-a"]).toMatchObject({
+      requestId: 1,
+      status: "pending",
+    });
   });
 
   it("Should execute the mutation callback from the render that issues the intent", () => {

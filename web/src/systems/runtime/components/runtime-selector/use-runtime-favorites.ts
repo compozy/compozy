@@ -14,6 +14,11 @@ import {
 
 let mountedFavoritesConsumers = 0;
 
+function handleRuntimeFavoritesStorageChange(event: StorageEvent): void {
+  if (event.key !== FAVORITES_STORAGE_KEY && event.key !== RECENTS_STORAGE_KEY) return;
+  void hydrateRuntimeFavoritesFromStorage();
+}
+
 /**
  * Shared browser-local favorites and recents, keyed by the exact compound
  * `(provider, model)` identity. The catalog remains query-owned: it validates
@@ -23,27 +28,22 @@ let mountedFavoritesConsumers = 0;
 export function useRuntimeFavorites(validKeys: ReadonlySet<string>): RuntimeFavoritesStore {
   const state = useSelector(runtimeFavoritesStore, snapshot => snapshot.context);
 
-  // A module singleton hydrates when it is created. Rehydrate again when the
-  // first live selector mounts so late browser/Storybook storage seeds become
-  // authoritative without replacing the shared store identity.
+  // A module singleton hydrates when it is created. The first live selector
+  // owns its browser synchronization so every selector shares one hydration
+  // and one cross-tab listener without replacing the shared store identity.
   useEffect(() => {
-    const shouldHydrate = mountedFavoritesConsumers === 0;
+    const isFirstConsumer = mountedFavoritesConsumers === 0;
     mountedFavoritesConsumers += 1;
-    if (shouldHydrate) {
+    if (isFirstConsumer) {
+      window.addEventListener("storage", handleRuntimeFavoritesStorageChange);
       void hydrateRuntimeFavoritesFromStorage();
     }
     return () => {
       mountedFavoritesConsumers -= 1;
+      if (mountedFavoritesConsumers === 0) {
+        window.removeEventListener("storage", handleRuntimeFavoritesStorageChange);
+      }
     };
-  }, []);
-
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key !== FAVORITES_STORAGE_KEY && event.key !== RECENTS_STORAGE_KEY) return;
-      void hydrateRuntimeFavoritesFromStorage();
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   const keys = [...validKeys];

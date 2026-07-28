@@ -9,13 +9,12 @@ import {
 } from "@compozy/ui";
 
 import type { TaskListSortKey } from "../types";
+import { TASK_LIST_SORT_OPTIONS } from "../lib/tasks-list-filters";
 
 const SORT_LABELS: Record<TaskListSortKey, string> = {
   recent: "Most recent",
   priority: "Priority",
 };
-
-const SORT_OPTIONS: TaskListSortKey[] = ["recent", "priority"];
 
 export interface TasksListSortProps {
   sortBy: TaskListSortKey;
@@ -42,7 +41,7 @@ export function TasksListSort({ sortBy, onSortChange }: TasksListSortProps) {
         <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {SORT_OPTIONS.map(option => (
+        {TASK_LIST_SORT_OPTIONS.map(option => (
           <DropdownMenuItem
             data-active={option === sortBy ? "true" : undefined}
             data-testid={`tasks-list-sort-${option}`}

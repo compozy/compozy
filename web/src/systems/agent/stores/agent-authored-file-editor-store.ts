@@ -10,7 +10,13 @@ import {
 import type { AgentHeartbeatPayload, AgentSoulPayload } from "../types";
 
 export type AuthoredFileKind = "soul" | "heartbeat";
-export type AuthoredFilePayload = AgentSoulPayload | AgentHeartbeatPayload;
+type AuthoredFilePayloadByKind = {
+  soul: AgentSoulPayload;
+  heartbeat: AgentHeartbeatPayload;
+};
+
+export type AuthoredFilePayload<K extends AuthoredFileKind = AuthoredFileKind> =
+  AuthoredFilePayloadByKind[K];
 
 export interface AuthoredFileDiagnostic {
   message: string;
@@ -24,56 +30,49 @@ export interface AuthoredFileValidationResult {
 }
 
 export type AuthoredFileValidate = (body: string) => Promise<AuthoredFileValidationResult>;
-export type AuthoredFileSave = (
+export type AuthoredFileSave<K extends AuthoredFileKind = AuthoredFileKind> = (
   body: string,
   expectedDigest: string
-) => Promise<AuthoredFilePayload>;
-export type AuthoredFileRestore = (
+) => Promise<AuthoredFilePayload<K>>;
+export type AuthoredFileRestore<K extends AuthoredFileKind = AuthoredFileKind> = (
   revisionId: string,
   expectedDigest: string
-) => Promise<AuthoredFilePayload>;
+) => Promise<AuthoredFilePayload<K>>;
 
 interface LocalBaseline {
   digest: string;
   body: string;
 }
 
-interface AuthoredFileEditorBase {
+interface AuthoredFileEditorCommon {
   resourceKey: string;
-  kind: AuthoredFileKind;
   observedSourceFingerprint: string;
   requestId: number;
   baseline: LocalBaseline;
   draft: string;
-  payload: AuthoredFilePayload | undefined;
   diagnostics: AuthoredFileDiagnostic[];
   validationStatus: string | undefined;
   showHistory: boolean;
 }
 
-interface AuthoredFileEditorReady extends AuthoredFileEditorBase {
-  phase: "ready";
-}
+type AuthoredFileEditorBase = AuthoredFileEditorCommon & AuthoredFileEditorInput;
 
-interface AuthoredFileEditorValidating extends AuthoredFileEditorBase {
-  phase: "validating";
-}
+type AuthoredFileEditorReady = AuthoredFileEditorBase & { phase: "ready" };
 
-interface AuthoredFileEditorSaving extends AuthoredFileEditorBase {
+type AuthoredFileEditorValidating = AuthoredFileEditorBase & { phase: "validating" };
+
+type AuthoredFileEditorSaving = AuthoredFileEditorBase & {
   phase: "saving";
   operation: "save" | "create" | "restore";
-}
+};
 
-interface AuthoredFileEditorConflict extends AuthoredFileEditorBase {
-  phase: "conflict";
-  error: string;
-}
+type AuthoredFileEditorConflict = AuthoredFileEditorBase & { phase: "conflict"; error: string };
 
-interface AuthoredFileEditorFailed extends AuthoredFileEditorBase {
+type AuthoredFileEditorFailed = AuthoredFileEditorBase & {
   phase: "failed";
   operation: "validate" | "save" | "create" | "restore";
   error: string;
-}
+};
 
 export type AuthoredFileEditorState =
   | AuthoredFileEditorReady
@@ -82,11 +81,14 @@ export type AuthoredFileEditorState =
   | AuthoredFileEditorConflict
   | AuthoredFileEditorFailed;
 
-export interface AuthoredFileEditorInput {
-  resourceKey: string;
-  kind: AuthoredFileKind;
-  payload: AuthoredFilePayload | undefined;
-}
+export type AuthoredFileEditorInput<K extends AuthoredFileKind = AuthoredFileKind> =
+  K extends AuthoredFileKind
+    ? {
+        resourceKey: string;
+        kind: K;
+        payload: AuthoredFilePayload<K> | undefined;
+      }
+    : never;
 
 type AuthoredFileEditorEventPayloadMap = {
   draftChanged: { draft: string };
@@ -257,7 +259,7 @@ export function createAuthoredFileEditorLogic() {
           })
         );
         return seedState(
-          { resourceKey: context.resourceKey, kind: context.kind, payload: event.payload },
+          toAuthoredFileEditorInput(context.resourceKey, context.kind, event.payload),
           context.requestId,
           context.observedSourceFingerprint
         );
@@ -352,20 +354,36 @@ function seedState(
   requestId: number,
   observedSourceFingerprint = sourceFingerprint(input.payload)
 ): AuthoredFileEditorReady {
-  const seeded = seedFromPayload(input.kind, input.payload);
+  const seeded = seedFromPayload(input);
   return {
+    ...input,
     phase: "ready",
-    resourceKey: input.resourceKey,
-    kind: input.kind,
     observedSourceFingerprint,
     requestId,
     baseline: seeded.baseline,
     draft: seeded.draft,
-    payload: input.payload,
     diagnostics: seeded.diagnostics,
     validationStatus: input.payload?.validation_status,
     showHistory: false,
   };
+}
+
+function toAuthoredFileEditorInput(
+  resourceKey: string,
+  kind: AuthoredFileKind,
+  payload: AuthoredFilePayload
+): AuthoredFileEditorInput {
+  if (kind === "soul" && !isAgentHeartbeatPayload(payload)) {
+    return { resourceKey, kind, payload };
+  }
+  if (kind === "heartbeat" && isAgentHeartbeatPayload(payload)) {
+    return { resourceKey, kind, payload };
+  }
+  throw new TypeError("Authored-file response kind did not match the editor kind.");
+}
+
+function isAgentHeartbeatPayload(payload: AuthoredFilePayload): payload is AgentHeartbeatPayload {
+  return "preferences" in payload;
 }
 
 export function shouldAdoptAuthoredFileSource(
@@ -398,12 +416,31 @@ function authoredFileLabel(kind: AuthoredFileKind): string {
   return kind === "soul" ? "SOUL.md" : "HEARTBEAT.md";
 }
 
-function seedFromPayload(kind: AuthoredFileKind, payload: AuthoredFilePayload | undefined) {
+function seedFromPayload(input: AuthoredFileEditorInput) {
+  return input.kind === "soul"
+    ? seedSoulPayload(input.payload)
+    : seedHeartbeatPayload(input.payload);
+}
+
+function seedSoulPayload(payload: AgentSoulPayload | undefined) {
   if (!payload) return { draft: "", baseline: { digest: "", body: "" }, diagnostics: [] };
   if (isAuthoredFileMissing(payload)) {
     return { draft: "", baseline: { digest: readDigest(payload), body: "" }, diagnostics: [] };
   }
-  const body = readBody(kind, payload);
+  const body = serializeAgentSoulSource(payload);
+  return {
+    draft: body,
+    baseline: { digest: readDigest(payload), body },
+    diagnostics: payload.diagnostics ?? [],
+  };
+}
+
+function seedHeartbeatPayload(payload: AgentHeartbeatPayload | undefined) {
+  if (!payload) return { draft: "", baseline: { digest: "", body: "" }, diagnostics: [] };
+  if (isAuthoredFileMissing(payload)) {
+    return { draft: "", baseline: { digest: readDigest(payload), body: "" }, diagnostics: [] };
+  }
+  const body = serializeAgentHeartbeatSource(payload);
   return {
     draft: body,
     baseline: { digest: readDigest(payload), body },
@@ -422,12 +459,6 @@ function toReady(context: AuthoredFileEditorState): AuthoredFileEditorReady {
     operation?: "validate" | "save" | "create" | "restore";
   };
   return { ...ready, phase: "ready" };
-}
-
-function readBody(kind: AuthoredFileKind, payload: AuthoredFilePayload): string {
-  return kind === "soul"
-    ? serializeAgentSoulSource(payload as AgentSoulPayload)
-    : serializeAgentHeartbeatSource(payload as AgentHeartbeatPayload);
 }
 
 function readDigest(payload: AuthoredFilePayload): string {

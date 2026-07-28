@@ -23,7 +23,7 @@ export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promis
   const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
 
   if (workspacesResult.status === "rejected") {
-    return null;
+    throw workspacesResult.reason;
   }
 
   const selectedWorkspaceId =

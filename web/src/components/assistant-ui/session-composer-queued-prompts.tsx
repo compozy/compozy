@@ -2,9 +2,8 @@ import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@compozy/ui";
 import { cn } from "@/lib/utils";
-import { queuedPromptPreview, type QueuedPrompt } from "./session-composer-queued-prompts.logic";
-
-export type { QueuedPrompt } from "./session-composer-queued-prompts.logic";
+import type { QueuedPrompt } from "@/systems/session";
+import { queuedPromptPreview } from "./session-composer-queued-prompts.logic";
 
 interface SessionComposerQueuedPromptsProps {
   prompts: QueuedPrompt[];

@@ -45,6 +45,7 @@ export function TaskCreateDialog({
       onTemplateChange={page.handleTemplateChange}
       open
       templateId={page.templateId}
+      userHomeDir={page.userHomeDir}
       workspaces={page.workspaces}
     />
   );

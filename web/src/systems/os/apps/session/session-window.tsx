@@ -2,17 +2,33 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { Spinner } from "@compozy/ui";
-
 import { SessionNotFoundError, sessionDetailOptions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
+import type { OsShellHandle } from "../../contexts/os-shell-context";
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { matchSessionInstance } from "../../lib/app-registry";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 
 const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
+
+function returnToAgent(
+  coordinator: OsShellHandle["coordinator"],
+  windowId: string,
+  agentName: string
+): void {
+  void coordinator.userClose(windowId).then(closed => {
+    if (!closed) return;
+    void coordinator.userOpen({
+      app: "agents",
+      route: {
+        pathname: `/agents/${encodeURIComponent(agentName)}`,
+        search: {},
+      },
+    });
+  });
+}
 
 /**
  * Session window controller: parses `agent + session` identity from
@@ -45,32 +61,12 @@ export function SessionWindow({ windowId }: { windowId: string }) {
       return;
     }
     toast.error("Session not found");
-    void coordinator.userClose(windowId).then(closed => {
-      if (!closed) return;
-      void coordinator.userOpen({
-        app: "agents",
-        route: {
-          pathname: `/agents/${encodeURIComponent(agentName)}`,
-          search: {},
-        },
-      });
-    });
+    returnToAgent(coordinator, windowId, agentName);
   }, [agentName, coordinator, crossesWorkspace, sessionQuery.error, windowId]);
 
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
   }
-  if (sessionQuery.isLoading) {
-    return (
-      <div
-        className="flex min-h-full items-center justify-center"
-        data-testid="session-route-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
   if (activeWorkspaceId === null || crossesWorkspace) {
     return (
       <SessionWindowNotice
@@ -85,18 +81,10 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         name={agentName}
         id={sessionId}
         workspaceId={activeWorkspaceId}
-        onDeleteSuccess={() => {
-          void coordinator.userClose(windowId).then(closed => {
-            if (!closed) return;
-            void coordinator.userOpen({
-              app: "agents",
-              route: {
-                pathname: `/agents/${encodeURIComponent(agentName)}`,
-                search: {},
-              },
-            });
-          });
-        }}
+        session={sessionQuery.data}
+        isLoading={sessionQuery.isLoading}
+        error={sessionQuery.error}
+        onDeleteSuccess={() => returnToAgent(coordinator, windowId, agentName)}
       />
     </div>
   );

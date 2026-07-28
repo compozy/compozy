@@ -83,6 +83,7 @@ function TriggerFormHarness({
           onCancel={() => undefined}
           onChange={setDraft}
           onSubmit={() => undefined}
+          userHomeDir={undefined}
           workspaces={storyWorkspaces}
         />
       </div>

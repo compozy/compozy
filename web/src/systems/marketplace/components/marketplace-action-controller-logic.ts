@@ -2,13 +2,22 @@ import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
+import type { MarketplaceListing } from "../types";
+
+export type MarketplaceDialogSelection =
+  | { entryId: string; kind: "bundle" }
+  | { entryId: string; installedName?: string | null; kind: "mcp" };
 
 export type MarketplaceActionControllerPhase =
   | { status: "idle"; nextRequestId: number }
-  | { status: "detailLoading"; nextRequestId: number; requestId: number }
-  | { status: "mcpInstall"; nextRequestId: number; detail: MarketplaceEntryResponse }
-  | { status: "bundleActivation"; nextRequestId: number; detail: MarketplaceEntryResponse }
+  | {
+      status: "detailLoading";
+      nextRequestId: number;
+      requestId: number;
+      selection: MarketplaceDialogSelection;
+    }
+  | { status: "mcpInstall"; nextRequestId: number; selection: MarketplaceDialogSelection }
+  | { status: "bundleActivation"; nextRequestId: number; selection: MarketplaceDialogSelection }
   | {
       status: "extensionTrust";
       nextRequestId: number;
@@ -24,15 +33,11 @@ export type MarketplaceActionControllerPhase =
 
 type MarketplaceActionControllerEventPayloadMap = {
   detailFailed: { error: string; requestId: number };
-  detailLoaded: {
-    detail: MarketplaceEntryResponse;
-    kind: "bundle" | "mcp";
-    requestId: number;
-  };
+  detailLoaded: { requestId: number };
   detailRequested: {
     describeFailure: (error: unknown) => string;
-    kind: "bundle" | "mcp";
-    load: () => Promise<MarketplaceEntryResponse>;
+    load: () => Promise<void>;
+    selection: MarketplaceDialogSelection;
   };
   dialogDismissed: {};
   extensionTrustConfirmed: {
@@ -71,18 +76,27 @@ export const marketplaceActionControllerLogic = createStoreLogic<
     },
     detailLoaded: (context, event) => {
       if (context.status !== "detailLoading" || context.requestId !== event.requestId) return;
-      return event.kind === "mcp"
-        ? { detail: event.detail, nextRequestId: context.nextRequestId, status: "mcpInstall" }
-        : {
-            detail: event.detail,
+      return context.selection.kind === "mcp"
+        ? {
             nextRequestId: context.nextRequestId,
+            selection: context.selection,
+            status: "mcpInstall",
+          }
+        : {
+            nextRequestId: context.nextRequestId,
+            selection: context.selection,
             status: "bundleActivation",
           };
     },
     detailRequested: (context, event, enqueue) => {
       const requestId = context.nextRequestId + 1;
       enqueueDetail(event, enqueue, requestId);
-      return { nextRequestId: requestId, requestId, status: "detailLoading" };
+      return {
+        nextRequestId: requestId,
+        requestId,
+        selection: event.selection,
+        status: "detailLoading",
+      };
     },
     dialogDismissed: context =>
       context.status === "extensionTrustSubmitting" ? undefined : idle(context.nextRequestId),
@@ -131,7 +145,8 @@ function enqueueDetail(
 ) {
   enqueue.effect(async ({ trigger }) => {
     try {
-      trigger.detailLoaded({ detail: await event.load(), kind: event.kind, requestId });
+      await event.load();
+      trigger.detailLoaded({ requestId });
     } catch (error) {
       trigger.detailFailed({ error: event.describeFailure(error), requestId });
     }

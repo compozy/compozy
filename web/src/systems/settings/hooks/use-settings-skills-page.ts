@@ -133,9 +133,7 @@ export function useSettingsSkillsPage() {
   const draftFlow = useSelector(draftLogic, snapshot => snapshot.context);
   const draft = draftFlow.draft;
   const setDraft = (update: SetStateAction<SkillsConfig | null>) => {
-    draftLogic.trigger.draftChanged({
-      draft: typeof update === "function" ? update(draft) : update,
-    });
+    draftLogic.trigger.draftChanged({ update });
   };
   const lastDisabledLabel = draftFlow.key === envelopeKey ? draftFlow.labels.disabled : null;
   const lastPolicyLabel = draftFlow.key === envelopeKey ? draftFlow.labels.policy : null;
@@ -166,14 +164,14 @@ export function useSettingsSkillsPage() {
   const handleResetDisabled = () => {
     if (!envelope || !draft) return;
     draftLogic.trigger.draftChanged({
-      draft: { ...draft, disabled_skills: cloneDisabled(envelope.config) },
+      update: { ...draft, disabled_skills: cloneDisabled(envelope.config) },
     });
   };
 
   const handleResetPolicy = () => {
     if (!envelope || !draft || selection.scope === "agent") return;
     draftLogic.trigger.draftChanged({
-      draft: {
+      update: {
         ...envelope.config,
         disabled_skills: draft.disabled_skills,
       },
@@ -216,7 +214,7 @@ export function useSettingsSkillsPage() {
     const next = current.includes(name)
       ? current.filter(entry => entry !== name)
       : [...current, name].sort();
-    draftLogic.trigger.draftChanged({ draft: { ...draft, disabled_skills: next } });
+    draftLogic.trigger.draftChanged({ update: { ...draft, disabled_skills: next } });
   };
 
   const handleRetry = () => {

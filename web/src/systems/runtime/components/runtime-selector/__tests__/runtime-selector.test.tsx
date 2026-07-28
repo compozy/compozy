@@ -1263,6 +1263,28 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     await waitFor(() => expect(result.current.isFavorite(validKey)).toBe(true));
   });
 
+  it("Should install one cross-tab listener until the shared store loses its last consumer", () => {
+    const validKeys = new Set([runtimeModelKey("codex", "gpt-a")]);
+    const addEventListener = vi.spyOn(window, "addEventListener");
+    const removeEventListener = vi.spyOn(window, "removeEventListener");
+    const first = renderHook(() => useRuntimeFavorites(validKeys));
+    const second = renderHook(() => useRuntimeFavorites(validKeys));
+
+    expect(
+      addEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(1);
+
+    first.unmount();
+    expect(
+      removeEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(0);
+
+    second.unmount();
+    expect(
+      removeEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(1);
+  });
+
   it("Should render the pinned 'Recent & favorites' block under the all rail and a 'Favorites' block under the fav rail", async () => {
     window.localStorage.setItem(
       FAVORITES_STORAGE_KEY,

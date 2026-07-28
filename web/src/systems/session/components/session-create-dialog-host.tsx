@@ -55,6 +55,7 @@ export function SessionCreateDialogHost({
       selectedAgentName={sessionCreate.selectedAgentName}
       sessionName={sessionCreate.sessionName}
       submitError={sessionCreate.submitError}
+      userHomeDir={sessionCreate.userHomeDir}
       workspace={sessionCreate.workspace}
       workspaceId={sessionCreate.workspaceId}
       workspacePath={sessionCreate.workspacePath}

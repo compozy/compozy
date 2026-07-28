@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
-import { StorybookUserHomeDirSetup } from "@/storybook/route-story";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { WorkspaceCommandSelect } from "../workspace-command-select";
@@ -36,8 +35,8 @@ function WorkspaceCommandSelectHarness({
 
   return (
     <Frame>
-      <StorybookUserHomeDirSetup userHomeDir={userHomeDir ?? null} />
       <WorkspaceCommandSelect
+        userHomeDir={userHomeDir}
         workspaces={workspaceFixtures}
         value={workspaceId}
         onChange={setWorkspaceId}
@@ -124,7 +123,12 @@ export const SwitchesWorkspace: Story = {
 export const EmptyRegistry: Story = {
   render: () => (
     <Frame>
-      <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
+      <WorkspaceCommandSelect
+        userHomeDir={undefined}
+        workspaces={[]}
+        value={null}
+        onChange={() => undefined}
+      />
     </Frame>
   ),
   play: async ({ canvasElement }) => {
@@ -147,6 +151,7 @@ export const Compact: Story = {
     <CenteredSurface className="items-start justify-center p-6">
       <div className="w-[220px] border border-line bg-canvas-soft p-3">
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaceFixtures}
           value={workspaceFixtures[0]?.id ?? null}
           onChange={() => undefined}

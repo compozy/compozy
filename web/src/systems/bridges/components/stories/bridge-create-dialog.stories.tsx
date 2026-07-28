@@ -62,6 +62,7 @@ function BridgeCreateDialogHarness({
       providers={providers}
       secretRecovery={secretRecovery ?? null}
       supportsManifest={supportsManifest}
+      userHomeDir={undefined}
     />
   );
 }

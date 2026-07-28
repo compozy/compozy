@@ -5,6 +5,11 @@ import type { SettingsSkillsSection } from "@/systems/settings";
 type SkillsConfig = SettingsSkillsSection["config"];
 type SaveKind = "disabled" | "policy";
 
+export type SkillsDraftUpdate =
+  | SkillsConfig
+  | null
+  | ((current: SkillsConfig | null) => SkillsConfig | null);
+
 export type SkillsDraftFlow = {
   baseline: SkillsConfig | null;
   draft: SkillsConfig | null;
@@ -58,9 +63,9 @@ export function shouldRebindSkillsDraft(
 export const settingsSkillsDraftLogic = createStoreLogic({
   context: (input: SkillsDraftInput): SkillsDraftFlow => createSkillsDraftFlow(input),
   on: {
-    draftChanged: (context, event: { draft: SkillsConfig | null }) => ({
+    draftChanged: (context, event: { update: SkillsDraftUpdate }) => ({
       ...context,
-      draft: event.draft,
+      draft: typeof event.update === "function" ? event.update(context.draft) : event.update,
     }),
     saveFailed: (context, event: { attempt: number; kind: SaveKind }) =>
       context.pending[event.kind] === event.attempt

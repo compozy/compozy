@@ -121,6 +121,9 @@ function DesktopShellBody({
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
 }) {
   const sessionCreate = useSessionCreateActions();
+  const openNewSession = () => {
+    sessionCreate.openForAgent("");
+  };
   const {
     attention,
     desktop,
@@ -142,7 +145,7 @@ function DesktopShellBody({
     workspaceDetails,
   } = useDesktopShellBody(model, {
     firstRun,
-    onNewSession: () => sessionCreate.openForAgent(""),
+    onNewSession: openNewSession,
   });
 
   return (
@@ -166,7 +169,7 @@ function DesktopShellBody({
         activeWorkspace={model.activeWorkspace}
         onSelectWorkspace={model.setActiveWorkspaceId}
         onAddWorkspace={model.openWorkspaceSetup}
-        onNewSession={() => sessionCreate.openForAgent("")}
+        onNewSession={openNewSession}
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
         onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
         onOpenWorkspaces={() => overlays.setOverlayOpen("workspaces", true)}
@@ -214,7 +217,7 @@ function DesktopShellBody({
         />
         <DesktopDock
           dormant={firstRun}
-          onNewSession={() => sessionCreate.openForAgent("")}
+          onNewSession={openNewSession}
           badges={attention.badges}
           sessionsOpen={overlays.activeOverlay === "sessions"}
           onToggleSessions={() => overlays.toggleOverlay("sessions")}
@@ -289,6 +292,7 @@ function DesktopShellBody({
         submitError={model.agentCreate.submitError}
         workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
+        userHomeDir={model.agentCreate.userHomeDir}
       />
     </div>
   );

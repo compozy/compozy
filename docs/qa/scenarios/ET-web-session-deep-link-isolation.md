@@ -28,3 +28,7 @@ Repeat with a session owned by workspace A and confirm both routes still open th
 QA impact 2026-07-28: Web session lookup and cache identity now require the active workspace instead
 of discovering a session owner through the global session endpoint. Planning flag only; no QA
 replay ran in this implementation slice.
+
+QA impact 2026-07-28: failure to load the active workspace now remains a route error instead of
+being rendered as `Session not found`. Retest both the foreign-session negative control and an
+authoritative workspace-list failure. Status remains untested; no QA replay ran.

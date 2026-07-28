@@ -39,6 +39,7 @@ export interface SessionCreateDialogProps {
   workspace: WorkspacePayload | undefined;
   workspaces: WorkspaceCommandSelectOption[];
   workspaceId: string | null;
+  userHomeDir: string | undefined;
   onWorkspaceChange: (workspaceId: string) => void;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
@@ -79,6 +80,7 @@ function SessionCreateDialog({
   workspace,
   workspaces,
   workspaceId,
+  userHomeDir,
   onWorkspaceChange,
   sessionName,
   onSessionNameChange,
@@ -192,6 +194,7 @@ function SessionCreateDialog({
               selectedAgentName={selectedAgentName}
               sessionName={sessionName}
               workspaceId={workspaceId}
+              userHomeDir={userHomeDir}
               workspaceSelected={workspaceSelected}
               workspaces={workspaces}
             />

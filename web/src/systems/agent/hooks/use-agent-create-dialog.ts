@@ -9,7 +9,11 @@ import {
 } from "@/systems/model-catalog";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
+import {
+  useUserHomeDir,
+  type SessionProviderOption,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import { useCreateAgent, useDuplicateAgent } from "./use-agents";
 import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
@@ -46,6 +50,7 @@ export interface AgentCreateDialogState {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
+  userHomeDir: string | undefined;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
 }
@@ -99,6 +104,7 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
+  const userHomeDir = useUserHomeDir();
   const createAgent = useCreateAgent();
   const duplicateAgent = useDuplicateAgent();
   const settingsProviders = useSettingsProviders();
@@ -268,6 +274,7 @@ export function useAgentCreateDialog({
     hasActiveWorkspace: Boolean(activeWorkspace),
     workspaceId: activeWorkspace?.id ?? null,
     workspaceName: activeWorkspace?.name ?? null,
+    userHomeDir,
     mode: flow.status === "closed" ? "create" : flow.kind,
     duplicateSourceName:
       flow.status !== "closed" && flow.kind === "duplicate" ? flow.source.name : null,

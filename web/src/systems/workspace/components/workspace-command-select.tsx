@@ -13,7 +13,6 @@ import {
   CommandSeparator,
 } from "@compozy/ui";
 
-import { useUserHomeDir } from "../hooks/use-user-home-dir";
 import { useScopeSelectorContext } from "../hooks/use-scope-selector-context";
 import { isHomeWorkspace, splitHomeWorkspace } from "../lib/home-workspace";
 
@@ -28,6 +27,7 @@ export interface WorkspaceCommandSelectOption {
 }
 
 export interface WorkspaceCommandSelectProps {
+  userHomeDir: string | undefined;
   workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
   value: string | null;
   onChange: (id: string) => void;
@@ -42,6 +42,7 @@ export interface WorkspaceCommandSelectProps {
 }
 
 export function WorkspaceCommandSelect({
+  userHomeDir,
   workspaces,
   value,
   onChange,
@@ -54,7 +55,6 @@ export function WorkspaceCommandSelect({
   onOpenChange,
   size = "default",
 }: WorkspaceCommandSelectProps) {
-  const userHomeDir = useUserHomeDir();
   const scopeSelector = useScopeSelectorContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;

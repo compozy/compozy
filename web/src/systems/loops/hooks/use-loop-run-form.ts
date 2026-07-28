@@ -40,6 +40,7 @@ export function useLoopRunForm({
       loop.definition.network_participation
     ),
     schema,
+    scope: { loopName: loop.name, workspaceId },
   });
   const {
     inputs,

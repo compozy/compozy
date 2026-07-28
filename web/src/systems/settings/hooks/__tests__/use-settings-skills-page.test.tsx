@@ -115,6 +115,22 @@ describe("useSettingsSkillsPage", () => {
     expect(result.current.isDisabledDirty).toBe(false);
   });
 
+  it("composes consecutive functional draft updates from the current draft", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft(current =>
+        current ? { ...current, poll_interval: "10m" } : current
+      );
+      result.current.setDraft(current => (current ? { ...current, enabled: false } : current));
+    });
+
+    expect(result.current.draft).toMatchObject({ enabled: false, poll_interval: "10m" });
+  });
+
   it("save disabled sends full config with only disabled_skills changed and records applied-now label", async () => {
     vi.mocked(updateSettingsSkills).mockResolvedValue({
       section: "skills",
@@ -207,7 +223,7 @@ describe("useSettingsSkillsPage", () => {
     const agent = { ...global, enabled: false };
     const globalStore = settingsSkillsDraftLogic.createStore({ baseline: global, key: "global" });
 
-    globalStore.trigger.draftChanged({ draft: { ...global, enabled: false } });
+    globalStore.trigger.draftChanged({ update: { ...global, enabled: false } });
     const agentStore = settingsSkillsDraftLogic.createStore({
       baseline: agent,
       key: "agent:ship",

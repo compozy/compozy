@@ -1,7 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 
-import type { QueuedPrompt } from "@/components/assistant-ui/session-composer-queued-prompts";
 import { notifyUser } from "@/lib/user-feedback";
+import type { QueuedPrompt } from "@/systems/session";
 import {
   enqueueBusyInput,
   enqueueStop,
@@ -122,7 +122,7 @@ export function createSessionPageControlsLogic(initialQueueScope = "settled") {
         return { ...context, busyInput: { phase: "idle", requestId: event.requestId } };
       },
       busyInputRequested: (context, event, enqueue) => {
-        if (context.busyInput.phase === "pending") return;
+        if (isBusyInputPending(context)) return;
         const requestId = context.nextRequestId + 1;
         enqueue.emit.busyInputAccepted({ requestId });
         enqueueBusyInput(event.execute, enqueue, requestId);
@@ -242,9 +242,7 @@ export function createSessionPageControlsLogic(initialQueueScope = "settled") {
         };
       },
       queuedPromptSteerRequested: (context, event, enqueue) => {
-        if (context.busyInput.phase === "pending" || hasPendingQueuedSteer(context)) {
-          return;
-        }
+        if (isBusyInputPending(context)) return;
         const originalIndex = context.queuedPrompts.findIndex(
           prompt => prompt.id === event.prompt.id
         );
@@ -336,6 +334,10 @@ function withoutQueueEdit(
 
 function hasPendingQueuedSteer(context: SessionPageControlsState): boolean {
   return Object.values(context.pendingQueueEdits).some(edit => edit.kind === "steer");
+}
+
+export function isBusyInputPending(context: SessionPageControlsState): boolean {
+  return context.busyInput.phase === "pending" || hasPendingQueuedSteer(context);
 }
 
 function restoreQueuedPrompt(

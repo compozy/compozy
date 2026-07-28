@@ -106,6 +106,32 @@ describe("task editor state identity", () => {
     expect(result.current.draft.workspaceId).toBe("ws_beta");
   });
 
+  it("Should preserve catalog filters when changing the create template", () => {
+    const navigate = vi.fn();
+    const search = {
+      inboxLane: "approvals" as const,
+      inboxQuery: "review",
+      inboxUnread: true as const,
+      mode: "inbox" as const,
+      owner: "agent_session:codex",
+      priority: "high" as const,
+      query: "release",
+      sort: "priority" as const,
+      status: "ready" as const,
+      template: "one_shot" as const,
+    };
+    const { result } = renderHook(() => useTaskCreateState(search, navigate));
+
+    act(() => {
+      result.current.handleTemplateChange("human_in_loop");
+    });
+
+    expect(navigate).toHaveBeenCalledWith({
+      pathname: "/tasks/new",
+      search: { ...search, template: "human_in_loop" },
+    });
+  });
+
   it("Should preserve edits for one task identity and expose a replacement task in every render", () => {
     const renderedTitles: string[] = [];
     const navigate = vi.fn();

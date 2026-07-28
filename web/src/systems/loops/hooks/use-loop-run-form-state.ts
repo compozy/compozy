@@ -1,6 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
-import { useSelector, useStore } from "@xstate/store-react";
+import { useSelector } from "@xstate/store-react";
 
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { notifyUser } from "@/lib/user-feedback";
 
@@ -49,15 +50,23 @@ type LoopRunFormEvents = {
 };
 
 type LoopRunFormEmitted = {
-  dryRunCompleted: {};
-  operationFailed: { error: unknown; fallbackMessage: string };
   runStarted: { runId?: string };
 };
+
+interface LoopRunFormScope {
+  loopName: string;
+  workspaceId: string;
+}
 
 interface LoopRunFormStateInput {
   effectiveConfig: LoopEffectiveConfig;
   networkParticipation: NetworkParticipationDraft;
   schema: LoopInputSchema | undefined;
+  scope: LoopRunFormScope;
+}
+
+function scopeKey({ loopName, workspaceId }: LoopRunFormScope): string {
+  return `${workspaceId}\u0000${loopName}`;
 }
 
 function draftChanged(current: LoopRunFormState): LoopRunFormState {
@@ -207,7 +216,9 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function useLoopRunFormState(input: LoopRunFormStateInput) {
-  const store = useStore(loopRunFormLogic, input);
+  const { store } = useStoreBinding(scopeKey(input.scope), () =>
+    loopRunFormLogic.createStore(input)
+  );
   const inputs = useSelector(store, state => state.context.inputs);
   const networkParticipation = useSelector(store, state => state.context.networkParticipation);
   const networkParticipationOverridden = useSelector(

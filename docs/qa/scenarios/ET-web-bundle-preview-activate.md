@@ -21,3 +21,6 @@ Added by marketplace Task 06. Cover global and workspace scope, both bind states
 QA impact 2026-07-26: accepted activation and trust-confirmation operations reject dialog dismissal
 until settlement and publish lifecycle-independent feedback. Historical evidence is retained; status
 reset to untested and no QA replay ran.
+
+QA impact 2026-07-28: changing workspace while the activation dialog remains mounted now creates a
+new workflow and preview for the selected scope. Status remains untested; no QA replay ran.

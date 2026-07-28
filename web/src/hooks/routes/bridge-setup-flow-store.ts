@@ -1,8 +1,11 @@
 import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
-import type { BridgeVerifyResponse, BridgeWebhookRegistrationResponse } from "@/systems/bridges";
-import { summarizeBridgeCheckStatus } from "@/systems/bridges/lib/bridge-setup";
+import {
+  summarizeBridgeCheckStatus,
+  type BridgeVerifyResponse,
+  type BridgeWebhookRegistrationResponse,
+} from "@/systems/bridges";
 
 export type BridgeSetupFlowPhase = "idle" | "verifying" | "registering" | "recovery";
 

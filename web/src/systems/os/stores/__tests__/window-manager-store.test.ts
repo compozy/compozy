@@ -4,7 +4,7 @@
 // Boundary IN: named XState Store events, guarded transitions, and selector subscriptions.
 // Boundary OUT: Query snapshots, daemon commands, and pointer transport.
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { useWindowManagerGestureActive } from "../../hooks/use-window-manager-store";
 import type { SnapTarget } from "../../lib/snap-targets";
@@ -60,7 +60,18 @@ function beginGesture(store: ReturnType<typeof createWindowManagerStore>): void 
   });
 }
 
+function resetWindowManagerStoreSingleton(): void {
+  windowManagerStore.trigger.bindingUnbound();
+  windowManagerStore.trigger.gestureCleared();
+  windowManagerStore.trigger.seamPreviewCleared();
+}
+
 describe("window manager store", () => {
+  beforeEach(resetWindowManagerStoreSingleton);
+  afterEach(() => {
+    act(resetWindowManagerStoreSingleton);
+  });
+
   it("Should keep Query-owned snapshot data out of the interaction context", () => {
     const store = createWindowManagerStore();
     const context = state(store);
@@ -449,9 +460,6 @@ describe("window manager store", () => {
   });
 
   it("Should not rerender an unrelated gesture selector for seam-preview updates", () => {
-    windowManagerStore.trigger.bindingUnbound();
-    windowManagerStore.trigger.gestureCleared();
-    windowManagerStore.trigger.seamPreviewCleared();
     let renders = 0;
     const hook = renderHook(() => {
       renders += 1;
@@ -470,7 +478,6 @@ describe("window manager store", () => {
   });
 
   it("Should update only the dragged-window selector when gesture activity changes", () => {
-    windowManagerStore.trigger.gestureCleared();
     const dragged = renderHook(() => useWindowManagerGestureActive("window:tasks"));
     const unrelated = renderHook(() => useWindowManagerGestureActive("window:agents"));
 

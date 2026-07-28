@@ -13,10 +13,6 @@ import {
   type AgentCreateDialogDraft,
 } from "../../lib/agent-create-draft";
 
-vi.mock("@/systems/status", () => ({
-  useDaemonStatus: () => ({ data: undefined }),
-}));
-
 const providers: RuntimeProviderOption[] = [
   { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
   { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
@@ -72,6 +68,7 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     hasActiveWorkspace: true,
     workspaceId: "ws_alpha",
     workspaceName: "alpha",
+    userHomeDir: undefined,
     ...overrides,
   };
 }

@@ -16,8 +16,7 @@ import {
 } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
 import { marketplaceMCPEditorLogic } from "./marketplace-mcp-editor-logic";
-
-type MCPConfigScope = "global" | "workspace";
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 
 interface UseMarketplaceMCPEditorOptions {
   enabled: boolean;
@@ -52,7 +51,7 @@ function useMarketplaceMCPEditor({
   const openCreate = () => {
     if (!enabled || (createScope === "workspace" && !workspaceId)) return;
     resetPutMutation();
-    editorLogic.trigger.createOpened({
+    editorLogic.trigger.editorOpened({
       editor: {
         draft: emptyDraft("stdio"),
         mode: "create",
@@ -68,7 +67,7 @@ function useMarketplaceMCPEditor({
     const management = deriveMCPManagementFilter(entry);
     if (!management) return;
     resetPutMutation();
-    editorLogic.trigger.createOpened({
+    editorLogic.trigger.editorOpened({
       editor: {
         draft: toDraft(entry),
         entry,
@@ -81,6 +80,7 @@ function useMarketplaceMCPEditor({
   };
 
   const closeEditor = () => {
+    if (editorFlow.pendingSaveAttempt !== null) return;
     editorLogic.trigger.editorDismissed();
     resetPutMutation();
   };
@@ -173,4 +173,5 @@ function useMarketplaceMCPEditor({
 }
 
 export { useMarketplaceMCPEditor };
-export type { MCPConfigScope, UseMarketplaceMCPEditorOptions };
+export type { MCPConfigScope } from "./marketplace-mcp-scope";
+export type { UseMarketplaceMCPEditorOptions };

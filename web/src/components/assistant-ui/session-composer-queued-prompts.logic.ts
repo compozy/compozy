@@ -1,8 +1,3 @@
-export interface QueuedPrompt {
-  id: string;
-  text: string;
-}
-
 // Collapse a queued prompt to a single-line preview: first non-empty line with
 // leading markdown markers stripped, so a heading / list / quote still reads as
 // one composer row.

@@ -34,10 +34,13 @@ export function useSessionCreateHasActiveWorkspace(): boolean {
 
 export function useSessionCreateIsCreating(): boolean {
   const store = useSessionCreateStore();
-  return useSelector(store, snapshot => snapshot.context.isSubmitting);
+  return useSelector(store, snapshot => snapshot.context.operation.status === "submitting");
 }
 
 export function useSessionCreatePendingAgentName(): string | null {
   const store = useSessionCreateStore();
-  return useSelector(store, snapshot => snapshot.context.pendingAgentName);
+  return useSelector(store, snapshot => {
+    const { operation } = snapshot.context;
+    return operation.status === "submitting" ? operation.agentName : null;
+  });
 }

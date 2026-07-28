@@ -45,6 +45,7 @@ export interface TaskEditorSurfaceProps {
   onCancel: () => void;
   canSubmit?: boolean;
   isSubmitting?: boolean;
+  userHomeDir?: string;
   workspaces?: ReadonlyArray<WorkspaceCommandSelectOption>;
   templateId?: TaskTemplateId;
   onTemplateChange?: (templateId: TaskTemplateId) => void;
@@ -67,6 +68,7 @@ export function TaskEditorSurface({
   onCancel,
   canSubmit = true,
   isSubmitting = false,
+  userHomeDir,
   workspaces,
   templateId,
   onTemplateChange,
@@ -138,6 +140,7 @@ export function TaskEditorSurface({
                 onWorkspaceChange={form.updateWorkspace}
                 scope={draft.scope}
                 testIdPrefix="task"
+                userHomeDir={userHomeDir}
                 workspaceId={draft.workspaceId}
                 workspaces={workspaces}
               />

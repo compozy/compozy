@@ -1,4 +1,4 @@
-import { createStoreLogic } from "@xstate/store";
+import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
 import type {
   SettingsMCPAuthBeginMode,
@@ -229,20 +229,7 @@ export function createMCPAuthorizeLogic() {
   });
 }
 
-interface MCPAuthorizeTrigger {
-  beginSucceeded: (event: { attemptId: number; begin: SettingsMCPAuthBeginResponse }) => void;
-  beginFailed: (event: { attemptId: number; error: string }) => void;
-  exchangeSucceeded: (event: {
-    attemptId: number;
-    onConfirmed: (server: string) => void;
-    status: SettingsMCPAuthStatusResponse;
-  }) => void;
-  exchangeFailed: (event: { attemptId: number; error: string }) => void;
-}
-
-interface MCPAuthorizeEnqueue {
-  effect: (effect: (scope: { trigger: MCPAuthorizeTrigger }) => void | Promise<void>) => void;
-}
+type MCPAuthorizeEnqueue = EnqueueObject<MCPAuthorizeState, never, MCPAuthorizeEventPayloadMap>;
 
 type MCPAuthorizeConfirmableState =
   | MCPAuthorizeWaitingState

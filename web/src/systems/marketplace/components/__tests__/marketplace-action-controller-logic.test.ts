@@ -4,7 +4,7 @@
 // Boundary OUT: accepted Query, mutation, and authorization executors scheduled by the store.
 import { describe, expect, it, vi } from "vitest";
 
-import { marketplaceDetails, marketplaceListings } from "../../mocks";
+import { marketplaceListings } from "../../mocks";
 import { marketplaceActionControllerLogic } from "../marketplace-action-controller-logic";
 
 describe("marketplaceActionControllerLogic", () => {
@@ -44,36 +44,31 @@ describe("marketplaceActionControllerLogic", () => {
 
     store.trigger.detailRequested({
       describeFailure: String,
-      kind: "mcp",
       load: () => new Promise<never>(() => undefined),
+      selection: { entryId: firstEntry.entry_id, kind: "mcp" },
     });
     const firstDetail = store.getSnapshot().context;
     store.trigger.detailRequested({
       describeFailure: String,
-      kind: "mcp",
       load: () => new Promise<never>(() => undefined),
+      selection: { entryId: secondEntry.entry_id, kind: "mcp" },
     });
     const secondDetail = store.getSnapshot().context;
     if (firstDetail.status !== "detailLoading" || secondDetail.status !== "detailLoading") {
       throw new Error("The detail requests did not enter their loading phase.");
     }
 
-    store.trigger.detailLoaded({
-      detail: marketplaceDetails[firstEntry.entry_id]!,
-      kind: "mcp",
-      requestId: firstDetail.requestId,
-    });
+    store.trigger.detailLoaded({ requestId: firstDetail.requestId });
     expect(store.getSnapshot().context).toMatchObject({
       status: "detailLoading",
       requestId: secondDetail.requestId,
     });
 
-    store.trigger.detailLoaded({
-      detail: marketplaceDetails[secondEntry.entry_id]!,
-      kind: "mcp",
-      requestId: secondDetail.requestId,
+    store.trigger.detailLoaded({ requestId: secondDetail.requestId });
+    expect(store.getSnapshot().context).toMatchObject({
+      selection: { entryId: secondEntry.entry_id, kind: "mcp" },
+      status: "mcpInstall",
     });
-    expect(store.getSnapshot().context.status).toBe("mcpInstall");
 
     store.trigger.extensionTrustRequested({ entry: firstTrustEntry });
     store.trigger.extensionTrustConfirmed({

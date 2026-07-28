@@ -11,6 +11,7 @@ import {
 export type ScopeSelectorScope = "global" | "workspace";
 
 export interface ScopeSelectorProps {
+  userHomeDir: string | undefined;
   scope: ScopeSelectorScope;
   workspaceId: string | null | undefined;
   workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
@@ -24,6 +25,7 @@ export interface ScopeSelectorProps {
 }
 
 export function ScopeSelector({
+  userHomeDir,
   scope,
   workspaceId,
   workspaces,
@@ -83,6 +85,7 @@ export function ScopeSelector({
               size="compact"
               testIdPrefix={`${testIdPrefix}-workspace`}
               triggerTestId={`${testIdPrefix}-workspace-select`}
+              userHomeDir={userHomeDir}
               value={workspaceId ?? null}
               workspaces={workspaces}
             />

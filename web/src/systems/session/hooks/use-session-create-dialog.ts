@@ -27,7 +27,12 @@ import type {
   WorkspaceCommandSelectOption,
   WorkspacePayload,
 } from "@/systems/workspace";
-import { toWorkspaceCommandSelectOptions, useWorkspace, useWorkspaces } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useUserHomeDir,
+  useWorkspace,
+  useWorkspaces,
+} from "@/systems/workspace";
 
 import {
   describeWorkspaceError,
@@ -74,6 +79,7 @@ export interface SessionCreateDialogState {
   submitError: string | null;
   pendingAgentName: string | null;
   pendingWorkspaceId: string | null;
+  userHomeDir: string | undefined;
   promptValue: string;
 }
 
@@ -107,8 +113,15 @@ export function useSessionCreateDialogViewModel(
 ): SessionCreateDialogApi {
   const navigate = useNavigate();
   const createSession = useCreateSession();
+  const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft } = flow;
+  const isSubmitting = flow.operation.status === "submitting";
+  const navigationTarget =
+    flow.operation.status === "navigation-pending" ? flow.operation.target : null;
+  const pendingAgentName = flow.operation.status === "submitting" ? flow.operation.agentName : null;
+  const pendingWorkspaceId =
+    flow.operation.status === "submitting" ? flow.operation.workspaceId : null;
 
   const workspaceId = draft.workspaceId || (activeWorkspace?.id ?? "");
   const workspaceAgentsQuery = useAgents(workspaceId, { enabled: workspaceId.length > 0 });
@@ -181,8 +194,8 @@ export function useSessionCreateDialogViewModel(
   });
 
   useEffect(() => {
-    if (!flow.navigationTarget) return;
-    const { attempt, session } = flow.navigationTarget;
+    if (!navigationTarget) return;
+    const { attempt, session } = navigationTarget;
     store.trigger.navigationRequested({
       attempt,
       execute: async () => {
@@ -192,10 +205,10 @@ export function useSessionCreateDialogViewModel(
         });
       },
     });
-  }, [flow.navigationTarget, navigate, store]);
+  }, [navigate, navigationTarget, store]);
 
   const submit = () => {
-    if (!targetWorkspace || flow.isSubmitting) return;
+    if (!targetWorkspace || isSubmitting) return;
     const agentName = selectedAgentName.trim();
     const provider = selectedProvider.trim();
     const prompt = draft.prompt.trim();
@@ -297,10 +310,11 @@ export function useSessionCreateDialogViewModel(
     catalogError: catalog.error,
     catalogRefreshing: catalog.refreshing,
     catalogRefreshError: catalog.refreshError,
-    isSubmitting: flow.isSubmitting,
+    isSubmitting,
     submitError: flow.submitError,
-    pendingAgentName: flow.pendingAgentName,
-    pendingWorkspaceId: flow.pendingWorkspaceId,
+    pendingAgentName,
+    pendingWorkspaceId,
+    userHomeDir,
     promptValue: draft.prompt,
     onOpenChange: open => store.trigger.dialogOpenChanged({ open }),
     onModeChange: mode => store.trigger.modeSelected({ mode }),

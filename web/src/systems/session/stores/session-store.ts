@@ -29,31 +29,25 @@ export const sessionStore = createStore({
     },
     composerDraftChanged: (context, event: { sessionId: string; text: string }) => {
       if (!event.text) {
-        const drafts = withoutSessionValue(context.drafts, event.sessionId);
-        return drafts === context.drafts ? undefined : { ...context, drafts };
+        return discardSessionDraft(context, event.sessionId);
       }
       if (context.drafts[event.sessionId] === event.text) {
         return;
       }
       return { ...context, drafts: { ...context.drafts, [event.sessionId]: event.text } };
     },
-    composerDraftDiscarded: (context, event: { sessionId: string }) => {
-      const drafts = withoutSessionValue(context.drafts, event.sessionId);
-      return drafts === context.drafts ? undefined : { ...context, drafts };
-    },
+    composerDraftDiscarded: (context, event: { sessionId: string }) =>
+      discardSessionDraft(context, event.sessionId),
     goalCommandReported: (
       context,
       event: { command?: string; result: SessionGoalCommandResult; sessionId: string }
     ) => {
       const previous = context.goalFeedback[event.sessionId];
+      const command = event.command ?? previous?.command;
       const feedback: SessionGoalFeedback = {
         errorVisible: event.result.outcome === "error",
         result: event.result,
-        ...(event.command === undefined
-          ? previous?.command === undefined
-            ? {}
-            : { command: previous.command }
-          : { command: event.command }),
+        ...(command === undefined ? {} : { command }),
       };
       return {
         ...context,
@@ -85,6 +79,14 @@ export const sessionStore = createStore({
 });
 
 export type SessionStore = typeof sessionStore;
+
+function discardSessionDraft(
+  context: SessionStoreContext,
+  sessionId: string
+): SessionStoreContext | undefined {
+  const drafts = withoutSessionValue(context.drafts, sessionId);
+  return drafts === context.drafts ? undefined : { ...context, drafts };
+}
 
 function withoutSessionValue<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
   if (!(sessionId in values)) {

@@ -135,6 +135,7 @@ function AgentCreateDialogHarness({
       submitError={submitError}
       workspaceId={hasActiveWorkspace ? workspaceDetailFixture.workspace.id : null}
       workspaceName={hasActiveWorkspace ? workspaceDetailFixture.workspace.name : null}
+      userHomeDir={hasActiveWorkspace ? workspaceDetailFixture.workspace.root_dir : undefined}
     />
   );
 }

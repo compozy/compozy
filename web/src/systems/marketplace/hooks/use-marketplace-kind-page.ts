@@ -12,6 +12,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 import { useMarketplaceKind } from "./use-marketplace";
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 import type { MarketplaceKind, MarketplaceListing, MarketplaceRouteKind } from "../types";
 import { marketplaceRouteKindFor } from "../types";
 import {
@@ -38,8 +39,8 @@ export interface MarketplaceKindPageModel {
   setDraftQuery: (value: string) => void;
   setScope: (scope: MarketplaceKindScope) => void;
   clearSearch: () => void;
-  mcpConfigScope: "global" | "workspace";
-  setMCPConfigScope: (scope: "global" | "workspace") => void;
+  mcpConfigScope: MCPConfigScope;
+  setMCPConfigScope: (scope: MCPConfigScope) => void;
   marketplaceTotal: number;
   marketplaceTotalExact: boolean;
   installedCount: number;
@@ -151,7 +152,7 @@ function useMarketplaceKindPage(
     }));
   };
 
-  const setMCPConfigScope = (next: "global" | "workspace") => {
+  const setMCPConfigScope = (next: MCPConfigScope) => {
     updateSearch(current => ({
       ...current,
       config_scope: next,

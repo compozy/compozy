@@ -287,12 +287,7 @@ export function createBridgeCreateFlowLogic() {
         return {
           attempt: context.attempt,
           bridge: context.bridge,
-          fallback: {
-            kind: "secret-recovery",
-            draft,
-            mode: context.mode,
-            recovery: context.recovery,
-          },
+          fallback: { kind: "closed" },
           phase: "navigating",
           successMessage: null,
         };

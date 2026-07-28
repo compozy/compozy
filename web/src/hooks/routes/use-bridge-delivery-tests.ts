@@ -67,7 +67,7 @@ export function useBridgeDeliveryTests(bridge: BridgeSummary | undefined) {
       isDryRunPending: flow.dryRun.phase === "submitting",
       isSendTestPending: flow.sendTest.phase === "submitting",
       onDraftChange: (draft: BridgeTestDeliveryDraft) => store.trigger.draftChanged({ draft }),
-      onDryRun: () => store.trigger.dryRunSubmitted({ execute: executeDryRun }),
+      onDryRun: () => store.trigger.dryRunSubmitted({ bridge, execute: executeDryRun }),
       onSendTest: submitSendTest,
       sendTestResult: flow.sendTest.phase === "resolved" ? flow.sendTest.result : null,
     },

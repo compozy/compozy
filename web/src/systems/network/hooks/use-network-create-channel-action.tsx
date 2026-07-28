@@ -14,8 +14,6 @@ import { sortAgentsForNetwork } from "../lib/network-formatters";
 import { networkCreateChannelLogic } from "./network-create-channel-store";
 import { useCreateNetworkChannel } from "./use-network-actions";
 
-export { networkCreateChannelLogic } from "./network-create-channel-store";
-
 export function useNetworkCreateChannelAction({
   enabled,
   workspaceId,

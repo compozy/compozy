@@ -2,7 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-export const PENDING_ACTION_KINDS = [
+const PENDING_ACTION_KINDS = [
   "approve",
   "archive",
   "dismiss",

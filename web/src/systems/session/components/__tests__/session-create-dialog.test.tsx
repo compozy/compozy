@@ -87,6 +87,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     workspace,
     workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
     workspaceId: workspace.id,
+    userHomeDir: undefined,
     onWorkspaceChange: vi.fn(),
     sessionName: "",
     onSessionNameChange: vi.fn(),

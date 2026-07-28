@@ -8,10 +8,10 @@ import {
   SettingsApiError,
   useDeleteSettingsSandbox,
   usePutSettingsSandbox,
+  useSettingsPage,
   useSettingsSandboxes,
   type SettingsSandboxEntry,
 } from "@/systems/settings";
-import { useSettingsPage } from "@/systems/settings/hooks/use-settings-page";
 
 import {
   parseSandboxBackendFilter,
@@ -53,6 +53,26 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
+function matchesNormalizedSandboxQuery(
+  entry: SettingsSandboxEntry,
+  normalizedQuery: string
+): boolean {
+  return (
+    normalizedQuery.length === 0 ||
+    [
+      entry.name,
+      entry.profile.backend,
+      entry.profile.sync_mode ?? "",
+      entry.profile.persistence ?? "",
+      entry.profile.runtime_root ?? "",
+      entry.source_metadata.effective_source.kind,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery)
+  );
+}
+
 function filterSandboxes(
   sandboxes: SettingsSandboxEntry[],
   query: string,
@@ -60,26 +80,12 @@ function filterSandboxes(
   persistence: SandboxPersistenceFilter
 ): SettingsSandboxEntry[] {
   const normalizedQuery = query.toLowerCase();
-  return sandboxes.filter(entry => {
-    const matchesQuery =
-      normalizedQuery.length === 0 ||
-      [
-        entry.name,
-        entry.profile.backend,
-        entry.profile.sync_mode ?? "",
-        entry.profile.persistence ?? "",
-        entry.profile.runtime_root ?? "",
-        entry.source_metadata.effective_source.kind,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery);
-    return (
-      matchesQuery &&
+  return sandboxes.filter(
+    entry =>
+      matchesNormalizedSandboxQuery(entry, normalizedQuery) &&
       (backend === "all" || entry.profile.backend === backend) &&
       (persistence === "all" || (entry.profile.persistence ?? "") === persistence)
-    );
-  });
+  );
 }
 
 export function useSandboxPage(search: SandboxRouteSearch = {}) {

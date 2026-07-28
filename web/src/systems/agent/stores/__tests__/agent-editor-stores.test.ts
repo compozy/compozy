@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 
-import type { AgentSoulPayload } from "../../types";
+import type { AgentHeartbeatPayload, AgentSoulPayload } from "../../types";
 import {
   createAuthoredFileEditorLogic,
   shouldAdoptAuthoredFileSource,
@@ -28,6 +28,48 @@ const soulPayload = (overrides: Partial<AgentSoulPayload> = {}): AgentSoulPayloa
     enabled: true,
     max_body_bytes: 65536,
     context_projection_bytes: 0,
+  },
+  ...overrides,
+});
+
+const heartbeatPayload = (
+  overrides: Partial<AgentHeartbeatPayload> = {}
+): AgentHeartbeatPayload => ({
+  active: true,
+  present: true,
+  enabled: true,
+  valid: true,
+  validation_status: "valid",
+  digest: "digest-a",
+  schema_version: 1,
+  frontmatter: { enabled: true, version: 1, context: {}, preferences: {} },
+  guidance_markdown: "# Heartbeat\n",
+  limits: { max_body_bytes: 65536 },
+  preferences: { min_interval: "30m", context: {} },
+  prompt: {
+    active: true,
+    context: {},
+    max_body_bytes: 65536,
+    max_bytes: 65536,
+    preferences: { context: {}, min_interval: "30m" },
+    truncated: false,
+  },
+  config_provenance: {
+    digest: "config-digest",
+    subset: {
+      active_session_only: false,
+      allow_active_hours_preferences: true,
+      context_projection_bytes: 0,
+      default_interval: "30m",
+      enabled: true,
+      max_body_bytes: 65536,
+      max_wakes_per_cycle: 1,
+      min_interval: "5m",
+      session_health_hook_min_interval: "1m",
+      session_health_stale_after: "10m",
+      wake_cooldown: "1m",
+      wake_event_retention: "24h",
+    },
   },
   ...overrides,
 });
@@ -119,6 +161,39 @@ describe("agent editor store logic", () => {
     expect(restore).toHaveBeenCalledWith("revision-1", "digest-b");
     await vi.waitFor(() => expect(store.getSnapshot().context.phase).toBe("ready"));
     expect(store.getSnapshot().context.baseline.digest).toBe("digest-c");
+  });
+
+  it("Should preserve the authored-file kind across write results", async () => {
+    const heartbeatStore = createAuthoredFileEditorLogic().createStore({
+      resourceKey: "agent-a:heartbeat",
+      kind: "heartbeat",
+      payload: heartbeatPayload(),
+    });
+
+    heartbeatStore.trigger.draftChanged({ draft: "# changed heartbeat\n" });
+    heartbeatStore.trigger.saveRequested({
+      save: vi
+        .fn()
+        .mockResolvedValue(
+          heartbeatPayload({ digest: "digest-b", guidance_markdown: "# changed heartbeat\n" })
+        ),
+    });
+    await vi.waitFor(() => expect(heartbeatStore.getSnapshot().context.phase).toBe("ready"));
+    expect(heartbeatStore.getSnapshot().context).toMatchObject({
+      kind: "heartbeat",
+      baseline: { digest: "digest-b" },
+    });
+
+    heartbeatStore.trigger.draftChanged({ draft: "# mismatched\n" });
+    heartbeatStore.trigger.saveRequested({
+      save: vi.fn().mockResolvedValue(soulPayload({ digest: "digest-c" })),
+    });
+    await vi.waitFor(() => expect(heartbeatStore.getSnapshot().context.phase).toBe("failed"));
+    expect(heartbeatStore.getSnapshot().context).toMatchObject({
+      kind: "heartbeat",
+      operation: "save",
+      baseline: { digest: "digest-b" },
+    });
   });
 
   it("Should adopt diagnostics-only authored-file updates while the draft is clean", () => {

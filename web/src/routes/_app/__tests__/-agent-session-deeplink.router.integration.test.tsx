@@ -27,6 +27,7 @@ import {
 import { routeBeforeLoad, routeLoader } from "@/test/route-options";
 import type { AgentSessionRouteLoaderData } from "../-agent-session-route-loader";
 import { prefetchAgentSessionRoute } from "../-agent-session-route-loader";
+import { Route as ProductionSessionPermalinkRoute } from "../session.$id";
 import { Route as ProductionSessionRoute } from "../agents.$name.sessions.$id";
 
 const BENCH_SESSION_ID = "sess-40e90687024bfb24";
@@ -86,11 +87,19 @@ function seedSessionRouteQueries(queryClient: QueryClient): void {
   }
 }
 
-function buildSessionDeepLinkRouter() {
+function buildSessionDeepLinkRouter({
+  initialEntry = `/agents/general/sessions/${BENCH_SESSION_ID}`,
+  seedQueries = true,
+}: {
+  initialEntry?: string;
+  seedQueries?: boolean;
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  seedSessionRouteQueries(queryClient);
+  if (seedQueries) {
+    seedSessionRouteQueries(queryClient);
+  }
 
   const rootRoute = createRootRouteWithContext<TestRouterContext>()({
     component: () => <Outlet />,
@@ -103,6 +112,10 @@ function buildSessionDeepLinkRouter() {
     params: { id: string };
     preload: boolean;
   }>(ProductionSessionRoute);
+  const redirectPermalinkRoute = routeBeforeLoad<{
+    context: TestRouterContext;
+    params: { id: string };
+  }>(ProductionSessionPermalinkRoute);
   const agentRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "agents/$name",
@@ -115,12 +128,18 @@ function buildSessionDeepLinkRouter() {
     loader: args => loadSessionRoute(args) as Promise<AgentSessionRouteLoaderData>,
     component: SessionRouteHarness,
   });
-  const routeTree = rootRoute.addChildren([agentRoute.addChildren([sessionRoute])]);
+  const permalinkRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "session/$id",
+    beforeLoad: redirectPermalinkRoute,
+    component: PermalinkRouteHarness,
+  });
+  const routeTree = rootRoute.addChildren([agentRoute.addChildren([sessionRoute]), permalinkRoute]);
   const router = createRouter({
     routeTree,
     context: { queryClient },
     history: createMemoryHistory({
-      initialEntries: [`/agents/general/sessions/${BENCH_SESSION_ID}`],
+      initialEntries: [initialEntry],
     }),
     defaultPreloadStaleTime: 0,
   });
@@ -146,6 +165,11 @@ function buildSessionDeepLinkRouter() {
         )}
       </main>
     );
+  }
+
+  function PermalinkRouteHarness() {
+    const { permalinkError } = permalinkRoute.useRouteContext() as { permalinkError?: string };
+    return <p>Permalink error: {permalinkError ?? "none"}</p>;
   }
 }
 
@@ -176,6 +200,50 @@ describe("cross-workspace session deep-link router integration", () => {
     const request = vi.mocked(globalThis.fetch).mock.calls[0]?.[0];
     expect(new URL(request instanceof Request ? request.url : String(request)).pathname).toBe(
       `/api/workspaces/${BENCH_WORKSPACE_ID}/sessions/${PRIMARY_SESSION_ID}`
+    );
+  });
+
+  it("Should keep an external foreign session permalink inside the active workspace", async () => {
+    const foreignSession = makeSession(PRIMARY_SESSION_ID, PRIMARY_WORKSPACE_ID, "primary");
+    vi.mocked(globalThis.fetch).mockImplementation(request => {
+      const url = new URL(request instanceof Request ? request.url : String(request));
+      if (url.pathname === `/api/sessions/${PRIMARY_SESSION_ID}`) {
+        return Promise.resolve(Response.json({ session: foreignSession }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    const { router } = buildSessionDeepLinkRouter({
+      initialEntry: `/session/${PRIMARY_SESSION_ID}`,
+    });
+    render(<RouterProvider router={router} />);
+
+    await screen.findByText("Permalink error: Session not found");
+
+    expect(router.state.location.pathname).toBe(`/session/${PRIMARY_SESSION_ID}`);
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(globalThis.fetch).mock.calls[0]?.[0];
+    expect(new URL(request instanceof Request ? request.url : String(request)).pathname).toBe(
+      `/api/workspaces/${BENCH_WORKSPACE_ID}/sessions/${PRIMARY_SESSION_ID}`
+    );
+  });
+
+  it("Should surface workspace loading failure on an external session permalink", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+    const { router } = buildSessionDeepLinkRouter({
+      initialEntry: `/session/${BENCH_SESSION_ID}`,
+      seedQueries: false,
+    });
+    render(<RouterProvider router={router} />);
+
+    const error = await screen.findByText(/Permalink error:/);
+    expect(error).toHaveTextContent(/Failed to fetch workspaces/);
+    expect(error).not.toHaveTextContent("Session not found");
+    expect(router.state.location.pathname).toBe(`/session/${BENCH_SESSION_ID}`);
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(globalThis.fetch).mock.calls[0]?.[0];
+    expect(new URL(request instanceof Request ? request.url : String(request)).pathname).toBe(
+      "/api/workspaces"
     );
   });
 

@@ -19,10 +19,7 @@ vi.mock("../../adapters/window-manager-layouts-api", () => ({
   putWindowManagerLayoutProfile: apiMocks.putProfile,
 }));
 
-import {
-  useWindowManagerLayoutProfiles,
-  windowManagerLayoutProfileEditorLogic,
-} from "../use-window-manager-layout-profiles";
+import { useWindowManagerLayoutProfiles } from "../use-window-manager-layout-profiles";
 import { settingsKeys } from "../../lib/query-keys";
 import type {
   WindowManagerLayoutDocument,
@@ -90,18 +87,6 @@ describe("useWindowManagerLayoutProfiles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.deleteProfile.mockResolvedValue(undefined);
-  });
-
-  it("Should hold a pending destructive load in the pure profile transition", () => {
-    const store = windowManagerLayoutProfileEditorLogic.createStore();
-    const [snapshot] = store.transition(store.getInitialSnapshot(), {
-      type: "loadRequested",
-      draftDirty: true,
-      record: RECORD,
-    });
-
-    expect(snapshot.context.pendingLoad).toEqual(RECORD);
-    expect(snapshot.context.selected).toBe(null);
   });
 
   it("Should reconcile an accepted save without overwriting a newer editor revision", async () => {

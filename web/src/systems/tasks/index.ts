@@ -212,7 +212,14 @@ export {
   toRunCardStatus,
 } from "./lib/task-formatters";
 export { taskRunCanRecover } from "./lib/task-run-recovery";
-export * from "./lib/task-location-search";
+export {
+  parseTasksSurfaceMode,
+  taskCatalogSearchFor,
+  taskModeSearchFor,
+  validateTaskCreateSearch,
+  validateTasksSearch,
+} from "./lib/task-location-search";
+export type { TaskCreateSearch, TasksRouteSearch } from "./lib/task-location-search";
 export {
   TASK_INSPECT_TARGETS,
   TASK_DETAIL_TABS,
@@ -261,7 +268,6 @@ export type {
   TaskTemplateId,
   TaskTemplatePreview,
 } from "./lib/task-templates";
-
 export {
   getKanbanColumns,
   getTaskListGroups,

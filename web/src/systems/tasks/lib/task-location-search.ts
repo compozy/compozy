@@ -1,40 +1,21 @@
 import { z } from "zod";
 
-import type { InboxLaneFilterId } from "./inbox-grouping";
-import { taskOwnerFilterFromValue } from "./tasks-list-filters";
-import type { TaskTemplateId } from "./task-templates";
+import { TASK_INBOX_LANE_FILTER_IDS, type InboxLaneFilterId } from "./inbox-grouping";
+import {
+  TASK_LIST_SORT_OPTIONS,
+  TASK_PRIORITY_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  taskOwnerFilterFromValue,
+} from "./tasks-list-filters";
+import { TASK_TEMPLATE_IDS, type TaskTemplateId } from "./task-templates";
 import type { TaskListSortKey, TaskPriority, TaskStatus, TaskViewMode } from "../types";
 
 const taskRouteModeSchema = z.enum(["kanban", "dashboard", "inbox"]);
-const taskListSortSchema = z.enum(["recent", "priority"]);
-const taskPrioritySchema = z.enum(["urgent", "high", "medium", "low"]);
-const taskStatusSchema = z.enum([
-  "in_progress",
-  "ready",
-  "blocked",
-  "needs_attention",
-  "pending",
-  "draft",
-  "completed",
-  "failed",
-  "canceled",
-]);
-const inboxLaneSchema = z.enum([
-  "all",
-  "my_work",
-  "approvals",
-  "failed_runs",
-  "blocked",
-  "archived",
-]);
-const taskTemplateIdSchema = z.enum([
-  "one_shot",
-  "recurring",
-  "epic",
-  "remote_peer",
-  "human_in_loop",
-  "blank",
-]);
+const taskListSortSchema = z.enum(TASK_LIST_SORT_OPTIONS);
+const taskPrioritySchema = z.enum(TASK_PRIORITY_OPTIONS);
+const taskStatusSchema = z.enum(TASK_STATUS_OPTIONS);
+const inboxLaneSchema = z.enum(TASK_INBOX_LANE_FILTER_IDS);
+const taskTemplateIdSchema = z.enum(TASK_TEMPLATE_IDS);
 
 export interface TasksRouteSearch {
   mode?: "kanban" | "dashboard" | "inbox";

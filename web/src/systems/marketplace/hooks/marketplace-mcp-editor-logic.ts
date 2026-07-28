@@ -8,8 +8,7 @@ import type {
   SettingsMCPServerTarget,
   SettingsMutationResult,
 } from "@/systems/settings";
-
-type MCPConfigScope = "global" | "workspace";
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 
 export type MarketplaceMCPEditorState =
   | { mode: "closed" }
@@ -39,7 +38,7 @@ export type MarketplaceMCPEditorFlow = {
 export const marketplaceMCPEditorLogic = createStoreLogic<
   MarketplaceMCPEditorFlow,
   {
-    createOpened: { editor: Exclude<MarketplaceMCPEditorState, { mode: "closed" }> };
+    editorOpened: { editor: Exclude<MarketplaceMCPEditorState, { mode: "closed" }> };
     draftChanged: { draft: MCPDraft };
     editorDismissed: {};
     saveFailed: { attempt: number };
@@ -57,7 +56,7 @@ export const marketplaceMCPEditorLogic = createStoreLogic<
     pendingSaveAttempt: null,
   }),
   on: {
-    createOpened: (
+    editorOpened: (
       context,
       event: { editor: Exclude<MarketplaceMCPEditorState, { mode: "closed" }> }
     ) => ({
@@ -110,5 +109,3 @@ function mcpSaveMessage(name: string, result: SettingsMutationResult): string {
   const lifecycle = result.restart_required ? "restart required" : "applied now";
   return `Saved "${name}" · ${target} · ${lifecycle}`;
 }
-
-export type { MCPConfigScope };

@@ -1,16 +1,27 @@
-import { waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+const bridgeHookMocks = vi.hoisted(() => ({
+  sendBridgeTest: vi.fn(),
+  testBridgeDelivery: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { toast } from "sonner";
+vi.mock("@/systems/bridges", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/bridges")>();
+  return {
+    ...actual,
+    useSendBridgeTest: () => ({ mutateAsync: bridgeHookMocks.sendBridgeTest }),
+    useTestBridgeDelivery: () => ({ mutateAsync: bridgeHookMocks.testBridgeDelivery }),
+  };
+});
 
-import type {
-  BridgeSummary,
-  SendBridgeTestResponse,
-  TestBridgeDeliveryResponse,
-} from "@/systems/bridges";
-import { bridgeDeliveryTestsLogic } from "../bridge-delivery-tests-store";
+import type { BridgeSummary, TestBridgeDeliveryResponse } from "@/systems/bridges";
+
+import { useBridgeDeliveryTests } from "../use-bridge-delivery-tests";
 
 const bridge = {
   created_at: "2026-07-25T12:00:00Z",
@@ -30,128 +41,41 @@ const bridge = {
   workspace_id: "workspace-alpha",
 } satisfies BridgeSummary;
 
-const dryRunResult: TestBridgeDeliveryResponse = {
-  delivery_target: { bridge_instance_id: bridge.id },
-  status: "resolved",
-};
-const sendTestResult: SendBridgeTestResponse = {
-  bridge_instance_id: bridge.id,
-  delivery_id: "delivery-alpha",
-  delivery_target: { bridge_instance_id: bridge.id },
-  status: "delivered",
-};
-
-const pendingDryRun = () => new Promise<TestBridgeDeliveryResponse>(() => undefined);
-const pendingSendTest = () => new Promise<SendBridgeTestResponse>(() => undefined);
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(next => {
-    resolve = next;
+function createQueryClientWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
-  return { promise, resolve };
+
+  return function QueryClientWrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children);
+  };
 }
 
-describe("bridge delivery tests store", () => {
-  // Invariant: editing the next delivery draft never cancels or erases the
-  // independently owned lifecycle and result of an already submitted request.
-  it("Should keep dry-run and send-test phases independent", () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    let snapshot = store.getInitialSnapshot();
-    [snapshot] = store.transition(snapshot, { type: "reset", bridge });
-    [snapshot] = store.transition(snapshot, { type: "dryRunSubmitted", execute: pendingDryRun });
+describe("use bridge delivery tests", () => {
+  it("Should dry-run the bridge currently rendered after the route changes", async () => {
+    const nextBridge = { ...bridge, display_name: "Beta bridge", id: "bridge-beta" };
+    bridgeHookMocks.testBridgeDelivery.mockClear();
+    bridgeHookMocks.testBridgeDelivery.mockResolvedValue({
+      delivery_target: { bridge_instance_id: nextBridge.id },
+      status: "resolved",
+    } satisfies TestBridgeDeliveryResponse);
 
-    expect(snapshot.context.dryRun.phase).toBe("submitting");
-    expect(snapshot.context.sendTest.phase).toBe("idle");
-  });
+    const { result, rerender } = renderHook(
+      ({ currentBridge }) => useBridgeDeliveryTests(currentBridge),
+      { initialProps: { currentBridge: bridge }, wrapper: createQueryClientWrapper() }
+    );
 
-  it("Should settle a real in-flight result after the next draft changes", async () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    const pending = deferred<TestBridgeDeliveryResponse>();
-    vi.mocked(toast.success).mockClear();
-    store.trigger.reset({ bridge });
-    store.trigger.dryRunSubmitted({ execute: () => pending.promise });
-    store.trigger.draftChanged({
-      draft: { ...store.getSnapshot().context.draft, message: "replacement" },
-    });
-    pending.resolve(dryRunResult);
+    act(() => result.current.resetDraft());
+    rerender({ currentBridge: nextBridge });
+    act(() => result.current.panelProps.onDryRun());
 
     await waitFor(() => {
-      expect(store.getSnapshot().context.dryRun.phase).toBe("resolved");
+      expect(bridgeHookMocks.testBridgeDelivery).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          target: expect.objectContaining({ bridge_instance_id: nextBridge.id }),
+        }),
+        id: nextBridge.id,
+      });
     });
-    expect(store.getSnapshot().context.draft.message).toBe("replacement");
-    expect(toast.success).toHaveBeenCalledWith("Resolved delivery target for Alpha bridge.");
-  });
-
-  it("Should retain the last delivery result while editing the next draft", async () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    store.trigger.reset({ bridge });
-    store.trigger.dryRunSubmitted({ execute: vi.fn().mockResolvedValue(dryRunResult) });
-    await waitFor(() => expect(store.getSnapshot().context.dryRun.phase).toBe("resolved"));
-
-    store.trigger.draftChanged({
-      draft: { ...store.getSnapshot().context.draft, message: "next message" },
-    });
-
-    expect(store.getSnapshot().context.dryRun).toMatchObject({
-      phase: "resolved",
-      result: dryRunResult,
-    });
-  });
-
-  it("Should disallow a real send without an enabled bridge and message", () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    store.trigger.reset({ bridge: { ...bridge, enabled: false } });
-    expect(
-      store.can.sendTestSubmitted({
-        bridge: { ...bridge, enabled: false },
-        execute: pendingSendTest,
-      })
-    ).toBe(false);
-
-    store.trigger.reset({ bridge });
-    expect(store.can.sendTestSubmitted({ bridge, execute: pendingSendTest })).toBe(false);
-
-    store.trigger.draftChanged({
-      draft: { ...store.getSnapshot().context.draft, message: "Hello" },
-    });
-    expect(store.can.sendTestSubmitted({ bridge, execute: pendingSendTest })).toBe(true);
-  });
-
-  it("Should accept the active real send-test result", async () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    store.trigger.reset({ bridge });
-    store.trigger.draftChanged({
-      draft: { ...store.getSnapshot().context.draft, message: "Hello" },
-    });
-    store.trigger.sendTestSubmitted({
-      bridge,
-      execute: vi.fn().mockResolvedValue(sendTestResult),
-    });
-
-    await waitFor(() => expect(store.getSnapshot().context.sendTest.phase).toBe("resolved"));
-    expect(store.getSnapshot().context.sendTest).toMatchObject({ result: sendTestResult });
-  });
-
-  it("Should use the live bridge state when a real send is submitted", () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    store.trigger.reset({ bridge: { ...bridge, enabled: false } });
-    store.trigger.draftChanged({
-      draft: { ...store.getSnapshot().context.draft, message: "Hello" },
-    });
-
-    expect(store.can.sendTestSubmitted({ bridge, execute: pendingSendTest })).toBe(true);
-  });
-
-  it("Should surface a rejected real dry-run executor", async () => {
-    const store = bridgeDeliveryTestsLogic.createStore();
-    vi.mocked(toast.error).mockClear();
-    store.trigger.reset({ bridge });
-    store.trigger.dryRunSubmitted({
-      execute: vi.fn().mockRejectedValue(new Error("target unavailable")),
-    });
-
-    await waitFor(() => expect(store.getSnapshot().context.dryRun.phase).toBe("failed"));
-    expect(toast.error).toHaveBeenCalledWith("target unavailable");
   });
 });

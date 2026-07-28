@@ -84,10 +84,11 @@ export function useTaskCreateState(
     });
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
+    const { template: _template, ...catalogSearch } = search;
     onNavigate({
       pathname: "/tasks/new",
       search: {
-        ...(search.mode ? { mode: search.mode } : {}),
+        ...catalogSearch,
         ...(nextTemplateId === DEFAULT_TASK_TEMPLATE_ID ? {} : { template: nextTemplateId }),
       },
     });
@@ -166,6 +167,7 @@ export function useTaskCreateState(
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,
+    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }

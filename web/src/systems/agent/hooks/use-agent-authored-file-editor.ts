@@ -7,8 +7,12 @@ import {
   createAuthoredFileEditorLogic,
   isAuthoredFileMissing,
   shouldAdoptAuthoredFileSource,
+  type AuthoredFileEditorInput,
   type AuthoredFileKind,
   type AuthoredFilePayload,
+  type AuthoredFileRestore,
+  type AuthoredFileSave,
+  type AuthoredFileValidate,
 } from "../stores/agent-authored-file-editor-store";
 import type { AgentHeartbeatHistoryResponse, AgentSoulHistoryResponse } from "../types";
 import { useUnsavedGuard } from "./use-unsaved-guard";
@@ -16,18 +20,21 @@ import { useUnsavedGuard } from "./use-unsaved-guard";
 export type { AuthoredFileKind, AuthoredFilePayload };
 export { isAuthoredFileMissing };
 
-export interface UseAgentAuthoredFileEditorArgs {
-  resourceKey: string;
-  kind: AuthoredFileKind;
-  payload: AuthoredFilePayload | undefined;
-  history: AgentSoulHistoryResponse | AgentHeartbeatHistoryResponse | undefined;
-  onValidate: (body: string) => Promise<{
-    diagnostics?: Array<{ message: string; line?: number; source_path?: string }>;
-    validation_status?: string;
-  }>;
-  onSave: (body: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
-  onRestore: (revisionId: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
+interface AuthoredFileEditorCallbacks<K extends AuthoredFileKind> {
+  onValidate: AuthoredFileValidate;
+  onSave: AuthoredFileSave<K>;
+  onRestore: AuthoredFileRestore<K>;
 }
+
+export type UseAgentAuthoredFileEditorArgs =
+  | (AuthoredFileEditorInput<"soul"> &
+      AuthoredFileEditorCallbacks<"soul"> & {
+        history: AgentSoulHistoryResponse | undefined;
+      })
+  | (AuthoredFileEditorInput<"heartbeat"> &
+      AuthoredFileEditorCallbacks<"heartbeat"> & {
+        history: AgentHeartbeatHistoryResponse | undefined;
+      });
 
 const CREATE_BODIES: Record<AuthoredFileKind, string> = {
   soul: "# Soul\n\nDefine persona and constraints.\n",
@@ -52,7 +59,10 @@ export function useAgentAuthoredFileEditor({
   onRestore,
 }: UseAgentAuthoredFileEditorArgs) {
   const fileLabel = kind === "soul" ? "SOUL.md" : "HEARTBEAT.md";
-  const input = { resourceKey, kind, payload };
+  const input: AuthoredFileEditorInput =
+    kind === "soul"
+      ? { resourceKey, kind: "soul", payload }
+      : { resourceKey, kind: "heartbeat", payload };
   const { replace, store } = useStoreBinding(
     resourceKey,
     () => createAuthoredFileEditorLogic().createStore(input),

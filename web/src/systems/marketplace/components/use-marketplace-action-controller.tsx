@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -34,6 +34,7 @@ import { marketplaceEntrySlug, marketplaceErrorMessage } from "./marketplace-ui"
 import {
   marketplaceActionControllerLogic,
   type MarketplaceActionControllerPhase,
+  type MarketplaceDialogSelection,
 } from "./marketplace-action-controller-logic";
 import { useMarketplacePending } from "./use-marketplace-pending";
 
@@ -84,6 +85,9 @@ function useMarketplaceActionController(
   const pending = useMarketplacePending();
   const controllerStore = useStore(marketplaceActionControllerLogic);
   const phase = useSelector(controllerStore, snapshot => snapshot.context);
+  const dialogSelection = marketplaceDialogSelection(phase);
+  const dialogDetail =
+    useQuery(marketplaceDialogEntryOptions(dialogSelection, workspaceId)).data ?? null;
   const authorize = useMCPAuthorize({
     dismissOnConfirmation: true,
     onConfirmed: server => toast.success(`${server} authorized · server running`),
@@ -175,8 +179,14 @@ function useMarketplaceActionController(
       controllerStore.trigger.detailRequested({
         describeFailure: error =>
           marketplaceErrorMessage(error, `Failed to load ${entry.name} details`),
-        kind: entry.kind,
-        load: () => pending.trackEntry(entry, () => fetchDetail(entry)),
+        load: () =>
+          pending.trackEntry(entry, async () => {
+            await fetchDetail(entry);
+          }),
+        selection:
+          entry.kind === "bundle"
+            ? { entryId: entry.entry_id, kind: entry.kind }
+            : { entryId: entry.entry_id, installedName: entry.installed_name, kind: entry.kind },
       });
       return;
     }
@@ -330,8 +340,8 @@ function useMarketplaceActionController(
       authorize={authorize}
       authScope={authFilter?.scope ?? "global"}
       authServer={authServerEntry}
-      bundleDetail={phase.status === "bundleActivation" ? phase.detail : null}
-      mcpDetail={phase.status === "mcpInstall" ? phase.detail : null}
+      bundleDetail={phase.status === "bundleActivation" ? dialogDetail : null}
+      mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
       onBundleClose={() => controllerStore.trigger.dialogDismissed()}
       onConfirmTrust={confirmUnverifiedExtension}
       onInstallMCP={installSelectedMCP}
@@ -364,6 +374,30 @@ function trustEntry(phase: MarketplaceActionControllerPhase): MarketplaceListing
   return phase.status === "extensionTrust" || phase.status === "extensionTrustSubmitting"
     ? phase.entry
     : null;
+}
+
+function marketplaceDialogSelection(
+  phase: MarketplaceActionControllerPhase
+): MarketplaceDialogSelection | null {
+  return phase.status === "mcpInstall" || phase.status === "bundleActivation"
+    ? phase.selection
+    : null;
+}
+
+function marketplaceDialogEntryOptions(
+  selection: MarketplaceDialogSelection | null,
+  workspaceId?: string | null
+) {
+  return marketplaceEntryOptions(
+    selection?.kind === "bundle"
+      ? { entryId: selection.entryId, kind: selection.kind, workspaceId }
+      : {
+          entryId: selection?.entryId ?? "",
+          installedName: selection?.installedName,
+          kind: "mcp",
+          workspaceId,
+        }
+  );
 }
 
 function trustError(phase: MarketplaceActionControllerPhase): string | null {

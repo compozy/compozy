@@ -3,7 +3,6 @@ import { useLayoutEffect } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
-import type { QueuedPrompt } from "@/components/assistant-ui/session-composer-queued-prompts";
 import { awaitStoreRequest } from "@/lib/store-request";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
@@ -19,10 +18,12 @@ import {
   useSessionTranscriptThreadMessages,
   isSessionRunning,
   isUserControllableSession,
+  type QueuedPrompt,
   type SessionPayload,
 } from "@/systems/session";
 import {
   createSessionPageControlsLogic,
+  isBusyInputPending,
   type SessionBusyInputSettlement,
   type SessionPageControlsStore,
   type ResumeProviderUnavailableDetail,
@@ -95,11 +96,8 @@ export function useSessionPageControls(
   const isResuming = controlsState.resume.phase === "pending";
   const isDeleting = deleteMutation.isPending;
   const isClearing = clearMutation.isPending;
-  const queuedSteerPending = Object.values(controlsState.pendingQueueEdits).some(
-    edit => edit.kind === "steer"
-  );
-  const isBusyInputPending = controlsState.busyInput.phase === "pending" || queuedSteerPending;
-  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || isBusyInputPending;
+  const busyInputPending = isBusyInputPending(controlsState);
+  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || busyInputPending;
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
@@ -259,7 +257,7 @@ export function useSessionPageControls(
     handleSteerPrompt,
     handleSteerQueuedPrompt,
     handleStop,
-    isBusyInputPending,
+    isBusyInputPending: busyInputPending,
     isClearing,
     isDeleting,
     isResuming,
@@ -284,9 +282,5 @@ function requestBusyInput(store: SessionPageControlsStore, request: () => void):
 }
 
 function busyInputIsPending(store: SessionPageControlsStore): boolean {
-  const context = store.getSnapshot().context;
-  return (
-    context.busyInput.phase === "pending" ||
-    Object.values(context.pendingQueueEdits).some(edit => edit.kind === "steer")
-  );
+  return isBusyInputPending(store.getSnapshot().context);
 }

@@ -1,31 +1,22 @@
-import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), info: vi.fn(), success: vi.fn(), warning: vi.fn() },
-}));
-
-import { toast } from "sonner";
-
+import { createBridgeCreateDraft } from "@/systems/bridges";
 import {
   bridgeProvidersFixture,
-  bridgeVerifyFixture,
   bridgesListFixture,
   createBridgeFixture,
 } from "@/systems/bridges/mocks";
-import { createBridgeCreateDraft } from "@/systems/bridges";
 
 import { createBridgeCreateFlowLogic } from "../bridge-create-flow-store";
-import { createBridgeSetupFlowLogic } from "../bridge-setup-flow-store";
 
 const bridge = bridgesListFixture.bridges[0];
 const provider = bridgeProvidersFixture[0];
 
 if (!bridge || !provider) {
-  throw new Error("Bridge flow fixtures require one bridge and one provider.");
+  throw new Error("Bridge creation flow fixtures require one bridge and one provider.");
 }
 
-describe("bridge route flow stores", () => {
+describe("bridge create flow store", () => {
   it("Should reject a stale create result after the dialog has reopened", () => {
     const store = createBridgeCreateFlowLogic().createStore();
     const create = () => new Promise<typeof createBridgeFixture>(() => undefined);
@@ -136,46 +127,50 @@ describe("bridge route flow stores", () => {
     subscription.unsubscribe();
   });
 
-  it("Should ignore a verification result after setup evidence resets", async () => {
-    let resolveVerification!: (result: typeof bridgeVerifyFixture) => void;
-    const pending = new Promise<typeof bridgeVerifyFixture>(resolve => {
-      resolveVerification = resolve;
+  it("Should not restore secret recovery after completed binding fails only to navigate", () => {
+    const store = createBridgeCreateFlowLogic().createStore();
+    const draft = {
+      ...createBridgeCreateDraft([provider], bridge.workspace_id),
+      secretSlotValues: { api_key: "plaintext" },
+    };
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, { type: "createOpened", draft });
+    [snapshot] = store.transition(snapshot, {
+      type: "createSubmitted",
+      activeWorkspaceId: bridge.workspace_id,
+      bindSecrets: async () => ({ bound: [], clearedSlotNames: [], failures: {} }),
+      create: async () => createBridgeFixture,
+      navigate: async () => undefined,
+      provider,
     });
-    const store = createBridgeSetupFlowLogic().createStore({
-      bridgeId: bridge.id,
-      registrationFingerprint: "registration-v1",
-      verificationFingerprint: "verification-v1",
+    [snapshot] = store.transition(snapshot, {
+      type: "createCompleted",
+      attempt: snapshot.context.attempt,
+      bindOutcome: {
+        bound: [],
+        clearedSlotNames: ["api_key"],
+        failures: { api_key: "binding failed" },
+      },
+      navigate: async () => undefined,
+      result: createBridgeFixture,
     });
-    store.trigger.verificationRequested({
-      bridgeId: bridge.id,
-      bridgeName: bridge.display_name,
-      verify: () => pending,
+    [snapshot] = store.transition(snapshot, {
+      type: "secretRetrySubmitted",
+      bindSecrets: async () => ({ bound: [], clearedSlotNames: [], failures: {} }),
+      navigate: async () => undefined,
     });
-    await waitFor(() => expect(store.getSnapshot().context.phase).toBe("verifying"));
+    [snapshot] = store.transition(snapshot, {
+      type: "secretRetryCompleted",
+      attempt: snapshot.context.attempt,
+      bindOutcome: { bound: ["api_key"], clearedSlotNames: ["api_key"], failures: {} },
+      navigate: async () => undefined,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "navigationFailed",
+      attempt: snapshot.context.attempt,
+      error: "router unavailable",
+    });
 
-    store.trigger.verificationCleared();
-    resolveVerification(bridgeVerifyFixture);
-    await waitFor(() => {
-      expect(store.getSnapshot().context.phase).toBe("idle");
-      expect(store.getSnapshot().context.verification).toBeNull();
-    });
-  });
-
-  it("Should route a rejected registration executor through recovery", async () => {
-    const store = createBridgeSetupFlowLogic().createStore({
-      bridgeId: bridge.id,
-      registrationFingerprint: "registration-v1",
-      verificationFingerprint: "verification-v1",
-    });
-    vi.mocked(toast.error).mockClear();
-
-    store.trigger.registrationRequested({
-      bridgeId: bridge.id,
-      bridgeName: bridge.display_name,
-      register: vi.fn().mockRejectedValue(new Error("registration unavailable")),
-    });
-
-    await waitFor(() => expect(store.getSnapshot().context.phase).toBe("recovery"));
-    expect(toast.error).toHaveBeenCalledWith("registration unavailable");
+    expect(snapshot.context.phase).toBe("closed");
   });
 });

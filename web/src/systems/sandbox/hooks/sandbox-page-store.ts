@@ -23,7 +23,7 @@ export type SandboxLastAction =
 
 type SandboxRequestKind = "delete" | "save";
 
-export interface SandboxRequestFence {
+interface SandboxRequestFence {
   generation: number;
   kind: SandboxRequestKind;
   name: string;

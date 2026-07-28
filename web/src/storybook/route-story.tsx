@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type { SettingsSectionName } from "@/systems/settings";
-import { settingsRestartStore } from "@/systems/settings/stores/settings-restart-store";
+import { settingsRestartStore, type SettingsSectionName } from "@/systems/settings";
 import { statusKeys } from "@/systems/status";
 import { statusFixture } from "@/systems/status/mocks";
 import { setActiveWorkspaceId } from "@/systems/workspace";
@@ -32,7 +31,7 @@ export function StorybookUserHomeDirSetup({ userHomeDir }: { userHomeDir: string
       ...statusFixture,
       daemon: {
         ...statusFixture.daemon,
-        user_home_dir: userHomeDir ?? statusFixture.daemon.user_home_dir,
+        user_home_dir: userHomeDir ?? "",
       },
     });
   }, [queryClient, userHomeDir]);

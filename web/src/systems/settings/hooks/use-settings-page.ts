@@ -1,12 +1,8 @@
 import { useMatchRoute } from "@tanstack/react-router";
 
-import {
-  SETTINGS_ROOT_PATH,
-  SETTINGS_SECTIONS,
-  settingsSectionPath,
-  useSettingsRestart,
-  type SettingsSectionDescriptor,
-} from "@/systems/settings";
+import { SETTINGS_ROOT_PATH, SETTINGS_SECTIONS, settingsSectionPath } from "../lib/sections";
+import type { SettingsSectionDescriptor } from "../types";
+import { useSettingsRestart } from "./use-settings-restart";
 
 interface UseSettingsPageOptions {
   currentSlug?: string;

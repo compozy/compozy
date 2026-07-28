@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
-import { createElement, Profiler, useEffect, type ReactNode } from "react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
+import { createElement, useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
@@ -15,7 +15,6 @@ import {
   useSessionCreateDialogController,
   useSessionCreateDialogViewModel,
   type SessionCreateDialogApi,
-  type SessionCreateDialogController,
 } from "../use-session-create-dialog";
 
 type SessionCreateDialogTestHarness = SessionCreateDialogApi & {
@@ -40,6 +39,26 @@ function useSessionCreateDialog(context: {
   };
 }
 
+function useSessionCreateControllerPair() {
+  const first = useSessionCreateDialogController();
+  const second = useSessionCreateDialogController();
+
+  return {
+    firstDraftAgentName: useSelector(first.store, snapshot => snapshot.context.draft.agentName),
+    firstIsSubmitting: useSelector(
+      first.store,
+      snapshot => snapshot.context.operation.status === "submitting"
+    ),
+    firstStore: first.store,
+    secondDraftAgentName: useSelector(second.store, snapshot => snapshot.context.draft.agentName),
+    secondIsSubmitting: useSelector(
+      second.store,
+      snapshot => snapshot.context.operation.status === "submitting"
+    ),
+    secondStore: second.store,
+  };
+}
+
 type ProviderModelPayload = AllModelsListResponse["models"][number];
 
 const visibleCatalogFlags = {
@@ -53,6 +72,7 @@ const {
   mockNavigate,
   mockMutateAsync,
   mockUseCreateSessionPending,
+  mockUserHomeDir,
   mockWorkspaceQuery,
   mockWorkspaceListRef,
   mockUseAgents,
@@ -62,6 +82,7 @@ const {
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
   mockUseCreateSessionPending: { current: false as boolean },
+  mockUserHomeDir: { current: undefined as string | undefined },
   mockWorkspaceQuery: vi.fn(),
   mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
   mockUseAgents: vi.fn(),
@@ -92,6 +113,7 @@ vi.mock("@/systems/workspace", async () => {
       error: null,
       isLoading: false,
     }),
+    useUserHomeDir: () => mockUserHomeDir.current,
   };
 });
 
@@ -309,6 +331,7 @@ describe("useSessionCreateDialog", () => {
     mockUseAgents.mockReset();
     mockUseAgents.mockReturnValue({ data: undefined });
     mockUseCreateSessionPending.current = false;
+    mockUserHomeDir.current = undefined;
 
     workspaceQueryResult = {
       data: {
@@ -353,121 +376,41 @@ describe("useSessionCreateDialog", () => {
     expect(store.getSnapshot().context.open).toBe(true);
   });
 
-  it("Should isolate draft and busy selector updates between shell store instances", () => {
-    const firstController = { current: undefined as SessionCreateDialogController | undefined };
-    const secondController = { current: undefined as SessionCreateDialogController | undefined };
-    const firstShellRenders = { current: 0 };
-    const secondShellRenders = { current: 0 };
-    const firstDraftRenders = { current: 0 };
-    const secondDraftRenders = { current: 0 };
-    const firstBusyRenders = { current: 0 };
-    const secondBusyRenders = { current: 0 };
-
-    function DraftProbe({
-      store,
-      testId,
-    }: {
-      store: SessionCreateDialogController["store"];
-      testId: string;
-    }) {
-      const agentName = useSelector(store, snapshot => snapshot.context.draft.agentName);
-      return <output data-testid={testId}>{agentName}</output>;
-    }
-
-    function BusyProbe({
-      store,
-      testId,
-    }: {
-      store: SessionCreateDialogController["store"];
-      testId: string;
-    }) {
-      const isSubmitting = useSelector(store, snapshot => snapshot.context.isSubmitting);
-      return <output data-testid={testId}>{String(isSubmitting)}</output>;
-    }
-
-    function ShellControllerProbe({
-      onController,
-    }: {
-      onController: (controller: SessionCreateDialogController) => void;
-    }) {
-      const nextController = useSessionCreateDialogController();
-      useEffect(() => {
-        onController(nextController);
-      }, [nextController, onController]);
-      return null;
-    }
-
-    render(
-      <>
-        <Profiler id="first-shell" onRender={() => (firstShellRenders.current += 1)}>
-          <ShellControllerProbe
-            onController={controller => {
-              firstController.current = controller;
-            }}
-          />
-        </Profiler>
-        <Profiler id="second-shell" onRender={() => (secondShellRenders.current += 1)}>
-          <ShellControllerProbe
-            onController={controller => {
-              secondController.current = controller;
-            }}
-          />
-        </Profiler>
-      </>
-    );
-
-    const firstStore = firstController.current?.store;
-    const secondStore = secondController.current?.store;
-    if (!firstStore || !secondStore) {
-      throw new Error("Session-create controller probes did not mount.");
-    }
-
-    render(
-      <>
-        <Profiler id="first-draft" onRender={() => (firstDraftRenders.current += 1)}>
-          <DraftProbe store={firstStore} testId="first-shell-draft" />
-        </Profiler>
-        <Profiler id="second-draft" onRender={() => (secondDraftRenders.current += 1)}>
-          <DraftProbe store={secondStore} testId="second-shell-draft" />
-        </Profiler>
-        <Profiler id="first-busy" onRender={() => (firstBusyRenders.current += 1)}>
-          <BusyProbe store={firstStore} testId="first-shell-busy" />
-        </Profiler>
-        <Profiler id="second-busy" onRender={() => (secondBusyRenders.current += 1)}>
-          <BusyProbe store={secondStore} testId="second-shell-busy" />
-        </Profiler>
-      </>
-    );
+  it("Should isolate draft and busy state between shell store instances", () => {
+    const { result } = renderHook(() => useSessionCreateControllerPair());
 
     act(() => {
-      firstStore.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });
+      result.current.firstStore.trigger.dialogOpened({
+        agentName: "claude-agent",
+        workspaceId: "ws_alpha",
+      });
     });
 
-    expect(screen.getByTestId("first-shell-draft")).toHaveTextContent("claude-agent");
-    expect(screen.getByTestId("second-shell-draft")).toHaveTextContent("");
-    expect(firstShellRenders.current).toBe(1);
-    expect(secondShellRenders.current).toBe(1);
-    expect(firstDraftRenders.current).toBe(2);
-    expect(secondDraftRenders.current).toBe(1);
-    expect(firstBusyRenders.current).toBe(1);
-    expect(secondBusyRenders.current).toBe(1);
+    expect(result.current.firstDraftAgentName).toBe("claude-agent");
+    expect(result.current.secondDraftAgentName).toBe("");
+    expect(result.current.firstIsSubmitting).toBe(false);
+    expect(result.current.secondIsSubmitting).toBe(false);
 
     act(() => {
-      firstStore.trigger.submissionRequested({
+      result.current.firstStore.trigger.submissionRequested({
         agentName: "claude-agent",
         workspaceId: "ws_alpha",
         execute: () => new Promise<SessionPayload>(() => {}),
       });
     });
 
-    expect(screen.getByTestId("first-shell-busy")).toHaveTextContent("true");
-    expect(screen.getByTestId("second-shell-busy")).toHaveTextContent("false");
-    expect(firstShellRenders.current).toBe(1);
-    expect(secondShellRenders.current).toBe(1);
-    expect(firstDraftRenders.current).toBe(2);
-    expect(secondDraftRenders.current).toBe(1);
-    expect(firstBusyRenders.current).toBe(2);
-    expect(secondBusyRenders.current).toBe(1);
+    expect(result.current.firstIsSubmitting).toBe(true);
+    expect(result.current.secondIsSubmitting).toBe(false);
+  });
+
+  it("Should expose the daemon home directory to the session-create view model", () => {
+    mockUserHomeDir.current = "/Users/operator";
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    expect(result.current.userHomeDir).toBe("/Users/operator");
   });
 
   it("Should derive the default provider once workspace providers arrive after opening", async () => {

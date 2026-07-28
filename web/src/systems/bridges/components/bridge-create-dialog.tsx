@@ -56,6 +56,7 @@ interface BridgeCreateDialogProps {
   providers: BridgeProvider[];
   secretRecovery?: BridgeSecretRecoveryState | null;
   supportsManifest?: boolean;
+  userHomeDir: string | undefined;
 }
 
 export function BridgeCreateDialog({
@@ -73,6 +74,7 @@ export function BridgeCreateDialog({
   providers,
   secretRecovery = null,
   supportsManifest = false,
+  userHomeDir,
 }: BridgeCreateDialogProps) {
   const committedManifestState = supportsManifest ? manifestState : null;
   const selectedProvider =
@@ -181,6 +183,7 @@ export function BridgeCreateDialog({
               onWorkspaceChange={() => undefined}
               scope={draft.scope}
               testIdPrefix="bridge-create"
+              userHomeDir={userHomeDir}
               workspaceDisabled={!activeWorkspaceId}
               workspaceId={activeWorkspaceId ?? null}
               workspaces={workspaceOptions}

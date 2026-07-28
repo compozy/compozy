@@ -23,6 +23,7 @@ interface SessionCreateSimpleSectionProps {
   onAgentChange: (agentName: string) => void;
   workspaces: WorkspaceCommandSelectOption[];
   workspaceId: string | null;
+  userHomeDir: string | undefined;
   onWorkspaceChange: (workspaceId: string) => void;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
@@ -43,6 +44,7 @@ function SessionCreateSimpleSection({
   onAgentChange,
   workspaces,
   workspaceId,
+  userHomeDir,
   onWorkspaceChange,
   sessionName,
   onSessionNameChange,
@@ -110,6 +112,7 @@ function SessionCreateSimpleSection({
               disabled={isSubmitting}
               onChange={onWorkspaceChange}
               triggerTestId="session-create-workspace-select"
+              userHomeDir={userHomeDir}
               value={workspaceId}
               workspaces={workspaces}
             />

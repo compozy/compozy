@@ -15,7 +15,7 @@ import {
   type BridgeScopeFilter,
   type BridgeStatusFilter,
 } from "@/systems/bridges";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, useUserHomeDir } from "@/systems/workspace";
 import { useBridgeCreateFlow } from "@/hooks/routes/use-bridge-create-flow";
 
 export interface BridgesRouteSearch {
@@ -30,6 +30,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const navigate = useNavigate({ from: "/bridges" });
 
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
 
   const searchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
@@ -152,7 +153,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     bridges,
     canCreateBridge: createFlow.canCreateBridge,
     clearFilters,
-    createDialogProps: createFlow.createDialogProps,
+    createDialogProps: { ...createFlow.createDialogProps, userHomeDir },
     fatalError,
     hasActiveFilters,
     hasNextPage: bridgesQuery.hasNextPage,

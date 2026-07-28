@@ -4,11 +4,9 @@ import { notifyUser } from "@/lib/user-feedback";
 
 export type HomeAttentionResolvedKind = "approved" | "rejected";
 
-interface HomeAttentionOperation {
-  requestId: number;
-  pending: boolean;
-  resolved?: HomeAttentionResolvedKind;
-}
+export type HomeAttentionOperation =
+  | { requestId: number; status: "pending" }
+  | { requestId: number; status: "resolved"; resolved: HomeAttentionResolvedKind };
 
 export interface HomeAttentionActionsContext {
   nextRequestId: number;
@@ -85,7 +83,11 @@ export function createHomeAttentionActionsLogic() {
           ...context,
           operations: {
             ...context.operations,
-            [event.id]: { ...operation, pending: false, resolved: event.kind },
+            [event.id]: {
+              requestId: operation.requestId,
+              status: "resolved",
+              resolved: event.kind,
+            },
           },
         };
       },
@@ -100,7 +102,7 @@ function startOperation(
   enqueue: HomeAttentionActionsEnqueue
 ): HomeAttentionActionsContext | undefined {
   const { id } = event;
-  if (!id || context.operations[id]?.pending) return;
+  if (!id || context.operations[id]?.status === "pending") return;
   const requestId = context.nextRequestId + 1;
   enqueue.effect(async ({ trigger }) => {
     await executeOperation(trigger, event, id, requestId, kind);
@@ -110,7 +112,7 @@ function startOperation(
     nextRequestId: requestId,
     operations: {
       ...context.operations,
-      [id]: { pending: true, requestId },
+      [id]: { requestId, status: "pending" },
     },
   };
 }

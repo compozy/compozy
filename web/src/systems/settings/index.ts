@@ -327,7 +327,11 @@ export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state
 export { settingsProviderToOption } from "./lib/provider-runtime-option";
 
 // Stores
-export { useSettingsRestartState } from "./stores/use-settings-restart-store";
+export {
+  resetSettingsRestartStore,
+  useSettingsRestartState,
+} from "./stores/use-settings-restart-store";
+export { settingsRestartStore } from "./stores/settings-restart-store";
 export type {
   PendingSettingsMutation,
   SettingsRestartState,
@@ -385,6 +389,7 @@ export {
 } from "./hooks/use-settings-mutations";
 
 // Hooks -- restart
+export { useSettingsPage } from "./hooks/use-settings-page";
 export { useSettingsRestart } from "./hooks/use-settings-restart";
 export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";

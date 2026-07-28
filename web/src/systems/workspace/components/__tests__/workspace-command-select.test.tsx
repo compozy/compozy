@@ -1,13 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
-
-import { statusKeys } from "@/systems/status";
-import { statusFixture } from "@/systems/status/mocks";
 
 import type { WorkspacePayload } from "../../types";
 import { WorkspaceCommandSelect } from "../workspace-command-select";
@@ -29,26 +24,12 @@ const workspaces = [
   makeWorkspace({ id: "ws_beta", name: "beta" }),
 ];
 
-function renderWorkspaceCommandSelect(children: ReactNode, userHomeDir?: string) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
-  });
-  queryClient.setQueryData(statusKeys.current(), {
-    ...statusFixture,
-    daemon: {
-      ...statusFixture.daemon,
-      user_home_dir: userHomeDir ?? statusFixture.daemon.user_home_dir,
-    },
-  });
-
-  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
-}
-
 describe("WorkspaceCommandSelect", () => {
   it("Should render the trigger with the selected workspace name and avatar initial", () => {
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -63,15 +44,15 @@ describe("WorkspaceCommandSelect", () => {
   });
 
   it("Should render the selected home workspace with the home icon", () => {
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir="/workspace/beta"
           workspaces={workspaces}
           value="ws_beta"
           onChange={() => undefined}
         />
-      </UIProvider>,
-      "/workspace/beta"
+      </UIProvider>
     );
 
     const avatar = screen.getByTestId("workspace-switcher-avatar");
@@ -82,9 +63,10 @@ describe("WorkspaceCommandSelect", () => {
   });
 
   it("Should align compact trigger height with pill-group md track tokens", () => {
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -104,9 +86,14 @@ describe("WorkspaceCommandSelect", () => {
   });
 
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
+        <WorkspaceCommandSelect
+          userHomeDir={undefined}
+          workspaces={[]}
+          value={null}
+          onChange={() => undefined}
+        />
       </UIProvider>
     );
 
@@ -118,9 +105,14 @@ describe("WorkspaceCommandSelect", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect workspaces={workspaces} value="ws_alpha" onChange={onChange} />
+        <WorkspaceCommandSelect
+          userHomeDir={undefined}
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={onChange}
+        />
       </UIProvider>
     );
 
@@ -135,9 +127,10 @@ describe("WorkspaceCommandSelect", () => {
   it("Should mark the active workspace with data-checked in the list", async () => {
     const user = userEvent.setup();
 
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -159,15 +152,15 @@ describe("WorkspaceCommandSelect", () => {
   it("Should pin the home workspace first in the command list", async () => {
     const user = userEvent.setup();
 
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir="/workspace/beta"
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
         />
-      </UIProvider>,
-      "/workspace/beta"
+      </UIProvider>
     );
 
     await user.click(screen.getByTestId("workspace-switcher"));
@@ -192,9 +185,10 @@ describe("WorkspaceCommandSelect", () => {
   it("Should filter results via keyboard search", async () => {
     const user = userEvent.setup();
 
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -212,9 +206,10 @@ describe("WorkspaceCommandSelect", () => {
     const user = userEvent.setup();
     const onAddWorkspace = vi.fn();
 
-    renderWorkspaceCommandSelect(
+    render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}

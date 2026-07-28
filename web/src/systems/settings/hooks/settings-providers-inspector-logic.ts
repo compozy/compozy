@@ -188,9 +188,6 @@ export const settingsProvidersInspectorLogic = createStoreLogic({
       ) {
         return;
       }
-      if (context.draftRevision !== event.revision) {
-        return { ...context, pendingSave: null, saveError: event.error };
-      }
       return { ...context, pendingSave: null, saveError: event.error };
     },
     saveSucceeded: (

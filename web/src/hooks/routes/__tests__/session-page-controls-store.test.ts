@@ -63,6 +63,39 @@ describe("session page controls store", () => {
     expect(store.getSnapshot().context.pendingQueueEdits).toEqual({});
   });
 
+  it("Should reject a direct busy-input request while a queued steer is pending", () => {
+    const store = createSessionPageControlsLogic().createStore();
+    const pending = () => new Promise<never>(() => undefined);
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "queue",
+      message: "Follow up",
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputSucceeded",
+      requestId: snapshot.context.busyInput.requestId,
+      result: { queued: true, queue_entry_id: "queue-1" },
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "queuedPromptSteerRequested",
+      cancel: pending,
+      prompt: { id: "queue-1", text: "Follow up" },
+      steer: pending,
+    });
+    const nextRequestId = snapshot.context.nextRequestId;
+    [snapshot] = store.transition(snapshot, {
+      type: "busyInputRequested",
+      execute: pending,
+      kind: "interrupt",
+      message: "Replace it",
+    });
+
+    expect(snapshot.context.busyInput.phase).toBe("idle");
+    expect(snapshot.context.nextRequestId).toBe(nextRequestId);
+  });
+
   it("Should emit the real error when a direct stop executor fails", async () => {
     const store = createSessionPageControlsLogic().createStore();
 

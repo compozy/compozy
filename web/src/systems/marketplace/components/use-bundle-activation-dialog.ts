@@ -1,7 +1,9 @@
-import { useSelector, useStore } from "@xstate/store-react";
+import { useSelector } from "@xstate/store-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent } from "react";
 import { toast } from "sonner";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   useActivateMarketplaceBundle,
@@ -31,11 +33,14 @@ export function useBundleActivationDialog({
   const preview = usePreviewMarketplaceBundle();
   const activate = useActivateMarketplaceBundle();
   const navigate = useNavigate();
-  const store = useStore(bundleActivationDialogLogic, {
-    profile: bundle?.profiles[0]?.name ?? "default",
-    scope: workspaceId ? "workspace" : "global",
-    confirmNetworkRequirement: false,
-  });
+  const bindingKey = JSON.stringify([data.entry.entry_id, workspaceId ?? null]);
+  const { store } = useStoreBinding(bindingKey, () =>
+    bundleActivationDialogLogic.createStore({
+      profile: bundle?.profiles[0]?.name ?? "default",
+      scope: workspaceId ? "workspace" : "global",
+      confirmNetworkRequirement: false,
+    })
+  );
   const state = useSelector(store, snapshot => snapshot.context);
 
   const executePreview = (draft: BundleActivationDraft) =>

@@ -2,13 +2,16 @@ import type { PillTone } from "@compozy/ui";
 
 import type { CreateChildTaskRequest, CreateTaskRequest, TaskPriority } from "../types";
 
-export type TaskTemplateId =
-  | "one_shot"
-  | "recurring"
-  | "epic"
-  | "remote_peer"
-  | "human_in_loop"
-  | "blank";
+export const TASK_TEMPLATE_IDS = [
+  "one_shot",
+  "recurring",
+  "epic",
+  "remote_peer",
+  "human_in_loop",
+  "blank",
+] as const;
+
+export type TaskTemplateId = (typeof TASK_TEMPLATE_IDS)[number];
 
 export interface TaskTemplate {
   id: TaskTemplateId;

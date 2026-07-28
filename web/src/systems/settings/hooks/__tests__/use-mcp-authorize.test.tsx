@@ -14,7 +14,6 @@ import {
   exchangeSettingsMCPAuth,
 } from "@/systems/settings/adapters/settings-mcp-auth-api";
 import { useMCPAuthorize } from "@/systems/settings/hooks/use-mcp-authorize";
-import { createMCPAuthorizeLogic } from "@/systems/settings/stores/mcp-authorize-store";
 
 const filter = { scope: "workspace" as const, workspace_id: "ws-alpha" };
 const prior = { status: "needs_login", tokenPresent: false };
@@ -46,14 +45,6 @@ function createWrapper() {
   return { wrapper };
 }
 
-function createTestLogic() {
-  return createMCPAuthorizeLogic();
-}
-
-const pendingBegin = vi.fn(() => new Promise<never>(() => undefined));
-const pendingExchange = vi.fn(() => new Promise<never>(() => undefined));
-const ignoreConfirmation = vi.fn();
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -63,110 +54,12 @@ afterEach(() => {
 });
 
 describe("useMCPAuthorize", () => {
-  it("rejects stale completions in pure transitions", () => {
-    const logic = createTestLogic();
-    const store = logic.createStore();
-    let snapshot = store.getInitialSnapshot();
-
-    [snapshot] = store.transition(snapshot, {
-      type: "authorizeRequested",
-      begin: pendingBegin,
-      dismissOnConfirmation: false,
-      server: "linear",
-      filter,
-      prior,
-      mode: "automatic",
-    });
-    const activeAttemptId = snapshot.context.attemptId;
-    const [staleSnapshot] = store.transition(snapshot, {
-      type: "beginSucceeded",
-      attemptId: activeAttemptId - 1,
-      begin: beginResponse,
-    });
-
-    expect(staleSnapshot).toBe(snapshot);
-
-    [snapshot] = store.transition(snapshot, {
-      type: "beginSucceeded",
-      attemptId: activeAttemptId,
-      begin: beginResponse,
-    });
-    expect(snapshot.context.phase).toBe("waiting");
-  });
-
-  it("allows manual code submission only from the manual phase", () => {
-    const logic = createTestLogic();
-    const store = logic.createStore();
-
-    expect(
-      store.can.manualCodeSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "code-123",
-      })
-    ).toBe(false);
-    store.trigger.authorizeRequested({
-      begin: pendingBegin,
-      dismissOnConfirmation: false,
-      server: "linear",
-      filter,
-      prior,
-      mode: "automatic",
-    });
-    const automaticAttemptId = store.getSnapshot().context.attemptId;
-    store.trigger.beginSucceeded({ attemptId: automaticAttemptId, begin: beginResponse });
-    expect(
-      store.can.manualCodeSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "code-123",
-      })
-    ).toBe(false);
-
-    store.trigger.manualAuthorizationRequested({ begin: pendingBegin });
-    const manualAttemptId = store.getSnapshot().context.attemptId;
-    store.trigger.beginSucceeded({ attemptId: manualAttemptId, begin: beginResponse });
-
-    expect(
-      store.can.manualCodeSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "",
-      })
-    ).toBe(false);
-    expect(
-      store.can.manualCodeSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "code-123",
-      })
-    ).toBe(true);
-  });
-
-  it("Should execute the begin callback carried by the accepted intent", () => {
-    const previousBegin = vi.fn(() => new Promise<never>(() => undefined));
-    const currentBegin = vi.fn(() => new Promise<never>(() => undefined));
-    const store = createTestLogic().createStore();
-
-    store.trigger.authorizeRequested({
-      begin: currentBegin,
-      dismissOnConfirmation: false,
-      server: "linear",
-      filter,
-      prior,
-      mode: "automatic",
-    });
-
-    expect(previousBegin).not.toHaveBeenCalled();
-    expect(currentBegin).toHaveBeenCalledWith({ server: "linear", filter, mode: "automatic" });
-  });
-
   it("begins authorization and exposes the live copyable URL from auth/begin", async () => {
     vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
+    act(() => {
       result.current.beginAuthorize(filter, "linear", prior);
       result.current.beginAuthorize(filter, "linear", prior);
     });
@@ -183,9 +76,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
 
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(result.current.error).toBe("provider unreachable");
@@ -237,15 +128,11 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
-    await act(async () => {
-      await result.current.enterManual();
-    });
-    await act(async () => {
-      await result.current.submitManual("code-123");
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    act(() => result.current.enterManual());
+    await waitFor(() => expect(result.current.phase).toBe("manual"));
+    act(() => result.current.submitManual("code-123"));
 
     await waitFor(() => expect(result.current.phase).toBe("confirmed"));
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { code: "code-123" });
@@ -282,16 +169,12 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
-    await act(async () => {
-      await result.current.enterManual();
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    act(() => result.current.enterManual());
+    await waitFor(() => expect(result.current.phase).toBe("manual"));
     const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc&state=x";
-    await act(async () => {
-      await result.current.submitManual(redirect);
-    });
+    act(() => result.current.submitManual(redirect));
 
     await waitFor(() => expect(result.current.phase).toBe("confirmed"));
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, {
@@ -308,15 +191,11 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
-    await act(async () => {
-      await result.current.enterManual();
-    });
-    await act(async () => {
-      await result.current.submitManual("code-123");
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    act(() => result.current.enterManual());
+    await waitFor(() => expect(result.current.phase).toBe("manual"));
+    act(() => result.current.submitManual("code-123"));
 
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(result.current.error).toBe("The provider did not return a confirmed credential.");
@@ -327,9 +206,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     // A tools/list-style success without a token must not flip the UI.
@@ -368,9 +245,8 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    await act(async () => {
-      await result.current.beginAuthorize(filter, "linear", prior);
-    });
+    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.cancel());
 
     expect(result.current.phase).toBe("idle");
