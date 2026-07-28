@@ -292,8 +292,8 @@ jobs:
     # shapes exist: the PR title ("release: Release vX.Y.Z") and the branch
     # commit subject GitHub uses for single-commit squashes ("release:
     # prepare release vX.Y.Z" — how v0.3.0 merged as 7cf16a49). Other
-    # ci(release): commits — e.g. the site changelog receipt the release job
-    # pushes — must stay inert or publishing loops.
+    # Other bot-generated subjects — e.g. the site changelog receipt the
+    # release job pushes — must stay inert or publishing loops.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
@@ -419,7 +419,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           # PAT so the site-changelog receipt push bypasses the main branch
-          # PR-only rule; its ci(release): subject keeps automation inert.
+          # PR-only rule; its bot author and non-release subject stay inert.
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Checkout release workflow tools
@@ -746,7 +746,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "ci(release): site changelog receipt ${RELEASE_TAG}"
+          git commit -m "build: publish site changelog receipt ${RELEASE_TAG}"
           for _ in 1 2 3; do
             if git push origin "HEAD:refs/heads/main"; then
               exit 0
