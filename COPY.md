@@ -37,15 +37,15 @@ Runtime truth beats copy preference. Generated API/CLI references beat paraphras
 
 ### Canonical One-Liner
 
-CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
+CompozyOS is an operating system for AI agents: plug in the agent CLIs you already use and they become a team that splits the work, hands tasks to each other, runs automated on jobs and loops, and shares one project memory, all steered from the browser.
 
 ### Short Pitch
 
-Compozy turns the agent CLIs people already use into durable work that can outlive a terminal tab. Sessions, tasks, loops, memory, permissions, automation, and the OS shell share one daemon-owned state; people and agents can operate that state through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
+Compozy is one open-source system instead of the five tools people glue together today. The agent CLIs people already use become a team: they split the work, hand tasks to each other in a dedicated network, run automated on jobs and loops, and share one project memory. Work keeps running after the window closes, sensitive actions wait for approval, and everything is steered from the browser. People and agents operate the same daemon-owned state through web, CLI, HTTP/SSE, UDS, and tools; everything is extensible, so teams build their own software factory on top.
 
 ### Product Category
 
-Use `agent operating system` as the category descriptor. Use **CompozyOS** when naming the complete system or making the category explicit; use **Compozy** in normal product prose. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
+Use `operating system for AI agents` as the category descriptor, shortened to `an OS for AI agents` where space is tight. Older copy used `agent operating system`; replace it when touching a surface. Use **CompozyOS** when naming the complete system or making the category explicit; use **Compozy** in normal product prose. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
 
 ### Launch Hero Lock
 
@@ -185,20 +185,20 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 ### Product Names
 
-| Term                 | Use                                                                                                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Compozy`            | The public product name in normal prose, UI, commands, package descriptions, and calls to action.                                                                               |
-| `CompozyOS`          | The complete agent operating system — runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination — in category or formal contexts. |
-| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                        |
-| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                |
+| Term                 | Use                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Compozy`            | The public product name in normal prose, UI, commands, package descriptions, and calls to action.                                                                                       |
+| `CompozyOS`          | The complete operating system for AI agents — runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination — in category or formal contexts. |
+| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                                |
+| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                        |
 
-### Canonical Example Trio
+### Canonical Example Set
 
-When public copy needs to name 2–3 specific agent CLIs as examples (hero subhead, runtime intros, installation prerequisites, blog narrative, project overviews), use this trio in this order:
+When public copy needs to name a few specific agent CLIs as examples (hero subhead, runtime intros, installation prerequisites, blog narrative, project overviews), use this set in this order:
 
-> Claude Code, OpenClaw, and Hermes.
+> Claude Code, Codex, Gemini CLI, and Cursor.
 
-Why this trio: these are the most recognizable ACP-compatible CLIs in the current Compozy ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
+Why this set: it matches the most recently approved positioning copy (2026-07) and names the CLIs most people already run, so the "plug in what you already use" promise lands without explanation. Older copy used Claude Code, OpenClaw, and Hermes as the canonical trio. Replace those inline lists with the set above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
@@ -478,13 +478,13 @@ Avoid:
 Formula:
 
 ```text
-CompozyOS is a <category> for <outcome>: <integrated-system promise>, <shared-control proof>, and <extensibility proof>.
+CompozyOS is an operating system for AI agents: <plug-in-what-you-already-use promise>, <agents-become-a-team proof>, and <steered-from-the-browser proof>.
 ```
 
 Approved:
 
 ```text
-CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
+CompozyOS is an operating system for AI agents: plug in the agent CLIs you already use and they become a team that splits the work, hands tasks to each other, runs automated on jobs and loops, and shares one project memory, all steered from the browser.
 ```
 
 ### Hero
@@ -684,7 +684,7 @@ Before shipping copy or product-facing text, verify:
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
 - The copy uses `Compozy`, `CompozyOS`, `Compozy Network`, and `compozy-network/v0` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `bridge`, `channel`, `AGENT.md`, and `AGENTS.md`.
-- Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
+- Inline example lists of agent CLIs use the canonical set (Claude Code, Codex, Gemini CLI, and Cursor) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
 - Numbers and counts have a source and update trigger.
@@ -704,7 +704,7 @@ Update `COPY.md` when:
 - canonical vocabulary changes
 - homepage hero or product one-liner changes
 - Compozy Network protocol naming changes
-- the canonical example trio of agent CLIs needs to change
+- the canonical example set of agent CLIs needs to change
 - generated CLI/API surfaces change in a way that affects public docs or examples
 - a review finds repeated copy drift across surfaces
 
