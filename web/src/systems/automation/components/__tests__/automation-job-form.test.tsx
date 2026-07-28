@@ -80,6 +80,7 @@ function renderJobForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
+        userHomeDir={undefined}
         workspaces={workspaces}
       />
     );

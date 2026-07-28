@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getNavCountsStore } from "@/systems/runtime";
 import { workspaceKeys } from "@/systems/workspace";
 
 import { createAgent, deleteAgent, duplicateAgent, updateAgent } from "../adapters/agent-api";
@@ -127,7 +126,6 @@ export function useDeleteAgent() {
     onSuccess: (_result: DeleteAgentResponse, variables) => {
       const workspace = variables.workspace ?? null;
       queryClient.removeQueries({ queryKey: agentKeys.detail(variables.name, workspace) });
-      getNavCountsStore(workspace).getState().refresh();
     },
     onSettled: (_result, error, variables) => {
       invalidateAgentCollectionQueries(queryClient, error, variables?.workspace);

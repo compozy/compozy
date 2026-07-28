@@ -31,9 +31,10 @@ export interface MCPAuthorizeDialogProps {
 }
 
 export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDialogProps) {
+  const open = authorize.phase !== "idle";
   return (
     <Dialog
-      open={authorize.isOpen}
+      open={open}
       onOpenChange={next => {
         if (!next) authorize.cancel();
       }}
@@ -43,7 +44,7 @@ export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDia
         unframed
         data-testid="settings-page-mcp-authorize"
       >
-        {authorize.isOpen ? (
+        {open ? (
           <AuthorizeContent
             key={authorize.server ?? "none"}
             authorize={authorize}
@@ -217,15 +218,16 @@ function AuthorizePrimaryAction({
     );
   }
   if (showManual) {
+    const exchanging = authorize.phase === "exchanging";
     return (
       <Button
         type="button"
         size="sm"
-        disabled={manualValue.trim() === "" || authorize.isExchanging}
+        disabled={manualValue.trim() === "" || exchanging}
         onClick={() => authorize.submitManual(manualValue)}
         data-testid="settings-page-mcp-authorize-exchange"
       >
-        {authorize.isExchanging ? <Spinner className="size-3" /> : null}
+        {exchanging ? <Spinner className="size-3" /> : null}
         Complete authorization
       </Button>
     );

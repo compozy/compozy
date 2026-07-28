@@ -44,6 +44,10 @@ async function register(clientId: string): Promise<Response> {
   });
 }
 
+async function snapshot(): Promise<Response> {
+  return fetch(API);
+}
+
 async function command(body: object): Promise<Response> {
   return fetch(`${API}/commands`, {
     method: "POST",
@@ -53,6 +57,56 @@ async function command(body: object): Promise<Response> {
 }
 
 describe("OS window-manager MSW handlers", () => {
+  it("Should keep an app-route snapshot consistent across window-manager operations", async () => {
+    resetWindowManagerMockState("/tasks?view=cards");
+
+    const response = await snapshot();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      workspace_id: "workspace-custom",
+      desktops: [
+        {
+          groups: [{ root: { kind: "leaf", window_id: "app:tasks" } }],
+        },
+      ],
+      windows: {
+        "app:tasks": {
+          id: "app:tasks",
+          app: "tasks",
+          route: { pathname: "/tasks", search: { view: "cards" } },
+        },
+      },
+    });
+
+    const registration = await register("client:route-story");
+    expect(registration.status).toBe(201);
+    await expect(registration.json()).resolves.toMatchObject({
+      focused_window_id: "app:tasks",
+    });
+
+    const commandResponse = await command(
+      commandBody("client:route-story", "window.close", {
+        window_id: "app:tasks",
+        minimize: true,
+      })
+    );
+    expect(commandResponse.status).toBe(200);
+    await expect(commandResponse.json()).resolves.toMatchObject({
+      snapshot: {
+        windows: {
+          "app:tasks": {
+            minimized: true,
+            route: { pathname: "/tasks", search: { view: "cards" } },
+          },
+        },
+      },
+      client: {
+        focused_window_id: null,
+      },
+    });
+  });
+
   it("Should reject commands from an unregistered client", async () => {
     const response = await command(commandBody("client:missing"));
 

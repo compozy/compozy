@@ -49,7 +49,7 @@ interface BuildRuntimeListModelArgs {
   providerById: Map<string, RuntimeProviderOption>;
   value: RuntimeSelectorValue;
   activeCustomProvider: string;
-  recentKeys: string[];
+  recentKeys: readonly string[];
   isFavoriteModel: (model: RuntimeModelOption) => boolean;
 }
 

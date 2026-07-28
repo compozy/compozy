@@ -6,8 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { sessionStore } from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
@@ -22,14 +22,6 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/sessio
 
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
-import { TimelineRowContent } from "../session-timeline-render";
-import {
-  computeStableSessionRows,
-  deriveSessionRows,
-  EMPTY_STABLE_SESSION_ROWS,
-  type SessionTimelinePart,
-  type StableSessionRowsState,
-} from "../session-timeline.logic";
 import { WorkingIndicator } from "../session-working-row";
 
 vi.mock("sonner", () => ({
@@ -1253,67 +1245,73 @@ describe("SessionThread transcript states", () => {
 // Boundary IN: `computeStableSessionRows` row identity + the compiler-managed row renderer.
 // Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
 describe("SessionThread streaming render-count", () => {
-  function textPart(id: string, value: string, state: string, turnId: string): SessionTimelinePart {
-    return { kind: "text", id, text: value, turnId, timestamp: "2026-07-07T12:00:00Z", state };
-  }
-
-  function StableTimeline({
-    liveText,
-    stateRef,
-  }: {
-    liveText: string;
-    stateRef: { current: StableSessionRowsState };
-  }) {
-    // Mirror the production hook: re-derive fresh rows, then structurally share
-    // against the prior pass so unchanged rows keep their reference.
-    const derived = deriveSessionRows([
-      textPart("settled", "Settled answer", "done", "turn-settled"),
-      textPart("live", liveText, "streaming", "turn-live"),
+  function streamingTranscript(liveText: string): readonly ThreadMessage[] {
+    return toReadonlyThreadMessages([
+      {
+        id: "assistant-streaming-render-isolation",
+        role: "assistant",
+        status: { type: "running" },
+        parts: [
+          {
+            type: "text",
+            text: "Settled answer",
+            state: "done",
+            turn_id: "turn-render-isolation",
+          },
+          {
+            type: "text",
+            text: liveText,
+            state: "streaming",
+            turn_id: "turn-render-isolation",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
     ]);
-    const stable = computeStableSessionRows(derived, stateRef.current);
-    stateRef.current = stable;
-    return (
-      <>
-        {stable.result.map(row => (
-          <div key={row.id} data-session-row-id={row.id}>
-            <TimelineRowContent row={row} />
-          </div>
-        ))}
-      </>
-    );
   }
 
-  it("Should preserve the settled row subtree while the live row changes across streaming chunks", () => {
-    const stateRef: { current: StableSessionRowsState } = { current: EMPTY_STABLE_SESSION_ROWS };
+  function renderStreamingTimeline(liveText: string) {
+    const queryClient = createQueryClient();
+    const tree = (nextLiveText: string) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId={fixtureWorkspaceId()}
+        >
+          <SessionTranscriptThreadProvider
+            messages={streamingTranscript(nextLiveText)}
+            status="success"
+            error={null}
+            retry={vi.fn()}
+          >
+            <SessionThread
+              sessionId={primarySessionFixture.id}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              onCancelPrompt={vi.fn()}
+              isSessionRunning
+            />
+          </SessionTranscriptThreadProvider>
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const view = render(tree(liveText));
+    return { rerender: (nextLiveText: string) => view.rerender(tree(nextLiveText)) };
+  }
 
-    const { container, rerender } = render(
-      <StableTimeline liveText="chunk 1" stateRef={stateRef} />
-    );
-    const settledRowAtMount = stateRef.current.result[0];
-    const settledElement = container.querySelector<HTMLElement>(
-      '[data-session-row-id="text:settled"]'
-    );
-    const liveElement = container.querySelector<HTMLElement>('[data-session-row-id="text:live"]');
-    if (!settledElement || !liveElement) {
-      throw new Error("Expected settled and live timeline rows to render");
-    }
-    const settledSubtreeAtMount = settledElement.firstElementChild;
+  it("Should preserve the settled timeline row while the real stream receives chunks", async () => {
+    const view = renderStreamingTimeline("chunk 1");
+    const settledElement = await screen.findByText("Settled answer");
 
     for (const chunk of [
       "chunk 1 chunk 2",
       "chunk 1 chunk 2 chunk 3",
       "chunk 1 chunk 2 chunk 3 chunk 4",
     ]) {
-      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} />);
-      const nextSettledElement = container.querySelector('[data-session-row-id="text:settled"]');
-      const nextLiveElement = container.querySelector('[data-session-row-id="text:live"]');
+      view.rerender(chunk);
 
-      expect(nextSettledElement).toBe(settledElement);
-      expect(nextSettledElement?.firstElementChild).toBe(settledSubtreeAtMount);
-      expect(nextLiveElement).toHaveTextContent(chunk);
+      expect(await screen.findByText(chunk)).toBeInTheDocument();
+      expect(screen.getByText("Settled answer")).toBe(settledElement);
     }
-
-    expect(stateRef.current.result[0]).toBe(settledRowAtMount);
   });
 });
 
@@ -1325,7 +1323,7 @@ describe("SessionThread streaming render-count", () => {
 
 function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>) {
   const queryClient = createQueryClient();
-  render(
+  return render(
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
@@ -1355,12 +1353,27 @@ describe("SessionThread composer running semantics", () => {
     vi.stubGlobal("fetch", createFetchMock());
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    act(() => {
+      sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    });
+  });
+
+  it("Should restore the active session draft after the composer remounts", async () => {
+    const user = userEvent.setup();
+    const firstView = renderComposer({ isSessionRunning: false });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "keep this draft");
+
+    firstView.unmount();
+    renderComposer({ isSessionRunning: false });
+
+    expect(await screen.findByTestId("composer-textarea")).toHaveValue("keep this draft");
   });
 
   it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
@@ -1397,6 +1410,22 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("queue failed");
     });
+    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+  });
+
+  it("Should silently preserve the draft when the queue owner is replaced", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.reject(new DOMException("Busy input request was canceled", "AbortError"))
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "queue this follow-up");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(toast.error).not.toHaveBeenCalled();
     expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
   });
 

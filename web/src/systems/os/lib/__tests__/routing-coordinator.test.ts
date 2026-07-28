@@ -145,6 +145,11 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
 
   return {
     getState: () => state,
+    openOrFocus,
+    focusWindow,
+    closeWindow,
+    minimizeWindow,
+    zoomWindow,
     deferLifecycle: () => {
       lifecycleResult = new Promise<boolean>(resolve => {
         resolveLifecycle = resolve;

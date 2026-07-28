@@ -36,3 +36,7 @@ states, one-shot workspace deep-link adoption, and subsequent sidebar-to-URL syn
 
 QA impact 2026-07-18: the generic editor moved into Marketplace Installed. Retest custom stdio,
 http, and sse creation plus exact-scope editing after the legacy `/mcp` route hard cut.
+
+QA impact 2026-07-28: editor dismissal is rejected while a save attempt is pending, including
+across rerenders, so a rejected mutation keeps its error visible. Status remains untested; no QA
+replay ran.

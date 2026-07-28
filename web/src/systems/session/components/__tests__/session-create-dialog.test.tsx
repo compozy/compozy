@@ -11,6 +11,10 @@ import type { WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
 
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => ({ data: undefined }),
+}));
+
 const agents: AgentPayload[] = [
   {
     name: "claude-agent",
@@ -83,6 +87,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     workspace,
     workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
     workspaceId: workspace.id,
+    userHomeDir: undefined,
     onWorkspaceChange: vi.fn(),
     sessionName: "",
     onSessionNameChange: vi.fn(),
@@ -122,7 +127,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 
 function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <SessionCreateDialog {...makeProps(overrides)} />
     </UIProvider>
   );

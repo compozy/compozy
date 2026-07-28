@@ -28,6 +28,7 @@ import { TriggerTargetStep } from "./trigger-form/target-step";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;
+  userHomeDir: string | undefined;
   draft: CreateAutomationTriggerRequest;
   isPending: boolean;
   mode: "create" | "edit";
@@ -47,6 +48,7 @@ const EMPTY_AGENTS: AgentPayload[] = [];
 
 export function AutomationTriggerForm({
   activeWorkspaceId,
+  userHomeDir,
   draft,
   isPending,
   mode,
@@ -90,6 +92,7 @@ export function AutomationTriggerForm({
             onWorkspaceChange={form.onWorkspaceChange}
             scope={draft.scope}
             testIdPrefix="trigger"
+            userHomeDir={userHomeDir}
             workspaceDisabled={form.isWebhook}
             workspaceId={draft.workspace_id}
             workspaces={form.resolvedWorkspaces}

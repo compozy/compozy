@@ -6,7 +6,7 @@ import { loopsKeys } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
-import { useSessionStore } from "./use-session-store";
+import { sessionStore } from "../stores/session-store";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
@@ -17,10 +17,14 @@ function buildSessionRuntimeConfig(
 ) {
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
-      useSessionStore.getState().dismissGoalError(sessionId);
+      sessionStore.trigger.goalErrorAcknowledged({ sessionId });
     },
     onResult: (result, requestText) => {
-      useSessionStore.getState().setGoalResult(sessionId, result, requestText ?? undefined);
+      sessionStore.trigger.goalCommandReported({
+        sessionId,
+        result,
+        ...(requestText === null || requestText === undefined ? {} : { command: requestText }),
+      });
       if (result.snapshot !== null || result.outcome === "cleared") {
         queryClient.setQueryData(sessionKeys.goal(workspaceId, sessionId), {
           goal: result.snapshot,

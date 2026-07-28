@@ -11,14 +11,9 @@ import { cn } from "../../lib/utils";
 import { pillVariants } from "./pill-variants";
 import type { PillSize, PillTone } from "./pill-types";
 
-type PillContextValue = {
-  size: PillSize;
-  mono: boolean;
-  tone: PillTone;
-  pulse: boolean;
-};
-
-const PillContext = React.createContext<PillContextValue | null>(null);
+const PillSizeContext = React.createContext<PillSize | null>(null);
+const PillToneContext = React.createContext<PillTone | null>(null);
+const PillPulseContext = React.createContext<boolean | null>(null);
 
 type PillVariantOptions = VariantProps<typeof pillVariants>;
 
@@ -53,7 +48,7 @@ function Pill({
   const size: PillSize = sizeProp ?? "sm";
   const mono = Boolean(monoProp);
   const solid = Boolean(solidProp);
-  const ctx: PillContextValue = { size, mono, tone, pulse: Boolean(pulse) };
+  const pulseEnabled = Boolean(pulse);
   const element = useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
@@ -75,7 +70,13 @@ function Pill({
     render,
     state: { slot: "pill", tone, size, mono, solid, active },
   });
-  return <PillContext.Provider value={ctx}>{element}</PillContext.Provider>;
+  return (
+    <PillSizeContext value={size}>
+      <PillToneContext value={tone}>
+        <PillPulseContext value={pulseEnabled}>{element}</PillPulseContext>
+      </PillToneContext>
+    </PillSizeContext>
+  );
 }
 
 export interface PillDotProps extends Omit<React.ComponentProps<"span">, "color"> {
@@ -95,13 +96,15 @@ function PillDot({
   style,
   ...props
 }: PillDotProps) {
-  const ctx = React.use(PillContext);
+  const contextSize = React.use(PillSizeContext);
+  const contextTone = React.use(PillToneContext);
+  const contextPulse = React.use(PillPulseContext);
   const reduced = useReducedMotionConfig();
-  const effectivePulse = pulse ?? ctx?.pulse ?? false;
+  const effectivePulse = pulse ?? contextPulse ?? false;
   const shouldAnimate = effectivePulse && !reduced;
   const effectiveSize: "sm" | "md" =
-    explicitSize ?? (ctx ? (ctx.size === "md" ? "md" : "sm") : "md");
-  const effectiveTone: PillTone = tone ?? ctx?.tone ?? "neutral";
+    explicitSize ?? (contextSize ? (contextSize === "md" ? "md" : "sm") : "md");
+  const effectiveTone: PillTone = tone ?? contextTone ?? "neutral";
   return (
     <span
       aria-hidden="true"

@@ -39,7 +39,6 @@ interface AgentCreateDialogProps {
   providersError: string | null;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   submitError: string | null;
@@ -47,6 +46,7 @@ interface AgentCreateDialogProps {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
+  userHomeDir: string | undefined;
   initialMode?: EntityMode;
 }
 
@@ -70,7 +70,6 @@ function AgentCreateDialog({
   providersError,
   runtimeModels,
   modelCatalogLoading,
-  modelCatalogLoaded,
   modelCatalogRefreshing,
   modelCatalogError,
   submitError,
@@ -78,6 +77,7 @@ function AgentCreateDialog({
   hasActiveWorkspace,
   workspaceId,
   workspaceName,
+  userHomeDir,
   initialMode = "simple",
 }: AgentCreateDialogProps) {
   const { handleOpenChange, mode, revealAdvancedWhenBlocked, setMode, validation, visibleErrors } =
@@ -174,6 +174,7 @@ function AgentCreateDialog({
                     size="compact"
                     testIdPrefix="agent-create-workspace"
                     triggerTestId="agent-create-workspace-select"
+                    userHomeDir={userHomeDir}
                     value={workspaceId ?? null}
                     workspaces={workspaceOptions}
                   />
@@ -201,7 +202,6 @@ function AgentCreateDialog({
                 draft={draft}
                 errors={visibleErrors}
                 modelCatalogError={modelCatalogError}
-                modelCatalogLoaded={modelCatalogLoaded}
                 modelCatalogLoading={modelCatalogLoading}
                 modelCatalogRefreshing={modelCatalogRefreshing}
                 onDraftChange={onDraftChange}

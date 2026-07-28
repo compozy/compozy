@@ -1,7 +1,7 @@
 ---
 name: 12-web-ui
 title: Web UI (React 19 SPA) — Real-LLM Pre-release QA Plan
-description: Behavior-first QA scenarios for the Compozy web app — TanStack Router file-based routes, app-renderer-systems (per-domain queries/mutations/optimistic), TanStack Query v5 server state, Zustand UI state, openapi-fetch typed contract, assistant-ui SSE chat runtime, shadcn/@compozy/ui primitives, Tailwind v4 tokens — driven against a real Claude Code ACP subprocess through the same daemon HTTP/SSE the operator hits in production. Closes the loop end-to-end so every truthful-UI invariant, accessibility contract, COPY.md vocabulary rule, DESIGN.md token rule, and SSE/after_seq replay invariant is proven by browser-side scenarios, not by isolated component tests.
+description: Behavior-first QA scenarios for the Compozy web app — TanStack Router file-based routes, app-renderer-systems (per-domain queries/mutations/optimistic), TanStack Query v5 server state, @xstate/store interaction state, openapi-fetch typed contract, assistant-ui SSE chat runtime, shadcn/@compozy/ui primitives, Tailwind v4 tokens — driven against a real Claude Code ACP subprocess through the same daemon HTTP/SSE the operator hits in production. Closes the loop end-to-end so every truthful-UI invariant, accessibility contract, COPY.md vocabulary rule, DESIGN.md token rule, and SSE/after_seq replay invariant is proven by browser-side scenarios, not by isolated component tests.
 type: final-qa-child
 module: web-ui
 parent: ../_parent.md

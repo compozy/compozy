@@ -49,7 +49,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       replace: route => navigateTo(router, route, true),
     };
     return {
-      store: manager,
+      projection: manager.projectionAtom,
       manager,
       coordinator: new RoutingCoordinator(manager, port),
     };

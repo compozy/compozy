@@ -1,9 +1,10 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import type { SettingsSectionName } from "@/systems/settings";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
-import { useUserHomeDirStore } from "@/systems/workspace/hooks/use-user-home-dir-store";
+import { settingsRestartStore, type SettingsSectionName } from "@/systems/settings";
+import { statusKeys } from "@/systems/status";
+import { statusFixture } from "@/systems/status/mocks";
+import { setActiveWorkspaceId } from "@/systems/workspace";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 export function StorybookRouteCanvas() {
@@ -16,28 +17,38 @@ export function StorybookWorkspaceSetup({
   workspaceId?: string;
 }) {
   useEffect(() => {
-    useActiveWorkspaceStore.getState().setSelectedWorkspaceId(workspaceId);
+    setActiveWorkspaceId(workspaceId);
   }, [workspaceId]);
 
   return null;
 }
 
 export function StorybookUserHomeDirSetup({ userHomeDir }: { userHomeDir: string | null }) {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
-    useUserHomeDirStore.getState().setUserHomeDir(userHomeDir);
-  }, [userHomeDir]);
+    queryClient.setQueryData(statusKeys.current(), {
+      ...statusFixture,
+      daemon: {
+        ...statusFixture.daemon,
+        user_home_dir: userHomeDir ?? "",
+      },
+    });
+  }, [queryClient, userHomeDir]);
 
   return null;
 }
 
 export function StorybookRestartNoticeSetup({ section }: { section: SettingsSectionName }) {
   useEffect(() => {
-    useSettingsRestartStore.getState().recordMutation({
-      section,
-      restartRequired: true,
-      restartScope: "global",
-      warnings: [],
-      completedAt: "2026-04-18T01:00:00Z",
+    settingsRestartStore.trigger.settingsMutationRecorded({
+      mutation: {
+        section,
+        restartRequired: true,
+        restartScope: "global",
+        warnings: [],
+        completedAt: "2026-04-18T01:00:00Z",
+      },
     });
   }, [section]);
 

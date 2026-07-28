@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -72,6 +72,14 @@ vi.mock("@/systems/model-catalog", () => ({
   providerNeedsAuth: () => false,
   useRuntimeModelCatalog: () => ({ ...mockRuntimeCatalog, refresh: mockRefreshCatalog }),
 }));
+
+vi.mock("@/systems/workspace", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/workspace")>();
+  return {
+    ...actual,
+    useUserHomeDir: () => "/Users/test",
+  };
+});
 
 vi.mock("../use-agents", () => ({
   useCreateAgent: () => ({
@@ -176,6 +184,7 @@ describe("useAgentCreateDialog", () => {
     // Identity is the provider id; name now surfaces the workspace display name.
     expect(result.current.providerOptions.map(option => option.id)).toEqual(["codex"]);
     expect(result.current.providerOptions[0]?.name).toBe("Codex");
+    expect(result.current.userHomeDir).toBe("/Users/test");
   });
 
   it("uses global settings-backed providers after switching scope", () => {
@@ -213,35 +222,67 @@ describe("useAgentCreateDialog", () => {
       });
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
-    expect(mockCreateAgent).toHaveBeenCalledWith({
-      scope: "workspace",
-      workspace: "ws_alpha",
-      agent: {
+    await waitFor(() => {
+      expect(mockCreateAgent).toHaveBeenCalledWith({
+        scope: "workspace",
+        workspace: "ws_alpha",
+        agent: {
+          name: "release-captain",
+          provider: "codex",
+          prompt: "Own release readiness.",
+          model: "gpt-5.4",
+          reasoning_effort: "high",
+          tools: ["compozy__skill_view"],
+          toolsets: ["compozy__catalog"],
+          deny_tools: ["compozy__task_*"],
+          permissions: "approve-reads",
+          category_path: ["Engineering", "Release"],
+          skills: { disabled: ["copywriting"] },
+        },
+      });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "release-captain" },
+      });
+      expect(result.current.open).toBe(false);
+    });
+  });
+
+  it("Should stay closed after a committed create fails to navigate", async () => {
+    mockNavigate.mockRejectedValue(new Error("router unavailable"));
+    const { result } = renderAgentCreateDialog();
+
+    act(() => {
+      result.current.openDialog();
+      result.current.onDraftChange({
+        ...result.current.draft,
         name: "release-captain",
         provider: "codex",
         prompt: "Own release readiness.",
-        model: "gpt-5.4",
-        reasoning_effort: "high",
-        tools: ["compozy__skill_view"],
-        toolsets: ["compozy__catalog"],
-        deny_tools: ["compozy__task_*"],
-        permissions: "approve-reads",
-        category_path: ["Engineering", "Release"],
-        skills: { disabled: ["copywriting"] },
-      },
+      });
     });
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/agents/$name",
-      params: { name: "release-captain" },
+    act(() => {
+      result.current.onSubmit();
     });
-    expect(result.current.open).toBe(false);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("router unavailable");
+      expect(result.current.open).toBe(false);
+    });
+    expect(mockCreateAgent).toHaveBeenCalledOnce();
+
+    act(() => {
+      result.current.openDialog();
+    });
+    expect(result.current.open).toBe(true);
+    expect(mockCreateAgent).toHaveBeenCalledOnce();
   });
 
-  it("fails closed and keeps the dialog open when a corrupt draft carries an off-contract reasoning effort", async () => {
+  it("fails closed and keeps the dialog open when a corrupt draft carries an off-contract reasoning effort", () => {
     const { result } = renderAgentCreateDialog();
 
     // Simulate a corrupt/foreign draft carrying an off-contract effort. It must
@@ -259,8 +300,8 @@ describe("useAgentCreateDialog", () => {
       result.current.onDraftChange(corruptDraft as typeof result.current.draft);
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
@@ -282,17 +323,19 @@ describe("useAgentCreateDialog", () => {
       });
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
-    expect(result.current.open).toBe(true);
-    expect(result.current.submitError).toBe("agent definition already exists");
-    expect(mockToastError).toHaveBeenCalledWith("agent definition already exists");
-    expect(mockNavigate).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.open).toBe(true);
+      expect(result.current.submitError).toBe("agent definition already exists");
+      expect(mockToastError).toHaveBeenCalledWith("agent definition already exists");
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
   });
 
-  it("blocks global submit when global providers fail to load", async () => {
+  it("blocks global submit when global providers fail to load", () => {
     mockSettingsProviders.data = undefined;
     mockSettingsProviders.error = new Error("Unable to load global provider settings.");
     const { result } = renderAgentCreateDialog();
@@ -308,15 +351,15 @@ describe("useAgentCreateDialog", () => {
       });
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("Unable to load global provider settings.");
   });
 
-  it("does not submit workspace-scoped agents when no active workspace is available", async () => {
+  it("does not submit workspace-scoped agents when no active workspace is available", () => {
     const { result } = renderAgentCreateDialog({
       activeWorkspace: undefined,
       workspaceProviders: [],
@@ -333,8 +376,8 @@ describe("useAgentCreateDialog", () => {
       });
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
@@ -402,26 +445,28 @@ describe("useAgentCreateDialog", () => {
       });
     });
 
-    await act(async () => {
-      await result.current.onSubmit();
+    act(() => {
+      result.current.onSubmit();
     });
 
-    expect(result.current.submitError).toBeNull();
-    expect(mockCreateAgent).not.toHaveBeenCalled();
-    expect(mockDuplicateAgent).toHaveBeenCalledWith({
-      sourceName: "release-captain",
-      params: {
-        name: "release-captain-copy",
-        scope: "workspace",
-        workspace: "ws_alpha",
-        overrides: {
-          prompt: "Own release readiness, carefully.",
+    await waitFor(() => {
+      expect(result.current.submitError).toBeNull();
+      expect(mockCreateAgent).not.toHaveBeenCalled();
+      expect(mockDuplicateAgent).toHaveBeenCalledWith({
+        sourceName: "release-captain",
+        params: {
+          name: "release-captain-copy",
+          scope: "workspace",
+          workspace: "ws_alpha",
+          overrides: {
+            prompt: "Own release readiness, carefully.",
+          },
         },
-      },
-    });
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/agents/$name",
-      params: { name: "release-captain-copy" },
+      });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "release-captain-copy" },
+      });
     });
   });
 });

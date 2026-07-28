@@ -17,6 +17,7 @@ import {
   type MarketplaceKindResultsProps,
 } from "../marketplace-kind-results";
 import { marketplaceKindConfig } from "../../lib/marketplace-kind-config";
+import { marketplaceEntryOptions } from "../../lib/query-options";
 
 const mocks = vi.hoisted(() => ({
   activateBundle: vi.fn(),
@@ -91,10 +92,6 @@ vi.mock("@/systems/settings", async () => {
         error: null,
         prior: null,
         mode: null,
-        isBeginning: false,
-        isExchanging: false,
-        isAwaiting: phase === "waiting",
-        isOpen: phase !== "idle",
         beginAuthorize: (...args: unknown[]) => {
           mocks.beginAuthorize(...args);
           setPhase("waiting");
@@ -126,6 +123,7 @@ vi.mock("../../hooks/use-marketplace-actions", () => ({
     error: null,
     isPending: false,
     mutate: mocks.previewBundle,
+    mutateAsync: mocks.previewBundle,
   }),
   useUpdateMarketplaceSkill: () => ({ mutateAsync: mocks.updateSkill }),
   useUpdateMarketplaceExtension: () => ({
@@ -134,8 +132,14 @@ vi.mock("../../hooks/use-marketplace-actions", () => ({
   }),
 }));
 
-function ActionHarness({ entry }: { entry: MarketplaceListing }) {
-  const controller = useMarketplaceActionController("ws-a");
+function ActionHarness({
+  entry,
+  workspaceId = "ws-a",
+}: {
+  entry: MarketplaceListing;
+  workspaceId?: string;
+}) {
+  const controller = useMarketplaceActionController(workspaceId);
   return (
     <>
       <button onClick={() => controller.handleAction(entry)} type="button">
@@ -287,6 +291,7 @@ function setup(entry: MarketplaceListing) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.previewData = marketplaceBundlePreviewFixture;
+  mocks.previewBundle.mockResolvedValue(marketplaceBundlePreviewFixture);
   mocks.activateBundle.mockResolvedValue({});
   mocks.installExtension.mockResolvedValue({
     extension: {
@@ -367,7 +372,7 @@ describe("useMarketplaceActionController", () => {
 
     await waitFor(() => expect(mocks.beginAuthorize).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("global");
-    expect(mocks.beginAuthorize).toHaveBeenCalledWith("linear", {
+    expect(mocks.beginAuthorize).toHaveBeenCalledWith({ scope: "global" }, "linear", {
       status: "needs_login",
       tokenPresent: false,
     });
@@ -745,11 +750,15 @@ describe("useMarketplaceActionController", () => {
     );
   });
 
-  it("Should fetch detail before opening acquisition dialogs and confirm Live bundles", async () => {
+  it("Should render acquisition dialogs from canonical details and re-preview bundles for the active workspace", async () => {
     const user = userEvent.setup();
     const { client, rerender } = setup(marketplaceListings.mcp[0]!);
     const fetchDetail = vi.spyOn(client, "fetchQuery");
-    fetchDetail.mockResolvedValueOnce(marketplaceDetails["mcp:github"]!);
+    fetchDetail.mockImplementationOnce(async options => {
+      const detail = marketplaceDetails["mcp:github"]!;
+      client.setQueryData(options.queryKey, detail);
+      return detail;
+    });
 
     await user.click(screen.getByRole("button", { name: "Run action" }));
     expect(await screen.findByTestId("mcp-install-dialog")).toBeInTheDocument();
@@ -759,7 +768,11 @@ describe("useMarketplaceActionController", () => {
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByTestId("mcp-install-dialog")).not.toBeInTheDocument());
-    fetchDetail.mockResolvedValueOnce(marketplaceDetails["bundle:dep-kit"]!);
+    fetchDetail.mockImplementationOnce(async options => {
+      const detail = marketplaceDetails["bundle:dep-kit"]!;
+      client.setQueryData(options.queryKey, detail);
+      return detail;
+    });
     rerender(
       <QueryClientProvider client={client}>
         <ActionHarness entry={marketplaceListings.bundle[0]!} />
@@ -767,6 +780,31 @@ describe("useMarketplaceActionController", () => {
     );
     await user.click(screen.getByRole("button", { name: "Run action" }));
     expect(await screen.findByTestId("bundle-activation-dialog")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.previewBundle).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "workspace", workspace: "ws-a" })
+      )
+    );
+    client.setQueryData(
+      marketplaceEntryOptions({
+        entryId: marketplaceListings.bundle[0]!.entry_id,
+        kind: "bundle",
+        workspaceId: "ws-b",
+      }).queryKey,
+      marketplaceDetails["bundle:dep-kit"]
+    );
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <ActionHarness entry={marketplaceListings.bundle[0]!} workspaceId="ws-b" />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(mocks.previewBundle).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "workspace", workspace: "ws-b" })
+      )
+    );
+
     await user.click(screen.getByRole("radio", { name: /Global/ }));
     await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
     await user.click(screen.getByTestId("bundle-activate-confirm"));

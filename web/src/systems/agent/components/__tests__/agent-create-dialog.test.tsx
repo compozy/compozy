@@ -61,7 +61,6 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     providersError: null,
     runtimeModels,
     modelCatalogLoading: false,
-    modelCatalogLoaded: true,
     modelCatalogRefreshing: false,
     modelCatalogError: null,
     submitError: null,
@@ -69,6 +68,7 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     hasActiveWorkspace: true,
     workspaceId: "ws_alpha",
     workspaceName: "alpha",
+    userHomeDir: undefined,
     ...overrides,
   };
 }
@@ -82,7 +82,7 @@ function renderStatefulDialog(props: Partial<AgentCreateDialogProps> = {}) {
   }
 
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <Harness />
     </UIProvider>
   );

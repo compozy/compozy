@@ -20,10 +20,10 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 }));
 
 import { getSettingsSkills, updateSettingsSkills } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import { useSettingsSkillsPage } from "../use-settings-skills-page";
+import { settingsSkillsDraftLogic } from "../settings-skills-draft-logic";
 
 const skillsEnvelope: SettingsSkillsSection = {
   section: "skills",
@@ -59,13 +59,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getSettingsSkills).mockResolvedValue(skillsEnvelope);
 });
 
@@ -119,6 +113,22 @@ describe("useSettingsSkillsPage", () => {
 
     expect(result.current.isPolicyDirty).toBe(true);
     expect(result.current.isDisabledDirty).toBe(false);
+  });
+
+  it("composes consecutive functional draft updates from the current draft", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft(current =>
+        current ? { ...current, poll_interval: "10m" } : current
+      );
+      result.current.setDraft(current => (current ? { ...current, enabled: false } : current));
+    });
+
+    expect(result.current.draft).toMatchObject({ enabled: false, poll_interval: "10m" });
   });
 
   it("save disabled sends full config with only disabled_skills changed and records applied-now label", async () => {
@@ -202,5 +212,25 @@ describe("useSettingsSkillsPage", () => {
       },
       { scope: "global" }
     );
+  });
+
+  it("Should replace a skills draft when its server scope changes", () => {
+    const global = {
+      enabled: true,
+      marketplace: { registry: "https://registry.example" },
+      poll_interval: "5m",
+    };
+    const agent = { ...global, enabled: false };
+    const globalStore = settingsSkillsDraftLogic.createStore({ baseline: global, key: "global" });
+
+    globalStore.trigger.draftChanged({ update: { ...global, enabled: false } });
+    const agentStore = settingsSkillsDraftLogic.createStore({
+      baseline: agent,
+      key: "agent:ship",
+      previous: globalStore.getSnapshot().context,
+    });
+
+    expect(agentStore.getSnapshot().context.draft).toEqual(agent);
+    expect(agentStore.getSnapshot().context.labels).toEqual({ disabled: null, policy: null });
   });
 });

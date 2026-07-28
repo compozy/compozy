@@ -35,6 +35,7 @@ type AutomationDialogEditorState =
 
 interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
+  userHomeDir: string | undefined;
   /** Agent catalog for the target selector. */
   agents?: AgentPayload[];
   /** Initial loading state for the agent target catalog. */
@@ -87,6 +88,7 @@ const WIDE_CONTENT_CLASS = `text-fg grid-rows-[auto_minmax(0,1fr)] ${dialogShell
 
 export function AutomationEditorDialog({
   activeWorkspaceId,
+  userHomeDir,
   agents,
   agentsLoading,
   agentsError,
@@ -119,6 +121,7 @@ export function AutomationEditorDialog({
           {editor.kind === "jobs" ? (
             <AutomationJobForm
               activeWorkspaceId={activeWorkspaceId}
+              userHomeDir={userHomeDir}
               agents={agents}
               agentsError={agentsError}
               agentsLoading={agentsLoading}
@@ -133,6 +136,7 @@ export function AutomationEditorDialog({
           ) : (
             <AutomationTriggerForm
               activeWorkspaceId={activeWorkspaceId}
+              userHomeDir={userHomeDir}
               agents={agents}
               agentsError={agentsError}
               agentsLoading={agentsLoading}

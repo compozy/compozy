@@ -17,7 +17,11 @@ import type {
 } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
 import type { SettingsAutomationSection } from "@/systems/settings";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useUserHomeDir,
+} from "@/systems/workspace";
 
 export type JobEditorState =
   | { draft: CreateAutomationJobRequest; mode: "create" }
@@ -123,6 +127,7 @@ export function useAutomationPageBase(
 ) {
   const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
   const settingsQuery = useSettingsAutomation();
 
   const scopeFilter = search.scope ?? "all";
@@ -197,6 +202,7 @@ export function useAutomationPageBase(
     setSourceFilter,
     setView,
     sourceFilter,
+    userHomeDir,
     view,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };

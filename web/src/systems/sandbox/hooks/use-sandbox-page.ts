@@ -1,10 +1,18 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { ListingViewMode } from "@compozy/ui";
 
-import { useSettingsPage } from "@/systems/settings/hooks/use-settings-page";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import {
+  SettingsApiError,
+  useDeleteSettingsSandbox,
+  usePutSettingsSandbox,
+  useSettingsPage,
+  useSettingsSandboxes,
+  type SettingsSandboxEntry,
+} from "@/systems/settings";
+
 import {
   parseSandboxBackendFilter,
   parseSandboxPersistenceFilter,
@@ -14,18 +22,14 @@ import {
 import {
   emptySandboxDraft,
   sandboxEnvErrors,
+  sandboxSecretEnvErrors,
   toSandboxDraft,
   toSandboxRequest,
   type SandboxDraft,
 } from "../lib/sandbox-profile-draft";
-import {
-  SettingsApiError,
-  useDeleteSettingsSandbox,
-  usePutSettingsSandbox,
-  useSettingsSandboxes,
-  type SettingsSandboxEntry,
-  type SettingsMutationResult,
-} from "@/systems/settings";
+import { sandboxPageLogic } from "./sandbox-page-store";
+
+export type { SandboxEditorState, SandboxLastAction } from "./sandbox-page-store";
 
 export interface SandboxRouteSearch {
   q?: string;
@@ -49,19 +53,24 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
-function matchesQuery(entry: SettingsSandboxEntry, query: string): boolean {
-  if (!query) return true;
-  const haystack = [
-    entry.name,
-    entry.profile.backend,
-    entry.profile.sync_mode ?? "",
-    entry.profile.persistence ?? "",
-    entry.profile.runtime_root ?? "",
-    entry.source_metadata.effective_source.kind,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(query.toLowerCase());
+function matchesNormalizedSandboxQuery(
+  entry: SettingsSandboxEntry,
+  normalizedQuery: string
+): boolean {
+  return (
+    normalizedQuery.length === 0 ||
+    [
+      entry.name,
+      entry.profile.backend,
+      entry.profile.sync_mode ?? "",
+      entry.profile.persistence ?? "",
+      entry.profile.runtime_root ?? "",
+      entry.source_metadata.effective_source.kind,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery)
+  );
 }
 
 function filterSandboxes(
@@ -70,34 +79,14 @@ function filterSandboxes(
   backend: SandboxBackendFilter,
   persistence: SandboxPersistenceFilter
 ): SettingsSandboxEntry[] {
-  return sandboxes.filter(entry => {
-    if (!matchesQuery(entry, query)) return false;
-    if (backend !== "all" && entry.profile.backend !== backend) return false;
-    if (persistence !== "all" && (entry.profile.persistence ?? "") !== persistence) return false;
-    return true;
-  });
+  const normalizedQuery = query.toLowerCase();
+  return sandboxes.filter(
+    entry =>
+      matchesNormalizedSandboxQuery(entry, normalizedQuery) &&
+      (backend === "all" || entry.profile.backend === backend) &&
+      (persistence === "all" || (entry.profile.persistence ?? "") === persistence)
+  );
 }
-
-export type SandboxEditorState =
-  | { mode: "closed" }
-  | { mode: "create"; draft: SandboxDraft }
-  | {
-      mode: "edit";
-      name: string;
-      draft: SandboxDraft;
-      entry: SettingsSandboxEntry;
-    };
-
-type DeleteState = { mode: "closed" } | { mode: "open"; entry: SettingsSandboxEntry };
-
-export type SandboxLastAction =
-  | { kind: "saved"; name: string; result: SettingsMutationResult }
-  | {
-      kind: "deleted";
-      name: string;
-      result: SettingsMutationResult;
-      usageCount: number;
-    };
 
 export function useSandboxPage(search: SandboxRouteSearch = {}) {
   const navigate = useNavigate({ from: "/sandbox" });
@@ -111,24 +100,19 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
   const putMutation = usePutSettingsSandbox();
   const deleteMutation = useDeleteSettingsSandbox();
   const page = useSettingsPage({ currentSlug: "sandboxes" });
-
-  const [editor, setEditor] = useState<SandboxEditorState>({ mode: "closed" });
-  const [deleteTarget, setDeleteTarget] = useState<DeleteState>({ mode: "closed" });
-  const [lastAction, setLastAction] = useState<SandboxLastAction | null>(null);
-  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const store = useStore(sandboxPageLogic);
+  const flow = useSelector(store, snapshot => snapshot.context);
 
   const envelope = query.data ?? null;
   const sandboxes = envelope?.sandboxes ?? [];
   const filtered = filterSandboxes(sandboxes, queryText, backend, persistence);
-  const selectedEntry = selectedName
-    ? (sandboxes.find(entry => entry.name === selectedName) ?? null)
+  const selectedEntry = flow.selectedName
+    ? (sandboxes.find(entry => entry.name === flow.selectedName) ?? null)
     : null;
-
   const counts = {
     total: sandboxes.length,
-    totalWorkspaces: sandboxes.reduce((acc, entry) => acc + entry.workspace_usage_count, 0),
+    totalWorkspaces: sandboxes.reduce((total, entry) => total + entry.workspace_usage_count, 0),
   };
-
   const hasActiveFilters =
     queryText.trim().length > 0 || backend !== "all" || persistence !== "all";
 
@@ -138,127 +122,58 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
       to: "/sandbox",
     });
   };
-
-  const setQuery = (next: string) => {
-    updateSearch(current => ({
-      ...current,
-      q: normalizeListingSearchValue(next),
-    }));
-  };
-
-  const setBackend = (next: SandboxBackendFilter) => {
-    updateSearch(current => ({
-      ...current,
-      backend: next === "all" ? undefined : next,
-    }));
-  };
-
-  const setPersistence = (next: SandboxPersistenceFilter) => {
-    updateSearch(current => ({
-      ...current,
-      persistence: next === "all" ? undefined : next,
-    }));
-  };
-
-  const setView = (nextView: ListingViewMode) => {
-    updateSearch(current => ({
-      ...current,
-      view: nextView === "rows" ? undefined : nextView,
-    }));
-  };
-
-  const clearFilters = () => {
-    updateSearch(current => ({ view: current.view }));
-  };
-
-  const openInspect = (entry: SettingsSandboxEntry) => {
-    setSelectedName(entry.name);
-  };
-
-  const closeInspect = () => {
-    setSelectedName(null);
-  };
-
   const openCreate = () => {
     putMutation.reset();
-    setSelectedName(null);
-    setEditor({ mode: "create", draft: emptySandboxDraft() });
+    store.trigger.editorOpened({ editor: { mode: "create", draft: emptySandboxDraft() } });
   };
-
   const openEdit = (entry: SettingsSandboxEntry) => {
     putMutation.reset();
-    setSelectedName(null);
-    setEditor({ mode: "edit", name: entry.name, draft: toSandboxDraft(entry), entry });
+    store.trigger.editorOpened({
+      editor: { mode: "edit", name: entry.name, draft: toSandboxDraft(entry), entry },
+    });
   };
-
   const closeEditor = () => {
-    setEditor({ mode: "closed" });
+    if (flow.pendingRequest) return;
+    store.trigger.editorClosed();
     putMutation.reset();
   };
-
   const updateDraft = (updater: (draft: SandboxDraft) => SandboxDraft) => {
-    setEditor(current => {
-      if (current.mode === "closed") return current;
-      return { ...current, draft: updater(current.draft) };
-    });
+    if (flow.editor.mode !== "closed") {
+      store.trigger.draftChanged({ draft: updater(flow.editor.draft) });
+    }
   };
-
-  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
+  const editorName = flow.editor.mode === "closed" ? "" : flow.editor.draft.name.trim();
   const editorIsValid =
-    editor.mode !== "closed" &&
+    flow.editor.mode !== "closed" &&
     editorName.length > 0 &&
-    editor.draft.backend.trim().length > 0 &&
-    (editor.mode !== "create" ||
+    flow.editor.draft.backend.trim().length > 0 &&
+    (flow.editor.mode !== "create" ||
       !sandboxes.some(entry => entry.name.toLowerCase() === editorName.toLowerCase())) &&
-    Object.keys(sandboxEnvErrors(editor.draft)).length === 0;
-
+    Object.keys(sandboxEnvErrors(flow.editor.draft)).length === 0 &&
+    Object.keys(sandboxSecretEnvErrors(flow.editor.draft)).length === 0;
   const saveEditor = () => {
-    if (editor.mode === "closed") return;
-    const name = editor.draft.name.trim();
-    if (!name) return;
-    if (Object.keys(sandboxEnvErrors(editor.draft)).length > 0) return;
-    const body = toSandboxRequest(editor.draft);
-    putMutation.mutate(
-      { name, body },
-      {
-        onSuccess: result => {
-          setLastAction({ kind: "saved", name, result });
-          setEditor({ mode: "closed" });
-        },
-      }
-    );
-  };
-
-  const openDelete = (entry: SettingsSandboxEntry) => {
-    deleteMutation.reset();
-    setSelectedName(null);
-    setDeleteTarget({ mode: "open", entry });
-  };
-
-  const closeDelete = () => {
-    setDeleteTarget({ mode: "closed" });
-    deleteMutation.reset();
-  };
-
-  const confirmDelete = () => {
-    if (deleteTarget.mode === "closed") return;
-    const target = deleteTarget.entry;
-    deleteMutation.mutate(target.name, {
-      onSuccess: result => {
-        setLastAction({
-          kind: "deleted",
-          name: target.name,
-          result,
-          usageCount: target.workspace_usage_count,
-        });
-        setDeleteTarget({ mode: "closed" });
-      },
+    if (flow.editor.mode === "closed" || !editorIsValid) return;
+    const name = flow.editor.draft.name.trim();
+    const body = toSandboxRequest(flow.editor.draft);
+    store.trigger.saveRequested({
+      execute: () => putMutation.mutateAsync({ name, body }),
+      name,
     });
   };
-
-  const dismissLastAction = () => setLastAction(null);
-
-  const refetch = () => query.refetch();
+  const openDelete = (entry: SettingsSandboxEntry) => {
+    if (flow.pendingRequest) return;
+    deleteMutation.reset();
+    store.trigger.deleteOpened({ entry });
+  };
+  const closeDelete = () => {
+    if (flow.pendingRequest) return;
+    store.trigger.deleteClosed();
+    deleteMutation.reset();
+  };
+  const confirmDelete = () => {
+    if (flow.deleteTarget.mode === "closed") return;
+    store.trigger.deleteRequested({ execute: name => deleteMutation.mutateAsync(name) });
+  };
 
   return {
     isLoading: query.isLoading,
@@ -274,34 +189,42 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
     persistence,
     view,
     hasActiveFilters,
-    setQuery,
-    setBackend,
-    setPersistence,
-    setView,
-    clearFilters,
+    setQuery: (next: string) =>
+      updateSearch(current => ({ ...current, q: normalizeListingSearchValue(next) })),
+    setBackend: (next: SandboxBackendFilter) =>
+      updateSearch(current => ({ ...current, backend: next === "all" ? undefined : next })),
+    setPersistence: (next: SandboxPersistenceFilter) =>
+      updateSearch(current => ({
+        ...current,
+        persistence: next === "all" ? undefined : next,
+      })),
+    setView: (next: ListingViewMode) =>
+      updateSearch(current => ({ ...current, view: next === "rows" ? undefined : next })),
+    clearFilters: () => updateSearch(current => ({ view: current.view })),
     selectedEntry,
-    openInspect,
-    closeInspect,
-    refetch,
+    openInspect: (entry: SettingsSandboxEntry) =>
+      store.trigger.profileInspectOpened({ name: entry.name }),
+    closeInspect: () => store.trigger.profileInspectClosed(),
+    refetch: () => query.refetch(),
     restart: page.restart,
-    editor,
+    editor: flow.editor,
     editorIsValid,
     editorError: errorMessage(putMutation.error),
     editorWarnings: putMutation.data?.warnings,
-    editorIsSaving: putMutation.isPending,
+    editorIsSaving: flow.pendingRequest?.kind === "save",
     openCreate,
     openEdit,
     closeEditor,
     updateDraft,
     saveEditor,
-    deleteTarget,
+    deleteTarget: flow.deleteTarget,
     deleteError: errorMessage(deleteMutation.error),
-    deleteIsPending: deleteMutation.isPending,
+    deleteIsPending: flow.pendingRequest?.kind === "delete",
     openDelete,
     closeDelete,
     confirmDelete,
-    lastAction,
-    dismissLastAction,
+    lastAction: flow.lastAction,
+    dismissLastAction: () => store.trigger.lastActionDismissed(),
   };
 }
 

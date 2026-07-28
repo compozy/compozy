@@ -204,12 +204,12 @@ function buildProductionDetailRouter(initialUrl: string) {
   const port: OsRouterPort = { navigate: () => undefined, replace: () => undefined };
   const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
-  const shell: OsShellHandle = { store: manager, manager, coordinator };
+  const shell: OsShellHandle = { projection: manager.projectionAtom, manager, coordinator };
 
   const rootRoute = createRootRoute({
     component: () => (
       <QueryClientProvider client={queryClient}>
-        <UIProvider reducedMotion="always">
+        <UIProvider reducedMotion="never" skipAnimations>
           <OsShellContext.Provider value={shell}>
             <TopbarSlotProvider>
               <Topbar title="Tasks" />

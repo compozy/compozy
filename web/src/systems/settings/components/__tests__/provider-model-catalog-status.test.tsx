@@ -40,7 +40,7 @@ vi.mock("@/systems/model-catalog", async importOriginal => {
 
 function renderStatus() {
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <ProviderModelCatalogStatus providerId="codex" testId="provider-catalog" />
     </UIProvider>
   );
@@ -104,7 +104,7 @@ describe("ProviderModelCatalogStatus", () => {
     mockStatusQuery.isLoading = false;
     mockStatusQuery.data = { sources: [] };
     rerender(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <ProviderModelCatalogStatus providerId="codex" testId="provider-catalog" />
       </UIProvider>
     );

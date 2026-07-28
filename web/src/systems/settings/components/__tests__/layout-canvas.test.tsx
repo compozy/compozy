@@ -5,6 +5,7 @@
 // Boundary IN: a draft desktop + the global config's gaps.
 // Boundary OUT: drag arithmetic (owned by seam-preview), the inspector.
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WindowManagerConfig } from "@/systems/os";
@@ -73,7 +74,7 @@ const SPLIT_DESKTOP: WindowManagerLayoutDesktop = {
   ],
 };
 
-function renderCanvas(desktop: WindowManagerLayoutDesktop) {
+function renderCanvas(desktop: WindowManagerLayoutDesktop, onSelect = vi.fn()) {
   const document = documentWith(desktop);
   const projection = layoutCanvasProjection(document, desktop, CONFIG, 1);
   render(
@@ -85,7 +86,7 @@ function renderCanvas(desktop: WindowManagerLayoutDesktop) {
       selection={null}
       onDesktopChange={vi.fn()}
       onFloatingRectChange={vi.fn()}
-      onSelect={vi.fn()}
+      onSelect={onSelect}
     />
   );
   return projection;
@@ -115,6 +116,17 @@ describe("LayoutCanvas", () => {
       expect(slider).toHaveAttribute("aria-valuenow");
       expect(slider).toHaveAttribute("tabindex", "0");
     }
+  });
+
+  it("Should let keyboard users clear the layout selection", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderCanvas(SPLIT_DESKTOP, onSelect);
+
+    screen.getByRole("button", { name: "Clear layout selection" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(onSelect).toHaveBeenCalledWith(null);
   });
 
   it("Should show floating windows above the tiled ones", () => {

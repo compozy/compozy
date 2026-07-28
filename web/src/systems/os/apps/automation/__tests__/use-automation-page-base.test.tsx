@@ -29,6 +29,7 @@ vi.mock("@/systems/workspace", () => ({
     activeWorkspaceId: "ws-a",
     workspaces: [],
   }),
+  useUserHomeDir: () => "/Users/test",
 }));
 
 import {

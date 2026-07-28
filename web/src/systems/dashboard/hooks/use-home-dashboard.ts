@@ -16,7 +16,7 @@ import type {
 import { useHomeAgents, type HomeAgentsModel } from "./use-home-agents";
 import { useHomeLive } from "./use-home-live";
 import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
-import { useHomePrefsActions, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
+import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 
@@ -61,7 +61,6 @@ export function useHomeDashboard(): HomeDashboardModel {
   const userHomeDir = daemonStatus.data?.user_home_dir ?? undefined;
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
-  const { setUsageWindow, setSystemOpen } = useHomePrefsActions();
 
   const resolvedScope = homeScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const scopeSettled = resolvedScope !== null;
@@ -96,7 +95,7 @@ export function useHomeDashboard(): HomeDashboardModel {
     scope,
     connectionStatus,
     usageWindow,
-    setUsageWindow,
+    setUsageWindow: usageWindow => homePrefsStore.trigger.usageWindowSelected({ usageWindow }),
     overview,
     overviewStatus: surfaceStatus(
       overviewQuery.isLoading || !scopeSettled,
@@ -117,6 +116,12 @@ export function useHomeDashboard(): HomeDashboardModel {
     agents,
     system,
     systemOpen,
-    setSystemOpen,
+    setSystemOpen: open => {
+      if (open) {
+        homePrefsStore.trigger.systemPanelOpened();
+        return;
+      }
+      homePrefsStore.trigger.systemPanelClosed();
+    },
   };
 }

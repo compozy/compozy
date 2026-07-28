@@ -3,9 +3,9 @@ import { QueryClient } from "@tanstack/react-query";
 import { HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
-import { SessionCreateProvider } from "@/systems/session";
+import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 import { sessionFixtures } from "@/systems/session/mocks";
-import { useActiveWorkspaceStore } from "@/systems/workspace";
+import { rehydrateActiveWorkspaceStore, setActiveWorkspaceId } from "@/systems/workspace";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -25,13 +25,14 @@ function createStoryShell(): OsShellHandle {
   const manager = new WindowManagerRuntime(new QueryClient());
   const router: OsRouterPort = { navigate: () => {}, replace: () => {} };
   return {
-    store: manager,
+    projection: manager.projectionAtom,
     manager,
     coordinator: new RoutingCoordinator(manager, router),
   };
 }
 
 const STORY_SHELL = createStoryShell();
+const STORY_SESSION_CREATE_STORE = createSessionCreateStore();
 
 const meta: Meta<typeof OsCommandPalette> = {
   title: "systems/os/components/OsCommandPalette",
@@ -47,8 +48,8 @@ const meta: Meta<typeof OsCommandPalette> = {
   },
   loaders: [
     async () => {
-      await useActiveWorkspaceStore.persist.rehydrate();
-      useActiveWorkspaceStore.getState().setSelectedWorkspaceId(storyDefaultWorkspaceId);
+      await rehydrateActiveWorkspaceStore();
+      setActiveWorkspaceId(storyDefaultWorkspaceId);
       return {};
     },
   ],
@@ -83,14 +84,7 @@ export const Open: Story = {
   }),
   render: args => (
     <OsShellContext.Provider value={STORY_SHELL}>
-      <SessionCreateProvider
-        value={{
-          openForAgent: fn(),
-          isCreating: false,
-          pendingAgentName: null,
-          hasActiveWorkspace: true,
-        }}
-      >
+      <SessionCreateProvider store={STORY_SESSION_CREATE_STORE}>
         <DesktopShell wallpaper="ember" deskHint>
           <OsCommandPalette {...args} />
         </DesktopShell>

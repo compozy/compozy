@@ -15,7 +15,12 @@ import {
   type AgentSettingsSection,
   type ResolvedAgentDetailSearch,
 } from "@/systems/agent";
-import { useSessionCreate, type SessionPayload } from "@/systems/session";
+import {
+  useSessionCreateActions,
+  useSessionCreateIsCreating,
+  useSessionCreatePendingAgentName,
+  type SessionPayload,
+} from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseAgentDetailResult {
@@ -56,7 +61,10 @@ export interface UseAgentDetailResult {
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
-  const sessionCreate = useSessionCreate();
+  const { openForAgent } = useSessionCreateActions();
+  const hasActiveWorkspace = activeWorkspaceId !== null;
+  const isCreating = useSessionCreateIsCreating();
+  const pendingAgentName = useSessionCreatePendingAgentName();
   const createHost = useAgentCreateHost();
   const search = resolveAgentDetailSearch(rawSearch);
   const {
@@ -107,7 +115,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
   };
 
   const onNewSession = () => {
-    sessionCreate.openForAgent(name);
+    openForAgent(name);
   };
 
   const onEditSettings = (section?: AgentSettingsSection) => {
@@ -149,8 +157,8 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     setTab,
     setFile,
     setFilter,
-    isCreatingForAgent: sessionCreate.isCreating && sessionCreate.pendingAgentName === name,
-    newSessionDisabled: !sessionCreate.hasActiveWorkspace,
+    isCreatingForAgent: isCreating && pendingAgentName === name,
+    newSessionDisabled: !hasActiveWorkspace,
     onNewSession,
     onEditSettings,
     onDuplicate,

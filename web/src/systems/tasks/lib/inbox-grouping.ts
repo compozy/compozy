@@ -6,6 +6,15 @@ export type InboxUiLane = TaskInboxLane;
 
 export type InboxLaneFilterId = "all" | InboxUiLane;
 
+export const TASK_INBOX_LANE_FILTER_IDS = [
+  "all",
+  "my_work",
+  "approvals",
+  "failed_runs",
+  "blocked",
+  "archived",
+] as const satisfies readonly InboxLaneFilterId[];
+
 export interface InboxLaneDefinition {
   id: InboxUiLane;
   label: string;

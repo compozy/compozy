@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useSelector } from "@xstate/store-react";
 
-import { useOnboardingDraftStore } from "../stores/use-onboarding-draft-store";
+import { onboardingDraftStore } from "../stores/use-onboarding-draft-store";
 import { useCompleteOnboarding } from "./use-complete-onboarding";
 import {
   useOnboardingDefaultModel,
@@ -52,10 +53,8 @@ export interface OnboardingWizardApi {
 }
 
 export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi {
-  const step = useOnboardingDraftStore(state => state.step);
-  const maxStep = useOnboardingDraftStore(state => state.maxStep);
-  const setStep = useOnboardingDraftStore(state => state.setStep);
-  const reset = useOnboardingDraftStore(state => state.reset);
+  const step = useSelector(onboardingDraftStore, state => state.context.step);
+  const maxStep = useSelector(onboardingDraftStore, state => state.context.maxStep);
 
   const defaultModel = useOnboardingDefaultModel();
   const workspaces = useOnboardingWorkspaces();
@@ -67,12 +66,12 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
 
   const goToStep = (next: number) => {
     if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) return;
-    setStep(next);
+    onboardingDraftStore.trigger.stepVisited({ step: next });
   };
 
   const back = () => {
     if (step > 1) {
-      setStep(step - 1);
+      onboardingDraftStore.trigger.stepVisited({ step: step - 1 });
     }
   };
 
@@ -80,7 +79,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     setCommitError(null);
     try {
       await complete.mutateAsync();
-      reset();
+      onboardingDraftStore.trigger.draftCleared();
       onComplete();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to finish onboarding.";
@@ -101,7 +100,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
         toast.error(message);
         return;
       }
-      setStep(2);
+      onboardingDraftStore.trigger.stepVisited({ step: 2 });
       return;
     }
     if (step === 2) {

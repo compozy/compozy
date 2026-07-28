@@ -1,7 +1,9 @@
 import { useRef } from "react";
-import { useShallow } from "zustand/shallow";
+import { shallowEqual } from "@xstate/store";
 
 import type { ProjectedSeam } from "../lib/window-manager-types";
+import { windowManagerStore } from "../stores/window-manager-store";
+import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import { useDesktop } from "./use-desktop";
 import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
@@ -9,7 +11,6 @@ import { useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
 import {
   useDesktopTransitionIntent,
-  useWindowManagerActions,
   useWindowManagerGesturePreview,
 } from "./use-window-manager-store";
 import { useOsAttention } from "./use-os-attention";
@@ -22,13 +23,41 @@ import { useWorkspaceDetails } from "./use-workspace-details";
 export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
   firstRun?: boolean;
+  onNewSession: () => void;
+}
+
+function setSeamPreview(seam: ProjectedSeam, deltaPx: number): void {
+  windowManagerStore.trigger.seamPreviewSet({
+    preview: {
+      splitId: seam.splitId,
+      boundaryIndex: seam.boundaryIndex,
+      deltaPx,
+    },
+  });
+}
+
+function clearSeamPreview(): void {
+  windowManagerStore.trigger.seamPreviewCleared();
+}
+
+function completeDesktopTransition(): void {
+  windowManagerStore.trigger.transitionIntentChanged({ intent: null });
+}
+
+function setDesktopManagerOpen(open: boolean): void {
+  if (open) {
+    windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } });
+    return;
+  }
+  windowManagerStore.trigger.overlayClosed();
+}
+
+function openDesktopOverview(request: DesktopOverviewSegmentRequest): void {
+  windowManagerStore.trigger.overviewSegmentRequested({ request });
 }
 
 /** Composes the live runtime models consumed by the presentational desktop shell body. */
-export function useDesktopShellBody(
-  model: DesktopShellModel,
-  options: DesktopShellBodyOptions = {}
-) {
+export function useDesktopShellBody(model: DesktopShellModel, options: DesktopShellBodyOptions) {
   const firstRun = options.firstRun ?? false;
   const desktopRef = useRef<HTMLDivElement>(null);
   const desktop = useDesktopShellState();
@@ -39,10 +68,9 @@ export function useDesktopShellBody(
   const reducedMotion = useOsReducedMotion();
   const transition = useDesktopTransitionIntent();
   const gesturePreview = useWindowManagerGesturePreview();
-  const windowManagerActions = useWindowManagerActions();
   const { manager } = useOsShell();
   const pager = useDesktop(
-    useShallow(state => ({
+    state => ({
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
       compact: state.presentation === "compact",
@@ -51,7 +79,8 @@ export function useDesktopShellBody(
         state.client !== null &&
         state.hydration === "live" &&
         state.connectionStatus === "connected",
-    }))
+    }),
+    shallowEqual
   );
   const workspaceDetails = useWorkspaceDetails(
     model.workspaces.map(workspace => workspace.id),
@@ -61,7 +90,7 @@ export function useDesktopShellBody(
   useOsShortcuts(
     {
       onPalette: () => overlays.toggleOverlay("palette"),
-      onNewSession: () => model.sessionCreate.openForAgent(""),
+      onNewSession: options.onNewSession,
       onDesktops: () => overlays.toggleOverlay("desktops"),
       onEscape: () => {
         if (overlays.activeOverlay !== null) return;
@@ -75,19 +104,8 @@ export function useDesktopShellBody(
   const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
     // Clear the live seam preview only after the resize reconciles, so panes go
     // straight from previewed to committed sizes.
-    void manager
-      .getState()
-      .resizeLayout(splitId, boundaryIndex, delta)
-      .completion.finally(() => windowManagerActions.clearSeamPreview());
+    void manager.resizeLayout(splitId, boundaryIndex, delta).completion.finally(clearSeamPreview);
   };
-  const onSeamPreview = (seam: ProjectedSeam, deltaPx: number) =>
-    windowManagerActions.setSeamPreview({
-      splitId: seam.splitId,
-      boundaryIndex: seam.boundaryIndex,
-      deltaPx,
-    });
-  const onSeamPreviewEnd = () => windowManagerActions.clearSeamPreview();
-
   return {
     attention,
     desktop,
@@ -96,13 +114,15 @@ export function useDesktopShellBody(
     manager,
     managerSurfaces,
     onResize,
-    onSeamPreview,
-    onSeamPreviewEnd,
+    onDesktopManagerOpenChange: setDesktopManagerOpen,
+    onOpenDesktopOverview: openDesktopOverview,
+    onSeamPreview: setSeamPreview,
+    onSeamPreviewEnd: clearSeamPreview,
+    onTransitionComplete: completeDesktopTransition,
     overlays,
     pager,
     reducedMotion,
     transition,
-    windowManagerActions,
     winLayer,
     workspaceDetails,
   };

@@ -1,22 +1,28 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useAui } from "@assistant-ui/react";
-import { StrictMode } from "react";
+import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
+import { StrictMode, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
+import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import {
   sessionKeys,
   useClearSessionConversation,
   useSessionTranscriptThreadState,
 } from "@/systems/session";
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { sessionStore } from "@/systems/session/stores/session-store";
+import {
+  useSessionTranscriptThreadMessages,
+  useSessionTranscriptThreadStatus,
+} from "@/systems/session/hooks/use-session-transcript-thread-messages";
 import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
+import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import type { TranscriptMessage } from "@/systems/session/types";
 
@@ -261,6 +267,39 @@ function TranscriptStateProbe() {
   );
 }
 
+const TranscriptMessagesSubscriptionProbe = vi.fn(function TranscriptMessagesSubscriptionProbe() {
+  const messages = useSessionTranscriptThreadMessages();
+  return <output data-testid="transcript-messages-subscription-probe">{messages.length}</output>;
+});
+
+const TranscriptStatusSubscriptionProbe = vi.fn(function TranscriptStatusSubscriptionProbe() {
+  const status = useSessionTranscriptThreadStatus();
+  return <output data-testid="transcript-status-subscription-probe">{status}</output>;
+});
+
+interface RuntimeTranscriptCommit {
+  projectedIds: string[];
+  runtimeIds: string[];
+}
+
+function RuntimeTranscriptCoherenceProbe({
+  onCommit,
+}: {
+  onCommit: (sample: RuntimeTranscriptCommit) => void;
+}) {
+  const runtimeMessages = useAuiState(state => state.thread.messages);
+  const projectedMessages = useSessionTranscriptThreadMessages();
+
+  useLayoutEffect(() => {
+    onCommit({
+      projectedIds: projectedMessages.map(message => message.id),
+      runtimeIds: runtimeMessages.map(message => message.id),
+    });
+  }, [onCommit, projectedMessages, runtimeMessages]);
+
+  return null;
+}
+
 function ClearConversationButton() {
   const aui = useAui();
   const clearMutation = useClearSessionConversation({ workspaceId: fixtureWorkspaceId() });
@@ -288,6 +327,7 @@ function renderSessionThread(
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
     onCancelPrompt?: () => void;
+    onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
     strictMode?: boolean;
   } = {}
 ) {
@@ -300,6 +340,9 @@ function renderSessionThread(
         workspaceId={fixtureWorkspaceId()}
         eventSourceFactory={options.eventSourceFactory}
       >
+        {options.onRuntimeTranscriptCommit ? (
+          <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
+        ) : null}
         {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
         {options.includeClearAction ? <ClearConversationButton /> : null}
         <SessionThread
@@ -343,6 +386,101 @@ function fixtureWorkspaceId(): string {
 }
 
 describe("SessionChatRuntimeProvider", () => {
+  // Invariant: message subscribers ignore status and pagination-only transcript
+  // synchronization, while status subscribers ignore message-only synchronization.
+  // Owning layer: provider/thread integration. Canonical suite: this file.
+  it("isolates transcript subscribers from unrelated synchronized projection fields", async () => {
+    const initialMessages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 1));
+    const nextMessages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+    TranscriptMessagesSubscriptionProbe.mockClear();
+    TranscriptStatusSubscriptionProbe.mockClear();
+    const messageCommits = TranscriptMessagesSubscriptionProbe;
+    const statusCommits = TranscriptStatusSubscriptionProbe;
+    const retry = vi.fn();
+
+    function TranscriptSubscriptionHarness({
+      hasOlder,
+      isFetchingOlder,
+      messages,
+      status,
+    }: {
+      hasOlder: boolean;
+      isFetchingOlder: boolean;
+      messages: readonly ThreadMessage[];
+      status: SessionTranscriptThreadStatus;
+    }) {
+      const [children] = useState(() => (
+        <>
+          <TranscriptMessagesSubscriptionProbe />
+          <TranscriptStatusSubscriptionProbe />
+        </>
+      ));
+
+      return (
+        <SessionTranscriptThreadProvider
+          messages={messages}
+          status={status}
+          error={null}
+          hasOlder={hasOlder}
+          isFetchingOlder={isFetchingOlder}
+          retry={retry}
+        >
+          {children}
+        </SessionTranscriptThreadProvider>
+      );
+    }
+
+    const view = render(
+      <TranscriptSubscriptionHarness
+        messages={initialMessages}
+        status="success"
+        hasOlder={false}
+        isFetchingOlder={false}
+      />
+    );
+
+    expect(messageCommits).toHaveBeenCalledTimes(1);
+    expect(statusCommits).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <TranscriptSubscriptionHarness
+        messages={initialMessages}
+        status="pending"
+        hasOlder={false}
+        isFetchingOlder={false}
+      />
+    );
+    await waitFor(() => expect(statusCommits).toHaveBeenCalledTimes(2));
+    expect(messageCommits).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <TranscriptSubscriptionHarness
+        messages={initialMessages}
+        status="pending"
+        hasOlder
+        isFetchingOlder
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("transcript-status-subscription-probe")).toHaveTextContent(
+        "pending"
+      );
+    });
+    expect(messageCommits).toHaveBeenCalledTimes(1);
+    expect(statusCommits).toHaveBeenCalledTimes(2);
+
+    view.rerender(
+      <TranscriptSubscriptionHarness
+        messages={nextMessages}
+        status="pending"
+        hasOlder
+        isFetchingOlder
+      />
+    );
+    await waitFor(() => expect(messageCommits).toHaveBeenCalledTimes(2));
+    expect(statusCommits).toHaveBeenCalledTimes(2);
+  });
+
   it("Should align viewport and composer on the shared thread content rail", async () => {
     renderSessionThread();
 
@@ -382,8 +520,7 @@ describe("SessionChatRuntimeProvider", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
-    useSessionStore.setState({ goalResults: {}, goalResultCommands: {}, goalErrorVisible: {} });
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
     transcriptMessages = sessionTranscriptFixture.slice(0, 2);
     sessionDetailResponse = primarySessionFixture;
     transcriptEpoch = 1;
@@ -488,8 +625,9 @@ describe("SessionChatRuntimeProvider", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
-    useSessionStore.getState().clearDraft(primarySessionFixture.id);
-    useSessionStore.setState({ goalResults: {}, goalResultCommands: {}, goalErrorVisible: {} });
+    act(() => {
+      sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
+    });
   });
 
   it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {
@@ -764,9 +902,10 @@ describe("SessionChatRuntimeProvider", () => {
       await user.click(screen.getByTestId("composer-send-button"));
 
       await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
-      expect(useSessionStore.getState().goalResults[primarySessionFixture.id]?.reason_code).toBe(
-        reasonCode
-      );
+      expect(
+        sessionStore.getSnapshot().context.goalFeedback[primarySessionFixture.id]?.result
+          .reason_code
+      ).toBe(reasonCode);
       expect(await screen.findByRole("alert")).toHaveTextContent(guidance);
       expect(screen.queryByText(reasonCode)).not.toBeInTheDocument();
       expect(composer).toBeEnabled();
@@ -780,9 +919,10 @@ describe("SessionChatRuntimeProvider", () => {
       await user.click(screen.getByTestId("composer-send-button"));
       await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
       await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-      expect(useSessionStore.getState().goalResults[primarySessionFixture.id]?.reason_code).toBe(
-        reasonCode
-      );
+      expect(
+        sessionStore.getSnapshot().context.goalFeedback[primarySessionFixture.id]?.result
+          .reason_code
+      ).toBe(reasonCode);
     }
   );
 
@@ -882,6 +1022,28 @@ describe("SessionChatRuntimeProvider", () => {
       })
     ).toBe(true);
   }, 10_000);
+
+  it("Should project a newly completed runtime message in its first committed frame", async () => {
+    transcriptMessages = [];
+    const commits: RuntimeTranscriptCommit[] = [];
+    const user = userEvent.setup();
+    renderSessionThread({ onRuntimeTranscriptCommit: sample => commits.push(sample) });
+
+    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+    await user.type(composer, "Finish in one turn");
+    await user.click(screen.getByTestId("composer-send-button"));
+    expect(
+      await screen.findByText("Live runtime answer before transcript reconciliation.")
+    ).toBeInTheDocument();
+
+    const completedRuntimeCommits = commits.filter(sample =>
+      sample.runtimeIds.includes("turn-runtime-001")
+    );
+    expect(completedRuntimeCommits.length).toBeGreaterThan(0);
+    expect(
+      completedRuntimeCommits.every(sample => sample.projectedIds.includes("turn-runtime-001"))
+    ).toBe(true);
+  });
 
   it("Should hide a completed runtime tail while an authoritative Clear is pending", async () => {
     transcriptMessages = [];

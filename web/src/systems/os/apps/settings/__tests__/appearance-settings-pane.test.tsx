@@ -34,7 +34,7 @@ function renderPane({ systemReducedMotion = false } = {}) {
   managers.push(manager);
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
   const shell: OsShellHandle = {
-    store: manager,
+    projection: manager.projectionAtom,
     manager,
     coordinator: new RoutingCoordinator(manager, port),
   };

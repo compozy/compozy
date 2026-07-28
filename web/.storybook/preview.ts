@@ -19,8 +19,8 @@ import "../src/styles.css";
 import { routeTree } from "@/routeTree.gen";
 import { storybookSystemHandlerGroups, storybookSystemHandlers } from "@/storybook/msw";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { clearActiveWorkspaceSelection } from "@/systems/workspace";
+import { sessionStore } from "@/systems/session/stores/session-store";
 import { resetAgentMockState } from "@/systems/agent/mocks";
 import { resetWindowManagerMockState } from "@/systems/os/mocks";
 
@@ -254,11 +254,11 @@ export function createStorybookRouter(
   return createStubStorybookRouter(Story, options);
 }
 
-export function resetStorybookAppState() {
+export function resetStorybookAppState(initialEntry?: string) {
   resetAgentMockState();
-  resetWindowManagerMockState();
-  useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
-  useSessionStore.getState().clearAllDrafts();
+  resetWindowManagerMockState(initialEntry);
+  clearActiveWorkspaceSelection();
+  sessionStore.trigger.allDraftsDiscarded();
   resetSettingsRestartStore();
 }
 
@@ -276,12 +276,7 @@ function StorybookProvidersBoundary({
   routerOptions?: StorybookRouterOptions;
 }) {
   const [queryClient] = useState(createStorybookQueryClient);
-  const [router] = useState(() => {
-    if (routerOptions?.kind === "app") {
-      resetStorybookAppState();
-    }
-    return createStorybookRouter(Story, routerOptions, queryClient);
-  });
+  const [router] = useState(() => createStorybookRouter(Story, routerOptions, queryClient));
 
   return createElement(
     QueryClientProvider,
@@ -321,7 +316,16 @@ export const routerDecorator = (
   });
 
 export const storybookDecorators = [themeDecorator, uiProviderDecorator, routerDecorator];
-export const storybookLoaders = [mswLoader(createStorybookMswWorker)];
+export const storybookAppStateLoader = (context: {
+  parameters?: { router?: StorybookRouterOptions };
+}) => {
+  const router = context.parameters?.router;
+  if (router?.kind === "app") {
+    resetStorybookAppState(router.initialEntries?.[0]);
+  }
+  return {};
+};
+export const storybookLoaders = [storybookAppStateLoader, mswLoader(createStorybookMswWorker)];
 export { storybookSystemHandlerGroups, storybookSystemHandlers };
 
 const preview: Preview = {

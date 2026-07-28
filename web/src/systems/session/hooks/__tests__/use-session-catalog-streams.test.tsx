@@ -10,6 +10,7 @@ import {
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
+import { sessionCatalogStreamsLogic } from "../session-catalog-streams-store";
 
 class FakeCatalogEventSource implements SessionCatalogEventSource {
   readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
@@ -61,6 +62,24 @@ function wrapper(queryClient: QueryClient) {
 }
 
 describe("useSessionCatalogStreams", () => {
+  it("Should keep late source status events behind the current connection generation", () => {
+    const store = sessionCatalogStreamsLogic.createStore();
+    const [connecting] = store.transition(store.getInitialSnapshot(), {
+      type: "connectionRequested",
+      connect: () => () => {},
+    });
+    const [reconnecting] = store.transition(connecting, {
+      type: "connectionRequested",
+      connect: () => () => {},
+    });
+    const [afterLateFailure] = store.transition(reconnecting, {
+      type: "connectionStale",
+      generation: connecting.context.generation,
+    });
+
+    expect(afterLateFailure.context.status).toBe("connecting");
+  });
+
   it("Should own one global source and scope every reconciliation by workspace", () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
@@ -92,10 +111,6 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(beta.id) });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail(beta.id, "sess_beta"),
-      exact: true,
-    });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: sessionKeys.byId("sess_beta"),
       exact: true,
     });
     expect(invalidate).not.toHaveBeenCalledWith({

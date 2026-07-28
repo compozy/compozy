@@ -29,23 +29,8 @@ interface TaskCreateLocation {
 
 interface TaskCreateDraftState {
   draft: TaskEditorDraft;
-  key: string;
-  appliedTemplateId: TaskTemplateId;
-}
-
-function resolveTaskCreateDraft(
-  state: TaskCreateDraftState,
-  nextTemplateId: TaskTemplateId,
-  draftKey: string,
-  workspaceId: string | undefined
-): TaskEditorDraft {
-  if (state.key !== draftKey) {
-    return createTaskEditorDraft(nextTemplateId, workspaceId);
-  }
-  if (state.appliedTemplateId !== nextTemplateId) {
-    return applyTaskTemplateToEditorDraft(state.draft, nextTemplateId);
-  }
-  return state.draft;
+  templateId: TaskTemplateId;
+  workspaceKey: string;
 }
 
 export function useTaskCreateState(
@@ -63,45 +48,47 @@ export function useTaskCreateState(
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const draftKey = createDraftWorkspaceId ?? "global";
+  const workspaceKey = createDraftWorkspaceId ?? "global";
   const [draftState, setDraftState] = useState<TaskCreateDraftState>(() => ({
     draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
-    key: draftKey,
-    appliedTemplateId: templateId,
+    templateId,
+    workspaceKey,
   }));
-
-  let currentDraftState = draftState;
-  if (draftState.key !== draftKey || draftState.appliedTemplateId !== templateId) {
-    currentDraftState = {
-      draft: resolveTaskCreateDraft(draftState, templateId, draftKey, createDraftWorkspaceId),
-      key: draftKey,
-      appliedTemplateId: templateId,
-    };
+  const currentDraftState =
+    draftState.workspaceKey === workspaceKey && draftState.templateId === templateId
+      ? draftState
+      : {
+          draft:
+            draftState.workspaceKey !== workspaceKey
+              ? createTaskEditorDraft(templateId, createDraftWorkspaceId)
+              : applyTaskTemplateToEditorDraft(draftState.draft, templateId),
+          templateId,
+          workspaceKey,
+        };
+  if (currentDraftState !== draftState) {
     setDraftState(currentDraftState);
   }
   const draft = currentDraftState.draft;
 
-  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) =>
     setDraftState(current => {
-      const currentDraft = resolveTaskCreateDraft(
-        current,
-        templateId,
-        draftKey,
-        createDraftWorkspaceId
-      );
+      const currentDraft =
+        current.workspaceKey === workspaceKey && current.templateId === templateId
+          ? current.draft
+          : draft;
       return {
         draft: typeof update === "function" ? update(currentDraft) : update,
-        key: draftKey,
-        appliedTemplateId: templateId,
+        templateId,
+        workspaceKey,
       };
     });
-  };
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
+    const { template: _template, ...catalogSearch } = search;
     onNavigate({
       pathname: "/tasks/new",
       search: {
-        ...(search.mode ? { mode: search.mode } : {}),
+        ...catalogSearch,
         ...(nextTemplateId === DEFAULT_TASK_TEMPLATE_ID ? {} : { template: nextTemplateId }),
       },
     });
@@ -180,6 +167,7 @@ export function useTaskCreateState(
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,
+    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }

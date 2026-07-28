@@ -8,7 +8,6 @@ import {
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
-import { StorybookUserHomeDirSetup } from "@/storybook/route-story";
 
 import { ScopeSelector, type ScopeSelectorScope } from "../scope-selector";
 
@@ -47,9 +46,9 @@ function ScopeSelectorHarness({
   return (
     <CenteredSurface className="items-start justify-center p-6">
       <div className="w-full max-w-[520px] border border-line bg-canvas-soft p-4">
-        <StorybookUserHomeDirSetup userHomeDir={userHomeDir} />
         <ScopeSelector
           scope={scope}
+          userHomeDir={userHomeDir ?? undefined}
           workspaceId={workspaceId}
           workspaces={emptyRegistry ? [] : storyWorkspaces}
           onScopeChange={setScope}

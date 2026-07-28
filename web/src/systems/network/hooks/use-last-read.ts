@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { createStoreLogic } from "@xstate/store";
+import { persist, rehydrateStore } from "@xstate/store/persist";
+import { useSelector } from "@xstate/store-react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import type { NetworkSurface } from "../types";
 
-const LAST_READ_STORAGE_KEY = "network:last-read";
+export const LAST_READ_STORAGE_KEY = "compozy:network:last-read:v2";
 const KEY_SEPARATOR = ":";
+const EMPTY_LAST_READS: Readonly<Record<string, string>> = {};
 
 export interface NetworkLastReadKey {
   workspaceId: string;
@@ -16,45 +19,120 @@ export interface NetworkLastReadKey {
 
 export type NetworkLastReadLookupKey = Omit<NetworkLastReadKey, "workspaceId">;
 
-type LastReadState = Record<string, string>;
-
-function readLastReadMap(): LastReadState {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(LAST_READ_STORAGE_KEY) ?? "{}");
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return {};
-    }
-
-    const map: LastReadState = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === "string") {
-        map[key] = value;
-      }
-    }
-    return map;
-  } catch {
-    return {};
-  }
+interface NetworkLastReadContext {
+  byWorkspace: Record<string, Record<string, string>>;
 }
 
-function writeLastReadMap(state: LastReadState) {
-  if (typeof window === "undefined") {
-    return;
+function latestTimestamp(current: string | undefined, incoming: string): string {
+  if (!current) {
+    return incoming;
   }
 
-  try {
-    window.localStorage.setItem(LAST_READ_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // best-effort persistence
+  const currentMs = Date.parse(current);
+  const incomingMs = Date.parse(incoming);
+  if (Number.isNaN(currentMs) || Number.isNaN(incomingMs)) {
+    return incoming;
   }
+  return incomingMs > currentMs ? incoming : current;
+}
+
+function isValidTimestamp(value: string): boolean {
+  return Number.isFinite(Date.parse(value));
+}
+
+function normalizedLastReads(value: unknown): Record<string, Record<string, string>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const byWorkspace: Record<string, Record<string, string>> = {};
+  for (const [workspaceId, records] of Object.entries(value)) {
+    if (typeof records !== "object" || records === null || Array.isArray(records)) {
+      continue;
+    }
+
+    const normalizedRecords: Record<string, string> = {};
+    for (const [key, timestamp] of Object.entries(records)) {
+      if (typeof timestamp === "string" && isValidTimestamp(timestamp)) {
+        normalizedRecords[key] = timestamp;
+      }
+    }
+    byWorkspace[workspaceId] = normalizedRecords;
+  }
+  return byWorkspace;
+}
+
+function mergeLastReads(
+  persisted: Partial<NetworkLastReadContext>,
+  current: NetworkLastReadContext
+): NetworkLastReadContext {
+  const persistedByWorkspace = normalizedLastReads(persisted.byWorkspace);
+  const workspaceIds = new Set([
+    ...Object.keys(current.byWorkspace),
+    ...Object.keys(persistedByWorkspace),
+  ]);
+  const byWorkspace: Record<string, Record<string, string>> = {};
+
+  for (const workspaceId of workspaceIds) {
+    const currentRecords = current.byWorkspace[workspaceId] ?? {};
+    const persistedRecords = persistedByWorkspace[workspaceId] ?? {};
+    const keys = new Set([...Object.keys(currentRecords), ...Object.keys(persistedRecords)]);
+    const records: Record<string, string> = {};
+
+    for (const key of keys) {
+      const incoming = persistedRecords[key];
+      const existing = currentRecords[key];
+      if (incoming) {
+        records[key] = latestTimestamp(existing, incoming);
+      } else if (existing) {
+        records[key] = existing;
+      }
+    }
+    byWorkspace[workspaceId] = records;
+  }
+
+  return { byWorkspace };
 }
 
 export function buildLastReadStorageKey(key: NetworkLastReadKey): string {
   return [key.workspaceId, key.channel, key.surface, key.containerId].join(KEY_SEPARATOR);
+}
+
+export const networkLastReadLogic = createStoreLogic({
+  context: (): NetworkLastReadContext => ({ byWorkspace: {} }),
+  on: {
+    lastReadMarked: (context, event: { workspaceId: string; key: string; timestamp: string }) => {
+      if (!isValidTimestamp(event.timestamp)) return context;
+      const currentWorkspace = context.byWorkspace[event.workspaceId] ?? {};
+      const timestamp = latestTimestamp(currentWorkspace[event.key], event.timestamp);
+      if (timestamp === currentWorkspace[event.key]) {
+        return context;
+      }
+
+      return {
+        ...context,
+        byWorkspace: {
+          ...context.byWorkspace,
+          [event.workspaceId]: { ...currentWorkspace, [event.key]: timestamp },
+        },
+      };
+    },
+  },
+});
+
+export const networkLastReadStore = networkLastReadLogic.createStore().with(
+  persist({
+    name: LAST_READ_STORAGE_KEY,
+    merge: mergeLastReads,
+  })
+);
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", event => {
+    if (event.key === LAST_READ_STORAGE_KEY) {
+      void rehydrateStore(networkLastReadStore);
+    }
+  });
 }
 
 export interface UseLastReadResult {
@@ -65,45 +143,27 @@ export interface UseLastReadResult {
 export function useLastRead(options: { workspaceId?: string | null } = {}): UseLastReadResult {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = options.workspaceId ?? activeWorkspaceId;
-  const [state, setState] = useState<LastReadState>(() => readLastReadMap());
-  const stateRef = useRef(state);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    function handleStorage(event: StorageEvent) {
-      if (event.key === LAST_READ_STORAGE_KEY) {
-        const next = readLastReadMap();
-        stateRef.current = next;
-        setState(next);
-      }
-    }
-
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  const workspaceReads = useSelector(networkLastReadStore, snapshot =>
+    workspaceId ? (snapshot.context.byWorkspace[workspaceId] ?? EMPTY_LAST_READS) : EMPTY_LAST_READS
+  );
 
   const lastReadAt = (key: NetworkLastReadLookupKey) => {
-    if (!workspaceId) return null;
-    return state[buildLastReadStorageKey({ ...key, workspaceId })] ?? null;
+    if (!workspaceId) {
+      return null;
+    }
+    return workspaceReads[buildLastReadStorageKey({ ...key, workspaceId })] ?? null;
   };
 
   const markRead = (key: NetworkLastReadLookupKey, timestamp: string | null | undefined) => {
     if (!timestamp || !workspaceId) {
       return;
     }
-    const storageKey = buildLastReadStorageKey({ ...key, workspaceId });
-    const current = stateRef.current;
-    if (current[storageKey] === timestamp) return;
-    const next = { ...current, [storageKey]: timestamp };
-    stateRef.current = next;
-    setState(next);
-    writeLastReadMap(next);
+    networkLastReadStore.trigger.lastReadMarked({
+      key: buildLastReadStorageKey({ ...key, workspaceId }),
+      timestamp,
+      workspaceId,
+    });
   };
 
   return { lastReadAt, markRead };
 }
-
-export const LAST_READ_STORAGE_KEY_FOR_TESTS = LAST_READ_STORAGE_KEY;

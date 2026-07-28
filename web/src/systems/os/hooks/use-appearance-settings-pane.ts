@@ -1,20 +1,23 @@
 import { useSyncExternalStore } from "react";
-import { useShallow } from "zustand/shallow";
+import { shallowEqual } from "@xstate/store";
 
 import { getSystemReducedMotion, subscribeSystemReducedMotion } from "../lib/reduced-motion";
 import { useDesktop } from "./use-desktop";
+import { useOsShell } from "./use-os-shell";
 
 /** View model for the Appearance settings pane and its desktop-doc actions. */
 export function useAppearanceSettingsPane() {
+  const { manager } = useOsShell();
   const desktop = useDesktop(
-    useShallow(state => ({
+    state => ({
       dockMagnify: state.dockMagnify,
       reduceMotion: state.reduceMotion,
-      setDockMagnify: state.setDockMagnify,
-      setReduceMotion: state.setReduceMotion,
-      setWallpaper: state.setWallpaper,
+      setDockMagnify: manager.setDockMagnify,
+      setReduceMotion: manager.setReduceMotion,
+      setWallpaper: manager.setWallpaper,
       wallpaper: state.wallpaper,
-    }))
+    }),
+    shallowEqual
   );
   const systemReducedMotion = useSyncExternalStore(
     subscribeSystemReducedMotion,

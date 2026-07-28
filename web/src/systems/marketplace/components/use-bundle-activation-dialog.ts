@@ -1,6 +1,9 @@
+import { useSelector } from "@xstate/store-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { toast } from "sonner";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   useActivateMarketplaceBundle,
@@ -8,69 +11,101 @@ import {
 } from "../hooks/use-marketplace-actions";
 import type { MarketplaceEntryResponse } from "../types";
 import { buildBundleRequest } from "./bundle-activation-model";
+import {
+  createBundleActivationDialogLogic,
+  type BundleActivationDraft,
+} from "./bundle-activation-dialog-store";
 
 interface UseBundleActivationDialogOptions {
   data: MarketplaceEntryResponse;
   onOpenChange: (open: boolean) => void;
-  open: boolean;
   workspaceId?: string | null;
 }
+
+const bundleActivationDialogLogic = createBundleActivationDialogLogic();
 
 export function useBundleActivationDialog({
   data,
   onOpenChange,
-  open,
   workspaceId,
 }: UseBundleActivationDialogOptions) {
   const bundle = data.bundle;
-  const defaultProfile = bundle?.profiles[0]?.name ?? "default";
-  const [profile, setProfile] = useState(defaultProfile);
-  const [scope, setScope] = useState<"global" | "workspace">(workspaceId ? "workspace" : "global");
-  const [confirmNetworkRequirement, setConfirmNetworkRequirement] = useState(false);
   const preview = usePreviewMarketplaceBundle();
   const activate = useActivateMarketplaceBundle();
   const navigate = useNavigate();
+  const bindingKey = JSON.stringify([data.entry.entry_id, workspaceId ?? null]);
+  const { store } = useStoreBinding(bindingKey, () =>
+    bundleActivationDialogLogic.createStore({
+      profile: bundle?.profiles[0]?.name ?? "default",
+      scope: workspaceId ? "workspace" : "global",
+      confirmNetworkRequirement: false,
+    })
+  );
+  const state = useSelector(store, snapshot => snapshot.context);
+
+  const executePreview = (draft: BundleActivationDraft) =>
+    preview
+      .mutateAsync(buildBundleRequest(data, draft.profile, draft.scope, workspaceId))
+      .then(() => undefined);
+  const executeActivation = (draft: BundleActivationDraft) =>
+    activate
+      .mutateAsync(
+        buildBundleRequest(
+          data,
+          draft.profile,
+          draft.scope,
+          workspaceId,
+          draft.confirmNetworkRequirement
+        )
+      )
+      .then(() => undefined);
+
+  const providePreviewExecution = useEffectEvent(() => {
+    store.trigger.previewExecutionProvided({ preview: executePreview });
+  });
+  const notifyActivation = () => {
+    toast.success(`${data.entry.name} activated`, {
+      action: {
+        label: "Manage →",
+        onClick: () => void navigate({ to: "/marketplace/bundles", search: { tab: "installed" } }),
+      },
+    });
+  };
+  const handleActivated = useEffectEvent(() => {
+    onOpenChange(false);
+  });
+
   useEffect(() => {
-    if (!open || !bundle) return;
-    preview.mutate(buildBundleRequest(data, profile, scope, workspaceId));
-  }, [bundle, data, open, preview.mutate, profile, scope, workspaceId]);
+    if (bundle) providePreviewExecution();
+  }, [bundle, store]);
 
-  const rerunPreview = () => {
-    activate.reset();
-    preview.mutate(buildBundleRequest(data, profile, scope, workspaceId));
-  };
-
-  const activateBundle = async () => {
-    try {
-      await activate.mutateAsync(
-        buildBundleRequest(data, profile, scope, workspaceId, confirmNetworkRequirement)
-      );
-      toast.success(`${data.entry.name} activated`, {
-        action: {
-          label: "Manage →",
-          onClick: () => {
-            void navigate({ to: "/marketplace/bundles", search: { tab: "installed" } });
-          },
-        },
-      });
-      onOpenChange(false);
-    } catch {
-      // The mutation error stays visible in the dialog.
-    }
-  };
+  useEffect(() => {
+    const subscription = store.on("activated", handleActivated);
+    return () => subscription.unsubscribe();
+  }, [store]);
 
   return {
-    activate,
-    activateBundle,
-    confirmNetworkRequirement,
-    error: preview.error ?? activate.error,
+    activateBundle: () =>
+      store.trigger.activationSubmitted({
+        activate: executeActivation,
+        notifySuccess: notifyActivation,
+      }),
+    confirmNetworkRequirement: state.confirmNetworkRequirement,
+    error: state.phase === "failed" ? new Error(state.error) : null,
+    phase: state.phase,
     preview,
-    profile,
-    rerunPreview,
-    scope,
-    setConfirmNetworkRequirement,
-    setProfile,
-    setScope,
+    profile: state.profile,
+    rerunPreview: () => {
+      activate.reset();
+      store.trigger.previewRetried({ preview: executePreview });
+    },
+    scope: state.scope,
+    setConfirmNetworkRequirement: (confirmed: boolean) =>
+      store.trigger.networkRequirementConfirmed({ confirmed }),
+    setProfile: (profile: string) =>
+      store.trigger.profileSelected({ preview: executePreview, profile }),
+    setScope: (scope: "global" | "workspace") =>
+      store.trigger.scopeSelected({ preview: executePreview, scope }),
   };
 }
 

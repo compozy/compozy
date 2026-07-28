@@ -31,8 +31,7 @@ import {
   putSettingsSandbox,
   SettingsApiError,
 } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsSandboxCollection } from "@/systems/settings";
 import { useSandboxPage } from "@/systems/sandbox/hooks/use-sandbox-page";
 
@@ -95,13 +94,7 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   navigateMock.mockReset();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(listSettingsSandboxes).mockResolvedValue(collection);
 });
 
@@ -244,6 +237,8 @@ describe("useSandboxPage", () => {
 
     act(() => {
       result.current.openEdit(daytonaEnv);
+    });
+    act(() => {
       result.current.updateDraft(draft => ({ ...draft, backend: "" }));
     });
 
@@ -323,6 +318,55 @@ describe("useSandboxPage", () => {
 
     await waitFor(() => expect(result.current.deleteError).toBe("sandbox still referenced"));
     expect(result.current.deleteTarget.mode).toBe("open");
+  });
+
+  it("keeps an accepted delete visible until it settles", async () => {
+    let resolveDelete: (result: Awaited<ReturnType<typeof deleteSettingsSandbox>>) => void;
+    const pendingDeletion = new Promise<Awaited<ReturnType<typeof deleteSettingsSandbox>>>(
+      resolve => {
+        resolveDelete = resolve;
+      }
+    );
+    vi.mocked(deleteSettingsSandbox).mockReturnValue(pendingDeletion);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSandboxPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.sandboxes).toHaveLength(2));
+    act(() => {
+      result.current.openDelete(localEnv);
+    });
+    act(() => {
+      result.current.confirmDelete();
+    });
+    act(() => {
+      result.current.closeDelete();
+      result.current.openDelete(daytonaEnv);
+    });
+
+    expect(result.current.deleteTarget).toMatchObject({
+      mode: "open",
+      entry: { name: "local" },
+    });
+
+    await act(async () => {
+      resolveDelete({
+        active_config_hash: "sha256:test-active",
+        active_generation: 1,
+        applied: true,
+        apply_record_id: "cfg_apply_test",
+        lifecycle: "live",
+        next_action: "none",
+        restart_required: true,
+        scope: "global",
+        section: "general",
+        write_target: "global-config",
+      });
+      await pendingDeletion;
+    });
+
+    expect(result.current.deleteTarget).toEqual({ mode: "closed" });
+    expect(result.current.lastAction).toMatchObject({ kind: "deleted", name: "local" });
   });
 
   it("filters profiles client-side by search query and backend", async () => {

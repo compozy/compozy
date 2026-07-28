@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
+import { createProfileEditorLogic } from "./profile-editor-store";
 import type { TaskExecutionProfile, TaskExecutionProfileSetRequest } from "../types";
+
+const profileEditorLogic = createProfileEditorLogic();
 
 interface UseProfileEditorState {
   taskId: string;
@@ -9,11 +12,12 @@ interface UseProfileEditorState {
 }
 
 export interface TaskProfileEditor {
+  error: string | null;
   open: boolean;
   setOpen: (open: boolean) => void;
   value: TaskExecutionProfileSetRequest | null;
   setValue: (value: TaskExecutionProfileSetRequest) => void;
-  submit: () => Promise<void>;
+  submit: () => void;
 }
 
 function emptyProfile(taskId: string): TaskExecutionProfileSetRequest {
@@ -36,25 +40,29 @@ export function useProfileEditor({
   profile,
   onSetProfile,
 }: UseProfileEditorState): TaskProfileEditor {
-  const [open, setOpenState] = useState(false);
-  const [value, setValue] = useState<TaskExecutionProfileSetRequest | null>(null);
+  const store = useStore(profileEditorLogic);
 
-  const setOpen = (next: boolean) => {
-    if (next) {
-      setValue(profile ? { ...profile, task_id: taskId } : emptyProfile(taskId));
-    }
-    setOpenState(next);
+  const state = useSelector(store, snapshot => snapshot.context);
+
+  return {
+    error: state.error,
+    open: state.phase !== "closed",
+    setOpen: open => {
+      if (open) {
+        store.trigger.opened({
+          value: profile ? { ...profile, task_id: taskId } : emptyProfile(taskId),
+        });
+        return;
+      }
+      store.trigger.closed({});
+    },
+    setValue: value => store.trigger.valueChanged({ value }),
+    submit: () =>
+      store.trigger.submitRequested({
+        execute: onSetProfile,
+        taskId,
+        updatedAt: new Date().toISOString(),
+      }),
+    value: state.value,
   };
-
-  const submit = async () => {
-    if (!value) return;
-    try {
-      await onSetProfile({ ...value, task_id: taskId, updated_at: new Date().toISOString() });
-      setOpen(false);
-    } catch {
-      // Caller reports the failure; keep the form open for correction.
-    }
-  };
-
-  return { open, setOpen, value, setValue, submit };
 }

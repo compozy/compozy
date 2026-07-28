@@ -2,7 +2,7 @@ import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption } from "@/systems/workspace";
 
-import type { NetworkParticipationStrategy } from "@/systems/network";
+import type { NetworkParticipationStrategy } from "@/lib/network-participation";
 
 export interface SessionCreateDialogDraft {
   agentName: string;
@@ -132,11 +132,4 @@ export function describeWorkspaceError(error: unknown): string {
     return error.message;
   }
   return "Unable to load provider options for this workspace.";
-}
-
-export function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
 }

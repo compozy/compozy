@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSelector } from "@xstate/store-react";
 
 import { useDeleteWorkspace, useResolveWorkspace, useWorkspaces } from "@/systems/workspace";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { useDirectoryBrowser } from "./use-directory-browser";
 import {
-  useOnboardingDraftStore,
+  onboardingDraftStore,
   type OnboardingWorkspaceDraft,
 } from "../stores/use-onboarding-draft-store";
 import type { FSEntry } from "../types";
@@ -64,31 +65,32 @@ function registeredWorkspaceIdForDraft(
 }
 
 export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
-  const workspaces = useOnboardingDraftStore(state => state.workspaces);
-  const addToDraft = useOnboardingDraftStore(state => state.addWorkspace);
-  const removeFromDraft = useOnboardingDraftStore(state => state.removeWorkspace);
+  const workspaces = useSelector(onboardingDraftStore, state => state.context.workspaces);
   const resolveWorkspace = useResolveWorkspace();
   const deleteWorkspace = useDeleteWorkspace();
   const registeredWorkspaces = useWorkspaces();
   const workspaceCatalog = registeredWorkspaces.data;
   const [currentPath, setCurrentPath] = useState<string>("");
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const catalogSeeded = useRef(false);
 
   const browse = useDirectoryBrowser({ path: currentPath || undefined, dirsOnly: true });
   const data = browse.data;
 
   useEffect(() => {
-    if (workspaces.length > 0) {
-      return;
-    }
-    for (const workspace of registeredWorkspaces.data ?? []) {
+    if (registeredWorkspaces.data === undefined || catalogSeeded.current) return;
+    catalogSeeded.current = true;
+    if (workspaces.length > 0) return;
+    for (const workspace of registeredWorkspaces.data) {
       const path = workspace.root_dir.trim();
       if (path.length === 0) {
         continue;
       }
-      addToDraft(draftFromWorkspace(workspace, path));
+      onboardingDraftStore.trigger.workspaceDraftAdded({
+        workspace: draftFromWorkspace(workspace, path),
+      });
     }
-  }, [addToDraft, registeredWorkspaces.data, workspaces.length]);
+  }, [registeredWorkspaces.data, workspaces.length]);
 
   const navigateTo = (path: string) => {
     setCurrentPath(path);
@@ -112,7 +114,9 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     setResolveError(null);
     try {
       const workspace = await resolveWorkspace.mutateAsync({ path: trimmed });
-      addToDraft(draftFromWorkspace(workspace, trimmed));
+      onboardingDraftStore.trigger.workspaceDraftAdded({
+        workspace: draftFromWorkspace(workspace, trimmed),
+      });
     } catch (error) {
       setResolveError(
         error instanceof Error ? error.message : "Failed to register that folder as a workspace."
@@ -127,7 +131,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     const draft = workspaces.find(item => item.path === path);
     const workspaceId = registeredWorkspaceIdForDraft(draft, workspaceCatalog);
     if (workspaceId.length === 0) {
-      removeFromDraft(path);
+      onboardingDraftStore.trigger.workspaceDraftRemoved({ path });
       return;
     }
 
@@ -138,7 +142,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
       setResolveError(error instanceof Error ? error.message : "Failed to remove workspace.");
       return;
     }
-    removeFromDraft(path);
+    onboardingDraftStore.trigger.workspaceDraftRemoved({ path });
   };
 
   const isAdded = (path: string) => workspaces.some(item => item.path === path);

@@ -1,4 +1,4 @@
-import { useSessionCreate, useSessions } from "@/systems/session";
+import { useSessionCreateActions, useSessions } from "@/systems/session";
 import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
 import type {
@@ -50,7 +50,7 @@ export function useOsCommandPalette(
   options: { onOpenDesktops?: () => void; onToggleSessions?: () => void } = {}
 ): OsCommandPaletteModel {
   const { coordinator } = useOsShell();
-  const sessionCreate = useSessionCreate();
+  const { openForAgent } = useSessionCreateActions();
   const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
   const sessions = useSessions(activeWorkspaceId, {
     enabled: open && activeWorkspaceId !== null,
@@ -106,7 +106,7 @@ export function useOsCommandPalette(
     dispatchPlacement: command => run(() => windowCommands.dispatchPlacement(command)),
     dispatchArrange: command => run(() => windowCommands.dispatchArrange(command)),
     toggleSessions: () => run(() => options.onToggleSessions?.()),
-    newSession: () => run(() => sessionCreate.openForAgent("")),
+    newSession: () => run(() => openForAgent("")),
     openDesktops: () => run(() => options.onOpenDesktops?.()),
     openAppearance: () =>
       run(() => {

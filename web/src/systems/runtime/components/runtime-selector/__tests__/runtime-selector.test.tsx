@@ -17,6 +17,10 @@ import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../fa
 import { runtimeModelKey } from "../model-key";
 import { ReasoningBar } from "../reasoning-bar";
 import { RuntimeSelector, type RuntimeSelectorProps } from "../runtime-selector";
+import {
+  hydrateRuntimeFavoritesFromStorage,
+  runtimeFavoritesStore,
+} from "../runtime-favorites-store";
 import { useRuntimeFavorites } from "../use-runtime-favorites";
 import {
   reasoningEffortPosition,
@@ -43,7 +47,10 @@ const claudeProvider: RuntimeProviderOption = {
 };
 
 // Browser-local favorites/recents must not leak across cases (each seeds its own).
-beforeEach(() => window.localStorage.clear());
+beforeEach(async () => {
+  window.localStorage.clear();
+  await hydrateRuntimeFavoritesFromStorage();
+});
 
 function model(id: string, overrides: Partial<RuntimeModelOption> = {}): RuntimeModelOption {
   return {
@@ -74,7 +81,7 @@ function renderSelector({
   function Harness() {
     const [current, setCurrent] = useState<RuntimeSelectorValue>(value);
     return (
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <RuntimeSelector
           {...props}
           value={current}
@@ -183,7 +190,7 @@ describe("RuntimeSelector single-button trigger", () => {
         );
       }
       render(
-        <UIProvider reducedMotion="always">
+        <UIProvider reducedMotion="never" skipAnimations>
           <div
             onKeyDown={event => {
               ancestorShortcutBoundary(event.key);
@@ -1099,28 +1106,17 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     await waitFor(() => expect(announcer).toHaveTextContent("Unfavorited GPT A from Codex"));
   });
 
-  it("Should purge invalid favorites once the catalog loads EMPTY, but not while it is still loading", async () => {
+  it("Should preserve preferences when a selector surface has an empty catalog", async () => {
     const ghost = runtimeModelKey("codex", "ghost");
-    // Loading (catalogLoaded=false) + empty catalog: nothing is purged — a valid
-    // favorite must never be wiped before the catalog resolves.
-    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([ghost]));
-    const loading = renderSelector({
-      value: { provider: "codex", model: "", reasoning_effort: "" },
-      models: [],
-      props: { catalogLoaded: false },
-    });
-    expect(readList(FAVORITES_STORAGE_KEY)).toEqual([ghost]);
-    loading.unmount();
-
-    // Loaded-empty (catalogLoaded=true) + empty catalog: every persisted entry is
-    // now invalid and is purged so it can never resurrect after reload.
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([ghost]));
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
       models: [],
-      props: { catalogLoaded: true },
     });
-    await waitFor(() => expect(readList(FAVORITES_STORAGE_KEY)).toEqual([]));
+    await waitFor(() => {
+      expect(runtimeFavoritesStore.getSnapshot().context.favorites).toEqual([ghost]);
+    });
+    expect(readList(FAVORITES_STORAGE_KEY)).toEqual([ghost]);
   });
 
   it("Should persist picked models to recents deduped and most-recent-first", async () => {
@@ -1164,7 +1160,7 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     expect(recents).not.toContain(runtimeModelKey("codex", "r6"));
   });
 
-  it("Should discard non-current-tuple favorites and re-persist only valid compound keys", async () => {
+  it("Should hide catalog-foreign favorites without deleting shared preferences", async () => {
     const validKey = runtimeModelKey("codex", "gpt-a");
     window.localStorage.setItem(
       FAVORITES_STORAGE_KEY,
@@ -1183,13 +1179,17 @@ describe("RuntimeSelector favorites and recents persistence", () => {
 
     await openSelector(user);
 
-    // Storage is reconciled to ONLY the valid current tuple; the ghosts are purged
-    // so they never reappear, and the valid favorite still renders as favorited.
-    await waitFor(() => expect(readList(FAVORITES_STORAGE_KEY)).toEqual([validKey]));
+    expect(readList(FAVORITES_STORAGE_KEY)).toEqual([
+      validKey,
+      "gpt-a",
+      "garbage-foreign-string",
+      runtimeModelKey("codex", "ghost"),
+    ]);
     expect(row("gpt-a")).toHaveAttribute("data-favorite", "true");
+    expect(document.querySelector('[data-model="ghost"]')).not.toBeInTheDocument();
   });
 
-  it("Should discard non-current-tuple recents and keep each provider's key distinct", async () => {
+  it("Should project recents through the local catalog without deleting another provider's entry", async () => {
     const validKey = runtimeModelKey("codex", "gpt-a");
     window.localStorage.setItem(
       RECENTS_STORAGE_KEY,
@@ -1208,7 +1208,12 @@ describe("RuntimeSelector favorites and recents persistence", () => {
 
     await openSelector(user);
 
-    await waitFor(() => expect(readList(RECENTS_STORAGE_KEY)).toEqual([validKey]));
+    expect(readList(RECENTS_STORAGE_KEY)).toEqual([
+      validKey,
+      "gpt-a",
+      runtimeModelKey("claude", "gpt-a"),
+    ]);
+    expect(document.querySelectorAll('[data-model="gpt-a"]')).toHaveLength(2);
   });
 
   it("Should normalize duplicate storage and reject mutations outside the loaded catalog", async () => {
@@ -1217,7 +1222,7 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([validKey, validKey]));
     window.localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify([validKey, validKey]));
     const validKeys = new Set([validKey]);
-    const { result } = renderHook(() => useRuntimeFavorites(validKeys, true));
+    const { result } = renderHook(() => useRuntimeFavorites(validKeys));
 
     await waitFor(() => expect(readList(FAVORITES_STORAGE_KEY)).toEqual([validKey]));
     await waitFor(() => expect(readList(RECENTS_STORAGE_KEY)).toEqual([validKey]));
@@ -1235,7 +1240,7 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([validKey]));
     const writeSpy = vi.spyOn(Storage.prototype, "setItem");
     let validKeys = new Set([validKey]);
-    const { rerender } = renderHook(() => useRuntimeFavorites(validKeys, true));
+    const { rerender } = renderHook(() => useRuntimeFavorites(validKeys));
 
     await waitFor(() => expect(readList(FAVORITES_STORAGE_KEY)).toEqual([validKey]));
     writeSpy.mockClear();
@@ -1243,6 +1248,41 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     rerender();
 
     expect(writeSpy).not.toHaveBeenCalled();
+  });
+
+  it("Should reconcile cross-tab favorite storage updates through the shared store", async () => {
+    const validKey = runtimeModelKey("codex", "gpt-a");
+    const validKeys = new Set([validKey]);
+    const { result } = renderHook(() => useRuntimeFavorites(validKeys));
+
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([validKey]));
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: FAVORITES_STORAGE_KEY }));
+    });
+
+    await waitFor(() => expect(result.current.isFavorite(validKey)).toBe(true));
+  });
+
+  it("Should install one cross-tab listener until the shared store loses its last consumer", () => {
+    const validKeys = new Set([runtimeModelKey("codex", "gpt-a")]);
+    const addEventListener = vi.spyOn(window, "addEventListener");
+    const removeEventListener = vi.spyOn(window, "removeEventListener");
+    const first = renderHook(() => useRuntimeFavorites(validKeys));
+    const second = renderHook(() => useRuntimeFavorites(validKeys));
+
+    expect(
+      addEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(1);
+
+    first.unmount();
+    expect(
+      removeEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(0);
+
+    second.unmount();
+    expect(
+      removeEventListener.mock.calls.filter(([eventName]) => eventName === "storage")
+    ).toHaveLength(1);
   });
 
   it("Should render the pinned 'Recent & favorites' block under the all rail and a 'Favorites' block under the fav rail", async () => {
@@ -1363,7 +1403,6 @@ describe("RuntimeSelector listbox semantics", () => {
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
       models: [],
-      props: { catalogLoaded: true },
     });
     await openSelector(user);
     expect(screen.getByTestId("runtime-selector-list")).toHaveAttribute("role", "status");
@@ -1715,7 +1754,7 @@ describe("RuntimeSelector reasoning slider label identity", () => {
       model("leveled", { efforts: ["low", "high"], reasoning_source: "catalog" })
     );
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <ReasoningBar
           reasoning={reasoning}
           value=""
@@ -1770,7 +1809,7 @@ describe("RuntimeSelector shortcut removal", () => {
       );
     }
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <form>
           <input aria-label="Prompt" data-testid="composer-input" />
           <Instance testId="rt-a" />

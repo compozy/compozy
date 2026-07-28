@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import {
   emptyDraft,
@@ -14,29 +13,10 @@ import {
   type MCPServerEditorProps,
   type SettingsMCPServerEntry,
   type SettingsMCPServerTarget,
-  type SettingsMutationResult,
 } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
-
-type MCPConfigScope = "global" | "workspace";
-
-type MCPEditorState =
-  | { mode: "closed" }
-  | {
-      draft: MCPDraft;
-      mode: "create";
-      scope: MCPConfigScope;
-      target: SettingsMCPServerTarget;
-      workspaceId?: string;
-    }
-  | {
-      draft: MCPDraft;
-      entry: SettingsMCPServerEntry;
-      mode: "edit";
-      scope: MCPConfigScope;
-      target: SettingsMCPServerTarget;
-      workspaceId?: string;
-    };
+import { marketplaceMCPEditorLogic } from "./marketplace-mcp-editor-logic";
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 
 interface UseMarketplaceMCPEditorOptions {
   enabled: boolean;
@@ -50,12 +30,6 @@ function errorMessage(error: unknown): string | null {
   return error instanceof Error ? error.message : null;
 }
 
-function mcpSaveMessage(name: string, result: SettingsMutationResult): string {
-  const target = result.write_target ?? "write target unavailable";
-  const lifecycle = result.restart_required ? "restart required" : "applied now";
-  return `Saved "${name}" · ${target} · ${lifecycle}`;
-}
-
 function useMarketplaceMCPEditor({
   enabled,
   scope: createScope,
@@ -64,7 +38,9 @@ function useMarketplaceMCPEditor({
 }: UseMarketplaceMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
-  const [editor, setEditor] = useState<MCPEditorState>({ mode: "closed" });
+  const editorLogic = useStore(marketplaceMCPEditorLogic);
+  const editorFlow = useSelector(editorLogic, snapshot => snapshot.context);
+  const editor = editorFlow.editor;
 
   const editorOpen = enabled && editor.mode !== "closed";
   const vaultQuery = useQuery({
@@ -75,12 +51,14 @@ function useMarketplaceMCPEditor({
   const openCreate = () => {
     if (!enabled || (createScope === "workspace" && !workspaceId)) return;
     resetPutMutation();
-    setEditor({
-      draft: emptyDraft("stdio"),
-      mode: "create",
-      scope: createScope,
-      target: "auto",
-      workspaceId: workspaceId ?? undefined,
+    editorLogic.trigger.editorOpened({
+      editor: {
+        draft: emptyDraft("stdio"),
+        mode: "create",
+        scope: createScope,
+        target: "auto",
+        workspaceId: workspaceId ?? undefined,
+      },
     });
   };
 
@@ -89,29 +67,32 @@ function useMarketplaceMCPEditor({
     const management = deriveMCPManagementFilter(entry);
     if (!management) return;
     resetPutMutation();
-    setEditor({
-      draft: toDraft(entry),
-      entry,
-      mode: "edit",
-      scope: management.scope,
-      target: management.target,
-      workspaceId: management.scope === "workspace" ? management.workspace_id : undefined,
+    editorLogic.trigger.editorOpened({
+      editor: {
+        draft: toDraft(entry),
+        entry,
+        mode: "edit",
+        scope: management.scope,
+        target: management.target,
+        workspaceId: management.scope === "workspace" ? management.workspace_id : undefined,
+      },
     });
   };
 
   const closeEditor = () => {
-    setEditor({ mode: "closed" });
+    if (editorFlow.pendingSaveAttempt !== null) return;
+    editorLogic.trigger.editorDismissed();
     resetPutMutation();
   };
 
   const updateDraft = (updater: (draft: MCPDraft) => MCPDraft) => {
-    setEditor(current =>
-      current.mode === "closed" ? current : { ...current, draft: updater(current.draft) }
-    );
+    if (editor.mode !== "closed") {
+      editorLogic.trigger.draftChanged({ draft: updater(editor.draft) });
+    }
   };
 
   const setEditorTarget = (target: SettingsMCPServerTarget) => {
-    setEditor(current => (current.mode === "closed" ? current : { ...current, target }));
+    editorLogic.trigger.targetChanged({ target });
   };
 
   const validation = editor.mode === "closed" ? null : validateDraft(editor.draft);
@@ -140,19 +121,17 @@ function useMarketplaceMCPEditor({
       editor.scope === "workspace"
         ? { scope: editor.scope, workspace_id: editor.workspaceId, target: editor.target }
         : { scope: editor.scope, target: editor.target };
-    putMutation.mutate(
-      {
-        body: toRequest(editor.draft),
-        filter,
-        name: editor.draft.name.trim(),
-      },
-      {
-        onSuccess: result => {
-          toast.success(mcpSaveMessage(editor.draft.name.trim(), result));
-          setEditor({ mode: "closed" });
-        },
-      }
-    );
+    const name = editor.draft.name.trim();
+    const body = toRequest(editor.draft);
+    editorLogic.trigger.saveRequested({
+      name,
+      execute: () =>
+        putMutation.mutateAsync({
+          body,
+          filter,
+          name,
+        }),
+    });
   };
 
   const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
@@ -175,7 +154,7 @@ function useMarketplaceMCPEditor({
           draft: editor.draft,
           entry: editor.mode === "edit" ? editor.entry : null,
           errors,
-          isSaving: putMutation.isPending,
+          isSaving: editorFlow.pendingSaveAttempt !== null,
           isValid,
           mode: editor.mode,
           onChange: updateDraft,
@@ -194,4 +173,5 @@ function useMarketplaceMCPEditor({
 }
 
 export { useMarketplaceMCPEditor };
-export type { MCPConfigScope, UseMarketplaceMCPEditorOptions };
+export type { MCPConfigScope } from "./marketplace-mcp-scope";
+export type { UseMarketplaceMCPEditorOptions };

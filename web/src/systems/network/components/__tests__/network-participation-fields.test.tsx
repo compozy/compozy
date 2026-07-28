@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type {
   NetworkParticipationDraft,
   NetworkParticipationStrategy,
-} from "../../lib/network-participation";
+} from "@/lib/network-participation";
 import { NetworkParticipationFields } from "../network-participation-fields";
 
 function renderFields(

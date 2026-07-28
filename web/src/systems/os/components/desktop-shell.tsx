@@ -4,7 +4,11 @@ import { cn } from "@compozy/ui";
 
 import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
-import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
+import {
+  SessionCreateDialogHost,
+  SessionCreateProvider,
+  useSessionCreateActions,
+} from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
   useWorkspaceSetupContent,
@@ -86,14 +90,7 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
 
   return (
     <OsShellContext.Provider value={chrome.shell}>
-      <SessionCreateProvider
-        value={{
-          openForAgent: model.sessionCreate.openForAgent,
-          isCreating: model.sessionCreate.isSubmitting,
-          pendingAgentName: model.sessionCreate.pendingAgentName,
-          hasActiveWorkspace: model.activeWorkspace !== undefined,
-        }}
-      >
+      <SessionCreateProvider store={model.sessionCreate.store}>
         <AgentCreateHostProvider
           openDialog={model.agentCreate.openDialog}
           openForDuplicate={model.agentCreate.openForDuplicate}
@@ -102,6 +99,11 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
             firstRun={firstRun}
             model={model}
             workspaceSetupDefaults={workspaceSetupDefaults}
+          />
+          <SessionCreateDialogHost
+            activeWorkspace={model.activeWorkspace}
+            agents={model.workspaceAgents}
+            store={model.sessionCreate.store}
           />
         </AgentCreateHostProvider>
       </SessionCreateProvider>
@@ -118,6 +120,10 @@ function DesktopShellBody({
   firstRun: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
 }) {
+  const sessionCreate = useSessionCreateActions();
+  const openNewSession = () => {
+    sessionCreate.openForAgent("");
+  };
   const {
     attention,
     desktop,
@@ -126,16 +132,21 @@ function DesktopShellBody({
     manager,
     managerSurfaces,
     onResize,
+    onDesktopManagerOpenChange,
+    onOpenDesktopOverview,
     onSeamPreview,
     onSeamPreviewEnd,
+    onTransitionComplete,
     overlays,
     pager,
     reducedMotion,
     transition,
-    windowManagerActions,
     winLayer,
     workspaceDetails,
-  } = useDesktopShellBody(model, { firstRun });
+  } = useDesktopShellBody(model, {
+    firstRun,
+    onNewSession: openNewSession,
+  });
 
   return (
     <div
@@ -158,7 +169,7 @@ function DesktopShellBody({
         activeWorkspace={model.activeWorkspace}
         onSelectWorkspace={model.setActiveWorkspaceId}
         onAddWorkspace={model.openWorkspaceSetup}
-        onNewSession={() => model.sessionCreate.openForAgent("")}
+        onNewSession={openNewSession}
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
         onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
         onOpenWorkspaces={() => overlays.setOverlayOpen("workspaces", true)}
@@ -177,7 +188,7 @@ function DesktopShellBody({
           reducedMotion={reducedMotion}
           transition={transition}
           preview={gesturePreview}
-          onTransitionComplete={() => windowManagerActions.setTransitionIntent(null)}
+          onTransitionComplete={onTransitionComplete}
           onResize={onResize}
           onSeamPreview={onSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
@@ -197,10 +208,7 @@ function DesktopShellBody({
           onMoveWindow={(windowId, destinationDesktopId) =>
             manager.moveWindowToDesktop(windowId, destinationDesktopId)
           }
-          onOpenChange={open => {
-            if (open) windowManagerActions.openOverlay({ kind: "desktops-overview" });
-            else windowManagerActions.closeOverlay();
-          }}
+          onOpenChange={onDesktopManagerOpenChange}
           onRetry={() => manager.refreshSnapshot()}
           onResolveConflict={() => {
             manager.clearConflict();
@@ -209,7 +217,7 @@ function DesktopShellBody({
         />
         <DesktopDock
           dormant={firstRun}
-          onNewSession={() => model.sessionCreate.openForAgent("")}
+          onNewSession={openNewSession}
           badges={attention.badges}
           sessionsOpen={overlays.activeOverlay === "sessions"}
           onToggleSessions={() => overlays.toggleOverlay("sessions")}
@@ -220,7 +228,7 @@ function DesktopShellBody({
               compact={pager.compact}
               canSwitchDesktop={pager.canSwitchDesktop}
               onSelectDesktop={desktopId => manager.switchDesktop(desktopId)}
-              onOpenOverview={request => windowManagerActions.requestOverviewSegment(request)}
+              onOpenOverview={onOpenDesktopOverview}
             />
           }
         />
@@ -270,7 +278,6 @@ function DesktopShellBody({
         isSubmitting={model.agentCreate.isSubmitting}
         modelCatalogError={model.agentCreate.modelCatalogError}
         modelCatalogLoading={model.agentCreate.modelCatalogLoading}
-        modelCatalogLoaded={model.agentCreate.modelCatalogLoaded}
         modelCatalogRefreshing={model.agentCreate.modelCatalogRefreshing}
         onDraftChange={model.agentCreate.onDraftChange}
         onOpenChange={model.agentCreate.onOpenChange}
@@ -285,45 +292,7 @@ function DesktopShellBody({
         submitError={model.agentCreate.submitError}
         workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
-      />
-      <SessionCreateDialog
-        agents={model.sessionCreate.agents}
-        catalogError={model.sessionCreate.catalogError}
-        catalogLoading={model.sessionCreate.catalogLoading}
-        catalogLoaded={model.sessionCreate.catalogLoaded}
-        catalogRefreshError={model.sessionCreate.catalogRefreshError}
-        catalogRefreshing={model.sessionCreate.catalogRefreshing}
-        catalogStale={model.sessionCreate.catalogStale}
-        hasProviderOptions={model.sessionCreate.hasProviderOptions}
-        isSubmitting={model.sessionCreate.isSubmitting}
-        mode={model.sessionCreate.mode}
-        networkParticipation={model.sessionCreate.networkParticipation}
-        onAgentChange={model.sessionCreate.onAgentChange}
-        onCatalogRefresh={model.sessionCreate.refreshCatalog}
-        onModeChange={model.sessionCreate.onModeChange}
-        onNetworkParticipationChange={model.sessionCreate.onNetworkParticipationChange}
-        onOpenChange={model.sessionCreate.onOpenChange}
-        onOpenProviderSettings={model.sessionCreate.openProviderSettings}
-        onPromptChange={model.sessionCreate.onPromptChange}
-        onRuntimeChange={model.sessionCreate.onRuntimeChange}
-        onSessionNameChange={model.sessionCreate.onSessionNameChange}
-        onSubmit={model.sessionCreate.submit}
-        onWorkspaceChange={model.sessionCreate.onWorkspaceChange}
-        onWorkspacePathChange={model.sessionCreate.onWorkspacePathChange}
-        open={model.sessionCreate.open}
-        promptValue={model.sessionCreate.promptValue}
-        providersError={model.sessionCreate.providersError}
-        providersLoading={model.sessionCreate.providersLoading}
-        runtimeModels={model.sessionCreate.runtimeModels}
-        runtimeProviders={model.sessionCreate.runtimeProviders}
-        runtimeValue={model.sessionCreate.runtimeValue}
-        selectedAgentName={model.sessionCreate.selectedAgentName}
-        sessionName={model.sessionCreate.sessionName}
-        submitError={model.sessionCreate.submitError}
-        workspace={model.sessionCreate.workspace}
-        workspaceId={model.sessionCreate.workspaceId}
-        workspacePath={model.sessionCreate.workspacePath}
-        workspaces={model.sessionCreate.workspaces}
+        userHomeDir={model.agentCreate.userHomeDir}
       />
     </div>
   );

@@ -16,9 +16,10 @@ interface UseMergedSessionRuntimeTranscriptOptions {
 }
 
 interface RuntimeTailState {
-  transcriptMessages: readonly ThreadMessage[] | null;
-  runtimeMessages: readonly ThreadMessage[] | null;
   hasLocalRuntimeTail: boolean;
+  runtimeMessages: readonly ThreadMessage[] | null;
+  sessionKey: string;
+  transcriptMessages: readonly ThreadMessage[] | null;
 }
 
 export function useMergedSessionRuntimeTranscript({
@@ -35,30 +36,39 @@ export function useMergedSessionRuntimeTranscript({
       mutationKey: sessionKeys.clearConversation(workspaceId),
       predicate: mutation => mutation.state.variables === sessionId,
     }) > 0;
+  const sessionKey = `${workspaceId}\u0000${sessionId}`;
   const hasOptimisticRuntimeMessage = runtimeMessages.some(isOptimisticRuntimeMessage);
-  const [runtimeTailState, setRuntimeTailState] = useState<RuntimeTailState>({
-    transcriptMessages: null,
-    runtimeMessages: null,
+  const [runtimeTailState, setRuntimeTailState] = useState<RuntimeTailState>(() => ({
     hasLocalRuntimeTail: false,
-  });
-
-  const transcriptMessagesChanged = runtimeTailState.transcriptMessages !== transcript.messages;
-  const runtimeMessagesChanged = runtimeTailState.runtimeMessages !== runtimeMessages;
-  const previousRuntimeCount = runtimeTailState.runtimeMessages?.length ?? 0;
-  const hasPreviousRuntimeSnapshot = runtimeTailState.runtimeMessages !== null;
+    runtimeMessages: null,
+    sessionKey,
+    transcriptMessages: null,
+  }));
+  const scopedTailState =
+    runtimeTailState.sessionKey === sessionKey
+      ? runtimeTailState
+      : {
+          hasLocalRuntimeTail: false,
+          runtimeMessages: null,
+          sessionKey,
+          transcriptMessages: null,
+        };
+  const transcriptMessagesChanged = scopedTailState.transcriptMessages !== transcript.messages;
+  const runtimeMessagesChanged = scopedTailState.runtimeMessages !== runtimeMessages;
+  const previousRuntimeCount = scopedTailState.runtimeMessages?.length ?? 0;
   const hasUnreconciledRuntimeTail = hasUnreconciledRuntimeMessages({
     transcriptMessages: transcript.messages,
     runtimeMessages,
   });
-  // Local/fast SSE can finish in the same turn it starts, so we never observe
-  // isRunning/isOptimistic mid-flight. Latch the tail when the runtime grows past
-  // the durable transcript; stable durable identities clear each matching row.
+  // Local/fast SSE can finish in the same turn it starts, so isRunning and the
+  // optimistic marker may never be observed. Growth beyond the durable transcript
+  // is therefore a load-bearing latch; durable identities clear it after reconcile.
   const runtimeGrewWithUnreconciledMessages =
-    hasPreviousRuntimeSnapshot &&
+    scopedTailState.runtimeMessages !== null &&
     runtimeMessagesChanged &&
     runtimeMessages.length > previousRuntimeCount &&
     hasUnreconciledRuntimeTail;
-  let hasLocalRuntimeTail = runtimeTailState.hasLocalRuntimeTail;
+  let hasLocalRuntimeTail = scopedTailState.hasLocalRuntimeTail;
   if (
     runtimeIsRunning ||
     (runtimeMessagesChanged && hasOptimisticRuntimeMessage) ||
@@ -74,9 +84,14 @@ export function useMergedSessionRuntimeTranscript({
   const nextRuntimeTailState =
     transcriptMessagesChanged ||
     runtimeMessagesChanged ||
-    runtimeTailState.hasLocalRuntimeTail !== hasLocalRuntimeTail
-      ? { transcriptMessages: transcript.messages, runtimeMessages, hasLocalRuntimeTail }
-      : runtimeTailState;
+    scopedTailState.hasLocalRuntimeTail !== hasLocalRuntimeTail
+      ? {
+          hasLocalRuntimeTail,
+          runtimeMessages,
+          sessionKey,
+          transcriptMessages: transcript.messages,
+        }
+      : scopedTailState;
   if (nextRuntimeTailState !== runtimeTailState) {
     setRuntimeTailState(nextRuntimeTailState);
   }

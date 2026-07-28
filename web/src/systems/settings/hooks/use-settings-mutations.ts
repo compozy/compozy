@@ -30,7 +30,7 @@ import {
   logoutSettingsMCPAuth,
 } from "../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../lib/query-keys";
-import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
+import { settingsRestartStore } from "../stores/settings-restart-store";
 import type {
   SettingsSandboxRequest,
   SettingsHookRequest,
@@ -59,16 +59,18 @@ import type {
 } from "../types";
 
 function recordMutation(result: SettingsMutationResult) {
-  useSettingsRestartStore.getState().recordMutation({
-    section: result.section,
-    restartRequired: Boolean(result.restart_required),
-    restartScope: result.restart_scope,
-    warnings: result.warnings ?? [],
-    lifecycle: result.lifecycle,
-    nextAction: result.next_action,
-    applyRecordId: result.apply_record_id,
-    activeGeneration: result.active_generation,
-    completedAt: new Date().toISOString(),
+  settingsRestartStore.trigger.settingsMutationRecorded({
+    mutation: {
+      section: result.section,
+      restartRequired: Boolean(result.restart_required),
+      restartScope: result.restart_scope,
+      warnings: result.warnings ?? [],
+      lifecycle: result.lifecycle,
+      nextAction: result.next_action,
+      applyRecordId: result.apply_record_id,
+      activeGeneration: result.active_generation,
+      completedAt: new Date().toISOString(),
+    },
   });
 }
 

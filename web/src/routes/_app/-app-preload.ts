@@ -6,7 +6,7 @@ import {
   homeOverviewOptions,
   homeScopeForActiveWorkspace,
   homeWorkingNowSessionFilters,
-  useHomePrefsStore,
+  homePrefsStore,
 } from "@/systems/dashboard";
 import { networkStatusOptions } from "@/systems/network";
 import { onboardingStatusOptions } from "@/systems/onboarding";
@@ -55,7 +55,7 @@ export async function preloadHomeWorkspace(
   queryClient: QueryClient,
   workspaceId: string
 ): Promise<void> {
-  const usageWindow = useHomePrefsStore.getState().usageWindow;
+  const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
   // Resolve scope from the awaited daemon status so preload and first paint use
   // the same workspace-specific query keys.
   const [statusResult, workspaces] = await Promise.all([

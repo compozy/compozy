@@ -20,7 +20,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeEditDi
     ...props,
   };
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <KnowledgeEditDialog {...merged} />
     </UIProvider>
   );

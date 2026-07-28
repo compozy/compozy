@@ -8,17 +8,12 @@ import { type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
 import { toggleVariants } from "./toggle-variants";
 
-const ToggleGroupContext = React.createContext<
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number;
-    orientation?: "horizontal" | "vertical";
-  }
->({
-  size: "default",
-  variant: "default",
-  spacing: 0,
-  orientation: "horizontal",
-});
+type ToggleVariant = VariantProps<typeof toggleVariants>["variant"];
+type ToggleSize = VariantProps<typeof toggleVariants>["size"];
+
+const ToggleGroupVariantContext = React.createContext<ToggleVariant>("default");
+const ToggleGroupSizeContext = React.createContext<ToggleSize>("default");
+const ToggleGroupSpacingContext = React.createContext(0);
 
 function ToggleGroup({
   className,
@@ -33,8 +28,6 @@ function ToggleGroup({
     spacing?: number;
     orientation?: "horizontal" | "vertical";
   }) {
-  const contextValue = { variant, size, spacing, orientation };
-
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -50,7 +43,11 @@ function ToggleGroup({
       )}
       {...props}
     >
-      <ToggleGroupContext.Provider value={contextValue}>{children}</ToggleGroupContext.Provider>
+      <ToggleGroupVariantContext value={variant}>
+        <ToggleGroupSizeContext value={size}>
+          <ToggleGroupSpacingContext value={spacing}>{children}</ToggleGroupSpacingContext>
+        </ToggleGroupSizeContext>
+      </ToggleGroupVariantContext>
     </ToggleGroupPrimitive>
   );
 }
@@ -62,19 +59,21 @@ function ToggleGroupItem({
   size = "default",
   ...props
 }: TogglePrimitive.Props & VariantProps<typeof toggleVariants>) {
-  const context = React.use(ToggleGroupContext);
+  const contextVariant = React.use(ToggleGroupVariantContext);
+  const contextSize = React.use(ToggleGroupSizeContext);
+  const contextSpacing = React.use(ToggleGroupSpacingContext);
 
   return (
     <TogglePrimitive
       data-slot="toggle-group-item"
-      data-variant={context.variant || variant}
-      data-size={context.size || size}
-      data-spacing={context.spacing}
+      data-variant={contextVariant || variant}
+      data-size={contextSize || size}
+      data-spacing={contextSpacing}
       className={cn(
         "shrink-0 group-data-[spacing=0]/toggle-group:rounded-sm group-data-[spacing=0]/toggle-group:px-2 group-data-[spacing=0]/toggle-group:bg-transparent group-data-[spacing=0]/toggle-group:hover:bg-hover focus:z-10 focus-visible:z-10 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-end]:pr-1.5 group-data-[spacing=0]/toggle-group:has-data-[icon=inline-start]:pl-1.5 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0 group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t",
         toggleVariants({
-          variant: context.variant || variant,
-          size: context.size || size,
+          variant: contextVariant || variant,
+          size: contextSize || size,
         }),
         className
       )}

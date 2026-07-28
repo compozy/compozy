@@ -23,3 +23,7 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 The bridge is still created disabled by default: the provider-declared credentials are bound after the POST, so a bridge that started on acceptance would be running without them.
 
 src: web/src/systems/bridges/components/bridge-create-dialog.tsx; web/src/systems/bridges/components/bridge-create-simple-section.tsx; web/src/systems/bridges/components/bridge-create-secret-slots.tsx; web/src/systems/bridges/components/bridge-create-advanced-section.tsx; web/src/systems/bridges/lib/bridge-secret-slot-submission.ts; web/src/hooks/routes/use-bridge-create-flow.ts
+
+QA impact 2026-07-28: after all failed secret bindings are recovered, a navigation failure now
+keeps the completed flow closed instead of restoring obsolete credential fields. Status remains
+untested; no QA replay ran.

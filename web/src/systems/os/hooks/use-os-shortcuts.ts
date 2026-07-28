@@ -46,13 +46,13 @@ export function useOsShortcuts(
   options: OsShortcutOptions = {}
 ): void {
   const enabled = options.enabled ?? true;
-  const { store, manager } = useOsShell();
+  const { projection, manager } = useOsShell();
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Escape") {
       handlers.onEscape();
       return;
     }
-    const state = store.getState();
+    const state = projection.get();
     const config = state.windowManagerConfig;
     if (
       config !== null &&

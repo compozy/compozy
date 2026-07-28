@@ -47,7 +47,7 @@ function createShell(): OsShellHandle {
   const port: OsRouterPort = { navigate: () => {}, replace: () => {} };
   const coordinator = new RoutingCoordinator(manager, port);
   coordinator.completeHydration();
-  return { store: manager, manager, coordinator };
+  return { projection: manager.projectionAtom, manager, coordinator };
 }
 
 function renderModal(shell: OsShellHandle, open = true) {
@@ -92,7 +92,7 @@ describe("OsSessionsModal", () => {
     const group = screen.getByRole("button", { name: /codex/i, expanded: true });
     await user.click(group);
     expect(group).toHaveAttribute("aria-expanded", "false");
-    expect(shell.store.getState().railCollapsedAgentIds).toEqual(["codex"]);
+    expect(shell.manager.getState().railCollapsedAgentIds).toEqual(["codex"]);
 
     first.unmount();
     renderModal(shell);

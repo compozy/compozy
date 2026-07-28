@@ -206,7 +206,7 @@ vi.mock("@/systems/settings/hooks/use-settings-mutations", async () => {
       data: undefined,
       error: null,
       isPending: false,
-      mutate: mocks.putMCP,
+      mutateAsync: mocks.putMCP,
       reset: vi.fn(),
     }),
   };
@@ -266,6 +266,7 @@ describe("MarketplaceKindPage", () => {
     mocks.mcpServers = [];
     mocks.vaultSecrets = [];
     mocks.createSecret.mockReset();
+    mocks.putMCP.mockImplementation(() => new Promise(() => undefined));
     mocks.isEntryPending.mockReturnValue(false);
     mocks.isInstalledItemPending.mockReturnValue(false);
   });
@@ -490,6 +491,11 @@ describe("MarketplaceKindPage", () => {
   it("Should create and edit arbitrary MCP server definitions from Installed", async () => {
     const user = userEvent.setup();
     mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.putMCP.mockResolvedValue({
+      restart_required: false,
+      section: "mcp-servers",
+      write_target: "workspace-config",
+    });
     mocks.mcpServers = [
       {
         name: "custom-local",
@@ -534,7 +540,9 @@ describe("MarketplaceKindPage", () => {
         name: "new-local",
       })
     );
-    await user.click(screen.getByTestId("settings-mcp-servers-editor-cancel"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("settings-mcp-servers-editor-title")).not.toBeInTheDocument();
+    });
 
     const menu = screen.getByRole("button", { name: "More for custom-local" });
     fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
@@ -597,7 +605,7 @@ describe("MarketplaceKindPage", () => {
     ] as const;
 
     for (const testCase of cases) {
-      mocks.putMCP.mockReset();
+      mocks.putMCP.mockClear();
       mocks.mcpServers = [
         {
           command: "before-edit",
@@ -633,8 +641,7 @@ describe("MarketplaceKindPage", () => {
         expect.objectContaining({
           filter: testCase.expectedFilter,
           name: testCase.name,
-        }),
-        expect.any(Object)
+        })
       );
       view.unmount();
     }
@@ -705,12 +712,10 @@ describe("MarketplaceKindPage", () => {
   it("Should report the MCP write target and lifecycle after a successful save", async () => {
     const user = userEvent.setup();
     mocks.marketData = marketplaceKindFixture("mcp");
-    mocks.putMCP.mockImplementation((_variables, options) => {
-      options.onSuccess({
-        restart_required: true,
-        section: "mcp-servers",
-        write_target: "workspace-mcp-sidecar",
-      });
+    mocks.putMCP.mockResolvedValue({
+      restart_required: true,
+      section: "mcp-servers",
+      write_target: "workspace-mcp-sidecar",
     });
     renderKindPage("mcp", { tab: "installed" });
 
@@ -722,10 +727,12 @@ describe("MarketplaceKindPage", () => {
     );
     await user.click(screen.getByTestId("settings-mcp-servers-editor-save"));
 
-    expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      'Saved "feedback" · workspace-mcp-sidecar · restart required'
-    );
-    expect(screen.queryByTestId("settings-mcp-servers-editor-title")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        'Saved "feedback" · workspace-mcp-sidecar · restart required'
+      );
+      expect(screen.queryByTestId("settings-mcp-servers-editor-title")).not.toBeInTheDocument();
+    });
   });
 
   it("Should preserve installed MCP rows while exposing an inventory refresh failure", () => {

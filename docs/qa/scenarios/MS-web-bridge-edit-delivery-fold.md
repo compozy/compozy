@@ -23,3 +23,7 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 The artboard keeps a "Test delivery" button in the editor footer in both tiers; folding it into the Advanced body is an authorized difference so the wave keeps one entry point and one primary footer action.
 
 src: web/src/systems/bridges/components/bridge-edit-dialog.tsx; web/src/systems/bridges/components/bridge-edit-advanced-section.tsx; web/src/systems/bridges/components/bridge-delivery-test-panel.tsx; web/src/systems/bridges/lib/bridge-update-dirty.ts; web/src/systems/os/apps/bridges/use-bridge-secret-rotations.ts; web/src/hooks/routes/use-bridge-delivery-tests.ts
+
+QA impact 2026-07-28: dry runs now receive the bridge rendered by the current route instead of
+retaining the previously viewed bridge. Retest an A-to-B route transition before submitting.
+Status remains untested; no QA replay ran.

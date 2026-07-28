@@ -36,23 +36,23 @@ export function dispatchWindowManagerAction(
   }
   if (focusedId === null) return;
   if (actionId === "window.close") {
-    void state.closeWindow(focusedId);
+    void manager.closeWindow(focusedId);
     return;
   }
   if (actionId === "window.minimize") {
-    void state.minimizeWindow(focusedId);
+    void manager.minimizeWindow(focusedId);
     return;
   }
   if (actionId === "window.zoom") {
-    void state.zoomWindow(focusedId);
+    void manager.zoomWindow(focusedId);
     return;
   }
-  if (actionId === "window.toggle_floating") return state.toggleFloating(focusedId);
+  if (actionId === "window.toggle_floating") return manager.toggleFloating(focusedId);
   if (actionId === "layout.balance") return manager.balanceFocusedLayout();
   const placement = WINDOW_PLACEMENT_COMMANDS.find(command => command.id === actionId);
   if (placement && state.windowManagerConfig) {
     return dispatchWindowPlacement(manager, focusedId, placement);
   }
   const arrangement = WINDOW_ARRANGE_COMMANDS.find(command => command.id === actionId);
-  if (arrangement) state.arrangeLayout(focusedId, arrangement.preset);
+  if (arrangement) manager.arrangeLayout(focusedId, arrangement.preset);
 }

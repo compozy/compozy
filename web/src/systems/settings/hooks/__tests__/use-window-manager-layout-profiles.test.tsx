@@ -5,7 +5,7 @@
 // Boundary IN: the visible profile records + whether the draft has unapplied edits.
 // Boundary OUT: the card grid's markup, transport, the layout draft itself.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,6 +52,16 @@ const RECORD: WindowManagerLayoutResourceRecord = {
   updatedAt: "2026-07-22T00:00:00Z",
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((next, fail) => {
+    resolve = next;
+    reject = fail;
+  });
+  return { promise, reject, resolve };
+}
+
 function renderProfiles(draftDirty: boolean) {
   const loaded: WindowManagerLayoutDocument[] = [];
   const queryClient = new QueryClient({
@@ -77,6 +87,55 @@ describe("useWindowManagerLayoutProfiles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.deleteProfile.mockResolvedValue(undefined);
+  });
+
+  it("Should reconcile an accepted save without overwriting a newer editor revision", async () => {
+    const savedRecord = {
+      ...RECORD,
+      version: 5,
+      spec: { ...RECORD.spec, displayName: "Saved name" },
+    };
+    const pendingSave = deferred<WindowManagerLayoutResourceRecord>();
+    apiMocks.putProfile.mockReturnValue(pendingSave.promise);
+    const { result, queryClient } = renderProfiles(false);
+    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"), [RECORD]);
+
+    act(() => {
+      result.current.selectProfile(RECORD);
+      result.current.saveProfile();
+    });
+    act(() => {
+      result.current.setDisplayName("A newer name");
+    });
+    act(() => {
+      pendingSave.resolve(savedRecord);
+    });
+
+    await waitFor(() => {
+      expect(
+        queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
+      ).toEqual([savedRecord]);
+    });
+    expect(result.current.displayName).toBe("A newer name");
+    expect(result.current.phase).toBe("dirty");
+    expect(result.current.selected?.version).toBe(5);
+  });
+
+  it("Should preserve a newer draft and surface a save failure from the accepted request", async () => {
+    const pendingSave = deferred<WindowManagerLayoutResourceRecord>();
+    apiMocks.putProfile.mockReturnValue(pendingSave.promise);
+    const { result } = renderProfiles(false);
+
+    act(() => {
+      result.current.selectProfile(RECORD);
+      result.current.saveProfile();
+      result.current.setDisplayName("A newer name");
+      pendingSave.reject(new Error("profile save failed"));
+    });
+
+    await waitFor(() => expect(result.current.error?.message).toBe("profile save failed"));
+    expect(result.current.displayName).toBe("A newer name");
+    expect(result.current.phase).toBe("error");
   });
 
   it("Should load straight away when there is nothing unapplied to lose", () => {
@@ -151,6 +210,32 @@ describe("useWindowManagerLayoutProfiles", () => {
     expect(apiMocks.deleteProfile).not.toHaveBeenCalled();
   });
 
+  it("Should keep an accepted layout deletion open until it settles", async () => {
+    const pendingDelete = deferred<void>();
+    apiMocks.deleteProfile.mockReturnValue(pendingDelete.promise);
+    const { result } = renderProfiles(false);
+
+    act(() => {
+      result.current.selectProfile(RECORD);
+    });
+    act(() => {
+      result.current.requestDelete();
+    });
+    act(() => {
+      result.current.confirmDelete();
+    });
+    act(() => {
+      result.current.cancelDelete();
+    });
+
+    expect(result.current.pendingDelete).toEqual(RECORD);
+    expect(result.current.phase).toBe("saving");
+
+    act(() => pendingDelete.resolve());
+    await waitFor(() => expect(result.current.pendingDelete).toBeNull());
+    expect(result.current.phase).toBe("baseline");
+  });
+
   it("Should clear every field of the deleted record, not only its name and id", async () => {
     const { result } = renderProfiles(false);
     act(() => {
@@ -160,18 +245,22 @@ describe("useWindowManagerLayoutProfiles", () => {
     expect(result.current.aspect).toBe("landscape");
     expect(result.current.overflow).toBe("reject");
 
-    await act(async () => {
+    act(() => {
       result.current.requestDelete();
-      await result.current.remove.mutateAsync();
+    });
+    act(() => {
+      result.current.confirmDelete();
     });
 
-    expect(apiMocks.deleteProfile).toHaveBeenCalledWith("workspace-a", "two-up-review", 4);
-    expect(result.current.id).toBe("");
-    expect(result.current.displayName).toBe("");
-    expect(result.current.scope).toBe("workspace");
-    expect(result.current.aspect).toBe("any");
-    expect(result.current.overflow).toBe("stack");
-    expect(result.current.pendingDelete).toBe(null);
+    await waitFor(() => {
+      expect(apiMocks.deleteProfile).toHaveBeenCalledWith("workspace-a", "two-up-review", 4);
+      expect(result.current.id).toBe("");
+      expect(result.current.displayName).toBe("");
+      expect(result.current.scope).toBe("workspace");
+      expect(result.current.aspect).toBe("any");
+      expect(result.current.overflow).toBe("stack");
+      expect(result.current.pendingDelete).toBe(null);
+    });
   });
 
   it("Should preserve the current version and replace the previous scoped cache identity on save", async () => {
@@ -189,18 +278,20 @@ describe("useWindowManagerLayoutProfiles", () => {
       result.current.setScope("workspace");
     });
 
-    await act(async () => {
-      await result.current.save.mutateAsync();
+    act(() => {
+      result.current.saveProfile();
     });
 
-    expect(apiMocks.putProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "two-up-review" }),
-      "workspace",
-      "workspace-a",
-      4
-    );
-    expect(
-      queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
-    ).toEqual([workspaceRecord]);
+    await waitFor(() => {
+      expect(apiMocks.putProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "two-up-review" }),
+        "workspace",
+        "workspace-a",
+        4
+      );
+      expect(
+        queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
+      ).toEqual([workspaceRecord]);
+    });
   });
 });

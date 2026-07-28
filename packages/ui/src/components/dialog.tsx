@@ -52,9 +52,7 @@ function Dialog({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <DialogMotionContext.Provider value={value}>
-        {children as React.ReactNode}
-      </DialogMotionContext.Provider>
+      <DialogMotionContext value={value}>{children as React.ReactNode}</DialogMotionContext>
     </DialogPrimitive.Root>
   );
 }

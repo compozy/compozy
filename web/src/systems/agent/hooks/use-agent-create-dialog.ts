@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import {
   providerNeedsAuth,
@@ -9,9 +9,14 @@ import {
 } from "@/systems/model-catalog";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
+import {
+  useUserHomeDir,
+  type SessionProviderOption,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import { useCreateAgent, useDuplicateAgent } from "./use-agents";
+import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
 import {
   buildCreateAgentParams,
   buildDraftFromAgentPayload,
@@ -38,7 +43,6 @@ export interface AgentCreateDialogState {
   providersError: string | null;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   submitError: string | null;
@@ -46,6 +50,7 @@ export interface AgentCreateDialogState {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
+  userHomeDir: string | undefined;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
 }
@@ -57,7 +62,7 @@ export interface AgentCreateDialogApi extends AgentCreateDialogState {
   onOpenChange: (open: boolean) => void;
   onRefreshCatalog: () => void;
   onOpenProviderSettings: () => void;
-  onSubmit: () => Promise<void>;
+  onSubmit: () => void;
 }
 
 function describeError(fallback: string, error: unknown): string {
@@ -99,16 +104,15 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
+  const userHomeDir = useUserHomeDir();
   const createAgent = useCreateAgent();
   const duplicateAgent = useDuplicateAgent();
   const settingsProviders = useSettingsProviders();
-  const [open, setOpenState] = useState(false);
-  const [mode, setMode] = useState<"create" | "duplicate">("create");
-  const [duplicateSource, setDuplicateSource] = useState<AgentPayload | null>(null);
-  const [storedDraft, setDraft] = useState<AgentCreateDialogDraft>(() =>
-    createDefaultAgentCreateDraft(Boolean(activeWorkspace))
-  );
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const dialogStore = useStore(agentCreateDialogLogic, {
+    initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
+  });
+  const flow = useSelector(dialogStore, snapshot => snapshot.context);
+  const storedDraft = flow.draft;
 
   const globalProviderEntries = settingsProviders.data?.providers;
   const globalProviders: RuntimeProviderOption[] =
@@ -146,6 +150,8 @@ export function useAgentCreateDialog({
     id: option.id,
     needsAuth: option.needs_auth,
   }));
+  const open =
+    flow.status === "editing" || flow.status === "failed" || flow.status === "submitting";
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
   const runtimeModels = catalog.models;
 
@@ -156,98 +162,101 @@ export function useAgentCreateDialog({
     providersLoading,
   };
 
-  const resetCreateState = () => {
-    setMode("create");
-    setDuplicateSource(null);
-    setDraft(createDefaultAgentCreateDraft(Boolean(activeWorkspace)));
-    setSubmitError(null);
-  };
+  const defaultDraft = () => createDefaultAgentCreateDraft(Boolean(activeWorkspace));
+  const navigationTarget = flow.status === "navigation-pending" ? flow : null;
+
+  useEffect(() => {
+    if (!navigationTarget) return;
+    const { agentName, attempt } = navigationTarget;
+    dialogStore.trigger.navigationRequested({
+      attempt,
+      draft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
+      execute: async () => {
+        await navigate({
+          to: "/agents/$name",
+          params: { name: agentName },
+        });
+      },
+    });
+  }, [activeWorkspace, dialogStore, navigate, navigationTarget]);
 
   const openDialog = () => {
-    resetCreateState();
-    setOpenState(true);
+    dialogStore.trigger.createOpened({ draft: defaultDraft() });
   };
 
   const openForDuplicate = (agent: AgentPayload) => {
-    setMode("duplicate");
-    setDuplicateSource(agent);
-    setDraft(buildDraftFromAgentPayload(agent, Boolean(activeWorkspace)));
-    setSubmitError(null);
-    setOpenState(true);
+    dialogStore.trigger.duplicateOpened({
+      draft: buildDraftFromAgentPayload(agent, Boolean(activeWorkspace)),
+      source: agent,
+    });
   };
 
   const onOpenChange = (next: boolean) => {
-    setOpenState(next);
-    if (!next) {
-      resetCreateState();
+    if (next) {
+      if (flow.status === "closed") {
+        openDialog();
+      }
+      return;
     }
+    dialogStore.trigger.dialogDismissed({ draft: defaultDraft() });
   };
 
   const onDraftChange = (nextDraft: AgentCreateDialogDraft) => {
-    setDraft(nextDraft);
-    setSubmitError(null);
+    dialogStore.trigger.draftChanged({ draft: nextDraft });
   };
 
   const onRefreshCatalog = catalog.refresh;
 
   const onOpenProviderSettings = () => {
-    setOpenState(false);
+    dialogStore.trigger.dialogDismissed({ draft: defaultDraft() });
     void navigate({ to: "/settings/providers" });
   };
 
-  const onSubmit = async () => {
-    setSubmitError(null);
-    try {
-      let agent: AgentPayload;
-      if (mode === "duplicate") {
-        if (!duplicateSource) {
-          setSubmitError("Missing duplicate source agent.");
-          return;
-        }
-        const request = buildDuplicateAgentParams(
-          duplicateSource,
-          draft,
-          activeWorkspace?.id,
-          validationContext
-        );
-        if (!request) {
-          const validation = validateAgentCreateDraft(draft, validationContext);
-          const message =
-            Object.values(validation.fields).find(field => field && field.length > 0) ??
-            "Fix the highlighted fields before duplicating an agent.";
-          setSubmitError(message);
-          return;
-        }
-        agent = await duplicateAgent.mutateAsync({
-          sourceName: duplicateSource.name,
+  const onSubmit = () => {
+    if (flow.status !== "editing" && flow.status !== "failed") {
+      return;
+    }
+    let execute: () => Promise<AgentPayload>;
+    let failureMessage: string;
+    if (flow.kind === "duplicate") {
+      const request = buildDuplicateAgentParams(
+        flow.source,
+        draft,
+        activeWorkspace?.id,
+        validationContext
+      );
+      if (!request) {
+        const validation = validateAgentCreateDraft(draft, validationContext);
+        const message =
+          Object.values(validation.fields).find(field => field && field.length > 0) ??
+          "Fix the highlighted fields before duplicating an agent.";
+        dialogStore.trigger.submissionRejected({ error: message });
+        return;
+      }
+      execute = () =>
+        duplicateAgent.mutateAsync({
+          sourceName: flow.source.name,
           params: request,
         });
-      } else {
-        const request = buildCreateAgentParams(draft, activeWorkspace?.id, validationContext);
-        if (!request) {
-          const validation = validateAgentCreateDraft(draft, validationContext);
-          const message =
-            Object.values(validation.fields).find(field => field && field.length > 0) ??
-            "Fix the highlighted fields before creating an agent.";
-          setSubmitError(message);
-          return;
-        }
-        agent = await createAgent.mutateAsync(request);
+      failureMessage = "Failed to duplicate agent.";
+    } else {
+      const request = buildCreateAgentParams(draft, activeWorkspace?.id, validationContext);
+      if (!request) {
+        const validation = validateAgentCreateDraft(draft, validationContext);
+        const message =
+          Object.values(validation.fields).find(field => field && field.length > 0) ??
+          "Fix the highlighted fields before creating an agent.";
+        dialogStore.trigger.submissionRejected({ error: message });
+        return;
       }
-      setOpenState(false);
-      resetCreateState();
-      await navigate({
-        to: "/agents/$name",
-        params: { name: agent.name },
-      });
-    } catch (error) {
-      const message = describeError(
-        mode === "duplicate" ? "Failed to duplicate agent." : "Failed to create agent.",
-        error
-      );
-      setSubmitError(message);
-      toast.error(message);
+      execute = () => createAgent.mutateAsync(request);
+      failureMessage = "Failed to create agent.";
     }
+
+    dialogStore.trigger.submissionRequested({
+      execute,
+      failureMessage,
+    });
   };
 
   return {
@@ -258,16 +267,17 @@ export function useAgentCreateDialog({
     providersError,
     runtimeModels,
     modelCatalogLoading: catalog.loading,
-    modelCatalogLoaded: catalog.loaded,
     modelCatalogRefreshing: catalog.refreshing,
     modelCatalogError: catalog.error,
-    submitError,
-    isSubmitting: createAgent.isPending || duplicateAgent.isPending,
+    submitError: flow.status === "failed" ? flow.error : null,
+    isSubmitting: flow.status === "submitting",
     hasActiveWorkspace: Boolean(activeWorkspace),
     workspaceId: activeWorkspace?.id ?? null,
     workspaceName: activeWorkspace?.name ?? null,
-    mode,
-    duplicateSourceName: duplicateSource?.name ?? null,
+    userHomeDir,
+    mode: flow.status === "closed" ? "create" : flow.kind,
+    duplicateSourceName:
+      flow.status !== "closed" && flow.kind === "duplicate" ? flow.source.name : null,
     openDialog,
     openForDuplicate,
     onDraftChange,

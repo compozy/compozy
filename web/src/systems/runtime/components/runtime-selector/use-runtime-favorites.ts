@@ -1,99 +1,66 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect } from "react";
+
+import { useSelector } from "@xstate/store-react";
 
 import {
-  dedupeFavorites,
   FAVORITES_STORAGE_KEY,
-  readFavoritesList,
-  RECENTS_LIMIT,
   RECENTS_STORAGE_KEY,
-  writeFavoritesList,
   type RuntimeFavoritesStore,
 } from "./favorites";
+import {
+  hydrateRuntimeFavoritesFromStorage,
+  runtimeFavoritesStore,
+} from "./runtime-favorites-store";
+
+let mountedFavoritesConsumers = 0;
+
+function handleRuntimeFavoritesStorageChange(event: StorageEvent): void {
+  if (event.key !== FAVORITES_STORAGE_KEY && event.key !== RECENTS_STORAGE_KEY) return;
+  void hydrateRuntimeFavoritesFromStorage();
+}
 
 /**
- * Browser-local favorites + recents for the runtime selector, keyed by the exact
- * compound `(provider, model)` identity.
- *
- * Storage is strict-greenfield: an entry is honored only when it is an EXACT
- * current compound-tuple key (`validKeys`, derived from the loaded catalog). Bare
- * model ids, foreign strings, legacy formats, malformed keys, and models no
- * longer in the catalog are neither shown nor persisted — once the catalog is
- * loaded they are purged and re-written so they can never reappear. There is no
- * compatibility decoder and no migration alias; a stored key either matches a
- * current tuple exactly or it is dropped. The same model id under two providers
- * stays distinct because each is a different `validKeys` member.
- *
- * @param validKeys the set of `runtimeModelKey(provider, model)` for every model
- *   currently in the catalog.
- * @param catalogLoaded whether the catalog query has RESOLVED. The reconcile pass
- *   runs once the catalog is loaded — even when it loaded EMPTY (every persisted
- *   entry is then invalid and purged). It is skipped only while the catalog is
- *   still loading, so a valid favorite is never wiped pre-load. Any present model
- *   (`validKeys` non-empty) implies loaded, so a loading state is never conflated
- *   with a legitimately loaded-empty set.
+ * Shared browser-local favorites and recents, keyed by the exact compound
+ * `(provider, model)` identity. The catalog remains query-owned: it validates
+ * new events and filters each selector's view without deleting preferences
+ * that belong to another selector surface.
  */
-export function useRuntimeFavorites(
-  validKeys: ReadonlySet<string>,
-  catalogLoaded: boolean
-): RuntimeFavoritesStore {
-  const loaded = catalogLoaded || validKeys.size > 0;
-  const [rawFavorites, setRawFavorites] = useState<string[]>(() =>
-    dedupeFavorites(readFavoritesList(FAVORITES_STORAGE_KEY))
-  );
-  const [rawRecents, setRawRecents] = useState<string[]>(() =>
-    dedupeFavorites(readFavoritesList(RECENTS_STORAGE_KEY)).slice(0, RECENTS_LIMIT)
-  );
+export function useRuntimeFavorites(validKeys: ReadonlySet<string>): RuntimeFavoritesStore {
+  const state = useSelector(runtimeFavoritesStore, snapshot => snapshot.context);
 
-  const effectiveFavorites = loaded
-    ? dedupeFavorites(rawFavorites.filter(key => validKeys.has(key)))
-    : rawFavorites;
-  const effectiveRecents = loaded
-    ? dedupeFavorites(rawRecents.filter(key => validKeys.has(key))).slice(0, RECENTS_LIMIT)
-    : rawRecents;
-  const favoritesSignature = effectiveFavorites.join("\u0000");
-  const recentsSignature = effectiveRecents.join("\u0000");
-  const persistEffectiveLists = useEffectEvent(() => {
-    writeFavoritesList(FAVORITES_STORAGE_KEY, effectiveFavorites);
-    writeFavoritesList(RECENTS_STORAGE_KEY, effectiveRecents);
-  });
-
-  // Persistence is the external side effect; the render model is derived directly
-  // from the current catalog, so catalog changes never require a state-sync effect.
+  // A module singleton hydrates when it is created. The first live selector
+  // owns its browser synchronization so every selector shares one hydration
+  // and one cross-tab listener without replacing the shared store identity.
   useEffect(() => {
-    if (!loaded) return;
-    persistEffectiveLists();
-  }, [favoritesSignature, loaded, recentsSignature]);
+    const isFirstConsumer = mountedFavoritesConsumers === 0;
+    mountedFavoritesConsumers += 1;
+    if (isFirstConsumer) {
+      window.addEventListener("storage", handleRuntimeFavoritesStorageChange);
+      void hydrateRuntimeFavoritesFromStorage();
+    }
+    return () => {
+      mountedFavoritesConsumers -= 1;
+      if (mountedFavoritesConsumers === 0) {
+        window.removeEventListener("storage", handleRuntimeFavoritesStorageChange);
+      }
+    };
+  }, []);
 
-  // Effective sets exclude anything outside the current allow-list, so a stale
-  // entry never renders even in the window before the reconcile pass persists.
-  const favorites = new Set(effectiveFavorites);
-  const recents = effectiveRecents;
-
+  const keys = [...validKeys];
+  const visibleFavorites = state.favorites.filter(key => validKeys.has(key));
+  const visibleRecents = state.recents.filter(key => validKeys.has(key));
   const toggleFavorite = (id: string) => {
-    const trimmed = id.trim();
-    if (!validKeys.has(trimmed)) return;
-    setRawFavorites(current => {
-      const validCurrent = current.filter(key => validKeys.has(key));
-      const next = validCurrent.includes(trimmed)
-        ? validCurrent.filter(key => key !== trimmed)
-        : [...validCurrent, trimmed];
-      writeFavoritesList(FAVORITES_STORAGE_KEY, next);
-      return next;
-    });
+    runtimeFavoritesStore.trigger.favoriteToggled({ key: id.trim(), validKeys: keys });
   };
-
   const pushRecent = (id: string) => {
-    const trimmed = id.trim();
-    if (!validKeys.has(trimmed)) return;
-    setRawRecents(current => {
-      const validCurrent = current.filter(key => validKeys.has(key));
-      const next = dedupeFavorites([trimmed, ...validCurrent]).slice(0, RECENTS_LIMIT);
-      writeFavoritesList(RECENTS_STORAGE_KEY, next);
-      return next;
-    });
+    runtimeFavoritesStore.trigger.recentPushed({ key: id.trim(), validKeys: keys });
   };
 
-  const isFavorite = (id: string) => favorites.has(id);
-
-  return { favorites, recents, isFavorite, toggleFavorite, pushRecent };
+  return {
+    favorites: new Set(visibleFavorites),
+    recents: visibleRecents,
+    isFavorite: id => validKeys.has(id) && state.favorites.includes(id),
+    toggleFavorite,
+    pushRecent,
+  };
 }

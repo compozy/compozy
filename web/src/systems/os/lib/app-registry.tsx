@@ -100,7 +100,7 @@ async function preloadSettings(qc: QueryClient): Promise<void> {
 
 async function preloadTasks(qc: QueryClient): Promise<void> {
   const { preloadTasksRoute } = await import("@/routes/_app/-tasks-preload");
-  await preloadTasksRoute(qc, undefined);
+  await preloadTasksRoute(qc, {});
 }
 
 async function preloadAgents(qc: QueryClient): Promise<void> {

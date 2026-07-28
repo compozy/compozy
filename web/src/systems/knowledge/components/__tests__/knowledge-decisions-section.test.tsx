@@ -35,7 +35,7 @@ function renderSection(
     ...props,
   };
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <KnowledgeDecisionsSection {...merged} />
     </UIProvider>
   );

@@ -1,5 +1,5 @@
 import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
-import { createStore, type StoreApi } from "zustand/vanilla";
+import { shallowEqual } from "@xstate/store";
 
 import {
   executeWindowManagerCommand,
@@ -10,6 +10,10 @@ import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
+import {
+  createWindowManagerProjectionAtom,
+  type WindowManagerProjectionAtom,
+} from "../lib/window-manager-projection";
 import type {
   PixelRect,
   WindowManagerClientView,
@@ -20,7 +24,8 @@ import type {
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
 import { DEFAULT_WINDOW_MANAGER_WORK_AREA } from "../lib/window-manager-view";
-import { windowManagerStore } from "../stores/window-manager-store";
+import { windowManagerStore, type DesktopTransitionIntent } from "../stores/window-manager-store";
+import { beginWindowManagerCommand } from "../stores/window-manager-store-commands";
 
 export interface WindowManagerRuntimeBinding {
   workspaceId: string;
@@ -71,7 +76,8 @@ function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolean {
 export abstract class WindowManagerRuntimeCore {
   private unsubscribeQuery: (() => void) | null = null;
   private unsubscribePresentation: (() => void) | null = null;
-  private runtimeStore: StoreApi<OsDesktopRuntimeStore> | null = null;
+  private runtimeProjection: WindowManagerProjectionAtom | null = null;
+  private initialView: OsDesktopRuntimeStore | null = null;
   protected readonly queryClient: QueryClient;
   protected binding: WindowManagerRuntimeBinding | null = null;
   protected client: WindowManagerClientView | null = null;
@@ -108,15 +114,16 @@ export abstract class WindowManagerRuntimeCore {
         this.publish();
       }
     });
-    this.unsubscribePresentation = windowManagerStore.subscribe((state, previous) => {
-      if (
-        state.connectionStatus !== previous.connectionStatus ||
-        state.workArea !== previous.workArea ||
-        state.seamPreview !== previous.seamPreview
-      ) {
-        this.publish();
-      }
-    });
+    const presentation = windowManagerStore.select(
+      state => ({
+        connectionStatus: state.connectionStatus,
+        workArea: state.workArea,
+        seamPreview: state.seamPreview,
+      }),
+      shallowEqual
+    );
+    const subscription = presentation.subscribe(() => this.publish());
+    this.unsubscribePresentation = () => subscription.unsubscribe();
     this.publish();
   }
 
@@ -134,26 +141,45 @@ export abstract class WindowManagerRuntimeCore {
   protected abstract buildView(): OsDesktopRuntimeStore;
 
   protected initializeView(): void {
-    this.runtimeStore = createStore<OsDesktopRuntimeStore>()(() => this.buildView());
+    const initial = this.buildView();
+    this.initialView = initial;
+    this.runtimeProjection = createWindowManagerProjectionAtom(initial);
   }
 
-  private store(): StoreApi<OsDesktopRuntimeStore> {
-    if (this.runtimeStore === null) {
-      throw new Error("Window-manager runtime store is not initialized.");
+  private projection(): WindowManagerProjectionAtom {
+    if (this.runtimeProjection === null) {
+      throw new Error("Window-manager runtime projection is not initialized.");
     }
-    return this.runtimeStore;
+    return this.runtimeProjection;
   }
 
   protected get view(): OsDesktopRuntimeStore {
-    return this.store().getState();
+    return this.projection().get();
   }
 
-  getState = (): OsDesktopRuntimeStore => this.store().getState();
+  get projectionAtom(): WindowManagerProjectionAtom {
+    return this.projection();
+  }
 
-  getInitialState = (): OsDesktopRuntimeStore => this.store().getInitialState();
+  getState = (): OsDesktopRuntimeStore => this.projection().get();
 
-  subscribe = (listener: (state: OsDesktopRuntimeStore, previous: OsDesktopRuntimeStore) => void) =>
-    this.store().subscribe(listener);
+  getInitialState = (): OsDesktopRuntimeStore => {
+    if (this.initialView === null) {
+      throw new Error("Window-manager runtime projection is not initialized.");
+    }
+    return this.initialView;
+  };
+
+  subscribe = (
+    listener: (state: OsDesktopRuntimeStore, previous: OsDesktopRuntimeStore) => void
+  ) => {
+    let previous = this.getState();
+    const subscription = this.projection().subscribe(current => {
+      listener(current, previous);
+      previous = current;
+    });
+    return () => subscription.unsubscribe();
+  };
 
   bind(binding: WindowManagerRuntimeBinding): void {
     if (
@@ -165,7 +191,7 @@ export abstract class WindowManagerRuntimeCore {
     this.binding = { ...binding };
     this.client = null;
     this.loadError = null;
-    windowManagerStore.getState().actions.bindClient(binding);
+    windowManagerStore.trigger.bindingBound({ binding });
     this.publish();
   }
 
@@ -173,7 +199,7 @@ export abstract class WindowManagerRuntimeCore {
     this.binding = null;
     this.client = null;
     this.loadError = null;
-    windowManagerStore.getState().actions.unbindClient();
+    windowManagerStore.trigger.bindingUnbound();
     this.publish();
   }
 
@@ -195,35 +221,31 @@ export abstract class WindowManagerRuntimeCore {
     }
     const previous = this.client;
     this.client = client;
-    const transition = windowManagerStore.getState().transitionIntent;
-    if (transition?.mode === "instant" && client.activeDesktopId === transition.toDesktopId) {
-      windowManagerStore.getState().actions.setTransitionIntent(null);
-    } else if (
-      previous !== null &&
-      previous.activeDesktopId !== client.activeDesktopId &&
-      transition === null
-    ) {
-      // Reconciled desktop changes — zoom, restore, cross-desktop focus, remote
-      // switches — synthesize a transition only when no optimistic intent is
-      // outstanding; a queued desktop.switch already staged its target, and an
-      // intermediate result must not overwrite it.
-      this.synthesizeDesktopTransition(previous.activeDesktopId, client.activeDesktopId);
-    }
+    windowManagerStore.trigger.desktopStateObserved({
+      activeDesktopId: client.activeDesktopId,
+      reconciledIntent:
+        previous !== null && previous.activeDesktopId !== client.activeDesktopId
+          ? this.desktopTransitionIntent(previous.activeDesktopId, client.activeDesktopId)
+          : null,
+    });
     this.publish();
   }
 
-  private synthesizeDesktopTransition(fromDesktopId: string, toDesktopId: string): void {
+  private desktopTransitionIntent(
+    fromDesktopId: string,
+    toDesktopId: string
+  ): DesktopTransitionIntent | null {
     const snapshot = this.snapshot();
     const globalConfig = this.config();
-    if (snapshot === null || globalConfig === null) return;
+    if (snapshot === null || globalConfig === null) return null;
     const config = effectiveWindowManagerConfig(globalConfig, snapshot.overrides);
-    if (this.reduceMotion || config.desktopTransition === "instant") return;
-    windowManagerStore.getState().actions.setTransitionIntent({
+    if (this.reduceMotion || config.desktopTransition === "instant") return null;
+    return {
       fromDesktopId,
       toDesktopId,
       direction: this.desktopTransitionDirection(snapshot.desktops, fromDesktopId, toDesktopId),
       mode: config.desktopTransition,
-    });
+    };
   }
 
   protected desktopTransitionDirection(
@@ -237,7 +259,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   setConnectionStatus(status: WindowManagerConnectionStatus): void {
-    windowManagerStore.getState().actions.setConnectionStatus(status);
+    windowManagerStore.trigger.connectionStatusChanged({ status });
   }
 
   setLoadError(error: Error | null): void {
@@ -246,7 +268,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   clearConflict(): void {
-    windowManagerStore.getState().actions.clearConflict();
+    windowManagerStore.trigger.conflictCleared();
   }
 
   refreshSnapshot(): void {
@@ -268,7 +290,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   protected publish(): void {
-    this.runtimeStore?.setState(this.buildView(), true);
+    this.runtimeProjection?.set(this.buildView());
   }
 
   protected snapshot(): WindowManagerSnapshot | null {
@@ -295,15 +317,19 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   protected workArea(): PixelRect {
-    return windowManagerStore.getState().workArea?.rect ?? DEFAULT_WINDOW_MANAGER_WORK_AREA;
+    return (
+      windowManagerStore.getSnapshot().context.workArea?.rect ?? DEFAULT_WINDOW_MANAGER_WORK_AREA
+    );
   }
 
   private reportClientUnavailable(): void {
-    windowManagerStore.getState().actions.reportDiagnostic({
-      code: "client_unavailable",
-      message: "Window commands are unavailable until this browser reconnects.",
-      severity: "warning",
-      field: null,
+    windowManagerStore.trigger.diagnosticReported({
+      diagnostic: {
+        code: "client_unavailable",
+        message: "Window commands are unavailable until this browser reconnects.",
+        severity: "warning",
+        field: null,
+      },
     });
     this.publish();
   }
@@ -347,9 +373,8 @@ export abstract class WindowManagerRuntimeCore {
     }
 
     const requestId = randomWindowManagerId("wm-command");
-    const actions = windowManagerStore.getState().actions;
     if (
-      !actions.beginCommand({
+      !beginWindowManagerCommand(windowManagerStore, {
         id: requestId,
         kind: command.commandId,
         expectedRevision: snapshot.revision,
@@ -357,7 +382,7 @@ export abstract class WindowManagerRuntimeCore {
     ) {
       // A recorded revision conflict keeps the surface read-only until the
       // user resolves it; queued commands resolve unapplied instead of racing.
-      this.clearSwitchTransition(command);
+      this.clearSwitchTransition(command, binding);
       return Promise.resolve(false);
     }
 
@@ -374,28 +399,25 @@ export abstract class WindowManagerRuntimeCore {
         );
         if (result.client !== null) this.setClient(result.client);
         const firstDiagnostic = result.diagnostics[0];
-        actions.completeCommand(
-          requestId,
-          firstDiagnostic
+        windowManagerStore.trigger.commandCompleted({
+          commandId: requestId,
+          ...(firstDiagnostic
             ? {
-                code: firstDiagnostic.code,
-                message: firstDiagnostic.message,
-                severity: "warning",
-                field: firstDiagnostic.path,
+                diagnostic: {
+                  code: firstDiagnostic.code,
+                  message: firstDiagnostic.message,
+                  severity: "warning" as const,
+                  field: firstDiagnostic.path,
+                },
               }
-            : undefined
-        );
+            : {}),
+          binding,
+        });
         this.publish();
         return result.applied;
       })
       .catch(error => {
-        const currentBinding = windowManagerStore.getState().binding;
-        if (
-          currentBinding?.workspaceId === binding.workspaceId &&
-          currentBinding.clientId === binding.clientId
-        ) {
-          this.clearSwitchTransition(command);
-        }
+        this.clearSwitchTransition(command, binding);
         const diagnostic = commandDiagnostic(error);
         const storeDiagnostic = {
           code: diagnostic.code,
@@ -408,16 +430,21 @@ export abstract class WindowManagerRuntimeCore {
           error.status === 409 &&
           error.payload?.currentRevision !== null
         ) {
-          actions.recordConflict(
-            {
+          windowManagerStore.trigger.conflictRecorded({
+            conflict: {
               commandId: requestId,
               expectedRevision: snapshot.revision,
               currentRevision: error.payload?.currentRevision ?? snapshot.revision,
             },
-            storeDiagnostic
-          );
+            diagnostic: storeDiagnostic,
+            binding,
+          });
         } else {
-          actions.failCommand(requestId, storeDiagnostic);
+          windowManagerStore.trigger.commandFailed({
+            commandId: requestId,
+            diagnostic: storeDiagnostic,
+            binding,
+          });
         }
         this.publish();
         return false;
@@ -429,13 +456,14 @@ export abstract class WindowManagerRuntimeCore {
    * the live intent still targets this command's desktop — a newer queued
    * switch may have replaced it.
    */
-  private clearSwitchTransition(command: WindowManagerCommandInput): void {
+  private clearSwitchTransition(
+    command: WindowManagerCommandInput,
+    binding: WindowManagerRuntimeBinding
+  ): void {
     if (command.commandId !== "desktop.switch") return;
-    const intent = windowManagerStore.getState().transitionIntent;
     const target = command.payload.desktop_id;
-    if (intent !== null && typeof target === "string" && intent.toDesktopId === target) {
-      windowManagerStore.getState().actions.setTransitionIntent(null);
-    }
+    if (typeof target !== "string") return;
+    windowManagerStore.trigger.transitionIntentRejected({ binding, toDesktopId: target });
   }
 
   protected dispatch(command: WindowManagerCommandInput): WindowManagerCommandOutcome {

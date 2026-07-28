@@ -1,2 +1,2 @@
 export { handlers } from "./handlers";
-export { daemonHealthFixture, daemonStatusFixture } from "./fixtures";
+export { daemonHealthFixture, daemonStatusFixture, statusFixture } from "./fixtures";

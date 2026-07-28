@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { agentFixtures } from "@/systems/agent/mocks";
-import type { NetworkParticipationDraft } from "@/systems/network";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,
@@ -86,6 +86,7 @@ const baseArgs = {
   workspace,
   workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
   workspaceId: workspace.id,
+  userHomeDir: undefined,
   onWorkspaceChange: fn(),
   sessionName: "Investigate checkout latency",
   onSessionNameChange: fn(),

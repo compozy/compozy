@@ -16,7 +16,7 @@ import type { AgentPayload } from "@/systems/agent";
 import {
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
-} from "@/systems/network";
+} from "@/lib/network-participation";
 import {
   RuntimeSelector,
   type RuntimeModelOption,
@@ -39,6 +39,7 @@ export interface SessionCreateDialogProps {
   workspace: WorkspacePayload | undefined;
   workspaces: WorkspaceCommandSelectOption[];
   workspaceId: string | null;
+  userHomeDir: string | undefined;
   onWorkspaceChange: (workspaceId: string) => void;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
@@ -79,6 +80,7 @@ function SessionCreateDialog({
   workspace,
   workspaces,
   workspaceId,
+  userHomeDir,
   onWorkspaceChange,
   sessionName,
   onSessionNameChange,
@@ -192,6 +194,7 @@ function SessionCreateDialog({
               selectedAgentName={selectedAgentName}
               sessionName={sessionName}
               workspaceId={workspaceId}
+              userHomeDir={userHomeDir}
               workspaceSelected={workspaceSelected}
               workspaces={workspaces}
             />
@@ -216,7 +219,6 @@ function SessionCreateDialog({
               onSubmitDraft={submitIfAllowed}
               runtimeControl={
                 <RuntimeSelector
-                  catalogLoaded={catalogLoaded}
                   catalogStatus={
                     <CatalogStatusLine
                       error={catalogError}

@@ -69,6 +69,7 @@ export function AgentSettingsLocation({
       page.onBackToDetail();
     }
   };
+  const saving = page.phase === "saving";
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>
@@ -185,11 +186,8 @@ export function AgentSettingsLocation({
                 agent={page.agent}
                 draft={page.draft}
                 validation={page.validation}
-                disabled={page.fieldsDisabled}
-                readOnly={page.fieldsReadOnly}
-                mutationDenied={page.mutationDenied}
-                saveError={page.saveError}
-                conflictBanner={page.conflictBanner}
+                phase={page.phase}
+                error={page.error}
                 onReloadAndRetry={() => {
                   void page.onReloadAndRetry();
                 }}
@@ -200,7 +198,6 @@ export function AgentSettingsLocation({
                 providersLoading={page.providersLoading}
                 runtimeModels={page.runtimeModels}
                 modelCatalogLoading={page.modelCatalogLoading}
-                modelCatalogLoaded={page.modelCatalogLoaded}
                 modelCatalogRefreshing={page.modelCatalogRefreshing}
                 modelCatalogError={page.modelCatalogError}
                 onRefreshCatalog={page.onRefreshCatalog}
@@ -228,13 +225,13 @@ export function AgentSettingsLocation({
               type="button"
               variant="default"
               size="sm"
-              disabled={!page.dirty || page.saveBlocked || page.isSaving || page.agentLoading}
-              aria-busy={page.isSaving}
+              disabled={!page.dirty || page.saveBlocked || saving || page.agentLoading}
+              aria-busy={saving}
               title={page.saveBlockedCaption}
               onClick={page.onSave}
               data-testid="agent-settings-save"
             >
-              {page.isSaving ? <Spinner aria-hidden="true" /> : null}
+              {saving ? <Spinner aria-hidden="true" /> : null}
               Save changes
             </Button>
           </div>

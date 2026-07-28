@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createStore } from "@xstate/store";
+import { persist } from "@xstate/store/persist";
 
 import type { ReasoningEffort } from "@/lib/api-contract";
 
@@ -25,19 +25,12 @@ export interface OnboardingDraftState {
    */
   authModeTouched: boolean;
   envVar: string;
+  /** Memory-only secret; the persist extension deliberately never receives it. */
   apiKey: string;
   workspaces: OnboardingWorkspaceDraft[];
 }
 
-export interface OnboardingDraftStore extends OnboardingDraftState {
-  setStep: (step: number) => void;
-  patch: (patch: Partial<OnboardingDraftState>) => void;
-  addWorkspace: (workspace: OnboardingWorkspaceDraft) => void;
-  removeWorkspace: (path: string) => void;
-  reset: () => void;
-}
-
-const initialState: OnboardingDraftState = {
+const initialDraft: OnboardingDraftState = {
   step: 1,
   maxStep: 1,
   provider: "",
@@ -50,48 +43,65 @@ const initialState: OnboardingDraftState = {
   workspaces: [],
 };
 
-/** Bumped on every draft-shape change; drafts are never migrated. */
-export const ONBOARDING_DRAFT_STORAGE_KEY = "compozy:onboarding:draft:v4";
+/** Hard cut: v4 drafts are intentionally ignored rather than migrated. */
+export const ONBOARDING_DRAFT_STORAGE_KEY = "compozy:onboarding:draft:v5";
 
-const draftStorage = createJSONStorage<OnboardingDraftState>(() => {
-  if (typeof window === "undefined") {
-    throw new Error("localStorage is unavailable");
-  }
-  return window.localStorage;
-});
-
-export const useOnboardingDraftStore = create<OnboardingDraftStore>()(
-  persist(
-    set => ({
-      ...initialState,
-      setStep: step => set(state => ({ step, maxStep: Math.max(state.maxStep, step) })),
-      patch: patch => set(patch),
-      addWorkspace: workspace =>
-        set(state =>
-          state.workspaces.some(item => item.path === workspace.path)
-            ? state
-            : { workspaces: [...state.workspaces, workspace] }
-        ),
-      removeWorkspace: path =>
-        set(state => ({ workspaces: state.workspaces.filter(item => item.path !== path) })),
-      reset: () => set({ ...initialState }),
+export const onboardingDraftStore = createStore({
+  context: initialDraft,
+  on: {
+    stepVisited: (context, event: { step: number }) => ({
+      ...context,
+      step: event.step,
+      maxStep: Math.max(context.maxStep, event.step),
     }),
-    {
-      name: ONBOARDING_DRAFT_STORAGE_KEY,
-      storage: draftStorage,
-      // The API key is intentionally NOT persisted — it lives only in memory.
-      partialize: state => ({
-        step: state.step,
-        maxStep: state.maxStep,
-        provider: state.provider,
-        model: state.model,
-        reasoning: state.reasoning,
-        authMode: state.authMode,
-        authModeTouched: state.authModeTouched,
-        envVar: state.envVar,
-        apiKey: "",
-        workspaces: state.workspaces,
-      }),
-    }
-  )
+    runtimeSelected: (
+      context,
+      event: { provider: string; model: string; reasoning: ReasoningEffort | "" }
+    ) => {
+      const providerChanged = event.provider !== context.provider;
+      return {
+        ...context,
+        provider: event.provider,
+        model: event.model,
+        reasoning: event.reasoning,
+        ...(providerChanged ? { envVar: "", apiKey: "", authModeTouched: false } : {}),
+      };
+    },
+    authModeChosen: (context, event: { authMode: OnboardingAuthMode }) => ({
+      ...context,
+      authMode: event.authMode,
+      authModeTouched: true,
+      ...(event.authMode === "native_cli" ? { envVar: "", apiKey: "" } : {}),
+    }),
+    envVarEntered: (context, event: { envVar: string }) => ({ ...context, envVar: event.envVar }),
+    apiKeyEntered: (context, event: { apiKey: string }) => ({ ...context, apiKey: event.apiKey }),
+    workspaceDraftAdded: (context, event: { workspace: OnboardingWorkspaceDraft }) => {
+      if (context.workspaces.some(workspace => workspace.path === event.workspace.path)) {
+        return context;
+      }
+      return { ...context, workspaces: [...context.workspaces, event.workspace] };
+    },
+    workspaceDraftRemoved: (context, event: { path: string }) => ({
+      ...context,
+      workspaces: context.workspaces.filter(workspace => workspace.path !== event.path),
+    }),
+    draftCleared: () => initialDraft,
+  },
+}).with(
+  persist({
+    name: ONBOARDING_DRAFT_STORAGE_KEY,
+    // The API key is intentionally absent, rather than persisted as an empty
+    // value, so a stored draft cannot contain a secret at all.
+    pick: context => ({
+      step: context.step,
+      maxStep: context.maxStep,
+      provider: context.provider,
+      model: context.model,
+      reasoning: context.reasoning,
+      authMode: context.authMode,
+      authModeTouched: context.authModeTouched,
+      envVar: context.envVar,
+      workspaces: context.workspaces,
+    }),
+  })
 );

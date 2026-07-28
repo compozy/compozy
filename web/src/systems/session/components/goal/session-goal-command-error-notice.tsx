@@ -1,12 +1,13 @@
 import { Alert, AlertDescription } from "@compozy/ui";
 import { CircleAlert } from "lucide-react";
 
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { useSessionGoalFeedback } from "@/systems/session/hooks/use-session-store";
 import { describeGoalCommandFailure } from "@/systems/session/lib/session-goal-chat-transport";
 
 export function SessionGoalCommandErrorNotice({ sessionId }: { sessionId: string }) {
-  const result = useSessionStore(state => state.goalResults[sessionId]);
-  const visible = useSessionStore(state => state.goalErrorVisible[sessionId] === true);
+  const feedback = useSessionGoalFeedback(sessionId);
+  const result = feedback?.result;
+  const visible = feedback?.errorVisible === true;
   const guidance =
     visible && result?.outcome === "error" ? describeGoalCommandFailure(result.reason_code) : null;
 

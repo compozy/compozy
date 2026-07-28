@@ -93,7 +93,6 @@ function AgentCreateDialogHarness({
   submitError = null,
   modelCatalogError = null,
   modelCatalogLoading = false,
-  modelCatalogLoaded = true,
   providersError = null,
   providersLoading = false,
   providers = providerOptions,
@@ -106,7 +105,6 @@ function AgentCreateDialogHarness({
   submitError?: string | null;
   modelCatalogError?: string | null;
   modelCatalogLoading?: boolean;
-  modelCatalogLoaded?: boolean;
   providersError?: string | null;
   providersLoading?: boolean;
   providers?: RuntimeProviderOption[];
@@ -123,7 +121,6 @@ function AgentCreateDialogHarness({
       isSubmitting={isSubmitting}
       modelCatalogError={modelCatalogError}
       modelCatalogLoading={modelCatalogLoading}
-      modelCatalogLoaded={modelCatalogLoaded}
       modelCatalogRefreshing={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
@@ -138,6 +135,7 @@ function AgentCreateDialogHarness({
       submitError={submitError}
       workspaceId={hasActiveWorkspace ? workspaceDetailFixture.workspace.id : null}
       workspaceName={hasActiveWorkspace ? workspaceDetailFixture.workspace.name : null}
+      userHomeDir={hasActiveWorkspace ? workspaceDetailFixture.workspace.root_dir : undefined}
     />
   );
 }
@@ -218,13 +216,7 @@ export const RuntimeOverride: Story = {
 /** Model catalog still loading — the draft survives, only the selector waits. */
 export const CatalogLoading: Story = {
   args: {},
-  render: () => (
-    <AgentCreateDialogHarness
-      initialDraft={validDraft}
-      modelCatalogLoading
-      modelCatalogLoaded={false}
-    />
-  ),
+  render: () => <AgentCreateDialogHarness initialDraft={validDraft} modelCatalogLoading />,
 };
 
 /** Model catalog failed — catalog truth stays visible in Simple. */

@@ -3,7 +3,11 @@ import { Home, Plus, ServerOff } from "lucide-react";
 import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { HomeDashboard } from "@/systems/dashboard";
-import { useSessionCreate } from "@/systems/session";
+import {
+  useSessionCreateActions,
+  useSessionCreateHasActiveWorkspace,
+  useSessionCreateIsCreating,
+} from "@/systems/session";
 import { useDaemonHealth } from "@/systems/status";
 
 /**
@@ -12,7 +16,9 @@ import { useDaemonHealth } from "@/systems/status";
  */
 export function DashboardWindow(_props: { windowId: string }) {
   const { connectionStatus } = useDaemonHealth();
-  const sessionCreate = useSessionCreate();
+  const { openForAgent } = useSessionCreateActions();
+  const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
+  const isCreating = useSessionCreateIsCreating();
 
   useTopbarSlot({
     glyph: <Home />,
@@ -21,8 +27,8 @@ export function DashboardWindow(_props: { windowId: string }) {
     ),
     actions: (
       <Button
-        disabled={!sessionCreate.hasActiveWorkspace || sessionCreate.isCreating}
-        onClick={() => sessionCreate.openForAgent("")}
+        disabled={!hasActiveWorkspace || isCreating}
+        onClick={() => openForAgent("")}
         size="sm"
         variant="primary"
       >

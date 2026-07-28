@@ -25,7 +25,7 @@ export function TaskCreateDialog({
 }) {
   const navigate = useTasksNavigation();
   const backToCatalog = () =>
-    navigate({ pathname: "/tasks", search: taskCatalogSearchFor(catalogMode) });
+    navigate({ pathname: "/tasks", search: taskCatalogSearchFor(catalogMode, search) });
   const page = useTaskCreateState(search, navigate);
 
   return (
@@ -45,6 +45,7 @@ export function TaskCreateDialog({
       onTemplateChange={page.handleTemplateChange}
       open
       templateId={page.templateId}
+      userHomeDir={page.userHomeDir}
       workspaces={page.workspaces}
     />
   );

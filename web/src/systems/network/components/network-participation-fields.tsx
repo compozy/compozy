@@ -14,11 +14,11 @@ import type {
   NetworkParticipationDraft,
   NetworkParticipationMode,
   NetworkParticipationStrategy,
-} from "../lib/network-participation";
+} from "@/lib/network-participation";
 import {
   isNetworkParticipationStrategy,
   networkParticipationValidationMessage,
-} from "../lib/network-participation";
+} from "@/lib/network-participation";
 
 const STRATEGY_LABELS: Record<NetworkParticipationStrategy, string> = {
   named: "Named channel",

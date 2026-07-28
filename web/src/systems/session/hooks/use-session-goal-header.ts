@@ -6,7 +6,8 @@ import { type GoalControlAction, loopsKeys, useLoopStream } from "@/systems/loop
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionGoalCommandResult, SessionGoalResponse } from "../types";
 import { useSendSessionPrompt } from "./use-session-actions";
-import { useSessionStore } from "./use-session-store";
+import { sessionStore } from "../stores/session-store";
+import { useSessionGoalFeedback } from "./use-session-store";
 import { useSessionGoal } from "./use-sessions";
 
 function isGoalResult(value: unknown): value is SessionGoalCommandResult {
@@ -31,9 +32,7 @@ export function useSessionGoalHeader(
 ) {
   const queryClient = useQueryClient();
   const query = useSessionGoal(workspaceId, sessionId);
-  const result = useSessionStore(state => state.goalResults[sessionId]);
-  const resultCommand = useSessionStore(state => state.goalResultCommands[sessionId]);
-  const setGoalResult = useSessionStore(state => state.setGoalResult);
+  const feedback = useSessionGoalFeedback(sessionId);
   const mutation = useSendSessionPrompt({ workspaceId });
   const [pendingAction, setPendingAction] = useState<GoalControlAction>();
   const snapshot = query.data?.goal ?? null;
@@ -61,7 +60,7 @@ export function useSessionGoalHeader(
   });
 
   const applyResult = (next: SessionGoalCommandResult) => {
-    setGoalResult(sessionId, next);
+    sessionStore.trigger.goalCommandReported({ sessionId, result: next });
     if (next.snapshot !== null || next.outcome === "cleared") {
       queryClient.setQueryData<SessionGoalResponse>(sessionKeys.goal(workspaceId, sessionId), {
         goal: next.snapshot,
@@ -84,6 +83,7 @@ export function useSessionGoalHeader(
     );
   };
 
+  const result = feedback?.result;
   const resultSnapshot = result?.snapshot;
   const replaceRequired =
     resultSnapshot &&
@@ -92,7 +92,7 @@ export function useSessionGoalHeader(
     ? {
         kind: "replace" as const,
         expectedRunId: resultSnapshot.run_id,
-        objective: replacementObjective(resultCommand) ?? resultSnapshot.objective,
+        objective: replacementObjective(feedback?.command) ?? resultSnapshot.objective,
       }
     : undefined;
 

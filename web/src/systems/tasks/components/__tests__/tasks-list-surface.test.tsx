@@ -55,7 +55,7 @@ interface RenderOptions {
 function renderSurface(options: RenderOptions = {}) {
   const tasks = options.tasks ?? [];
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <TasksListSurface
         errorMessage={options.errorMessage ?? null}
         isLoading={options.isLoading}
@@ -127,7 +127,7 @@ describe("TasksListSurface", () => {
   it("Should render search and forward list query changes", () => {
     const handleSearchQueryChange = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <TasksListToolbar
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}

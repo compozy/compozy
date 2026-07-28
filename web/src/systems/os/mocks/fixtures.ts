@@ -4,13 +4,18 @@ import type {
 } from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
+import { resolveAppForPath } from "../lib/app-registry";
+import { osWindowId } from "../lib/os-types";
+
 export const windowManagerStoryDesktopId = "desktop-launch";
 export const windowManagerStoryWindowId = "app:settings";
 
-export const windowManagerSnapshotFixture: CompozyApiOkJsonResponseFor<
+type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
   "get",
   "/api/workspaces/{workspace_id}/window-manager"
-> = {
+>;
+
+export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
   // SnapshotVersion (internal/windowmanager/types.go:9).
   version: 2,
   workspace_id: storyDefaultWorkspaceId,
@@ -51,17 +56,61 @@ export const windowManagerSnapshotFixture: CompozyApiOkJsonResponseFor<
   updated_at: "2026-07-23T01:00:00Z",
 };
 
+function storyRoute(initialEntry: string): {
+  pathname: string;
+  search: Record<string, string | string[]>;
+} {
+  const url = new URL(initialEntry, "http://storybook.local");
+  const search: Record<string, string | string[]> = {};
+  for (const key of new Set(url.searchParams.keys())) {
+    const values = url.searchParams.getAll(key);
+    search[key] = values.length === 1 ? values[0] : values;
+  }
+  return { pathname: url.pathname, search };
+}
+
+/** Builds the daemon-owned window that hosts an app-route story. */
+export function windowManagerStorySnapshot(
+  initialEntry: string,
+  workspaceId: string = storyDefaultWorkspaceId
+): WindowManagerStorySnapshot {
+  const route = storyRoute(initialEntry);
+  const resolved = resolveAppForPath(route.pathname);
+  const snapshot = structuredClone(windowManagerSnapshotFixture);
+  snapshot.workspace_id = workspaceId;
+  if (resolved === null) return snapshot;
+
+  const windowId = osWindowId(resolved.app.id, resolved.instanceKey);
+  const desktop = snapshot.desktops[0];
+  if (desktop?.groups[0]?.root.kind === "leaf") {
+    desktop.groups[0].root.window_id = windowId;
+  }
+  const baseWindow = snapshot.windows[windowManagerStoryWindowId];
+  if (baseWindow === undefined) return snapshot;
+  snapshot.windows = {
+    [windowId]: {
+      ...baseWindow,
+      id: windowId,
+      app: resolved.app.id,
+      ...(resolved.instanceKey === null ? {} : { instance_key: resolved.instanceKey }),
+      route,
+    },
+  };
+  return snapshot;
+}
+
 export function windowManagerClientFixture(
   clientId: string,
-  workspaceId: string = storyDefaultWorkspaceId
+  workspaceId: string = storyDefaultWorkspaceId,
+  focusedWindowId: string = windowManagerStoryWindowId
 ): CompozyApiJsonResponseFor<"post", "/api/workspaces/{workspace_id}/window-manager/clients", 201> {
   return {
     workspace_id: workspaceId,
     client_id: clientId,
     presentation_revision: 1,
     active_desktop_id: windowManagerStoryDesktopId,
-    focused_window_id: windowManagerStoryWindowId,
-    focus_order: [windowManagerStoryWindowId],
+    focused_window_id: focusedWindowId,
+    focus_order: [focusedWindowId],
     connected_at: "2026-07-23T01:00:00Z",
   };
 }

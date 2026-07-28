@@ -8,9 +8,11 @@ import { SandboxEditor } from "../sandbox-editor";
 function EditorHarness({
   draft = emptySandboxDraft(),
   initialTier = "advanced",
+  isSaving = false,
 }: {
   draft?: SandboxDraft;
   initialTier?: "simple" | "advanced";
+  isSaving?: boolean;
 }) {
   const [currentDraft, setDraft] = useState(draft);
 
@@ -20,7 +22,7 @@ function EditorHarness({
       error={null}
       existingNames={["existing-profile"]}
       initialTier={initialTier}
-      isSaving={false}
+      isSaving={isSaving}
       isValid
       onChange={updater => setDraft(updater)}
       onClose={vi.fn()}
@@ -30,6 +32,13 @@ function EditorHarness({
 }
 
 describe("SandboxEditor", () => {
+  it("Should disable editable fields while a save request is pending", () => {
+    render(<EditorHarness initialTier="simple" isSaving />);
+
+    expect(screen.getByTestId("sandbox-editor-fields")).toBeDisabled();
+    expect(screen.getByTestId("sandbox-editor-name")).toBeDisabled();
+  });
+
   it("Should use multiline controls for environment and network rule collections", () => {
     render(
       <EditorHarness

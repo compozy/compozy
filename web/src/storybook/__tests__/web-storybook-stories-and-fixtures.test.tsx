@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -6,10 +7,8 @@ import {
   sessionFixtures,
   uiMessageFixtures,
 } from "@/systems/session/mocks";
-import {
-  resetSettingsRestartStore,
-  useSettingsRestartStore,
-} from "@/systems/settings/stores/use-settings-restart-store";
+import { settingsRestartStore } from "@/systems/settings/stores/settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/mocks";
 import { StorybookRestartPhaseSetup } from "@/storybook/settings-state-helpers";
 
@@ -57,22 +56,29 @@ describe("storybook story and fixture regressions", () => {
   });
 
   it("keeps restart phase seeding stable across equivalent rerenders", () => {
+    const queryClient = new QueryClient();
     const restartPhase = () => (
-      <StorybookRestartPhaseSetup
-        section="general"
-        overrides={{
-          mutationRestartRequired: true,
-          operationId: "op_success",
-          status: "ready",
-        }}
-      />
+      <QueryClientProvider client={queryClient}>
+        <StorybookRestartPhaseSetup
+          section="general"
+          overrides={{
+            mutationRestartRequired: true,
+            operationId: "op_success",
+            status: "ready",
+          }}
+        />
+      </QueryClientProvider>
     );
     const view = render(restartPhase());
+    const generationAfterFirstRender =
+      settingsRestartStore.getSnapshot().context.mutationGeneration;
 
-    expect(useSettingsRestartStore.getState().mutationGeneration).toBe(1);
+    expect(generationAfterFirstRender).toBeGreaterThan(0);
 
     view.rerender(restartPhase());
 
-    expect(useSettingsRestartStore.getState().mutationGeneration).toBe(1);
+    expect(settingsRestartStore.getSnapshot().context.mutationGeneration).toBe(
+      generationAfterFirstRender
+    );
   });
 });

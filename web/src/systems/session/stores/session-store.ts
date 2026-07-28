@@ -1,81 +1,94 @@
-import type { StateCreator } from "zustand";
+import { createStore } from "@xstate/store";
+
 import type { SessionGoalCommandResult } from "../types";
 
-export interface ComposerDraft {
-  text: string;
-  channel?: string;
+export interface SessionGoalFeedback {
+  command?: string;
+  errorVisible: boolean;
+  result: SessionGoalCommandResult;
 }
 
-export interface SessionState {
-  drafts: Record<string, ComposerDraft>;
-  goalResults: Record<string, SessionGoalCommandResult>;
-  goalResultCommands: Record<string, string>;
-  goalErrorVisible: Record<string, boolean>;
+export interface SessionStoreContext {
+  drafts: Record<string, string>;
+  goalFeedback: Record<string, SessionGoalFeedback>;
 }
 
-export interface SessionActions {
-  setDraft: (sessionId: string, patch: Partial<ComposerDraft>) => void;
-  clearDraft: (sessionId: string) => void;
-  clearAllDrafts: () => void;
-  setGoalResult: (sessionId: string, result: SessionGoalCommandResult, command?: string) => void;
-  dismissGoalError: (sessionId: string) => void;
-}
-
-export type SessionStore = SessionState & SessionActions;
-
-export const initialSessionState: SessionState = {
+const initialSessionContext: SessionStoreContext = {
   drafts: {},
-  goalResults: {},
-  goalResultCommands: {},
-  goalErrorVisible: {},
+  goalFeedback: {},
 };
 
-export const createSessionStore: StateCreator<SessionStore> = set => ({
-  ...initialSessionState,
-
-  setDraft: (sessionId, patch) =>
-    set(state => {
-      const current = state.drafts[sessionId] ?? { text: "" };
-      const next: ComposerDraft = { ...current, ...patch };
-      const isEmpty = !next.text && !next.channel;
-      if (isEmpty) {
-        if (!(sessionId in state.drafts)) {
-          return state;
-        }
-        const { [sessionId]: _removed, ...rest } = state.drafts;
-        return { drafts: rest };
+export const sessionStore = createStore({
+  context: initialSessionContext,
+  on: {
+    allDraftsDiscarded: context => {
+      if (Object.keys(context.drafts).length === 0) {
+        return;
       }
-      return { drafts: { ...state.drafts, [sessionId]: next } };
-    }),
-
-  clearDraft: sessionId =>
-    set(state => {
-      if (!(sessionId in state.drafts)) {
-        return state;
+      return { ...context, drafts: {} };
+    },
+    composerDraftChanged: (context, event: { sessionId: string; text: string }) => {
+      if (!event.text) {
+        return discardSessionDraft(context, event.sessionId);
       }
-      const { [sessionId]: _removed, ...rest } = state.drafts;
-      return { drafts: rest };
-    }),
-
-  clearAllDrafts: () => set({ drafts: {} }),
-
-  setGoalResult: (sessionId, result, command) =>
-    set(state => ({
-      goalResults: { ...state.goalResults, [sessionId]: result },
-      goalResultCommands: command
-        ? { ...state.goalResultCommands, [sessionId]: command }
-        : state.goalResultCommands,
-      goalErrorVisible:
-        result.outcome === "error"
-          ? { ...state.goalErrorVisible, [sessionId]: true }
-          : withoutSessionKey(state.goalErrorVisible, sessionId),
-    })),
-
-  dismissGoalError: sessionId =>
-    set(state => ({ goalErrorVisible: withoutSessionKey(state.goalErrorVisible, sessionId) })),
+      if (context.drafts[event.sessionId] === event.text) {
+        return;
+      }
+      return { ...context, drafts: { ...context.drafts, [event.sessionId]: event.text } };
+    },
+    composerDraftDiscarded: (context, event: { sessionId: string }) =>
+      discardSessionDraft(context, event.sessionId),
+    goalCommandReported: (
+      context,
+      event: { command?: string; result: SessionGoalCommandResult; sessionId: string }
+    ) => {
+      const previous = context.goalFeedback[event.sessionId];
+      const command = event.command ?? previous?.command;
+      const feedback: SessionGoalFeedback = {
+        errorVisible: event.result.outcome === "error",
+        result: event.result,
+        ...(command === undefined ? {} : { command }),
+      };
+      return {
+        ...context,
+        goalFeedback: { ...context.goalFeedback, [event.sessionId]: feedback },
+      };
+    },
+    goalErrorAcknowledged: (context, event: { sessionId: string }) => {
+      const feedback = context.goalFeedback[event.sessionId];
+      if (!feedback?.errorVisible) {
+        return;
+      }
+      return {
+        ...context,
+        goalFeedback: {
+          ...context.goalFeedback,
+          [event.sessionId]: { ...feedback, errorVisible: false },
+        },
+      };
+    },
+    sessionInteractionRemoved: (context, event: { sessionId: string }) => {
+      const drafts = withoutSessionValue(context.drafts, event.sessionId);
+      const goalFeedback = withoutSessionValue(context.goalFeedback, event.sessionId);
+      if (drafts === context.drafts && goalFeedback === context.goalFeedback) {
+        return;
+      }
+      return { ...context, drafts, goalFeedback };
+    },
+  },
 });
 
-function withoutSessionKey<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
+export type SessionStore = typeof sessionStore;
+
+function discardSessionDraft(
+  context: SessionStoreContext,
+  sessionId: string
+): SessionStoreContext | undefined {
+  const drafts = withoutSessionValue(context.drafts, sessionId);
+  return drafts === context.drafts ? undefined : { ...context, drafts };
+}
+
+function withoutSessionValue<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
   if (!(sessionId in values)) {
     return values;
   }

@@ -10,7 +10,7 @@ import {
   useAgentCreateHost,
   type AgentsFleetSearch,
 } from "@/systems/agent";
-import { useSessionCreate } from "@/systems/session";
+import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
@@ -22,7 +22,8 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const workspaceId = activeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
-  const sessionCreate = useSessionCreate();
+  const { openForAgent } = useSessionCreateActions();
+  const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
   const searchInputRef = useListingSearchShortcut(true);
   const routeQuery = search.q ?? "";
   const [draftQueryState, setDraftQueryState] = useState({ routeQuery, value: routeQuery });
@@ -83,7 +84,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   };
 
   const openNewSession = (agentName: string) => {
-    sessionCreate.openForAgent(agentName);
+    openForAgent(agentName);
   };
 
   const rows = projectAgentFleetRows({
@@ -121,7 +122,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     clearFilters,
     openCreate: openDialog,
     openNewSession,
-    newSessionDisabled: !sessionCreate.hasActiveWorkspace,
+    newSessionDisabled: !hasActiveWorkspace,
     isLoading,
     isFirstRunEmpty,
     isFilteredEmpty,

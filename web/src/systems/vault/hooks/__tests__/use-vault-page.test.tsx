@@ -2,23 +2,21 @@
 // Invariant: Vault list controls serialize their durable state through the route search contract.
 // Boundary IN: useVaultPage setters and current TanStack Router search.
 // Boundary OUT: Route validation and Vault API transport.
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  putMutate: vi.fn(),
+  putMutateAsync: vi.fn(),
   putReset: vi.fn(),
   putState: {
     data: undefined as unknown,
     error: null as Error | null,
-    isPending: false,
   },
-  deleteMutate: vi.fn(),
+  deleteMutateAsync: vi.fn(),
   deleteReset: vi.fn(),
   deleteState: {
     error: null as Error | null,
-    isPending: false,
   },
   secrets: [] as unknown[],
   allSecretsState: {
@@ -41,10 +39,14 @@ vi.mock("@/systems/vault/adapters/vault-api", () => ({
 vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
   useDeleteVaultSecret: () => ({
     ...mocks.deleteState,
-    mutate: mocks.deleteMutate,
+    mutateAsync: mocks.deleteMutateAsync,
     reset: mocks.deleteReset,
   }),
-  usePutVaultSecret: () => ({ ...mocks.putState, mutate: mocks.putMutate, reset: mocks.putReset }),
+  usePutVaultSecret: () => ({
+    ...mocks.putState,
+    mutateAsync: mocks.putMutateAsync,
+    reset: mocks.putReset,
+  }),
 }));
 
 vi.mock("@/systems/vault/hooks/use-vault", () => ({
@@ -77,18 +79,24 @@ const providerSecret = {
   updated_at: "2026-07-18T12:00:00Z",
 } as VaultSecret;
 
+const sessionSecret = {
+  ...providerSecret,
+  namespace: "sessions",
+  ref: "vault:sessions/session-1/token",
+} as VaultSecret;
+
 describe("useVaultPage route state", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.putMutate.mockReset();
+    mocks.putMutateAsync.mockReset();
+    mocks.putMutateAsync.mockImplementation(() => new Promise(() => undefined));
     mocks.putReset.mockReset();
     mocks.putState.data = undefined;
     mocks.putState.error = null;
-    mocks.putState.isPending = false;
-    mocks.deleteMutate.mockReset();
+    mocks.deleteMutateAsync.mockReset();
+    mocks.deleteMutateAsync.mockImplementation(() => new Promise(() => undefined));
     mocks.deleteReset.mockReset();
     mocks.deleteState.error = null;
-    mocks.deleteState.isPending = false;
     mocks.secrets = [];
     mocks.allSecretsState.error = null;
     mocks.allSecretsState.isFetching = false;
@@ -145,34 +153,30 @@ describe("useVaultPage route state", () => {
     );
   });
 
-  it("Should replace the selected secret with its exact ref and kind, rejecting blank values", () => {
+  it("Should replace the selected secret with its exact ref and kind, rejecting blank values", async () => {
     mocks.secrets = [providerSecret];
-    mocks.putMutate.mockImplementation((_payload, options) => {
-      options.onSuccess(providerSecret);
-    });
+    mocks.putMutateAsync.mockResolvedValue(providerSecret);
     const { result } = renderHook(() => useVaultPage());
 
     act(() => result.current.openInspect(providerSecret));
     act(() => result.current.setReplaceValue("   "));
     act(() => result.current.replaceSecret());
-    expect(mocks.putMutate).not.toHaveBeenCalled();
+    expect(mocks.putMutateAsync).not.toHaveBeenCalled();
 
     act(() => result.current.setReplaceValue("rotated-secret"));
     act(() => result.current.replaceSecret());
 
-    expect(mocks.putMutate).toHaveBeenCalledWith(
-      {
-        kind: "api-key",
-        ref: "vault:providers/openai",
-        secret_value: "rotated-secret",
-      },
-      expect.objectContaining({ onSuccess: expect.any(Function) })
-    );
-    expect(result.current.replaceValue).toBe("");
-    expect(result.current.lastAction).toEqual({
-      kind: "saved",
+    expect(mocks.putMutateAsync).toHaveBeenCalledWith({
+      kind: "api-key",
       ref: "vault:providers/openai",
-      secret: providerSecret,
+      secret_value: "rotated-secret",
+    });
+    await waitFor(() => {
+      expect(result.current.replaceValue).toBe("");
+      expect(result.current.lastAction).toEqual({
+        kind: "saved",
+        ref: "vault:providers/openai",
+      });
     });
   });
 
@@ -192,15 +196,38 @@ describe("useVaultPage route state", () => {
 
   it("Should not open deletion while replacement of the selected secret is pending", () => {
     mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openInspect(providerSecret));
+    act(() => result.current.setReplaceValue("pending-rotation"));
+    act(() => result.current.replaceSecret());
+    act(() => result.current.openDelete(providerSecret));
+
+    expect(mocks.putMutateAsync).toHaveBeenCalledTimes(1);
+    expect(result.current.deleteTarget).toEqual({ mode: "closed" });
+    expect(mocks.deleteReset).not.toHaveBeenCalled();
+  });
+
+  it("Should stop a vanished delete target from blocking replacement of another secret", () => {
+    mocks.secrets = [providerSecret, sessionSecret];
     const { result, rerender } = renderHook(() => useVaultPage());
 
     act(() => result.current.openInspect(providerSecret));
-    mocks.putState.isPending = true;
+    act(() => result.current.setReplaceValue("rotated-secret"));
+    act(() => result.current.openDelete(sessionSecret));
+    expect(result.current.replaceIsValid).toBe(false);
+
+    mocks.secrets = [providerSecret];
     rerender();
-    act(() => result.current.openDelete(providerSecret));
 
     expect(result.current.deleteTarget).toEqual({ mode: "closed" });
-    expect(mocks.deleteReset).not.toHaveBeenCalled();
+    expect(result.current.replaceIsValid).toBe(true);
+    act(() => result.current.replaceSecret());
+    expect(mocks.putMutateAsync).toHaveBeenCalledWith({
+      kind: "api-key",
+      ref: "vault:providers/openai",
+      secret_value: "rotated-secret",
+    });
   });
 
   it("Should block a write onto an existing ref until the overwrite is confirmed", () => {
@@ -219,12 +246,12 @@ describe("useVaultPage route state", () => {
     expect(result.current.editorRefExists).toBe(true);
     expect(result.current.editorIsValid).toBe(false);
     act(() => result.current.saveEditor());
-    expect(mocks.putMutate).not.toHaveBeenCalled();
+    expect(mocks.putMutateAsync).not.toHaveBeenCalled();
 
     act(() => result.current.updateDraft(draft => ({ ...draft, overwriteConfirmed: true })));
     expect(result.current.editorIsValid).toBe(true);
     act(() => result.current.saveEditor());
-    expect(mocks.putMutate.mock.lastCall?.[0]).toEqual({
+    expect(mocks.putMutateAsync.mock.lastCall?.[0]).toEqual({
       ref: "vault:providers/openai",
       secret_value: "sk-live",
     });
@@ -264,7 +291,7 @@ describe("useVaultPage route state", () => {
     expect(result.current.editorRefExists).toBe(false);
     expect(result.current.editorIsValid).toBe(false);
     act(() => result.current.saveEditor());
-    expect(mocks.putMutate).not.toHaveBeenCalled();
+    expect(mocks.putMutateAsync).not.toHaveBeenCalled();
 
     mocks.allSecretsState.isLoading = false;
     mocks.allSecretsState.isSuccess = true;

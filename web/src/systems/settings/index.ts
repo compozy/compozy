@@ -89,6 +89,8 @@ export type {
 } from "./types";
 
 export {
+  isMCPAuthorizeAwaiting,
+  isMCPAuthorizePending,
   useMCPAuthorize,
   type MCPAuthorizePhase,
   type MCPAuthorizePriorStatus,
@@ -325,12 +327,14 @@ export type { ProviderStateLabel, ProviderStateView } from "./lib/provider-state
 export { settingsProviderToOption } from "./lib/provider-runtime-option";
 
 // Stores
-export { useSettingsRestartStore } from "./stores/use-settings-restart-store";
+export {
+  resetSettingsRestartStore,
+  useSettingsRestartState,
+} from "./stores/use-settings-restart-store";
+export { settingsRestartStore } from "./stores/settings-restart-store";
 export type {
   PendingSettingsMutation,
-  SettingsRestartActions,
   SettingsRestartState,
-  SettingsRestartStore,
 } from "./stores/settings-restart-store";
 
 // Hooks -- reads
@@ -385,6 +389,7 @@ export {
 } from "./hooks/use-settings-mutations";
 
 // Hooks -- restart
+export { useSettingsPage } from "./hooks/use-settings-page";
 export { useSettingsRestart } from "./hooks/use-settings-restart";
 export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";

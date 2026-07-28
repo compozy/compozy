@@ -27,12 +27,6 @@ export interface RuntimeSelectorProps {
   readOnly?: boolean;
   /** Catalog is loading (drives the list loading state). */
   loading?: boolean;
-  /**
-   * The catalog query has RESOLVED at least once (not merely "not loading"):
-   * drives the strict favorites/recents purge so a loaded-empty catalog wipes
-   * stale persisted entries while a still-loading/disabled query never does.
-   */
-  catalogLoaded?: boolean;
   modelPlaceholder?: string;
   /** Catalog refresh affordance absorbed from the legacy CatalogStatusLine block. */
   onRefreshCatalog?: () => void;
@@ -56,7 +50,6 @@ export function RuntimeSelector({
   disabled = false,
   readOnly = false,
   loading = false,
-  catalogLoaded = false,
   modelPlaceholder = "Select model",
   onRefreshCatalog,
   refreshing = false,
@@ -67,7 +60,7 @@ export function RuntimeSelector({
   ariaLabelledby,
   className,
 }: RuntimeSelectorProps) {
-  const controller = useRuntimeSelector({ value, onChange, providers, models, catalogLoaded });
+  const controller = useRuntimeSelector({ value, onChange, providers, models });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const popup = useRuntimeSelectorPopup({

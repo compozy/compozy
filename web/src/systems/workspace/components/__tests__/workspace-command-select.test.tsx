@@ -1,10 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
-import { resetUserHomeDirStore, useUserHomeDirStore } from "../../hooks/use-user-home-dir-store";
 import type { WorkspacePayload } from "../../types";
 import { WorkspaceCommandSelect } from "../workspace-command-select";
 
@@ -26,18 +25,11 @@ const workspaces = [
 ];
 
 describe("WorkspaceCommandSelect", () => {
-  beforeEach(() => {
-    resetUserHomeDirStore();
-  });
-
-  afterEach(() => {
-    resetUserHomeDirStore();
-  });
-
   it("Should render the trigger with the selected workspace name and avatar initial", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -52,11 +44,10 @@ describe("WorkspaceCommandSelect", () => {
   });
 
   it("Should render the selected home workspace with the home icon", () => {
-    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
-
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir="/workspace/beta"
           workspaces={workspaces}
           value="ws_beta"
           onChange={() => undefined}
@@ -73,8 +64,9 @@ describe("WorkspaceCommandSelect", () => {
 
   it("Should align compact trigger height with pill-group md track tokens", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -95,8 +87,13 @@ describe("WorkspaceCommandSelect", () => {
 
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
     render(
-      <UIProvider reducedMotion="always">
-        <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          userHomeDir={undefined}
+          workspaces={[]}
+          value={null}
+          onChange={() => undefined}
+        />
       </UIProvider>
     );
 
@@ -109,8 +106,13 @@ describe("WorkspaceCommandSelect", () => {
     const onChange = vi.fn();
 
     render(
-      <UIProvider reducedMotion="always">
-        <WorkspaceCommandSelect workspaces={workspaces} value="ws_alpha" onChange={onChange} />
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          userHomeDir={undefined}
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={onChange}
+        />
       </UIProvider>
     );
 
@@ -126,8 +128,9 @@ describe("WorkspaceCommandSelect", () => {
     const user = userEvent.setup();
 
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -148,11 +151,11 @@ describe("WorkspaceCommandSelect", () => {
 
   it("Should pin the home workspace first in the command list", async () => {
     const user = userEvent.setup();
-    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
 
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir="/workspace/beta"
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -183,8 +186,9 @@ describe("WorkspaceCommandSelect", () => {
     const user = userEvent.setup();
 
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -203,8 +207,9 @@ describe("WorkspaceCommandSelect", () => {
     const onAddWorkspace = vi.fn();
 
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
+          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}

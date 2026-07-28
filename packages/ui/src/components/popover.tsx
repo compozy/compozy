@@ -43,9 +43,7 @@ function Popover({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <PopoverMotionContext.Provider value={value}>
-        {children as React.ReactNode}
-      </PopoverMotionContext.Provider>
+      <PopoverMotionContext value={value}>{children as React.ReactNode}</PopoverMotionContext>
     </PopoverPrimitive.Root>
   );
 }

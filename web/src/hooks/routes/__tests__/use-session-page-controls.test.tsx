@@ -1,4 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, StrictMode, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const routeHookMocks = vi.hoisted(() => ({
@@ -23,7 +24,7 @@ const routeHookMocks = vi.hoisted(() => ({
   },
   resumeMutation: {
     isPending: false,
-    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
   },
   queuePromptMutation: {
     isPending: false,
@@ -45,6 +46,7 @@ const routeHookMocks = vi.hoisted(() => ({
   stopMutation: {
     isPending: false,
     mutate: vi.fn(),
+    mutateAsync: vi.fn(),
   },
 }));
 
@@ -108,6 +110,18 @@ function makeSession(state: SessionPayload["state"]): SessionPayload {
   };
 }
 
+function makeActivity(turnId: string): NonNullable<SessionPayload["activity"]> {
+  return {
+    elapsed_ms: 0,
+    elapsed_seconds: 0,
+    idle_seconds: 0,
+    iteration_current: 0,
+    iteration_max: 0,
+    last_activity_at: "2026-04-17T10:00:00Z",
+    turn_id: turnId,
+  };
+}
+
 function renderControls(
   state: SessionPayload["state"],
   options: Parameters<typeof useSessionPageControls>[2] = {}
@@ -141,7 +155,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.deleteMutation.isPending = false;
     routeHookMocks.deleteMutation.mutate.mockReset();
     routeHookMocks.resumeMutation.isPending = false;
-    routeHookMocks.resumeMutation.mutate.mockReset();
+    routeHookMocks.resumeMutation.mutateAsync = vi.fn();
     routeHookMocks.queuePromptMutation.isPending = false;
     routeHookMocks.queuePromptMutation.mutateAsync.mockReset();
     routeHookMocks.interruptPromptMutation.isPending = false;
@@ -153,6 +167,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.cancelQueuedPromptMutation.mutate.mockReset();
     routeHookMocks.stopMutation.isPending = false;
     routeHookMocks.stopMutation.mutate.mockReset();
+    routeHookMocks.stopMutation.mutateAsync = vi.fn();
   });
 
   it("blocks delete while prompt cancellation is in flight", async () => {
@@ -179,17 +194,69 @@ describe("useSessionPageControls", () => {
     });
   });
 
-  it("blocks clear while another control mutation is pending", () => {
-    routeHookMocks.auiState.thread.messages = [{ id: "message-1" }];
-    routeHookMocks.resumeMutation.isPending = true;
-
+  it("starts only one prompt cancellation for two synchronous requests", async () => {
+    const cancelPrompt = createDeferredPromise<void>();
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockReturnValue(cancelPrompt.promise);
     const { result } = renderControls("active");
+
+    act(() => {
+      result.current.handleCancelPrompt();
+      result.current.handleCancelPrompt();
+    });
+
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      cancelPrompt.resolve();
+      await cancelPrompt.promise;
+    });
+  });
+
+  it("Should cancel through the session identity from the render that issues the intent", async () => {
+    const cancellation = createDeferredPromise<void>();
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.cancelSessionPrompt.mockReturnValue(cancellation.promise);
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useSessionPageControls(sessionId, makeSession("active"), {
+          workspaceId: WORKSPACE_ID,
+        }),
+      { initialProps: { sessionId: "sess-old" } }
+    );
+
+    rerender({ sessionId: "sess-current" });
+    act(() => result.current.handleCancelPrompt());
+
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledWith(WORKSPACE_ID, "sess-current");
+    await act(async () => {
+      cancellation.resolve();
+      await cancellation.promise;
+    });
+  });
+
+  it("blocks clear while the store-owned resume phase is pending", async () => {
+    const resume = createDeferredPromise<void>();
+    routeHookMocks.auiState.thread.messages = [{ id: "message-1" }];
+    routeHookMocks.resumeMutation.mutateAsync.mockReturnValue(resume.promise);
+
+    const { result } = renderControls("stopped");
+
+    act(() => {
+      result.current.handleResume();
+    });
+    expect(result.current.isResuming).toBe(true);
 
     act(() => {
       result.current.handleClear();
     });
 
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resume.resolve();
+      await resume.promise;
+    });
   });
 
   it("blocks clear while a prompt is still running", () => {
@@ -251,7 +318,65 @@ describe("useSessionPageControls", () => {
       result.current.handleResume();
     });
 
-    expect(routeHookMocks.resumeMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.resumeMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("starts only one resume mutation for two synchronous requests", async () => {
+    const resume = createDeferredPromise<void>();
+    routeHookMocks.resumeMutation.mutateAsync.mockReturnValue(resume.promise);
+    const { result } = renderControls("stopped");
+
+    act(() => {
+      result.current.handleResume();
+      result.current.handleResume();
+    });
+
+    expect(routeHookMocks.resumeMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(routeHookMocks.resumeMutation.mutateAsync).toHaveBeenCalledWith("sess-1");
+
+    await act(async () => {
+      resume.resolve();
+      await resume.promise;
+    });
+  });
+
+  it("starts only one direct stop for two synchronous requests", async () => {
+    const stop = createDeferredPromise<void>();
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValue(stop.promise);
+    const { result } = renderControls("active");
+
+    act(() => {
+      result.current.handleStop();
+      result.current.handleStop();
+    });
+
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledOnce();
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith("sess-1");
+    expect(result.current.isStopping).toBe(true);
+
+    await act(async () => {
+      stop.resolve();
+      await stop.promise;
+    });
+    await waitFor(() => expect(result.current.isStopping).toBe(false));
+  });
+
+  it("Should resume through the mutation callback from the render that issues the intent", async () => {
+    const { result, rerender } = renderControls("stopped");
+    const previousResume = routeHookMocks.resumeMutation.mutateAsync;
+    const resume = createDeferredPromise<void>();
+    const currentResume = vi.fn().mockReturnValue(resume.promise);
+    routeHookMocks.resumeMutation.mutateAsync = currentResume;
+
+    rerender();
+    act(() => result.current.handleResume());
+
+    expect(previousResume).not.toHaveBeenCalled();
+    expect(currentResume).toHaveBeenCalledWith("sess-1");
+    await act(async () => {
+      resume.resolve();
+      await resume.promise;
+    });
   });
 
   it("runs delete success side effects when controls are idle", () => {
@@ -316,6 +441,93 @@ describe("useSessionPageControls", () => {
     expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
   });
 
+  it("keeps a pending busy-input request owned while the daemon advances turns", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    const queue = createDeferredPromise<unknown>();
+    routeHookMocks.queuePromptMutation.mutateAsync.mockReturnValue(queue.promise);
+    const { result, rerender } = renderHook(
+      ({ turnId }) =>
+        useSessionPageControls(
+          "sess-1",
+          { ...makeSession("active"), activity: makeActivity(turnId) },
+          { workspaceId: WORKSPACE_ID }
+        ),
+      { initialProps: { turnId: "turn-a" } }
+    );
+
+    let request!: Promise<void>;
+    act(() => {
+      const accepted = result.current.handleQueuePrompt("queue me");
+      if (!accepted) throw new Error("expected the queue request to be accepted");
+      request = accepted;
+    });
+    rerender({ turnId: "turn-b" });
+
+    await act(async () => {
+      queue.resolve({ queued: true, queue_entry_id: "inq-late" });
+      await request;
+    });
+    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Prompt queued.");
+    expect(result.current.queuedPrompts).toEqual([]);
+  });
+
+  it("ignores a second same-tick busy-input intent before exposing a request promise", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    const queue = createDeferredPromise<unknown>();
+    routeHookMocks.queuePromptMutation.mutateAsync.mockReturnValue(queue.promise);
+    const { result } = renderControls("active");
+
+    let second!: Promise<void> | undefined;
+    act(() => {
+      void result.current.handleQueuePrompt("first");
+      second = result.current.handleQueuePrompt("second");
+    });
+
+    expect(second).toBeUndefined();
+    expect(routeHookMocks.queuePromptMutation.mutateAsync).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      queue.resolve({ queued: false });
+      await queue.promise;
+    });
+  });
+
+  it("remains interactive after React StrictMode replays the lifecycle effect", async () => {
+    const resume = createDeferredPromise<void>();
+    routeHookMocks.resumeMutation.mutateAsync.mockReturnValue(resume.promise);
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(StrictMode, null, children);
+    const { result } = renderHook(
+      () => useSessionPageControls("sess-1", makeSession("stopped"), { workspaceId: WORKSPACE_ID }),
+      { wrapper }
+    );
+
+    act(() => result.current.handleResume());
+
+    expect(routeHookMocks.resumeMutation.mutateAsync).toHaveBeenCalledWith("sess-1");
+    await act(async () => {
+      resume.resolve();
+      await resume.promise;
+    });
+  });
+
+  it("reports an accepted stop failure after the session controls unmount", async () => {
+    const stop = createDeferredPromise<void>();
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValue(stop.promise);
+    const { result, unmount } = renderControls("stopped");
+
+    act(() => result.current.handleStop());
+    unmount();
+    await act(async () => {
+      stop.reject(new Error("stop failed after leaving session"));
+      await stop.promise.catch(() => undefined);
+    });
+
+    await waitFor(() => {
+      expect(routeHookMocks.toastError).toHaveBeenCalledWith("stop failed after leaving session");
+    });
+  });
+
   it("does not show a queued prompt toast when the daemon runs the prompt immediately", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
@@ -373,16 +585,23 @@ describe("useSessionPageControls", () => {
       result.current.handleRemoveQueuedPrompt("inq-1");
     });
     const [, options] = routeHookMocks.cancelQueuedPromptMutation.mutate.mock.calls[0] ?? [];
-    act(() => {
+    await act(async () => {
       options.onError(new Error("cancel failed"));
+      await Promise.resolve();
     });
 
-    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    await waitFor(() =>
+      expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }])
+    );
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("cancel failed");
   });
 
-  it("steers a queued prompt into the live turn then cancels its durable entry", () => {
+  it("steers a queued prompt into the live turn then cancels its durable entry", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-9",
+    });
     routeHookMocks.steerPromptMutation.mutate.mockImplementation(
       (_params: unknown, options: { onSuccess?: () => void }) => options?.onSuccess?.()
     );
@@ -392,6 +611,9 @@ describe("useSessionPageControls", () => {
 
     const { result } = renderControls("active");
 
+    await act(async () => {
+      await result.current.handleQueuePrompt("steer me");
+    });
     act(() => {
       result.current.handleSteerQueuedPrompt({ id: "inq-9", text: "steer me" });
     });
@@ -400,14 +622,16 @@ describe("useSessionPageControls", () => {
       { id: "sess-1", message: "steer me" },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
     );
-    expect(routeHookMocks.cancelQueuedPromptMutation.mutate).toHaveBeenCalledWith(
-      {
-        id: "sess-1",
-        queueEntryId: "inq-9",
-      },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    await waitFor(() =>
+      expect(routeHookMocks.cancelQueuedPromptMutation.mutate).toHaveBeenCalledWith(
+        {
+          id: "sess-1",
+          queueEntryId: "inq-9",
+        },
+        expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+      )
     );
-    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Steer staged.");
+    await waitFor(() => expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Steer staged."));
   });
 
   it("restores a queued prompt when queued steer fails", async () => {
@@ -427,11 +651,14 @@ describe("useSessionPageControls", () => {
       result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
     });
     const [, options] = routeHookMocks.steerPromptMutation.mutate.mock.calls[0] ?? [];
-    act(() => {
+    await act(async () => {
       options.onError(new Error("steer failed"));
+      await Promise.resolve();
     });
 
-    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    await waitFor(() =>
+      expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }])
+    );
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("steer failed");
   });
 
@@ -454,25 +681,56 @@ describe("useSessionPageControls", () => {
     await act(async () => {
       await result.current.handleQueuePrompt("queue me");
     });
-    act(() => {
+    await act(async () => {
       result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
-    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    await waitFor(() =>
+      expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }])
+    );
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("cancel failed");
   });
 
-  it("blocks queued steer while another busy-input mutation is pending", () => {
+  it("blocks queued steer while another store-owned busy-input request is pending", async () => {
     routeHookMocks.auiState.thread.isRunning = true;
-    routeHookMocks.steerPromptMutation.isPending = true;
+    const pendingSteer = createDeferredPromise<unknown>();
+    routeHookMocks.steerPromptMutation.mutateAsync.mockReturnValue(pendingSteer.promise);
 
     const { result } = renderControls("active");
 
     act(() => {
+      void result.current.handleSteerPrompt("direct steer");
       result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
     });
 
     expect(routeHookMocks.steerPromptMutation.mutate).not.toHaveBeenCalled();
+    await act(async () => {
+      pendingSteer.resolve({ queued: false });
+      await pendingSteer.promise;
+    });
+  });
+
+  it("treats an accepted queued steer as busy until its workflow settles", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync
+      .mockResolvedValueOnce({ queued: true, queue_entry_id: "inq-1" })
+      .mockResolvedValueOnce({ queued: true, queue_entry_id: "inq-2" });
+    routeHookMocks.steerPromptMutation.mutate.mockImplementation(() => undefined);
+    const { result } = renderControls("active");
+    await act(async () => {
+      await result.current.handleQueuePrompt("first");
+      await result.current.handleQueuePrompt("second");
+    });
+
+    act(() => {
+      result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "first" });
+      result.current.handleSteerQueuedPrompt({ id: "inq-2", text: "second" });
+    });
+
+    expect(result.current.isBusyInputPending).toBe(true);
+    expect(routeHookMocks.steerPromptMutation.mutate).toHaveBeenCalledOnce();
   });
 
   it("clears queued prompts when a prompt is interrupted", async () => {
@@ -532,7 +790,7 @@ describe("useSessionPageControls", () => {
     let session = {
       ...makeSession("active"),
       badge: "running",
-      activity: { turn_id: "turn-1" } as SessionPayload["activity"],
+      activity: makeActivity("turn-1"),
     };
 
     const { result, rerender } = renderHook(() =>
@@ -546,7 +804,7 @@ describe("useSessionPageControls", () => {
 
     session = {
       ...session,
-      activity: { turn_id: "turn-2" } as SessionPayload["activity"],
+      activity: makeActivity("turn-2"),
     };
     act(() => {
       rerender();
@@ -563,7 +821,7 @@ describe("useSessionPageControls", () => {
     let session = {
       ...makeSession("active"),
       badge: "running",
-      activity: { turn_id: "turn-1" } as SessionPayload["activity"],
+      activity: makeActivity("turn-1"),
     };
 
     const { result, rerender } = renderHook(() =>
@@ -581,7 +839,7 @@ describe("useSessionPageControls", () => {
 
     session = {
       ...session,
-      activity: { turn_id: "turn-2" } as SessionPayload["activity"],
+      activity: makeActivity("turn-2"),
     };
     act(() => {
       rerender();

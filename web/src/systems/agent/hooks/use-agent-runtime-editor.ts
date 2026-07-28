@@ -53,7 +53,6 @@ export interface UseAgentRuntimeEditorResult {
   onRetryProviderSource: () => void;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   onRefreshCatalog: () => void;
@@ -165,7 +164,6 @@ export function useAgentRuntimeEditor({
     },
     runtimeModels: catalog.models as RuntimeModelOption[],
     modelCatalogLoading: catalog.loading,
-    modelCatalogLoaded: catalog.loaded,
     modelCatalogRefreshing: catalog.refreshing,
     modelCatalogError: catalog.error,
     onRefreshCatalog: () => {

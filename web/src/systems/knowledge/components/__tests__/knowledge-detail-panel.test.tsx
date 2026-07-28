@@ -72,7 +72,7 @@ function renderDetail(props: Partial<React.ComponentProps<typeof KnowledgeDetail
     ...props,
   };
   return render(
-    <UIProvider reducedMotion="always">
+    <UIProvider reducedMotion="never" skipAnimations>
       <KnowledgeDetailPanel {...merged} />
     </UIProvider>
   );
@@ -198,7 +198,7 @@ describe("KnowledgeDetailPanel", () => {
       isLoading: false,
     };
     const { rerender } = render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDetailPanel
           content="# Shared Alpha"
           decisions={[]}
@@ -216,7 +216,7 @@ describe("KnowledgeDetailPanel", () => {
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
 
     rerender(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDetailPanel
           content="# Shared Beta"
           decisions={[]}

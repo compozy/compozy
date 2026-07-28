@@ -1,84 +1,127 @@
+// Suite: onboarding draft store
+// Invariant: draft transitions preserve monotonic progress, unique workspace paths, credential boundaries, and v5 persistence.
+// Boundary IN: onboarding draft state and local-storage persistence.
+// Boundary OUT: wizard/query orchestration, owned by the onboarding hook suites.
+import { rehydrateStore } from "@xstate/store/persist";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-  ONBOARDING_DRAFT_STORAGE_KEY,
-  useOnboardingDraftStore,
-} from "../use-onboarding-draft-store";
+import { ONBOARDING_DRAFT_STORAGE_KEY, onboardingDraftStore } from "../use-onboarding-draft-store";
 
-function persistedState(): Record<string, unknown> {
+function persistedContext(): Record<string, unknown> {
   const raw = window.localStorage.getItem(ONBOARDING_DRAFT_STORAGE_KEY);
   if (!raw) {
     return {};
   }
-  return (JSON.parse(raw).state ?? {}) as Record<string, unknown>;
+  return (JSON.parse(raw).context ?? {}) as Record<string, unknown>;
 }
 
-describe("useOnboardingDraftStore", () => {
+function draft() {
+  return onboardingDraftStore.getSnapshot().context;
+}
+
+describe("onboardingDraftStore", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useOnboardingDraftStore.getState().reset();
+    onboardingDraftStore.trigger.draftCleared();
   });
 
   it("grows maxStep but never shrinks it as the user moves between steps", () => {
-    const store = useOnboardingDraftStore.getState();
-    store.setStep(2);
-    expect(useOnboardingDraftStore.getState().maxStep).toBe(2);
-    store.setStep(1);
-    expect(useOnboardingDraftStore.getState().step).toBe(1);
-    expect(useOnboardingDraftStore.getState().maxStep).toBe(2);
-    store.setStep(2);
-    expect(useOnboardingDraftStore.getState().step).toBe(2);
-    expect(useOnboardingDraftStore.getState().maxStep).toBe(2);
+    onboardingDraftStore.trigger.stepVisited({ step: 2 });
+    expect(draft().maxStep).toBe(2);
+
+    onboardingDraftStore.trigger.stepVisited({ step: 1 });
+    expect(draft().step).toBe(1);
+    expect(draft().maxStep).toBe(2);
   });
 
-  it("adds workspaces without duplicating the same path", () => {
-    const store = useOnboardingDraftStore.getState();
-    store.addWorkspace({ path: "/a", name: "a" });
-    store.addWorkspace({ path: "/a", name: "a-again" });
-    store.addWorkspace({ path: "/b", name: "b" });
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([
+  it("adds workspace drafts without duplicating the same path", () => {
+    onboardingDraftStore.trigger.workspaceDraftAdded({
+      workspace: { path: "/a", name: "a" },
+    });
+    onboardingDraftStore.trigger.workspaceDraftAdded({
+      workspace: { path: "/a", name: "a-again" },
+    });
+    onboardingDraftStore.trigger.workspaceDraftAdded({
+      workspace: { path: "/b", name: "b" },
+    });
+
+    expect(draft().workspaces).toEqual([
       { path: "/a", name: "a" },
       { path: "/b", name: "b" },
     ]);
   });
 
-  it("removes a workspace by path", () => {
-    const store = useOnboardingDraftStore.getState();
-    store.addWorkspace({ path: "/a", name: "a" });
-    store.addWorkspace({ path: "/b", name: "b" });
-    store.removeWorkspace("/a");
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([{ path: "/b", name: "b" }]);
+  it("clears credentials and re-arms the auth default when the provider changes", () => {
+    onboardingDraftStore.trigger.runtimeSelected({
+      provider: "claude",
+      model: "opus",
+      reasoning: "high",
+    });
+    onboardingDraftStore.trigger.authModeChosen({ authMode: "bound_secret" });
+    onboardingDraftStore.trigger.envVarEntered({ envVar: "ANTHROPIC_API_KEY" });
+    onboardingDraftStore.trigger.apiKeyEntered({ apiKey: "sk-super-secret" });
+
+    onboardingDraftStore.trigger.runtimeSelected({
+      provider: "codex",
+      model: "gpt-5.6-sol",
+      reasoning: "",
+    });
+
+    expect(draft()).toMatchObject({
+      provider: "codex",
+      model: "gpt-5.6-sol",
+      authModeTouched: false,
+      envVar: "",
+      apiKey: "",
+    });
   });
 
-  it("never persists the API key to local storage", () => {
-    useOnboardingDraftStore.getState().patch({ apiKey: "sk-super-secret", provider: "claude" });
-    const persisted = persistedState();
-    expect(persisted.provider).toBe("claude");
-    expect(persisted.apiKey).toBe("");
-    expect(useOnboardingDraftStore.getState().apiKey).toBe("sk-super-secret");
+  it("keeps API keys in memory and out of persisted drafts", () => {
+    onboardingDraftStore.trigger.runtimeSelected({
+      provider: "claude",
+      model: "opus",
+      reasoning: "",
+    });
+    onboardingDraftStore.trigger.apiKeyEntered({ apiKey: "sk-super-secret" });
+
+    expect(draft().apiKey).toBe("sk-super-secret");
+    expect(persistedContext().provider).toBe("claude");
+    expect(persistedContext()).not.toHaveProperty("apiKey");
+    expect(window.localStorage.getItem(ONBOARDING_DRAFT_STORAGE_KEY)).not.toContain(
+      "sk-super-secret"
+    );
   });
 
-  it("persists whether the operator has overridden the harness auth default", () => {
-    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+  it("round-trips a v5 draft without restoring a memory-only API key", async () => {
+    onboardingDraftStore.trigger.stepVisited({ step: 2 });
+    onboardingDraftStore.trigger.runtimeSelected({
+      provider: "claude",
+      model: "opus",
+      reasoning: "high",
+    });
+    onboardingDraftStore.trigger.authModeChosen({ authMode: "bound_secret" });
+    onboardingDraftStore.trigger.envVarEntered({ envVar: "ANTHROPIC_API_KEY" });
+    onboardingDraftStore.trigger.apiKeyEntered({ apiKey: "sk-super-secret" });
+    onboardingDraftStore.trigger.workspaceDraftAdded({
+      workspace: { path: "/workspace", name: "workspace", workspaceId: "ws_main" },
+    });
+    const persistedDraft = window.localStorage.getItem(ONBOARDING_DRAFT_STORAGE_KEY);
 
-    useOnboardingDraftStore.getState().patch({ authMode: "bound_secret", authModeTouched: true });
+    onboardingDraftStore.trigger.draftCleared();
+    window.localStorage.setItem(ONBOARDING_DRAFT_STORAGE_KEY, persistedDraft ?? "");
+    await rehydrateStore(onboardingDraftStore);
 
-    expect(persistedState().authModeTouched).toBe(true);
-    expect(persistedState().authMode).toBe("bound_secret");
-  });
-
-  it("resets to the initial draft", () => {
-    const store = useOnboardingDraftStore.getState();
-    store.patch({ provider: "claude", model: "opus", apiKey: "x", authModeTouched: true });
-    store.addWorkspace({ path: "/a", name: "a" });
-    store.reset();
-    const state = useOnboardingDraftStore.getState();
-    expect(state.provider).toBe("");
-    expect(state.model).toBe("");
-    expect(state.apiKey).toBe("");
-    expect(state.authMode).toBe("native_cli");
-    expect(state.authModeTouched).toBe(false);
-    expect(state.workspaces).toEqual([]);
-    expect(state.step).toBe(1);
+    expect(draft()).toMatchObject({
+      step: 2,
+      maxStep: 2,
+      provider: "claude",
+      model: "opus",
+      reasoning: "high",
+      authMode: "bound_secret",
+      authModeTouched: true,
+      envVar: "ANTHROPIC_API_KEY",
+      apiKey: "",
+      workspaces: [{ path: "/workspace", name: "workspace", workspaceId: "ws_main" }],
+    });
   });
 });

@@ -23,3 +23,7 @@ qa-impact: 2026-07-22 replaced storage-limit settings with validated behavior de
 QA impact 2026-07-25 (deep-review remediation): ratio-track controls now keep stable semantic
 identity and layout JSON export removes its temporary anchor after download. Flag only; the next QA
 cycle owns direct-manipulation and import/export retesting.
+
+QA impact 2026-07-26: layout-profile save/delete now mints and settles operation identities in the
+store, preserves stale-version errors, and blocks delete confirmation dismissal while a write is
+accepted. Status remains untested; no QA replay ran.

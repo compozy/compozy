@@ -256,7 +256,7 @@ export function OsSessionsModal({
   sessions,
   disconnected,
 }: OsSessionsModalProps) {
-  const { coordinator, store, collapsedAgentIds } = useOsSessionsModal();
+  const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
@@ -286,7 +286,7 @@ export function OsSessionsModal({
           sessions={sessions}
           disconnected={disconnected}
           collapsedAgentIds={collapsedAgentIds}
-          onToggleGroup={agentName => store.getState().toggleRailGroup(agentName)}
+          onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
           onSelectSession={selectSession}
           onClose={() => onOpenChange(false)}
         />

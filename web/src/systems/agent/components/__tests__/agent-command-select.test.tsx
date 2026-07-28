@@ -18,7 +18,7 @@ function makeAgent(overrides: Partial<AgentPayload> & { name: string }): AgentPa
 describe("AgentCommandSelect", () => {
   it("Should render the trigger with the selected agent's name and provider", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer", provider: "claude" })]}
           value="writer"
@@ -34,7 +34,7 @@ describe("AgentCommandSelect", () => {
 
   it("Should display the formatted category label in the trigger when an agent has category_path", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] })]}
           value="deals"
@@ -50,7 +50,7 @@ describe("AgentCommandSelect", () => {
 
   it("Should show placeholder text when no agent is selected", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer" })]}
           value={null}
@@ -67,7 +67,7 @@ describe("AgentCommandSelect", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[
             makeAgent({ name: "writer" }),
@@ -88,7 +88,7 @@ describe("AgentCommandSelect", () => {
   it("Should group results by formatted category label and put root-level agents under Agents", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[
             makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] }),
@@ -110,7 +110,7 @@ describe("AgentCommandSelect", () => {
   it("Should filter results via keyboard search", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer" }), makeAgent({ name: "coder" })]}
           value={null}
@@ -129,7 +129,7 @@ describe("AgentCommandSelect", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer" })]}
           value="writer"
@@ -146,7 +146,7 @@ describe("AgentCommandSelect", () => {
 
   it("Should show the clear label on the trigger when nothing is selected", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer" })]}
           value={null}
@@ -161,7 +161,7 @@ describe("AgentCommandSelect", () => {
 
   it("Should keep an out-of-catalog value visible instead of collapsing it into the placeholder", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "writer" })]}
           value="ghost"
@@ -179,7 +179,7 @@ describe("AgentCommandSelect", () => {
   it("Should use tokenized metadata classes for provider and category labels in the list", async () => {
     const user = userEvent.setup();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <AgentCommandSelect
           agents={[makeAgent({ name: "deals", category_path: ["Marketing", "Sales"] })]}
           value={null}

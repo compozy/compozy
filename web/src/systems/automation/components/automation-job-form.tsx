@@ -39,6 +39,7 @@ import { TaskRunStep } from "./job-form/task-run-step";
 
 interface AutomationJobFormProps {
   activeWorkspaceId?: string | null;
+  userHomeDir: string | undefined;
   draft: CreateAutomationJobRequest;
   isPending: boolean;
   mode: "create" | "edit";
@@ -139,6 +140,7 @@ function reliabilityBadge(
 
 export function AutomationJobForm({
   activeWorkspaceId,
+  userHomeDir,
   draft,
   isPending,
   mode,
@@ -182,6 +184,7 @@ export function AutomationJobForm({
             onWorkspaceChange={form.onWorkspaceChange}
             scope={draft.scope}
             testIdPrefix="job"
+            userHomeDir={userHomeDir}
             workspaceId={draft.workspace_id}
             workspaces={form.resolvedWorkspaces}
           />

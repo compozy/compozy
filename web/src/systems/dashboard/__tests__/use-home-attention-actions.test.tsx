@@ -10,6 +10,9 @@ interface Deferred {
 }
 
 const deferreds = new Map<string, Deferred>();
+const mutationCalls = new Map<string, number>();
+const approveExecutorVersions: number[] = [];
+let latestApproveExecutorVersion = 0;
 
 function makeDeferred(id: string): Promise<void> {
   let resolve!: () => void;
@@ -24,16 +27,31 @@ function makeDeferred(id: string): Promise<void> {
 
 function mutationStub() {
   return {
-    mutateAsync: (vars: { id?: string; runId?: string }) =>
-      makeDeferred(vars.id ?? vars.runId ?? ""),
+    mutateAsync: (vars: { id?: string; runId?: string }) => {
+      const id = vars.id ?? vars.runId ?? "";
+      mutationCalls.set(id, (mutationCalls.get(id) ?? 0) + 1);
+      return makeDeferred(id);
+    },
   };
+}
+
+function approveMutationStub() {
+  const version = latestApproveExecutorVersion + 1;
+  latestApproveExecutorVersion = version;
+  const execute = (vars: { id?: string; runId?: string }) => {
+    approveExecutorVersions.push(version);
+    const id = vars.id ?? vars.runId ?? "";
+    mutationCalls.set(id, (mutationCalls.get(id) ?? 0) + 1);
+    return makeDeferred(id);
+  };
+  return { mutateAsync: execute };
 }
 
 vi.mock("@/systems/tasks", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/tasks")>();
   return {
     ...actual,
-    useApproveTask: (() => mutationStub()) as unknown as typeof actual.useApproveTask,
+    useApproveTask: (() => approveMutationStub()) as unknown as typeof actual.useApproveTask,
     useRejectTask: (() => mutationStub()) as unknown as typeof actual.useRejectTask,
     useRetryTaskRun: (() => mutationStub()) as unknown as typeof actual.useRetryTaskRun,
   };
@@ -43,6 +61,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 import { toast } from "sonner";
 
+import { createHomeAttentionActionsLogic } from "../hooks/home-attention-actions-store";
 import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
 
 function wrapper() {
@@ -55,6 +74,9 @@ function wrapper() {
 describe("useHomeAttentionActions", () => {
   beforeEach(() => {
     deferreds.clear();
+    mutationCalls.clear();
+    approveExecutorVersions.length = 0;
+    latestApproveExecutorVersion = 0;
     vi.mocked(toast.error).mockClear();
   });
 
@@ -76,12 +98,68 @@ describe("useHomeAttentionActions", () => {
       expect(result.current.pendingIds.has("task-b")).toBe(false);
     });
     expect(result.current.pendingIds.has("task-a")).toBe(true);
+    expect(result.current.resolvedById).toEqual({ "task-b": "rejected" });
 
     deferreds.get("task-a")?.resolve();
     await waitFor(() => {
       expect(result.current.pendingIds.has("task-a")).toBe(false);
     });
     expect(result.current.pendingIds.size).toBe(0);
+  });
+
+  it("Should reject stale settlements and execute one same-tick request per row", () => {
+    const approve = vi.fn(() => new Promise<never>(() => undefined));
+    const store = createHomeAttentionActionsLogic().createStore();
+    const refreshOverview = vi.fn().mockResolvedValue(undefined);
+    store.trigger.approveRequested({
+      id: "task-a",
+      execute: approve,
+      refreshOverview,
+    });
+    const firstRequest = store.getSnapshot().context.operations["task-a"];
+    if (!firstRequest) throw new Error("expected first request");
+    store.trigger.approveRequested({
+      id: "task-a",
+      execute: approve,
+      refreshOverview,
+    });
+
+    expect(approve).toHaveBeenCalledOnce();
+    expect(store.getSnapshot().context.nextRequestId).toBe(1);
+
+    const [snapshot] = store.transition(store.getSnapshot(), {
+      type: "rowResolved",
+      id: "task-a",
+      kind: "approved",
+      refreshOverview,
+      requestId: firstRequest.requestId - 1,
+    });
+
+    expect(snapshot.context.operations["task-a"]).toMatchObject({
+      requestId: 1,
+      status: "pending",
+    });
+  });
+
+  it("Should execute the mutation callback from the render that issues the intent", () => {
+    const { result, rerender } = renderHook(() => useHomeAttentionActions(), {
+      wrapper: wrapper(),
+    });
+    rerender();
+    act(() => result.current.onApprove("task-current"));
+
+    expect(approveExecutorVersions).toEqual([2]);
+  });
+
+  it("Should execute one mutation for duplicate same-tick hook intents", () => {
+    const { result } = renderHook(() => useHomeAttentionActions(), { wrapper: wrapper() });
+
+    act(() => {
+      result.current.onApprove("task-a");
+      result.current.onApprove("task-a");
+    });
+
+    expect(mutationCalls.get("task-a")).toBe(1);
   });
 
   it("Should report an approval failure without resolving the row and clear only its pending id", async () => {
@@ -104,5 +182,20 @@ describe("useHomeAttentionActions", () => {
       expect(result.current.pendingIds.has("task-a")).toBe(false);
     });
     expect(result.current.resolvedById).toEqual({});
+  });
+
+  it("Should report an accepted approval failure after the owning component unmounts", async () => {
+    const { result, unmount } = renderHook(() => useHomeAttentionActions(), { wrapper: wrapper() });
+
+    act(() => result.current.onApprove("task-unmounted"));
+    const deferred = deferreds.get("task-unmounted");
+    if (!deferred) throw new Error("expected the approval mutation to be pending");
+
+    unmount();
+    deferred.reject(new Error("Approval failed after leaving Home"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Approval failed after leaving Home");
+    });
   });
 });

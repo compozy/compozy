@@ -164,5 +164,9 @@ describe("LayoutReviewBar", () => {
     expect(apiMocks.preview).not.toHaveBeenCalled();
     expect(screen.getByTestId("layout-review-apply")).toBeDisabled();
     expect(screen.getByTestId("layout-review-status")).toHaveTextContent("1 problem to fix");
+
+    fireEvent.click(screen.getByTestId("edit-desktop"));
+    expect(screen.queryByText("topology.group_overlap")).not.toBeInTheDocument();
+    expect(screen.getByTestId("layout-review-apply")).toBeDisabled();
   });
 });

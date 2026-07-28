@@ -65,13 +65,13 @@ vi.mock("@/systems/settings", () => ({
   usePutSettingsProvider: () => mockPutProvider,
 }));
 
-import { useOnboardingDraftStore } from "../../stores/use-onboarding-draft-store";
+import { onboardingDraftStore } from "../../stores/use-onboarding-draft-store";
 import { useOnboardingDefaultModel } from "../use-onboarding-default-model";
 
 describe("useOnboardingDefaultModel", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useOnboardingDraftStore.getState().reset();
+    onboardingDraftStore.trigger.draftCleared();
     mockPutProvider.mutateAsync.mockReset().mockResolvedValue(undefined);
     mockUpdateGeneral.mutateAsync.mockReset().mockResolvedValue(undefined);
     mockCatalogRefresh.mockReset();
@@ -88,9 +88,11 @@ describe("useOnboardingDefaultModel", () => {
 
   it("Should reflect the draft store as the runtime value and provider rail", () => {
     act(() =>
-      useOnboardingDraftStore
-        .getState()
-        .patch({ provider: "claude", model: "claude-opus-4-8", reasoning: "high" })
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "claude",
+        model: "claude-opus-4-8",
+        reasoning: "high",
+      })
     );
     const { result } = renderHook(() => useOnboardingDefaultModel());
 
@@ -103,15 +105,18 @@ describe("useOnboardingDefaultModel", () => {
       "claude",
       "codex",
     ]);
-    expect(result.current.catalogLoaded).toBe(true);
   });
 
   it("Should patch provider/model/reasoning and clear secrets when the provider changes", () => {
-    act(() =>
-      useOnboardingDraftStore
-        .getState()
-        .patch({ provider: "claude", envVar: "OLD", apiKey: "sk-old" })
-    );
+    act(() => {
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "claude",
+        model: "",
+        reasoning: "",
+      });
+      onboardingDraftStore.trigger.envVarEntered({ envVar: "OLD" });
+      onboardingDraftStore.trigger.apiKeyEntered({ apiKey: "sk-old" });
+    });
     const { result } = renderHook(() => useOnboardingDefaultModel());
 
     act(() =>
@@ -122,7 +127,7 @@ describe("useOnboardingDefaultModel", () => {
       })
     );
 
-    const state = useOnboardingDraftStore.getState();
+    const state = onboardingDraftStore.getSnapshot().context;
     expect(state.provider).toBe("codex");
     expect(state.model).toBe("gpt-5.6-sol");
     expect(state.reasoning).toBe("high");
@@ -131,14 +136,14 @@ describe("useOnboardingDefaultModel", () => {
   });
 
   it("Should fold the selector's model and reasoning into the provider settings write on commit", async () => {
-    act(() =>
-      useOnboardingDraftStore.getState().patch({
+    act(() => {
+      onboardingDraftStore.trigger.runtimeSelected({
         provider: "claude",
         model: "claude-opus-4-8",
         reasoning: "xhigh",
-        authMode: "native_cli",
-      })
-    );
+      });
+      onboardingDraftStore.trigger.authModeChosen({ authMode: "native_cli" });
+    });
     const { result } = renderHook(() => useOnboardingDefaultModel());
 
     await act(async () => {
@@ -170,7 +175,13 @@ describe("useOnboardingDefaultModel", () => {
   });
 
   it("Should default the auth mode to the provider harness until the operator picks", () => {
-    act(() => useOnboardingDraftStore.getState().patch({ provider: "openrouter" }));
+    act(() =>
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "openrouter",
+        model: "",
+        reasoning: "",
+      })
+    );
     mockSettingsProvider.data = {
       settings: {
         display_name: "OpenRouter",
@@ -185,12 +196,18 @@ describe("useOnboardingDefaultModel", () => {
     expect(result.current.harness).toBe("pi_acp");
     expect(result.current.authMode).toBe("bound_secret");
     // Nothing was written to the draft — the mode is derived, not synced.
-    expect(useOnboardingDraftStore.getState().authMode).toBe("native_cli");
-    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+    expect(onboardingDraftStore.getSnapshot().context.authMode).toBe("native_cli");
+    expect(onboardingDraftStore.getSnapshot().context.authModeTouched).toBe(false);
   });
 
   it("Should keep the operator's auth choice over the harness default", () => {
-    act(() => useOnboardingDraftStore.getState().patch({ provider: "openrouter" }));
+    act(() =>
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "openrouter",
+        model: "",
+        reasoning: "",
+      })
+    );
     mockSettingsProvider.data = {
       settings: {
         display_name: "OpenRouter",
@@ -203,16 +220,19 @@ describe("useOnboardingDefaultModel", () => {
 
     act(() => result.current.onAuthModeChange("native_cli"));
 
-    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(true);
+    expect(onboardingDraftStore.getSnapshot().context.authModeTouched).toBe(true);
     expect(result.current.authMode).toBe("native_cli");
   });
 
   it("Should re-arm the harness default when the provider changes", () => {
-    act(() =>
-      useOnboardingDraftStore
-        .getState()
-        .patch({ provider: "claude", authMode: "bound_secret", authModeTouched: true })
-    );
+    act(() => {
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "claude",
+        model: "",
+        reasoning: "",
+      });
+      onboardingDraftStore.trigger.authModeChosen({ authMode: "bound_secret" });
+    });
     const { result } = renderHook(() => useOnboardingDefaultModel());
     expect(result.current.authMode).toBe("bound_secret");
 
@@ -224,16 +244,19 @@ describe("useOnboardingDefaultModel", () => {
       })
     );
 
-    expect(useOnboardingDraftStore.getState().authModeTouched).toBe(false);
+    expect(onboardingDraftStore.getSnapshot().context.authModeTouched).toBe(false);
     expect(result.current.authMode).toBe("native_cli");
   });
 
   it("Should commit the harness-derived mode when the operator never picked one", async () => {
-    act(() =>
-      useOnboardingDraftStore
-        .getState()
-        .patch({ provider: "openrouter", model: "grok-4", envVar: "OPENROUTER_API_KEY" })
-    );
+    act(() => {
+      onboardingDraftStore.trigger.runtimeSelected({
+        provider: "openrouter",
+        model: "grok-4",
+        reasoning: "",
+      });
+      onboardingDraftStore.trigger.envVarEntered({ envVar: "OPENROUTER_API_KEY" });
+    });
     mockSettingsProvider.data = {
       settings: {
         display_name: "OpenRouter",

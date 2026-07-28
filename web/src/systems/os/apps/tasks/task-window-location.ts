@@ -2,8 +2,10 @@ import {
   parseTasksSurfaceMode,
   validateTaskCreateSearch,
   validateTaskDetailSearch,
+  validateTasksSearch,
   type ResolvedTaskDetailSearch,
   type TaskCreateSearch,
+  type TasksRouteSearch,
   type TaskViewMode,
 } from "@/systems/tasks";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -14,7 +16,7 @@ import type { OsWindowRoute } from "../../lib/os-types";
  * background surface's own state.
  */
 export type TaskWindowLocation =
-  | { kind: "catalog"; mode: TaskViewMode }
+  | { kind: "catalog"; mode: TaskViewMode; search: TasksRouteSearch }
   | { kind: "create"; mode: TaskViewMode; search: TaskCreateSearch }
   | { kind: "detail"; taskId: string; search: ResolvedTaskDetailSearch }
   | { kind: "edit"; taskId: string; search: ResolvedTaskDetailSearch }
@@ -64,5 +66,6 @@ export function parseTaskWindowLocation(location: OsWindowRoute): TaskWindowLoca
     };
   }
 
-  return { kind: "catalog", mode: parseTasksSurfaceMode(location.search) };
+  const search = validateTasksSearch(location.search);
+  return { kind: "catalog", mode: parseTasksSurfaceMode(search), search };
 }

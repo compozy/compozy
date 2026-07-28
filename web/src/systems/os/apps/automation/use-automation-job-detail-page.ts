@@ -14,7 +14,11 @@ import {
 } from "@/systems/automation";
 import type { AutomationRun } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useUserHomeDir,
+} from "@/systems/workspace";
 
 import { automationUnavailableMessage } from "./use-automation-page-base";
 
@@ -22,6 +26,7 @@ import { automationUnavailableMessage } from "./use-automation-page-base";
 export function useAutomationJobDetailPage(jobId: string) {
   const navigate = useNavigate();
   const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
   const jobDetailQuery = useAutomationJob(jobId, { enabled: Boolean(jobId) });
@@ -61,6 +66,7 @@ export function useAutomationJobDetailPage(jobId: string) {
 
   const editor = useAutomationJobEditor({
     activeWorkspaceId,
+    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 

@@ -8,7 +8,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { statusFixture } from "@/systems/status/mocks/fixtures";
+import { statusFixture } from "@/systems/status/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/runtime/routes/Home",

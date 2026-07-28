@@ -17,7 +17,6 @@ import {
   createSession,
   deleteSession,
   fetchSession,
-  fetchSessionById,
   fetchSessionEvents,
   fetchSessionLedger,
   fetchSessionRecap,
@@ -292,23 +291,6 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
-  });
-});
-
-describe("fetchSessionById", () => {
-  it("returns a single SessionPayload from the direct session endpoint", async () => {
-    mockJsonResponse({ session: mockSession });
-
-    const result = await fetchSessionById("sess-001");
-
-    expect(result).toEqual(mockSession);
-    await expectFetchRequest({ path: "/api/sessions/sess-001" });
-  });
-
-  it("throws 404 error for an unknown direct session id", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
-
-    await expect(fetchSessionById("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });
 

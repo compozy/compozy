@@ -9,7 +9,6 @@ import type { TaskProfileEditor } from "../../hooks/use-profile-editor";
 import { TaskSetupSheet } from "../task-setup-sheet";
 
 const runtime = {
-  catalogLoaded: true,
   catalogLoading: false,
   catalogRefreshing: false,
   models: [],
@@ -20,6 +19,7 @@ const runtime = {
 
 function buildEditor(overrides: Partial<TaskProfileEditor> = {}): TaskProfileEditor {
   return {
+    error: null,
     open: false,
     setOpen: vi.fn(),
     setValue: vi.fn(),

@@ -11,9 +11,5 @@ export function SessionRuntimeRenderProvider({
   workspaceId,
 }: SessionRuntimeRenderContextValue & { children: ReactNode }) {
   const contextValue = { sessionId, workspaceId };
-  return (
-    <SessionRuntimeRenderContext.Provider value={contextValue}>
-      {children}
-    </SessionRuntimeRenderContext.Provider>
-  );
+  return <SessionRuntimeRenderContext value={contextValue}>{children}</SessionRuntimeRenderContext>;
 }

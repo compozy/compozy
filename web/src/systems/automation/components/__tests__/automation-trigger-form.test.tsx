@@ -66,6 +66,7 @@ function renderTriggerForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
+        userHomeDir={undefined}
         workspaces={workspaces}
       />
     );

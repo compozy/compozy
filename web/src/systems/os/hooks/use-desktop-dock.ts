@@ -1,4 +1,4 @@
-import { useShallow } from "zustand/shallow";
+import { shallowEqual } from "@xstate/store";
 
 import { dockBadgeFor } from "../components/dock-badges";
 import { DockIcons, type DockIconId } from "../components/os-dock-icons";
@@ -37,20 +37,18 @@ export function useDesktopDock(
   // appearance toggle here, the system reduced-motion preference inside
   // `useDockMagnify`, and compact presentation via the tab-bar branch.
   const magnify = useDesktop(state => state.dockMagnify && !state.reduceMotion);
-  const windowStates = useDesktop(
-    useShallow(state => {
-      const byApp: Record<string, "open" | "focused" | "minimized"> = {};
-      for (const win of Object.values(state.windows)) {
-        if (win.instanceKey !== null) continue;
-        byApp[win.app] = win.minimized
-          ? "minimized"
-          : state.focusedId === win.id
-            ? "focused"
-            : "open";
-      }
-      return byApp;
-    })
-  );
+  const windowStates = useDesktop(state => {
+    const byApp: Record<string, "open" | "focused" | "minimized"> = {};
+    for (const win of Object.values(state.windows)) {
+      if (win.instanceKey !== null) continue;
+      byApp[win.app] = win.minimized
+        ? "minimized"
+        : state.focusedId === win.id
+          ? "focused"
+          : "open";
+    }
+    return byApp;
+  }, shallowEqual);
 
   const groups = dockApps();
   const sessionApp = OS_APPS.session;

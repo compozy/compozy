@@ -18,20 +18,20 @@ const {
   isBypassableStorybookRequest,
   isStorybookLocalApiRequest,
   queryClientDecorator,
-  resetStorybookAppState,
   routerDecorator,
+  storybookAppStateLoader,
   storybookDecorators,
   storybookUnhandledRequest,
   storybookSystemHandlers,
 } = webPreviewModule;
 const { StorybookWorkspaceSetup } = await import("../route-story");
-const { useActiveWorkspaceStore } =
+const { activeWorkspaceStore, setActiveWorkspaceId } =
   await import("@/systems/workspace/hooks/use-active-workspace-store");
 
 afterEach(() => {
   cleanup();
   document.documentElement.className = "";
-  useActiveWorkspaceStore.getState().clearSelectedWorkspaceId();
+  setActiveWorkspaceId(null);
 });
 
 function QueryClientProbe() {
@@ -152,15 +152,17 @@ describe("web Storybook config", () => {
     expect(router.state.location.pathname).toBe("/settings/providers");
   });
 
-  it("Should reset app state and select the story workspace without browser-owned topology", async () => {
-    useActiveWorkspaceStore.getState().setSelectedWorkspaceId("workspace:stale");
-    resetStorybookAppState();
+  it("Should reset app state before rendering an app-route story", async () => {
+    setActiveWorkspaceId("workspace:stale");
+    storybookAppStateLoader({
+      parameters: { router: { kind: "app", initialEntries: ["/tasks"] } },
+    });
 
-    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeNull();
+    expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBeNull();
 
     render(createElement(StorybookWorkspaceSetup));
     await waitFor(() => {
-      expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeTruthy();
+      expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBeTruthy();
     });
   });
 

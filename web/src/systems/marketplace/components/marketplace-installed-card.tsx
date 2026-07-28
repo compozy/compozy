@@ -14,7 +14,7 @@ import {
   Spinner,
   Switch,
 } from "@compozy/ui";
-import { createElement, useState } from "react";
+import { createElement } from "react";
 
 import { deriveMCPManagementFilter } from "@/systems/settings";
 import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
@@ -23,6 +23,7 @@ import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-pag
 import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 import { marketplaceKindIcon } from "./marketplace-ui";
+import { useMarketplaceInstalledCardConfirmation } from "./use-marketplace-installed-card-confirmation";
 
 interface MarketplaceInstalledCardProps {
   item: MarketplaceInstalledItem;
@@ -49,9 +50,9 @@ function MarketplaceInstalledCard({
 }: MarketplaceInstalledCardProps) {
   const { entry } = item;
   const kind = entry.kind as "skill" | "extension" | "bundle" | "mcp";
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmPending, setConfirmPending] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const confirmation = useMarketplaceInstalledCardConfirmation(action =>
+    Promise.resolve(action === "deactivate" ? onDeactivate(item) : onRemove(item))
+  );
   const isBundle = kind === "bundle";
   const isMcp = kind === "mcp";
   const detailKind = kind === "bundle" ? "bundle" : kind;
@@ -72,19 +73,6 @@ function MarketplaceInstalledCard({
             }
           : {}),
       };
-
-  const handleConfirm = async () => {
-    setConfirmPending(true);
-    setConfirmError(null);
-    try {
-      if (isBundle) await onDeactivate(item);
-      else await onRemove(item);
-      setConfirmOpen(false);
-    } catch (error) {
-      setConfirmError(error instanceof Error ? error.message : "Action failed");
-    }
-    setConfirmPending(false);
-  };
 
   return (
     <>
@@ -226,8 +214,7 @@ function MarketplaceInstalledCard({
                   <DropdownMenuItem
                     className="text-danger"
                     onClick={() => {
-                      setConfirmError(null);
-                      setConfirmOpen(true);
+                      confirmation.openConfirmation(isBundle ? "deactivate" : "remove");
                     }}
                   >
                     {isBundle ? "Deactivate…" : "Remove…"}
@@ -251,17 +238,19 @@ function MarketplaceInstalledCard({
               ? "Removes the server from MCP config. Sessions can no longer reach its tools."
               : "Removes the installed files from this daemon. It stays available in the marketplace."
         }
-        error={confirmError}
-        isPending={confirmPending}
+        error={confirmation.error}
+        isPending={confirmation.isPending}
         note={
           isBundle
             ? `Agents, jobs, and triggers from the ${item.profileName ?? "selected"} profile stop receiving new work from this activation.`
             : `Type the ${kind} name to confirm.`
         }
         noteTone={isBundle ? "warning" : "neutral"}
-        onConfirm={handleConfirm}
-        onOpenChange={setConfirmOpen}
-        open={confirmOpen}
+        onConfirm={confirmation.confirm}
+        onOpenChange={open => {
+          if (!open) confirmation.cancel();
+        }}
+        open={confirmation.open}
         title={`${isBundle ? "Deactivate" : "Remove"} ${entry.name}`}
         tone="danger"
       />

@@ -7,8 +7,8 @@ import { useOsShell } from "./use-os-shell";
  * `useDesktopOverlays` (shell-level), not the desktop store.
  */
 export function useOsSessionsModal() {
-  const { coordinator, store } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const collapsedAgentIds = useDesktop(state => state.railCollapsedAgentIds);
 
-  return { coordinator, store, collapsedAgentIds };
+  return { coordinator, manager, collapsedAgentIds };
 }

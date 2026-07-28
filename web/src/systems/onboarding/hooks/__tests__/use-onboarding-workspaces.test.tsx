@@ -3,13 +3,14 @@
 // Boundary IN: onboarding workspace hook and persisted draft store.
 // Boundary OUT: workspace HTTP adapters and browser journey replay.
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { rehydrateStore } from "@xstate/store/persist";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import {
   ONBOARDING_DRAFT_STORAGE_KEY,
-  useOnboardingDraftStore,
+  onboardingDraftStore,
 } from "../../stores/use-onboarding-draft-store";
 import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
 
@@ -75,7 +76,7 @@ describe("useOnboardingWorkspaces", () => {
     mocks.registeredWorkspaces = [];
     mocks.workspacesIsLoading = false;
     mocks.workspacesError = null;
-    useOnboardingDraftStore.getState().reset();
+    onboardingDraftStore.trigger.draftCleared();
   });
 
   it("hydrates an empty onboarding draft from daemon-registered workspaces", async () => {
@@ -96,7 +97,7 @@ describe("useOnboardingWorkspaces", () => {
         { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
       ]);
     });
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([
       { path: "/Users/operator", name: "operator", workspaceId: "ws_home" },
       { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
     ]);
@@ -104,9 +105,9 @@ describe("useOnboardingWorkspaces", () => {
 
   it("does not overwrite an existing onboarding draft with daemon workspaces", async () => {
     act(() => {
-      useOnboardingDraftStore
-        .getState()
-        .addWorkspace({ path: "/Users/operator/manual", name: "manual" });
+      onboardingDraftStore.trigger.workspaceDraftAdded({
+        workspace: { path: "/Users/operator/manual", name: "manual" },
+      });
     });
     mocks.registeredWorkspaces = [workspace()];
 
@@ -117,7 +118,7 @@ describe("useOnboardingWorkspaces", () => {
         { path: "/Users/operator/manual", name: "manual" },
       ]);
     });
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([
       { path: "/Users/operator/manual", name: "manual" },
     ]);
   });
@@ -130,10 +131,10 @@ describe("useOnboardingWorkspaces", () => {
     };
     window.localStorage.setItem(
       ONBOARDING_DRAFT_STORAGE_KEY,
-      JSON.stringify({ state: { workspaces: [currentWorkspace] }, version: 0 })
+      JSON.stringify({ context: { workspaces: [currentWorkspace] }, version: 0 })
     );
     await act(async () => {
-      await useOnboardingDraftStore.persist.rehydrate();
+      await rehydrateStore(onboardingDraftStore);
     });
     mocks.registeredWorkspaces = undefined;
     mocks.workspacesIsLoading = true;
@@ -147,7 +148,7 @@ describe("useOnboardingWorkspaces", () => {
     });
 
     expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([currentWorkspace]);
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([currentWorkspace]);
   });
 
   it("exposes catalog failure separately and allows an explicit retry", async () => {
@@ -174,10 +175,10 @@ describe("useOnboardingWorkspaces", () => {
     };
     window.localStorage.setItem(
       ONBOARDING_DRAFT_STORAGE_KEY,
-      JSON.stringify({ state: { workspaces: [staleWorkspace] }, version: 0 })
+      JSON.stringify({ context: { workspaces: [staleWorkspace] }, version: 0 })
     );
     await act(async () => {
-      await useOnboardingDraftStore.persist.rehydrate();
+      await rehydrateStore(onboardingDraftStore);
     });
     mocks.deleteWorkspace.mockRejectedValue(
       new Error(
@@ -193,7 +194,7 @@ describe("useOnboardingWorkspaces", () => {
 
     expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
     expect(result.current.resolveError).toBeNull();
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([]);
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
   });
 
   it("deletes the registered workspace before removing a resolved folder from the draft", async () => {
@@ -225,15 +226,38 @@ describe("useOnboardingWorkspaces", () => {
     });
 
     expect(mocks.deleteWorkspace).toHaveBeenCalledWith("ws_project");
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([]);
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
+  });
+
+  it("does not resurrect deleted drafts from a still-warm workspace catalog", async () => {
+    const registeredWorkspace = workspace({
+      id: "ws_project",
+      root_dir: "/Users/operator/project",
+      name: "project",
+    });
+    mocks.registeredWorkspaces = [registeredWorkspace];
+    mocks.deleteWorkspace.mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
+    await waitFor(() => expect(result.current.workspaces).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.removeWorkspace(registeredWorkspace.root_dir);
+    });
+    rerender();
+
+    expect(mocks.registeredWorkspaces).toEqual([registeredWorkspace]);
+    expect(result.current.workspaces).toEqual([]);
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([]);
   });
 
   it("keeps the folder in the draft when removing its registered workspace fails", async () => {
     act(() => {
-      useOnboardingDraftStore.getState().addWorkspace({
-        path: "/Users/operator/project",
-        name: "project",
-        workspaceId: "ws_project",
+      onboardingDraftStore.trigger.workspaceDraftAdded({
+        workspace: {
+          path: "/Users/operator/project",
+          name: "project",
+          workspaceId: "ws_project",
+        },
       });
     });
     mocks.registeredWorkspaces = [
@@ -253,7 +277,7 @@ describe("useOnboardingWorkspaces", () => {
 
     expect(mocks.deleteWorkspace).toHaveBeenCalledWith("ws_project");
     expect(result.current.resolveError).toBe("workspace has active sessions");
-    expect(useOnboardingDraftStore.getState().workspaces).toEqual([
+    expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([
       { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
     ]);
   });

@@ -2,7 +2,7 @@
 // Invariant: overview entry focuses the nearest requested hidden desktop, each management action emits
 // one semantic callback, and async states stay recoverable.
 // Boundary IN: DesktopsOverview state rendering, local forms, accessibility, and callback payloads.
-// Boundary OUT: TanStack Query snapshots, Zustand coordination, mutations, revisions, and persistence.
+// Boundary OUT: TanStack Query snapshots, window-manager coordination, mutations, revisions, and persistence.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";

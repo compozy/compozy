@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useTaskInbox, useTaskInboxBadge } from "./use-task-inbox";
 import { useTasks } from "./use-tasks";
@@ -15,20 +15,34 @@ import { groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
 import type { InboxLaneFilterId } from "@/systems/tasks/lib/inbox-grouping";
 import { taskStatusCountsFromFacets } from "@/systems/tasks/lib/task-list-query";
-import type { TaskFilterOwnerOption } from "@/systems/tasks/lib/tasks-list-filters";
+import {
+  taskOwnerFilterFromValue,
+  taskOwnerFilterValue,
+  type TaskFilterOwnerOption,
+} from "@/systems/tasks/lib/tasks-list-filters";
 import { useDaemonStatus } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "../lib/task-catalog-filter";
+import {
+  taskInboxFilterFromRouteSearch,
+  taskListFilterFromRouteSearch,
+} from "../lib/task-catalog-filter";
+import {
+  parseTasksSurfaceMode,
+  validateTasksSearch,
+  type TasksRouteSearch,
+} from "../lib/task-location-search";
 import { useTasksDashboardPage } from "./use-tasks-dashboard-page";
 import { useTasksPageActions } from "./use-tasks-page-actions";
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
 
 type InboxLaneFilter = InboxLaneFilterId;
+const SEARCH_DEBOUNCE_MS = 200;
 
 interface UseTasksPageOptions {
-  /** Surface mode, controlled by the route's `mode` search param. */
-  mode?: TaskViewMode;
+  /** Validated URL state. The route is the sole owner of catalog filters. */
+  search?: TasksRouteSearch;
+  onSearchChange?: (update: (current: TasksRouteSearch) => TasksRouteSearch) => void;
   forceListData?: boolean;
 }
 
@@ -49,19 +63,81 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const daemonStatus = useDaemonStatus();
   const { activeWorkspace } = workspace;
   const userHomeDir = daemonStatus.data?.user_home_dir;
-  const mode: TaskViewMode = options.mode ?? "list";
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
-  const [ownerFilter, setOwnerFilter] = useState<TaskFilterOwnerOption | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
-  const [sortBy, setSortBy] = useState<TaskListSortKey>("recent");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [inboxLaneFilter, setInboxLaneFilter] = useState<InboxLaneFilter>("all");
-  const [inboxStatusFilter, setInboxStatusFilter] = useState<TaskStatus | null>(null);
-  const [inboxPriorityFilter, setInboxPriorityFilter] = useState<TaskPriority | null>(null);
-  const [inboxUnreadOnly, setInboxUnreadOnly] = useState(false);
-  const [inboxSearchQuery, setInboxSearchQuery] = useState("");
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-  const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
+  const routeSearch = options.search ?? {};
+  const mode: TaskViewMode = parseTasksSurfaceMode(routeSearch);
+  const statusFilter = routeSearch.status ?? null;
+  const ownerFilter = taskOwnerFilterFromValue(routeSearch.owner);
+  const priorityFilter = routeSearch.priority ?? null;
+  const sortBy = routeSearch.sort ?? "recent";
+  const routeSearchQuery = routeSearch.query ?? "";
+  const inboxLaneFilter = routeSearch.inboxLane ?? "all";
+  const inboxStatusFilter = routeSearch.inboxStatus ?? null;
+  const inboxPriorityFilter = routeSearch.inboxPriority ?? null;
+  const inboxUnreadOnly = routeSearch.inboxUnread === true;
+  const routeInboxSearchQuery = routeSearch.inboxQuery ?? "";
+  const [searchDraft, setSearchDraft] = useState({
+    routeValue: routeSearchQuery,
+    value: routeSearchQuery,
+  });
+  const [inboxSearchDraft, setInboxSearchDraft] = useState({
+    routeValue: routeInboxSearchQuery,
+    value: routeInboxSearchQuery,
+  });
+  const searchQuery =
+    searchDraft.routeValue === routeSearchQuery ? searchDraft.value : routeSearchQuery;
+  const inboxSearchQuery =
+    inboxSearchDraft.routeValue === routeInboxSearchQuery
+      ? inboxSearchDraft.value
+      : routeInboxSearchQuery;
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inboxSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateSearch = (patch: Partial<TasksRouteSearch>) => {
+    options.onSearchChange?.(current =>
+      validateTasksSearch({
+        ...current,
+        ...patch,
+      })
+    );
+  };
+
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      if (inboxSearchDebounceRef.current) clearTimeout(inboxSearchDebounceRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+  }, [routeSearchQuery]);
+
+  useEffect(() => {
+    if (inboxSearchDebounceRef.current) {
+      clearTimeout(inboxSearchDebounceRef.current);
+      inboxSearchDebounceRef.current = null;
+    }
+  }, [routeInboxSearchQuery]);
+
+  const setSearchQuery = (query: string) => {
+    setSearchDraft({ routeValue: routeSearchQuery, value: query });
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
+      updateSearch({ query: query.trim() ? query : undefined });
+    }, SEARCH_DEBOUNCE_MS);
+  };
+
+  const setInboxSearchQuery = (query: string) => {
+    setInboxSearchDraft({ routeValue: routeInboxSearchQuery, value: query });
+    if (inboxSearchDebounceRef.current) clearTimeout(inboxSearchDebounceRef.current);
+    inboxSearchDebounceRef.current = setTimeout(() => {
+      inboxSearchDebounceRef.current = null;
+      updateSearch({ inboxQuery: query.trim() ? query : undefined });
+    }, SEARCH_DEBOUNCE_MS);
+  };
 
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const hasActiveTaskScope = activeTaskScope !== null;
@@ -79,31 +155,22 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     scopeSourceError,
     userHomeDir
   );
-  const listFilters: TaskListFilter = {
-    ...(activeTaskScope ? defaultTaskCatalogFilter(activeTaskScope) : {}),
-    status: statusFilter ?? undefined,
-    priority: priorityFilter ?? undefined,
-    include_drafts: true,
-    owner_kind: ownerFilter?.kind,
-    owner_ref: ownerFilter?.ref,
-    query: deferredSearchQuery.trim() || undefined,
-    sort: sortBy,
-    limit: DEFAULT_TASK_LIST_LIMIT,
-  };
+  const listFilters: TaskListFilter = activeTaskScope
+    ? taskListFilterFromRouteSearch(activeTaskScope, {
+        ...routeSearch,
+        query: routeSearchQuery || undefined,
+      })
+    : {};
   const dashboardFilters: TaskDashboardFilter = {
     scope: activeTaskScope?.scope,
     workspace: activeTaskScope?.workspace,
   };
-  const inboxFilters: TaskInboxFilter = {
-    scope: activeTaskScope?.scope,
-    workspace: activeTaskScope?.workspace,
-    lane: inboxLaneFilter === "all" ? undefined : inboxLaneFilter,
-    status: inboxStatusFilter ?? undefined,
-    priority: inboxPriorityFilter ?? undefined,
-    unread: inboxUnreadOnly ? true : undefined,
-    query: deferredInboxQuery.trim() || undefined,
-    limit: DEFAULT_TASK_LIST_LIMIT,
-  };
+  const inboxFilters: TaskInboxFilter = activeTaskScope
+    ? taskInboxFilterFromRouteSearch(activeTaskScope, {
+        ...routeSearch,
+        inboxQuery: routeInboxSearchQuery || undefined,
+      })
+    : {};
   const inboxBadgeFilters: TaskInboxFilter = {
     scope: activeTaskScope?.scope,
     workspace: activeTaskScope?.workspace,
@@ -155,7 +222,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   };
 
   const hasListFilters = Boolean(
-    statusFilter || ownerFilter || priorityFilter || deferredSearchQuery.trim()
+    statusFilter || ownerFilter || priorityFilter || routeSearchQuery.trim()
   );
   const isEmpty =
     hasActiveTaskScope &&
@@ -173,14 +240,22 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     dashboardError: scopeError ?? dashboard.dashboardError,
     dashboardLoading: scopeLoading || dashboard.dashboardLoading,
     effectiveSelectedTaskId,
-    handleInboxLaneChange: setInboxLaneFilter,
-    handleInboxPriorityChange: setInboxPriorityFilter,
-    handleInboxStatusChange: setInboxStatusFilter,
-    handleInboxUnreadToggle: setInboxUnreadOnly,
-    handleOwnerChange: setOwnerFilter,
-    handlePriorityChange: setPriorityFilter,
-    handleSortChange: setSortBy,
-    handleStatusChange: setStatusFilter,
+    handleInboxLaneChange: (lane: InboxLaneFilter) =>
+      updateSearch({ inboxLane: lane === "all" ? undefined : lane }),
+    handleInboxPriorityChange: (priority: TaskPriority | null) =>
+      updateSearch({ inboxPriority: priority ?? undefined }),
+    handleInboxStatusChange: (status: TaskStatus | null) =>
+      updateSearch({ inboxStatus: status ?? undefined }),
+    handleInboxUnreadToggle: (unreadOnly: boolean) =>
+      updateSearch({ inboxUnread: unreadOnly ? true : undefined }),
+    handleOwnerChange: (owner: TaskFilterOwnerOption | null) =>
+      updateSearch({ owner: owner ? taskOwnerFilterValue(owner) : undefined }),
+    handlePriorityChange: (priority: TaskPriority | null) =>
+      updateSearch({ priority: priority ?? undefined }),
+    handleSortChange: (sort: TaskListSortKey) =>
+      updateSearch({ sort: sort === "recent" ? undefined : sort }),
+    handleStatusChange: (status: TaskStatus | null) =>
+      updateSearch({ status: status ?? undefined }),
     hasMoreInbox: inboxQuery.hasNextPage,
     hasMoreTasks: tasksQuery.hasNextPage,
     inbox: inboxQuery.data ?? null,

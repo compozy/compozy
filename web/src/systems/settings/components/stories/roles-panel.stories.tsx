@@ -57,7 +57,6 @@ function runtimeOptions(overrides: Partial<RolesRuntimeOptions> = {}): RolesRunt
     models: modelFixtures,
     agents: [],
     loading: false,
-    catalogLoaded: true,
     catalogError: null,
     catalogStale: false,
     refresh: fn(),

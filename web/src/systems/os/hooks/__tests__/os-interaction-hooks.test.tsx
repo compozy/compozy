@@ -24,6 +24,7 @@ import { useOsWindowCommands } from "../use-os-window-commands";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
+import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
@@ -114,29 +115,9 @@ function createShell({ live = true, withPeer = true } = {}) {
     hydration: "live",
     connectionStatus: live ? "connected" : "disconnected",
     desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
-    openOrFocus: vi.fn(target => ({
-      windowId: `app:${target.app}`,
-      ...acceptedOutcome(),
-    })),
-    closeWindow: vi.fn(async () => true),
-    focusWindow: vi.fn(() => acceptedOutcome()),
-    minimizeWindow: vi.fn(async () => true),
-    restoreWindow: vi.fn(),
-    zoomWindow,
-    toggleFloating,
-    moveWindow: vi.fn(),
-    arrangeLayout,
-    commitFloatingRect: vi.fn(() => acceptedOutcome()),
-    resizeLayout: vi.fn(),
-    balanceLayout: vi.fn(),
-    navigateWindow: vi.fn(() => acceptedOutcome()),
-    toggleRailGroup: vi.fn(),
-    setWallpaper: vi.fn(),
-    setDockMagnify: vi.fn(),
-    setReduceMotion: vi.fn(),
-    setDesktopBounds: vi.fn(),
   };
   let currentState = state;
+  const projection = createWindowManagerProjectionAtom(state);
   const listeners = new Set<Parameters<WindowManagerController["subscribe"]>[0]>();
   const controller: WindowManagerController = {
     getState: () => currentState,
@@ -150,6 +131,24 @@ function createShell({ live = true, withPeer = true } = {}) {
     setClient: vi.fn(),
     setConnectionStatus: vi.fn(),
     setLoadError: vi.fn(),
+    openOrFocus: vi.fn(target => ({ windowId: `app:${target.app}`, ...acceptedOutcome() })),
+    closeWindow: vi.fn(async () => true),
+    focusWindow: vi.fn(() => acceptedOutcome()),
+    minimizeWindow: vi.fn(async () => true),
+    restoreWindow: vi.fn(),
+    zoomWindow,
+    toggleFloating,
+    moveWindow: vi.fn(() => acceptedOutcome()),
+    arrangeLayout,
+    commitFloatingRect: vi.fn(() => acceptedOutcome()),
+    resizeLayout: vi.fn(() => acceptedOutcome()),
+    balanceLayout: vi.fn(),
+    navigateWindow: vi.fn(() => acceptedOutcome()),
+    toggleRailGroup: vi.fn(),
+    setWallpaper: vi.fn(),
+    setDockMagnify: vi.fn(),
+    setReduceMotion: vi.fn(),
+    setDesktopBounds: vi.fn(),
     createDesktop: vi.fn(),
     renameDesktop: vi.fn(),
     reorderDesktop: vi.fn(),
@@ -170,7 +169,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     navigate: vi.fn(),
     replace: vi.fn(),
   });
-  const shell: OsShellHandle = { store: controller, manager: controller, coordinator };
+  const shell: OsShellHandle = { projection, manager: controller, coordinator };
   const wrapper = ({ children }: { children: ReactNode }) => (
     <OsShellContext.Provider value={shell}>{children}</OsShellContext.Provider>
   );
@@ -182,6 +181,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     setRuntimeState(patch: Partial<OsDesktopRuntimeStore>) {
       const previous = currentState;
       currentState = { ...currentState, ...patch };
+      projection.set(currentState);
       for (const listener of listeners) listener(currentState, previous);
     },
     wrapper,
@@ -190,8 +190,8 @@ function createShell({ live = true, withPeer = true } = {}) {
 
 afterEach(() => {
   act(() => {
-    windowManagerStore.getState().actions.clearGesture();
-    windowManagerStore.getState().actions.setWorkArea(null);
+    windowManagerStore.trigger.gestureCleared();
+    windowManagerStore.trigger.workAreaMeasured({ workArea: null });
   });
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -200,9 +200,10 @@ afterEach(() => {
 
 function beginPrimarySnapGesture(): void {
   const workArea = { x: 0, y: 0, w: 1280, h: 800 };
-  const actions = windowManagerStore.getState().actions;
-  actions.setWorkArea({ rect: workArea, origin: { x: 0, y: 0 } });
-  actions.beginGesture({
+  windowManagerStore.trigger.workAreaMeasured({
+    workArea: { rect: workArea, origin: { x: 0, y: 0 } },
+  });
+  windowManagerStore.trigger.gestureBegan({
     pointerId: 0,
     point: { x: 320, y: 200 },
     workArea,
@@ -304,7 +305,7 @@ describe("useOsWindow", () => {
   it("Should restore the current authoritative rect when a floating commit is rejected", async () => {
     const shell = createShell();
     const completion = Promise.resolve(false);
-    vi.mocked(shell.state.commitFloatingRect).mockReturnValue({ accepted: true, completion });
+    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
     beginPrimarySnapGesture();
     const { result } = renderHook(() => useOsWindow("window:primary"), {
       wrapper: shell.wrapper,
@@ -324,7 +325,7 @@ describe("useOsWindow", () => {
       await completion;
     });
 
-    expect(shell.state.commitFloatingRect).toHaveBeenCalledOnce();
+    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
     expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
@@ -353,7 +354,7 @@ describe("useOsWindow", () => {
       await Promise.resolve();
     });
 
-    expect(shell.state.commitFloatingRect).not.toHaveBeenCalled();
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
     expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
@@ -380,7 +381,7 @@ describe("useOsWindow", () => {
       await Promise.resolve();
     });
 
-    expect(shell.state.commitFloatingRect).not.toHaveBeenCalled();
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
     expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
@@ -515,7 +516,7 @@ describe("useOsZoomMenu", () => {
     expect(live.result.current.open).toBe(false);
 
     act(() => unavailable.result.current.dispatchFill());
-    expect(unavailableShell.state.zoomWindow).not.toHaveBeenCalled();
+    expect(unavailableShell.controller.zoomWindow).not.toHaveBeenCalled();
   });
 });
 
@@ -547,12 +548,12 @@ describe("useOsWinLayer", () => {
       devicePixelContentBoxSize: [],
     };
     callback([entry], observer);
-    vi.mocked(shell.state.setDesktopBounds).mockClear();
+    vi.mocked(shell.controller.setDesktopBounds).mockClear();
 
     rect = new DOMRect(24, 52, 1280, 700);
     window.dispatchEvent(new Event("orientationchange"));
 
-    expect(shell.state.setDesktopBounds).toHaveBeenCalledWith({
+    expect(shell.controller.setDesktopBounds).toHaveBeenCalledWith({
       width: 1280,
       height: 700,
       origin: { x: 24, y: 52 },
@@ -569,9 +570,9 @@ describe("useOsWindowCommands", () => {
     const actions = result.current.focusedWindowActions;
     if (actions === null) throw new Error("a focused live window must expose lifecycle actions");
     await act(async () => actions.close());
-    expect(shell.state.closeWindow).toHaveBeenCalledWith("window:primary");
+    expect(shell.controller.closeWindow).toHaveBeenCalledWith("window:primary");
     await act(async () => actions.minimize());
-    expect(shell.state.minimizeWindow).toHaveBeenCalledWith("window:primary");
+    expect(shell.controller.minimizeWindow).toHaveBeenCalledWith("window:primary");
     expect(actions.zoom).not.toBeNull();
     // The fixture window is already floating, so there is nothing to convert.
     expect(actions.makeFloating).toBeNull();

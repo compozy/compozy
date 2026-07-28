@@ -28,9 +28,13 @@ import {
   putSettingsProvider,
   SettingsApiError,
 } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsProviderCollection } from "@/systems/settings";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import type {
+  ProviderDraft,
+  SettingsMutationResult,
+  SettingsProviderCollection,
+} from "@/systems/settings";
+import { settingsProvidersInspectorLogic } from "../settings-providers-inspector-logic";
 import { useSettingsProvidersPage } from "../use-settings-providers-page";
 
 const claudeEntry: SettingsProviderCollection["providers"][number] = {
@@ -137,13 +141,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(listSettingsProviders).mockResolvedValue(collection);
 });
 
@@ -199,6 +197,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({ ...draft, name: "Claude" }));
     });
 
@@ -213,6 +213,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(claudeEntry);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
 
@@ -254,6 +256,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(claudeEntry);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
     act(() => {
@@ -362,6 +366,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(providerWithMultipleCredentials);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
     act(() => {
@@ -443,6 +449,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({
         ...draft,
         name: "openrouter",
@@ -513,6 +521,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({
         ...draft,
         name: "openrouter",
@@ -569,6 +579,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({
         ...draft,
         name: "local-acp",
@@ -611,6 +623,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({ ...draft, name: "openrouter" }));
     });
     expect(result.current.inspectorIsValid).toBe(false);
@@ -629,6 +643,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openCreate();
+    });
+    act(() => {
       result.current.updateDraft(draft => ({
         ...draft,
         name: "openrouter",
@@ -683,6 +699,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(boundProvider);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
 
@@ -715,6 +733,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(codexEntry);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
     act(() => {
@@ -754,6 +774,8 @@ describe("useSettingsProvidersPage", () => {
 
     act(() => {
       result.current.openInspect(claudeEntry);
+    });
+    act(() => {
       result.current.switchToEdit();
     });
     act(() => {
@@ -826,5 +848,62 @@ describe("useSettingsProvidersPage", () => {
     });
     expect(result.current.deleteTarget.mode).toBe("open");
     expect(result.current.lastAction).toBeNull();
+  });
+
+  it("Should keep the editor open until an accepted provider save settles", async () => {
+    let resolveSave!: (result: SettingsMutationResult) => void;
+    const save = new Promise<SettingsMutationResult>(resolve => {
+      resolveSave = resolve;
+    });
+    const store = settingsProvidersInspectorLogic.createStore();
+    const draft = { name: "claude" } as ProviderDraft;
+
+    store.trigger.createOpened({ draft });
+    store.trigger.saveRequested({ execute: () => save, name: "claude" });
+    store.trigger.editorDismissed();
+    expect(store.getSnapshot().context.inspector).toEqual({ draft, mode: "create" });
+    resolveSave({} as SettingsMutationResult);
+
+    await waitFor(() => expect(store.getSnapshot().context.pendingSave).toBeNull());
+    expect(store.getSnapshot().context.inspector).toEqual({ mode: "closed" });
+    expect(store.getSnapshot().context.lastAction).toMatchObject({ kind: "saved", name: "claude" });
+  });
+
+  it("Should preserve a newer provider draft when an accepted save settles", async () => {
+    let resolveSave!: (result: SettingsMutationResult) => void;
+    const save = new Promise<SettingsMutationResult>(resolve => {
+      resolveSave = resolve;
+    });
+    const store = settingsProvidersInspectorLogic.createStore();
+    const submitted = { name: "claude", display_name: "Claude" } as ProviderDraft;
+    const newer = { ...submitted, display_name: "Claude Next" };
+
+    store.trigger.createOpened({ draft: submitted });
+    store.trigger.saveRequested({ execute: () => save, name: "claude" });
+    store.trigger.draftChanged({ draft: newer });
+    resolveSave({} as SettingsMutationResult);
+
+    await waitFor(() => expect(store.getSnapshot().context.pendingSave).toBeNull());
+    expect(store.getSnapshot().context.inspector).toEqual({ draft: newer, mode: "create" });
+    expect(store.getSnapshot().context.lastAction).toMatchObject({ kind: "saved", name: "claude" });
+  });
+
+  it("Should preserve a newer provider draft and surface an accepted save failure", async () => {
+    let rejectSave!: (reason?: unknown) => void;
+    const save = new Promise<SettingsMutationResult>((_resolve, reject) => {
+      rejectSave = reject;
+    });
+    const store = settingsProvidersInspectorLogic.createStore();
+    const submitted = { name: "claude", display_name: "Claude" } as ProviderDraft;
+    const newer = { ...submitted, display_name: "Claude Next" };
+
+    store.trigger.createOpened({ draft: submitted });
+    store.trigger.saveRequested({ execute: () => save, name: "claude" });
+    store.trigger.draftChanged({ draft: newer });
+    rejectSave(new Error("provider save failed"));
+
+    await waitFor(() => expect(store.getSnapshot().context.pendingSave).toBeNull());
+    expect(store.getSnapshot().context.inspector).toEqual({ draft: newer, mode: "create" });
+    expect(store.getSnapshot().context.saveError).toBe("provider save failed");
   });
 });

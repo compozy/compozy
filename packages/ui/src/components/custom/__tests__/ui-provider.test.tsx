@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { m, useReducedMotionConfig } from "motion/react";
-import type { ReactNode } from "react";
+import { m, MotionConfigContext, useReducedMotionConfig } from "motion/react";
+import { useContext, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
 import { UIProvider, type UIProviderProps } from "../ui-provider";
@@ -19,6 +19,11 @@ function MotionProbe() {
       transition={{ duration: 0 }}
     />
   );
+}
+
+function SkipAnimationsProbe() {
+  const { skipAnimations } = useContext(MotionConfigContext);
+  return <span data-testid="skip-animations-probe">{String(skipAnimations ?? false)}</span>;
 }
 
 function renderWithProvider(props?: Partial<UIProviderProps>, child: ReactNode = <Probe />) {
@@ -45,6 +50,12 @@ describe("UIProvider", () => {
   it("Should forward reducedMotion='never' to MotionConfig consumers", async () => {
     renderWithProvider({ reducedMotion: "never" });
     await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("false"));
+  });
+
+  it("Should forward skipAnimations without changing reduced-motion semantics", () => {
+    renderWithProvider({ reducedMotion: "never", skipAnimations: true }, <SkipAnimationsProbe />);
+
+    expect(screen.getByTestId("skip-animations-probe")).toHaveTextContent("true");
   });
 
   it("Should default to reducedMotion='user' which defers to OS preference", async () => {

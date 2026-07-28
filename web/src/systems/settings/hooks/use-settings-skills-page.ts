@@ -1,4 +1,7 @@
 import { useState, type SetStateAction } from "react";
+import { useSelector } from "@xstate/store-react";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { useSettingsPage } from "./use-settings-page";
 import { useAgents, type AgentPayload } from "@/systems/agent";
@@ -11,6 +14,7 @@ import {
   type SettingsUpdateSkillsRequest,
 } from "@/systems/settings";
 import { useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
+import { settingsSkillsDraftLogic, shouldRebindSkillsDraft } from "./settings-skills-draft-logic";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 
@@ -110,40 +114,29 @@ export function useSettingsSkillsPage() {
   const envelope = query.data ?? null;
 
   const envelopeKey = envelope ? envelopeScopeKey(envelope) : "pending";
-  const [draftState, setDraftState] = useState<{ draft: SkillsConfig | null; key: string }>({
-    draft: null,
-    key: envelopeKey,
-  });
-  const draft =
-    draftState.key === envelopeKey
-      ? (draftState.draft ?? envelope?.config ?? null)
-      : (envelope?.config ?? null);
-  const setDraft = (update: SetStateAction<SkillsConfig | null>) => {
-    setDraftState(current => {
-      const currentDraft =
-        current.key === envelopeKey
-          ? (current.draft ?? envelope?.config ?? null)
-          : (envelope?.config ?? null);
-      return {
-        draft: typeof update === "function" ? update(currentDraft) : update,
+  const baseline = envelope?.config ?? null;
+  const { store: draftLogic } = useStoreBinding(
+    envelopeKey,
+    () =>
+      settingsSkillsDraftLogic.createStore({
+        baseline,
         key: envelopeKey,
-      };
-    });
+      }),
+    previous =>
+      settingsSkillsDraftLogic.createStore({
+        baseline,
+        key: envelopeKey,
+        previous: previous.getSnapshot().context,
+      }),
+    current => shouldRebindSkillsDraft(current.store.getSnapshot().context, baseline, envelopeKey)
+  );
+  const draftFlow = useSelector(draftLogic, snapshot => snapshot.context);
+  const draft = draftFlow.draft;
+  const setDraft = (update: SetStateAction<SkillsConfig | null>) => {
+    draftLogic.trigger.draftChanged({ update });
   };
-  const [lastDisabledState, setLastDisabledState] = useState({
-    key: envelopeKey,
-    label: null as string | null,
-  });
-  const [lastPolicyState, setLastPolicyState] = useState({
-    key: envelopeKey,
-    label: null as string | null,
-  });
-  const lastDisabledLabel = lastDisabledState.key === envelopeKey ? lastDisabledState.label : null;
-  const lastPolicyLabel = lastPolicyState.key === envelopeKey ? lastPolicyState.label : null;
-  const setLastDisabledLabel = (label: string | null) =>
-    setLastDisabledState({ key: envelopeKey, label });
-  const setLastPolicyLabel = (label: string | null) =>
-    setLastPolicyState({ key: envelopeKey, label });
+  const lastDisabledLabel = draftFlow.key === envelopeKey ? draftFlow.labels.disabled : null;
+  const lastPolicyLabel = draftFlow.key === envelopeKey ? draftFlow.labels.policy : null;
 
   const availableScopes = envelope?.available_scopes ?? ["global"];
   const selectedAgent =
@@ -166,20 +159,22 @@ export function useSettingsSkillsPage() {
   const resetScopedState = () => {
     disabledMutation.reset();
     policyMutation.reset();
-    setLastDisabledLabel(null);
-    setLastPolicyLabel(null);
   };
 
   const handleResetDisabled = () => {
     if (!envelope || !draft) return;
-    setDraft({ ...draft, disabled_skills: cloneDisabled(envelope.config) });
+    draftLogic.trigger.draftChanged({
+      update: { ...draft, disabled_skills: cloneDisabled(envelope.config) },
+    });
   };
 
   const handleResetPolicy = () => {
     if (!envelope || !draft || selection.scope === "agent") return;
-    setDraft({
-      ...envelope.config,
-      disabled_skills: draft.disabled_skills,
+    draftLogic.trigger.draftChanged({
+      update: {
+        ...envelope.config,
+        disabled_skills: draft.disabled_skills,
+      },
     });
   };
 
@@ -191,14 +186,11 @@ export function useSettingsSkillsPage() {
         disabled_skills: draft.disabled_skills ?? [],
       },
     };
-    disabledMutation.mutate(
-      { body, filter },
-      {
-        onSuccess: () => {
-          setLastDisabledLabel("Saved · applied immediately");
-        },
-      }
-    );
+    draftLogic.trigger.saveRequested({
+      execute: () => disabledMutation.mutateAsync({ body, filter }),
+      kind: "disabled",
+      label: "Saved · applied immediately",
+    });
   };
 
   const handleSavePolicy = () => {
@@ -209,14 +201,11 @@ export function useSettingsSkillsPage() {
         disabled_skills: envelope.config.disabled_skills ?? [],
       },
     };
-    policyMutation.mutate(
-      { body, filter },
-      {
-        onSuccess: () => {
-          setLastPolicyLabel("Saved · restart required to apply");
-        },
-      }
-    );
+    draftLogic.trigger.saveRequested({
+      execute: () => policyMutation.mutateAsync({ body, filter }),
+      kind: "policy",
+      label: "Saved · restart required to apply",
+    });
   };
 
   const toggleDisabled = (name: string) => {
@@ -225,7 +214,7 @@ export function useSettingsSkillsPage() {
     const next = current.includes(name)
       ? current.filter(entry => entry !== name)
       : [...current, name].sort();
-    setDraft({ ...draft, disabled_skills: next });
+    draftLogic.trigger.draftChanged({ update: { ...draft, disabled_skills: next } });
   };
 
   const handleRetry = () => {
@@ -290,8 +279,8 @@ export function useSettingsSkillsPage() {
     handleResetPolicy,
     handleSaveDisabled,
     handleSavePolicy,
-    isSavingDisabled: disabledMutation.isPending,
-    isSavingPolicy: policyMutation.isPending,
+    isSavingDisabled: draftFlow.pending.disabled !== null,
+    isSavingPolicy: draftFlow.pending.policy !== null,
     saveDisabledError: errorMessage(disabledMutation.error),
     savePolicyError: errorMessage(policyMutation.error),
     disabledWarnings: disabledMutation.data?.warnings,

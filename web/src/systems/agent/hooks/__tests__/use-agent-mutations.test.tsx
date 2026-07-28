@@ -14,10 +14,7 @@ const {
   mockCreateAgent,
   mockFetchAgents,
   mockFetchAgent,
-  mockNavRefresh,
-  mockGetNavCountsStore,
 } = vi.hoisted(() => {
-  const mockNavRefresh = vi.fn();
   return {
     mockUpdateAgent: vi.fn(),
     mockDeleteAgent: vi.fn(),
@@ -25,10 +22,6 @@ const {
     mockCreateAgent: vi.fn(),
     mockFetchAgents: vi.fn(),
     mockFetchAgent: vi.fn(),
-    mockNavRefresh,
-    mockGetNavCountsStore: vi.fn(() => ({
-      getState: () => ({ refresh: mockNavRefresh }),
-    })),
   };
 });
 
@@ -46,10 +39,6 @@ vi.mock("../../adapters/agent-api", async () => {
     fetchAgent: mockFetchAgent,
   };
 });
-
-vi.mock("@/systems/runtime", () => ({
-  getNavCountsStore: mockGetNavCountsStore,
-}));
 
 import {
   useAgent,
@@ -84,8 +73,6 @@ describe("use-agent-mutations", () => {
     mockCreateAgent.mockReset();
     mockFetchAgents.mockReset();
     mockFetchAgent.mockReset();
-    mockNavRefresh.mockReset();
-    mockGetNavCountsStore.mockClear();
   });
 
   it("Should load agents via useAgents", async () => {
@@ -305,8 +292,6 @@ describe("use-agent-mutations", () => {
       unshadowed_origin: "global",
     });
     expect(queryClient.getQueryData(agentKeys.detail("coder", "ws_alpha"))).toBeUndefined();
-    expect(mockGetNavCountsStore).toHaveBeenCalledWith("ws_alpha");
-    expect(mockNavRefresh).toHaveBeenCalledTimes(1);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.lists() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.catalogs() });
   });

@@ -1,84 +1,40 @@
-import { useState, type FormEvent } from "react";
-
-import {
-  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
-  type NetworkParticipationDraft,
-} from "@/systems/network";
+import { useSelector, useStore } from "@xstate/store-react";
+import { type FormEvent } from "react";
 
 import type { FanOutTaskRunsRequest } from "../types";
+import { createTaskFanOutDialogLogic } from "./task-fan-out-dialog-store";
 
-const FAN_OUT_NETWORK_STRATEGIES = ["named", "run"] as const;
+const taskFanOutDialogLogic = createTaskFanOutDialogLogic();
 
 export interface UseTaskFanOutDialogParams {
   onOpenChange: (open: boolean) => void;
   onFanOut: (data: FanOutTaskRunsRequest) => Promise<void>;
 }
 
-function parseDesignations(value: string): FanOutTaskRunsRequest["designations"] {
-  return value
-    .split(/\r?\n/u)
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .map(brief => ({ brief }));
-}
-
 /** Controlled form state for the fan-out dialog opened from the task head overflow. */
 export function useTaskFanOutDialog({ onOpenChange, onFanOut }: UseTaskFanOutDialogParams) {
-  const [designationsText, setDesignationsText] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>({
-    ...DEFAULT_NETWORK_PARTICIPATION_DRAFT,
-  });
+  const store = useStore(taskFanOutDialogLogic);
+
+  const state = useSelector(store, snapshot => snapshot.context);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    onOpenChange(nextOpen);
-    if (!nextOpen) {
-      setFormError(null);
-      setDesignationsText("");
-      setNetworkParticipation({ ...DEFAULT_NETWORK_PARTICIPATION_DRAFT });
-    }
+    store.trigger.openChanged({ open: nextOpen, setOpen: onOpenChange });
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError(null);
-    const designations = parseDesignations(designationsText);
-    if (designations.length === 0) {
-      setFormError("Add at least one assignment.");
-      return;
-    }
-    const participationError = networkParticipationValidationMessage(
-      networkParticipation,
-      FAN_OUT_NETWORK_STRATEGIES
-    );
-    if (participationError) {
-      setFormError(participationError);
-      return;
-    }
-
-    const payload: FanOutTaskRunsRequest = {
-      designations,
-      network_participation: serializeNetworkParticipation(networkParticipation),
-    };
-
-    try {
-      await onFanOut(payload);
-      handleOpenChange(false);
-    } catch {
-      // The route hook owns the toast; keep the dialog open for correction.
-    }
+    store.trigger.submitRequested({ execute: onFanOut, setOpen: onOpenChange });
   };
 
   return {
-    designationsText,
-    formError,
+    designationsText: state.designationsText,
+    formError: state.formError,
     handleOpenChange,
     handleSubmit,
-    networkParticipation,
-    networkStrategies: FAN_OUT_NETWORK_STRATEGIES,
-    setDesignationsText,
-    setNetworkParticipation,
+    networkParticipation: state.networkParticipation,
+    networkStrategies: ["named", "run"] as const,
+    setDesignationsText: (value: string) => store.trigger.designationsChanged({ value }),
+    setNetworkParticipation: (value: typeof state.networkParticipation) =>
+      store.trigger.networkParticipationChanged({ value }),
   };
 }

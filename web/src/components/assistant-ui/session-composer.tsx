@@ -4,8 +4,9 @@ import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import type { QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
-import { SessionComposerQueuedPrompts, type QueuedPrompt } from "./session-composer-queued-prompts";
+import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
@@ -40,6 +41,12 @@ function describeComposerActionError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
+  );
+}
+
 /**
  * The session prompt composer. Idle: an accent Send disc submits to the runtime.
  * While a turn runs the phase changes coherently — Enter queues the draft (with a
@@ -62,8 +69,14 @@ export function SessionComposer({
   onSteerQueuedPrompt,
   inactivePlaceholder = "Session is not active",
 }: SessionComposerProps & { composerState: SessionComposerState }) {
-  const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
-    composerState;
+  const {
+    clearComposer,
+    persistComposerText,
+    setComposerInputElement,
+    setComposerText,
+    composerText,
+    isRunning,
+  } = composerState;
   const trimmedComposerText = composerText.trim();
   const goalCommandReady =
     trimmedComposerText === "/goal" || trimmedComposerText.startsWith("/goal ");
@@ -90,6 +103,7 @@ export function SessionComposer({
     void Promise.resolve(handler(trimmedComposerText))
       .then(clearComposer)
       .catch(error => {
+        if (isAbortError(error)) return;
         toast.error(describeComposerActionError(error, failureMessage));
       });
   };
@@ -155,6 +169,7 @@ export function SessionComposer({
             rows={1}
             maxRows={12}
             submitMode="enter"
+            onChange={event => persistComposerText(event.currentTarget.value)}
             onKeyDown={handleInputKeyDown}
             className={cn(
               "min-h-6 w-full resize-none border-none bg-transparent p-0 text-small-body leading-relaxed",

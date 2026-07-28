@@ -10,12 +10,17 @@ import {
   useDeleteAutomationTrigger,
   useUpdateAutomationTrigger,
 } from "@/systems/automation";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useUserHomeDir,
+} from "@/systems/workspace";
 
 /** Detail view-model for a single automation trigger resolved from `triggerId`. */
 export function useAutomationTriggerDetailPage(triggerId: string) {
   const navigate = useNavigate();
   const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
 
   const triggerDetailQuery = useAutomationTrigger(triggerId, { enabled: Boolean(triggerId) });
   const loadedTrigger = triggerDetailQuery.data;
@@ -42,6 +47,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
 
   const editor = useAutomationTriggerEditor({
     activeWorkspaceId,
+    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 

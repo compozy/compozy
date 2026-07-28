@@ -80,7 +80,6 @@ export function AgentRuntimeControl({ agent, workspaceId, labelledBy }: AgentRun
       ) : null}
       <RuntimeSelector
         ariaLabelledby={labelId}
-        catalogLoaded={runtime.modelCatalogLoaded}
         disabled={
           runtime.providersLoading || runtime.providerOptions.length === 0 || runtime.isPending
         }

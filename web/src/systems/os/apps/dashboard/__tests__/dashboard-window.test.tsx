@@ -14,12 +14,9 @@ vi.mock("@/systems/status", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
-  useSessionCreate: () => ({
-    openForAgent: vi.fn(),
-    isCreating: false,
-    pendingAgentName: null,
-    hasActiveWorkspace: true,
-  }),
+  useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
+  useSessionCreateHasActiveWorkspace: () => true,
+  useSessionCreateIsCreating: () => false,
 }));
 
 // Spy on the body so this suite proves the shell's connection gate (body mounts

@@ -28,9 +28,11 @@ import {
   rolesStatusFixture,
   settingsRolesSectionFixture,
 } from "@/systems/settings/mocks/roles-fixtures";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { settingsKeys } from "@/systems/settings/lib/query-keys";
 import { useSettingsRolesPage } from "../use-settings-roles-page";
+import { settingsRolesDraftLogic, shouldAdoptRolesBaseline } from "../settings-roles-draft-logic";
+import type { SettingsRolesConfig } from "@/systems/settings";
 
 const appliedMutation = {
   section: "roles" as const,
@@ -55,13 +57,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getRolesStatus).mockResolvedValue(structuredClone(rolesStatusFixture));
   vi.mocked(getSettingsRoles).mockResolvedValue(structuredClone(settingsRolesSectionFixture));
 });
@@ -71,6 +67,32 @@ afterEach(() => {
 });
 
 describe("useSettingsRolesPage", () => {
+  it("Should render a warm Query cache without an empty first frame", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(settingsKeys.rolesStatus(), structuredClone(rolesStatusFixture));
+    queryClient.setQueryData(
+      settingsKeys.section("roles"),
+      structuredClone(settingsRolesSectionFixture)
+    );
+    const warmWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const renderLengths: number[] = [];
+
+    const { result } = renderHook(
+      () => {
+        const page = useSettingsRolesPage();
+        renderLengths.push(page.roles.length);
+        return page;
+      },
+      { wrapper: warmWrapper }
+    );
+
+    expect(renderLengths.length).toBeGreaterThan(0);
+    expect(renderLengths.every(length => length === 6)).toBe(true);
+    expect(result.current.roles).toHaveLength(6);
+  });
   it("Should build the six role view-models in product order once both reads resolve", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsRolesPage(), { wrapper });
@@ -177,5 +199,17 @@ describe("useSettingsRolesPage", () => {
 
     await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
     expect(updateSettingsRoles).not.toHaveBeenCalled();
+  });
+
+  it("Should preserve an edited roles draft when a newer baseline arrives", () => {
+    const baseline = { dream: { agent: "claude" } } as SettingsRolesConfig;
+    const edited = { dream: { agent: "codex" } } as SettingsRolesConfig;
+    const replacement = { dream: { agent: "hermes" } } as SettingsRolesConfig;
+    const store = settingsRolesDraftLogic.createStore({ baseline, lastAppliedLabel: null });
+
+    store.trigger.draftChanged({ draft: edited });
+
+    expect(store.getSnapshot().context.draft).toEqual(edited);
+    expect(shouldAdoptRolesBaseline(store.getSnapshot().context, replacement)).toBe(false);
   });
 });

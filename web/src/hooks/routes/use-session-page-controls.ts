@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { useSelector } from "@xstate/store-react";
+import { useLayoutEffect } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
-import type { QueuedPrompt } from "@/components/assistant-ui/session-composer-queued-prompts";
+import { awaitStoreRequest } from "@/lib/store-request";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import {
   cancelSessionPrompt,
   useCancelQueuedSessionPrompt,
@@ -16,79 +18,24 @@ import {
   useSessionTranscriptThreadMessages,
   isSessionRunning,
   isUserControllableSession,
+  type QueuedPrompt,
   type SessionPayload,
 } from "@/systems/session";
+import {
+  createSessionPageControlsLogic,
+  isBusyInputPending,
+  type SessionBusyInputSettlement,
+  type SessionPageControlsStore,
+  type ResumeProviderUnavailableDetail,
+  type SessionResumeFailure,
+} from "./session-page-controls-store";
 
 interface UseSessionPageControlsOptions {
   onDeleteSuccess?: () => void;
   workspaceId?: string;
 }
 
-export interface ResumeProviderUnavailableDetail {
-  sessionId: string;
-  missingProvider: string;
-  agentName?: string;
-}
-
-export interface SessionResumeFailure {
-  message: string;
-  providerUnavailable: ResumeProviderUnavailableDetail | null;
-}
-
-const PROVIDER_VALIDATION_PATTERN =
-  /validate agent "([^"]+)" with provider "([^"]+)" for session "([^"]+)"/;
-
-function parseProviderUnavailable(
-  sessionId: string,
-  message: string
-): ResumeProviderUnavailableDetail | null {
-  const match = message.match(PROVIDER_VALIDATION_PATTERN);
-  if (!match) {
-    return null;
-  }
-
-  const [, agentName, missingProvider, parsedSessionId] = match;
-  const providerName = missingProvider?.trim() ?? "";
-  if (providerName.length === 0) {
-    return null;
-  }
-
-  return {
-    sessionId: parsedSessionId?.trim().length ? parsedSessionId : sessionId,
-    missingProvider: providerName,
-    agentName: agentName?.trim().length ? agentName : undefined,
-  };
-}
-
-function describeResumeError(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return "Failed to attach session.";
-}
-
-function describePromptActionError(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
-}
-
-function restoreQueuedPrompt(
-  prompts: QueuedPrompt[],
-  prompt: QueuedPrompt,
-  originalIndex: number
-): QueuedPrompt[] {
-  if (prompts.some(item => item.id === prompt.id)) {
-    return prompts;
-  }
-  const restored = [...prompts];
-  const insertAt = originalIndex >= 0 ? Math.min(originalIndex, restored.length) : restored.length;
-  restored.splice(insertAt, 0, prompt);
-  return restored;
-}
-
-type QueuedPromptsByScope = Record<string, QueuedPrompt[] | undefined>;
+export type { ResumeProviderUnavailableDetail, SessionResumeFailure };
 
 export function useSessionPageControls(
   sessionId: string,
@@ -109,8 +56,6 @@ export function useSessionPageControls(
   const interruptPromptMutation = useInterruptSessionPrompt({ workspaceId });
   const steerPromptMutation = useSteerSessionPrompt({ workspaceId });
   const cancelQueuedPromptMutation = useCancelQueuedSessionPrompt({ workspaceId });
-  const [isCancellingPrompt, setIsCancellingPrompt] = useState(false);
-  const [resumeFailure, setResumeFailure] = useState<SessionResumeFailure | null>(null);
   const activeTurnId = session.activity?.turn_id?.trim() ?? "";
 
   const daemonRunning = isSessionRunning(session);
@@ -119,24 +64,16 @@ export function useSessionPageControls(
   const promptControlsAvailable = effectiveRunning && userControllable;
   const canPrompt = session.state === "active" && userControllable;
   const queueScope = effectiveRunning ? `running:${activeTurnId}` : "settled";
-  const [queuedPromptsByScope, setQueuedPromptsByScope] = useState<QueuedPromptsByScope>({});
-  const activeQueueScopeRef = useRef(queueScope);
-  useEffect(() => {
-    activeQueueScopeRef.current = queueScope;
-  }, [queueScope]);
-  const queuedPrompts = effectiveRunning ? (queuedPromptsByScope[queueScope] ?? []) : [];
-  const setQueuedPrompts = (update: SetStateAction<QueuedPrompt[]>) => {
-    const updateScope = queueScope;
-    setQueuedPromptsByScope(current => {
-      if (activeQueueScopeRef.current !== updateScope) {
-        return current;
-      }
-      const scopedPrompts = current[updateScope] ?? [];
-      return {
-        [updateScope]: typeof update === "function" ? update(scopedPrompts) : update,
-      };
-    });
-  };
+  const bindingKey = `${workspaceId}\u0000${sessionId}`;
+  const { store } = useStoreBinding(bindingKey, () =>
+    createSessionPageControlsLogic(queueScope).createStore()
+  );
+  const controlsState = useSelector(store, snapshot => snapshot.context);
+  const queuedPrompts = controlsState.queuedPrompts;
+
+  useLayoutEffect(() => {
+    store.trigger.queueScopeChanged({ queueScope });
+  }, [queueScope, store]);
 
   // Queued prompts are a client-tracked optimistic mirror of the daemon's durable
   // busy-input queue: every row carries the real `queue_entry_id` the queue mutation
@@ -145,125 +82,104 @@ export function useSessionPageControls(
   // runtime no longer holds (truthful UI). It may briefly under-show a second queued
   // prompt across a multi-dispatch settle, which is safe; it never over-shows.
   const handleCancelPrompt = () => {
-    if (!promptControlsAvailable || isCancellingPrompt) {
+    if (!promptControlsAvailable) {
       return;
     }
 
-    setIsCancellingPrompt(true);
-    void cancelSessionPrompt(workspaceId, sessionId)
-      .catch(() => {
-        toast.error("Failed to stop the current prompt.");
-      })
-      .finally(() => {
-        setIsCancellingPrompt(false);
-      });
+    store.trigger.stopRequested({
+      execute: () => cancelSessionPrompt(workspaceId, sessionId),
+      failureMessage: "Failed to stop the current prompt.",
+    });
   };
 
-  const isStopping = stopMutation.isPending || isCancellingPrompt;
-  const isResuming = resumeMutation.isPending;
+  const isStopping = controlsState.stop.phase === "pending";
+  const isResuming = controlsState.resume.phase === "pending";
   const isDeleting = deleteMutation.isPending;
   const isClearing = clearMutation.isPending;
-  const isBusyInputPending =
-    queuePromptMutation.isPending ||
-    interruptPromptMutation.isPending ||
-    steerPromptMutation.isPending;
-  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || isBusyInputPending;
+  const busyInputPending = isBusyInputPending(controlsState);
+  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || busyInputPending;
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
-  const handleQueuePrompt = async (message: string) => {
+  const handleQueuePrompt = (message: string) => {
     const text = message.trim();
-    if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
+    if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
       return;
     }
 
-    const result = await queuePromptMutation.mutateAsync({ id: sessionId, message: text });
-    if ("outcome" in result) {
-      return;
-    }
-    const queueEntryId = result.queue_entry_id;
-    if (result.queued && queueEntryId) {
-      setQueuedPrompts(prev => [...prev, { id: queueEntryId, text }]);
-      toast.success("Prompt queued.");
-    }
+    return requestBusyInput(store, () =>
+      store.trigger.busyInputRequested({
+        execute: () => queuePromptMutation.mutateAsync({ id: sessionId, message: text }),
+        kind: "queue",
+        message: text,
+      })
+    );
   };
 
-  const handleInterruptPrompt = async (message: string) => {
+  const handleInterruptPrompt = (message: string) => {
     const text = message.trim();
-    if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
+    if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
       return;
     }
 
-    await interruptPromptMutation.mutateAsync({ id: sessionId, message: text });
-    // Interrupt advances the busy-input generation, which cancels every pending
-    // queued entry on the daemon — clear the local mirror so it can't lie.
-    setQueuedPrompts([]);
-    toast.success("Prompt interrupted.");
+    return requestBusyInput(store, () =>
+      store.trigger.busyInputRequested({
+        execute: () => interruptPromptMutation.mutateAsync({ id: sessionId, message: text }),
+        kind: "interrupt",
+        message: text,
+      })
+    );
   };
 
-  const handleSteerPrompt = async (message: string) => {
+  const handleSteerPrompt = (message: string) => {
     const text = message.trim();
-    if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
+    if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
       return;
     }
 
-    await steerPromptMutation.mutateAsync({ id: sessionId, message: text });
-    toast.success("Steer staged.");
+    return requestBusyInput(store, () =>
+      store.trigger.busyInputRequested({
+        execute: () => steerPromptMutation.mutateAsync({ id: sessionId, message: text }),
+        kind: "steer",
+        message: text,
+      })
+    );
   };
 
   const handleRemoveQueuedPrompt = (queueEntryId: string) => {
-    const removedIndex = queuedPrompts.findIndex(item => item.id === queueEntryId);
-    const removedPrompt = removedIndex >= 0 ? queuedPrompts[removedIndex] : undefined;
-    setQueuedPrompts(prev => prev.filter(item => item.id !== queueEntryId));
-    cancelQueuedPromptMutation.mutate(
-      { id: sessionId, queueEntryId },
-      {
-        onError: error => {
-          if (removedPrompt) {
-            setQueuedPrompts(prev => restoreQueuedPrompt(prev, removedPrompt, removedIndex));
-          }
-          toast.error(describePromptActionError(error, "Couldn't remove queued prompt."));
-        },
-      }
-    );
+    store.trigger.queuedPromptRemovalRequested({
+      execute: () =>
+        new Promise<void>((resolve, reject) => {
+          cancelQueuedPromptMutation.mutate(
+            { id: sessionId, queueEntryId },
+            { onError: error => reject(error), onSuccess: () => resolve() }
+          );
+        }),
+      queueEntryId,
+    });
   };
 
   const handleSteerQueuedPrompt = (prompt: QueuedPrompt) => {
-    if (!promptControlsAvailable || isBusyInputPending) {
+    if (!promptControlsAvailable || busyInputIsPending(store)) {
       return;
     }
-    const removedIndex = queuedPrompts.findIndex(item => item.id === prompt.id);
-    setQueuedPrompts(prev => prev.filter(item => item.id !== prompt.id));
-    steerPromptMutation.mutate(
-      { id: sessionId, message: prompt.text },
-      {
-        onSuccess: () => {
-          // Steer injects the queued text into the live turn now, so drop its
-          // durable queue slot to avoid re-running it after the turn ends.
+    store.trigger.queuedPromptSteerRequested({
+      cancel: () =>
+        new Promise<void>((resolve, reject) => {
           cancelQueuedPromptMutation.mutate(
             { id: sessionId, queueEntryId: prompt.id },
-            {
-              onSuccess: () => {
-                toast.success("Steer staged.");
-              },
-              onError: error => {
-                setQueuedPrompts(prev => restoreQueuedPrompt(prev, prompt, removedIndex));
-                toast.error(
-                  describePromptActionError(
-                    error,
-                    "Steer staged, but couldn't remove queued prompt."
-                  )
-                );
-              },
-            }
+            { onError: error => reject(error), onSuccess: () => resolve() }
           );
-        },
-        onError: error => {
-          setQueuedPrompts(prev => restoreQueuedPrompt(prev, prompt, removedIndex));
-          toast.error(describePromptActionError(error, "Couldn't steer queued prompt."));
-        },
-      }
-    );
+        }),
+      prompt,
+      steer: () =>
+        new Promise<void>((resolve, reject) => {
+          steerPromptMutation.mutate(
+            { id: sessionId, message: prompt.text },
+            { onError: error => reject(error), onSuccess: () => resolve() }
+          );
+        }),
+    });
   };
 
   const handleStop = () => {
@@ -276,7 +192,10 @@ export function useSessionPageControls(
       return;
     }
 
-    stopMutation.mutate(sessionId);
+    store.trigger.stopRequested({
+      execute: () => stopMutation.mutateAsync(sessionId),
+      failureMessage: null,
+    });
   };
 
   const handleResume = () => {
@@ -284,24 +203,14 @@ export function useSessionPageControls(
       return;
     }
 
-    setResumeFailure(null);
-    resumeMutation.mutate(sessionId, {
-      onError: error => {
-        const message = describeResumeError(error);
-        const providerUnavailable = parseProviderUnavailable(sessionId, message);
-        setResumeFailure({ message, providerUnavailable });
-        if (providerUnavailable === null) {
-          toast.error(message);
-        }
-      },
-      onSuccess: () => {
-        setResumeFailure(null);
-      },
+    store.trigger.resumeRequested({
+      resumeSession: () => resumeMutation.mutateAsync(sessionId),
+      sessionId,
     });
   };
 
   const handleDismissResumeFailure = () => {
-    setResumeFailure(null);
+    store.trigger.resumeFailureDismissed();
   };
 
   const handleDelete = () => {
@@ -348,7 +257,7 @@ export function useSessionPageControls(
     handleSteerPrompt,
     handleSteerQueuedPrompt,
     handleStop,
-    isBusyInputPending,
+    isBusyInputPending: busyInputPending,
     isClearing,
     isDeleting,
     isResuming,
@@ -356,6 +265,22 @@ export function useSessionPageControls(
     isStopping,
     messages,
     queuedPrompts,
-    resumeFailure,
+    resumeFailure: controlsState.resume.failure,
   };
+}
+
+function requestBusyInput(store: SessionPageControlsStore, request: () => void): Promise<void> {
+  return awaitStoreRequest<{ requestId: number }, SessionBusyInputSettlement, void>({
+    notAcceptedMessage: "Busy input request was not accepted",
+    request,
+    resolveSettlement: settlement => {
+      if (settlement.outcome === "failed") throw settlement.error;
+    },
+    subscribeAccepted: listener => store.on("busyInputAccepted", listener),
+    subscribeSettled: listener => store.on("busyInputSettled", listener),
+  });
+}
+
+function busyInputIsPending(store: SessionPageControlsStore): boolean {
+  return isBusyInputPending(store.getSnapshot().context);
 }

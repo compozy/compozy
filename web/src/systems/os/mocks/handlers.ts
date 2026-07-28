@@ -2,10 +2,18 @@ import { HttpResponse, type HttpHandler } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
+import { windowManagerSnapshotFixture, windowManagerStorySnapshot } from "./fixtures";
 import { StorybookWindowManagerMockRuntime } from "./window-manager-mock-runtime";
 
-const runtime = new StorybookWindowManagerMockRuntime();
-export function resetWindowManagerMockState(): void {
+const defaultStoryEntry =
+  windowManagerSnapshotFixture.windows["app:settings"]?.route.pathname ?? "/";
+let initialStoryEntry = defaultStoryEntry;
+const runtime = new StorybookWindowManagerMockRuntime(workspaceId =>
+  windowManagerStorySnapshot(initialStoryEntry, workspaceId)
+);
+
+export function resetWindowManagerMockState(initialEntry?: string): void {
+  initialStoryEntry = initialEntry ?? defaultStoryEntry;
   runtime.reset();
 }
 

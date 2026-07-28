@@ -1,8 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
+  activeWorkspaceStore,
+  isActiveWorkspaceStoreHydrated,
+  rehydrateActiveWorkspaceStore,
   selectActiveWorkspace,
-  useActiveWorkspaceStore,
   workspacesListOptions,
 } from "@/systems/workspace";
 
@@ -21,34 +23,20 @@ export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promis
   const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
 
   if (workspacesResult.status === "rejected") {
-    return null;
+    throw workspacesResult.reason;
   }
 
   const selectedWorkspaceId =
     hydrationResult.status === "fulfilled"
-      ? useActiveWorkspaceStore.getState().selectedWorkspaceId
+      ? activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId
       : null;
   return selectActiveWorkspace(workspacesResult.value, selectedWorkspaceId)?.id ?? null;
 }
 
-export async function selectRouteWorkspaceForNavigation(
-  queryClient: QueryClient,
-  routeWorkspaceId: string
-): Promise<void> {
-  const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
-  if (hydrationResult.status === "rejected" || workspacesResult.status === "rejected") {
-    return;
-  }
-  if (!workspacesResult.value.some(workspace => workspace.id === routeWorkspaceId)) {
-    return;
-  }
-  useActiveWorkspaceStore.getState().setSelectedWorkspaceId(routeWorkspaceId);
-}
-
 function loadWorkspaceSelection(queryClient: QueryClient) {
-  const hydration = useActiveWorkspaceStore.persist.hasHydrated()
+  const hydration = isActiveWorkspaceStoreHydrated()
     ? Promise.resolve()
-    : useActiveWorkspaceStore.persist.rehydrate();
+    : rehydrateActiveWorkspaceStore();
 
   return Promise.allSettled([
     hydration,

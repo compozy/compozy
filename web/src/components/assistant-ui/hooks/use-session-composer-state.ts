@@ -1,11 +1,12 @@
-import { useEffect, useRef, type RefCallback } from "react";
+import { useLayoutEffect, useRef, type RefCallback } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { sessionStore, useSessionComposerDraft } from "@/systems/session";
 
 export interface SessionComposerState {
   clearComposer: () => void;
+  persistComposerText: (text: string) => void;
   setComposerText: (text: string) => void;
   setComposerInputElement: RefCallback<HTMLTextAreaElement>;
   prefillComposer: (text: string) => void;
@@ -15,28 +16,30 @@ export interface SessionComposerState {
 
 export function useSessionComposerState(sessionId: string): SessionComposerState {
   const aui = useAui();
-  const draftText = useSessionStore(state => state.drafts[sessionId]?.text ?? "");
-  const setDraft = useSessionStore(state => state.setDraft);
-  const clearDraft = useSessionStore(state => state.clearDraft);
+  const draftText = useSessionComposerDraft(sessionId);
   const composerText = useAuiState(state => state.composer.text);
   const isRunning = useAuiState(state => state.thread.isRunning);
   const composerInputElementRef = useRef<HTMLTextAreaElement>(null);
-  const hasHydratedDraftRef = useRef(false);
+  const hydratedSessionIdRef = useRef<string | null>(null);
 
   const setComposerInputElement: RefCallback<HTMLTextAreaElement> = element => {
     composerInputElementRef.current = element;
   };
 
-  const clearDraftForSession = () => clearDraft(sessionId);
+  const clearDraftForSession = () => sessionStore.trigger.composerDraftDiscarded({ sessionId });
 
   const clearComposer = () => {
     aui.composer().setText("");
-    clearDraft(sessionId);
+    sessionStore.trigger.composerDraftDiscarded({ sessionId });
+  };
+
+  const persistComposerText = (text: string) => {
+    sessionStore.trigger.composerDraftChanged({ sessionId, text });
   };
 
   const setComposerText = (text: string) => {
     aui.composer().setText(text);
-    setDraft(sessionId, { text });
+    persistComposerText(text);
   };
 
   const prefillComposer = (text: string) => {
@@ -50,23 +53,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     composerInputElementRef.current?.focus();
   };
 
-  useEffect(() => {
-    if (hasHydratedDraftRef.current) {
+  useLayoutEffect(() => {
+    if (hydratedSessionIdRef.current === sessionId) {
       return;
     }
-
-    hasHydratedDraftRef.current = true;
-
-    if (!draftText) {
-      return;
-    }
-
+    hydratedSessionIdRef.current = sessionId;
     aui.composer().setText(draftText);
-  }, [aui, draftText]);
-
-  useEffect(() => {
-    setDraft(sessionId, { text: composerText });
-  }, [composerText, sessionId, setDraft]);
+  }, [aui, draftText, sessionId]);
 
   useAuiEvent("composer.send", clearDraftForSession);
 
@@ -74,6 +67,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     clearComposer,
     composerText,
     isRunning,
+    persistComposerText,
     prefillComposer,
     setComposerInputElement,
     setComposerText,

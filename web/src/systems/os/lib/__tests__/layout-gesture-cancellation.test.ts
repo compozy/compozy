@@ -1,6 +1,6 @@
 // Suite: browser gesture cancellation bridge
 // Invariant: every browser terminal signal cancels the active layout gesture exactly once.
-// Owning layer: browser event ↔ semantic gesture boundary. Boundary OUT: Zustand gesture state.
+// Owning layer: browser event ↔ semantic gesture boundary. Boundary OUT: XState gesture state.
 import { describe, expect, it, vi } from "vitest";
 
 import { bindLayoutGestureCancellation } from "../layout-gesture-cancellation";

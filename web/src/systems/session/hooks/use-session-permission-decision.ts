@@ -1,8 +1,11 @@
-import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { useSelector, useStore } from "@xstate/store-react";
+import { useEffect, useEffectEvent } from "react";
 
 import { approveSession, type PermissionDecision } from "../adapters/session-api";
 import type { PermissionRequest } from "../types";
+import { createSessionPermissionDecisionLogic } from "./session-permission-decision-store";
+
+const sessionPermissionDecisionLogic = createSessionPermissionDecisionLogic();
 
 interface UseSessionPermissionDecisionOptions {
   workspaceId: string;
@@ -11,61 +14,43 @@ interface UseSessionPermissionDecisionOptions {
   onResolved?: () => void;
 }
 
-async function submitPermissionDecision(
-  workspaceId: string,
-  sessionId: string,
-  permission: PermissionRequest,
-  decision: PermissionDecision,
-  onApproved: () => void,
-  onSettled: () => void
-): Promise<void> {
-  try {
-    await approveSession(workspaceId, sessionId, {
-      request_id: permission.requestId,
-      turn_id: permission.turnId ?? "",
-      decision,
-    });
-    onApproved();
-  } catch (error) {
-    console.error("Failed to submit permission decision", error);
-    toast.error("Failed to send permission response. The agent may continue waiting.");
-  } finally {
-    onSettled();
-  }
-}
-
 export function useSessionPermissionDecision({
   workspaceId,
   sessionId,
   permission,
   onResolved,
 }: UseSessionPermissionDecisionOptions) {
-  const submittingRef = useRef(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isResolved, setIsResolved] = useState(false);
-  const decide = (decision: PermissionDecision): Promise<void> => {
-    if (submittingRef.current) return Promise.resolve();
-    submittingRef.current = true;
-    setIsSubmitting(true);
-    return submitPermissionDecision(
-      workspaceId,
-      sessionId,
-      permission,
+  const store = useStore(sessionPermissionDecisionLogic);
+  const state = useSelector(store, snapshot => snapshot.context);
+  const permissionKey = `${permission.requestId}\u0000${permission.turnId ?? ""}`;
+  const isCurrentPermission = state.permissionKey === permissionKey;
+  const handleResolved = useEffectEvent(() => onResolved?.());
+
+  useEffect(() => {
+    const resolved = store.on("resolutionAccepted", handleResolved);
+    return () => {
+      resolved.unsubscribe();
+    };
+  }, [store]);
+
+  const decide = (decision: PermissionDecision) =>
+    store.trigger.decisionSubmitted({
       decision,
-      () => {
-        setIsResolved(true);
-        onResolved?.();
-      },
-      () => {
-        submittingRef.current = false;
-        setIsSubmitting(false);
-      }
-    );
-  };
+      permission,
+      permissionKey,
+      sessionId,
+      workspaceId,
+      execute: input =>
+        approveSession(input.workspaceId, input.sessionId, {
+          request_id: input.permission.requestId,
+          turn_id: input.permission.turnId ?? "",
+          decision: input.decision,
+        }),
+    });
 
   return {
     decide,
-    isResolved,
-    isSubmitting,
+    isResolved: isCurrentPermission && state.phase === "resolved",
+    isSubmitting: isCurrentPermission && state.phase === "submitting",
   };
 }

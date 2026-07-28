@@ -1,163 +1,42 @@
-import { createStore, type StoreApi } from "zustand/vanilla";
+import { createStore } from "@xstate/store";
 
 import {
   beginLayoutGesture,
   cancelLayoutGesture,
   finishLayoutGesture,
   previewLayoutGesture,
-  type BeginLayoutGestureInput,
-  type FinishLayoutGestureInput,
-  type GestureCancelReason,
-  type GestureDecision,
-  type LayoutGestureSession,
 } from "../lib/layout-gesture-session";
 import type { SeamPreview } from "../lib/seam-preview";
-import type { SnapCorner, SnapSide, SnapTarget } from "../lib/snap-targets";
-import type { OsWindowRoute } from "../lib/os-types";
+import type { SnapCorner, SnapSide } from "../lib/snap-targets";
+import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type {
-  DesktopId,
-  LayoutRevision,
-  PixelPoint,
-  PixelRect,
-  WindowManagerCommandId,
-  WindowManagerConnectionStatus,
-} from "../lib/window-manager-types";
+  DesktopOverviewSegmentRequest,
+  DesktopTransitionIntent,
+  PendingWindowManagerCommand,
+  WindowManagerBinding,
+  WindowManagerCommandState,
+  WindowManagerDiagnostic,
+  WindowManagerOverlay,
+  WindowManagerRevisionConflict,
+  WindowManagerStoreEmitted,
+  WindowManagerStoreEvents,
+  WindowManagerStoreState,
+  WindowManagerWorkArea,
+  WindowRouteIntent,
+} from "./window-manager-store-types";
 
 export type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 
-export interface WindowManagerBinding {
-  readonly workspaceId: string;
-  readonly clientId: string;
-}
-
-export interface WindowManagerWorkArea {
-  readonly rect: PixelRect;
-  /** Viewport offset of the layer origin — converts client to layer coordinates. */
-  readonly origin: PixelPoint;
-}
-
-export type WindowManagerOverlay =
-  | { kind: "desktops-overview" }
-  | { kind: "layout-editor"; desktopId: DesktopId | null };
-
-export interface DesktopOverviewSegmentRequest {
-  readonly direction: "earlier" | "later";
-  readonly hiddenDesktopIds: readonly DesktopId[];
-  readonly anchorDesktopId: DesktopId;
-}
-
-export interface DesktopTransitionIntent {
-  readonly fromDesktopId: DesktopId;
-  readonly toDesktopId: DesktopId;
-  readonly direction: "earlier" | "later";
-  readonly mode: "slide" | "crossfade" | "instant";
-}
-
-export interface WindowRouteIntent {
-  readonly id: string;
-  readonly windowId: string;
-  readonly route: OsWindowRoute;
-}
-
-export interface WindowPlacementCycle {
-  readonly edge: SnapSide | SnapCorner;
-  readonly nextStep: number;
-}
-
-export interface PendingWindowManagerCommand {
-  readonly id: string;
-  readonly kind: WindowManagerCommandId;
-  readonly expectedRevision: LayoutRevision;
-}
-
-export interface WindowManagerRevisionConflict {
-  readonly commandId: string;
-  readonly expectedRevision: LayoutRevision;
-  readonly currentRevision: LayoutRevision;
-}
-
-export interface WindowManagerDiagnostic {
-  readonly code: string;
-  readonly message: string;
-  readonly severity: "info" | "warning" | "error";
-  readonly field: string | null;
-}
-
-export type WindowManagerCommandState =
-  | { status: "idle"; diagnostic: WindowManagerDiagnostic | null }
-  | {
-      status: "pending";
-      command: PendingWindowManagerCommand;
-      diagnostic: WindowManagerDiagnostic | null;
-    }
-  | {
-      status: "conflict";
-      conflict: WindowManagerRevisionConflict;
-      diagnostic: WindowManagerDiagnostic;
-    };
-
-export interface WindowManagerActions {
-  bindClient: (binding: WindowManagerBinding) => void;
-  unbindClient: () => void;
-  setConnectionStatus: (status: WindowManagerConnectionStatus) => void;
-  setWorkArea: (workArea: WindowManagerWorkArea | null) => void;
-  openOverlay: (overlay: WindowManagerOverlay) => void;
-  closeOverlay: () => void;
-  requestOverviewSegment: (request: DesktopOverviewSegmentRequest) => void;
-  setTransitionIntent: (intent: DesktopTransitionIntent | null) => void;
-  setRouteIntent: (intent: WindowRouteIntent) => void;
-  clearRouteIntent: (windowId: string, intentId: string) => void;
-  nextPlacementCycle: (windowId: string, edge: SnapSide | SnapCorner) => number;
-  trackPlacementTarget: (windowId: string, edge: SnapSide | SnapCorner | null) => void;
-  setSeamPreview: (preview: SeamPreview) => void;
-  clearSeamPreview: () => void;
-  beginGesture: (input: BeginLayoutGestureInput) => LayoutGestureSession;
-  previewGesture: (
-    point: PixelPoint,
-    preview: SnapTarget | null,
-    currentWorkArea: PixelRect
-  ) => void;
-  cancelGesture: (reason: GestureCancelReason, point?: PixelPoint) => LayoutGestureSession | null;
-  finishGesture: (input: FinishLayoutGestureInput) => GestureDecision | null;
-  clearGesture: () => void;
-  beginCommand: (command: PendingWindowManagerCommand) => boolean;
-  completeCommand: (commandId: string, diagnostic?: WindowManagerDiagnostic) => void;
-  failCommand: (commandId: string, diagnostic: WindowManagerDiagnostic) => void;
-  recordConflict: (
-    conflict: WindowManagerRevisionConflict,
-    diagnostic: WindowManagerDiagnostic
-  ) => void;
-  clearConflict: () => void;
-  reportDiagnostic: (diagnostic: WindowManagerDiagnostic) => void;
-  clearDiagnostic: () => void;
-}
-
-export interface WindowManagerStoreState {
-  readonly binding: WindowManagerBinding | null;
-  readonly connectionStatus: WindowManagerConnectionStatus;
-  readonly workArea: WindowManagerWorkArea | null;
-  readonly activeOverlay: WindowManagerOverlay | null;
-  readonly overviewSegmentRequest: DesktopOverviewSegmentRequest | null;
-  readonly transitionIntent: DesktopTransitionIntent | null;
-  readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
-  readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
-  readonly gesture: LayoutGestureSession | null;
-  /** Live seam-drag preview applied to the projection until commit or cancel. */
-  readonly seamPreview: SeamPreview | null;
-  readonly commandState: WindowManagerCommandState;
-  readonly actions: WindowManagerActions;
-}
-
-export type WindowManagerStoreApi = StoreApi<WindowManagerStoreState>;
-
-type BindingScopedWindowManagerState = Omit<WindowManagerStoreState, "actions" | "workArea">;
-
 function copyBinding(binding: WindowManagerBinding): WindowManagerBinding {
-  return { workspaceId: binding.workspaceId, clientId: binding.clientId };
+  return { ...binding };
 }
 
-function copyWorkArea(workArea: WindowManagerWorkArea): WindowManagerWorkArea {
-  return { rect: { ...workArea.rect }, origin: { ...workArea.origin } };
+function sameBinding(left: WindowManagerBinding | null, right: WindowManagerBinding): boolean {
+  return left?.workspaceId === right.workspaceId && left.clientId === right.clientId;
+}
+
+function fencedBinding(state: WindowManagerStoreState, binding?: WindowManagerBinding): boolean {
+  return binding === undefined || sameBinding(state.binding, binding);
 }
 
 function sameWorkArea(
@@ -175,53 +54,15 @@ function sameWorkArea(
   );
 }
 
-function copyOverlay(overlay: WindowManagerOverlay): WindowManagerOverlay {
-  return overlay.kind === "layout-editor"
-    ? { kind: overlay.kind, desktopId: overlay.desktopId }
-    : { kind: overlay.kind };
-}
-
-function copyOverviewRequest(
-  request: DesktopOverviewSegmentRequest
-): DesktopOverviewSegmentRequest {
-  return {
-    direction: request.direction,
-    hiddenDesktopIds: [...request.hiddenDesktopIds],
-    anchorDesktopId: request.anchorDesktopId,
-  };
-}
-
-function copyTransitionIntent(intent: DesktopTransitionIntent): DesktopTransitionIntent {
-  return { ...intent };
-}
-
-function copyRouteIntent(intent: WindowRouteIntent): WindowRouteIntent {
-  return {
-    id: intent.id,
-    windowId: intent.windowId,
-    route: { pathname: intent.route.pathname, search: { ...intent.route.search } },
-  };
-}
-
-function copyCommand(command: PendingWindowManagerCommand): PendingWindowManagerCommand {
-  return { ...command };
-}
-
-function copyConflict(conflict: WindowManagerRevisionConflict): WindowManagerRevisionConflict {
-  return { ...conflict };
-}
-
-function copyDiagnostic(diagnostic: WindowManagerDiagnostic): WindowManagerDiagnostic {
-  return { ...diagnostic };
-}
-
 function idleCommandState(
   diagnostic: WindowManagerDiagnostic | null = null
 ): WindowManagerCommandState {
   return { status: "idle", diagnostic };
 }
 
-function bindingScopedState(binding: WindowManagerBinding | null): BindingScopedWindowManagerState {
+function bindingScopedState(
+  binding: WindowManagerBinding | null
+): Omit<WindowManagerStoreState, "workArea"> {
   return {
     binding,
     connectionStatus: "disconnected",
@@ -236,236 +77,266 @@ function bindingScopedState(binding: WindowManagerBinding | null): BindingScoped
   };
 }
 
-function sameBinding(left: WindowManagerBinding | null, right: WindowManagerBinding): boolean {
-  return left?.workspaceId === right.workspaceId && left.clientId === right.clientId;
+function initialWindowManagerState(): WindowManagerStoreState {
+  return { ...bindingScopedState(null), workArea: null };
 }
 
-export function createWindowManagerStore(): WindowManagerStoreApi {
-  return createStore<WindowManagerStoreState>()((set, get) => {
-    const actions: WindowManagerActions = {
-      bindClient: binding => {
-        if (sameBinding(get().binding, binding)) return;
-        set(bindingScopedState(copyBinding(binding)));
+export function createWindowManagerStore() {
+  return createStore<WindowManagerStoreState, WindowManagerStoreEvents, WindowManagerStoreEmitted>({
+    context: initialWindowManagerState(),
+    on: {
+      bindingBound: (state, event: { binding: WindowManagerBinding }) => {
+        if (sameBinding(state.binding, event.binding)) return;
+        return { ...bindingScopedState(copyBinding(event.binding)), workArea: state.workArea };
       },
-
-      unbindClient: () => {
-        set(bindingScopedState(null));
+      bindingUnbound: state => ({ ...bindingScopedState(null), workArea: state.workArea }),
+      connectionStatusChanged: (state, event: { status: WindowManagerConnectionStatus }) =>
+        state.connectionStatus === event.status
+          ? undefined
+          : { ...state, connectionStatus: event.status },
+      workAreaMeasured: (state, event: { workArea: WindowManagerWorkArea | null }) => {
+        if (sameWorkArea(state.workArea, event.workArea)) return;
+        const workArea = event.workArea && {
+          rect: { ...event.workArea.rect },
+          origin: { ...event.workArea.origin },
+        };
+        return { ...state, workArea };
       },
-
-      setConnectionStatus: connectionStatus => {
-        if (get().connectionStatus === connectionStatus) return;
-        set({ connectionStatus });
-      },
-
-      setWorkArea: workArea => {
-        if (sameWorkArea(get().workArea, workArea)) return;
-        set({ workArea: workArea === null ? null : copyWorkArea(workArea) });
-      },
-
-      openOverlay: activeOverlay => {
-        set({ activeOverlay: copyOverlay(activeOverlay), overviewSegmentRequest: null });
-      },
-
-      closeOverlay: () => {
-        const state = get();
-        if (state.activeOverlay === null && state.overviewSegmentRequest === null) return;
-        set({ activeOverlay: null, overviewSegmentRequest: null });
-      },
-
-      requestOverviewSegment: request => {
-        set({
-          activeOverlay: { kind: "desktops-overview" },
-          overviewSegmentRequest: copyOverviewRequest(request),
-        });
-      },
-
-      setTransitionIntent: transitionIntent => {
-        set({
-          transitionIntent:
-            transitionIntent === null ? null : copyTransitionIntent(transitionIntent),
-        });
-      },
-
-      setRouteIntent: intent => {
-        set({
-          routeIntents: {
-            ...get().routeIntents,
-            [intent.windowId]: copyRouteIntent(intent),
-          },
-        });
-      },
-
-      clearRouteIntent: (windowId, intentId) => {
-        const current = get().routeIntents[windowId];
-        if (current?.id !== intentId) return;
-        const routeIntents = { ...get().routeIntents };
-        delete routeIntents[windowId];
-        set({ routeIntents });
-      },
-
-      nextPlacementCycle: (windowId, edge) => {
-        const current = get().placementCycles[windowId];
-        const cycleStep = current?.edge === edge ? current.nextStep : 0;
-        set({
-          placementCycles: {
-            ...get().placementCycles,
-            [windowId]: { edge, nextStep: cycleStep + 1 },
-          },
-        });
-        return cycleStep;
-      },
-
-      trackPlacementTarget: (windowId, edge) => {
-        const placementCycles = get().placementCycles;
-        const current = placementCycles[windowId];
-        if (edge === null) {
-          if (current === undefined) return;
-          const remaining = Object.fromEntries(
-            Object.entries(placementCycles).filter(([id]) => id !== windowId)
-          );
-          set({ placementCycles: remaining });
-          return;
+      overlayOpened: (state, event: { overlay: WindowManagerOverlay }) => ({
+        ...state,
+        activeOverlay:
+          event.overlay.kind === "layout-editor"
+            ? { ...event.overlay }
+            : { kind: "desktops-overview" },
+        overviewSegmentRequest: null,
+      }),
+      overlayClosed: state =>
+        state.activeOverlay === null && state.overviewSegmentRequest === null
+          ? undefined
+          : { ...state, activeOverlay: null, overviewSegmentRequest: null },
+      overviewSegmentRequested: (state, event: { request: DesktopOverviewSegmentRequest }) => ({
+        ...state,
+        activeOverlay: { kind: "desktops-overview" },
+        overviewSegmentRequest: {
+          ...event.request,
+          hiddenDesktopIds: [...event.request.hiddenDesktopIds],
+        },
+      }),
+      desktopStateObserved: (
+        state,
+        event: { activeDesktopId: string; reconciledIntent: DesktopTransitionIntent | null }
+      ) => {
+        const current = state.transitionIntent;
+        if (current?.mode === "instant" && current.toDesktopId === event.activeDesktopId) {
+          return { ...state, transitionIntent: null };
         }
-        if (current?.edge === edge) return;
-        set({
-          placementCycles: {
-            ...placementCycles,
-            [windowId]: { edge, nextStep: 1 },
-          },
-        });
+        if (current !== null || event.reconciledIntent === null) return;
+        return { ...state, transitionIntent: { ...event.reconciledIntent } };
       },
-
-      setSeamPreview: preview => {
-        const current = get().seamPreview;
+      transitionIntentChanged: (state, event: { intent: DesktopTransitionIntent | null }) => ({
+        ...state,
+        transitionIntent: event.intent === null ? null : { ...event.intent },
+      }),
+      transitionIntentRejected: (
+        state,
+        event: { binding: WindowManagerBinding; toDesktopId: string }
+      ) =>
+        fencedBinding(state, event.binding) &&
+        state.transitionIntent?.toDesktopId === event.toDesktopId
+          ? { ...state, transitionIntent: null }
+          : undefined,
+      routeIntentSet: (state, event: { intent: WindowRouteIntent }) => ({
+        ...state,
+        routeIntents: {
+          ...state.routeIntents,
+          [event.intent.windowId]: {
+            ...event.intent,
+            route: {
+              pathname: event.intent.route.pathname,
+              search: { ...event.intent.route.search },
+            },
+          },
+        },
+      }),
+      routeIntentCleared: (state, event: { windowId: string; intentId: string }) => {
+        const current = state.routeIntents[event.windowId];
+        if (current?.id !== event.intentId) return;
+        const routeIntents = { ...state.routeIntents };
+        delete routeIntents[event.windowId];
+        return { ...state, routeIntents };
+      },
+      placementCycleAdvanced: (state, event, enqueue) => {
+        const current = state.placementCycles[event.windowId];
+        const cycleStep = current?.edge === event.edge ? current.nextStep : 0;
+        enqueue.emit.placementCycleResolved({
+          windowId: event.windowId,
+          edge: event.edge,
+          cycleStep,
+        });
+        return {
+          ...state,
+          placementCycles: {
+            ...state.placementCycles,
+            [event.windowId]: { edge: event.edge, nextStep: cycleStep + 1 },
+          },
+        };
+      },
+      placementTargetTracked: (
+        state,
+        event: { windowId: string; edge: SnapSide | SnapCorner | null }
+      ) => {
+        const current = state.placementCycles[event.windowId];
+        if (event.edge === null) {
+          if (current === undefined) return;
+          const placementCycles = { ...state.placementCycles };
+          delete placementCycles[event.windowId];
+          return { ...state, placementCycles };
+        }
+        if (current?.edge === event.edge) return;
+        return {
+          ...state,
+          placementCycles: {
+            ...state.placementCycles,
+            [event.windowId]: { edge: event.edge, nextStep: 1 },
+          },
+        };
+      },
+      seamPreviewSet: (state, event: { preview: SeamPreview }) => {
+        const preview = event.preview;
         if (
-          current !== null &&
-          current.splitId === preview.splitId &&
-          current.boundaryIndex === preview.boundaryIndex &&
-          current.deltaPx === preview.deltaPx
+          state.seamPreview?.splitId === preview.splitId &&
+          state.seamPreview.boundaryIndex === preview.boundaryIndex &&
+          state.seamPreview.deltaPx === preview.deltaPx
         ) {
           return;
         }
-        set({
-          seamPreview: {
-            splitId: preview.splitId,
-            boundaryIndex: preview.boundaryIndex,
-            deltaPx: preview.deltaPx,
-          },
-        });
+        return { ...state, seamPreview: { ...preview } };
       },
-
-      clearSeamPreview: () => {
-        if (get().seamPreview === null) return;
-        set({ seamPreview: null });
+      seamPreviewCleared: state =>
+        state.seamPreview === null ? undefined : { ...state, seamPreview: null },
+      gestureBegan: (state, event) => ({ ...state, gesture: beginLayoutGesture(event) }),
+      gesturePreviewed: (state, event) => {
+        if (state.gesture === null) return;
+        const gesture = previewLayoutGesture(
+          state.gesture,
+          event.point,
+          event.preview,
+          event.currentWorkArea
+        );
+        return gesture === state.gesture ? undefined : { ...state, gesture };
       },
-
-      beginGesture: input => {
-        const gesture = beginLayoutGesture(input);
-        set({ gesture });
-        return gesture;
+      gestureCancelled: (state, event) => {
+        if (state.gesture === null) return;
+        const gesture = cancelLayoutGesture(state.gesture, event.reason, event.point);
+        return gesture === state.gesture ? undefined : { ...state, gesture };
       },
-
-      previewGesture: (point, preview, currentWorkArea) => {
-        const current = get().gesture;
-        if (current === null) return;
-        const gesture = previewLayoutGesture(current, point, preview, currentWorkArea);
-        if (gesture !== current) set({ gesture });
+      gestureFinished: (state, event, enqueue) => {
+        if (state.gesture === null) return;
+        const decision = finishLayoutGesture(state.gesture, event);
+        const gesture =
+          decision.kind === "cancel"
+            ? cancelLayoutGesture(state.gesture, decision.reason, decision.finalPoint)
+            : null;
+        enqueue.emit.gestureDecisionResolved({ decision });
+        return { ...state, gesture };
       },
-
-      cancelGesture: (reason, point) => {
-        const current = get().gesture;
-        if (current === null) return null;
-        const gesture = cancelLayoutGesture(current, reason, point);
-        if (gesture !== current) set({ gesture });
-        return gesture;
+      gestureCleared: state => (state.gesture === null ? undefined : { ...state, gesture: null }),
+      commandBegan: (state, event: { command: PendingWindowManagerCommand }, enqueue) => {
+        if (state.commandState.status !== "idle") return;
+        enqueue.emit.commandAccepted({ commandId: event.command.id });
+        return {
+          ...state,
+          commandState: { status: "pending", command: { ...event.command }, diagnostic: null },
+        };
       },
-
-      finishGesture: input => {
-        const current = get().gesture;
-        if (current === null) return null;
-        const decision = finishLayoutGesture(current, input);
-        set({
-          gesture:
-            decision.kind === "cancel"
-              ? cancelLayoutGesture(current, decision.reason, decision.finalPoint)
-              : null,
-        });
-        return decision;
-      },
-
-      clearGesture: () => {
-        if (get().gesture === null) return;
-        set({ gesture: null });
-      },
-
-      beginCommand: command => {
-        if (get().commandState.status !== "idle") return false;
-        set({
-          commandState: {
-            status: "pending",
-            command: copyCommand(command),
-            diagnostic: null,
-          },
-        });
-        return true;
-      },
-
-      completeCommand: (commandId, diagnostic) => {
-        const current = get().commandState;
-        if (current.status !== "pending" || current.command.id !== commandId) return;
-        set({
-          commandState: idleCommandState(
-            diagnostic === undefined ? null : copyDiagnostic(diagnostic)
-          ),
-        });
-      },
-
-      failCommand: (commandId, diagnostic) => {
-        const current = get().commandState;
-        if (current.status !== "pending" || current.command.id !== commandId) return;
-        set({ commandState: idleCommandState(copyDiagnostic(diagnostic)) });
-      },
-
-      recordConflict: (conflict, diagnostic) => {
-        const current = get().commandState;
-        if (current.status !== "pending" || current.command.id !== conflict.commandId) return;
-        set({
-          commandState: {
-            status: "conflict",
-            conflict: copyConflict(conflict),
-            diagnostic: copyDiagnostic(diagnostic),
-          },
-        });
-      },
-
-      clearConflict: () => {
-        if (get().commandState.status !== "conflict") return;
-        set({ commandState: idleCommandState() });
-      },
-
-      reportDiagnostic: diagnostic => {
-        const current = get().commandState;
-        set({ commandState: { ...current, diagnostic: copyDiagnostic(diagnostic) } });
-      },
-
-      clearDiagnostic: () => {
-        const current = get().commandState;
-        if (current.status === "conflict" || current.diagnostic === null) return;
-        set({ commandState: { ...current, diagnostic: null } });
-      },
-    };
-
-    return { ...bindingScopedState(null), workArea: null, actions };
+      commandCompleted: (
+        state,
+        event: {
+          commandId: string;
+          diagnostic?: WindowManagerDiagnostic;
+          binding?: WindowManagerBinding;
+        }
+      ) =>
+        state.commandState.status !== "pending" ||
+        state.commandState.command.id !== event.commandId ||
+        !fencedBinding(state, event.binding)
+          ? undefined
+          : {
+              ...state,
+              commandState: idleCommandState(event.diagnostic ? { ...event.diagnostic } : null),
+            },
+      commandFailed: (
+        state,
+        event: {
+          commandId: string;
+          diagnostic: WindowManagerDiagnostic;
+          binding?: WindowManagerBinding;
+        }
+      ) =>
+        state.commandState.status !== "pending" ||
+        state.commandState.command.id !== event.commandId ||
+        !fencedBinding(state, event.binding)
+          ? undefined
+          : { ...state, commandState: idleCommandState({ ...event.diagnostic }) },
+      conflictRecorded: (
+        state,
+        event: {
+          conflict: WindowManagerRevisionConflict;
+          diagnostic: WindowManagerDiagnostic;
+          binding?: WindowManagerBinding;
+        }
+      ) =>
+        state.commandState.status !== "pending" ||
+        state.commandState.command.id !== event.conflict.commandId ||
+        !fencedBinding(state, event.binding)
+          ? undefined
+          : {
+              ...state,
+              commandState: {
+                status: "conflict",
+                conflict: { ...event.conflict },
+                diagnostic: { ...event.diagnostic },
+              },
+            },
+      conflictCleared: state =>
+        state.commandState.status !== "conflict"
+          ? undefined
+          : { ...state, commandState: idleCommandState() },
+      diagnosticReported: (state, event: { diagnostic: WindowManagerDiagnostic }) => ({
+        ...state,
+        commandState: { ...state.commandState, diagnostic: { ...event.diagnostic } },
+      }),
+      diagnosticCleared: state =>
+        state.commandState.status === "conflict" || state.commandState.diagnostic === null
+          ? undefined
+          : { ...state, commandState: { ...state.commandState, diagnostic: null } },
+    },
   });
 }
 
+export type WindowManagerStoreApi = ReturnType<typeof createWindowManagerStore>;
+
 export const windowManagerStore = createWindowManagerStore();
+
+export type {
+  DesktopOverviewSegmentRequest,
+  DesktopTransitionIntent,
+  PendingWindowManagerCommand,
+  WindowManagerBinding,
+  WindowManagerCommandState,
+  WindowManagerDiagnostic,
+  WindowManagerOverlay,
+  WindowManagerRevisionConflict,
+  WindowManagerStoreState,
+  WindowManagerWorkArea,
+  WindowPlacementCycle,
+  WindowRouteIntent,
+} from "./window-manager-store-types";
 
 export {
   selectDesktopOverviewSegmentRequest,
   selectDesktopTransitionIntent,
   selectPendingWindowManagerCommand,
-  selectWindowManagerActions,
   selectWindowManagerBinding,
   selectWindowManagerConflict,
   selectWindowManagerConnectionStatus,

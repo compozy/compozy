@@ -112,11 +112,9 @@ function Harness({
       onRequestDelete={vi.fn()}
       onSave={onSave}
       onSwitchToEdit={() => {
-        setMode(current => {
-          if (current !== "inspect" || !entry) return current;
-          setDraft(providerDraftFromEntry(entry));
-          return "edit";
-        });
+        if (mode !== "inspect" || !entry) return;
+        setDraft(providerDraftFromEntry(entry));
+        setMode("edit");
       }}
       open
       warnings={undefined}

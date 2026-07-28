@@ -1,46 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import { useSelector } from "@xstate/store-react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { NETWORK_DEFAULT_RECENTS_LIMIT, networkChannelsOptions } from "../lib/query-options";
 import type { NetworkChannelSummary, NetworkChannelsResponse } from "../types";
-
-const PINNED_CHANNELS_STORAGE_KEY = "network:pinned-channels";
-type PinnedChannelsState = Record<string, string[]>;
-
-function readPinnedChannelsState(): PinnedChannelsState {
-  if (typeof window === "undefined") return {};
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(PINNED_CHANNELS_STORAGE_KEY) ?? "{}");
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-    const state: PinnedChannelsState = {};
-    for (const [workspaceId, channels] of Object.entries(parsed)) {
-      if (typeof workspaceId !== "string" || !Array.isArray(channels)) continue;
-      const clean = channels.filter(item => typeof item === "string" && item.trim() !== "");
-      if (clean.length > 0) state[workspaceId] = clean;
-    }
-    return state;
-  } catch {
-    return {};
-  }
-}
-
-function readPinnedChannels(workspaceId: string | null | undefined): string[] {
-  return workspaceId ? (readPinnedChannelsState()[workspaceId] ?? []) : [];
-}
-
-function writePinnedChannels(workspaceId: string, values: string[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    const next = { ...readPinnedChannelsState() };
-    if (values.length === 0) delete next[workspaceId];
-    else next[workspaceId] = values;
-    window.localStorage.setItem(PINNED_CHANNELS_STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // localStorage is best-effort; stay quiet on quota or privacy mode failures.
-  }
-}
+import {
+  createPinnedChannelsStore,
+  PINNED_CHANNELS_STORAGE_KEY,
+  rehydratePinnedChannelsStore,
+} from "./pinned-channels-store";
 
 export interface UseNetworkChannelsResult {
   channels: NetworkChannelSummary[];
@@ -74,43 +45,28 @@ export function useNetworkChannels({
     networkChannelsOptions(workspaceId, { recent_limit: recentLimit }, enabled)
   );
   const workspaceKey = selectedWorkspaceId ?? "";
-  const [pinnedState, setPinnedState] = useState(() => ({
-    ids: readPinnedChannels(selectedWorkspaceId),
-    workspaceKey,
-  }));
-  const pinnedStateRef = useRef(pinnedState);
-  const pinnedIds =
-    pinnedState.workspaceKey === workspaceKey
-      ? pinnedState.ids
-      : readPinnedChannels(selectedWorkspaceId);
+  const { store } = useStoreBinding(workspaceKey, () => createPinnedChannelsStore(workspaceKey));
+  const pinnedIds = useSelector(store, snapshot => snapshot.context.pinnedIds);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
+    void rehydratePinnedChannelsStore(store);
+
     function handleStorage(event: StorageEvent) {
       if (event.key === PINNED_CHANNELS_STORAGE_KEY) {
-        const next = {
-          ids: readPinnedChannels(selectedWorkspaceId),
-          workspaceKey,
-        };
-        pinnedStateRef.current = next;
-        setPinnedState(next);
+        void rehydratePinnedChannelsStore(store);
       }
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [activeWorkspaceId, requestedWorkspaceId, selectedWorkspaceId, workspaceKey]);
+  }, [store]);
 
   const togglePinned = (channel: string) => {
     if (!selectedWorkspaceId) return;
-    const current = pinnedStateRef.current;
-    const currentIds = current.workspaceKey === workspaceKey ? current.ids : pinnedIds;
-    const nextIds = currentIds.includes(channel)
-      ? currentIds.filter(value => value !== channel)
-      : [channel, ...currentIds];
-    const next = { ids: nextIds, workspaceKey };
-    pinnedStateRef.current = next;
-    setPinnedState(next);
-    writePinnedChannels(selectedWorkspaceId, nextIds);
+    store.trigger.pinToggled({
+      workspaceId: workspaceKey,
+      channel,
+    });
   };
   const channels = query.data?.channels ?? [];
   const pinnedIdSet = new Set(pinnedIds);
@@ -131,5 +87,3 @@ export function useNetworkChannels({
     error: query.error ?? null,
   };
 }
-
-export const PINNED_CHANNELS_STORAGE_KEY_FOR_TESTS = PINNED_CHANNELS_STORAGE_KEY;

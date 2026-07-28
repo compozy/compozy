@@ -38,7 +38,7 @@ export interface OsZoomMenuModel {
  * palette/chords surface, which remains the guaranteed keyboard path.
  */
 export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
-  const { manager, store } = useOsShell();
+  const { manager } = useOsShell();
   const [open, setOpen] = useState(false);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,22 +112,22 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
     },
     dispatchPlacement: command =>
       dispatch(() => {
-        const state = store.getState();
+        const state = manager.getState();
         if (windowManagerCommandsAvailable(state) && state.windowManagerConfig !== null) {
           dispatchWindowPlacement(manager, windowId, command);
         }
       }),
     dispatchMakeFloating: () =>
       dispatch(() => {
-        if (commandsAvailable) manager.getState().toggleFloating(windowId);
+        if (commandsAvailable) manager.toggleFloating(windowId);
       }),
     dispatchFill: () =>
       dispatch(() => {
-        if (commandsAvailable) manager.getState().zoomWindow(windowId);
+        if (commandsAvailable) manager.zoomWindow(windowId);
       }),
     dispatchArrange: preset =>
       dispatch(() => {
-        if (commandsAvailable) manager.getState().arrangeLayout(windowId, preset);
+        if (commandsAvailable) manager.arrangeLayout(windowId, preset);
       }),
   };
 }

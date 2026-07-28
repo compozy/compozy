@@ -1,6 +1,6 @@
 import { primarySessionFixture } from "@/systems/session/mocks";
 import { type ComponentProps, type ReactNode, useEffect } from "react";
-import { useSessionStore } from "@/systems/session/hooks/use-session-store";
+import { sessionStore } from "@/systems/session/stores/session-store";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScrollToBottomPill, SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -20,24 +20,19 @@ import {
 
 const storyWorkspaceId = primarySessionFixture.workspace_id ?? "ws_alpha";
 
-function withoutSessionValue<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
-  return Object.fromEntries(Object.entries(values).filter(([key]) => key !== sessionId));
-}
-
 function GoalCommandErrorFixture({ children }: { children: ReactNode }) {
   useEffect(() => {
-    useSessionStore.getState().setGoalResult(primarySessionFixture.id, {
-      outcome: "error",
-      reason_code: "goal_objective_required",
-      replaced_run_id: null,
-      snapshot: null,
+    sessionStore.trigger.goalCommandReported({
+      sessionId: primarySessionFixture.id,
+      result: {
+        outcome: "error",
+        reason_code: "goal_objective_required",
+        replaced_run_id: null,
+        snapshot: null,
+      },
     });
     return () => {
-      useSessionStore.setState(state => ({
-        goalResults: withoutSessionValue(state.goalResults, primarySessionFixture.id),
-        goalResultCommands: withoutSessionValue(state.goalResultCommands, primarySessionFixture.id),
-        goalErrorVisible: withoutSessionValue(state.goalErrorVisible, primarySessionFixture.id),
-      }));
+      sessionStore.trigger.sessionInteractionRemoved({ sessionId: primarySessionFixture.id });
     };
   }, []);
 

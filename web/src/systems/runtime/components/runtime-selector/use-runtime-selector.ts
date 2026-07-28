@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { runtimeModelKey } from "./model-key";
 import { buildRuntimeListModel, type RailFilter } from "./runtime-list-model";
+import { runtimeSelectorPopupLogic } from "./runtime-selector-store";
 import { useRuntimeFavorites } from "./use-runtime-favorites";
 import {
   resolveReasoningState,
@@ -23,12 +24,6 @@ export interface UseRuntimeSelectorArgs {
   onChange: (next: RuntimeSelectorValue) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
-  /**
-   * The catalog query has RESOLVED (not merely "not loading"). Drives the strict
-   * favorites/recents purge so a legitimately loaded-empty catalog wipes stale
-   * persisted entries, while a still-loading/disabled query never does.
-   */
-  catalogLoaded?: boolean;
 }
 
 function resolveActiveCustomProvider(
@@ -42,32 +37,26 @@ function resolveActiveCustomProvider(
   return providerById.has(selectedProvider) ? selectedProvider : "";
 }
 
-export function useRuntimeSelector({
-  value,
-  onChange,
-  providers,
-  models,
-  catalogLoaded = false,
-}: UseRuntimeSelectorArgs) {
-  const [open, setOpen] = useState(false);
-  const [railFilter, setRailFilter] = useState<RailFilter>("all");
-  const [query, setQuery] = useState("");
-  // The active (keyboard/pointer) row is tracked by its compound (provider,model)
-  // KEY, never a numeric list index. Favorite-driven reordering rebuilds the list
-  // but keeps the same active target — the derived index below just follows it.
-  const [activeRow, setActiveRow] = useState<{ cursor: string; key: string } | null>(null);
-  // Polite announcement text for the favorite toggle (Alt+F while focus stays in
-  // search): "Favorited …" / "Unfavorited …" spoken via an aria-live region.
-  const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
+export function useRuntimeSelector({ value, onChange, providers, models }: UseRuntimeSelectorArgs) {
+  const popupStore = useStore(runtimeSelectorPopupLogic);
+  const popupState = useSelector(popupStore, snapshot => snapshot.context);
+  const open = popupState.phase === "open";
+  const railFilter = popupState.phase === "open" ? popupState.railFilter : "all";
+  const query = popupState.phase === "open" ? popupState.query : "";
+  // The active row is a compound (provider,model) cursor, never a list index.
+  // The derived index below therefore follows the model through reordering.
+  const activeRow = popupState.phase === "open" ? popupState.activeRow : null;
+  const favoriteAnnouncement = popupState.phase === "open" ? popupState.favoriteAnnouncement : "";
 
   const providerById = new Map(providers.map(provider => [provider.id, provider]));
   const modelByKey = new Map(
     models.map(model => [runtimeModelKey(model.provider, model.id), model])
   );
-  // Favorites/recents are validated against the current compound-tuple keys so
-  // stale/foreign entries are never shown or persisted (see use-runtime-favorites).
+  // Each selector projects shared preferences through its own catalog. Foreign
+  // entries stay persisted for other selector surfaces but are never rendered
+  // or accepted as mutations here.
   const validKeys = new Set(modelByKey.keys());
-  const favorites = useRuntimeFavorites(validKeys, catalogLoaded);
+  const favorites = useRuntimeFavorites(validKeys);
   const selectedModel = value.model
     ? modelByKey.get(runtimeModelKey(value.provider, value.model))
     : undefined;
@@ -113,26 +102,20 @@ export function useRuntimeSelector({
   }
 
   const openPopup = () => {
-    setRailFilter("all");
-    setQuery("");
-    setActiveRow(null);
-    setFavoriteAnnouncement("");
-    setOpen(true);
+    popupStore.trigger.popupOpened();
   };
 
-  const close = () => setOpen(false);
+  const close = () => popupStore.trigger.popupClosed();
 
   const changeRail = (target: RailFilter) => {
     // The rail is a local list filter only — `all`, `fav`, and provider IDs
     // never mutate the controlled value or clear the current model/effort.
     // Selecting a model row is what adopts that model's provider.
-    setActiveRow(null);
-    setRailFilter(target);
+    popupStore.trigger.railChanged({ railFilter: target });
   };
 
   const changeQuery = (next: string) => {
-    setQuery(next);
-    setActiveRow(null);
+    popupStore.trigger.queryChanged({ query: next });
   };
 
   const emitSelection = (provider: string, id: string, model: RuntimeModelOption | undefined) => {
@@ -196,7 +179,7 @@ export function useRuntimeSelector({
           : enabled[(position + direction + enabled.length) % enabled.length];
     }
     const row = rows[target];
-    setActiveRow({ cursor: row.cursor, key: row.key });
+    popupStore.trigger.activeRowChanged({ row: { cursor: row.cursor, key: row.key } });
   };
 
   const moveHighlightEdge = (edge: "first" | "last") => {
@@ -208,7 +191,7 @@ export function useRuntimeSelector({
     if (enabled.length === 0) return;
     const target = edge === "first" ? enabled[0] : enabled[enabled.length - 1];
     const row = rows[target];
-    setActiveRow({ cursor: row.cursor, key: row.key });
+    popupStore.trigger.activeRowChanged({ row: { cursor: row.cursor, key: row.key } });
   };
 
   const commitHighlight = () => {
@@ -232,9 +215,9 @@ export function useRuntimeSelector({
     // Focus stays in the search field during Alt+F, so the button's aria-pressed
     // flip is not announced; a polite status carries the result instead.
     const providerName = providerById.get(row.provider)?.name ?? row.provider;
-    setFavoriteAnnouncement(
-      `${wasFavorite ? "Unfavorited" : "Favorited"} ${row.name} from ${providerName}`
-    );
+    popupStore.trigger.favoriteAnnounced({
+      message: `${wasFavorite ? "Unfavorited" : "Favorited"} ${row.name} from ${providerName}`,
+    });
     return true;
   };
 
@@ -244,7 +227,7 @@ export function useRuntimeSelector({
   const highlightRow = (rowIndex: number) => {
     const row = listModel.flatRows[rowIndex];
     if (!row || row.model.disabled) return;
-    setActiveRow({ cursor: row.cursor, key: row.key });
+    popupStore.trigger.activeRowChanged({ row: { cursor: row.cursor, key: row.key } });
   };
 
   // The currently-highlighted model + its favorite state, for the external

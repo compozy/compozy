@@ -215,6 +215,7 @@ export { taskRunCanRecover } from "./lib/task-run-recovery";
 export {
   parseTasksSurfaceMode,
   taskCatalogSearchFor,
+  taskModeSearchFor,
   validateTaskCreateSearch,
   validateTasksSearch,
 } from "./lib/task-location-search";
@@ -244,7 +245,12 @@ export { resolveTaskCommandState, taskHighestAttemptOrdinal } from "./lib/task-c
 export type { TaskCommandState, TaskPrimaryCommand } from "./lib/task-command-state";
 export { projectTaskExceptionPills } from "./lib/task-detail-pills";
 export type { TaskExceptionPill } from "./lib/task-detail-pills";
-export { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "./lib/task-catalog-filter";
+export {
+  DEFAULT_TASK_LIST_LIMIT,
+  defaultTaskCatalogFilter,
+  taskInboxFilterFromRouteSearch,
+  taskListFilterFromRouteSearch,
+} from "./lib/task-catalog-filter";
 export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
 export type { ActiveTaskScopeFilter } from "./lib/workspace-scope";
 
@@ -262,7 +268,6 @@ export type {
   TaskTemplateId,
   TaskTemplatePreview,
 } from "./lib/task-templates";
-
 export {
   getKanbanColumns,
   getTaskListGroups,

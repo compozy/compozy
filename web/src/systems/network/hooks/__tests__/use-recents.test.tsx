@@ -4,6 +4,7 @@ import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NetworkChannelsResponse } from "../../types";
+import { buildLastReadStorageKey, networkLastReadStore } from "../use-last-read";
 import { useNetworkRecents } from "../use-recents";
 
 vi.mock("@/systems/workspace", () => ({
@@ -83,15 +84,20 @@ describe("useNetworkRecents", () => {
   });
 
   it("uses the explicit workspace when comparing the local last-read marker", () => {
-    window.localStorage.setItem(
-      "network:last-read",
-      JSON.stringify({ "w1:ops:thread:thread_ops_one": "2026-04-17T18:00:00Z" })
-    );
-    const { result } = renderHook(() =>
-      useNetworkRecents(embedded, { workspaceId: "w1", limit: 5 })
-    );
+    const workspaceId = "recents-explicit-workspace";
+    networkLastReadStore.trigger.lastReadMarked({
+      workspaceId,
+      key: buildLastReadStorageKey({
+        workspaceId,
+        channel: "ops",
+        surface: "thread",
+        containerId: "thread_ops_one",
+      }),
+      timestamp: "2026-04-17T19:00:00Z",
+    });
+    const { result } = renderHook(() => useNetworkRecents(embedded, { workspaceId, limit: 5 }));
     expect(
       result.current.recents.find(entry => entry.containerId === "thread_ops_one")?.hasUnread
-    ).toBe(true);
+    ).toBe(false);
   });
 });

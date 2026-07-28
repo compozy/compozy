@@ -45,7 +45,6 @@ export interface AgentSettingsRuntimeSectionProps {
   providersLoading: boolean;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   onRefreshCatalog: () => void;
@@ -63,7 +62,6 @@ export function AgentSettingsRuntimeSection({
   providersLoading,
   runtimeModels,
   modelCatalogLoading,
-  modelCatalogLoaded,
   modelCatalogRefreshing,
   modelCatalogError,
   onRefreshCatalog,
@@ -121,7 +119,6 @@ export function AgentSettingsRuntimeSection({
           providers={providerOptions}
           models={runtimeModels}
           loading={modelCatalogLoading}
-          catalogLoaded={modelCatalogLoaded}
           refreshing={modelCatalogRefreshing}
           onRefreshCatalog={onRefreshCatalog}
           onOpenProviderSettings={onOpenProviderSettings}

@@ -1,4 +1,5 @@
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import { useSelector } from "@xstate/store-react";
 import {
   providerNeedsAuth,
   useRuntimeModelCatalog,
@@ -21,7 +22,7 @@ import {
 import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
 import { buildOnboardingProviderRequest } from "../lib/provider-request";
 import {
-  useOnboardingDraftStore,
+  onboardingDraftStore,
   type OnboardingAuthMode,
 } from "../stores/use-onboarding-draft-store";
 
@@ -46,7 +47,6 @@ export interface OnboardingDefaultModelApi {
   envVar: string;
   apiKey: string;
   catalogLoading: boolean;
-  catalogLoaded: boolean;
   catalogRefreshing: boolean;
   catalogError: string | null;
   /** The bound-secret target env is still unknown — drives the field's invalid state. */
@@ -83,38 +83,27 @@ export function defaultAuthModeForHarness(harness: string | null): OnboardingAut
 }
 
 function updateRuntime(next: RuntimeSelectorValue): void {
-  const store = useOnboardingDraftStore.getState();
-  const providerChanged = next.provider !== store.provider;
-  store.patch({
+  onboardingDraftStore.trigger.runtimeSelected({
     provider: next.provider,
     model: next.model,
     reasoning: normalizeEffort(next.reasoning_effort),
-    // A new provider re-arms the harness default and drops credentials bound to
-    // the previous one.
-    ...(providerChanged ? { envVar: "", apiKey: "", authModeTouched: false } : {}),
   });
 }
 
 function updateAuthMode(authMode: OnboardingAuthMode): void {
-  useOnboardingDraftStore
-    .getState()
-    .patch(
-      authMode === "native_cli"
-        ? { authMode, authModeTouched: true, envVar: "", apiKey: "" }
-        : { authMode, authModeTouched: true }
-    );
+  onboardingDraftStore.trigger.authModeChosen({ authMode });
 }
 
 function updateEnvVar(envVar: string): void {
-  useOnboardingDraftStore.getState().patch({ envVar });
+  onboardingDraftStore.trigger.envVarEntered({ envVar });
 }
 
 function updateApiKey(apiKey: string): void {
-  useOnboardingDraftStore.getState().patch({ apiKey });
+  onboardingDraftStore.trigger.apiKeyEntered({ apiKey });
 }
 
 export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
-  const draft = useOnboardingDraftStore();
+  const draft = useSelector(onboardingDraftStore, state => state.context);
   const providersQuery = useProviders();
   const providers = providersQuery.data?.providers ?? [];
 
@@ -250,7 +239,6 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     envVar: draft.envVar,
     apiKey: draft.apiKey,
     catalogLoading: catalog.loading,
-    catalogLoaded: catalog.loaded,
     catalogRefreshing: catalog.refreshing,
     catalogError: catalog.error,
     missingEnvVar,

@@ -8,7 +8,7 @@ import { KnowledgeDeleteDialog } from "../knowledge-delete-dialog";
 describe("KnowledgeDeleteDialog", () => {
   it("Should not render the dialog body when open is false", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="user.md"
           isPending={false}
@@ -24,7 +24,7 @@ describe("KnowledgeDeleteDialog", () => {
 
   it("Should render the filename and scope in the description when open", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="project-context.md"
           isPending={false}
@@ -44,7 +44,7 @@ describe("KnowledgeDeleteDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="user.md"
           isPending={false}
@@ -64,7 +64,7 @@ describe("KnowledgeDeleteDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="user.md"
           isPending={false}
@@ -87,7 +87,7 @@ describe("KnowledgeDeleteDialog", () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="user.md"
           isPending={false}
@@ -107,7 +107,7 @@ describe("KnowledgeDeleteDialog", () => {
 
   it("Should disable the confirm button while a delete is pending", () => {
     render(
-      <UIProvider reducedMotion="always">
+      <UIProvider reducedMotion="never" skipAnimations>
         <KnowledgeDeleteDialog
           filename="user.md"
           isPending

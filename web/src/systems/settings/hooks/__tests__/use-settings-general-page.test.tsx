@@ -37,8 +37,7 @@ import {
   reloadSettings,
   updateSettingsGeneral,
 } from "@/systems/settings/adapters/settings-api";
-import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
-import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsGeneralSection } from "@/systems/settings";
 import { useSettingsGeneralPage } from "../use-settings-general-page";
 
@@ -90,13 +89,7 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   workspaceState.activeWorkspaceId = "ws_alpha";
-  useSettingsRestartStore.setState({
-    ...initialSettingsRestartState,
-    startRestart: useSettingsRestartStore.getState().startRestart,
-    updateRestart: useSettingsRestartStore.getState().updateRestart,
-    clearRestart: useSettingsRestartStore.getState().clearRestart,
-    recordMutation: useSettingsRestartStore.getState().recordMutation,
-  });
+  resetSettingsRestartStore();
   vi.mocked(getSettingsGeneral).mockResolvedValue(envelope);
   vi.mocked(listSettingsApplyRecords).mockResolvedValue({ entries: [] });
   vi.mocked(reloadSettings).mockResolvedValue({

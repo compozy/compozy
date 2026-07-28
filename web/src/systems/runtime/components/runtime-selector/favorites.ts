@@ -23,7 +23,7 @@ export function readFavoritesList(key: string): string[] {
   }
 }
 
-export function writeFavoritesList(key: string, value: string[]): void {
+export function writeFavoritesList(key: string, value: readonly string[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
@@ -32,7 +32,7 @@ export function writeFavoritesList(key: string, value: string[]): void {
   }
 }
 
-export function dedupeFavorites(ids: string[]): string[] {
+export function dedupeFavorites(ids: readonly string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const id of ids) {
@@ -44,8 +44,8 @@ export function dedupeFavorites(ids: string[]): string[] {
 }
 
 export interface RuntimeFavoritesStore {
-  favorites: Set<string>;
-  recents: string[];
+  favorites: ReadonlySet<string>;
+  recents: readonly string[];
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
   pushRecent: (id: string) => void;

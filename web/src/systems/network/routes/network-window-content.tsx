@@ -12,7 +12,7 @@ import { ThreadsList } from "../components/threads";
 import type { ChannelTab } from "../components/shell/channel-tabs-types";
 import { useNetworkChannelDirectsRoute } from "../hooks/use-network-channel-directs-route";
 import { useNetworkChannelThreadsRoute } from "../hooks/use-network-channel-threads-route";
-import { useNetworkListFiltersContext } from "../hooks/use-network-list-filters-context";
+import type { UseNetworkListFiltersResult } from "../hooks/use-network-list-filters";
 
 interface NetworkWindowContentProps {
   fanoutPolicy?: string | null;
@@ -24,6 +24,7 @@ interface NetworkWindowContentProps {
   threadView: "full" | undefined;
   onCloseThread: () => void;
   onOpenThreadMain: () => void;
+  filters: UseNetworkListFiltersResult;
 }
 
 export function NetworkWindowContent(props: NetworkWindowContentProps) {
@@ -31,6 +32,10 @@ export function NetworkWindowContent(props: NetworkWindowContentProps) {
   if (props.activeTab === "activity") return <NetworkActivityLocation {...props} />;
   return <NetworkThreadsLocation {...props} />;
 }
+
+type NetworkWindowListLocationProps = NetworkWindowContentProps & {
+  filters: UseNetworkListFiltersResult;
+};
 
 function NetworkThreadsLocation({
   workspaceId,
@@ -40,7 +45,8 @@ function NetworkThreadsLocation({
   threadView,
   onCloseThread,
   onOpenThreadMain,
-}: NetworkWindowContentProps) {
+  filters,
+}: NetworkWindowListLocationProps) {
   const route = useNetworkChannelThreadsRoute({
     workspaceId,
     channel,
@@ -48,7 +54,7 @@ function NetworkThreadsLocation({
     view: threadView,
   });
   const { isFullPage, showOverlay, showList, activeSession } = route;
-  const { filteredThreads, threadsQuery, isFiltered } = useNetworkListFiltersContext();
+  const { filteredThreads, threadsQuery, isFiltered } = filters;
 
   return (
     <section
@@ -114,9 +120,10 @@ function NetworkDirectsLocation({
   workspaceId,
   channel,
   activeDirectId,
-}: NetworkWindowContentProps) {
+  filters,
+}: NetworkWindowListLocationProps) {
   const route = useNetworkChannelDirectsRoute(workspaceId, channel);
-  const { filteredDirects, directsQuery, isFiltered } = useNetworkListFiltersContext();
+  const { filteredDirects, directsQuery, isFiltered } = filters;
   const [newDirectOpen, setNewDirectOpen] = useState(false);
 
   if (activeDirectId) {
@@ -200,9 +207,13 @@ function NetworkDirectsLocation({
   );
 }
 
-function NetworkActivityLocation({ workspaceId, channel }: NetworkWindowContentProps) {
+function NetworkActivityLocation({
+  workspaceId,
+  channel,
+  filters,
+}: NetworkWindowListLocationProps) {
   const { filteredThreads, filteredDirects, threadsQuery, directsQuery, isFiltered, sort } =
-    useNetworkListFiltersContext();
+    filters;
 
   return (
     <section

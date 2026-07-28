@@ -3,8 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { useChannelMembers, type UseChannelMembersResult } from "./use-channel-members";
-import { useNetworkListFiltersContext } from "./use-network-list-filters-context";
-import { createNetworkChipFilter } from "./use-network-list-filters";
+import { createNetworkChipFilter, useNetworkListFilters } from "./use-network-list-filters";
 import { useUpdateNetworkChannel } from "./use-network-actions";
 import { networkKeys } from "../lib/query-keys";
 import type { ChannelTab } from "../components/shell/channel-tabs-types";
@@ -47,7 +46,7 @@ export function useChannelToolbar({
     setSearchQuery,
     markLoadedRead,
     isMarkLoadedReadDisabled,
-  } = useNetworkListFiltersContext();
+  } = useNetworkListFilters({ workspaceId, channel });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [overflowOpen, setOverflowOpen] = useState(false);

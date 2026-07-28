@@ -148,7 +148,11 @@ export type {
   UseChannelMembersResult,
 } from "./hooks/use-channel-members";
 export { useInspectorState } from "./hooks/use-inspector-state";
-export type { InspectorTab, UseInspectorStateResult } from "./hooks/use-inspector-state";
+export type {
+  InspectorTab,
+  UseInspectorStateArgs,
+  UseInspectorStateResult,
+} from "./hooks/use-inspector-state";
 export { useNetworkInspectorView } from "./hooks/use-network-inspector-view";
 export type {
   UseNetworkInspectorViewArgs,
@@ -171,13 +175,15 @@ export type {
   NetworkChipFilter,
   NetworkFilterKey,
   NetworkListSort,
+  NetworkListFiltersStore,
   UseNetworkListFiltersArgs,
+  UseNetworkListFilterStateResult,
   UseNetworkListFiltersResult,
 } from "./hooks/use-network-list-filters";
 export { NetworkListFiltersProvider } from "./contexts/network-list-filters-context";
-export { useNetworkListFiltersContext } from "./hooks/use-network-list-filters-context";
+export { useNetworkListFiltersStore } from "./hooks/use-network-list-filters-context";
 export { useNetworkChannels } from "./hooks/use-channels";
-export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
+export { useLastRead, buildLastReadStorageKey, networkLastReadStore } from "./hooks/use-last-read";
 export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";
 export { useNetworkDirects, useNetworkDirectDetail } from "./hooks/use-directs";
 export type {
@@ -286,22 +292,6 @@ export { TaskRunCoordinationInvitationHost } from "./components/task-run-coordin
 export type { TaskRunCoordinationInvitationHostProps } from "./components/task-run-coordination-invitation-host";
 export { TaskRunConversationPanel } from "./components/task-run-conversation-panel";
 export type { TaskRunConversationPanelProps } from "./components/task-run-conversation-panel";
-export {
-  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
-  NETWORK_PARTICIPATION_STRATEGIES,
-  isNetworkParticipationDraftValid,
-  isNetworkParticipationStrategy,
-  networkParticipationDraftFromPayload,
-  networkParticipationDraftFromValues,
-  networkParticipationValidationMessage,
-  serializeNetworkParticipation,
-} from "./lib/network-participation";
-export type {
-  NetworkParticipationDraft,
-  NetworkParticipationMode,
-  NetworkParticipationPayload,
-  NetworkParticipationStrategy,
-} from "./lib/network-participation";
 export {
   useAcceptNetworkCoordinationInvitation,
   useDismissNetworkCoordinationInvitation,

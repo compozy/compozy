@@ -1,22 +1,45 @@
-import type { StateCreator } from "zustand";
+import { createStore } from "@xstate/store";
+import { persist } from "@xstate/store/persist";
 
-export interface ActiveWorkspaceState {
+export interface ActiveWorkspaceContext {
   selectedWorkspaceId: string | null;
 }
 
-export interface ActiveWorkspaceActions {
-  setSelectedWorkspaceId: (workspaceId: string | null) => void;
-  clearSelectedWorkspaceId: () => void;
-}
-
-export type ActiveWorkspaceStore = ActiveWorkspaceState & ActiveWorkspaceActions;
-
-export const initialActiveWorkspaceState: ActiveWorkspaceState = {
+const initialActiveWorkspaceContext: ActiveWorkspaceContext = {
   selectedWorkspaceId: null,
 };
 
-export const createActiveWorkspaceStore: StateCreator<ActiveWorkspaceStore> = set => ({
-  ...initialActiveWorkspaceState,
-  setSelectedWorkspaceId: selectedWorkspaceId => set({ selectedWorkspaceId }),
-  clearSelectedWorkspaceId: () => set(initialActiveWorkspaceState),
-});
+export const activeWorkspaceStore = createStore({
+  context: initialActiveWorkspaceContext,
+  on: {
+    workspaceSelected: (context, event: { workspaceId: string }) => ({
+      ...context,
+      selectedWorkspaceId: event.workspaceId,
+    }),
+    workspaceSelectionCleared: context => ({
+      ...context,
+      selectedWorkspaceId: null,
+    }),
+  },
+}).with(
+  persist({
+    name: "compozy:active-workspace:v2",
+    pick: context => ({ selectedWorkspaceId: context.selectedWorkspaceId }),
+  })
+);
+
+export const activeWorkspaceSelectors = {
+  selectedWorkspaceId: activeWorkspaceStore.select(context => context.selectedWorkspaceId),
+};
+
+export function setActiveWorkspaceId(workspaceId: string | null): void {
+  if (workspaceId === null) {
+    activeWorkspaceStore.trigger.workspaceSelectionCleared();
+    return;
+  }
+  activeWorkspaceStore.trigger.workspaceSelected({ workspaceId });
+}
+
+export function clearActiveWorkspaceSelection(): void {
+  activeWorkspaceStore.trigger.workspaceSelectionCleared();
+}

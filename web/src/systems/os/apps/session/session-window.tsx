@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { Spinner } from "@compozy/ui";
+import { SessionNotFoundError, sessionDetailOptions } from "@/systems/session";
+import { useActiveWorkspace } from "@/systems/workspace";
 
-import { sessionByIdOptions } from "@/systems/session";
-
+import type { OsShellHandle } from "../../contexts/os-shell-context";
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { matchSessionInstance } from "../../lib/app-registry";
@@ -13,54 +13,61 @@ import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 
 const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
 
+function returnToAgent(
+  coordinator: OsShellHandle["coordinator"],
+  windowId: string,
+  agentName: string
+): void {
+  void coordinator.userClose(windowId).then(closed => {
+    if (!closed) return;
+    void coordinator.userOpen({
+      app: "agents",
+      route: {
+        pathname: `/agents/${encodeURIComponent(agentName)}`,
+        search: {},
+      },
+    });
+  });
+}
+
 /**
  * Session window controller: parses `agent + session` identity from
- * the window's WM location and resolves the owning workspace the same way the
- * route loader does (session-by-id), then rehosts the existing session view.
+ * the window's WM location, then resolves the session inside the active
+ * workspace before rehosting the existing session view.
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
+  const { activeWorkspaceId } = useActiveWorkspace();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "");
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
 
   const sessionQuery = useQuery({
-    ...sessionByIdOptions(sessionId ?? ""),
-    enabled: sessionId !== null,
+    ...sessionDetailOptions(activeWorkspaceId ?? "", sessionId ?? ""),
+    enabled: activeWorkspaceId !== null && sessionId !== null,
   });
+  const sessionWorkspaceId = sessionQuery.data?.workspace_id?.trim();
+  const crossesWorkspace =
+    sessionWorkspaceId !== undefined &&
+    activeWorkspaceId !== null &&
+    sessionWorkspaceId !== activeWorkspaceId;
 
   useEffect(() => {
-    if (!sessionQuery.error?.message.includes("not found") || agentName === null) return;
+    if (
+      (!(sessionQuery.error instanceof SessionNotFoundError) && !crossesWorkspace) ||
+      agentName === null
+    ) {
+      return;
+    }
     toast.error("Session not found");
-    void coordinator.userClose(windowId).then(closed => {
-      if (!closed) return;
-      void coordinator.userOpen({
-        app: "agents",
-        route: {
-          pathname: `/agents/${encodeURIComponent(agentName)}`,
-          search: {},
-        },
-      });
-    });
-  }, [agentName, coordinator, sessionQuery.error, windowId]);
+    returnToAgent(coordinator, windowId, agentName);
+  }, [agentName, coordinator, crossesWorkspace, sessionQuery.error, windowId]);
 
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
   }
-  if (sessionQuery.isLoading) {
-    return (
-      <div
-        className="flex min-h-full items-center justify-center"
-        data-testid="session-route-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
-  const workspaceId = sessionQuery.data?.workspace_id?.trim() || null;
-  if (workspaceId === null) {
+  if (activeWorkspaceId === null || crossesWorkspace) {
     return (
       <SessionWindowNotice
         message={sessionQuery.error?.message ?? "Session workspace unavailable"}
@@ -73,19 +80,11 @@ export function SessionWindow({ windowId }: { windowId: string }) {
       <SessionWindowView
         name={agentName}
         id={sessionId}
-        workspaceId={workspaceId}
-        onDeleteSuccess={() => {
-          void coordinator.userClose(windowId).then(closed => {
-            if (!closed) return;
-            void coordinator.userOpen({
-              app: "agents",
-              route: {
-                pathname: `/agents/${encodeURIComponent(agentName)}`,
-                search: {},
-              },
-            });
-          });
-        }}
+        workspaceId={activeWorkspaceId}
+        session={sessionQuery.data}
+        isLoading={sessionQuery.isLoading}
+        error={sessionQuery.error}
+        onDeleteSuccess={() => returnToAgent(coordinator, windowId, agentName)}
       />
     </div>
   );

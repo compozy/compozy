@@ -27,17 +27,21 @@ export function useTaskEditState(id: string | undefined, onSaved: () => void) {
     task && profile ? `${task.id}:${task.updated_at}:${profile.updated_at}` : "pending";
   const sourceDraft =
     task && profile ? taskEditorDraftFromTask(task, profile) : EMPTY_TASK_EDITOR_DRAFT;
-  const [draftState, setDraftState] = useState({ draft: sourceDraft, key: taskKey });
-  const draft = draftState.key === taskKey ? draftState.draft : sourceDraft;
-  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+  const [draftState, setDraftState] = useState(() => ({ draft: sourceDraft, sourceKey: taskKey }));
+  const currentDraftState =
+    draftState.sourceKey === taskKey ? draftState : { draft: sourceDraft, sourceKey: taskKey };
+  if (currentDraftState !== draftState) {
+    setDraftState(currentDraftState);
+  }
+  const draft = currentDraftState.draft;
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) =>
     setDraftState(current => {
-      const currentDraft = current.key === taskKey ? current.draft : sourceDraft;
+      const currentDraft = current.sourceKey === taskKey ? current.draft : sourceDraft;
       return {
         draft: typeof update === "function" ? update(currentDraft) : update,
-        key: taskKey,
+        sourceKey: taskKey,
       };
     });
-  };
 
   const handleSubmit = async (nextDraft: TaskEditorDraft) => {
     if (!id || !task || !profile) return null;

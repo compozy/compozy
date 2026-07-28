@@ -132,13 +132,13 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
         <Button
           data-testid="layout-profile-save"
           disabled={
-            editor.id.trim() === "" || editor.displayName.trim() === "" || editor.save.isPending
+            editor.id.trim() === "" || editor.displayName.trim() === "" || editor.phase === "saving"
           }
           size="sm"
           type="button"
-          onClick={() => editor.save.mutate()}
+          onClick={editor.saveProfile}
         >
-          {editor.save.isPending ? "Saving…" : "Save layout"}
+          {editor.phase === "saving" ? "Saving…" : "Save layout"}
         </Button>
       </div>
     </div>

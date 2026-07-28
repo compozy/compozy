@@ -5,7 +5,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useOnboardingDraftStore } from "../../stores/use-onboarding-draft-store";
+import { onboardingDraftStore } from "../../stores/use-onboarding-draft-store";
 import { ONBOARDING_STEP_COUNT, useOnboardingWizard } from "../use-onboarding-wizard";
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +39,7 @@ describe("useOnboardingWizard", () => {
     vi.clearAllMocks();
     mocks.commitDefaultModel.mockResolvedValue(undefined);
     mocks.completeOnboarding.mockResolvedValue(undefined);
-    useOnboardingDraftStore.getState().reset();
+    onboardingDraftStore.trigger.draftCleared();
   });
 
   it("Should complete directly from the workspace step", async () => {
@@ -59,11 +59,11 @@ describe("useOnboardingWizard", () => {
 
     expect(mocks.completeOnboarding).toHaveBeenCalledOnce();
     expect(onComplete).toHaveBeenCalledOnce();
-    expect(useOnboardingDraftStore.getState().step).toBe(1);
+    expect(onboardingDraftStore.getSnapshot().context.step).toBe(1);
   });
 
   it("Should reject navigation beyond the two-step flow", () => {
-    useOnboardingDraftStore.getState().setStep(2);
+    onboardingDraftStore.trigger.stepVisited({ step: 2 });
     const { result } = renderHook(() => useOnboardingWizard(vi.fn()));
 
     act(() => result.current.goToStep(3));

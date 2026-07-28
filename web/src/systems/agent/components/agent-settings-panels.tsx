@@ -5,6 +5,7 @@ import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtim
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import type { AgentPayload } from "../types";
+import type { AgentSettingsEditorState } from "../stores/agent-settings-editor-store";
 import { AgentSettingsAccessSection } from "./agent-settings-access-section";
 import { AgentSettingsBasicsSection } from "./agent-settings-basics-section";
 import { AgentSettingsDangerSection } from "./agent-settings-danger-section";
@@ -17,11 +18,8 @@ export interface AgentSettingsPanelsProps {
   agent: AgentPayload;
   draft: AgentSettingsDraft;
   validation: AgentSettingsValidation | null;
-  disabled: boolean;
-  readOnly: boolean;
-  mutationDenied: boolean;
-  saveError: string | null;
-  conflictBanner: string | null;
+  phase: AgentSettingsEditorState["phase"];
+  error: string | null;
   onReloadAndRetry: () => void;
   onPatch: (patch: Partial<AgentSettingsDraft>) => void;
   onDelete: () => void;
@@ -30,7 +28,6 @@ export interface AgentSettingsPanelsProps {
   providersLoading: boolean;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
-  modelCatalogLoaded: boolean;
   modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   onRefreshCatalog: () => void;
@@ -38,9 +35,10 @@ export interface AgentSettingsPanelsProps {
 }
 
 export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
-  const { section, agent, draft, validation, disabled, readOnly } = props;
+  const { section, agent, draft, validation } = props;
   const errors = validation?.fields ?? {};
-  const fieldsReadOnly = readOnly || props.mutationDenied;
+  const disabled = props.phase === "saving";
+  const fieldsReadOnly = props.phase === "denied";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-5">
@@ -66,7 +64,6 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
           providersLoading={props.providersLoading}
           runtimeModels={props.runtimeModels}
           modelCatalogLoading={props.modelCatalogLoading}
-          modelCatalogLoaded={props.modelCatalogLoaded}
           modelCatalogRefreshing={props.modelCatalogRefreshing}
           modelCatalogError={props.modelCatalogError}
           onRefreshCatalog={props.onRefreshCatalog}
@@ -106,7 +103,7 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
 function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
   return (
     <>
-      {props.mutationDenied ? (
+      {props.phase === "denied" ? (
         <ActionResultBanner
           tone="danger"
           title="Editing requires an operator token"
@@ -114,11 +111,11 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
           data-testid="agent-settings-mutation-denied"
         />
       ) : null}
-      {props.conflictBanner ? (
+      {props.phase === "conflict" && props.error ? (
         <ActionResultBanner
           tone="warning"
           title="Definition conflict"
-          description={props.conflictBanner}
+          description={props.error}
           actions={
             <Button
               type="button"
@@ -133,11 +130,11 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
           data-testid="agent-settings-conflict-banner"
         />
       ) : null}
-      {props.saveError ? (
+      {props.phase === "failed" && props.error ? (
         <ActionResultBanner
           tone="danger"
           title="Couldn't save agent"
-          description={props.saveError}
+          description={props.error}
           data-testid="agent-settings-save-error"
         />
       ) : null}

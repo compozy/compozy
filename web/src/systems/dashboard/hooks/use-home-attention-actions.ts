@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { useApproveTask, useRejectTask, useRetryTaskRun } from "@/systems/tasks";
 
+import {
+  createHomeAttentionActionsLogic,
+  type HomeAttentionResolvedKind,
+} from "./home-attention-actions-store";
 import { dashboardKeys } from "../lib/query-keys";
 
-export type HomeAttentionResolvedKind = "approved" | "rejected";
+export type { HomeAttentionResolvedKind } from "./home-attention-actions-store";
+
+const homeAttentionActionsLogic = createHomeAttentionActionsLogic();
 
 export interface HomeAttentionActions {
   resolvedById: Record<string, HomeAttentionResolvedKind>;
@@ -17,76 +22,45 @@ export interface HomeAttentionActions {
   onRetry: (runId: string) => void;
 }
 
-/**
- * Owns Needs-you mutations and reconciles overview counters after success.
- * Per-id reference counts keep concurrent rows disabled until their own promise settles.
- */
+/** Owns Needs-you mutations and reconciles overview counters after success. */
 export function useHomeAttentionActions(): HomeAttentionActions {
   const queryClient = useQueryClient();
   const approveTask = useApproveTask();
   const rejectTask = useRejectTask();
   const retryTaskRun = useRetryTaskRun();
-  const [resolvedById, setResolvedById] = useState<Record<string, HomeAttentionResolvedKind>>({});
-  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+  const store = useStore(homeAttentionActionsLogic);
+  const operations = useSelector(store, snapshot => snapshot.context.operations);
 
-  const startPending = (id: string) =>
-    setPendingCounts(current => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
-  const endPending = (id: string) =>
-    setPendingCounts(current => {
-      const next = { ...current };
-      const count = (next[id] ?? 0) - 1;
-      if (count > 0) {
-        next[id] = count;
-      } else {
-        delete next[id];
-      }
-      return next;
-    });
+  const pendingIds = new Set<string>();
+  const resolvedById: Record<string, HomeAttentionResolvedKind> = {};
+  for (const [id, operation] of Object.entries(operations)) {
+    if (operation.status === "pending") pendingIds.add(id);
+    if (operation.status === "resolved") resolvedById[id] = operation.resolved;
+  }
 
-  const refreshOverview = () => {
-    void queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }).catch(error => {
-      toast.error(error instanceof Error ? error.message : "Failed to refresh dashboard");
-    });
+  const refreshOverview = () =>
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() });
+
+  return {
+    resolvedById,
+    pendingIds,
+    onApprove: taskId =>
+      store.trigger.approveRequested({
+        id: taskId,
+        execute: id => approveTask.mutateAsync({ id }),
+        refreshOverview,
+      }),
+    onReject: taskId =>
+      store.trigger.rejectRequested({
+        id: taskId,
+        execute: id => rejectTask.mutateAsync({ id }),
+        refreshOverview,
+      }),
+    onRetry: runId =>
+      store.trigger.retryRequested({
+        id: runId,
+        execute: id => retryTaskRun.mutateAsync({ runId: id }),
+        refreshOverview,
+      }),
   };
-
-  const resolveRow = (taskId: string, kind: HomeAttentionResolvedKind) => {
-    setResolvedById(current => ({ ...current, [taskId]: kind }));
-    refreshOverview();
-  };
-
-  const onApprove = (taskId: string) => {
-    startPending(taskId);
-    void approveTask
-      .mutateAsync({ id: taskId })
-      .then(() => resolveRow(taskId, "approved"))
-      .catch(error => {
-        toast.error(error instanceof Error ? error.message : "Failed to approve task");
-      })
-      .finally(() => endPending(taskId));
-  };
-
-  const onReject = (taskId: string) => {
-    startPending(taskId);
-    void rejectTask
-      .mutateAsync({ id: taskId })
-      .then(() => resolveRow(taskId, "rejected"))
-      .catch(error => {
-        toast.error(error instanceof Error ? error.message : "Failed to reject task");
-      })
-      .finally(() => endPending(taskId));
-  };
-
-  const onRetry = (runId: string) => {
-    startPending(runId);
-    void retryTaskRun
-      .mutateAsync({ runId })
-      .then(() => refreshOverview())
-      .catch(error => {
-        toast.error(error instanceof Error ? error.message : "Failed to retry run");
-      })
-      .finally(() => endPending(runId));
-  };
-
-  const pendingIds: ReadonlySet<string> = new Set(Object.keys(pendingCounts));
-  return { resolvedById, pendingIds, onApprove, onReject, onRetry };
 }

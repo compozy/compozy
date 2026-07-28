@@ -1,11 +1,11 @@
+import type { SettingsRestartStatusName } from "../types";
+import { isFailedRestart, isSuccessfulRestart, isTerminalRestartStatus } from "./restart-status";
+
 export interface SettingsRestartViewState {
   isVisible: boolean;
   isRestartRequired: boolean;
-  isPolling: boolean;
-  isSuccessful: boolean;
-  isFailed: boolean;
   operationId: string | null;
-  status: string | null;
+  status: SettingsRestartStatusName | null;
   failureReason?: string;
   activeSessionCount: number;
   isTriggerPending: boolean;
@@ -29,7 +29,8 @@ export interface SettingsRestartPresentation {
 }
 
 function sessionLabelFor(state: SettingsRestartViewState): string | null {
-  if (!state.isRestartRequired || state.isPolling || state.activeSessionCount <= 0) {
+  const isPolling = state.operationId !== null && !isTerminalRestartStatus(state.status);
+  if (!state.isRestartRequired || isPolling || state.activeSessionCount <= 0) {
     return null;
   }
   const noun = state.activeSessionCount === 1 ? "session" : "sessions";
@@ -42,7 +43,7 @@ export function settingsRestartPresentation(
   if (!state.isVisible) return null;
 
   const sessionLabel = sessionLabelFor(state);
-  if (state.isFailed) {
+  if (isFailedRestart(state.status)) {
     return {
       phase: "failed",
       tone: "danger",
@@ -57,7 +58,7 @@ export function settingsRestartPresentation(
       triggerPending: state.isTriggerPending,
     };
   }
-  if (state.isSuccessful) {
+  if (isSuccessfulRestart(state.status)) {
     return {
       phase: "successful",
       tone: "success",
@@ -70,7 +71,7 @@ export function settingsRestartPresentation(
       triggerPending: false,
     };
   }
-  if (state.isPolling) {
+  if (state.operationId !== null && !isTerminalRestartStatus(state.status)) {
     return {
       phase: "polling",
       tone: "info",

@@ -45,6 +45,7 @@ function JobEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      userHomeDir={undefined}
       agents={agentFixtures}
       editor={{
         draft,
@@ -76,6 +77,7 @@ function TriggerEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
+      userHomeDir={undefined}
       agents={agentFixtures}
       editor={{
         draft,
@@ -124,6 +126,7 @@ function DetachedTriggerHarness() {
       </button>
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
+        userHomeDir={undefined}
         editor={editor}
         handle={handle}
         workspaces={WORKSPACES}
@@ -206,6 +209,7 @@ describe("AutomationEditorDialog", () => {
     render(
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
+        userHomeDir={undefined}
         agents={[]}
         agentsLoading
         editor={{
@@ -232,6 +236,7 @@ describe("AutomationEditorDialog", () => {
     render(
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
+        userHomeDir={undefined}
         agents={[]}
         agentsError="Agent catalog is unavailable."
         editor={{
@@ -309,13 +314,13 @@ describe("AutomationEditorDialog", () => {
     // Base UI Dialog closes on escape; even if the JSDOM path is brittle, we also
     // cover the explicit close by unmounting via editor=null + remount, which is
     // the real exit path in useAutomationPage.
-    rerender(<AutomationEditorDialog editor={null} />);
+    rerender(<AutomationEditorDialog editor={null} userHomeDir={undefined} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
   });
 
   it("Should not render the dialog content when editor is null", () => {
-    render(<AutomationEditorDialog editor={null} />);
+    render(<AutomationEditorDialog editor={null} userHomeDir={undefined} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
