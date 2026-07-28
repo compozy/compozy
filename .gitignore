@@ -69,6 +69,7 @@ docs/_refacs/**
 docs/prs/**
 docs/ideas/**
 docs/proposals/**
+docs/prompts/**
 .codex/ledger/**
 .codex/plans/**
 .codex/loop/**

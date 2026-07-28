@@ -288,14 +288,18 @@ jobs:
   # Job 5: Resolve the explicit release identity exactly once.
   release-plan:
     name: Explicit Release Plan
-    # Auto-beta triggers ONLY on the release PR merge subject ("release:
-    # Release vX.Y.Z"). Other ci(release): commits — e.g. the site changelog
-    # receipt the release job pushes — must stay inert or publishing loops.
+    # Auto-beta triggers ONLY on release PR merge subjects. Two real-world
+    # shapes exist: the PR title ("release: Release vX.Y.Z") and the branch
+    # commit subject GitHub uses for single-commit squashes ("release:
+    # prepare release vX.Y.Z" — how v0.3.0 merged as 7cf16a49). Other
+    # ci(release): commits — e.g. the site changelog receipt the release job
+    # pushes — must stay inert or publishing loops.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
        github.ref == 'refs/heads/main' &&
-       startsWith(github.event.head_commit.message, 'release: Release ') &&
+       (startsWith(github.event.head_commit.message, 'release: Release ') ||
+        startsWith(github.event.head_commit.message, 'release: prepare release ')) &&
        vars.RELEASE_AUTO_CHANNEL == 'beta')
     runs-on: ubuntu-latest
     timeout-minutes: 15
