@@ -29,7 +29,7 @@ func newRolesListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			query, err := roleQueryFromCommand(cmd)
+			query, err := roleQueryFromCommand(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func newRolesListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, roleListBundle(roles))
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve roles from a workspace id, name, or path")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	return cmd
 }
 
@@ -54,7 +54,7 @@ func newRolesShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			query, err := roleQueryFromCommand(cmd)
+			query, err := roleQueryFromCommand(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -65,16 +65,33 @@ func newRolesShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, roleBundle(role))
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve the role from a workspace id, name, or path")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	return cmd
 }
 
-func roleQueryFromCommand(cmd *cobra.Command) (RoleQuery, error) {
+func roleQueryFromCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+) (RoleQuery, error) {
 	workspace, err := commandWorkspaceFlag(cmd)
 	if err != nil {
 		return RoleQuery{}, err
 	}
-	return RoleQuery{Workspace: workspace}, nil
+	resolution, resolved, err := resolveContextualCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspace,
+	)
+	if err != nil {
+		return RoleQuery{}, err
+	}
+	if !resolved {
+		return RoleQuery{}, nil
+	}
+	return RoleQuery{Workspace: resolution.ID}, nil
 }
 
 func roleListBundle(roles []RoleRecord) outputBundle {

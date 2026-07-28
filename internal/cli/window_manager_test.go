@@ -579,6 +579,43 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 func TestWindowManagerReadAndClientCommands(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should infer a canonical workspace from nested cwd", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		nested := filepath.Join(workspaceRoot, "src", "feature")
+		if err := os.MkdirAll(nested, 0o755); err != nil {
+			t.Fatalf("MkdirAll(nested) error = %v", err)
+		}
+		client := newWindowManagerCommandStub()
+		client.getWorkspaceFn = func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			if ref != nested {
+				t.Fatalf("GetWorkspace() ref = %q, want nested cwd %q", ref, nested)
+			}
+			return WorkspaceDetailRecord{
+				Workspace: WorkspaceRecord{ID: "ws-alpha", RootDir: workspaceRoot},
+			}, nil
+		}
+		client.snapshotFn = func(_ context.Context, workspace string) (contract.WindowManagerSnapshot, error) {
+			if workspace != "ws-alpha" {
+				t.Fatalf("workspace = %q, want ws-alpha", workspace)
+			}
+			snapshot := windowManagerTestSnapshot(7)
+			snapshot.WorkspaceID = "ws-alpha"
+			return snapshot, nil
+		}
+		deps := newTestDeps(t, client)
+		deps.getwd = func() (string, error) { return nested, nil }
+
+		stdout, _, err := executeRootCommand(t, deps, "desktop", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("desktop list inferred cwd error = %v", err)
+		}
+		if !strings.Contains(stdout, `"resolution_source": "cwd"`) {
+			t.Fatalf("desktop list output = %s, want cwd resolution provenance", stdout)
+		}
+	})
+
 	t.Run("Should list desktops and windows from the authoritative snapshot", func(t *testing.T) {
 		t.Parallel()
 		client := newWindowManagerCommandStub()
@@ -1329,7 +1366,13 @@ type windowManagerCommandStub struct {
 }
 
 func newWindowManagerCommandStub() *windowManagerCommandStub {
-	return &windowManagerCommandStub{stubClient: &stubClient{}}
+	return &windowManagerCommandStub{stubClient: &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			return WorkspaceDetailRecord{
+				Workspace: WorkspaceRecord{ID: strings.TrimSpace(ref), RootDir: "/workspace/project"},
+			}, nil
+		},
+	}}
 }
 
 func (s *windowManagerCommandStub) GetWindowManagerSnapshot(

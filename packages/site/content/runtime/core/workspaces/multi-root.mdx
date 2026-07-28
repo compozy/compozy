@@ -192,19 +192,22 @@ compozy workspace add /Users/you/src/acme-platform --name platform
 compozy workspace add /Users/you/src/acme-platform/services/checkout --name checkout
 ```
 
-Then target the desired scope explicitly:
+Run from either registered tree and let cwd discovery select the nearest root:
 
 ```bash
-compozy session new --workspace platform --agent platform
+cd /Users/you/src/acme-platform
+compozy session new --agent platform
 ```
 
 ```bash
-compozy session new --workspace checkout --agent checkout
+cd /Users/you/src/acme-platform/services/checkout
+compozy session new --agent checkout
 ```
 
-If you run `compozy session new` from inside `services/checkout` without `--workspace`, the CLI sends
-that current directory as `workspace_path`. Compozy resolves or registers that exact directory. It does
-not walk upward to find the nearest ancestor that already has `.compozy/`.
+From any subdirectory under `services/checkout`, cwd discovery selects the registered `checkout`
+root because it is the nearest enclosing workspace. From elsewhere under `acme-platform`, it selects
+`platform`. Use `--workspace <id|name|path>` only when you need to override that inferred context.
+Additional roots never participate in this ownership decision.
 
 ## Path Normalization And Duplicates
 

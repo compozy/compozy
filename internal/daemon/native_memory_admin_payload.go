@@ -16,6 +16,8 @@ import (
 	yaml "github.com/goccy/go-yaml"
 )
 
+const nativeMemoryAdminScopeAll = "all"
+
 func nativeMemoryAdminHeaderAndBody(content []byte) (memcontract.Header, string, error) {
 	var header memcontract.Header
 	body, err := frontmatter.Decode(content, func(metadata []byte) error {
@@ -85,7 +87,7 @@ func memoryAdminDreamState(record memorypkg.DreamRunRecord) contract.MemoryDream
 func memoryAdminDailyLogPayload(record memorypkg.DailyLogRecord) contract.MemoryDailyLogPayload {
 	selector := string(record.Scope.Normalize())
 	if selector == "" {
-		selector = "all"
+		selector = nativeMemoryAdminScopeAll
 	}
 	return contract.MemoryDailyLogPayload{
 		Date:           strings.TrimSpace(record.Date),

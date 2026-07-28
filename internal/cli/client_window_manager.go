@@ -19,6 +19,7 @@ type WindowManagerStreamHandlers struct {
 
 // WindowManagerClient is the CLI transport contract for daemon-authoritative window management.
 type WindowManagerClient interface {
+	workspaceLookupClient
 	GetWindowManagerSnapshot(context.Context, string) (contract.WindowManagerSnapshot, error)
 	PreviewWindowManagerCommand(
 		context.Context,

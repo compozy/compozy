@@ -25,7 +25,11 @@ func (h *HostAPIHandler) handleAutomationJobsGet(ctx context.Context, raw json.R
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	return automation.GetJob(ctx, params.ID)
+	job, err := h.automationJobForBoundSession(ctx, automation, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
 }
 
 func (h *HostAPIHandler) handleAutomationJobsCreate(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -67,7 +71,7 @@ func (h *HostAPIHandler) handleAutomationJobsUpdate(ctx context.Context, raw jso
 		return nil, invalidParamsRPCError(errors.New("automation job update must include at least one field"))
 	}
 
-	current, err := automation.GetJob(ctx, params.ID)
+	current, err := h.automationJobForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +108,7 @@ func (h *HostAPIHandler) handleAutomationJobsDelete(ctx context.Context, raw jso
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	current, err := automation.GetJob(ctx, params.ID)
+	current, err := h.automationJobForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +135,11 @@ func (h *HostAPIHandler) handleAutomationJobsTrigger(ctx context.Context, raw js
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	return automation.TriggerJobWithPayload(ctx, params.ID, params.Payload)
+	job, err := h.automationJobForBoundSession(ctx, automation, params.ID)
+	if err != nil {
+		return nil, err
+	}
+	return automation.TriggerJobWithPayload(ctx, job.ID, params.Payload)
 }
 
 func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -148,7 +156,7 @@ func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	job, err := automation.GetJob(ctx, params.ID)
+	job, err := h.automationJobForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +181,7 @@ func (h *HostAPIHandler) handleAutomationTriggersGet(ctx context.Context, raw js
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	trigger, err := automation.GetTrigger(ctx, params.ID)
+	trigger, err := h.automationTriggerForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +228,7 @@ func (h *HostAPIHandler) handleAutomationTriggersUpdate(ctx context.Context, raw
 		return nil, invalidParamsRPCError(errors.New("automation trigger update must include at least one field"))
 	}
 
-	current, err := automation.GetTrigger(ctx, params.ID)
+	current, err := h.automationTriggerForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +270,7 @@ func (h *HostAPIHandler) handleAutomationTriggersDelete(ctx context.Context, raw
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	current, err := automation.GetTrigger(ctx, params.ID)
+	current, err := h.automationTriggerForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +297,7 @@ func (h *HostAPIHandler) handleAutomationTriggersRuns(ctx context.Context, raw j
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	trigger, err := automation.GetTrigger(ctx, params.ID)
+	trigger, err := h.automationTriggerForBoundSession(ctx, automation, params.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,6 +345,14 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 
 	var params hostAPIAutomationRunsParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	if err := h.requireBoundAutomationRunFilter(
+		ctx,
+		automation,
+		params.JobID,
+		params.TriggerID,
+	); err != nil {
 		return nil, err
 	}
 

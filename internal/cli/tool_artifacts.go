@@ -43,13 +43,6 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 			if _, err := toolspkg.ParseToolArtifactURI(uri); err != nil {
 				return writeToolCommandError(cmd, toolArtifactCommandError("artifact URI is invalid", err))
 			}
-			workspaceID := strings.TrimSpace(flags.workspaceID)
-			if workspaceID == "" {
-				return writeToolCommandError(cmd, toolArtifactCommandError(
-					"workspace id is required",
-					toolspkg.NewValidationError("workspace", toolspkg.ReasonSchemaInvalid, "workspace id is required"),
-				))
-			}
 			if flags.offset < 0 || flags.limit < 0 || flags.limit > toolspkg.MaxToolArtifactPageBytes {
 				return writeToolCommandError(cmd, toolArtifactCommandError(
 					"artifact range is invalid",
@@ -61,9 +54,19 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 				))
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+				resolution, err := resolveCommandWorkspace(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceResolutionRequest{FlagRef: flags.workspaceID},
+				)
+				if err != nil {
+					return err
+				}
 				page, err := client.ReadToolArtifact(
 					cmd.Context(),
-					workspaceID,
+					resolution.ID,
 					uri,
 					flags.offset,
 					flags.limit,
@@ -75,7 +78,7 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&flags.workspaceID, "workspace", "", "Workspace id that owns the artifact")
+	cmd.Flags().StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Int64Var(&flags.offset, "offset", 0, "Zero-based byte offset")
 	cmd.Flags().Int64Var(&flags.limit, "limit", 0, "Page size in bytes (default and maximum 65536)")
 	return cmd

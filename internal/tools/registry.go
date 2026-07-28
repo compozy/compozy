@@ -20,6 +20,7 @@ type RuntimeRegistry struct {
 	toolsets              ToolsetCatalog
 	hooks                 HookRunner
 	approvalBridge        ApprovalBridge
+	callInputBinder       CallInputBinder
 	processor             ResultProcessor
 	events                ToolEventSink
 	defaultMaxResultBytes int64
@@ -94,6 +95,13 @@ func WithHookRunner(hooks HookRunner) RegistryOption {
 func WithApprovalBridge(bridge ApprovalBridge) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.approvalBridge = bridge
+	}
+}
+
+// WithCallInputBinder wires trusted scope binding into every dispatched call.
+func WithCallInputBinder(binder CallInputBinder) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.callInputBinder = binder
 	}
 }
 

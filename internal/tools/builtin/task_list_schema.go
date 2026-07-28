@@ -4,7 +4,7 @@ const taskListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"scope":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"status":{"type":"string"},
 		"priority":{"type":"string"},
 		"include_drafts":{"type":"boolean"},

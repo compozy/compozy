@@ -98,7 +98,7 @@ func newAgentSoulInspectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			query, err := agentQueryFromCommand(cmd)
+			query, err := agentQueryFromCommand(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -125,7 +125,7 @@ func newAgentSoulValidateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -166,7 +166,7 @@ func newAgentSoulWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -207,7 +207,7 @@ func newAgentSoulDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -246,7 +246,7 @@ func newAgentSoulHistoryCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}
@@ -284,7 +284,7 @@ func newAgentSoulRollbackCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
 				return err
 			}

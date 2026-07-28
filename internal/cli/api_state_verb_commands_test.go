@@ -73,7 +73,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"session",
 			"approve",
 			"sess-1",
@@ -112,7 +112,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"bridge",
 			"secret-bindings",
 			"delete",
@@ -148,7 +148,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"resource",
 			"delete",
 			"agent",
@@ -202,14 +202,14 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"resource",
 			"put",
 			"agent",
 			"general",
 			"--scope",
 			"workspace",
-			"--scope-id",
+			"--workspace",
 			"ws-1",
 			"--spec",
 			`{"name":"general"}`,
@@ -244,7 +244,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 				return SkillActionRecord{OK: true}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 		if _, stderr, err := executeRootCommand(
 			t,
 			deps,
@@ -300,7 +300,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"approve",
 			toolspkg.ToolIDToolInfo.String(),
@@ -343,7 +343,7 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 				return TaskRecord{ID: id, ApprovalState: taskpkg.ApprovalStateRejected}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 		if _, stderr, err := executeRootCommand(t, deps, "task", "delete", "task-1", "-o", "json"); err != nil {
 			t.Fatalf("task delete error = %v; stderr=%s", err, stderr)
 		}

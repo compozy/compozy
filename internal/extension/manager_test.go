@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -454,6 +455,62 @@ func TestManagerStartSkipsDisabledExtensions(t *testing.T) {
 	if len(statuses) != 1 || statuses[0].Enabled {
 		t.Fatalf("Statuses() = %#v, want one disabled extension", statuses)
 	}
+}
+
+func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bind a workspace-source extension to its owning workspace", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		resolved := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-extension",
+				RootDir: workspaceRoot,
+				Name:    "extension-workspace",
+			},
+			WorkspaceID: "ws-extension-stable",
+		}
+		manager := NewManager(
+			nil,
+			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(resolved)),
+		)
+		resourceSession, err := manager.newHostAPIResourceSession(t.Context(), &managedExtension{
+			info: ExtensionInfo{
+				Name:   "workspace-extension",
+				Source: SourceWorkspace,
+			},
+			rootDir: workspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("newHostAPIResourceSession() error = %v", err)
+		}
+		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindWorkspace ||
+			got.ID != resolved.ID {
+			t.Fatalf("resource session max scope = %#v, want workspace %q", got, resolved.ID)
+		}
+	})
+
+	t.Run("Should keep a daemon-managed marketplace extension global", func(t *testing.T) {
+		t.Parallel()
+
+		manager := NewManager(nil)
+		resourceSession, err := manager.newHostAPIResourceSession(t.Context(), &managedExtension{
+			info: ExtensionInfo{
+				Name:   "marketplace-extension",
+				Source: SourceMarketplace,
+			},
+			rootDir: t.TempDir(),
+		})
+		if err != nil {
+			t.Fatalf("newHostAPIResourceSession() error = %v", err)
+		}
+		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindGlobal ||
+			got.ID != "" {
+			t.Fatalf("resource session max scope = %#v, want global", got)
+		}
+	})
 }
 
 func TestManagerStartContinuesAfterParseFailure(t *testing.T) {

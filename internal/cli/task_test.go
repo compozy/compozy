@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -21,11 +22,6 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 		args    []string
 		wantErr string
 	}{
-		{
-			name:    "Should require workspace for workspace scope",
-			args:    []string{"task", "create", "--scope", "workspace", "--title", "Investigate"},
-			wantErr: "--workspace is required when --scope is workspace",
-		},
 		{
 			name:    "Should forbid workspace for global scope",
 			args:    []string{"task", "create", "--scope", "global", "--workspace", "alpha", "--title", "Investigate"},
@@ -74,12 +70,45 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), tt.args...)
+			_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), tt.args...)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("executeRootCommand(%v) error = %v, want %q", tt.args, err, tt.wantErr)
 			}
 		})
 	}
+}
+
+func TestTaskCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should infer the workspace for workspace-scoped task creation", func(t *testing.T) {
+		t.Parallel()
+
+		var captured CreateTaskRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project" {
+					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-cwd"}}, nil
+			},
+			createTaskFn: func(_ context.Context, request CreateTaskRequest) (TaskRecord, error) {
+				captured = request
+				return sampleTaskRecord(), nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task", "create", "--scope", "workspace", "--title", "Investigate",
+		)
+		if err != nil {
+			t.Fatalf("task create error = %v", err)
+		}
+		if captured.Workspace != "ws-cwd" {
+			t.Fatalf("request.Workspace = %q, want ws-cwd", captured.Workspace)
+		}
+	})
 }
 
 func TestTaskInspectCommandMapsTargets(t *testing.T) {
@@ -89,7 +118,7 @@ func TestTaskInspectCommandMapsTargets(t *testing.T) {
 		t.Parallel()
 
 		var gotID string
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{
 			inspectTaskFn: func(_ context.Context, id string) (TaskInspectRecord, error) {
 				gotID = id
 				return sampleTaskInspectRecord("task"), nil
@@ -111,7 +140,7 @@ func TestTaskInspectCommandMapsTargets(t *testing.T) {
 		t.Parallel()
 
 		var gotID string
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{
 			inspectRunFn: func(_ context.Context, id string) (TaskInspectRecord, error) {
 				gotID = id
 				return sampleTaskInspectRecord("run"), nil
@@ -134,7 +163,7 @@ func TestTaskInspectCommandMapsTargets(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, &stubClient{}),
+			newWorkspaceTestDeps(t, &stubClient{}),
 			"task",
 			"inspect",
 			"unknown-1",
@@ -162,7 +191,15 @@ func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
 		t.Parallel()
 
 		var gotRequest CreateTaskRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          "agent-session",
+					AgentName:   "coder",
+					WorkspaceID: "alpha",
+					State:       session.StateActive,
+				}, nil
+			},
 			createTaskFn: func(_ context.Context, request CreateTaskRequest) (TaskRecord, error) {
 				gotRequest = request
 				return TaskRecord{
@@ -218,7 +255,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				t.Helper()
 
 				var createRequest CreateTaskRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					createTaskFn: func(_ context.Context, got CreateTaskRequest) (TaskRecord, error) {
 						createRequest = got
 						return sampleTaskRecord(), nil
@@ -275,7 +312,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				t.Helper()
 
 				var createRequest CreateTaskRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					createTaskFn: func(_ context.Context, got CreateTaskRequest) (TaskRecord, error) {
 						createRequest = got
 						return sampleTaskRecord(), nil
@@ -304,7 +341,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				t.Helper()
 
 				var listQuery TaskListQuery
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					listTasksFn: func(_ context.Context, query TaskListQuery) ([]TaskCatalogItemRecord, error) {
 						listQuery = query
 						return []TaskCatalogItemRecord{sampleTaskCatalogItemRecord()}, nil
@@ -349,6 +386,49 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Should canonicalize a workspace filter for all-scope task lists",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var listQuery TaskListQuery
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+						if ref != "alpha-alias" {
+							t.Fatalf("GetWorkspace() ref = %q, want alpha-alias", ref)
+						}
+						return WorkspaceDetailRecord{
+							Workspace: WorkspaceRecord{ID: "ws-alpha", RootDir: "/workspace/alpha"},
+						}, nil
+					},
+					listTasksFn: func(
+						_ context.Context,
+						query TaskListQuery,
+					) ([]TaskCatalogItemRecord, error) {
+						listQuery = query
+						return nil, nil
+					},
+				})
+
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					"task",
+					"list",
+					"--scope",
+					"all",
+					"--workspace",
+					"alpha-alias",
+					"-o",
+					"json",
+				); err != nil {
+					t.Fatalf("task list --scope all error = %v", err)
+				}
+				if listQuery.Scope != taskpkg.CatalogScopeAll || listQuery.Workspace != "ws-alpha" {
+					t.Fatalf("listQuery = %#v, want all scope with canonical workspace", listQuery)
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -369,7 +449,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			taskID       string
 			blockRequest CreateTaskBlockRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			blockTaskFn: func(_ context.Context, id string, request CreateTaskBlockRequest) (TaskBlockRecord, error) {
 				taskID = id
 				blockRequest = request
@@ -418,7 +498,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject run id without agent identity before calling the daemon", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			blockTaskFn: func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error) {
 				t.Fatal("BlockTask should not be called when --run-id lacks --as-agent")
 				return TaskBlockRecord{}, nil
@@ -452,7 +532,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			taskID       string
 			blockRequest CreateTaskBlockRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				if id != "sess-agent" {
 					t.Fatalf("GetSession id = %q, want sess-agent", id)
@@ -509,7 +589,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			taskID         string
 			includeCleared bool
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listTaskBlocksFn: func(_ context.Context, id string, include bool) ([]TaskBlockRecord, error) {
 				taskID = id
 				includeCleared = include
@@ -541,7 +621,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			blockID string
 			request ClearTaskBlockRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			clearTaskBlockFn: func(
 				_ context.Context,
 				id string,
@@ -587,7 +667,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			blockID string
 			request ClearTaskBlockRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				if id != "sess-agent" {
 					t.Fatalf("GetSession id = %q, want sess-agent", id)
@@ -651,7 +731,7 @@ func TestTaskBlockCommandsMapRequests(t *testing.T) {
 			taskID  string
 			request RecoverTaskRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			recoverTaskFn: func(_ context.Context, id string, got RecoverTaskRequest) (TaskRecord, error) {
 				taskID = id
 				request = got
@@ -782,7 +862,7 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 			var request TaskExecutionRequest
 			client := &stubClient{}
 			tt.configure(client, &request)
-			if _, _, err := executeRootCommand(t, newTestDeps(t, client), tt.args...); err != nil {
+			if _, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), tt.args...); err != nil {
 				t.Fatalf("task %s error = %v", tt.wantAction, err)
 			}
 			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
@@ -806,7 +886,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var runListQuery TaskRunListQuery
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					listTaskRunsFn: func(_ context.Context, _ string, query TaskRunListQuery) ([]TaskRunRecord, error) {
 						runListQuery = query
 						return []TaskRunRecord{sampleTaskRunRecord(taskpkg.TaskRunStatusRunning)}, nil
@@ -847,7 +927,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var gotID string
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					getTaskRunFn: func(_ context.Context, id string) (TaskRunDetailRecord, error) {
 						gotID = id
 						return sampleTaskRunDetailRecord(taskpkg.TaskRunStatusQueued), nil
@@ -876,7 +956,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var enqueueRequest EnqueueTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					enqueueTaskRunFn: func(_ context.Context, _ string, request EnqueueTaskRunRequest) (TaskRunRecord, error) {
 						enqueueRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusQueued), nil
@@ -919,7 +999,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var startRequest StartTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					startTaskRunFn: func(_ context.Context, _ string, request StartTaskRunRequest) (TaskRunRecord, error) {
 						startRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusRunning), nil
@@ -951,7 +1031,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var attachRequest AttachTaskRunSessionRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					attachTaskRunSessionFn: func(_ context.Context, _ string, request AttachTaskRunSessionRequest) (TaskRunRecord, error) {
 						attachRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusStarting), nil
@@ -983,7 +1063,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var completeRequest CompleteTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					completeTaskRunFn: func(_ context.Context, _ string, request CompleteTaskRunRequest) (TaskRunRecord, error) {
 						completeRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusCompleted), nil
@@ -1015,7 +1095,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var failRequest FailTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					failTaskRunFn: func(_ context.Context, _ string, request FailTaskRunRequest) (TaskRunRecord, error) {
 						failRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusFailed), nil
@@ -1049,7 +1129,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				t.Helper()
 
 				var cancelRequest CancelTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					cancelTaskRunFn: func(_ context.Context, _ string, request CancelTaskRunRequest) (TaskRunRecord, error) {
 						cancelRequest = request
 						return sampleTaskRunRecord(taskpkg.TaskRunStatusCanceled), nil
@@ -1116,7 +1196,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			"next",
 			"--run-id",
 			"run-exact",
-			"--workspace-id",
+			"--workspace",
 			"ws-1",
 			"--capability",
 			"go",
@@ -1315,7 +1395,7 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 	t.Run("Should map single force fail request", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			forceFailTaskRunFn: func(
 				_ context.Context,
 				runID string,
@@ -1357,7 +1437,7 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 	t.Run("Should map bulk release request", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			bulkForceReleaseRunsFn: func(
 				_ context.Context,
 				request BulkForceTaskRunRequest,
@@ -1408,7 +1488,7 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 	t.Run("Should map retry request", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			retryTaskRunFn: func(
 				_ context.Context,
 				runID string,
@@ -1449,7 +1529,7 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 	t.Run("Should map recover request with recover-specific text output", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			recoverTaskRunFn: func(
 				_ context.Context,
 				runID string,
@@ -1608,7 +1688,7 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 					return RetryTaskRunRecord{}, nil
 				},
 			}
-			deps := newTestDeps(t, client)
+			deps := newWorkspaceTestDeps(t, client)
 			deps.getenv = agentCommandEnv
 			_, _, err := executeRootCommand(t, deps, tt.args...)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -1634,7 +1714,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					updateTaskID  string
 					updateRequest UpdateTaskRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					updateTaskFn: func(_ context.Context, taskID string, request UpdateTaskRequest) (TaskRecord, error) {
 						updateTaskID = taskID
 						updateRequest = request
@@ -1676,7 +1756,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 			run: func(t *testing.T) {
 				t.Helper()
 
-				deps := newTestDeps(t, &stubClient{})
+				deps := newWorkspaceTestDeps(t, &stubClient{})
 				_, stderr, err := executeRootCommand(
 					t,
 					deps,
@@ -1702,7 +1782,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					cancelTaskID  string
 					cancelRequest CancelTaskRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					cancelTaskFn: func(_ context.Context, taskID string, request CancelTaskRequest) (TaskRecord, error) {
 						cancelTaskID = taskID
 						cancelRequest = request
@@ -1740,7 +1820,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					pauseTaskID  string
 					pauseRequest PauseTaskRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					pauseTaskFn: func(_ context.Context, taskID string, request PauseTaskRequest) (TaskRecord, error) {
 						pauseTaskID = taskID
 						pauseRequest = request
@@ -1781,7 +1861,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					resumeTaskID  string
 					resumeRequest ResumeTaskRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					resumeTaskFn: func(_ context.Context, taskID string, request ResumeTaskRequest) (TaskRecord, error) {
 						resumeTaskID = taskID
 						resumeRequest = request
@@ -1816,7 +1896,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					childParentID      string
 					childCreateRequest CreateTaskChildRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					createChildTaskFn: func(_ context.Context, parentID string, request CreateTaskChildRequest) (TaskRecord, error) {
 						childParentID = parentID
 						childCreateRequest = request
@@ -1869,7 +1949,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					dependencyTaskID  string
 					dependencyRequest AddTaskDependencyRequest
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					addTaskDependencyFn: func(_ context.Context, taskID string, request AddTaskDependencyRequest) (TaskDetailRecord, error) {
 						dependencyTaskID = taskID
 						dependencyRequest = request
@@ -1908,7 +1988,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					removeTaskID      string
 					removeDependsOnID string
 				)
-				deps := newTestDeps(t, &stubClient{
+				deps := newWorkspaceTestDeps(t, &stubClient{
 					removeTaskDependencyFn: func(_ context.Context, taskID string, dependsOnID string) (TaskDetailRecord, error) {
 						removeTaskID = taskID
 						removeDependsOnID = dependsOnID
@@ -1960,7 +2040,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			updateRequest TaskExecutionProfileRequest
 			deleteID      string
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getTaskExecutionProfileFn: func(_ context.Context, id string) (TaskExecutionProfileRecord, error) {
 				inspectID = id
 				return sampleTaskExecutionProfileRecord(), nil
@@ -2043,7 +2123,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject mismatched profile task id before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			setTaskExecutionProfileFn: func(
 				context.Context,
 				string,
@@ -2086,7 +2166,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			deleteTaskID    string
 			deleteID        string
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			createTaskBridgeNotificationSubscriptionFn: func(
 				_ context.Context,
 				taskID string,
@@ -2275,7 +2355,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject notification subscriptions without a delivery target", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			createTaskBridgeNotificationSubscriptionFn: func(
 				context.Context,
 				string,
@@ -2304,7 +2384,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject negative notification list limits before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listTaskBridgeNotificationSubscriptionsFn: func(
 				context.Context,
 				string,
@@ -2345,7 +2425,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			submitID     string
 			submitBody   TaskRunReviewVerdictRequest
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			requestTaskRunReviewFn: func(
 				_ context.Context,
 				runID string,
@@ -2518,7 +2598,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject ambiguous review list scope before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listTaskRunReviewsFn: func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
 				t.Fatal("ListTaskRunReviews should not be called for ambiguous scope")
 				return nil, nil
@@ -2545,7 +2625,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 		t.Parallel()
 
 		var listQuery TaskRunReviewListQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listTaskRunReviewsFn: func(_ context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
 				listQuery = query
 				return []TaskRunReviewRecord{sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested)}, nil
@@ -2582,7 +2662,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject non-array missing-work JSON before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			submitTaskRunReviewVerdictFn: func(
 				context.Context,
 				string,
@@ -2621,7 +2701,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject negative review round and attempt before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			requestTaskRunReviewFn: func(context.Context, string, *TaskRunReviewRequest) (TaskRunReviewRequestRecord, error) {
 				t.Fatal("RequestTaskRunReview should not be called")
 				return TaskRunReviewRequestRecord{}, nil
@@ -2652,7 +2732,7 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 	t.Run("Should render task detail human sections", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getTaskFn: func(context.Context, string) (TaskDetailRecord, error) {
 				return sampleTaskDetailRecord(), nil
 			},
@@ -2670,7 +2750,7 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 	t.Run("Should render task list toon array", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listTasksFn: func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error) {
 				return []TaskCatalogItemRecord{sampleTaskCatalogItemRecord()}, nil
 			},
@@ -2831,6 +2911,9 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			t.Parallel()
 
 			_, err := parseTaskListFilters(
+				nil,
+				commandDeps{},
+				nil,
 				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", 0,
 			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
@@ -2843,6 +2926,9 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 		t.Parallel()
 
 		_, err := parseTaskListFilters(
+			nil,
+			commandDeps{},
+			nil,
 			"", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||

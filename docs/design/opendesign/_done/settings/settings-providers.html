@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Providers · Settings · CompozyOS</title>
+<style>
+  /* ============ tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) ============ */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --z-menu:40; --z-scrim:60; --z-sheet:61;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--canvas);color:var(--fg);font-family:var(--font-sans);
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;letter-spacing:inherit}
+  svg{display:block}
+  code,.mono{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
+  :is(.btn,.back,.snav a,.w2-back,.w2-crumb,.pill-group__item,.filter-chip,.pcard,.prov-row,.sheet__close,.lane-tab,.menu button,.ssearch input,.search input):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* ============ settings shell (same contract as settings-general.html) ============ */
+  .shell{display:grid;grid-template-columns:264px minmax(0,1fr);height:100vh;min-width:0}
+  .sside{display:flex;flex-direction:column;min-height:0;background:var(--canvas-soft);border-right:1px solid var(--line-soft)}
+  .sside__top{padding:10px 12px 4px}
+  .back{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 8px;margin-left:-2px;border:0;border-radius:var(--radius-md);
+    background:transparent;color:var(--muted);font-size:12.5px;font-weight:500;cursor:pointer;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .back:hover{background:var(--row-hover);color:var(--fg)}
+  .back svg{width:13px;height:13px;color:var(--subtle)}
+  .sside__search{padding:6px 12px 12px;border-bottom:1px solid var(--line-soft)}
+  .ssearch{display:flex;align-items:center;gap:8px;height:28px;padding:0 9px;border-radius:var(--radius-md);
+    background:var(--canvas);border:1px solid var(--line-soft);transition:border-color var(--dur) var(--ease)}
+  .ssearch:focus-within{border-color:var(--line-strong)}
+  .ssearch svg{width:13px;height:13px;color:var(--subtle);flex:none}
+  .ssearch input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:12.5px;outline:none}
+  .ssearch input::placeholder{color:var(--subtle)}
+  .ssearch .kbd{flex:none;font-family:var(--font-mono);font-size:9.5px;color:var(--faint);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+  .sside__scroll{flex:1;min-height:0;overflow-y:auto;padding:2px 8px 10px}
+  .sgroup-label{padding:14px 9px 5px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--faint)}
+  .snav{display:flex;flex-direction:column}
+  .snav a{display:flex;align-items:center;gap:10px;height:32px;padding:0 9px;margin:1px 0;border-radius:var(--radius-md);
+    color:var(--muted);font-size:13px;font-weight:500;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .snav a svg{width:16px;height:16px;color:var(--subtle);flex:none;transition:color var(--dur) var(--ease)}
+  .snav a:hover{background:var(--row-hover);color:var(--fg)}
+  .snav a:hover svg{color:var(--muted)}
+  .snav a[aria-current="page"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .snav a[aria-current="page"] svg{color:var(--accent-strong)}
+  .sside__foot{display:flex;align-items:center;gap:8px;padding:12px 14px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--subtle)}
+  .sside__foot .d{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
+  .sside__foot .ver{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  /* ============ main + unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) ============ */
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .w2head{flex:none;min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  /* ============ buttons ============ */
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn:disabled{cursor:not-allowed;opacity:.5}
+
+  /* ============ page column — listing pages run wider than form pages ============ */
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:960px;margin:0 auto;padding:28px 40px 120px}
+
+  /* ============ subhead (demoted page-head meta, 12px subtle line) ============ */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  /* ============ listing toolbar (design-system.html §09 contract) ============ */
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .search{display:flex;align-items:center;gap:7px;height:26px;width:220px;padding:0 8px;border-radius:var(--radius);
+    background:var(--canvas-soft);border:1px solid var(--line);transition:border-color var(--dur) var(--ease)}
+  .search:focus-within{border-color:var(--line-strong)}
+  .search svg{width:13px;height:13px;color:var(--subtle);flex:none}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:12px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .filter-chip{display:inline-flex;align-items:center;height:22px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--canvas);cursor:pointer;overflow:hidden;font-size:11.5px;color:var(--muted);padding:0;
+    transition:border-color var(--dur) var(--ease)}
+  .filter-chip:hover{border-color:var(--line-strong)}
+  .filter-chip span{padding:0 7px;line-height:20px}
+  .filter-chip .op{color:var(--faint);padding:0 2px}
+  .filter-chip .val{color:var(--fg);font-weight:500;background:var(--canvas-soft)}
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .pill-group__item{display:inline-flex;min-height:24px;align-items:center;justify-content:center;gap:6px;padding:0 10px;
+    border:0;border-radius:var(--radius-xs);background:transparent;color:var(--subtle);font-size:12px;font-weight:500;cursor:pointer;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+
+  /* ============ provider cards ============ */
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .pcard{position:relative;display:flex;flex-direction:column;gap:10px;padding:14px 16px;text-align:left;
+    background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);cursor:pointer;font:inherit;color:inherit;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .pcard:hover{background:var(--elevated);border-color:var(--line-strong)}
+  .pcard__top{display:flex;align-items:center;gap:10px;min-width:0}
+  .pcard__well{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:var(--radius-sm);
+    background:var(--badge-fill);color:var(--muted);font-family:var(--font-mono);font-size:10px;font-weight:600;
+    box-shadow:inset 0 0 0 1px var(--line-soft)}
+  .pcard__id{min-width:0;flex:1}
+  .pcard__name{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:550;color:var(--fg-strong)}
+  .pcard__cmd{margin-top:1px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcard__status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .pcard__status .d{width:7px;height:7px;border-radius:50%;flex:none}
+  .pcard__status[data-state="ready"] .d{background:var(--success)}
+  .pcard__status[data-state="setup"] .d{background:var(--warning)}
+  .pcard__status[data-state="missing"] .d{background:var(--danger)}
+  .pcard__foot{display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--subtle);min-height:32px}
+  .pcard__foot .spacer{flex:1}
+  .pcard__actions{display:flex;gap:6px;opacity:0;transition:opacity var(--dur) var(--ease)}
+  .pcard:hover .pcard__actions,.pcard:focus-within .pcard__actions{opacity:1}
+  .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
+    height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+
+  /* ============ provider rows (Rows view) ============ */
+  .list{display:none;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .prov-row{display:grid;grid-template-columns:34px minmax(0,1.4fr) minmax(0,1fr) auto 14px;gap:14px;align-items:center;
+    width:100%;padding:11px 16px;border:0;border-top:1px solid var(--line-soft);background:transparent;text-align:left;font:inherit;color:inherit;cursor:pointer;
+    transition:background var(--dur) var(--ease)}
+  .prov-row:first-child{border-top:0}
+  .prov-row:hover{background:var(--row-hover)}
+  .prov-row__well{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--muted);font-family:var(--font-mono);font-size:11px;font-weight:600}
+  .prov-row__name{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--fg-strong)}
+  .prov-row__cmd{margin-top:1px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .prov-row__status{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .prov-row__status .d{width:7px;height:7px;border-radius:50%;flex:none}
+  .prov-row__status[data-state="ready"] .d{background:var(--success)}
+  .prov-row__status[data-state="setup"] .d{background:var(--warning)}
+  .prov-row__status[data-state="missing"] .d{background:var(--danger)}
+  .prov-row__models{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .prov-row__chev{color:var(--faint)}
+  .prov-row__chev svg{width:14px;height:14px}
+  .page[data-view="rows"] .listing-card-grid{display:none}
+  .page[data-view="rows"] .list{display:block}
+
+  .empty{display:none;padding:40px 20px;text-align:center;color:var(--muted);font-size:12.5px}
+  .empty.is-open{display:block}
+
+  /* ============ overflow menu ============ */
+  .menu{position:fixed;z-index:var(--z-menu);min-width:196px;padding:4px;background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);box-shadow:var(--shadow-overlay);display:none}
+  .menu.is-open{display:block}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 10px;border:0;background:transparent;
+    border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);cursor:pointer;text-align:left}
+  .menu button:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu button svg{width:13px;height:13px;color:var(--muted)}
+  .menu button.danger{color:var(--danger)}
+  .menu button.danger svg{color:var(--danger)}
+  .menu button.danger:hover{background:var(--danger-tint);color:var(--danger)}
+  .menu hr{border:0;border-top:1px solid var(--line-soft);margin:4px 6px}
+
+  /* ============ inspector sheet (task-detail sheet contract) ============ */
+  .scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);z-index:var(--z-scrim)}
+  .scrim.is-open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;top:0;right:0;bottom:0;width:min(640px,calc(100vw - 24px));display:flex;flex-direction:column;
+    background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);
+    transform:translateX(103%);transition:transform .2s var(--ease);z-index:var(--z-sheet)}
+  .sheet.is-open{transform:translateX(0)}
+  .sheet__head{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--line);flex:none}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-md);
+    background:var(--accent-tint);color:var(--accent-strong);font-family:var(--font-mono);font-size:12px;font-weight:600}
+  .sheet__eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .sheet__title{margin-top:2px;font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em}
+  .sheet__desc{margin-top:3px;font-size:13px;color:var(--muted);line-height:1.5}
+  .sheet__desc .mono{font-family:var(--font-mono);font-size:11px}
+  .sheet__head-actions{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none}
+  .sheet__close{display:inline-grid;place-items:center;width:26px;height:26px;flex:none;border:0;background:transparent;
+    color:var(--muted);border-radius:var(--radius-sm);cursor:pointer}
+  .sheet__close:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .sheet__close svg{width:14px;height:14px}
+  .sheet__body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px}
+  .sheet__foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line);flex:none}
+
+  .lane-tabs{display:flex;align-items:stretch;gap:0;margin:0;padding:0 20px;border-bottom:1px solid var(--line);flex:none}
+  .lane-tab{position:relative;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border:0;background:transparent;
+    color:var(--subtle);font-size:12.5px;font-weight:500;letter-spacing:-.01em;cursor:pointer;white-space:nowrap;
+    transition:color var(--dur) var(--ease)}
+  .lane-tab:hover{color:var(--muted)}
+  .lane-tab[aria-selected="true"]{color:var(--fg-strong)}
+  .lane-tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:1.5px;background:var(--fg-strong);border-radius:1px}
+  .panel{display:none}
+  .panel.is-active{display:block}
+
+  /* sheet: overview tiles + model chips */
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px}
+  .tile{padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill)}
+  .tile__l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:6px}
+  .tile__v{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg)}
+  .tile__v .d{width:6px;height:6px;border-radius:50%;flex:none}
+  .tile__v .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .sec-label{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin:0 0 10px}
+  .modelchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+  .modelchip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radius-sm);
+    background:var(--badge-fill);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+  .modelchip[data-default="true"]{color:var(--fg);border-color:var(--line-strong)}
+  .modelchip .star{color:var(--accent-strong)}
+  .catmeta{font-size:12px;color:var(--subtle)}
+
+  /* sheet: configure fields */
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .flabel{display:flex;align-items:center;gap:7px;margin-bottom:7px;color:var(--fg-strong);font-size:12.5px;font-weight:500}
+  .fhint{display:block;margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--subtle)}
+  .ctl{width:100%;height:32px;padding:0 11px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--fg);font:inherit;font-size:12.5px;
+    transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .ctl:focus{outline:none;border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+  .ctl--mono{font-family:var(--font-mono);font-size:11.5px;letter-spacing:0}
+  select.ctl{appearance:none;padding-right:32px;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2376767c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  textarea.ctl{min-height:88px;padding:8px 11px;resize:vertical;line-height:1.55}
+  .provchip{display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--subtle);font-family:var(--font-mono);font-size:9.5px;font-weight:500;letter-spacing:0}
+  .adv-toggle{display:flex;align-items:center;gap:8px;width:100%;margin-top:20px;padding:10px 0;border:0;border-top:1px solid var(--line-soft);
+    background:transparent;color:var(--muted);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;text-align:left;
+    transition:color var(--dur) var(--ease)}
+  .adv-toggle:hover{color:var(--fg)}
+  .adv-toggle svg{width:13px;height:13px;color:var(--faint);transition:transform var(--dur) var(--ease)}
+  .adv-toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
+  .adv-body{display:none;padding-top:4px}
+  .adv-body.is-open{display:block}
+
+  @media (max-width:900px){
+    .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh}
+    .sside{flex-direction:row;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--line-soft);overflow-x:auto;padding:6px 10px}
+    .sside__top,.sside__search{padding:0;border:0}
+    .sside__scroll{display:flex;flex:none;overflow:visible;padding:0}
+    .sgroup-label,.sside__foot,.ssearch{display:none}
+    .snav{flex-direction:row}
+    .snav a{height:30px;margin:0 2px}
+    .page{padding:24px 20px 100px}
+    .tiles{grid-template-columns:1fr}
+    .prov-row{grid-template-columns:34px minmax(0,1fr) auto 14px}
+    .prov-row__status{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{transition:none!important;animation:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ settings sidebar ============ -->
+  <aside class="sside" data-od-id="settings-sidebar" aria-label="Settings navigation">
+    <div class="sside__top">
+      <a class="back" href="#" data-od-id="settings-back" aria-label="Back to app">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Back to app
+      </a>
+    </div>
+    <div class="sside__search">
+      <label class="ssearch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" placeholder="Search settings" autocomplete="off">
+        <span class="kbd">/</span>
+      </label>
+    </div>
+    <div class="sside__scroll">
+      <div class="sgroup-label">Workspace</div>
+      <nav class="snav" aria-label="Workspace settings">
+        <a href="settings-general.html" data-od-id="nav-general">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>
+          General
+        </a>
+        <a href="settings-providers.html" aria-current="page" data-od-id="nav-providers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
+          Providers
+        </a>
+        <a href="settings-layouts.html" data-keywords="layouts window manager desktops profiles split stack geometry snap focus gaps shortcuts tiling" data-od-id="nav-layouts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M14 9v12"/></svg>
+          Layouts
+        </a>
+      </nav>
+      <div class="sgroup-label">Runtime</div>
+      <nav class="snav" aria-label="Runtime settings">
+        <a href="#" data-od-id="nav-memory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v13"/></svg>
+          Memory
+        </a>
+        <a href="#" data-od-id="nav-skills">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Skills
+        </a>
+        <a href="#" data-od-id="nav-automation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Automation
+        </a>
+        <a href="#" data-od-id="nav-network">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+          Network
+        </a>
+      </nav>
+      <div class="sgroup-label">System</div>
+      <nav class="snav" aria-label="System settings">
+        <a href="#" data-od-id="nav-observability">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+          Observability
+        </a>
+        <a href="#" data-od-id="nav-hooks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></svg>
+          Hooks
+        </a>
+        <a href="#" data-od-id="nav-extensions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></svg>
+          Extensions
+        </a>
+      </nav>
+    </div>
+    <div class="sside__foot">
+      <span class="d"></span> Daemon running
+      <span class="ver">v0.9.4</span>
+    </div>
+  </aside>
+
+  <!-- ============ main ============ -->
+  <div class="main">
+    <header class="w2head" data-od-id="page-head">
+      <a class="w2-back" href="settings-general.html" aria-label="Back to Settings"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="settings-general.html">Settings</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">Providers</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <button class="btn btn--primary" data-od-id="new-provider">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          New provider
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <main class="page" data-view="cards" id="page" data-od-id="settings-providers-page">
+
+        <div class="subhead">
+          <span>The agent CLIs and model providers your sessions run on. Each provider is saved on its own.</span><span class="dotsep"></span>
+          <span>3 ready</span><span class="dotsep"></span>
+          <span>1 needs setup</span><span class="dotsep"></span>
+          <span>1 not installed</span>
+        </div>
+
+        <div class="listing-toolbar" data-od-id="listing-toolbar">
+          <div class="listing-toolbar__leading">
+            <label class="search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="q" placeholder="Search providers" autocomplete="off">
+            </label>
+            <button type="button" class="filter-chip" id="status-filter" aria-label="Filter by status">
+              <span>Status</span><span class="op">:</span><span class="val" id="status-filter-val">All</span>
+            </button>
+          </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="View mode" id="view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ cards view ============ -->
+        <div class="listing-card-grid" id="cards" data-od-id="provider-cards">
+
+          <button type="button" class="pcard" data-name="claude code claude-code-acp" data-state="ready" data-provider="claude" data-od-id="provider-card-claude">
+            <div class="pcard__top">
+              <span class="pcard__well">CC</span>
+              <span class="pcard__id">
+                <span class="pcard__name">Claude Code <span class="pill" data-tone="accent">Default</span></span>
+                <span class="pcard__cmd">claude-code-acp</span>
+              </span>
+            </div>
+            <div class="pcard__status" data-state="ready"><span class="d"></span>Ready · 12 models</div>
+            <div class="pcard__foot">
+              Uses your Claude login
+              <span class="spacer"></span>
+              <span class="pcard__actions"><span class="btn btn--ghost btn--sm">Edit</span></span>
+            </div>
+          </button>
+
+          <button type="button" class="pcard" data-name="codex codex-acp" data-state="ready" data-provider="codex" data-od-id="provider-card-codex">
+            <div class="pcard__top">
+              <span class="pcard__well">CX</span>
+              <span class="pcard__id">
+                <span class="pcard__name">Codex</span>
+                <span class="pcard__cmd">codex-acp</span>
+              </span>
+            </div>
+            <div class="pcard__status" data-state="ready"><span class="d"></span>Ready · 8 models</div>
+            <div class="pcard__foot">
+              Uses your local login
+              <span class="spacer"></span>
+              <span class="pcard__actions"><span class="btn btn--ghost btn--sm">Edit</span></span>
+            </div>
+          </button>
+
+          <button type="button" class="pcard" data-name="openclaw openclaw acp" data-state="ready" data-provider="openclaw" data-od-id="provider-card-openclaw">
+            <div class="pcard__top">
+              <span class="pcard__well">OC</span>
+              <span class="pcard__id">
+                <span class="pcard__name">OpenClaw</span>
+                <span class="pcard__cmd">openclaw acp</span>
+              </span>
+            </div>
+            <div class="pcard__status" data-state="ready"><span class="d"></span>Ready · 5 models</div>
+            <div class="pcard__foot">
+              Uses your local login
+              <span class="spacer"></span>
+              <span class="pcard__actions"><span class="btn btn--ghost btn--sm">Edit</span></span>
+            </div>
+          </button>
+
+          <button type="button" class="pcard" data-name="hermes hermes --acp" data-state="setup" data-provider="hermes" data-od-id="provider-card-hermes">
+            <div class="pcard__top">
+              <span class="pcard__well">HM</span>
+              <span class="pcard__id">
+                <span class="pcard__name">Hermes</span>
+                <span class="pcard__cmd">hermes --acp</span>
+              </span>
+            </div>
+            <div class="pcard__status" data-state="setup"><span class="d"></span>Sign in to finish setup</div>
+            <div class="pcard__foot">
+              Key stored in Vault
+              <span class="spacer"></span>
+              <span class="pcard__actions"><span class="btn btn--sm">Set up</span></span>
+            </div>
+          </button>
+
+          <button type="button" class="pcard" data-name="pi pi-acp" data-state="missing" data-provider="pi" data-od-id="provider-card-pi">
+            <div class="pcard__top">
+              <span class="pcard__well">PI</span>
+              <span class="pcard__id">
+                <span class="pcard__name">Pi</span>
+                <span class="pcard__cmd">pi-acp</span>
+              </span>
+            </div>
+            <div class="pcard__status" data-state="missing"><span class="d"></span>Binary not found</div>
+            <div class="pcard__foot">
+              Not on this machine&rsquo;s PATH
+              <span class="spacer"></span>
+              <span class="pcard__actions"><span class="btn btn--ghost btn--sm">Details</span></span>
+            </div>
+          </button>
+
+        </div>
+
+        <!-- ============ rows view ============ -->
+        <div class="list" id="rows" data-od-id="provider-rows">
+          <button type="button" class="prov-row" data-name="claude code claude-code-acp" data-state="ready" data-provider="claude">
+            <span class="prov-row__well">CC</span>
+            <span>
+              <span class="prov-row__name">Claude Code <span class="pill" data-tone="accent">Default</span></span>
+              <span class="prov-row__cmd">claude-code-acp</span>
+            </span>
+            <span class="prov-row__status" data-state="ready"><span class="d"></span>Ready</span>
+            <span class="prov-row__models">12 models</span>
+            <span class="prov-row__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+          <button type="button" class="prov-row" data-name="codex codex-acp" data-state="ready" data-provider="codex">
+            <span class="prov-row__well">CX</span>
+            <span>
+              <span class="prov-row__name">Codex</span>
+              <span class="prov-row__cmd">codex-acp</span>
+            </span>
+            <span class="prov-row__status" data-state="ready"><span class="d"></span>Ready</span>
+            <span class="prov-row__models">8 models</span>
+            <span class="prov-row__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+          <button type="button" class="prov-row" data-name="openclaw openclaw acp" data-state="ready" data-provider="openclaw">
+            <span class="prov-row__well">OC</span>
+            <span>
+              <span class="prov-row__name">OpenClaw</span>
+              <span class="prov-row__cmd">openclaw acp</span>
+            </span>
+            <span class="prov-row__status" data-state="ready"><span class="d"></span>Ready</span>
+            <span class="prov-row__models">5 models</span>
+            <span class="prov-row__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+          <button type="button" class="prov-row" data-name="hermes hermes --acp" data-state="setup" data-provider="hermes">
+            <span class="prov-row__well">HM</span>
+            <span>
+              <span class="prov-row__name">Hermes</span>
+              <span class="prov-row__cmd">hermes --acp</span>
+            </span>
+            <span class="prov-row__status" data-state="setup"><span class="d"></span>Needs setup</span>
+            <span class="prov-row__models">&mdash;</span>
+            <span class="prov-row__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+          <button type="button" class="prov-row" data-name="pi pi-acp" data-state="missing" data-provider="pi">
+            <span class="prov-row__well">PI</span>
+            <span>
+              <span class="prov-row__name">Pi</span>
+              <span class="prov-row__cmd">pi-acp</span>
+            </span>
+            <span class="prov-row__status" data-state="missing"><span class="d"></span>Not installed</span>
+            <span class="prov-row__models">&mdash;</span>
+            <span class="prov-row__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+        </div>
+
+        <p class="empty" id="list-empty">No providers match. Clear the search or the status filter.</p>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- ============ inspector sheet (per-provider edit — saved on its own) ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" data-od-id="provider-sheet">
+  <header class="sheet__head">
+    <span class="sheet__well" id="sheet-well">CC</span>
+    <div>
+      <div class="sheet__eyebrow">Provider</div>
+      <h2 class="sheet__title" id="sheet-title">Claude Code</h2>
+      <p class="sheet__desc"><span class="mono" id="sheet-cmd">claude-code-acp</span> · saved on its own, no daemon restart</p>
+    </div>
+    <div class="sheet__head-actions">
+      <button class="sheet__close" id="sheet-menu-btn" aria-label="More actions" aria-haspopup="menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
+      <button class="sheet__close" id="sheet-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="lane-tabs" role="tablist" aria-label="Provider sections">
+    <button class="lane-tab" role="tab" id="tab-overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
+    <button class="lane-tab" role="tab" id="tab-configure" aria-selected="false" aria-controls="panel-configure">Configure</button>
+  </div>
+
+  <div class="sheet__body">
+    <section class="panel is-active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="tiles">
+        <div class="tile">
+          <div class="tile__l">Status</div>
+          <div class="tile__v"><span class="d" style="background:var(--success)"></span>Ready</div>
+        </div>
+        <div class="tile">
+          <div class="tile__l">Models</div>
+          <div class="tile__v">12 curated</div>
+        </div>
+        <div class="tile">
+          <div class="tile__l">Sign-in</div>
+          <div class="tile__v">Your Claude login</div>
+        </div>
+        <div class="tile">
+          <div class="tile__l">Home</div>
+          <div class="tile__v">Shared with your account</div>
+        </div>
+      </div>
+      <h3 class="sec-label">Curated models</h3>
+      <div class="modelchips">
+        <span class="modelchip" data-default="true"><span class="star">★</span>claude-sonnet-5</span>
+        <span class="modelchip">claude-opus-4-8</span>
+        <span class="modelchip">claude-haiku-4-5</span>
+        <span class="modelchip">claude-fable-5</span>
+      </div>
+      <p class="catmeta">Model catalog · 132 rows · refreshed 2h ago</p>
+    </section>
+
+    <section class="panel" id="panel-configure" role="tabpanel" aria-labelledby="tab-configure">
+      <div class="field">
+        <label class="flabel" for="f-name">Display name</label>
+        <input class="ctl" id="f-name" value="Claude Code">
+      </div>
+      <div class="field">
+        <label class="flabel" for="f-cmd">Command</label>
+        <input class="ctl ctl--mono" id="f-cmd" value="claude-code-acp">
+        <span class="fhint">What the daemon runs to start this provider. Must be on the daemon&rsquo;s PATH.</span>
+      </div>
+      <div class="field">
+        <label class="flabel" for="f-model">Default model</label>
+        <select class="ctl" id="f-model">
+          <option selected>claude-sonnet-5</option>
+          <option>claude-opus-4-8</option>
+          <option>claude-haiku-4-5</option>
+          <option>claude-fable-5</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="flabel" for="f-curated">Curated models</label>
+        <textarea class="ctl ctl--mono" id="f-curated" spellcheck="false">claude-sonnet-5
+claude-opus-4-8
+claude-haiku-4-5
+claude-fable-5</textarea>
+        <span class="fhint">One model ID per line. Only these show up in the model picker.</span>
+      </div>
+      <div class="field">
+        <label class="flabel" for="f-auth">Sign-in method</label>
+        <select class="ctl" id="f-auth">
+          <option selected>Use my local login</option>
+          <option>Use a key from Vault</option>
+          <option>None</option>
+        </select>
+        <span class="fhint">&ldquo;Local login&rdquo; reuses the CLI&rsquo;s own sign-in on this machine.</span>
+      </div>
+
+      <button type="button" class="adv-toggle" id="sheet-adv" aria-expanded="false" aria-controls="sheet-adv-body">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        Advanced
+      </button>
+      <div class="adv-body" id="sheet-adv-body">
+        <div class="field">
+          <label class="flabel" for="f-env">Environment <span class="provchip">env_policy</span></label>
+          <select class="ctl" id="f-env">
+            <option selected>Filtered — safe subset of your environment</option>
+            <option>Isolated — clean environment</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="flabel" for="f-home">Home directory <span class="provchip">home_policy</span></label>
+          <select class="ctl" id="f-home">
+            <option selected>Use my home — keeps existing logins</option>
+            <option>Isolated home — separate credentials</option>
+          </select>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="sheet__foot">
+    <button class="btn btn--ghost" id="sheet-cancel">Cancel</button>
+    <button class="btn btn--primary" id="sheet-save">Save provider</button>
+  </footer>
+</aside>
+
+<div class="menu" id="sheet-menu" role="menu">
+  <button role="menuitem">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>
+    Set as default
+  </button>
+  <hr>
+  <button role="menuitem" class="danger">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+    Remove provider
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var page = document.getElementById("page");
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".pcard"));
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".prov-row"));
+  var emptyEl = document.getElementById("list-empty");
+
+  /* ---- Rows|Cards toggle ---- */
+  var toggles = Array.prototype.slice.call(document.querySelectorAll("#view-toggle .pill-group__item"));
+  toggles.forEach(function(b){
+    b.addEventListener("click", function(){
+      toggles.forEach(function(x){ x.setAttribute("aria-pressed", String(x === b)); });
+      page.setAttribute("data-view", b.getAttribute("data-view"));
+    });
+  });
+
+  /* ---- search + status filter ---- */
+  var q = document.getElementById("q");
+  var statusBtn = document.getElementById("status-filter");
+  var statusVal = document.getElementById("status-filter-val");
+  var statusStates = [["All", null], ["Ready", "ready"], ["Needs setup", "setup"], ["Not installed", "missing"]];
+  var statusIdx = 0;
+
+  function applyFilters(){
+    var query = q.value.trim().toLowerCase();
+    var state = statusStates[statusIdx][1];
+    var visible = 0;
+    function test(el){
+      var hitQ = !query || el.getAttribute("data-name").indexOf(query) !== -1;
+      var hitS = !state || el.getAttribute("data-state") === state;
+      var show = hitQ && hitS;
+      el.style.display = show ? "" : "none";
+      return show;
+    }
+    cards.forEach(function(c){ if (test(c)) visible++; });
+    rows.forEach(test);
+    emptyEl.classList.toggle("is-open", visible === 0);
+  }
+  q.addEventListener("input", applyFilters);
+  statusBtn.addEventListener("click", function(){
+    statusIdx = (statusIdx + 1) % statusStates.length;
+    statusVal.textContent = statusStates[statusIdx][0];
+    applyFilters();
+  });
+
+  /* ---- sheet data per provider ---- */
+  var data = {
+    claude:   { well:"CC", title:"Claude Code", cmd:"claude-code-acp", status:["Ready","var(--success)"], models:"12 curated", auth:"Your Claude login", name:"Claude Code",
+                curated:"claude-sonnet-5\nclaude-opus-4-8\nclaude-haiku-4-5\nclaude-fable-5", cat:"Model catalog · 132 rows · refreshed 2h ago" },
+    codex:    { well:"CX", title:"Codex", cmd:"codex-acp", status:["Ready","var(--success)"], models:"8 curated", auth:"Your local login", name:"Codex",
+                curated:"gpt-5.4\ngpt-5.4-mini", cat:"Model catalog · 96 rows · refreshed 4h ago" },
+    openclaw: { well:"OC", title:"OpenClaw", cmd:"openclaw acp", status:["Ready","var(--success)"], models:"5 curated", auth:"Your local login", name:"OpenClaw",
+                curated:"claw-large\nclaw-fast", cat:"Model catalog · 41 rows · refreshed 1d ago" },
+    hermes:   { well:"HM", title:"Hermes", cmd:"hermes --acp", status:["Sign in to finish setup","var(--warning)"], models:"—", auth:"Key stored in Vault", name:"Hermes",
+                curated:"hermes-pro", cat:"Catalog unavailable until sign-in completes" },
+    pi:       { well:"PI", title:"Pi", cmd:"pi-acp", status:["Binary not found","var(--danger)"], models:"—", auth:"Your local login", name:"Pi",
+                curated:"", cat:"Catalog unavailable — binary not found on PATH" }
+  };
+
+  var scrim = document.getElementById("scrim");
+  var sheet = document.getElementById("sheet");
+  var menu = document.getElementById("sheet-menu");
+
+  function openSheet(id){
+    var d = data[id]; if (!d) return;
+    document.getElementById("sheet-well").textContent = d.well;
+    document.getElementById("sheet-title").textContent = d.title;
+    document.getElementById("sheet-cmd").textContent = d.cmd;
+    var tiles = sheet.querySelectorAll("#panel-overview .tile__v");
+    tiles[0].innerHTML = '<span class="d" style="background:' + d.status[1] + '"></span>' + d.status[0];
+    tiles[1].textContent = d.models;
+    tiles[2].textContent = d.auth;
+    document.getElementById("f-name").value = d.name;
+    document.getElementById("f-cmd").value = d.cmd;
+    document.getElementById("f-curated").value = d.curated;
+    sheet.querySelector(".catmeta").textContent = d.cat;
+    selectTab("overview");
+    scrim.classList.add("is-open");
+    sheet.classList.add("is-open");
+  }
+  function closeSheet(){
+    scrim.classList.remove("is-open");
+    sheet.classList.remove("is-open");
+    menu.classList.remove("is-open");
+  }
+  cards.concat(rows).forEach(function(el){
+    el.addEventListener("click", function(){ openSheet(el.getAttribute("data-provider")); });
+  });
+  document.getElementById("sheet-close").addEventListener("click", closeSheet);
+  document.getElementById("sheet-cancel").addEventListener("click", closeSheet);
+  scrim.addEventListener("click", closeSheet);
+  document.getElementById("sheet-save").addEventListener("click", function(){
+    var b = this; b.textContent = "Saving…"; b.disabled = true;
+    setTimeout(function(){ b.textContent = "Save provider"; b.disabled = false; closeSheet(); }, 420);
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape") closeSheet();
+  });
+
+  /* ---- sheet tabs ---- */
+  var tabs = Array.prototype.slice.call(sheet.querySelectorAll(".lane-tab"));
+  function selectTab(name){
+    tabs.forEach(function(t){
+      var on = t.id === "tab-" + name;
+      t.setAttribute("aria-selected", String(on));
+    });
+    sheet.querySelectorAll(".panel").forEach(function(p){
+      p.classList.toggle("is-active", p.id === "panel-" + name);
+    });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener("click", function(){ selectTab(t.id.replace("tab-","")); });
+  });
+
+  /* ---- sheet advanced ---- */
+  var adv = document.getElementById("sheet-adv");
+  adv.addEventListener("click", function(){
+    var open = adv.getAttribute("aria-expanded") === "true";
+    adv.setAttribute("aria-expanded", String(!open));
+    document.getElementById("sheet-adv-body").classList.toggle("is-open", !open);
+  });
+
+  /* ---- overflow menu ---- */
+  var menuBtn = document.getElementById("sheet-menu-btn");
+  menuBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var r = menuBtn.getBoundingClientRect();
+    menu.style.top = (r.bottom + 6) + "px";
+    menu.style.right = (window.innerWidth - r.right) + "px";
+    menu.style.left = "auto";
+    menu.classList.toggle("is-open");
+  });
+  document.addEventListener("click", function(e){
+    if (!menu.contains(e.target) && e.target !== menuBtn) menu.classList.remove("is-open");
+  });
+})();
+</script>
+</body>
+</html>

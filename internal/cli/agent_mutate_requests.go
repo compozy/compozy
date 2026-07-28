@@ -47,6 +47,8 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 
 func createAgentRequestFromFlags(
 	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
 	name string,
 	flags agentDefinitionFlags,
 ) (contract.CreateAgentRequest, error) {
@@ -61,7 +63,7 @@ func createAgentRequestFromFlags(
 	if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	workspace, err := commandWorkspaceFlag(cmd)
+	workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -128,6 +130,8 @@ func updateAgentRequestFromFlags(
 
 func duplicateAgentRequestFromFlags(
 	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	name string,
 	scope string,
 	flags agentDefinitionFlags,
@@ -136,16 +140,18 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	workspace, err := commandWorkspaceFlag(cmd)
-	if err != nil {
-		return contract.DuplicateAgentRequest{}, err
-	}
 	createScope, err := parseAgentCreateScope(scope)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	if createScope == contract.AgentCreateScopeWorkspace && workspace == "" {
-		return contract.DuplicateAgentRequest{}, errors.New("cli: --workspace is required for workspace scope")
+	workspace, err := resolveWorkspaceFlagOverride(
+		cmd,
+		deps,
+		client,
+		createScope == contract.AgentCreateScopeWorkspace,
+	)
+	if err != nil {
+		return contract.DuplicateAgentRequest{}, err
 	}
 	overrides, err := duplicateAgentOverridesFromFlags(cmd, flags)
 	if err != nil {

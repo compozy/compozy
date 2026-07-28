@@ -77,6 +77,13 @@ func listBundle[T any](
 	return outputBundle{
 		jsonValue: jsonValue,
 		jsonl: func(cmd *cobra.Command) error {
+			if len(items) == 0 {
+				if _, ok := commandWorkspaceResolution(cmd); ok {
+					return writeJSONLine(cmd, struct {
+						Type string `json:"type"`
+					}{Type: "workspace_resolution"})
+				}
+			}
 			return writeJSONLines(cmd, items)
 		},
 		human: func() (string, error) {
@@ -162,7 +169,7 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 		if err != nil {
 			return err
 		}
-		return writeRawCommandOutput(cmd, rendered)
+		return writeRawCommandOutput(cmd, outputToonWithWorkspaceResolution(cmd, rendered))
 	default:
 		if bundle.human == nil {
 			return errors.New("cli: human formatter is required")
@@ -178,7 +185,7 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 func writeJSONLine(cmd *cobra.Command, value any) error {
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetEscapeHTML(false)
-	return encoder.Encode(value)
+	return encoder.Encode(outputValueWithWorkspaceResolution(cmd, value))
 }
 
 func writeJSONLines[T any](cmd *cobra.Command, items []T) error {
@@ -194,7 +201,7 @@ func writeJSON(cmd *cobra.Command, value any) error {
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(value)
+	return encoder.Encode(outputValueWithWorkspaceResolution(cmd, value))
 }
 
 func writeRawCommandOutput(cmd *cobra.Command, text string) error {

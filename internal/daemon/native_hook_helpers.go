@@ -13,19 +13,29 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func hookCatalogFilter(
+func (n *daemonNativeTools) hookCatalogFilter(
+	ctx context.Context,
 	id toolspkg.ToolID,
 	input hooksListInput,
 	scope toolspkg.Scope,
 ) (hookspkg.CatalogFilter, error) {
-	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", input.WorkspaceID, scope)
+	workspaceRef, err := nativeCallerWorkspaceInput(id, input.Workspace, scope)
 	if err != nil {
 		return hookspkg.CatalogFilter{}, err
 	}
 	filter := hookspkg.CatalogFilter{
-		WorkspaceID:   workspaceID,
-		WorkspaceRoot: strings.TrimSpace(input.WorkspaceRoot),
-		AgentName:     strings.TrimSpace(input.Agent),
+		AgentName: strings.TrimSpace(input.Agent),
+	}
+	if strings.TrimSpace(workspaceRef) != "" {
+		if n == nil || n.deps == nil || n.deps.Workspaces == nil {
+			return hookspkg.CatalogFilter{}, errors.New("daemon: workspace service is required")
+		}
+		resolved, resolveErr := n.deps.Workspaces.Resolve(ctx, workspaceRef)
+		if resolveErr != nil {
+			return hookspkg.CatalogFilter{}, fmt.Errorf("resolve hook catalog workspace: %w", resolveErr)
+		}
+		filter.WorkspaceID = strings.TrimSpace(resolved.ID)
+		filter.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
 	}
 	if event := strings.TrimSpace(input.Event); event != "" {
 		parsed := hookspkg.HookEvent(event)
@@ -117,6 +127,7 @@ func (n *daemonNativeTools) deleteHookDeclaration(
 
 func (n *daemonNativeTools) setHookEnabled(
 	ctx context.Context,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 	enabled bool,
 ) (toolspkg.ToolResult, error) {
@@ -124,7 +135,11 @@ func (n *daemonNativeTools) setHookEnabled(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

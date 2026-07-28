@@ -386,7 +386,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			}, nil
 		},
 	}
-	deps := newTestDeps(t, client)
+	deps := newWorkspaceTestDeps(t, client)
 	runner := &stubRunner{}
 	deps.newDaemon = func() (daemonRunner, error) { return runner, nil }
 
@@ -539,6 +539,46 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	}
 }
 
+func TestLogsFollowIncludesWorkspaceResolution(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range []string{string(OutputJSON), string(OutputToon)} {
+		t.Run("Should annotate followed logs in "+format, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{
+						Workspace: WorkspaceRecord{ID: "ws-project", RootDir: "/workspace/project"},
+					}, nil
+				},
+				streamLogsFn: func(_ context.Context, _ LogsListQuery, _ string, handler SSEHandler) error {
+					return handler(SSEEvent{
+						Event: "done",
+						Data:  mustJSON(t, LogEventRecord{ID: "log-1", Type: "done"}),
+					})
+				},
+			})
+			deps.getwd = func() (string, error) { return "/workspace/project/nested", nil }
+			stdout, _, err := executeRootCommand(
+				t,
+				deps,
+				"logs",
+				"--follow",
+				"-o",
+				format,
+			)
+			if err != nil {
+				t.Fatalf("executeRootCommand(logs --follow -o %s) error = %v", format, err)
+			}
+			if !strings.Contains(stdout, "resolution_source") ||
+				!strings.Contains(stdout, workspaceResolutionCWD) {
+				t.Fatalf("logs --follow %s output = %q, want cwd provenance", format, stdout)
+			}
+		})
+	}
+}
+
 func TestAgentLifecycleCommandPaths(t *testing.T) {
 	t.Parallel()
 
@@ -548,7 +588,7 @@ func TestAgentLifecycleCommandPaths(t *testing.T) {
 
 			stdout, _, err := executeRootCommand(
 				t,
-				newTestDeps(t, &stubClient{}),
+				newWorkspaceTestDeps(t, &stubClient{}),
 				"agent",
 				verb,
 				"--help",
@@ -584,7 +624,7 @@ func TestExecuteContextVersion(t *testing.T) {
 func TestDaemonStatusFallbackStartingAndStopped(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 			return DaemonStatus{}, os.ErrNotExist
 		},
@@ -624,7 +664,7 @@ func TestWriteCommandOutputErrors(t *testing.T) {
 
 	if _, _, err := executeRootCommand(
 		t,
-		newTestDeps(t, &stubClient{}),
+		newWorkspaceTestDeps(t, &stubClient{}),
 		"version",
 		"-o",
 		"bogus",
@@ -637,7 +677,7 @@ func TestWriteCommandOutputErrors(t *testing.T) {
 func TestDaemonStartRejectsNilDetachedProcess(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
+	deps := newWorkspaceTestDeps(t, &stubClient{})
 	deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
 		return nil, nil
 	}

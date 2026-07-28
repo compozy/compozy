@@ -9,7 +9,7 @@ import (
 
 type autonomyClaimNextInput struct {
 	RunID                string   `json:"run_id,omitempty"`
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
+	WorkspaceID          string   `json:"workspace,omitempty"`
 	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
 	PriorityMin          int      `json:"priority_min,omitempty"`
 	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`

@@ -1,6 +1,6 @@
 package builtin
 
-const windowManagerWorkspaceSchema = `"workspace_id":{"type":"string","minLength":1}`
+const windowManagerWorkspaceSchema = `"workspace":{"type":"string","minLength":1}`
 
 const windowManagerRevisionSchema = `"expected_revision":{"type":"integer","minimum":0}`
 

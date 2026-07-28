@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,8 +30,11 @@ func StatusForAgentIdentityError(err error) int {
 	case err == nil:
 		return http.StatusOK
 	case errors.Is(err, errAgentIdentityUnavailable),
-		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
+		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable),
+		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+		return http.StatusNotFound
 	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
 		return http.StatusForbidden
 	case errors.Is(err, agentidentity.ErrIdentityRequired),
@@ -95,18 +99,50 @@ func (h *BaseHandlers) resolveAgentCallerForWorkspace(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
 	action string,
-	expectedWorkspaceID string,
+	expectedWorkspaceRef string,
 ) (agentidentity.Caller, error) {
 	if h == nil || h.Sessions == nil {
 		return agentidentity.Caller{}, errAgentIdentityUnavailable
 	}
-	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
-		Credentials:         credentials,
-		Lookup:              h.agentSessionLookup,
-		ExpectedWorkspaceID: strings.TrimSpace(expectedWorkspaceID),
-		OriginKind:          taskOriginKindForTransport(h.transportName()),
-		OriginRef:           strings.TrimSpace(action),
+	caller, err := agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
+		Credentials: credentials,
+		Lookup:      h.agentSessionLookup,
+		OriginKind:  taskOriginKindForTransport(h.transportName()),
+		OriginRef:   strings.TrimSpace(action),
 	})
+	if err != nil {
+		return agentidentity.Caller{}, err
+	}
+	expectedWorkspaceID, err := h.resolveExpectedWorkspaceID(ctx, expectedWorkspaceRef)
+	if err != nil {
+		return agentidentity.Caller{}, err
+	}
+	if err := agentidentity.ValidateWorkspaceAccess(caller.Session.WorkspaceID, expectedWorkspaceID); err != nil {
+		return agentidentity.Caller{}, err
+	}
+	return caller, nil
+}
+
+func (h *BaseHandlers) resolveExpectedWorkspaceID(ctx context.Context, ref string) (string, error) {
+	target := strings.TrimSpace(ref)
+	if target == "" {
+		return "", nil
+	}
+	if h.Workspaces == nil {
+		return "", fmt.Errorf(
+			"api: workspace service is not configured: %w",
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := h.Workspaces.Resolve(ctx, target)
+	if err != nil {
+		return "", fmt.Errorf("api: resolve requested workspace %q: %w", target, err)
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		return "", fmt.Errorf("api: resolved workspace %q has no id", target)
+	}
+	return workspaceID, nil
 }
 
 func (h *BaseHandlers) agentSessionLookup(
@@ -125,9 +161,8 @@ func agentCallerCredentialsFromRequest(c *gin.Context) agentidentity.Credentials
 		return agentidentity.Credentials{}
 	}
 	return agentidentity.Credentials{
-		SessionID:   c.GetHeader(agentidentity.HeaderSessionID),
-		AgentName:   c.GetHeader(agentidentity.HeaderAgent),
-		WorkspaceID: c.GetHeader(agentidentity.HeaderWorkspaceID),
+		SessionID: c.GetHeader(agentidentity.HeaderSessionID),
+		AgentName: c.GetHeader(agentidentity.HeaderAgent),
 	}
 }
 

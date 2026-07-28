@@ -68,14 +68,18 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 		Short: short,
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := opts.target(args[0])
-			if err != nil {
-				return err
-			}
 			if opts.timeout <= 0 {
 				return errors.New("cli: MCP authorization timeout must be positive")
 			}
 			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			if err != nil {
+				return err
+			}
+			target, err := resolvedOpts.target(args[0])
 			if err != nil {
 				return err
 			}
@@ -99,15 +103,16 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 		Short: "Show redacted remote MCP auth status",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := opts.validateScope(); err != nil {
-				return err
-			}
-			scope := contract.SettingsWorkspaceScopeKind(strings.TrimSpace(opts.scope))
-			workspaceID := strings.TrimSpace(opts.workspaceID)
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
+			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			if err != nil {
+				return err
+			}
+			scope := contract.SettingsWorkspaceScopeKind(strings.TrimSpace(resolvedOpts.scope))
+			workspaceID := strings.TrimSpace(resolvedOpts.workspaceID)
 			response, err := client.ListSettingsMCPServers(
 				cmd.Context(),
 				scope,
@@ -120,7 +125,7 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 			if len(args) == 1 {
 				name = strings.TrimSpace(args[0])
 			}
-			statuses, found := mcpAuthStatuses(response.MCPServers, opts, name)
+			statuses, found := mcpAuthStatuses(response.MCPServers, resolvedOpts, name)
 			if name != "" && !found {
 				return fmt.Errorf("cli: remote MCP auth server %q not found in %s scope", name, opts.scope)
 			}
@@ -138,11 +143,15 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 		Short: "Revoke or delete remote MCP auth tokens through the daemon",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := opts.target(args[0])
+			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			client, err := clientFromDeps(deps)
+			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			if err != nil {
+				return err
+			}
+			target, err := resolvedOpts.target(args[0])
 			if err != nil {
 				return err
 			}
@@ -159,7 +168,33 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 
 func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
 	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: global or workspace")
-	cmd.Flags().StringVar(&opts.workspaceID, "workspace", "", "Workspace ID for workspace scope")
+	cmd.Flags().
+		StringVar(&opts.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
+}
+
+func (o mcpAuthCommandOptions) resolveWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+) (mcpAuthCommandOptions, error) {
+	if contract.SettingsWorkspaceScopeKind(strings.TrimSpace(o.scope)) ==
+		contract.SettingsWorkspaceScopeWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: o.workspaceID},
+		)
+		if err != nil {
+			return mcpAuthCommandOptions{}, err
+		}
+		o.workspaceID = resolution.ID
+	}
+	if err := o.validateScope(); err != nil {
+		return mcpAuthCommandOptions{}, err
+	}
+	return o, nil
 }
 
 func (o mcpAuthCommandOptions) target(name string) (SettingsMCPAuthTarget, error) {

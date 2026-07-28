@@ -20,6 +20,31 @@ func (m *Manager) notifyAgentEvent(ctx context.Context, session *Session, event 
 	m.notifier.OnAgentEvent(ctx, session.ID, enriched)
 }
 
+func (m *Manager) notifyAgentEventFromInfo(ctx context.Context, info *Info, event any) {
+	if info == nil {
+		return
+	}
+	m.notifyAgentEvent(ctx, notificationSessionFromInfo(info), event)
+}
+
+func notificationSessionFromInfo(info *Info) *Session {
+	return &Session{
+		ID:               info.ID,
+		Name:             info.Name,
+		AgentName:        info.AgentName,
+		WorkspaceID:      info.WorkspaceID,
+		Workspace:        info.Workspace,
+		Type:             info.Type,
+		State:            info.State,
+		ACPSessionID:     info.ACPSessionID,
+		SoulSnapshotID:   info.SoulSnapshotID,
+		SoulDigest:       info.SoulDigest,
+		ParentSoulDigest: info.ParentSoulDigest,
+		CreatedAt:        info.CreatedAt,
+		UpdatedAt:        info.UpdatedAt,
+	}
+}
+
 func (m *Manager) enrichNotifiedAgentEvent(session *Session, event any) any {
 	switch typed := event.(type) {
 	case acp.AgentEvent:

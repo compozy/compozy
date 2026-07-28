@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"slices"
+	"strings"
 
 	"time"
 
@@ -104,7 +105,7 @@ func (m *Manager) prepareExtensionResourceSession(
 	ctx context.Context,
 	ext *managedExtension,
 ) (*hostAPIResourceSession, error) {
-	resourceSession, err := m.newHostAPIResourceSession(ext)
+	resourceSession, err := m.newHostAPIResourceSession(ctx, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +262,10 @@ func (m *Manager) wrapHostHandler(
 	}
 }
 
-func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIResourceSession, error) {
+func (m *Manager) newHostAPIResourceSession(
+	ctx context.Context,
+	ext *managedExtension,
+) (*hostAPIResourceSession, error) {
 	if ext == nil {
 		return nil, errors.New("extension: managed extension is required")
 	}
@@ -271,16 +275,18 @@ func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIReso
 		return nil, fmt.Errorf("extension: generate session nonce for %q: %w", ext.info.Name, err)
 	}
 
+	maxScope, err := m.extensionWorkspaceScope(ctx, ext)
+	if err != nil {
+		return nil, err
+	}
+
 	return &hostAPIResourceSession{
 		Actor: resources.MutationActor{
 			Kind:         resources.MutationActorKindExtension,
 			ID:           ext.info.Name,
 			SessionNonce: sessionNonce,
 			Source:       extensionResourceSource(ext.info.Name),
-			// Workspace binding is not yet carried on extension sessions, so v1
-			// relies on granted scope kinds for narrowing and keeps the max scope
-			// ceiling global here.
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:     maxScope,
 			GrantedKinds: append(
 				[]resources.ResourceKind(nil),
 				ext.grantedResourceKinds...,
@@ -291,6 +297,53 @@ func (m *Manager) newHostAPIResourceSession(ext *managedExtension) (*hostAPIReso
 			),
 		},
 	}, nil
+}
+
+func (m *Manager) extensionWorkspaceScope(
+	ctx context.Context,
+	ext *managedExtension,
+) (resources.ResourceScope, error) {
+	switch ext.info.Source {
+	case SourceBundled, SourceUser, SourceMarketplace:
+		// Marketplace artifacts are installed once under the daemon home, not
+		// owned by any project workspace. Their read-oriented capability ceiling
+		// is the trust boundary; the runtime principal is explicitly global.
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, nil
+	case SourceWorkspace:
+		if m.workspaceResolver == nil {
+			return resources.ResourceScope{}, errors.New(
+				"extension: workspace-scoped extension requires a workspace resolver",
+			)
+		}
+		resolved, err := m.workspaceResolver.Resolve(ctx, ext.rootDir)
+		if err != nil {
+			return resources.ResourceScope{}, fmt.Errorf(
+				"extension: bind %s extension %q to the workspace owning %q: %w",
+				ext.info.Source,
+				ext.info.Name,
+				ext.rootDir,
+				err,
+			)
+		}
+		workspaceID := strings.TrimSpace(resolved.ID)
+		if workspaceID == "" {
+			return resources.ResourceScope{}, fmt.Errorf(
+				"extension: bind %s extension %q: resolved workspace id is empty",
+				ext.info.Source,
+				ext.info.Name,
+			)
+		}
+		return resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   workspaceID,
+		}, nil
+	default:
+		return resources.ResourceScope{}, fmt.Errorf(
+			"extension: bind extension %q: unsupported source %d",
+			ext.info.Name,
+			ext.info.Source,
+		)
+	}
 }
 
 func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor resources.MutationActor) error {

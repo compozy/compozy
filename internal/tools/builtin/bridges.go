@@ -55,7 +55,7 @@ func bridgeListDescriptor() toolspkg.Descriptor {
 const bridgesListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"scope":{"type":"string","enum":["all","global","workspace"]},
 		"q":{"type":"string"},
 		"platform":{"type":"string"},
@@ -94,7 +94,7 @@ const bridgesStatusInputSchema = `{
 	"type":"object",
 	"properties":{
 		"bridge_id":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"scope":{"type":"string","enum":["all","global","workspace"]},
 		"q":{"type":"string"},
 		"platform":{"type":"string"},

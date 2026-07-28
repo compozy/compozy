@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -23,7 +24,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				Installed: true, Source: "curated",
 			}},
 		}}}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			searchMarketplaceFn: func(
 				_ context.Context,
 				query string,
@@ -74,7 +75,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{searchMarketplaceFn: func(
+		deps := newWorkspaceTestDeps(t, &stubClient{searchMarketplaceFn: func(
 			context.Context,
 			string,
 			int,
@@ -92,6 +93,34 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject cursor without kind before workspace resolution", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceLookups := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				workspaceLookups++
+				return WorkspaceDetailRecord{}, errors.New("workspace lookup should not run")
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"marketplace",
+			"search",
+			"--scope",
+			"workspace",
+			"--cursor",
+			"page-two",
+		)
+		if err == nil || err.Error() != "cli: --cursor requires --kind" {
+			t.Fatalf("marketplace cursor error = %v, want --cursor argument validation", err)
+		}
+		if workspaceLookups != 0 {
+			t.Fatalf("workspace lookups = %d, want 0 before cursor validation", workspaceLookups)
+		}
+	})
+
 	t.Run("Should render one kind without changing the daemon payload", func(t *testing.T) {
 		t.Parallel()
 
@@ -101,7 +130,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				Kind: "extension", EntryID: "extension-entry", Name: "Bridge", Source: "curated",
 			}},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			browseMarketplaceFn: func(
 				_ context.Context,
 				kind string,
@@ -155,7 +184,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				Kind: "skill", EntryID: "skill-entry", Name: "Reviewer", Source: "clawhub",
 			}},
 		}
-		deps := newTestDeps(t, &stubClient{browseMarketplaceFn: func(
+		deps := newWorkspaceTestDeps(t, &stubClient{browseMarketplaceFn: func(
 			context.Context,
 			string,
 			string,
@@ -206,7 +235,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		want := MarketplaceEntryRecord{Entry: MarketplaceListingRecord{
 			Kind: "mcp", EntryID: "github-mcp", Name: "GitHub", Source: "curated",
 		}}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			marketplaceInfoFn: func(
 				_ context.Context,
 				kind string,
@@ -264,7 +293,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		want := MarketplaceRefreshRecord{Kinds: []contract.MarketplaceRefreshKindPayload{{
 			Kind: "skill", Outcome: "updated", EntryCount: 3,
 		}}}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			refreshMarketplaceFn: func(_ context.Context, kind string) (MarketplaceRefreshRecord, error) {
 				if kind != "skill" {
 					t.Fatalf("kind = %q, want skill", kind)
@@ -291,17 +320,12 @@ func TestMarketplaceCommands(t *testing.T) {
 	t.Run("Should reject incomplete installed-state scope flags before transport", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		cases := []struct {
 			name    string
 			args    []string
 			wantErr string
 		}{
-			{
-				name:    "Should require a workspace ID for workspace scope",
-				args:    []string{"marketplace", "search", "--scope", "workspace"},
-				wantErr: "--scope workspace requires --workspace",
-			},
 			{
 				name: "Should reject a workspace ID for global scope",
 				args: []string{
@@ -322,11 +346,52 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should infer workspace read scope from cwd", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project/nested" {
+					t.Fatalf("GetWorkspace() ref = %q, want nested cwd", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-project", RootDir: "/workspace/project"},
+				}, nil
+			},
+			searchMarketplaceFn: func(
+				_ context.Context,
+				_ string,
+				_ int,
+				scope MarketplaceReadScope,
+			) (MarketplaceSearchRecord, error) {
+				if scope.Scope != contract.SettingsWorkspaceScopeWorkspace ||
+					scope.WorkspaceID != "ws-project" {
+					t.Fatalf("marketplace scope = %#v, want workspace ws-project", scope)
+				}
+				return MarketplaceSearchRecord{}, nil
+			},
+		})
+		deps.getwd = func() (string, error) { return "/workspace/project/nested", nil }
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"marketplace",
+			"search",
+			"--scope",
+			"workspace",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("marketplace search with inferred workspace error = %v", err)
+		}
+	})
+
 	t.Run("Should reject a continuation cursor without one marketplace kind", func(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{searchMarketplaceFn: func(
+		deps := newWorkspaceTestDeps(t, &stubClient{searchMarketplaceFn: func(
 			context.Context,
 			string,
 			int,

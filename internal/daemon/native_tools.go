@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-
+	"slices"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -75,12 +75,12 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 	adapter := &daemonNativeTools{deps: deps}
 	bindings := adapter.bindings()
 	descriptors := builtintools.NativeDescriptors()
+	if err := validateNativeToolBindings(descriptors, bindings); err != nil {
+		return nil, err
+	}
 	nativeTools := make([]toolspkg.NativeTool, 0, len(descriptors))
 	for _, descriptor := range descriptors {
-		binding, ok := bindings[descriptor.ID]
-		if !ok {
-			return nil, fmt.Errorf("daemon: missing native handler for %s", descriptor.ID)
-		}
+		binding := bindings[descriptor.ID]
 		nativeTools = append(nativeTools, toolspkg.NativeTool{
 			Descriptor:   descriptor,
 			Call:         binding.call,
@@ -88,6 +88,61 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 		})
 	}
 	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
+}
+
+func validateNativeToolBindings(
+	descriptors []toolspkg.Descriptor,
+	bindings map[toolspkg.ToolID]nativeToolBinding,
+) error {
+	descriptorIDs := make(map[toolspkg.ToolID]struct{}, len(descriptors))
+	duplicateDescriptors := make([]toolspkg.ToolID, 0)
+	missing := make([]toolspkg.ToolID, 0)
+	nilCalls := make([]toolspkg.ToolID, 0)
+	nilAvailability := make([]toolspkg.ToolID, 0)
+	for _, descriptor := range descriptors {
+		if _, exists := descriptorIDs[descriptor.ID]; exists {
+			duplicateDescriptors = append(duplicateDescriptors, descriptor.ID)
+		}
+		descriptorIDs[descriptor.ID] = struct{}{}
+		binding, ok := bindings[descriptor.ID]
+		if !ok {
+			missing = append(missing, descriptor.ID)
+			continue
+		}
+		if binding.call == nil {
+			nilCalls = append(nilCalls, descriptor.ID)
+		}
+		if binding.availability == nil {
+			nilAvailability = append(nilAvailability, descriptor.ID)
+		}
+	}
+	extra := make([]toolspkg.ToolID, 0)
+	for id := range bindings {
+		if _, ok := descriptorIDs[id]; !ok {
+			extra = append(extra, id)
+		}
+	}
+	slices.Sort(duplicateDescriptors)
+	slices.Sort(missing)
+	slices.Sort(extra)
+	slices.Sort(nilCalls)
+	slices.Sort(nilAvailability)
+	if len(duplicateDescriptors) > 0 ||
+		len(missing) > 0 ||
+		len(extra) > 0 ||
+		len(nilCalls) > 0 ||
+		len(nilAvailability) > 0 {
+		return fmt.Errorf(
+			"daemon: invalid native tool bindings: duplicate_descriptors=%v missing=%v extra=%v "+
+				"nil_calls=%v nil_availability=%v",
+			duplicateDescriptors,
+			missing,
+			extra,
+			nilCalls,
+			nilAvailability,
+		)
+	}
+	return nil
 }
 
 func appendToolEventSinkOption(

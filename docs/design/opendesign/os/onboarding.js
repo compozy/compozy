@@ -788,7 +788,7 @@ function unlockShell() {
       title: `${draft.workspaces[0].name} · ready`,
       body: `Default model <strong>${esc(p.name)} / ${esc(m.name)}</strong> · ${n} workspace${n === 1 ? '' : 's'} registered. Sessions start from the dock or <code>⌘K</code>.`,
       actions: [
-        { label: 'Open Compozy', primary: true, run: () => { window.location.href = 'compozy-os-v2.html'; } },
+        { label: 'Open CompozyOS', primary: true, run: () => { window.location.href = 'compozy-os-v2.html'; } },
         { label: 'Run setup again', run: () => window.location.reload() },
       ],
     });

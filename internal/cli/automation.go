@@ -104,7 +104,7 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 	bindAutomationScheduleReliabilityFlags(cmd, &input.CatchUpPolicyRaw, &input.MisfireGraceSeconds)
 	cmd.Flags().StringVar(&input.AgentName, "agent", "", "Agent definition name")
 	cmd.Flags().
-		StringVar(&input.WorkspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
+		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&input.Prompt, automationPromptKey, "", "Prompt body to dispatch")
 	cmd.Flags().
 		StringVar(&input.RetryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)

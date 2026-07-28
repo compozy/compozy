@@ -267,18 +267,16 @@ func networkDescriptors() []toolspkg.Descriptor {
 
 const networkWorkspaceInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
 
 const networkPeersInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -286,9 +284,8 @@ const networkPeersInputSchema = `{
 
 const networkInboxInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"session_id":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -296,9 +293,9 @@ const networkInboxInputSchema = `{
 
 const networkChannelCreateInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","purpose"],
+	"required":["channel","purpose"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"purpose":{"type":"string"},
 		"fanout_policy":{"type":"string","enum":["","capability_match","coordinator","all_members"]},
@@ -309,9 +306,9 @@ const networkChannelCreateInputSchema = `{
 
 const networkChannelUpdateInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel"],
+	"required":["channel"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"purpose":{"type":"string"},
 		"fanout_policy":{"type":"string","enum":["","capability_match","coordinator","all_members"]},
@@ -322,9 +319,9 @@ const networkChannelUpdateInputSchema = `{
 
 const networkSubscriptionsInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel"],
+	"required":["channel"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"session_id":{"type":"string"},
@@ -335,9 +332,9 @@ const networkSubscriptionsInputSchema = `{
 
 const networkSubscriptionInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","session_id"],
+	"required":["channel","session_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"session_id":{"type":"string"}
@@ -347,9 +344,9 @@ const networkSubscriptionInputSchema = `{
 
 const networkSubscriptionDeleteInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","session_id"],
+	"required":["channel","session_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"session_id":{"type":"string"}
@@ -359,9 +356,9 @@ const networkSubscriptionDeleteInputSchema = `{
 
 const networkThreadsInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel"],
+	"required":["channel"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"query":{"type":"string"},
 		"session_id":{"type":"string"},
@@ -375,9 +372,9 @@ const networkThreadsInputSchema = `{
 
 const networkThreadMessagesInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","thread_id"],
+	"required":["channel","thread_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"before":{"type":"string"},
@@ -391,9 +388,9 @@ const networkThreadMessagesInputSchema = `{
 
 const networkDirectsInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel"],
+	"required":["channel"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"query":{"type":"string"},
 		"session_id":{"type":"string"},
@@ -407,9 +404,9 @@ const networkDirectsInputSchema = `{
 
 const networkDirectResolveInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","peer_id"],
+	"required":["channel","peer_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"peer_id":{"type":"string"}
@@ -419,9 +416,9 @@ const networkDirectResolveInputSchema = `{
 
 const networkDirectMessagesInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","direct_id"],
+	"required":["channel","direct_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"channel":{"type":"string"},
 		"direct_id":{"type":"string"},
 		"before":{"type":"string"},
@@ -435,9 +432,9 @@ const networkDirectMessagesInputSchema = `{
 
 const networkWorkInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","work_id"],
+	"required":["work_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"work_id":{"type":"string"}
 	},
 	"additionalProperties":false

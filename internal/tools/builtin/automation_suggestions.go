@@ -45,9 +45,8 @@ func automationSuggestionDescriptors() []toolspkg.Descriptor {
 
 const automationSuggestionsListInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"status":{"type":"string","enum":["pending","accepted","dismissed"]}
 	},
 	"additionalProperties":false
@@ -55,9 +54,9 @@ const automationSuggestionsListInputSchema = `{
 
 const automationSuggestionActionInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","suggestion_id"],
+	"required":["suggestion_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"suggestion_id":{"type":"string"}
 	},
 	"additionalProperties":false

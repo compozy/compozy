@@ -17,7 +17,7 @@ import (
 const nativeNetworkChannelUpdateRequiredFields = "purpose, fanout_policy, or coordinator_peer_id"
 
 type networkChannelCreateInput struct {
-	WorkspaceID       string `json:"workspace_id"`
+	WorkspaceID       string `json:"workspace"`
 	Channel           string `json:"channel"`
 	Purpose           string `json:"purpose"`
 	FanoutPolicy      string `json:"fanout_policy,omitempty"`
@@ -25,7 +25,7 @@ type networkChannelCreateInput struct {
 }
 
 type networkChannelUpdateInput struct {
-	WorkspaceID       string  `json:"workspace_id"`
+	WorkspaceID       string  `json:"workspace"`
 	Channel           string  `json:"channel"`
 	Purpose           *string `json:"purpose,omitempty"`
 	FanoutPolicy      *string `json:"fanout_policy,omitempty"`
@@ -194,7 +194,7 @@ func (n *daemonNativeTools) agentCreate(
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
 		entry.Origin = contract.AgentOriginWorkspace
-		entry.WorkspaceID = strings.TrimSpace(scope.WorkspaceID)
+		entry.WorkspaceID = strings.TrimSpace(createReq.Workspace)
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(entry, &runtimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
@@ -243,7 +243,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 		}
 	}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
-		workspaceRef, err := nativeCallerWorkspaceInput(id, "workspace", createReq.Workspace, scope)
+		workspaceRef, err := nativeCallerWorkspaceInput(id, createReq.Workspace, scope)
 		if err != nil {
 			return contract.CreateAgentRequest{}, err
 		}

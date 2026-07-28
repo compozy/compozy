@@ -24,7 +24,7 @@ func newAutomationSuggestionsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaceID, err := resolveRequiredSuggestionWorkspaceID(cmd, client, workspaceRef)
+			workspaceID, err := resolveSuggestionWorkspaceID(cmd, deps, client, workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -35,8 +35,7 @@ func newAutomationSuggestionsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationSuggestionListBundle(response))
 		},
 	}
-	cmd.PersistentFlags().StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID")
-	mustMarkPersistentFlagRequired(cmd, "workspace")
+	cmd.PersistentFlags().StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, string(automationpkg.SuggestionStatusPending),
 		"Filter by status: pending, accepted, or dismissed")
 	cmd.AddCommand(newAutomationSuggestionAcceptCommand(deps, &workspaceRef))
@@ -54,7 +53,7 @@ func newAutomationSuggestionAcceptCommand(deps commandDeps, workspaceRef *string
 			if err != nil {
 				return err
 			}
-			workspaceID, err := resolveRequiredSuggestionWorkspaceID(cmd, client, *workspaceRef)
+			workspaceID, err := resolveSuggestionWorkspaceID(cmd, deps, client, *workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -77,7 +76,7 @@ func newAutomationSuggestionDismissCommand(deps commandDeps, workspaceRef *strin
 			if err != nil {
 				return err
 			}
-			workspaceID, err := resolveRequiredSuggestionWorkspaceID(cmd, client, *workspaceRef)
+			workspaceID, err := resolveSuggestionWorkspaceID(cmd, deps, client, *workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -90,15 +89,23 @@ func newAutomationSuggestionDismissCommand(deps commandDeps, workspaceRef *strin
 	}
 }
 
-func resolveRequiredSuggestionWorkspaceID(
+func resolveSuggestionWorkspaceID(
 	cmd *cobra.Command,
+	deps commandDeps,
 	client DaemonClient,
 	workspaceRef string,
 ) (string, error) {
-	if strings.TrimSpace(workspaceRef) == "" {
-		return "", errors.New("cli: --workspace is required")
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return "", err
 	}
-	return resolveAutomationWorkspaceID(cmd.Context(), client, workspaceRef)
+	return resolution.ID, nil
 }
 
 func parseAutomationSuggestionStatus(raw string) (automationpkg.SuggestionStatus, error) {

@@ -9,16 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type taskNextCommandFlags struct {
+	runID                string
+	workspaceRef         string
+	requiredCapabilities []string
+	priorityMin          int
+	leaseSeconds         int64
+	wait                 bool
+	idempotencyKey       string
+}
+
 func newTaskNextCommand(deps commandDeps) *cobra.Command {
-	var (
-		runID                string
-		workspaceID          string
-		requiredCapabilities []string
-		priorityMin          int
-		leaseSeconds         int64
-		wait                 bool
-		idempotencyKey       string
-	)
+	var flags taskNextCommandFlags
 
 	cmd := &cobra.Command{
 		Use:   taskNextKey,
@@ -36,55 +38,72 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
   # Filter by required caller capability
   compozy task next --capability go.test --priority-min 10`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
-				return err
-			}
-			if cmd.Flags().Changed("run-id") && strings.TrimSpace(runID) == "" {
-				return errors.New("cli: --run-id cannot be blank")
-			}
-			if priorityMin < 0 {
-				return fmt.Errorf("cli: --priority-min must be zero or positive: %d", priorityMin)
-			}
-			request := AgentTaskClaimNextRequest{
-				RunID:                strings.TrimSpace(runID),
-				WorkspaceID:          strings.TrimSpace(workspaceID),
-				RequiredCapabilities: trimAgentTaskCapabilities(requiredCapabilities),
-				PriorityMin:          priorityMin,
-				LeaseSeconds:         leaseSeconds,
-				Wait:                 wait,
-				IdempotencyKey:       strings.TrimSpace(idempotencyKey),
-			}
-
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			credentials, err := requireAgentCommandIdentity(
-				cmd.Context(),
-				deps,
-				client,
-				agentActionCLI("task.next"),
-			)
-			if err != nil {
-				return err
-			}
-			record, err := client.AgentTaskClaimNext(cmd.Context(), request, credentials)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, agentTaskNextBundle(record))
+			return runTaskNextCommand(cmd, deps, flags)
 		},
 	}
-	cmd.Flags().StringVar(&runID, "run-id", "", "Claim exactly this queued run")
-	cmd.Flags().
-		StringVar(&workspaceID, "workspace-id", "", "Workspace ID override; defaults to caller workspace")
-	cmd.Flags().
-		StringArrayVar(&requiredCapabilities, "capability", nil, "Caller capability filter (repeatable)")
-	cmd.Flags().IntVar(&priorityMin, "priority-min", 0, "Minimum task priority")
-	cmd.Flags().Int64Var(&leaseSeconds, "lease-seconds", 0, "Lease duration in seconds")
-	cmd.Flags().BoolVar(&wait, "wait", false, "Wait until work is claimable")
-	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
+	addTaskNextFlags(cmd, &flags)
 	return cmd
+}
+
+func addTaskNextFlags(cmd *cobra.Command, flags *taskNextCommandFlags) {
+	cmd.Flags().StringVar(&flags.runID, "run-id", "", "Claim exactly this queued run")
+	cmd.Flags().
+		StringVar(&flags.workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
+	cmd.Flags().
+		StringArrayVar(&flags.requiredCapabilities, "capability", nil, "Caller capability filter (repeatable)")
+	cmd.Flags().IntVar(&flags.priorityMin, "priority-min", 0, "Minimum task priority")
+	cmd.Flags().Int64Var(&flags.leaseSeconds, "lease-seconds", 0, "Lease duration in seconds")
+	cmd.Flags().BoolVar(&flags.wait, "wait", false, "Wait until work is claimable")
+	cmd.Flags().StringVar(&flags.idempotencyKey, "idempotency-key", "", "Optional idempotency key")
+}
+
+func runTaskNextCommand(cmd *cobra.Command, deps commandDeps, flags taskNextCommandFlags) error {
+	if err := validateAgentTaskLeaseSeconds(flags.leaseSeconds); err != nil {
+		return err
+	}
+	if cmd.Flags().Changed("run-id") && strings.TrimSpace(flags.runID) == "" {
+		return errors.New("cli: --run-id cannot be blank")
+	}
+	if flags.priorityMin < 0 {
+		return fmt.Errorf("cli: --priority-min must be zero or positive: %d", flags.priorityMin)
+	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	credentials, err := requireAgentCommandIdentity(
+		cmd.Context(),
+		deps,
+		client,
+		agentActionCLI("task.next"),
+	)
+	if err != nil {
+		return err
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: flags.workspaceRef},
+	)
+	if err != nil {
+		return err
+	}
+	request := AgentTaskClaimNextRequest{
+		RunID:                strings.TrimSpace(flags.runID),
+		WorkspaceID:          resolution.ID,
+		RequiredCapabilities: trimAgentTaskCapabilities(flags.requiredCapabilities),
+		PriorityMin:          flags.priorityMin,
+		LeaseSeconds:         flags.leaseSeconds,
+		Wait:                 flags.wait,
+		IdempotencyKey:       strings.TrimSpace(flags.idempotencyKey),
+	}
+	record, err := client.AgentTaskClaimNext(cmd.Context(), request, credentials)
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, agentTaskNextBundle(record))
 }
 
 func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {

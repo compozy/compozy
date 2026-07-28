@@ -102,7 +102,8 @@ func addWindowManagerRouteFlags(cmd *cobra.Command, pathname *string, searchJSON
 }
 
 func (flags *windowManagerMutationFlags) add(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&flags.workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&flags.workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Uint64Var(&flags.revision, windowManagerRevisionFlag, 0, "Expected workspace revision")
 	cmd.Flags().StringVar(&flags.clientID, windowManagerClientFlag, "", "Connected presentation client ID")
 	cmd.Flags().StringVar(&flags.origin, windowManagerOriginFlag, windowManagerCLIOrigin, "Command origin label")
@@ -111,13 +112,10 @@ func (flags *windowManagerMutationFlags) add(cmd *cobra.Command) {
 
 func (flags windowManagerMutationFlags) request(
 	cmd *cobra.Command,
+	deps commandDeps,
 	commandID contract.WindowManagerCommandID,
 	payload any,
 ) (contract.WindowManagerCommandRequest, error) {
-	workspace, err := requiredWindowManagerFlag(flags.workspace, windowManagerWorkspaceFlag)
-	if err != nil {
-		return contract.WindowManagerCommandRequest{}, err
-	}
 	revision, err := requiredWindowManagerRevision(cmd, flags.revision)
 	if err != nil {
 		return contract.WindowManagerCommandRequest{}, err
@@ -129,6 +127,10 @@ func (flags windowManagerMutationFlags) request(
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return contract.WindowManagerCommandRequest{}, fmt.Errorf("cli: encode %s payload: %w", commandID, err)
+	}
+	_, workspace, err := windowManagerClientAndWorkspace(cmd, deps, flags.workspace)
+	if err != nil {
+		return contract.WindowManagerCommandRequest{}, err
 	}
 	return contract.WindowManagerCommandRequest{
 		WorkspaceID:      windowmanager.WorkspaceID(workspace),
@@ -166,6 +168,28 @@ func windowManagerClientFromDeps(deps commandDeps) (WindowManagerClient, error) 
 		return nil, errors.New("cli: window-manager client is unavailable")
 	}
 	return windowManagerClient, nil
+}
+
+func windowManagerClientAndWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	workspaceRef string,
+) (WindowManagerClient, string, error) {
+	client, err := windowManagerClientFromDeps(deps)
+	if err != nil {
+		return nil, "", err
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	return client, resolution.ID, nil
 }
 
 func requiredWindowManagerFlag(value string, name string) (string, error) {

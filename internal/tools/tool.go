@@ -261,6 +261,16 @@ type ApprovalBridge interface {
 	RequestToolApproval(ctx context.Context, scope Scope, call CallRequest, view *ToolView) error
 }
 
+// CallInputBinder rewrites trusted scope into tool input before schema validation.
+type CallInputBinder interface {
+	BindCallInput(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		input json.RawMessage,
+	) (json.RawMessage, error)
+}
+
 // Scope identifies the caller context used for projections and dispatch.
 type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`

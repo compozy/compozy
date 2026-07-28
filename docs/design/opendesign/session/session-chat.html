@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CompozyOS · Session — applied prototype</title>
+<link rel="stylesheet" href="session.css">
+<style>
+/* document-window frame (OS v2 contract: session windows self-title,
+   44px head, state dot + session name; controls in the head) */
+body{background:var(--rail);display:grid;place-items:center;min-height:100vh;padding:28px}
+.win{
+  width:min(1000px,100%);height:min(780px,calc(100vh - 56px));
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);
+  border-radius:14px;box-shadow:var(--shadow-overlay);
+}
+.win-head{
+  display:flex;align-items:center;gap:10px;flex:none;
+  height:44px;padding:0 12px 0 14px;border-bottom:1px solid var(--line);
+}
+.win-dots{display:flex;gap:7px;flex:none}
+.win-dots i{width:11px;height:11px;border-radius:50%;background:var(--elevated);border:1px solid var(--line-strong)}
+.win-title{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:500;color:var(--fg)}
+.win-title .d{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;animation:livepulse 2.6s ease-in-out infinite}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 3px var(--accent-tint)}50%{box-shadow:0 0 0 4.5px transparent}}
+.win-title .sub{font-size:11px;font-weight:400;color:var(--subtle)}
+.win-actions{margin-left:auto;display:flex;gap:6px;flex:none}
+.win-body{flex:1;min-height:0;display:flex;flex-direction:column}
+/* goal strip is pinned context — it lives ABOVE the scroller, outside
+   the scroll fade, so it never picks up the top mask */
+.goal-zone{flex:none;padding-top:8px}
+.goal-zone .goalstrip{margin-bottom:0}
+.chat-scroll{flex:1;min-height:0;position:relative;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 28px);
+          mask-image:linear-gradient(to bottom,transparent 0,#000 28px)}
+</style>
+</head>
+<body>
+<div class="win" data-od-id="session-window">
+  <!-- ===== window head: session self-titles, controls live here ===== -->
+  <header class="win-head" data-od-id="session-window-head">
+    <div class="win-dots"><i></i><i></i><i></i></div>
+    <div class="win-title"><span class="d"></span><span>Calm transcript migration</span><span class="sub">claude-code · compozy</span></div>
+    <div class="win-actions">
+      <button class="btn btn--sm" type="button">Share</button>
+      <button class="btn btn--sm btn--danger-ghost" type="button">Stop</button>
+    </div>
+  </header>
+
+  <div class="win-body">
+    <!-- ===== goal strip (replaces GoalStatusChip) — pinned above the scroller ===== -->
+    <div class="goal-zone" data-od-id="goal-zone">
+      <div class="chat-col">
+        <div class="goalstrip" data-state="active" data-open="false" data-od-id="goal-strip">
+          <button class="goalstrip__line" type="button" data-toggle aria-expanded="false">
+            <span class="goalstrip__dot"></span>
+            <span class="goalstrip__kicker">Goal</span>
+            <span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span>
+            <span class="goalstrip__fact">turn 3/20 · ctx 41%</span>
+            <span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </button>
+          <div class="disclose"><div><div class="goalstrip__body">
+            <div class="goalstrip__row"><span class="goalstrip__k">Contract</span><span class="goalstrip__v">All 16 transcript components on session.css tokens; make verify green.</span></div>
+            <div class="goalstrip__row"><span class="goalstrip__k">Run</span><span class="goalstrip__v"><a href="#">plan-4 · generation 2</a> — active in this session</span></div>
+          </div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-scroll" data-od-id="session-transcript">
+      <div class="chat-col">
+
+        <div class="transcript">
+
+          <!-- lifecycle rule -->
+          <div class="liferule"><span>session resumed · 14:02</span></div>
+
+          <!-- ===== turn 1 (settled, folded) ===== -->
+          <div class="t-row t-msg msg-user" data-od-id="msg-user-1">
+            <div class="msg-user__bubble">Take a look at the session transcript UI — tool calls, banners, goal chip. It's way too loud. Make it calm: text-first, grouped calls, no colored cards.</div>
+            <div class="msg-meta"><span>14:02</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          </div>
+
+          <div class="turnfold" data-open="false" data-od-id="turn-1-fold">
+            <button class="turnfold__btn" type="button" data-toggle aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              <span>Worked for 1m 12s</span>
+            </button>
+            <div class="disclose"><div><div class="turnfold__body">
+              <div class="trow thinking" data-expandable="true" data-open="false">
+                <button class="trow__line" type="button" data-toggle aria-expanded="false">
+                  <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3a4 4 0 0 0-4 4 4 4 0 0 0-3 6.6A4 4 0 0 0 8 20h8a4 4 0 0 0 3-6.4A4 4 0 0 0 16 7a4 4 0 0 0-4-4Z"/></svg></span>
+                  <span class="trow__text"><span class="trow__verb">Thought</span><span class="trow__prev" style="font-family:var(--font-sans)">mapped the loud components first</span></span>
+                  <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></span>
+                </button>
+                <div class="disclose"><div><div class="thinking__body">The worst offenders are the goal card (icon tile + two pills + meter grid), the sticky permission prompt, and five near-identical bordered cards. The references keep everything as muted text lines and push decisions to the composer.</div></div></div>
+              </div>
+              <div class="tgroup" data-open="false">
+                <button class="tgroup-sum" type="button" data-toggle aria-expanded="false">
+                  <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                  <span>Ran 3 commands<span class="dotsep"></span>Read 6 files<span class="dotsep"></span>Searched 4 files</span>
+                  <span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+                </button>
+                <div class="disclose"><div><div class="tgroup__body">
+                  <div class="trow" data-status="success"><div class="trow__line">
+                    <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+                    <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">rg "Alert" web/src/systems/session</span></span>
+                    <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+                  </div></div>
+                  <div class="trow" data-status="success"><div class="trow__line">
+                    <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                    <span class="trow__text"><span class="trow__verb">Read</span><span class="trow__prev">tool-call-card.tsx · 214 lines</span></span>
+                    <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+                  </div></div>
+                  <div class="trow" data-status="success"><div class="trow__line">
+                    <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                    <span class="trow__text"><span class="trow__verb">Read</span><span class="trow__prev">goal-status-chip.tsx · 188 lines</span></span>
+                    <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+                  </div></div>
+                </div></div></div>
+              </div>
+            </div></div></div>
+          </div>
+
+          <div class="t-row t-row--turn-end t-msg" data-od-id="msg-assistant-1">
+            <div class="msg-assistant md">
+              <p>Mapped it. The transcript renders <strong>16 distinct component kinds</strong>, and five of them
+              are visually identical bordered cards. The plan:</p>
+              <ul>
+                <li>tool calls become 24px text lines — grey check, red × only on failure</li>
+                <li>settled runs collapse to one summary line; settled turns fold</li>
+                <li>permission and questions dock to the composer</li>
+                <li>the goal card becomes a one-line strip</li>
+              </ul>
+            </div>
+            <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button type="button">Use as goal</button><span>14:04</span></div>
+          </div>
+
+          <!-- ===== turn 2 (settled, with receipt + outcome) ===== -->
+          <div class="t-row t-msg msg-user" data-od-id="msg-user-2">
+            <div class="msg-user__bubble">Go ahead — start with the tool rows and the permission flow.</div>
+            <div class="msg-meta"><span>14:05</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          </div>
+
+          <!-- permission receipt stays OUTSIDE the fold -->
+          <div class="t-row receipt" data-tone="allowed" data-od-id="receipt-allowed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Allowed <code>Bash</code> once — <code>bun install</code></span>
+          </div>
+
+          <div class="turnfold" data-open="false" data-od-id="turn-2-fold">
+            <button class="turnfold__btn" type="button" data-toggle aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              <span>Worked for 4m 51s</span>
+            </button>
+            <div class="disclose"><div><div class="turnfold__body">
+              <div class="tgroup-sum" style="cursor:default">
+                <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <span>Ran 5 commands<span class="dotsep"></span>Edited 4 files<span class="dotsep"></span>Read 9 files</span>
+              </div>
+            </div></div></div>
+          </div>
+
+          <div class="t-row t-msg" data-od-id="msg-assistant-2">
+            <div class="msg-assistant md">
+              <p>Tool rows and the permission dock are in. One failure along the way — the fold test needed
+              an anchor fix — details are in the fold above. Files changed this turn:</p>
+            </div>
+          </div>
+
+          <!-- changed files outcome line -->
+          <div class="t-row changed" data-open="false" data-od-id="changed-files">
+            <button class="changed__sum" type="button" data-toggle aria-expanded="false">
+              <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span>Edited 4 files</span>
+              <span class="diffstat"><b>+186</b><i>−203</i></span>
+              <span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="disclose"><div><div class="changed__body">
+              <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">packages/ui/…/</span><span class="changed__name">tool-call-row.tsx</span><span class="diffstat"><b>+61</b><i>−88</i></span></div>
+              <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">systems/session/</span><span class="changed__name">permission-prompt.tsx</span><span class="diffstat"><b>+74</b><i>−96</i></span></div>
+              <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">assistant-ui/</span><span class="changed__name">session-timeline.logic.ts</span><span class="diffstat"><b>+39</b><i>−12</i></span></div>
+              <div class="changed__file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/></svg><span class="changed__dir">assistant-ui/</span><span class="changed__name">session-thread.tsx</span><span class="diffstat"><b>+12</b><i>−7</i></span></div>
+            </div></div></div>
+          </div>
+
+          <!-- context marker -->
+          <div class="t-row t-row--turn-end marker" data-tone="warning" data-od-id="marker-context">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span><b>Context 41% full</b> — no compaction needed yet.</span>
+          </div>
+
+          <!-- ===== turn 3 (live) ===== -->
+          <div class="t-row t-msg msg-user" data-od-id="msg-user-3">
+            <div class="msg-user__bubble">Now the markers and the goal strip. Keep the receipts outside the folds like you did.</div>
+            <div class="msg-meta"><span>14:12</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          </div>
+
+          <!-- live plan -->
+          <div class="t-row todo" data-od-id="live-todo">
+            <p class="todo__cap">Plan · 2 of 4</p>
+            <div class="todo__item" data-state="done"><span class="todo__glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span>Retone tool rows + kill failed force-expand</span></div>
+            <div class="todo__item" data-state="done"><span class="todo__glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span>Dock permission prompt to the composer</span></div>
+            <div class="todo__item" data-state="active"><span class="todo__glyph"><i></i></span><span>Convert Alert notices to marker lines</span></div>
+            <div class="todo__item" data-state="pending"><span class="todo__glyph"><span class="dot-pending"></span></span><span>Collapse GoalStatusChip into the goal strip</span></div>
+          </div>
+
+          <!-- live tail: last visible rows -->
+          <div class="t-row" style="display:flex;flex-direction:column;gap:2px" data-od-id="live-work">
+            <button class="tmore" type="button">+5 previous tool calls</button>
+            <div class="trow" data-status="success"><div class="trow__line">
+              <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+              <span class="trow__text"><span class="trow__verb">Edited</span><span class="trow__prev">runtime-activity-notice.tsx</span></span>
+              <span class="diffstat"><b>+28</b><i>−104</i></span>
+              <span class="trow__aside"><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span></span>
+            </div></div>
+            <div class="trow" data-status="failed" data-expandable="true" data-open="false"><button class="trow__line" type="button" data-toggle>
+              <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+              <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">bunx turbo run typecheck --filter=./web</span></span>
+              <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></span>
+            </button>
+            <div class="disclose"><div><div class="trow__detail"><pre><span class="err">error TS2339: Property 'tone' does not exist on type 'MarkerProps'.</span>
+<span class="ctx">  src/systems/session/components/runtime-activity-notice.tsx:47</span>
+exit code 2</pre></div></div></div></div>
+            <div class="trow" data-status="running"><div class="trow__line">
+              <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+              <span class="trow__text"><span class="trow__verb">Editing</span><span class="trow__prev">runtime-activity-notice.tsx</span></span>
+              <span class="trow__aside"><span class="trow__status"><svg class="trow__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span></span>
+            </div></div>
+          </div>
+
+          <!-- working row -->
+          <div class="t-row working" data-od-id="working-row">
+            <span class="working__dots"><i></i><i></i><i></i></span>
+            <span class="working__label">Working for <span id="tick">2m 14s</span></span>
+          </div>
+
+        </div><!-- /transcript -->
+      </div>
+    </div>
+
+    <!-- ===== composer zone with docked permission ===== -->
+    <div class="composer-zone" data-od-id="composer-zone">
+      <div class="chat-col">
+        <div id="dock" class="dock" data-od-id="permission-dock">
+          <div class="dock__head"><span class="dock__eyebrow">Permission</span><span class="dock__title">Run a command</span><span class="dock__count">1/1</span></div>
+          <div class="dock__body">
+            <pre class="dock__pre">bunx turbo run lint typecheck test --filter=./web</pre>
+            <div class="dock__meta">Bash · workspace <code>compozy</code></div>
+          </div>
+          <div class="dock__actions">
+            <button class="btn btn--primary" type="button" data-decide="allow">Allow once<kbd>1</kbd></button>
+            <button class="btn" type="button" data-decide="always">Always allow<kbd>2</kbd></button>
+            <span class="spacer"></span>
+            <button class="btn btn--danger-ghost" type="button" data-decide="reject">Reject<kbd>3</kbd></button>
+          </div>
+        </div>
+        <div class="composer composer--docked" id="composer">
+          <textarea rows="1" placeholder="Reply to the agent…"></textarea>
+          <div class="composer__bar">
+            <span class="composer__hint"><kbd>⏎</kbd> send</span>
+            <span class="spacer"></span>
+            <button class="composer__stop" type="button" aria-label="Stop turn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></button>
+            <button class="composer__send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* disclosure toggles */
+document.addEventListener("click",(e)=>{
+  const t=e.target.closest("[data-toggle]");if(!t)return;
+  const host=t.closest("[data-open]");if(!host)return;
+  const open=host.getAttribute("data-open")==="true";
+  host.setAttribute("data-open",String(!open));
+  t.setAttribute("aria-expanded",String(!open));
+});
+/* working ticker — mutates the text node only */
+(()=>{let s=134;const el=document.getElementById("tick");
+setInterval(()=>{s++;el.textContent=Math.floor(s/60)+"m "+String(s%60).padStart(2,"0")+"s";},1000);})();
+/* permission decision → dock resolves into a transcript receipt */
+(()=>{
+  const dock=document.getElementById("dock");
+  const composer=document.getElementById("composer");
+  const transcript=document.querySelector(".transcript");
+  const decide=(kind)=>{
+    const r=document.createElement("div");
+    r.className="t-row receipt";
+    const allowed=kind!=="reject";
+    r.setAttribute("data-tone",allowed?"allowed":"rejected");
+    r.innerHTML=allowed
+      ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Allowed <code>Bash</code> '+(kind==="always"?"for this session":"once")+' — <code>bunx turbo run lint…</code></span>'
+      :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Rejected <code>Bash</code></span>';
+    transcript.appendChild(r);
+    dock.remove();
+    composer.classList.remove("composer--docked");
+    document.querySelector(".chat-scroll").scrollTop=1e6;
+  };
+  dock.addEventListener("click",(e)=>{const b=e.target.closest("[data-decide]");if(b)decide(b.getAttribute("data-decide"));});
+  document.addEventListener("keydown",(e)=>{
+    if(!document.getElementById("dock"))return;
+    if(e.target.tagName==="TEXTAREA")return;
+    if(e.key==="1")decide("allow");else if(e.key==="2")decide("always");else if(e.key==="3")decide("reject");
+  });
+})();
+/* autosize composer */
+(()=>{const ta=document.querySelector(".composer textarea");
+ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,180)+"px";});})();
+</script>
+</body>
+</html>

@@ -14,7 +14,6 @@ const (
 	descriptorKeywordDiagnostics = "diagnostics"
 	descriptorKeywordSnapshot    = "snapshot"
 	descriptorKeywordUpdate      = "update"
-	descriptorWorkspaceIDKey     = "workspace_id"
 	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 

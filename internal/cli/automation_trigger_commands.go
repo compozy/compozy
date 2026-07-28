@@ -30,6 +30,7 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 
 			request, err := buildAutomationTriggerCreateRequest(
 				cmd,
+				deps,
 				client,
 				automationTriggerCommandInput{
 					Name:               name,
@@ -94,7 +95,7 @@ func bindAutomationTriggerCreateFlags(
 	cmd.Flags().StringVar(scopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
 	cmd.Flags().StringVar(eventRaw, automationEventKey, "", "Trigger event name")
 	cmd.Flags().
-		StringVar(workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
+		StringVar(workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(agentName, "agent", "", "Agent definition name")
 	cmd.Flags().StringVar(prompt, automationPromptKey, "", "Prompt template body")
 	cmd.Flags().

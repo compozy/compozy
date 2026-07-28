@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -21,6 +22,132 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
 )
+
+func TestValidateOperationRegistry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept the complete production registry", func(t *testing.T) {
+		t.Parallel()
+
+		if err := validateOperationRegistry(Operations()); err != nil {
+			t.Fatalf("validateOperationRegistry() error = %v", err)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		mutate func([]OperationSpec) []OperationSpec
+		want   string
+	}{
+		{
+			name: "Should reject an empty registry",
+			mutate: func([]OperationSpec) []OperationSpec {
+				return nil
+			},
+			want: "registry is empty",
+		},
+		{
+			name: "Should reject unsupported methods",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Method = "TRACE"
+				return operations
+			},
+			want: "unsupported method",
+		},
+		{
+			name: "Should reject paths outside the API root",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Path = "/internal/status"
+				return operations
+			},
+			want: "absolute /api path",
+		},
+		{
+			name: "Should reject duplicate operation IDs",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				duplicate := operations[0]
+				duplicate.Path = "/api/example/duplicate"
+				return append(operations, duplicate)
+			},
+			want: "duplicate operation ID",
+		},
+		{
+			name: "Should reject duplicate routes",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				duplicate := operations[0]
+				duplicate.OperationID = "duplicateExample"
+				return append(operations, duplicate)
+			},
+			want: "duplicate route",
+		},
+		{
+			name: "Should reject missing transports",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Transports = nil
+				return operations
+			},
+			want: "has no transports",
+		},
+		{
+			name: "Should reject unknown transports",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Transports = []Transport{"unknown"}
+				return operations
+			},
+			want: "unknown transport",
+		},
+		{
+			name: "Should reject undeclared path parameters",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Path = "/api/example/{id}"
+				return operations
+			},
+			want: "requires exactly one declaration",
+		},
+		{
+			name: "Should reject optional path parameters",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Path = "/api/example/{id}"
+				operations[0].Parameters = []ParameterSpec{{Name: "id", In: "path"}}
+				return operations
+			},
+			want: "must be required",
+		},
+		{
+			name: "Should reject operations without responses",
+			mutate: func(operations []OperationSpec) []OperationSpec {
+				operations[0].Responses = nil
+				return operations
+			},
+			want: "has no responses",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			operations := []OperationSpec{validRegistryOperation()}
+			err := validateOperationRegistry(tt.mutate(operations))
+			if err == nil {
+				t.Fatalf("validateOperationRegistry() error = nil, want %q", tt.want)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("validateOperationRegistry() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func validRegistryOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/example",
+		OperationID: "getExample",
+		Transports:  []Transport{TransportHTTP},
+		Responses:   []ResponseSpec{{Status: http.StatusOK, Description: "OK"}},
+	}
+}
 
 func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 	t.Parallel()
@@ -1592,6 +1719,26 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 						t.Parallel()
 						spec := operationFor(t, doc, operation.path, operation.method)
 						assertTagsContain(t, spec, "agent")
+						assertParameter(
+							t,
+							spec,
+							agentidentity.HeaderSessionID,
+							openapi3.ParameterInHeader,
+							true,
+						)
+						assertParameter(
+							t,
+							spec,
+							agentidentity.HeaderAgent,
+							openapi3.ParameterInHeader,
+							true,
+						)
+						assertParameterAbsent(
+							t,
+							spec,
+							"X-Compozy-Workspace-ID",
+							openapi3.ParameterInHeader,
+						)
 					})
 				}
 

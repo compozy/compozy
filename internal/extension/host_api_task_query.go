@@ -51,7 +51,11 @@ func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorCon
 		return taskpkg.ActorContext{}, unavailableRPCError(errors.New("extension name is not available"))
 	}
 
-	actor, err := taskpkg.DeriveExtensionActorContext(extName, "")
+	workspaceID, _, err := hostAPIBoundWorkspaceID(ctx)
+	if err != nil {
+		return taskpkg.ActorContext{}, err
+	}
+	actor, err := taskpkg.DeriveExtensionActorContextForWorkspace(extName, workspaceID, "")
 	if err != nil {
 		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
 	}

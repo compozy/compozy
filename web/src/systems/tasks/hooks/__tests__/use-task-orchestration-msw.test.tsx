@@ -53,6 +53,8 @@ function testApiUrl(path: string): string {
 }
 
 describe("orchestration hooks against MSW handlers", () => {
+  const agentIdentity = { agentName: "worker", sessionId: "session_001" };
+
   it("Should expose execution profile via real adapter stack", async () => {
     const { result } = renderHook(() => useTaskExecutionProfile("task_001"), {
       wrapper: createWrapper(),
@@ -64,7 +66,7 @@ describe("orchestration hooks against MSW handlers", () => {
   });
 
   it("Should expose task context bundle via /api/agent/context handler", async () => {
-    const { result } = renderHook(() => useTaskContextBundle(), {
+    const { result } = renderHook(() => useTaskContextBundle(agentIdentity), {
       wrapper: createWrapper(),
     });
 

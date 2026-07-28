@@ -42,11 +42,14 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			if limit <= 0 {
 				return fmt.Errorf("cli: marketplace limit must be positive: %d", limit)
 			}
-			scope, err := readScope.value()
+			if strings.TrimSpace(kind) == "" && strings.TrimSpace(cursor) != "" {
+				return errors.New("cli: --cursor requires --kind")
+			}
+			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			client, err := clientFromDeps(deps)
+			scope, err := readScope.resolve(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -55,9 +58,6 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 				query = args[0]
 			}
 			if strings.TrimSpace(kind) == "" {
-				if strings.TrimSpace(cursor) != "" {
-					return errors.New("cli: --cursor requires --kind")
-				}
 				response, err := client.SearchMarketplace(cmd.Context(), query, limit, scope)
 				if err != nil {
 					return err
@@ -86,11 +86,11 @@ func newMarketplaceInfoCommand(deps commandDeps) *cobra.Command {
 		Short: "Show one marketplace entry",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope, err := readScope.value()
+			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			client, err := clientFromDeps(deps)
+			scope, err := readScope.resolve(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -118,10 +118,27 @@ type marketplaceReadFlagValues struct {
 	workspaceID string
 }
 
-func (v marketplaceReadFlagValues) value() (MarketplaceReadScope, error) {
+func (v marketplaceReadFlagValues) resolve(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+) (MarketplaceReadScope, error) {
 	result := MarketplaceReadScope{
 		Scope:       contract.SettingsWorkspaceScopeKind(strings.TrimSpace(v.scope)),
 		WorkspaceID: strings.TrimSpace(v.workspaceID),
+	}
+	if result.Scope == contract.SettingsWorkspaceScopeWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: result.WorkspaceID},
+		)
+		if err != nil {
+			return MarketplaceReadScope{}, err
+		}
+		result.WorkspaceID = resolution.ID
 	}
 	if _, err := result.queryValues(); err != nil {
 		return MarketplaceReadScope{}, err
@@ -136,7 +153,8 @@ func addMarketplaceReadFlags(cmd *cobra.Command, values *marketplaceReadFlagValu
 		string(contract.SettingsWorkspaceScopeGlobal),
 		"Installed-state scope: global or workspace",
 	)
-	cmd.Flags().StringVar(&values.workspaceID, "workspace", "", "Workspace ID for workspace scope")
+	cmd.Flags().
+		StringVar(&values.workspaceID, "workspace", "", "Override workspace scope (ID, name, or path)")
 }
 
 func newMarketplaceRefreshCommand(deps commandDeps) *cobra.Command {

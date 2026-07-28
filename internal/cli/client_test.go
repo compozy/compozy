@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -299,9 +302,6 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 					if got := req.Header.Get(agentidentity.HeaderAgent); got != "coder" {
 						t.Fatalf("%s = %q, want coder", agentidentity.HeaderAgent, got)
 					}
-					if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != "ws-1" {
-						t.Fatalf("%s = %q, want ws-1", agentidentity.HeaderWorkspaceID, got)
-					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"me":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"capabilities":[],"channels":[],"active_task_leases":[]}}`,
@@ -311,9 +311,8 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 		}
 
 		me, err := client.AgentMe(context.Background(), agentidentity.Credentials{
-			SessionID:   "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			SessionID: "sess-1",
+			AgentName: "coder",
 		})
 		if err != nil {
 			t.Fatalf("AgentMe() error = %v", err)
@@ -328,9 +327,8 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
 	credentials := agentidentity.Credentials{
-		SessionID:   "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
+		SessionID: "sess-1",
+		AgentName: "coder",
 	}
 	metadata := contract.CoordinationMessageMetadataPayload{
 		TaskID:        "task-1",
@@ -667,9 +665,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	t.Parallel()
 
 	credentials := agentidentity.Credentials{
-		SessionID:   "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
+		SessionID: "sess-1",
+		AgentName: "coder",
 	}
 	var sawClaim bool
 	var sawNoWork bool
@@ -1145,6 +1142,77 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	})
 }
 
+func TestNearestCLIWorkspaceRoute(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should choose the nearest registered enclosing root", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		parent := filepath.Join(root, "alpha")
+		nested := filepath.Join(parent, "nested")
+		target := filepath.Join(nested, "src")
+		for _, path := range []string{target, filepath.Join(root, "alpha-2")} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		ref, err := nearestCLIWorkspaceRoute(
+			target,
+			[]WorkspaceRecord{
+				{ID: "ws-parent", RootDir: parent},
+				{ID: "ws-nested", RootDir: nested},
+				{ID: "ws-prefix", RootDir: filepath.Join(root, "alpha-2")},
+			},
+		)
+		if err != nil {
+			t.Fatalf("nearestCLIWorkspaceRoute() error = %v", err)
+		}
+		if ref != "ws-nested" {
+			t.Fatalf("nearestCLIWorkspaceRoute() = %q, want %q", ref, "ws-nested")
+		}
+	})
+
+	t.Run("Should reject path prefix collisions", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		registered := filepath.Join(root, "alpha")
+		target := filepath.Join(root, "alpha-2", "src")
+		for _, path := range []string{registered, target} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		_, err := nearestCLIWorkspaceRoute(
+			target,
+			[]WorkspaceRecord{{ID: "ws-alpha", RootDir: registered}},
+		)
+		canonicalTarget, canonicalErr := canonicalCLIWorkspacePath(target)
+		if canonicalErr != nil {
+			t.Fatalf("canonicalCLIWorkspacePath(%q) error = %v", target, canonicalErr)
+		}
+		var pathErr *workspacePathNotRegisteredError
+		if !errors.As(err, &pathErr) || pathErr.path != canonicalTarget {
+			t.Fatalf("nearestCLIWorkspaceRoute() error = %v, want unregistered path error for %q", err, target)
+		}
+	})
+
+	t.Run("Should reject a nonexistent nested path", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		target := filepath.Join(root, "missing")
+		_, err := nearestCLIWorkspaceRoute(
+			target,
+			[]WorkspaceRecord{{ID: "ws-alpha", RootDir: root}},
+		)
+		if err == nil || !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("nearestCLIWorkspaceRoute() error = %v, want os.ErrNotExist", err)
+		}
+	})
+}
+
 func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1518,9 +1586,8 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 		t.Parallel()
 
 		credentials := agentidentity.Credentials{
-			SessionID:   "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			SessionID: "sess-1",
+			AgentName: "coder",
 		}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
@@ -1583,14 +1650,12 @@ func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agen
 	if got := req.Header.Get(agentidentity.HeaderAgent); got != credentials.AgentName {
 		t.Fatalf("%s = %q, want %q", agentidentity.HeaderAgent, got, credentials.AgentName)
 	}
-	if got := req.Header.Get(agentidentity.HeaderWorkspaceID); got != credentials.WorkspaceID {
-		t.Fatalf("%s = %q, want %q", agentidentity.HeaderWorkspaceID, got, credentials.WorkspaceID)
-	}
 }
 
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
+	workspacePathRoot := t.TempDir()
 	client := &unixSocketClient{
 		socketPath: "/tmp/compozy.sock",
 		httpClient: &http.Client{
@@ -1694,7 +1759,10 @@ func TestUnixSocketClientMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"workspaces":[{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+						fmt.Sprintf(
+							`{"workspaces":[{"id":"ws-1","root_dir":%q,"name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+							workspacePathRoot,
+						),
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/alpha":
 					return newHTTPResponse(
@@ -2111,7 +2179,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("GetWorkspace() = %#v, %v", workspaceDetail, err)
 	}
 
-	workspaceDetailByPath, err := client.GetWorkspace(ctx, "/workspace/project")
+	workspaceDetailByPath, err := client.GetWorkspace(ctx, workspacePathRoot)
 	if err != nil || workspaceDetailByPath.Workspace.ID != "ws-1" || len(workspaceDetailByPath.Skills) != 1 {
 		t.Fatalf("GetWorkspace(path) = %#v, %v", workspaceDetailByPath, err)
 	}
@@ -3252,7 +3320,6 @@ func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
 				want := map[string]string{
 					"scope":        "all",
 					"workspace_id": "ws-alpha",
-					"workspace":    "alpha",
 					"q":            "needle",
 					"platform":     "slack",
 					"status":       "error",
@@ -3274,7 +3341,6 @@ func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
 		result, err := client.ListBridges(context.Background(), BridgeListQuery{
 			Scope:       "all",
 			WorkspaceID: "ws-alpha",
-			Workspace:   "alpha",
 			Search:      "needle",
 			Platform:    "slack",
 			Status:      "error",

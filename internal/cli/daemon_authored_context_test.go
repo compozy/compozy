@@ -46,7 +46,7 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 
 		child := &contractDaemonProcess{pid: 42, done: make(chan struct{})}
 		statusCalls := 0
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 				statusCalls++
 				if statusCalls == 1 {
@@ -76,7 +76,7 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 		t.Parallel()
 
 		statusErr := errors.New("control-plane rpc failed")
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 				return DaemonStatus{}, statusErr
 			},
@@ -143,7 +143,7 @@ func TestCLIAuthoredBodyRoutingContracts(t *testing.T) {
 
 		_, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"soul",
 			"write",
@@ -209,7 +209,7 @@ func TestCLIAuthoredBodyRoutingContracts(t *testing.T) {
 
 		_, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"heartbeat",
 			"write",

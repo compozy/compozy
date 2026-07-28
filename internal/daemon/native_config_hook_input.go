@@ -11,39 +11,38 @@ import (
 )
 
 type configReadInput struct {
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	WorkspaceRoot string `json:"workspace,omitempty"`
 }
 
 type configGetInput struct {
 	Path          string `json:"path"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	WorkspaceRoot string `json:"workspace,omitempty"`
 }
 
 type configSetInput struct {
 	Path          string `json:"path"`
 	Value         any    `json:"value"`
 	Scope         string `json:"scope,omitempty"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	WorkspaceRoot string `json:"workspace,omitempty"`
 }
 
 type configUnsetInput struct {
 	Path          string `json:"path"`
 	Scope         string `json:"scope,omitempty"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	WorkspaceRoot string `json:"workspace,omitempty"`
 }
 
 type configPathInput struct {
 	Scope         string `json:"scope,omitempty"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	WorkspaceRoot string `json:"workspace,omitempty"`
 }
 
 type hooksListInput struct {
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	Agent         string `json:"agent,omitempty"`
-	Event         string `json:"event,omitempty"`
-	Source        string `json:"source,omitempty"`
-	Mode          string `json:"mode,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	Agent     string `json:"agent,omitempty"`
+	Event     string `json:"event,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Mode      string `json:"mode,omitempty"`
 }
 
 type hooksInfoInput struct {
@@ -57,12 +56,12 @@ type hooksEventsInput struct {
 }
 
 type hooksRunsInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
-	Event       string `json:"event,omitempty"`
-	Outcome     string `json:"outcome,omitempty"`
-	Since       string `json:"since,omitempty"`
-	Last        int    `json:"last,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	Event     string `json:"event,omitempty"`
+	Outcome   string `json:"outcome,omitempty"`
+	Since     string `json:"since,omitempty"`
+	Last      int    `json:"last,omitempty"`
 }
 
 func (i hooksRunsInput) query() (store.HookRunQuery, error) {
@@ -96,21 +95,21 @@ func (i hooksRunsInput) query() (store.HookRunQuery, error) {
 }
 
 type hookMutationInput struct {
-	Name          string                `json:"name"`
-	Scope         string                `json:"scope,omitempty"`
-	WorkspaceRoot string                `json:"workspace_root,omitempty"`
-	Event         *string               `json:"event,omitempty"`
-	Mode          *string               `json:"mode,omitempty"`
-	Required      *bool                 `json:"required,omitempty"`
-	Priority      *int                  `json:"priority,omitempty"`
-	Timeout       *string               `json:"timeout,omitempty"`
-	Matcher       *hookspkg.HookMatcher `json:"matcher,omitempty"`
-	Command       *string               `json:"command,omitempty"`
-	Args          *[]string             `json:"args,omitempty"`
-	Env           *map[string]string    `json:"env,omitempty"`
-	SecretEnv     *map[string]string    `json:"secret_env,omitempty"`
-	Enabled       *bool                 `json:"enabled,omitempty"`
-	Source        *string               `json:"source,omitempty"`
+	Name      string                `json:"name"`
+	Scope     string                `json:"scope,omitempty"`
+	Workspace string                `json:"workspace,omitempty"`
+	Event     *string               `json:"event,omitempty"`
+	Mode      *string               `json:"mode,omitempty"`
+	Required  *bool                 `json:"required,omitempty"`
+	Priority  *int                  `json:"priority,omitempty"`
+	Timeout   *string               `json:"timeout,omitempty"`
+	Matcher   *hookspkg.HookMatcher `json:"matcher,omitempty"`
+	Command   *string               `json:"command,omitempty"`
+	Args      *[]string             `json:"args,omitempty"`
+	Env       *map[string]string    `json:"env,omitempty"`
+	SecretEnv *map[string]string    `json:"secret_env,omitempty"`
+	Enabled   *bool                 `json:"enabled,omitempty"`
+	Source    *string               `json:"source,omitempty"`
 }
 
 func (i hookMutationInput) newDecl() (hookspkg.HookDecl, error) {
@@ -182,7 +181,7 @@ func hookMatcherHasUnsupportedConfigFields(matcher hookspkg.HookMatcher) bool {
 }
 
 type hookNameMutationInput struct {
-	Name          string `json:"name"`
-	Scope         string `json:"scope,omitempty"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	Name      string `json:"name"`
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
 }

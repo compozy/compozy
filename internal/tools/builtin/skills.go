@@ -62,7 +62,7 @@ func skillDescriptors() []toolspkg.Descriptor {
 const skillListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -73,7 +73,7 @@ const skillSearchInputSchema = `{
 	"required":["query"],
 	"properties":{
 		"query":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -84,7 +84,7 @@ const skillViewInputSchema = `{
 	"required":["name"],
 	"properties":{
 		"name":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"file":{"type":"string"}
 	},
 	"additionalProperties":false

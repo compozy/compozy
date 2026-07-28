@@ -31,7 +31,10 @@ func buildGo() error {
 		return err
 	}
 	out := filepath.Join(binDir, cliBinary)
-	return sh.RunV("go", "build", "-ldflags", ldflags, "-o", out, "./cmd/"+cliBinary)
+	if err := sh.RunV("go", "build", "-ldflags", ldflags, "-o", out, "./cmd/"+cliBinary); err != nil {
+		return err
+	}
+	return WindowsSubprocessBuild()
 }
 
 // BuildGo compiles all Go packages and the Compozy CLI without rerunning code generation checks.

@@ -23,6 +23,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, networkCoordinationOperations()...)
 	ops = append(ops, windowManagerOperations()...)
 	ops = applyToolArtifactContract(ops)
+	ops = applyAgentIdentityContract(ops)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {
 			return ops[i].Method < ops[j].Method

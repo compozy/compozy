@@ -1,5 +1,9 @@
+// Suite: Session Storybook handlers
+// Invariant: concrete session endpoints keep their API semantics ahead of parameterized IDs.
+// Boundary IN: the MSW boundary used by Session and full-app route stories.
+// Boundary OUT: EventSource reconciliation owned by hooks/__tests__/use-session-catalog-streams.test.tsx.
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 
@@ -13,7 +17,7 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });
 
-afterEach(() => {
+beforeEach(() => {
   server.resetHandlers();
 });
 
@@ -128,5 +132,14 @@ describe("session MSW handlers", () => {
     };
     expect(workspaceBody.sessions.every(session => session.workspace_id === workspace)).toBe(true);
     expect(workspaceBody.sessions.length).toBeGreaterThanOrEqual(body.sessions.length);
+  });
+
+  it("Should preserve the not-found response for an unknown session ID", async () => {
+    const response = await fetch(`${API}/api/sessions/session_missing`);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "Session not found: session_missing",
+    });
   });
 });

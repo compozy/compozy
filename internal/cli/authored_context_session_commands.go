@@ -101,7 +101,7 @@ func newSessionInspectCommand(deps commandDeps) *cobra.Command {
 }
 
 func addWorkspaceFlag(cmd *cobra.Command) {
-	cmd.Flags().String(workspaceSkillSource, "", "Resolve the agent from a workspace id, name, or path")
+	cmd.Flags().String(workspaceSkillSource, "", "Override workspace context (ID, name, or path)")
 }
 
 func addAuthoredBodyFlags(cmd *cobra.Command, input *authoredBodyInput) {

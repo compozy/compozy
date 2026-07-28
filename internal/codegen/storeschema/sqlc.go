@@ -23,6 +23,9 @@ var sqlcPackagePaths = []string{
 
 // GenerateSQLC regenerates every store query package with the pinned Go tool.
 func GenerateSQLC(ctx context.Context, root string) error {
+	if err := validateSQLCPackageRegistry(root, sqlcPackagePaths); err != nil {
+		return err
+	}
 	for _, packagePath := range sqlcPackagePaths {
 		configPath := filepath.Join(root, packagePath, "sqlc.yaml")
 		outputPath := filepath.Join(root, packagePath, "sqlcgen")
@@ -49,6 +52,9 @@ func runSQLC(ctx context.Context, toolRoot, configPath, outputPath string) error
 
 // CheckSQLC regenerates into a temporary tree and rejects generated-code or import-ownership drift.
 func CheckSQLC(ctx context.Context, root string) (err error) {
+	if err := validateSQLCPackageRegistry(root, sqlcPackagePaths); err != nil {
+		return err
+	}
 	tempRoot, err := os.MkdirTemp("", "compozy-sqlc-check-")
 	if err != nil {
 		return fmt.Errorf("codegen: create sqlc check directory: %w", err)
@@ -62,6 +68,52 @@ func CheckSQLC(ctx context.Context, root string) (err error) {
 		}
 	}
 	return checkSQLCImportOwnership(root)
+}
+
+func validateSQLCPackageRegistry(root string, registered []string) error {
+	discovered, err := discoverSQLCPackagePaths(root)
+	if err != nil {
+		return err
+	}
+	want := append([]string(nil), registered...)
+	slices.Sort(want)
+	if !slices.Equal(discovered, want) {
+		return fmt.Errorf(
+			"codegen: sqlc package registry = %v, discovered %v; register every production sqlc.yaml",
+			want,
+			discovered,
+		)
+	}
+	return nil
+}
+
+func discoverSQLCPackagePaths(root string) ([]string, error) {
+	internalRoot := filepath.Join(root, "internal")
+	paths := make([]string, 0)
+	if err := filepath.WalkDir(internalRoot, func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if entry.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Name() != "sqlc.yaml" {
+			return nil
+		}
+		rel, err := filepath.Rel(root, filepath.Dir(name))
+		if err != nil {
+			return fmt.Errorf("codegen: resolve sqlc package for %q: %w", name, err)
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("codegen: discover production sqlc packages: %w", err)
+	}
+	slices.Sort(paths)
+	return paths, nil
 }
 
 func checkSQLCPackage(ctx context.Context, root string, tempRoot string, packagePath string) (err error) {

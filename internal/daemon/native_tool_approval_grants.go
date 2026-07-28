@@ -10,7 +10,7 @@ import (
 )
 
 type toolApprovalsListInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type toolApprovalsSetInput struct {
@@ -18,12 +18,12 @@ type toolApprovalsSetInput struct {
 	Decision    toolspkg.ApprovalGrantDecision        `json:"decision"`
 	Scope       toolspkg.ApprovalGrantManagementScope `json:"scope"`
 	AgentName   string                                `json:"agent_name,omitempty"`
-	WorkspaceID string                                `json:"workspace_id,omitempty"`
+	WorkspaceID string                                `json:"workspace,omitempty"`
 }
 
 type toolApprovalsRevokeInput struct {
 	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type nativeToolApprovalListResponse struct {
@@ -174,7 +174,7 @@ func nativeToolApprovalWorkspace(
 			toolspkg.ErrorCodeDenied,
 			id,
 			"tool approval workspace does not match the caller scope",
-			fmt.Errorf("%w: workspace_id scope mismatch", toolspkg.ErrToolDenied),
+			fmt.Errorf("%w: %s scope mismatch", toolspkg.ErrToolDenied, nativeWorkspaceInputKey),
 			toolspkg.ReasonScopeMismatch,
 		)
 	}
@@ -183,7 +183,11 @@ func nativeToolApprovalWorkspace(
 		workspaceID = requested
 	}
 	if workspaceID == "" {
-		return "", nativeToolApprovalValidationError(id, "workspace_id", "workspace_id is required")
+		return "", nativeToolApprovalValidationError(
+			id,
+			nativeWorkspaceInputKey,
+			nativeWorkspaceInputKey+" is required",
+		)
 	}
 	return workspaceID, nil
 }

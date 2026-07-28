@@ -30,7 +30,7 @@ func (n *daemonNativeTools) skillsFor(
 	if n.deps.Skills == nil {
 		return nil, errors.New("daemon: skills registry is required")
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
+	workspaceID, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (n *daemonNativeTools) resolveSkill(
 	name string,
 ) (*skills.Skill, error) {
 	trimmedName := strings.TrimSpace(name)
-	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
+	workspaceID, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	workspaceRef string,
 	agentName string,
 ) (nativeAuthoredAgentTarget, error) {
-	workspaceID, err := requiredNativeString(toolID, "workspace_id", workspaceRef)
+	workspaceID, err := requiredNativeString(toolID, nativeWorkspaceInputKey, workspaceRef)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
 	}

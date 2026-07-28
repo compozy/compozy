@@ -1,4 +1,4 @@
-# UI Alignment Spec — `packages/ui` → Compozy Design System
+# UI Alignment Spec — `packages/ui` → CompozyOS Design System
 
 **Date:** 2026-07-22 · **Authority:** `design-system/` (this folder) is the visual reference; `packages/ui/src/tokens.css` remains the token *source of truth* — every token change below lands there first and flows to `DESIGN.md` via `make codegen` (DESIGN.md is generated and currently in-sync; never hand-edit its token regions).
 **Scope:** visual alignment of the base kit (`packages/ui/src/**`) to the quality bar set by `design-system/ds-core.css` + chapters. Implementation follows repo workflow (designer agent, `eng-design` + `ui-craft`, Storybook capture via `eng-ui-screenshot`).

@@ -68,7 +68,11 @@ func newToolListCommand(deps commandDeps) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				response, err := client.ListTools(cmd.Context(), scope.query())
+				query, err := scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
+				response, err := client.ListTools(cmd.Context(), query)
 				if err != nil {
 					return err
 				}
@@ -102,12 +106,16 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 				))
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+				scopeQuery, err := scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
 				request := ToolSearchRequest{
 					Query:       query,
 					Limit:       limit,
-					WorkspaceID: strings.TrimSpace(scope.workspaceID),
-					SessionID:   strings.TrimSpace(scope.sessionID),
-					AgentName:   strings.TrimSpace(scope.agentName),
+					WorkspaceID: scopeQuery.WorkspaceID,
+					SessionID:   scopeQuery.SessionID,
+					AgentName:   scopeQuery.AgentName,
 				}
 				response, err := client.SearchTools(cmd.Context(), request)
 				if err != nil {
@@ -136,7 +144,11 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 				return writeToolCommandError(cmd, err)
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				response, err := client.GetTool(cmd.Context(), id.String(), scope.query())
+				query, err := scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
+				response, err := client.GetTool(cmd.Context(), id.String(), query)
 				if err != nil {
 					return err
 				}
@@ -175,10 +187,14 @@ func newToolApproveCommand(deps commandDeps) *cobra.Command {
 				))
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+				scopeQuery, err := flags.scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
 				request := ToolApprovalRequest{
-					SessionID:   strings.TrimSpace(flags.scope.sessionID),
-					WorkspaceID: strings.TrimSpace(flags.scope.workspaceID),
-					AgentName:   strings.TrimSpace(flags.scope.agentName),
+					SessionID:   scopeQuery.SessionID,
+					WorkspaceID: scopeQuery.WorkspaceID,
+					AgentName:   scopeQuery.AgentName,
 					Input:       input,
 					InputDigest: strings.TrimSpace(flags.inputDigest),
 				}
@@ -222,10 +238,14 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 				return writeToolCommandError(cmd, toolValidationCommandError(id, "tool input is invalid", err))
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+				scopeQuery, err := flags.scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
 				request := ToolInvokeRequest{
-					SessionID:            strings.TrimSpace(flags.scope.sessionID),
-					WorkspaceID:          strings.TrimSpace(flags.scope.workspaceID),
-					AgentName:            strings.TrimSpace(flags.scope.agentName),
+					SessionID:            scopeQuery.SessionID,
+					WorkspaceID:          scopeQuery.WorkspaceID,
+					AgentName:            scopeQuery.AgentName,
 					ToolCallID:           strings.TrimSpace(flags.toolCallID),
 					TurnID:               strings.TrimSpace(flags.turnID),
 					CorrelationID:        strings.TrimSpace(flags.correlationID),
@@ -274,7 +294,11 @@ func newToolsetsListCommand(deps commandDeps) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				response, err := client.ListToolsets(cmd.Context(), scope.query())
+				query, err := scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
+				response, err := client.ListToolsets(cmd.Context(), query)
 				if err != nil {
 					return err
 				}
@@ -300,7 +324,11 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 				return writeToolCommandError(cmd, err)
 			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				response, err := client.GetToolset(cmd.Context(), id.String(), scope.query())
+				query, err := scope.query(cmd, deps, client)
+				if err != nil {
+					return err
+				}
+				response, err := client.GetToolset(cmd.Context(), id.String(), query)
 				if err != nil {
 					return err
 				}
@@ -313,15 +341,30 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 }
 
 func (f *toolScopeFlags) bind(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.workspaceID, "workspace", "", "Workspace id for scoped diagnostics")
+	cmd.Flags().
+		StringVar(&f.workspaceID, "workspace", "", "Override workspace diagnostics (ID, name, or path)")
 	cmd.Flags().StringVar(&f.sessionID, "session", "", "Session id for scoped diagnostics")
 	cmd.Flags().StringVar(&f.agentName, "agent", "", "Agent name for scoped diagnostics")
 }
 
-func (f toolScopeFlags) query() ToolQuery {
+func (f toolScopeFlags) query(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+) (ToolQuery, error) {
+	workspaceID, err := resolveOptionalWorkspaceOverride(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		f.workspaceID,
+	)
+	if err != nil {
+		return ToolQuery{}, err
+	}
 	return ToolQuery{
-		WorkspaceID: strings.TrimSpace(f.workspaceID),
+		WorkspaceID: workspaceID,
 		SessionID:   strings.TrimSpace(f.sessionID),
 		AgentName:   strings.TrimSpace(f.agentName),
-	}
+	}, nil
 }

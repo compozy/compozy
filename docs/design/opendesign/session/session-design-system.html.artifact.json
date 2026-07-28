@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session/session-design-system.html",
+  "entry": "session/session-design-system.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-27T23:42:42.459Z",
+  "updatedAt": "2026-07-27T23:42:42.459Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

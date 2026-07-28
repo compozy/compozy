@@ -1,8 +1,8 @@
-// Suite: window-manager runtime command admission
-// Invariant: accepted presentation intents stay visible until the serialized daemon command
-// confirms or rejects them.
-// Owning layer: the runtime → interaction-store command boundary.
-import { QueryClient } from "@tanstack/react-query";
+// Suite: window-manager runtime projection and command admission
+// Invariant: cache data changes drive projections while observer lifecycle stays render-pure;
+// accepted presentation intents persist until the serialized daemon command settles.
+// Owning layer: the Query cache → runtime projection and runtime → command boundaries.
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { executeWindowManagerCommand } from "../../adapters/window-manager-api";
@@ -137,6 +137,29 @@ describe("WindowManagerRuntime", () => {
 
     expect(runtime.getState().hydration).toBe("live");
     expect(runtime.getState().windowManagerConfig?.historyLimit).toBe(50);
+    runtime.stop();
+  });
+
+  it("Should publish only when Query cache data changes", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.start();
+    const onProjection = vi.fn();
+    const unsubscribe = runtime.subscribe(onProjection);
+
+    new QueryObserver(queryClient, {
+      queryKey: windowManagerKeys.config(),
+      queryFn: () => Promise.resolve(CONFIG),
+    });
+
+    expect(onProjection).not.toHaveBeenCalled();
+
+    queryClient.removeQueries({ queryKey: windowManagerKeys.config(), exact: true });
+
+    expect(onProjection).toHaveBeenCalledOnce();
+    expect(runtime.getState().windowManagerConfig).toBeNull();
+    unsubscribe();
     runtime.stop();
   });
 

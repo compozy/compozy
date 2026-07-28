@@ -22,7 +22,13 @@ func newMemoryReindexCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -59,7 +65,7 @@ func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
+			selector, err := resolveMemorySelectorFlags(cmd, deps, client, flags, memorySelectorOptions{})
 			if err != nil {
 				return err
 			}
@@ -99,11 +105,17 @@ func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := currentWorkingDirectory(deps)
+			resolution, err := resolveCommandWorkspace(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceResolutionRequest{},
+			)
 			if err != nil {
 				return err
 			}
-			health, err := client.MemoryHealth(cmd.Context(), workspace)
+			health, err := client.MemoryHealth(cmd.Context(), resolution.ID)
 			if err != nil {
 				return err
 			}
@@ -127,11 +139,11 @@ func newMemoryPromoteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			from, err := parseMemoryPromotionSelector(deps, flags, fromRaw)
+			from, err := parseMemoryPromotionSelector(cmd, deps, client, flags, fromRaw)
 			if err != nil {
 				return err
 			}
-			to, err := parseMemoryPromotionSelector(deps, flags, toRaw)
+			to, err := parseMemoryPromotionSelector(cmd, deps, client, flags, toRaw)
 			if err != nil {
 				return err
 			}
@@ -170,7 +182,13 @@ func newMemoryResetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -206,7 +224,7 @@ func newMemoryReloadCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{})
+			selector, err := resolveMemorySelectorFlags(cmd, deps, client, flags, memorySelectorOptions{})
 			if err != nil {
 				return err
 			}
@@ -233,7 +251,13 @@ func newMemoryScopeShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}

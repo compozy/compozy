@@ -37,11 +37,7 @@ func newLayoutGetCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: cliGetKey, Short: "Get the authoritative topology and revision", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -55,7 +51,8 @@ func newLayoutGetCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -84,7 +81,7 @@ func newLayoutPreviewCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request, err := flags.request(cmd, id, payload)
+			request, err := flags.request(cmd, deps, id, payload)
 			if err != nil {
 				return err
 			}
@@ -112,11 +109,7 @@ func newLayoutExportCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "export", Short: "Export a history-free declarative layout document", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -127,7 +120,8 @@ func newLayoutExportCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, windowManagerJSONBundle("window_layout", "Window layout", document))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -136,15 +130,11 @@ func newLayoutValidateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "validate", Short: "Validate a declarative layout without writing it", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
 			document, err := readWindowManagerDocument(cmd, file)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
 			if err != nil {
 				return err
 			}
@@ -161,7 +151,8 @@ func newLayoutValidateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, windowManagerValidationBundle(validation))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&file, windowManagerDocumentFile, "", "Layout document file or - for stdin")
 	return cmd
 }
@@ -178,6 +169,7 @@ func newLayoutApplyCommand(deps commandDeps) *cobra.Command {
 			}
 			semantic, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandLayoutReplace,
 				contract.WindowManagerReplaceLayoutPayload{Document: document},
 			)
@@ -216,7 +208,8 @@ func newLayoutWatchCommand(deps commandDeps) *cobra.Command {
 			return runLayoutWatchCommand(cmd, deps, workspace, clientID, after)
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().Uint64Var(&after, "after-revision", 0, "Resume strictly after this revision")
 	cmd.Flags().StringVar(&clientID, windowManagerClientFlag, "", "Registered client ID for presentation frames")
 	return cmd
@@ -229,7 +222,7 @@ func runLayoutWatchCommand(
 	clientID string,
 	after uint64,
 ) error {
-	workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
+	client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 	if err != nil {
 		return err
 	}
@@ -245,10 +238,6 @@ func runLayoutWatchCommand(
 		return err
 	}
 	boundClientID, err := optionalWindowManagerID[windowmanager.ClientID](cmd, windowManagerClientFlag, clientID)
-	if err != nil {
-		return err
-	}
-	client, err := windowManagerClientFromDeps(deps)
 	if err != nil {
 		return err
 	}

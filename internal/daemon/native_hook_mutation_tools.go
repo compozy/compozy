@@ -15,7 +15,7 @@ import (
 
 func (n *daemonNativeTools) hooksCreate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input hookMutationInput
@@ -28,7 +28,11 @@ func (n *daemonNativeTools) hooksCreate(
 	if hookEnvContainsSecret(input.Env) {
 		return toolspkg.ToolResult{}, nativeHookSecretError(req.ToolID)
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -73,7 +77,7 @@ func (n *daemonNativeTools) hooksCreate(
 
 func (n *daemonNativeTools) hooksUpdate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input hookMutationInput
@@ -86,7 +90,11 @@ func (n *daemonNativeTools) hooksUpdate(
 	if hookEnvContainsSecret(input.Env) {
 		return toolspkg.ToolResult{}, nativeHookSecretError(req.ToolID)
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -131,14 +139,18 @@ func (n *daemonNativeTools) hooksUpdate(
 
 func (n *daemonNativeTools) hooksDelete(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input hookNameMutationInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -161,16 +173,16 @@ func (n *daemonNativeTools) hooksDelete(
 
 func (n *daemonNativeTools) hooksEnable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.setHookEnabled(ctx, req, true)
+	return n.setHookEnabled(ctx, scope, req, true)
 }
 
 func (n *daemonNativeTools) hooksDisable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.setHookEnabled(ctx, req, false)
+	return n.setHookEnabled(ctx, scope, req, false)
 }

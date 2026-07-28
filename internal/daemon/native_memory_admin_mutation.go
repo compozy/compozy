@@ -25,7 +25,7 @@ func (n *daemonNativeTools) memoryAdminPromote(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sourceSelector := memoryAdminSelectorFromPayload(input.From)
+	sourceSelector := input.From.memoryToolSelector()
 	sourceLocation, err := n.resolveMemoryLocation(ctx, scope, req.ToolID, input.Filename, sourceSelector)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
@@ -42,8 +42,8 @@ func (n *daemonNativeTools) memoryAdminPromote(
 		ctx,
 		scope,
 		req.ToolID,
-		memoryAdminSelectorInputFromPayload(input.To),
-		input.To.Scope.Normalize(),
+		input.To,
+		memcontract.Scope(input.To.Scope).Normalize(),
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)

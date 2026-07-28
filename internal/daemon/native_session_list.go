@@ -34,7 +34,7 @@ func (n *daemonNativeTools) sessionList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceRef, err := nativeCallerWorkspaceInput(req.ToolID, "workspace", input.Workspace, scope)
+	workspaceRef, err := nativeCallerWorkspaceInput(req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

@@ -16,14 +16,13 @@ import (
 func (s *Service) resolveRequest(
 	ctx context.Context,
 	req ActivateRequest,
-	mode workspaceResolutionMode,
 ) (resolvedActivation, error) {
 	scope := req.Scope.Normalize()
 	if scope == "" {
 		scope = ScopeGlobal
 	}
 
-	workspaceID, err := s.resolveWorkspace(ctx, scope, req.Workspace, mode)
+	workspaceID, err := s.resolveWorkspace(ctx, scope, req.Workspace)
 	if err != nil {
 		return resolvedActivation{}, err
 	}

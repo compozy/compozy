@@ -1,5 +1,6 @@
 export type {
   AddTaskDependencyRequest,
+  AgentContextIdentity,
   AgentContextView,
   AgentTaskContextSection,
   AttachTaskRunSessionRequest,
@@ -162,7 +163,6 @@ export {
   agentContextOptions,
   taskBridgeNotificationSubscriptionOptions,
   taskBridgeNotificationSubscriptionsOptions,
-  taskContextBundleOptions,
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,

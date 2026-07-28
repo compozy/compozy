@@ -13,7 +13,7 @@ import (
 )
 
 type networkThreadsInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	Query       string `json:"query,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
@@ -24,7 +24,7 @@ type networkThreadsInput struct {
 }
 
 type networkDirectsInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	Query       string `json:"query,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,22 +11,21 @@ import (
 )
 
 type automationJobHistoryInput struct {
-	JobID string `json:"job_id"`
 	automationRunQueryInput
 }
 
 type automationTriggerHistoryInput struct {
-	TriggerID string `json:"trigger_id"`
 	automationRunQueryInput
 }
 
 type automationRunQueryInput struct {
-	JobID     string `json:"job_id,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
-	Status    string `json:"status,omitempty"`
-	Since     string `json:"since,omitempty"`
-	Until     string `json:"until,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Since       string `json:"since,omitempty"`
+	Until       string `json:"until,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 func (i automationRunQueryInput) query(id toolspkg.ToolID) (automationpkg.RunQuery, error) {
@@ -43,6 +43,18 @@ func (i automationRunQueryInput) query(id toolspkg.ToolID) (automationpkg.RunQue
 		Since:     since,
 		Until:     until,
 		Limit:     i.Limit,
+	}
+	if query.Limit < 0 {
+		return automationpkg.RunQuery{}, nativeAutomationValidationError(
+			id,
+			fmt.Errorf("run limit must be zero or positive: %d", query.Limit),
+		)
+	}
+	if !query.Until.IsZero() && !query.Since.IsZero() && query.Until.Before(query.Since) {
+		return automationpkg.RunQuery{}, nativeAutomationValidationError(
+			id,
+			errors.New("run query until must not be before since"),
+		)
 	}
 	if rawStatus := strings.TrimSpace(i.Status); rawStatus != "" {
 		query.Status = automationpkg.RunStatus(rawStatus)

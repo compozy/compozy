@@ -43,6 +43,7 @@ type Resolver struct {
 	idGenerator func(prefix string) string
 	changeHook  ChangeHook
 
+	registrationMu     sync.Mutex
 	reconcileMu        sync.Mutex
 	unregisterMu       sync.RWMutex
 	unregisterPreparer UnregisterPreparer
@@ -189,35 +190,12 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 		return ResolvedWorkspace{}, err
 	}
 
-	ws, err := r.store.GetWorkspaceByPath(ctx, canonicalRoot)
-	if err == nil {
-		return r.Resolve(ctx, ws.ID)
-	}
-	if !errors.Is(err, ErrWorkspaceNotFound) {
-		return ResolvedWorkspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalRoot, err)
-	}
-	ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalRoot)
-	if err == nil {
-		return r.Resolve(ctx, ws.ID)
-	}
-	if !errors.Is(err, ErrWorkspaceNotFound) {
-		return ResolvedWorkspace{}, err
-	}
-
-	ws, err = r.createWorkspaceRegistration(ctx, RegisterOptions{RootDir: canonicalRoot})
+	ws, created, err := r.resolveOrCreateRegistration(ctx, canonicalRoot)
 	if err != nil {
-		if errors.Is(err, ErrWorkspacePathTaken) {
-			existing, lookupErr := r.store.GetWorkspaceByPath(ctx, canonicalRoot)
-			if lookupErr != nil {
-				return ResolvedWorkspace{}, fmt.Errorf(
-					"workspace: reload concurrent workspace registration for %q: %w",
-					canonicalRoot,
-					lookupErr,
-				)
-			}
-			return r.Resolve(ctx, existing.ID)
-		}
 		return ResolvedWorkspace{}, err
+	}
+	if !created {
+		return r.Resolve(ctx, ws.ID)
 	}
 
 	resolved, err := r.Resolve(ctx, ws.ID)
@@ -249,6 +227,41 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 	)
 
 	return resolved, nil
+}
+
+func (r *Resolver) resolveOrCreateRegistration(
+	ctx context.Context,
+	canonicalRoot string,
+) (Workspace, bool, error) {
+	r.registrationMu.Lock()
+	defer r.registrationMu.Unlock()
+
+	if err := checkContext(ctx); err != nil {
+		return Workspace{}, false, err
+	}
+	ws, err := r.lookupWorkspaceByCanonicalPath(ctx, canonicalRoot)
+	if err == nil {
+		return ws, false, nil
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return Workspace{}, false, err
+	}
+	ws, err = r.createWorkspaceRegistration(ctx, RegisterOptions{RootDir: canonicalRoot})
+	if err == nil {
+		return ws, true, nil
+	}
+	if !errors.Is(err, ErrWorkspacePathTaken) {
+		return Workspace{}, false, err
+	}
+	existing, lookupErr := r.store.GetWorkspaceByPath(ctx, canonicalRoot)
+	if lookupErr != nil {
+		return Workspace{}, false, fmt.Errorf(
+			"workspace: reload concurrent workspace registration for %q: %w",
+			canonicalRoot,
+			lookupErr,
+		)
+	}
+	return existing, false, nil
 }
 
 func (r *Resolver) rollbackDeleteWorkspace(ctx context.Context, workspaceID string) error {

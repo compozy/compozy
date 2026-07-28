@@ -37,6 +37,23 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 					return fmt.Errorf("cli: invalid MCP server name: %w", err)
 				}
 			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if request.Scope == contract.SettingsWorkspaceScopeWorkspace {
+				resolution, err := resolveCommandWorkspace(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceResolutionRequest{FlagRef: request.WorkspaceID},
+				)
+				if err != nil {
+					return err
+				}
+				request.WorkspaceID = resolution.ID
+			}
 			if err := validateMCPInstallScope(request.Scope, request.WorkspaceID); err != nil {
 				return err
 			}
@@ -62,10 +79,6 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 				Env:               env,
 				OAuthClientSecret: oauthClientSecret,
 			}
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
 			response, err := client.InstallSettingsMCPServer(cmd.Context(), request)
 			if err != nil {
 				return err
@@ -85,7 +98,8 @@ func bindMCPInstallFlags(cmd *cobra.Command, flags *mcpInstallFlags) {
 		string(contract.SettingsWorkspaceScopeGlobal),
 		"Install scope: global or workspace",
 	)
-	cmd.Flags().StringVar(&flags.workspaceID, "workspace", "", "Workspace ID for workspace scope")
+	cmd.Flags().
+		StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringArrayVar(
 		&flags.valueKeys,
 		mcpValueInputFlag,

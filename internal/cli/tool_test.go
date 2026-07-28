@@ -30,7 +30,7 @@ func TestToolCommandsRenderJSON(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"list",
 			"--workspace",
@@ -59,6 +59,37 @@ func TestToolCommandsRenderJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve an optional workspace before an ID-only tool query", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "project-alias" {
+					t.Fatalf("GetWorkspace() ref = %q, want project-alias", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-project", RootDir: "/workspace/project"},
+				}, nil
+			},
+			listToolsFn: func(_ context.Context, query ToolQuery) (ToolsResponseRecord, error) {
+				if query.WorkspaceID != "ws-project" {
+					t.Fatalf("ListTools query = %#v, want canonical workspace", query)
+				}
+				return sampleToolsResponse(), nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			if key == workspaceEnvName {
+				return "project-alias"
+			}
+			return ""
+		}
+		if _, _, err := executeRootCommand(t, deps, "tool", "list", "-o", "json"); err != nil {
+			t.Fatalf("tool list with env workspace error = %v", err)
+		}
+	})
+
 	t.Run("Should render tool search json with request body", func(t *testing.T) {
 		t.Parallel()
 
@@ -76,7 +107,7 @@ func TestToolCommandsRenderJSON(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"search",
 			"skill",
@@ -115,7 +146,7 @@ func TestToolCommandsRenderJSON(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"info",
 			toolspkg.ToolIDSkillView.String(),
@@ -185,7 +216,7 @@ func TestToolArtifactReadCommand(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, newClient(t)),
+			newWorkspaceTestDeps(t, newClient(t)),
 			"tool",
 			"artifact",
 			"read",
@@ -214,7 +245,7 @@ func TestToolArtifactReadCommand(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, newClient(t)),
+			newWorkspaceTestDeps(t, newClient(t)),
 			"tool",
 			"artifact",
 			"read",
@@ -251,7 +282,7 @@ func TestToolArtifactReadCommand(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"artifact",
 			"read",
@@ -302,7 +333,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -344,7 +375,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -376,7 +407,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommandWithInput(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			`{"tool_id":"compozy__skill_view"}`,
 			"tool",
 			"invoke",
@@ -407,7 +438,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommandWithInput(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			`{"tool_id":"compozy__skill_view"}`,
 			"tool",
 			"invoke",
@@ -440,7 +471,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -469,7 +500,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -502,7 +533,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -534,7 +565,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -564,7 +595,7 @@ func TestToolInvokeCommandInputs(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDToolInfo.String(),
@@ -599,7 +630,7 @@ func TestToolsetsCommandsRenderJSON(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"toolsets",
 			"list",
 			"--workspace",
@@ -633,7 +664,7 @@ func TestToolsetsCommandsRenderJSON(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"toolsets",
 			"info",
 			toolspkg.ToolsetIDCatalog.String(),
@@ -736,7 +767,7 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 			}
 			stdout, _, err := executeRootCommand(
 				t,
-				newTestDeps(t, client),
+				newWorkspaceTestDeps(t, client),
 				"tool",
 				"info",
 				toolspkg.ToolIDSkillView.String(),
@@ -774,7 +805,7 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"tool",
 			"invoke",
 			toolspkg.ToolIDSkillView.String(),
@@ -803,7 +834,7 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 				return ToolResponseRecord{}, nil
 			},
 		}
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, client), "tool", "info", "bad.id", "-o", "json")
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "tool", "info", "bad.id", "-o", "json")
 		if err == nil {
 			t.Fatal("tool info invalid id error = nil, want structured error")
 		}
@@ -819,7 +850,15 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 				return ToolsetResponseRecord{}, nil
 			},
 		}
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, client), "toolsets", "info", "bad.id", "-o", "json")
+		stdout, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"toolsets",
+			"info",
+			"bad.id",
+			"-o",
+			"json",
+		)
 		if err == nil {
 			t.Fatal("toolsets info invalid id error = nil, want structured error")
 		}

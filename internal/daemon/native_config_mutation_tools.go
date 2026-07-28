@@ -15,7 +15,7 @@ import (
 
 func (n *daemonNativeTools) configSet(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input configSetInput
@@ -36,7 +36,11 @@ func (n *daemonNativeTools) configSet(
 			toolspkg.ReasonConfigValidationFailed,
 		)
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -84,7 +88,7 @@ func (n *daemonNativeTools) configSet(
 
 func (n *daemonNativeTools) configUnset(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input configUnsetInput
@@ -95,7 +99,11 @@ func (n *daemonNativeTools) configUnset(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, input.Scope, input.WorkspaceRoot)
+	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, workspaceRoot, err := n.nativeConfigWriteTarget(req.ToolID, scope, input.Scope, workspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

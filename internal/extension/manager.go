@@ -21,6 +21,7 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -224,6 +225,7 @@ type Manager struct {
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
 	sourceSessions        resources.SourceSessionManager
+	workspaceResolver     workspacepkg.RuntimeResolver
 	processRegistry       *toolruntime.Registry
 	logger                *slog.Logger
 	now                   func() time.Time

@@ -32,7 +32,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
-			request, err := createAgentRequestFromFlags(cmd, args[0], flags)
+			request, err := createAgentRequestFromFlags(cmd, deps, client, args[0], flags)
 			if err != nil {
 				return fmt.Errorf("cli: build create-agent request: %w", err)
 			}
@@ -46,7 +46,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Workspace id, name, or path to create the agent under")
+	cmd.Flags().String("workspace", "", "Override workspace binding (ID, name, or path)")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd
 }
@@ -63,9 +63,9 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 			if err != nil {
-				return fmt.Errorf("cli: resolve update workspace: %w", err)
+				return fmt.Errorf("cli: prepare update workspace: %w", err)
 			}
 			request, err := updateAgentRequestFromFlags(
 				cmd,
@@ -88,7 +88,7 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve the effective agent from a workspace")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Definition digest from the last read")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd
@@ -104,13 +104,13 @@ func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 			if err := confirmAgentDelete(cmd, args[0], yes, deps.inputIsTerminal); err != nil {
 				return fmt.Errorf("cli: confirm agent deletion: %w", err)
 			}
-			workspace, err := commandWorkspaceFlag(cmd)
-			if err != nil {
-				return fmt.Errorf("cli: resolve delete workspace: %w", err)
-			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
+			}
+			workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
+			if err != nil {
+				return fmt.Errorf("cli: prepare delete workspace: %w", err)
 			}
 			result, err := client.DeleteAgent(cmd.Context(), args[0], workspace)
 			if err != nil {
@@ -122,7 +122,7 @@ func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve the effective agent from a workspace")
+	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Confirm durable deletion without prompting")
 	return cmd
 }
@@ -139,7 +139,7 @@ func newAgentDuplicateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
-			request, err := duplicateAgentRequestFromFlags(cmd, args[1], scope, flags)
+			request, err := duplicateAgentRequestFromFlags(cmd, deps, client, args[1], scope, flags)
 			if err != nil {
 				return fmt.Errorf("cli: build duplicate-agent request: %w", err)
 			}
@@ -153,7 +153,7 @@ func newAgentDuplicateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Resolve the source or target workspace")
+	cmd.Flags().String("workspace", "", "Override source or target workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&scope, "scope", "", "Target scope: global or workspace (default: source origin)")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd

@@ -61,7 +61,7 @@ func TestObserveOverviewCommand(t *testing.T) {
 				return contract.ObserveOverviewResponse{Overview: overviewTestPayload()}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(
 			t, deps,
@@ -95,7 +95,7 @@ func TestObserveOverviewCommand(t *testing.T) {
 				return contract.ObserveOverviewResponse{Overview: overviewTestPayload()}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(t, deps, "observe", "overview")
 		if err != nil {
@@ -125,7 +125,7 @@ func TestObserveOverviewCommand(t *testing.T) {
 				return contract.ObserveOverviewResponse{Overview: overviewTestPayload()}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(t, deps, "observe", "overview", "-o", "jsonl")
 		if err != nil {

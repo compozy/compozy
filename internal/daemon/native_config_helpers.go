@@ -28,9 +28,15 @@ func (n *daemonNativeTools) loadNativeConfig(workspaceRootRaw string) (compozyco
 
 func (n *daemonNativeTools) nativeConfigWriteTarget(
 	id toolspkg.ToolID,
+	callerScope toolspkg.Scope,
 	scopeRaw string,
 	workspaceRootRaw string,
 ) (compozyconfig.WriteTarget, string, error) {
+	if strings.TrimSpace(scopeRaw) == "" &&
+		!callerScope.Operator &&
+		strings.TrimSpace(callerScope.WorkspaceID) != "" {
+		scopeRaw = string(compozyconfig.WriteScopeWorkspace)
+	}
 	scope, err := nativeWriteScope(scopeRaw)
 	if err != nil {
 		return compozyconfig.WriteTarget{}, "", nativeConfigScopeError(id, err)
@@ -133,7 +139,7 @@ func nativeOptionalWorkspaceRoot(raw string) (string, error) {
 
 func nativeRequiredWorkspaceRoot(raw string) (string, error) {
 	if strings.TrimSpace(raw) == "" {
-		return "", errors.New("workspace_root is required for workspace scope")
+		return "", errors.New("workspace is required for workspace scope")
 	}
 	return compozyconfig.ResolvePath(raw)
 }

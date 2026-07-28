@@ -25,7 +25,7 @@ func decodeLogQueryInput(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, "workspace_id", input.WorkspaceID, scope)
+	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
@@ -48,7 +48,7 @@ func decodeObserveSearchInput(
 	if _, err := requiredNativeString(req.ToolID, "query", input.Query); err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, "workspace_id", input.WorkspaceID, scope)
+	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}

@@ -72,7 +72,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				return want, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 		args := []string{
 			"mcp",
 			"install",
@@ -147,7 +147,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				NextStep: contract.SettingsMCPInstallNextStepNone,
 			}, nil
 		}}
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, client), "mcp", "install", "github")
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "mcp", "install", "github")
 		if err != nil {
 			t.Fatalf("mcp install command error = %v", err)
 		}
@@ -182,7 +182,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"mcp",
 			"install",
 			"github",
@@ -227,11 +227,6 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 			detail: "OAuth client secret is assigned more than once",
 		},
 		{
-			name:   "Should require a workspace ID for workspace scope",
-			args:   []string{"mcp", "install", "github", "--scope", "workspace"},
-			detail: "requires --workspace",
-		},
-		{
 			name:   "Should reject workspace ID in global scope",
 			args:   []string{"mcp", "install", "github", "--workspace", "ws-1"},
 			detail: "requires --scope workspace",
@@ -253,7 +248,7 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deps := newTestDeps(t, &stubClient{})
+			deps := newWorkspaceTestDeps(t, &stubClient{})
 			_, _, err := executeRootCommand(t, deps, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.detail) {
 				t.Fatalf("executeRootCommand() error = %v, want detail %q", err, tc.detail)
@@ -262,11 +257,43 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 	}
 }
 
+func TestMCPInstallInfersWorkspaceForWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should infer workspace for workspace scope", func(t *testing.T) {
+		t.Parallel()
+
+		var captured InstallSettingsMCPServerRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project" {
+					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-cwd"}}, nil
+			},
+			installSettingsMCPServerFn: func(
+				_ context.Context,
+				request InstallSettingsMCPServerRequest,
+			) (InstallSettingsMCPServerRecord, error) {
+				captured = request
+				return InstallSettingsMCPServerRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "mcp", "install", "github", "--scope", "workspace")
+		if err != nil {
+			t.Fatalf("mcp install error = %v", err)
+		}
+		if captured.WorkspaceID != "ws-cwd" {
+			t.Fatalf("request.WorkspaceID = %q, want ws-cwd", captured.WorkspaceID)
+		}
+	})
+}
+
 func TestMCPInstallCommandRejectsBlankSecretInputBeforeCallingDaemon(t *testing.T) {
 	t.Run("Should reject a blank piped field value", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeMCPInstallCommand(
 			t,
 			deps,

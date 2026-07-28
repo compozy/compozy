@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Compozy · Refined control surface</title>
+  <title>CompozyOS · Refined operator surface</title>
   <link rel="preconnect" href="https://rsms.me/" />
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,9 +15,9 @@
 
   <style>
     /* ─────────────────────────────────────────────────────────────────
-     * Compozy refined — tokens
+     * CompozyOS refined — tokens
      *
-     * Goal: drop the operator/dev/tech register without leaving the Compozy
+     * Goal: drop the operator/dev/tech register without leaving the CompozyOS
      * warm-dark identity. Three strict rules:
      *
      *   1. Accent (orange) is SCARCE. It appears at most twice per
@@ -39,7 +39,7 @@
     :root {
       color-scheme: dark;
 
-      /* Surface ladder — warm but cooler than current Compozy.
+      /* Surface ladder — warm but cooler than current CompozyOS.
          OKLch keeps the steps perceptually even. */
       --bg:        oklch(13.2% 0.005 60);
       --surface:   oklch(15.8% 0.005 55);
@@ -60,7 +60,7 @@
       --border-soft:   rgba(255, 248, 240, 0.04);
       --hairline:      rgba(255, 248, 240, 0.05);
 
-      /* Accent — keep the Compozy orange identity */
+      /* Accent — keep the CompozyOS orange identity */
       --accent:       oklch(67% 0.165 40);
       --accent-hover: oklch(72% 0.17 42);
       --accent-soft:  oklch(67% 0.165 40 / 0.12);
@@ -1193,7 +1193,7 @@
 
   <script type="text/babel" data-presets="env,react">
     /* ─────────────────────────────────────────────────────────────────
-     * Mock data — close to Compozy's real shape, full status coverage.
+     * Mock data — close to CompozyOS's real shape, full status coverage.
      * ─────────────────────────────────────────────────────────── */
 
     const TASKS = [
@@ -1516,8 +1516,8 @@
       return (
         <aside className="side">
           <div className="side__brand">
-            <span className="brandmark" aria-hidden="true">A</span>
-            <span className="side__brand-name">CompozyOS runtime</span>
+            <span className="brandmark" aria-hidden="true">C</span>
+            <span className="side__brand-name">CompozyOS</span>
             <span className="side__brand-meta">v0.41</span>
           </div>
 

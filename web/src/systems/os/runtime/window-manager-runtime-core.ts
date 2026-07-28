@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import {
@@ -48,6 +48,25 @@ function commandDiagnostic(error: unknown): WindowManagerDiagnosticPayload {
   };
 }
 
+function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolean {
+  switch (event.type) {
+    case "added":
+      return event.query.state.data !== undefined;
+    case "removed":
+      return true;
+    case "updated":
+      return (
+        event.action.type === "success" ||
+        (event.action.type === "setState" && Object.hasOwn(event.action.state, "data"))
+      );
+    case "observerAdded":
+    case "observerRemoved":
+    case "observerResultsUpdated":
+    case "observerOptionsUpdated":
+      return false;
+  }
+}
+
 /** Query/client lifecycle and semantic command transport shared by the OS runtime. */
 export abstract class WindowManagerRuntimeCore {
   private unsubscribeQuery: (() => void) | null = null;
@@ -69,6 +88,7 @@ export abstract class WindowManagerRuntimeCore {
   start(): void {
     if (this.unsubscribeQuery !== null || this.unsubscribePresentation !== null) return;
     this.unsubscribeQuery = this.queryClient.getQueryCache().subscribe(event => {
+      if (!queryCacheEventChangesData(event)) return;
       const key = event.query.queryKey;
       const configKey = windowManagerKeys.config();
       if (

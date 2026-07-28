@@ -17,13 +17,16 @@ import (
 
 func addMemorySelectorFlags(cmd *cobra.Command, flags *memorySelectorFlags) {
 	cmd.Flags().StringVar(&flags.Scope, automationScopeKey, "", "Memory scope: global, workspace, or agent")
-	cmd.Flags().StringVar(&flags.Workspace, "workspace", "", "Workspace ID or path for workspace-bound memory")
+	cmd.Flags().
+		StringVar(&flags.Workspace, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.Agent, "agent", "", "Agent name for agent-scoped memory")
 	cmd.Flags().StringVar(&flags.AgentTier, "agent-tier", "", "Agent memory tier: workspace or global")
 }
 
 func resolveMemorySelectorFlags(
+	cmd *cobra.Command,
 	deps commandDeps,
+	client DaemonClient,
 	flags memorySelectorFlags,
 	opts memorySelectorOptions,
 ) (MemorySelectorQuery, error) {
@@ -63,12 +66,18 @@ func resolveMemorySelectorFlags(
 	workspace := strings.TrimSpace(flags.Workspace)
 	needsWorkspace := scope == memcontract.ScopeWorkspace || (scope == "" && opts.DefaultWorkspace) ||
 		(scope == memcontract.ScopeAgent && tier == memcontract.AgentTierWorkspace)
-	if workspace == "" && needsWorkspace {
-		var err error
-		workspace, err = currentWorkingDirectory(deps)
+	if needsWorkspace || workspace != "" {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspace},
+		)
 		if err != nil {
 			return MemorySelectorQuery{}, err
 		}
+		workspace = resolution.ID
 	}
 	return MemorySelectorQuery{
 		Scope:       scope,
@@ -211,7 +220,9 @@ func readOptionalCommandInput(reader io.Reader) (string, error) {
 }
 
 func parseMemoryPromotionSelector(
+	cmd *cobra.Command,
 	deps commandDeps,
+	client DaemonClient,
 	flags memorySelectorFlags,
 	raw string,
 ) (contract.MemoryScopeSelectorPayload, error) {
@@ -239,7 +250,13 @@ func parseMemoryPromotionSelector(
 		promoteFlags.Agent = ""
 		promoteFlags.AgentTier = ""
 	}
-	selector, err := resolveMemorySelectorFlags(deps, promoteFlags, memorySelectorOptions{DefaultWorkspace: true})
+	selector, err := resolveMemorySelectorFlags(
+		cmd,
+		deps,
+		client,
+		promoteFlags,
+		memorySelectorOptions{DefaultWorkspace: true},
+	)
 	if err != nil {
 		return contract.MemoryScopeSelectorPayload{}, err
 	}

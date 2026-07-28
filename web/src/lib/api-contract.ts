@@ -1,4 +1,3 @@
-import type { operations as daemonOperations } from "@/generated/compozy-daemon-openapi";
 import type { operations as compozyOperations } from "@/generated/compozy-openapi";
 
 type OperationResponses<Operation> = Operation extends { responses: infer Responses }
@@ -88,25 +87,3 @@ export function isReasoningEffort(value: string): value is ReasoningEffort {
 export type OperationQuery<Id extends OperationId> = OperationQueryFor<compozyOperations, Id>;
 
 export type OperationPath<Id extends OperationId> = OperationPathFor<compozyOperations, Id>;
-
-export type DaemonOperationId = keyof daemonOperations;
-
-export type DaemonOperationResponse<
-  Id extends DaemonOperationId,
-  Status extends keyof OperationResponses<daemonOperations[Id]>,
-> = OperationResponseFor<daemonOperations, Id, Status>;
-
-export type DaemonOperationRequestBody<Id extends DaemonOperationId> = OperationRequestBodyFor<
-  daemonOperations,
-  Id
->;
-
-export type DaemonOperationQuery<Id extends DaemonOperationId> = OperationQueryFor<
-  daemonOperations,
-  Id
->;
-
-export type DaemonOperationPath<Id extends DaemonOperationId> = OperationPathFor<
-  daemonOperations,
-  Id
->;

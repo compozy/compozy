@@ -27,7 +27,7 @@ type taskNotificationSubscribeInput struct {
 	SubscriptionID   string `json:"subscription_id,omitempty"`
 	BridgeInstanceID string `json:"bridge_instance_id"`
 	Scope            string `json:"scope,omitempty"`
-	WorkspaceID      string `json:"workspace_id,omitempty"`
+	WorkspaceID      string `json:"workspace,omitempty"`
 	PeerID           string `json:"peer_id,omitempty"`
 	ThreadID         string `json:"thread_id,omitempty"`
 	GroupID          string `json:"group_id,omitempty"`
@@ -38,7 +38,7 @@ type taskNotificationListInput struct {
 	TaskID           string `json:"task_id"`
 	BridgeInstanceID string `json:"bridge_instance_id,omitempty"`
 	Scope            string `json:"scope,omitempty"`
-	WorkspaceID      string `json:"workspace_id,omitempty"`
+	WorkspaceID      string `json:"workspace,omitempty"`
 	Limit            int    `json:"limit,omitempty"`
 }
 

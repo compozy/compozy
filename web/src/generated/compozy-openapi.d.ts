@@ -10114,7 +10114,12 @@ export interface operations {
   listAgentChannels: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -10255,7 +10260,12 @@ export interface operations {
   replyAgentChannelMessage: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -10487,7 +10497,12 @@ export interface operations {
         /** @description Maximum number of messages to return */
         limit?: number;
       };
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Coordination channel id */
         channel: string;
@@ -10714,7 +10729,12 @@ export interface operations {
   sendAgentChannelMessage: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Coordination channel id */
         channel: string;
@@ -10943,7 +10963,12 @@ export interface operations {
   getAgentContext: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -12009,7 +12034,12 @@ export interface operations {
         /** @description Workspace id or path */
         workspace?: string;
       };
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -12168,7 +12198,12 @@ export interface operations {
   getAgentMe: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -12552,7 +12587,12 @@ export interface operations {
   getAgentSoul: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -12752,7 +12792,12 @@ export interface operations {
   validateAgentSoul: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -13000,7 +13045,12 @@ export interface operations {
   spawnAgentSession: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -13445,7 +13495,12 @@ export interface operations {
   claimNextAgentTask: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path?: never;
       cookie?: never;
     };
@@ -13927,7 +13982,12 @@ export interface operations {
   completeAgentTaskRun: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Task run id */
         run_id: string;
@@ -14232,7 +14292,12 @@ export interface operations {
   failAgentTaskRun: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Task run id */
         run_id: string;
@@ -14537,7 +14602,12 @@ export interface operations {
   heartbeatAgentTaskRun: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Task run id */
         run_id: string;
@@ -14842,7 +14912,12 @@ export interface operations {
   releaseAgentTaskRun: {
     parameters: {
       query?: never;
-      header?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
       path: {
         /** @description Task run id */
         run_id: string;

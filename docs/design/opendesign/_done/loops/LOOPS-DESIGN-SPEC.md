@@ -1,7 +1,7 @@
 # Loops - Design Specification
 
 > **What this document is.** A complete, implementation-facing specification of the
-> Compozy "Loops" feature *as designed* in the high-fidelity HTML mockups. It records the
+> CompozyOS "Loops" feature *as designed* in the high-fidelity HTML mockups. It records the
 > screens, their components, the data each surface reads/writes, the interactions, and
 > the domain model the UI assumes.
 >
@@ -54,7 +54,7 @@ one `.pill--*` status vocabulary, and one type scale.
   executions). No third noun. `[shipped-in-spec]`
 - A **Loop** = a **contract** (goal, definition-of-done, verification, stop conditions)
   + a **body** (a static DAG of typed nodes) + typed **declared inputs**. It executes on
-  Compozy's autonomy kernel, not a second executor. `[shipped-in-spec]`
+  CompozyOS's autonomy kernel, not a second executor. `[shipped-in-spec]`
 - **Arrive-and-use is the hero path:** pick a Loop, fill an auto-generated input form,
   Run, watch it iterate live. Built-ins run with zero authoring. `[shipped-in-spec]`
 - Runs iterate across **generations**. Default re-attempt strategy `failed-only` (re-runs
@@ -73,7 +73,7 @@ one `.pill--*` status vocabulary, and one type scale.
   built-in. There is no blank-canvas from-scratch builder in v1. `[shipped-in-spec]`
 - **Start bindings (ADR-007):** a Loop declares how it may be initiated via the DSL
   `start[]` allowlist (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`).
-  Event-driven starts (trigger/schedule/webhook) are carried by Compozy's existing automation
+  Event-driven starts (trigger/schedule/webhook) are carried by CompozyOS's existing automation
   primitives: a Trigger or Job gains a discriminated target, `Run agent` (today) or `Run loop`
   `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only, TechSpec §9.14).
   A watch-source is a node INSIDE the body, never a start binding; the two concepts are never
@@ -174,9 +174,9 @@ approval gate.
     description · actions row (status pill + rate + `Run`). Grid 1/2/3 cols.
   - Binding badge: clock glyph for schedule / webhook glyph for webhook on loops with an
     attached loop-target automation (e.g. `software-delivery` · `0 3 * * *`). The
-    `review-and-fix` watch-source tag is a body-node concept, not a start binding — no badge.
+    `reviews-watch` watch-source tag is a body-node concept, not a start binding — no badge.
 - **Data shown (the 2 built-in Loops).** `software-delivery` (Engineering · delivery,
-  8 nodes, 5 inputs, cap 50) and `review-and-fix` (Engineering · watch, watch-source,
+  8 nodes, 5 inputs, cap 50) and `reviews-watch` (Engineering · watch, watch-source,
   6 inputs, cap ∞). The Custom group is empty until a fork exists (JS hides empty groups);
   never invent extra loops.
 - **Interactions.** Search + filter chips (AND); Rows|Cards toggle; row/card click →
@@ -564,7 +564,7 @@ read-only **run fact** on `run-detail`, never chosen on the run form.
 The DSL `start[]` allowlist
 (`manual|cli|http|uds|trigger|schedule|webhook|network|extension|native_tool`) declares how a
 Loop may be initiated; the definition is the only place it is edited. Event-driven kinds
-(trigger/schedule/webhook) are carried by Compozy's existing automation primitives via a
+(trigger/schedule/webhook) are carried by CompozyOS's existing automation primitives via a
 discriminated target on Trigger/Job: `Run agent` (today) or `Run loop`
 `{workspace, loop, static inputs, event-payload → input mapping}` (spec-only, TechSpec §9.14;
 no design HTML for those sheets). Surfacing rules as designed:
@@ -588,7 +588,7 @@ stateful color in the panel. A watch-source is a node INSIDE the body, never a s
 - `terminal_states: [done, no_op, blocked, failed, exhausted, stalled]` (6 terminal
   outcomes).
 - `stop_when` (CEL, optional, ADR-020): a boolean early-terminal condition evaluated at
-  the generation boundary; true → terminal `done` (e.g. `review-and-fix`:
+  the generation boundary; true → terminal `done` (e.g. `reviews-watch`:
   `nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0`).
 - `no_progress: { window, hash_fields }` plus a structured blocker-ID signature: the
   `stalled` detector compares the sorted `blocking_issues[].id` set from the
@@ -734,7 +734,7 @@ close/reopen; runs outcome filter.
 - **Design.** `runs.html` is a global, workspace-wide run history with KPIs.
 - **Question.** `product-ux.md` says run history lives under each Loop with no separate
   global Runs nav route.
-- **Proposal.** Decide: (a) adopt global Runs As a person running agent work convenience (update
+- **Proposal.** Decide: (a) adopt global Runs as an operator convenience (update
   product-ux + add a workspace run index + nav entry), or (b) fold it into
   catalog/loop-detail and keep `runs.html` only as the "All runs" target. Recommend (a):
   the "Awaiting you" / active-across-loops view is operationally valuable.
@@ -808,7 +808,7 @@ close/reopen; runs outcome filter.
   the UI is not inventing metrics.
 
 ### 9.12 Watch loops: unbounded cap + quiet/stall rendering `[P2]`
-- **Design.** Catalog shows `review-and-fix` cap `∞`; runs shows watching/quiet/stall.
+- **Design.** Catalog shows `reviews-watch` cap `∞`; runs shows watching/quiet/stall.
 - **Question.** Confirm watch loops default iteration_cap 0 (unbounded), the quiet-window
   → stalled transition, and how the UI should render "unbounded".
 - **Proposal.** Confirm in ADR-012 + the watch-source spec; standardize the `∞` rendering.
@@ -828,7 +828,7 @@ close/reopen; runs outcome filter.
   and the run-form hint. The trigger/job create sheets gain a discriminated **target**,
   `Run agent` (today) or `Run loop` `{workspace, loop, static inputs, event-payload → input
   mapping}`; that change is spec-only (TechSpec §9.14) and intentionally has NO design HTML
-  in this pass (the sheets are existing Compozy automation surfaces).
+  in this pass (the sheets are existing CompozyOS automation surfaces).
 - **Question.** Confirm the daemon surface for listing automations by loop target (name,
   kind, enabled state, cron + next fire, endpoint slug, event name) and the pre-targeted
   deep-link contract for `Add trigger` / `Add schedule`.
@@ -890,11 +890,11 @@ close/reopen; runs outcome filter.
 ### 9.20 Fan-out batching: `batch_size` / `max_parallel` / `max_fan_out` `[P1]` - ADDED (ADR-006)
 - **Design impact.** `fan-out` carries three orthogonal knobs, never one: `batch_size`
   (items per agent branch, default 1; `software-delivery` = 1 → one task per branch,
-  `review-and-fix` = 10 → contiguous chunks of <=10 issues in fetch order), `max_parallel`
+  `reviews-watch` = 10 → contiguous chunks of <=10 issues in fetch order), `max_parallel`
   (concurrent branches; both examples = 1 → sequential) and `max_fan_out` (structural cap
   on materialized branches, clamped by the daemon ceiling 64; overflow → `exhausted` /
   `escalate`). Run timelines render fan-out as BATCH BRANCHES
-  (`batch 1 · issues 001-010 · 10 issues` for `review-and-fix`; `task_01 · schema
+  (`batch 1 · issues 001-010 · 10 issues` for `reviews-watch`; `task_01 · schema
   migration` for `software-delivery`); the editor inspector and the read-only DAG expose
   all three knobs. Only a status dot carries state on a batch chip; the content stays
   neutral mono.
@@ -902,7 +902,7 @@ close/reopen; runs outcome filter.
 ---
 
 ## 10. Open decisions (carried from the handoff, now consolidated)
-- **Palette:** Compozy operator (warm-dark + orange), matching the real app. A Linear-indigo
+- **Palette:** CompozyOS operator (warm-dark + orange), matching the real app. A Linear-indigo
   reskin is a pure token swap.
 - **App shell:** mockups are content + header only; the real app supplies rail/sidebar.
 - **Editor canvas texture:** a very subtle dot-grid (functional "this is a canvas" signal)

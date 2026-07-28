@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attempt 2 of 3 · Lock launch blockers · Tasks · CompozyOS</title>
+<style>
+  /* tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --z-scrim:60; --z-sheet:61;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;letter-spacing:inherit}
+  svg{display:block}
+  .hide{display:none!important}
+  code,.mono,.pill[data-mono="true"]{-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
+  :is(.btn,.act,.copybtn,.sheet__close,.gnav a,.w2-crumb,.w2-back):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  .gnav{display:flex;align-items:center;gap:14px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+  .state{border-bottom:1px solid var(--line)}
+  .state:last-child{border-bottom:0}
+
+  /* unified head v2 (os/pagehead-redesign.html contract: 44px, drill-in trail) */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:13px;height:13px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-status[data-tone="ok"]{color:var(--success)}
+  .w2-status[data-tone="warn"]{color:var(--warning)}
+  .w2-status[data-tone="danger"]{color:var(--danger)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);border-color:transparent}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  /* subhead (demoted page-head meta, 12px subtle line) */
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;background:var(--neutral-tint);color:var(--muted);flex:none}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+  .section{margin-bottom:26px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--subtle);text-transform:uppercase}
+  .section__label .spacer{flex:1}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .desc{padding:14px 16px;font-size:13.5px;line-height:1.6;color:var(--fg);max-width:68ch;text-wrap:pretty}
+  .empty-line{padding:16px 18px;font-size:12.5px;color:var(--muted)}
+  .act{font-size:11px;font-weight:520;color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:none;border:0;padding:2px 4px;border-radius:var(--radius-xs);font-family:inherit;text-transform:none;letter-spacing:0}
+  .act:hover{color:var(--fg-strong)}
+  .act svg{width:12px;height:12px}
+  .livebadge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--success);text-transform:none;letter-spacing:0}
+  .livebadge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  .scard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;
+    padding:13px 15px;border-radius:var(--radius-md);border:1px solid;margin-bottom:10px}
+  .scard[data-tone="danger"]{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent)}
+  .scard[data-tone="danger"] .scard__title{color:var(--danger)}
+  .scard__title{font-size:13px;font-weight:560}
+  .scard__body{grid-column:1;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .scard__body .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .scard__actions{grid-row:1 / span 2;grid-column:2;display:flex;align-items:center;gap:8px}
+
+  /* run timeline: flat node spine (loops/run-detail.html lineage) */
+  .spine{position:relative;padding:6px 16px 10px 16px}
+  .node{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:11px;padding:9px 0;align-items:start}
+  .node::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1.5px;background:var(--line-strong)}
+  .node:first-child::before{top:14px}
+  .node:last-child::before{bottom:auto;height:14px}
+  .node__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);border:1.5px solid var(--nl,var(--faint));
+    display:grid;place-items:center;color:var(--nl,var(--faint))}
+  .node__dot svg{width:11px;height:11px}
+  .node__label{font-size:13px;font-weight:520;color:var(--fg-strong);padding-top:2px}
+  .node__sub{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--muted);max-width:60ch}
+  .node__sub .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .node__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .node__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .node__micro{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:16px 18px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:10px}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;min-height:26px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prow__v .d{width:6px;height:6px;border-radius:50%;flex:none}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .avatar{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--muted);font-family:var(--font-mono);font-size:8px;font-weight:600;flex:none}
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;border:0;background:transparent;color:var(--faint);border-radius:var(--radius-xxs);cursor:pointer}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--line-soft)}
+  .rail-foot .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  /* inspect sheet */
+  .scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .2s var(--ease);z-index:var(--z-scrim)}
+  .scrim.is-open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;top:0;right:0;bottom:0;width:min(560px,calc(100vw - 24px));display:flex;flex-direction:column;
+    background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);
+    transform:translateX(103%);transition:transform .2s var(--ease);z-index:var(--z-sheet)}
+  .sheet.is-open{transform:translateX(0)}
+  .sheet__head{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 16px;border-bottom:1px solid var(--line);flex:none}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-md);background:var(--accent-tint);color:var(--accent-strong)}
+  .sheet__well svg{width:16px;height:16px}
+  .sheet__eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+  .sheet__title{margin-top:2px;font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em}
+  .sheet__desc{margin-top:3px;font-size:13px;color:var(--muted);line-height:1.5}
+  .sheet__close{margin-left:auto;display:inline-grid;place-items:center;width:26px;height:26px;flex:none;border:0;background:transparent;
+    color:var(--muted);border-radius:var(--radius-sm);cursor:pointer}
+  .sheet__close:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .sheet__close svg{width:14px;height:14px}
+  .sheet__body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px}
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+  .tile{padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill)}
+  .tile__l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:6px}
+  .tile__v{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg)}
+  .tile__v .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.dot--pulse,.livebadge .d{animation:none}}
+</style>
+</head>
+<body>
+
+<nav class="gnav" aria-label="States in this gallery" data-od-id="run-states-nav">
+  <a href="#running">running</a>
+  <a href="#failed">failed</a>
+</nav>
+
+<!-- ================================================================ STATE: RUNNING -->
+<section class="state" id="running" data-od-id="run-state-running">
+  <header class="w2head" data-od-id="run-head-running">
+    <a class="w2-back" href="task-detail.html" aria-label="Back to task"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <a class="w2-crumb" href="task-detail.html">Lock launch blockers for the 18:30 UTC cutover</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Attempt 2</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button" data-od-id="run-open-session">
+        Open session
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">run_002 · sess_product_brief</span><span class="dotsep"></span>
+      <span>Claimed by <b>product-manager-agent</b></span><span class="dotsep"></span>
+      <span>Started <time title="Jul 17, 2026, 09:06">26 min ago</time></span><span class="dotsep"></span>
+      <span class="mono js-elapsed">26m 08s</span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="run-result-running">
+          <div class="section__label">Result</div>
+          <div class="panelbox"><div class="empty-line">No result yet. It lands here the moment the run completes.</div></div>
+        </section>
+        <section class="section" data-od-id="run-timeline-running">
+          <div class="section__label">Run activity<span class="spacer"></span><span class="livebadge"><span class="d dot--pulse" aria-hidden="true"></span>Live</span></div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node" style="--nl:var(--accent)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg></span>
+                <div><div class="node__label">Attempt 2 started</div><div class="node__sub">Working through the launch command checkpoint.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 09:06">26m ago</span><span class="node__micro">task.run_started · 103</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Session attached</div><div class="node__sub">Bound to <span style="font-family:var(--font-mono);font-size:11px">sess_product_brief</span>.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 09:05">27m ago</span><span class="node__micro">task.run_session_bound · 102</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">product-manager-agent picked this up</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 09:05">27m ago</span><span class="node__micro">task.run_claimed · 101</span></div>
+              </div>
+              <div class="node">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+                <div><div class="node__label">Run queued</div><div class="node__sub">Retried from attempt 1.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 09:04">28m ago</span><span class="node__micro">task.run_enqueued · 100</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <aside data-od-id="run-rail-running">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Session</div>
+            <div class="prow"><span class="prow__k">Session</span>
+              <span class="prow__v mono"><span>sess_product_brief</span>
+                <button class="copybtn" type="button" data-copy="sess_product_brief" aria-label="Copy session id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+            <div class="prow"><span class="prow__k">Claimed by</span><span class="prow__v"><span class="avatar">PM</span><span>product-manager-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Tool calls</span><span class="prow__v mono"><span>14</span></span></div>
+            <div class="prow"><span class="prow__k">Turns</span><span class="prow__v mono"><span>6</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>128,410</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>$4.12</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Timing</div>
+            <div class="prow"><span class="prow__k">Queued</span><span class="prow__v"><time title="Jul 17, 2026, 09:04">28 min ago</time></span></div>
+            <div class="prow"><span class="prow__k">Claimed</span><span class="prow__v"><time title="Jul 17, 2026, 09:05">27 min ago</time></span></div>
+            <div class="prow"><span class="prow__k">Started</span><span class="prow__v"><time title="Jul 17, 2026, 09:06">26 min ago</time></span></div>
+            <div class="prow"><span class="prow__k">Elapsed</span><span class="prow__v mono js-elapsed"><span>26m 08s</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Lineage</div>
+            <div class="prow"><span class="prow__k">Previous</span><span class="prow__v"><span class="d" style="background:var(--danger)"></span><a href="#failed">Attempt 1 · Failed</a></span></div>
+            <div class="prow"><span class="prow__k">Run id</span>
+              <span class="prow__v mono"><span>run_002</span>
+                <button class="copybtn" type="button" data-copy="run_002" aria-label="Copy run id"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              </span>
+            </div>
+          </div>
+          <div class="rail-foot">
+            <button class="act" type="button" id="openInspect">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              Inspect
+            </button>
+            <span class="mono">compozy task run show run_002</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ STATE: FAILED -->
+<section class="state" id="failed" data-od-id="run-state-failed">
+  <header class="w2head" data-od-id="run-head-failed">
+    <a class="w2-back" href="task-detail.html" aria-label="Back to task"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="#">Tasks</a>
+      <span class="w2-sep">/</span>
+      <a class="w2-crumb" href="task-detail.html">Lock launch blockers for the 18:30 UTC cutover</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Attempt 1</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="danger"><span class="dot" aria-hidden="true"></span>Failed</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn btn--primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Retry
+      </button>
+      <button class="btn btn--icon" type="button" aria-label="More actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead">
+      <span class="mono">run_001 · sess_product_brief</span><span class="dotsep"></span>
+      <span>Claimed by <b>product-manager-agent</b></span><span class="dotsep"></span>
+      <span>Ended <time title="Jul 17, 2026, 00:52">9h ago</time></span><span class="dotsep"></span>
+      <span class="mono">8m 12s</span>
+    </div>
+    <div class="layout">
+      <main>
+        <section class="section" data-od-id="run-outcome-failed">
+          <div class="scard" data-tone="danger">
+            <div class="scard__title">Failed after 8m 12s</div>
+            <div class="scard__body">Partner-bank replay data went stale before the checkpoint. Attempt 2 was queued from this run.<br><span class="mono">task.run_failed · 96</span></div>
+            <div class="scard__actions"><button class="btn btn--sm" type="button">Retry</button></div>
+          </div>
+        </section>
+        <section class="section" data-od-id="run-result-failed">
+          <div class="section__label">Result</div>
+          <div class="panelbox"><div class="empty-line">No result recorded. The run ended before reaching a checkpoint.</div></div>
+        </section>
+        <section class="section" data-od-id="run-timeline-failed">
+          <div class="section__label">Run activity</div>
+          <div class="panelbox">
+            <div class="spine">
+              <div class="node" style="--nl:var(--danger)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+                <div><div class="node__label">Attempt 1 failed</div><div class="node__sub">Partner-bank replay data went stale before the checkpoint.</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 00:52">9h ago</span><span class="node__micro">task.run_failed · 96</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">Attempt 1 started</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 00:44">9h ago</span><span class="node__micro">task.run_started · 92</span></div>
+              </div>
+              <div class="node" style="--nl:var(--success)">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="node__label">product-manager-agent picked this up</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 00:43">9h ago</span><span class="node__micro">task.run_claimed · 91</span></div>
+              </div>
+              <div class="node">
+                <span class="node__dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+                <div><div class="node__label">Run queued</div></div>
+                <div class="node__trail"><span class="node__time" title="Jul 17, 2026, 00:42">9h ago</span><span class="node__micro">task.run_enqueued · 90</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <aside data-od-id="run-rail-failed">
+        <div class="railbox">
+          <div class="rail-sec">
+            <div class="rail-sec__t">Session</div>
+            <div class="prow"><span class="prow__k">Session</span><span class="prow__v mono"><span>sess_product_brief</span></span></div>
+            <div class="prow"><span class="prow__k">Claimed by</span><span class="prow__v"><span class="avatar">PM</span><span>product-manager-agent</span></span></div>
+            <div class="prow"><span class="prow__k">Tool calls</span><span class="prow__v mono"><span>9</span></span></div>
+            <div class="prow"><span class="prow__k">Turns</span><span class="prow__v mono"><span>4</span></span></div>
+            <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>61,204</span></span></div>
+            <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>$1.87</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Timing</div>
+            <div class="prow"><span class="prow__k">Queued</span><span class="prow__v"><time title="Jul 17, 2026, 00:42">9h ago</time></span></div>
+            <div class="prow"><span class="prow__k">Started</span><span class="prow__v"><time title="Jul 17, 2026, 00:44">9h ago</time></span></div>
+            <div class="prow"><span class="prow__k">Ended</span><span class="prow__v"><time title="Jul 17, 2026, 00:52">9h ago</time></span></div>
+            <div class="prow"><span class="prow__k">Duration</span><span class="prow__v mono"><span>8m 12s</span></span></div>
+          </div>
+          <div class="rail-sec">
+            <div class="rail-sec__t">Lineage</div>
+            <div class="prow"><span class="prow__k">Next</span><span class="prow__v"><span class="d" style="background:var(--accent)"></span><a href="#running">Attempt 2 · Running</a></span></div>
+            <div class="prow"><span class="prow__k">Run id</span><span class="prow__v mono"><span>run_001</span></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================= inspect sheet (run internals) ================= -->
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="inspectSheet" role="dialog" aria-modal="true" aria-labelledby="riTitle" data-od-id="run-inspect-drawer">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+    <div>
+      <div class="sheet__eyebrow">Operator</div>
+      <div class="sheet__title" id="riTitle">Inspect run</div>
+      <div class="sheet__desc">Claim and lease internals for <span style="font-family:var(--font-mono);font-size:11px">run_002</span>.</div>
+    </div>
+    <button class="sheet__close" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+  </header>
+  <div class="sheet__body">
+    <div class="tiles">
+      <div class="tile"><div class="tile__l">Heartbeat</div><div class="tile__v"><span class="d" style="background:var(--success);width:6px;height:6px;border-radius:50%"></span>6s ago</div></div>
+      <div class="tile"><div class="tile__l">Lease until</div><div class="tile__v"><span class="mono">09:35:12</span></div></div>
+      <div class="tile"><div class="tile__l">Claim token</div><div class="tile__v"><span class="mono">sha256 · 9f2c…e1</span></div></div>
+      <div class="tile"><div class="tile__l">Idempotency key</div><div class="tile__v"><span class="mono">—</span></div></div>
+    </div>
+    <div class="quiet-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+      The claim lease renews on every heartbeat. If heartbeats stop, the scheduler escalates this run for recovery.
+    </div>
+  </div>
+</aside>
+
+<script>
+/* elapsed tick for the running attempt */
+const startedAt = Date.now() - (26*60 + 8)*1000;
+function fmt(ms){
+  const s = Math.floor(ms/1000);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return h>0 ? `${h}h ${String(m).padStart(2,"0")}m` : `${m}m ${String(sec).padStart(2,"0")}s`;
+}
+function tick(){
+  const v = fmt(Date.now()-startedAt);
+  document.querySelectorAll(".js-elapsed").forEach(el=>{ el.textContent = v; });
+}
+tick(); setInterval(tick, 1000);
+
+/* inspect sheet */
+const scrim = document.getElementById("scrim");
+const sheet = document.getElementById("inspectSheet");
+function setSheet(open){
+  sheet.classList.toggle("is-open", open);
+  scrim.classList.toggle("is-open", open);
+  if(open){ const c = sheet.querySelector(".sheet__close"); if(c) c.focus(); }
+}
+document.getElementById("openInspect").addEventListener("click",()=>setSheet(true));
+sheet.querySelector("[data-close]").addEventListener("click",()=>setSheet(false));
+scrim.addEventListener("click",()=>setSheet(false));
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") setSheet(false); });
+
+/* copy */
+document.querySelectorAll("[data-copy]").forEach(btn=>{
+  btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(navigator.clipboard) navigator.clipboard.writeText(btn.dataset.copy).catch(()=>{});
+    const prev = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;color:var(--success)"><path d="M20 6 9 17l-5-5"/></svg>';
+    setTimeout(()=>{ btn.innerHTML = prev; }, 1200);
+  });
+});
+</script>
+</body>
+</html>

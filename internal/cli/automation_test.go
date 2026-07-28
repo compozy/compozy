@@ -310,22 +310,44 @@ func TestAutomationJobsUpdateScheduleReliability(t *testing.T) {
 	})
 }
 
-func TestAutomationJobsCreateRejectsMissingWorkspaceForWorkspaceScope(t *testing.T) {
+func TestAutomationJobsCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := executeRootCommand(
-		t,
-		newTestDeps(t, &stubClient{}),
-		"automation", "jobs", "create",
-		"--name", "nightly-review",
-		"--scope", "workspace",
-		"--schedule", "every:30m",
-		"--agent", "coder",
-		"--prompt", "review repo",
-	)
-	if err == nil || !strings.Contains(err.Error(), "--workspace is required when --scope is workspace") {
-		t.Fatalf("missing workspace error = %v, want workspace requirement", err)
-	}
+	t.Run("Should infer a workspace for workspace scope", func(t *testing.T) {
+		t.Parallel()
+
+		var captured AutomationJobCreateRequest
+		_, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					if ref != "/workspace/project" {
+						t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+					}
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-cwd"}}, nil
+				},
+				createAutomationJobFn: func(
+					_ context.Context,
+					request AutomationJobCreateRequest,
+				) (JobRecord, error) {
+					captured = request
+					return sampleAutomationJobRecord(), nil
+				},
+			}),
+			"automation", "jobs", "create",
+			"--name", "nightly-review",
+			"--scope", "workspace",
+			"--schedule", "every:30m",
+			"--agent", "coder",
+			"--prompt", "review repo",
+		)
+		if err != nil {
+			t.Fatalf("automation jobs create error = %v", err)
+		}
+		if captured.WorkspaceID != "ws-cwd" {
+			t.Fatalf("request.WorkspaceID = %q, want ws-cwd", captured.WorkspaceID)
+		}
+	})
 }
 
 func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {

@@ -81,7 +81,13 @@ func newMemoryDreamTriggerCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}
@@ -163,7 +169,13 @@ func newMemoryDailyListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selector, err := resolveMemorySelectorFlags(deps, flags, memorySelectorOptions{DefaultWorkspace: true})
+			selector, err := resolveMemorySelectorFlags(
+				cmd,
+				deps,
+				client,
+				flags,
+				memorySelectorOptions{DefaultWorkspace: true},
+			)
 			if err != nil {
 				return err
 			}

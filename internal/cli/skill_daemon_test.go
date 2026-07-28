@@ -37,7 +37,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			Dir:      "/compozy-home/extensions/review/skills/extension-review",
 			Metadata: map[string]any{"area": "qa"},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listSkillsFn: func(_ context.Context, query SkillQuery) ([]SkillRecord, error) {
 				if query.Workspace != workspace {
 					t.Fatalf("ListSkills() workspace = %q, want %q", query.Workspace, workspace)
@@ -178,7 +178,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			browseMarketplaceFn: func(
 				_ context.Context,
 				kind string,
@@ -247,7 +247,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				Tags:        []string{"review", "quality"},
 			},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			marketplaceInfoFn: func(
 				_ context.Context,
 				kind string,
@@ -290,7 +290,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		t.Parallel()
 
 		var captured SkillMarketplaceInstallRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			installSkillMarketplaceFn: func(
 				_ context.Context,
 				request SkillMarketplaceInstallRequest,
@@ -340,7 +340,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		t.Parallel()
 
 		removedName := ""
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			removeSkillMarketplaceFn: func(_ context.Context, name string) (SkillMarketplaceRemoveRecord, error) {
 				removedName = name
 				return SkillMarketplaceRemoveRecord{
@@ -373,7 +373,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		t.Parallel()
 
 		var captured SkillMarketplaceUpdateRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			updateSkillMarketplaceFn: func(
 				_ context.Context,
 				request SkillMarketplaceUpdateRequest,
@@ -429,7 +429,7 @@ func TestSkillCommandsAutoScopeToAgentSession(t *testing.T) {
 			Enabled:     true,
 			Dir:         "/compozy-home/agents/general/skills/layered-skill",
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				if id != sessionID {
 					t.Fatalf("GetSession() id = %q, want %q", id, sessionID)
@@ -519,7 +519,7 @@ func TestSkillCommandsAutoScopeToAgentSession(t *testing.T) {
 			skillName   = "layered-skill"
 		)
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				if id != sessionID {
 					t.Fatalf("GetSession() id = %q, want %q", id, sessionID)
@@ -573,7 +573,7 @@ func TestSkillWorkspaceFlagValidation(t *testing.T) {
 	t.Run("Should reject explicitly blank workspace flag", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(t, deps, "skill", "list", "--workspace", " ")
 		if err == nil {
 			t.Fatal("skill list --workspace blank error = nil, want error")
@@ -586,7 +586,7 @@ func TestSkillWorkspaceFlagValidation(t *testing.T) {
 	t.Run("Should reject resource file reads through daemon workspace mode", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(
 			t,
 			deps,

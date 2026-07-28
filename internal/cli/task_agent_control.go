@@ -145,7 +145,7 @@ func newTaskPromoteCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			workspace, err := resolveCLIWorkspaceRouteRef(
-				cmd.Context(),
+				cmd,
 				deps,
 				client,
 				strings.TrimSpace(input.WorkspaceRef),
@@ -172,7 +172,8 @@ func newTaskPromoteCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, networkThreadPromotionBundle(&promoted))
 		},
 	}
-	cmd.Flags().StringVar(&input.WorkspaceRef, "workspace", "", "Workspace path, name, or ID")
+	cmd.Flags().
+		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&input.Channel, networkChannelKey, "", "Source network channel")
 	cmd.Flags().StringVar(&input.ThreadID, networkSurfaceThread, "", "Source public thread id")
 	cmd.Flags().StringVar(&input.OriginMessageID, "origin-message", "", "Origin message id to promote")
@@ -180,7 +181,6 @@ func newTaskPromoteCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&input.Description, taskDescriptionKey, "", "Optional task description")
 	cmd.Flags().StringVar(&input.Priority, "priority", "", "Optional task priority")
 	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional JSON metadata for the promoted task")
-	mustMarkFlagRequired(cmd, "workspace")
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceThread)
 	mustMarkFlagRequired(cmd, "origin-message")

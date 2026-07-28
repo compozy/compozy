@@ -130,8 +130,8 @@ The bootstrap flow lets you pick a default provider and model for the built-in `
 Use `compozy config path` to inspect the exact global and workspace config files Compozy will read, and use
 `compozy config validate` after manual edits. `compozy config show`, `compozy config list`, and
 `compozy config get <path>` always redact environment-backed MCP and config values before printing.
-Use `compozy config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
-bounded repair.
+From the project tree, use `compozy config validate --repair-env` when a workspace `.env` needs a
+bounded repair. Pass `--workspace <id|name|path>` only to override the inferred project.
 
 `compozy update` keeps a beta install on newer v0.3 prereleases and never offers the v0.2 stable
 line. Use `compozy update --check` for a status-only check. Managed installs defer to their package

@@ -119,7 +119,7 @@ func configDescriptors() []toolspkg.Descriptor {
 const configReadInputSchema = `{
 	"type":"object",
 	"properties":{
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -129,7 +129,7 @@ const configGetInputSchema = `{
 	"required":["path"],
 	"properties":{
 		"path":{"type":"string"},
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -141,7 +141,7 @@ const configSetInputSchema = `{
 		"path":{"type":"string"},
 		"value":{},
 		"scope":{"type":"string"},
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -152,7 +152,7 @@ const configUnsetInputSchema = `{
 	"properties":{
 		"path":{"type":"string"},
 		"scope":{"type":"string"},
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -161,7 +161,7 @@ const configPathInputSchema = `{
 	"type":"object",
 	"properties":{
 		"scope":{"type":"string"},
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

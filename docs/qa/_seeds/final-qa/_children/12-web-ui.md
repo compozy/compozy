@@ -1187,7 +1187,7 @@ cleanup:
 - **PermissionPrompt with timeout**: `defaultPermissionWait = 5*time.Minute` (per `internal/acp/client.go:27`); the SPA must surface a deadline indicator on the prompt card (extract from the implementation; if absent, mark as TechSpec follow-up rather than asserting a fictional control).
 - **Concurrent two prompts on same session**: covered by ACP-15 on the daemon side; the SPA composer should be disabled while a prompt is in flight (`canPrompt` from `useSessionPageControls`).
 - **Long workspace path**: workspace pill should truncate with `title` attr for hover; visual check at UI-13 mobile size.
-- **`X-Compozy-Workspace-ID` mismatch via deep link**: when the operator navigates to a session id that belongs to another workspace, the `_app/agents.$name.sessions.$id.tsx:107-112` toast fires "Session not found" and redirects to `/agents/$name`. Re-test after authenticating against a workspace switcher.
+- **Cross-workspace session deep link**: when the operator navigates to a session id owned by another workspace, the route must show "Session not found" and redirect without exposing foreign session data.
 
 ## 9. Integration surfaces
 

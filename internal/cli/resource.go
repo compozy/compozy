@@ -35,7 +35,7 @@ const (
 
 type resourcePutInput struct {
 	scopeKind       string
-	scopeID         string
+	workspaceRef    string
 	spec            string
 	specFile        string
 	expectedVersion int64
@@ -61,6 +61,7 @@ func newResourceListCommand(deps commandDeps) *cobra.Command {
 	var (
 		kindRaw       string
 		scopeKindRaw  string
+		workspaceRef  string
 		ownerKindRaw  string
 		sourceKindRaw string
 	)
@@ -74,7 +75,26 @@ func newResourceListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			query.Kind = resources.ResourceKind(strings.TrimSpace(kindRaw))
-			query.ScopeKind = resources.ResourceScopeKind(strings.TrimSpace(scopeKindRaw))
+			query.ScopeKind = resources.ResourceScopeKind(scopeKindRaw).Normalize()
+			if query.ScopeKind != "" {
+				if err := query.ScopeKind.Validate("scope_kind"); err != nil {
+					return err
+				}
+			}
+			workspaceID, err := resolveResourceListWorkspace(
+				cmd,
+				deps,
+				client,
+				query.ScopeKind,
+				workspaceRef,
+			)
+			if err != nil {
+				return err
+			}
+			if workspaceID != "" {
+				query.ScopeKind = resources.ResourceScopeKindWorkspace
+				query.ScopeID = workspaceID
+			}
 			query.OwnerKind = resources.ResourceOwnerKind(strings.TrimSpace(ownerKindRaw))
 			query.SourceKind = resources.ResourceSourceKind(strings.TrimSpace(sourceKindRaw))
 			records, err := client.ListResources(cmd.Context(), query)
@@ -86,7 +106,7 @@ func newResourceListCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&kindRaw, resourceKindKey, "", "Filter by resource kind")
 	cmd.Flags().StringVar(&scopeKindRaw, "scope-kind", "", "Filter by scope kind")
-	cmd.Flags().StringVar(&query.ScopeID, "scope-id", "", "Filter by scope id")
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
 	cmd.Flags().StringVar(&query.OwnerID, "owner-id", "", "Filter by owner id")
 	cmd.Flags().StringVar(&sourceKindRaw, "source-kind", "", "Filter by source kind")
@@ -126,7 +146,11 @@ func newResourcePutCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request, err := buildResourcePutRequest(cmd, input)
+			workspaceID, err := resolveResourcePutWorkspace(cmd, deps, client, input)
+			if err != nil {
+				return err
+			}
+			request, err := buildResourcePutRequest(cmd, input, workspaceID)
 			if err != nil {
 				return err
 			}
@@ -144,7 +168,8 @@ func newResourcePutCommand(deps commandDeps) *cobra.Command {
 			string(resources.ResourceScopeKindGlobal),
 			"Scope kind: global or workspace",
 		)
-	cmd.Flags().StringVar(&input.scopeID, "scope-id", "", "Workspace id for workspace-scoped resources")
+	cmd.Flags().
+		StringVar(&input.workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&input.spec, "spec", "", "Inline JSON resource spec")
 	cmd.Flags().StringVar(&input.specFile, "spec-file", "", "Path to JSON resource spec file, or '-' for stdin")
 	cmd.Flags().Int64Var(&input.expectedVersion, "expected-version", 0, "Optimistic version for updates")
@@ -178,14 +203,76 @@ func newResourceDeleteCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func buildResourcePutRequest(cmd *cobra.Command, input resourcePutInput) (ResourcePutRequest, error) {
+func resolveResourceListWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+	scope resources.ResourceScopeKind,
+	workspaceRef string,
+) (string, error) {
+	if scope == resources.ResourceScopeKindWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspaceRef},
+		)
+		if err != nil {
+			return "", err
+		}
+		return resolution.ID, nil
+	}
+	if scope == resources.ResourceScopeKindGlobal && strings.TrimSpace(workspaceRef) != "" {
+		return "", fmt.Errorf("cli: --workspace cannot be combined with --scope-kind global")
+	}
+	return resolveOptionalWorkspaceOverride(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceRef,
+	)
+}
+
+func resolveResourcePutWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+	input resourcePutInput,
+) (string, error) {
+	scope := resources.ResourceScopeKind(strings.TrimSpace(input.scopeKind))
+	if scope != resources.ResourceScopeKindWorkspace {
+		if strings.TrimSpace(input.workspaceRef) != "" {
+			return "", fmt.Errorf("cli: --workspace requires --scope workspace")
+		}
+		return "", nil
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: input.workspaceRef},
+	)
+	if err != nil {
+		return "", err
+	}
+	return resolution.ID, nil
+}
+
+func buildResourcePutRequest(
+	cmd *cobra.Command,
+	input resourcePutInput,
+	workspaceID string,
+) (ResourcePutRequest, error) {
 	spec, err := resolveResourceSpec(cmd, input.spec, input.specFile)
 	if err != nil {
 		return ResourcePutRequest{}, err
 	}
 	scope := resources.ResourceScope{
 		Kind: resources.ResourceScopeKind(strings.TrimSpace(input.scopeKind)),
-		ID:   strings.TrimSpace(input.scopeID),
+		ID:   strings.TrimSpace(workspaceID),
 	}
 	if err := scope.Validate(automationScopeKey); err != nil {
 		return ResourcePutRequest{}, fmt.Errorf("cli: %w", err)

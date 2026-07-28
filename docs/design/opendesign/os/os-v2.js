@@ -71,7 +71,7 @@ const CATALOG = [
   { id: 'mesh-relay', kind: 'extension', name: 'mesh-relay', desc: 'Relay tasks to peer daemons on the network mesh.', ver: '0.3.0', installed: false },
 ];
 const WORKSPACES = [
-  { id: 'compozy', name: 'compozy', chip: 'CO', home: true, wallpaper: 'ember' },
+  { id: 'compozy', name: 'compozy', chip: 'AG', home: true, wallpaper: 'ember' },
   { id: 'branasio', name: 'branasio', chip: 'BR', home: false, wallpaper: 'mesh' },
   { id: 'labs', name: 'labs', chip: 'LA', home: false, wallpaper: 'carbon' },
 ];

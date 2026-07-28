@@ -12,7 +12,7 @@ import (
 )
 
 type networkThreadMessagesInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id"`
 	Before      string `json:"before,omitempty"`
@@ -23,7 +23,7 @@ type networkThreadMessagesInput struct {
 }
 
 type networkDirectMessagesInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	DirectID    string `json:"direct_id"`
 	Before      string `json:"before,omitempty"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -24,7 +25,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
+	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -70,7 +71,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 			errors.New("automation trigger update must include at least one field"),
 		)
 	}
-	current, err := n.automationManager().GetTrigger(ctx, triggerID)
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -108,7 +109,7 @@ func (n *daemonNativeTools) automationTriggersDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.automationManager().GetTrigger(ctx, triggerID)
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -158,7 +159,7 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
+	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -168,7 +169,7 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	}
 	query.JobID = ""
 	query.TriggerID = trigger.ID
-	return n.automationRunsForQuery(ctx, req.ToolID, query)
+	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }
 
 func (n *daemonNativeTools) automationRunsList(
@@ -184,7 +185,7 @@ func (n *daemonNativeTools) automationRunsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return n.automationRunsForQuery(ctx, req.ToolID, query)
+	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }
 
 func (n *daemonNativeTools) automationRunsGet(
@@ -200,7 +201,7 @@ func (n *daemonNativeTools) automationRunsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.automationManager().GetRun(ctx, runID)
+	run, err := n.nativeAutomationRunForWorkspace(ctx, input.WorkspaceID, runID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -221,7 +222,11 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.automationManager().SetJobEnabled(ctx, jobID, enabled)
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
+	}
+	updated, err := n.automationManager().SetJobEnabled(ctx, current.ID, enabled)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -242,7 +247,11 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.automationManager().SetTriggerEnabled(ctx, triggerID, enabled)
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
+	}
+	updated, err := n.automationManager().SetTriggerEnabled(ctx, current.ID, enabled)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -253,9 +262,18 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 func (n *daemonNativeTools) automationRunsForQuery(
 	ctx context.Context,
 	toolID toolspkg.ToolID,
+	workspaceID string,
 	query automationpkg.RunQuery,
 ) (toolspkg.ToolResult, error) {
-	runs, err := n.automationManager().ListRuns(ctx, query)
+	var (
+		runs []automationpkg.Run
+		err  error
+	)
+	if strings.TrimSpace(workspaceID) == "" {
+		runs, err = n.automationManager().ListRuns(ctx, query)
+	} else {
+		runs, err = n.nativeAutomationRunsForWorkspace(ctx, workspaceID, query)
+	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
 	}

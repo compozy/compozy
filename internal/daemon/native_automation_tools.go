@@ -29,7 +29,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.automationManager().GetJob(ctx, jobID)
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -81,7 +81,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 			errors.New("automation job update must include at least one field"),
 		)
 	}
-	current, err := n.automationManager().GetJob(ctx, jobID)
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -119,7 +119,7 @@ func (n *daemonNativeTools) automationJobsDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.automationManager().GetJob(ctx, jobID)
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -169,7 +169,11 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.automationManager().TriggerJob(ctx, jobID)
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
+	}
+	run, err := n.automationManager().TriggerJob(ctx, job.ID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -190,7 +194,7 @@ func (n *daemonNativeTools) automationJobsHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.automationManager().GetJob(ctx, jobID)
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -200,5 +204,5 @@ func (n *daemonNativeTools) automationJobsHistory(
 	}
 	query.JobID = job.ID
 	query.TriggerID = ""
-	return n.automationRunsForQuery(ctx, req.ToolID, query)
+	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }

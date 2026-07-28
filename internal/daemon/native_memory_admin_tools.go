@@ -39,15 +39,13 @@ const (
 
 type memoryAdminSelectorInput struct {
 	Scope       string `json:"scope,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Workspace   string `json:"workspace,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
 	AgentTier   string `json:"agent_tier,omitempty"`
 }
 
 type memoryAdminHealthInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Workspace   string `json:"workspace,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type memoryAdminHistoryInput struct {
@@ -63,11 +61,11 @@ type memoryAdminReindexInput struct {
 }
 
 type memoryAdminPromoteInput struct {
-	Filename       string                              `json:"filename"`
-	From           contract.MemoryScopeSelectorPayload `json:"from"`
-	To             contract.MemoryScopeSelectorPayload `json:"to"`
-	IdempotencyKey string                              `json:"idempotency_key,omitempty"`
-	DryRun         bool                                `json:"dry_run,omitempty"`
+	Filename       string                   `json:"filename"`
+	From           memoryAdminSelectorInput `json:"from"`
+	To             memoryAdminSelectorInput `json:"to"`
+	IdempotencyKey string                   `json:"idempotency_key,omitempty"`
+	DryRun         bool                     `json:"dry_run,omitempty"`
 }
 
 type memoryAdminResetInput struct {
@@ -113,27 +111,27 @@ type memoryAdminExtractorRetryInput struct {
 }
 
 type memoryAdminWorkspaceInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type memoryAdminProviderInput struct {
 	Name        string `json:"name"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type memoryAdminProviderLifecycleInput struct {
 	Name        string `json:"name"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Reason      string `json:"reason,omitempty"`
 }
 
 type memoryAdminSessionIDInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	SessionID   string `json:"session_id"`
 }
 
 type memoryAdminSessionReplayInput struct {
-	WorkspaceID       string `json:"workspace_id"`
+	WorkspaceID       string `json:"workspace"`
 	SessionID         string `json:"session_id"`
 	IncludeToolEvents bool   `json:"include_tool_events,omitempty"`
 	IncludeMemory     bool   `json:"include_memory,omitempty"`

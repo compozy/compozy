@@ -15,7 +15,7 @@ func (s *Service) PreviewActivation(ctx context.Context, req ActivateRequest) (A
 		return ActivationPreview{}, err
 	}
 
-	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionReadOnly)
+	resolved, err := s.resolveRequest(ctx, req)
 	if err != nil {
 		return ActivationPreview{}, err
 	}
@@ -44,7 +44,7 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 		return ActivationPreview{}, networkRequirementConfirmationError(digest)
 	}
 
-	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionRegisterPaths)
+	resolved, err := s.resolveRequest(ctx, req)
 	if err != nil {
 		return ActivationPreview{}, err
 	}

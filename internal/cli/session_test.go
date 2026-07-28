@@ -3,12 +3,14 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -42,13 +44,13 @@ func TestParseSinceFlagRelativeDuration(t *testing.T) {
 func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 			if request.AgentName != "" {
 				t.Fatalf("CreateSession() AgentName = %q, want empty", request.AgentName)
 			}
-			if request.WorkspacePath != "/workspace/project" || request.Workspace != "" {
-				t.Fatalf("CreateSession() request = %#v, want workspace_path only", request)
+			if request.Workspace != "/workspace/project" || request.WorkspacePath != "" {
+				t.Fatalf("CreateSession() request = %#v, want canonical workspace", request)
 			}
 			return SessionRecord{
 				ID:            "sess-1",
@@ -80,7 +82,7 @@ func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
 	t.Parallel()
 
 	var statusCalls int
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 			if request.Prompt != "Plan the migration" {
 				t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
@@ -116,7 +118,7 @@ func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
 func TestSessionNewNoWaitReturnsAcceptedStartingSession(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
 			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
 		},
@@ -145,7 +147,7 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 	t.Run("Should serialize the prompt with runtime overrides in no-wait mode", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 				if request.Prompt != "Investigate the failing build" {
 					t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
@@ -213,7 +215,7 @@ func TestSessionNewRejectsInvalidSpeed(t *testing.T) {
 func TestSessionNewReportsDurableStartupFailure(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
 			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
 		},
@@ -245,24 +247,24 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		request CreateSessionRequest
 	}{
 		{
-			name: "registered workspace",
+			name: "Should use a registered workspace",
 			args: []string{"session", "new", "--workspace", "ws_abc", "-o", "json"},
 			request: CreateSessionRequest{
 				Workspace: "ws_abc",
 			},
 		},
 		{
-			name: "explicit cwd",
+			name: "Should use an explicit cwd",
 			args: []string{"session", "new", "--cwd", "/tmp/proj", "-o", "json"},
 			request: CreateSessionRequest{
 				WorkspacePath: "/tmp/proj",
 			},
 		},
 		{
-			name: "default cwd fallback",
+			name: "Should infer a registered cwd",
 			args: []string{"session", "new", "-o", "json"},
 			request: CreateSessionRequest{
-				WorkspacePath: "/workspace/project",
+				Workspace: "/workspace/project",
 			},
 		},
 	}
@@ -271,7 +273,7 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{
+			client := &stubClient{
 				createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 					if request.Workspace != tt.request.Workspace || request.WorkspacePath != tt.request.WorkspacePath {
 						t.Fatalf("CreateSession() request = %#v, want %#v", request, tt.request)
@@ -286,7 +288,13 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 						UpdatedAt:     fixedTestNow,
 					}, nil
 				},
-			})
+			}
+			if tt.name == "Should use an explicit cwd" {
+				client.getWorkspaceFn = func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{}, &workspacePathNotRegisteredError{path: ref}
+				}
+			}
+			deps := newWorkspaceTestDeps(t, client)
 
 			stdout, _, err := executeRootCommand(t, deps, tt.args...)
 			if err != nil {
@@ -300,14 +308,100 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			if decoded.ID != "sess-1" {
 				t.Fatalf("decoded.ID = %q, want %q", decoded.ID, "sess-1")
 			}
+			if tt.name == "Should use an explicit cwd" &&
+				!strings.Contains(stdout, `"resolution_source": "cwd"`) {
+				t.Fatalf("session new output = %s, want cwd resolution provenance", stdout)
+			}
 		})
 	}
+
+	t.Run("Should propagate non-fallback cwd resolution failures", func(t *testing.T) {
+		t.Parallel()
+
+		resolveErr := errors.New("workspace resolver unavailable")
+		createCalls := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, resolveErr
+			},
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				createCalls++
+				return SessionRecord{ID: "unexpected"}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"new",
+			"--cwd",
+			"/workspace/project",
+			"-o",
+			"json",
+		)
+		if !errors.Is(err, resolveErr) {
+			t.Fatalf("executeRootCommand(session new --cwd) error = %v, want resolver failure", err)
+		}
+		if createCalls != 0 {
+			t.Fatalf("CreateSession() calls = %d, want 0 after resolver failure", createCalls)
+		}
+	})
+
+	t.Run("Should reject a registered cwd outside the active session workspace", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+				t.Fatal("CreateSession() called for a foreign workspace")
+				return SessionRecord{}, nil
+			},
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: "ws-session",
+					State:       session.StateActive,
+				}, nil
+			},
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-foreign", RootDir: ref},
+				}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-agent"
+			case agentidentity.EnvAgent:
+				return "coder"
+			default:
+				return ""
+			}
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"new",
+			"--cwd",
+			"/workspace/foreign",
+			"-o",
+			"json",
+		)
+		if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
+			t.Fatalf("executeRootCommand(session new --cwd foreign) error = %v, want ErrIdentityUnauthorized", err)
+		}
+	})
 }
 
 func TestSessionNewPassesNetworkParticipationFlags(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
 			return SessionRecord{
@@ -354,7 +448,7 @@ func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
 	t.Run("Should advertise only the named channel strategy", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "session", "new", "--help")
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "session", "new", "--help")
 		if err != nil {
 			t.Fatalf("executeRootCommand(session new --help) error = %v", err)
 		}
@@ -371,7 +465,7 @@ func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
 		t.Run("Should reject unsupported "+string(strategy)+" strategy", func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{
+			deps := newWorkspaceTestDeps(t, &stubClient{
 				createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
 					t.Fatal("CreateSession should not be called for an unsupported session strategy")
 					return SessionRecord{}, nil
@@ -394,7 +488,7 @@ func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
 func TestSessionNewPassesProviderFlag(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
 			if request.Provider != "fake-alt" {
 				t.Fatalf("CreateSession() Provider = %q, want %q", request.Provider, "fake-alt")
@@ -438,7 +532,7 @@ func TestSessionNewPassesProviderFlag(t *testing.T) {
 func TestSessionNewRejectsInvalidWorkspaceFlags(t *testing.T) {
 	t.Parallel()
 
-	code, _, stderr := executeRootCommandWithExit(t, newTestDeps(t, &stubClient{}),
+	code, _, stderr := executeRootCommandWithExit(t, newWorkspaceTestDeps(t, &stubClient{}),
 		"session", "new", "--workspace", "ws_abc", "--cwd", "/tmp/proj",
 	)
 	if code != 1 {
@@ -457,7 +551,7 @@ func TestSessionNewRejectsRelativeCWD(t *testing.T) {
 		t.Run(cwd, func(t *testing.T) {
 			t.Parallel()
 
-			code, _, stderr := executeRootCommandWithExit(t, newTestDeps(t, &stubClient{}),
+			code, _, stderr := executeRootCommandWithExit(t, newWorkspaceTestDeps(t, &stubClient{}),
 				"session", "new", "--cwd", cwd,
 			)
 			if code != 1 {
@@ -475,7 +569,7 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 
 	var seenQuery SessionListQuery
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
 			seenQuery = query
 			return SessionListPage{Sessions: []SessionRecord{{
@@ -550,7 +644,7 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery SessionListQuery
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
 			seenQuery = query
 			return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
@@ -564,10 +658,47 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 	}
 }
 
+func TestSessionListResolvesOptionalWorkspaceOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve COMPOZY_WORKSPACE before listing sessions", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery SessionListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "project-alias" {
+					t.Fatalf("GetWorkspace() ref = %q, want project-alias", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-project", RootDir: "/workspace/project"},
+				}, nil
+			},
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seenQuery = query
+				return SessionListPage{}, nil
+			},
+		})
+		deps.getenv = func(key string) string {
+			if key == workspaceEnvName {
+				return "project-alias"
+			}
+			return ""
+		}
+
+		if _, _, err := executeRootCommand(t, deps, "session", "list", "-o", "json"); err != nil {
+			t.Fatalf("executeRootCommand(session list) error = %v", err)
+		}
+		if seenQuery.Workspace != "ws-project" {
+			t.Fatalf("seenQuery.Workspace = %q, want ws-project", seenQuery.Workspace)
+		}
+	})
+}
+
 func TestSessionListJSONLIncludesContinuationRecord(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionPageFn: func(_ context.Context, _ SessionListQuery) (SessionListPage, error) {
 			return SessionListPage{
 				Sessions: []SessionRecord{{
@@ -622,7 +753,7 @@ func TestSessionRepairPassesFlagsAndRendersJSON(t *testing.T) {
 
 		var seenQuery SessionRepairQuery
 		var seenID string
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			repairSessionFn: func(_ context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error) {
 				seenID = id
 				seenQuery = query
@@ -682,7 +813,7 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		AskedAt:   fixedTestNow,
 		Deadline:  fixedTestNow.Add(5 * time.Minute),
 	}}}
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionClarificationsFn: func(_ context.Context, sessionID string) (ClarificationsRecord, error) {
 			if sessionID != "sess-1" {
 				t.Fatalf("session id = %q, want sess-1", sessionID)
@@ -708,7 +839,7 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 	t.Parallel()
 
 	wireChoice := 1
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		answerSessionClarificationFn: func(
 			_ context.Context,
 			sessionID string,
@@ -784,7 +915,7 @@ func TestSessionClarifyAnswerRequiresExactlyOneAnswerFlag(t *testing.T) {
 			t.Parallel()
 			args := []string{"session", "clarify", "answer", "sess-1", "req-1"}
 			args = append(args, tt.args...)
-			_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), args...)
+			_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf(
 					"executeRootCommand(session clarify answer) error = %v, want %q",
@@ -804,7 +935,7 @@ func TestSessionEventsFollowUsesSSE(t *testing.T) {
 		querySeen    SessionEventQuery
 	)
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		streamSessionFn: func(_ context.Context, id string, query SessionEventQuery, _ string, handler SSEHandler) error {
 			streamCalled = true
 			querySeen = query
@@ -867,7 +998,7 @@ func TestSessionEventsJSONLOutput(t *testing.T) {
 	t.Run("Should render one persisted session event per JSONL line", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			sessionEventsFn: func(_ context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error) {
 				if id != "sess-1" {
 					t.Fatalf("SessionEvents() id = %q, want sess-1", id)
@@ -934,7 +1065,7 @@ func TestSessionHistoryUsesCursorFlags(t *testing.T) {
 	t.Run("Should use cursor flags for session history", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			sessionHistoryFn: func(_ context.Context, id string, query SessionEventQuery) ([]TurnHistoryRecord, error) {
 				if id != "sess-1" {
 					t.Fatalf("SessionHistory() id = %q, want sess-1", id)
@@ -989,7 +1120,7 @@ func TestSessionHistoryUsesCursorFlags(t *testing.T) {
 func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		getSessionFn: func(context.Context, string) (SessionRecord, error) {
 			return SessionRecord{
 				ID:            "sess-1",
@@ -1025,7 +1156,7 @@ func TestSessionWaitStreamsUntilStopped(t *testing.T) {
 	t.Parallel()
 
 	getCalls := 0
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		getSessionFn: func(context.Context, string) (SessionRecord, error) {
 			getCalls++
 			state := session.StateActive
@@ -1080,7 +1211,7 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 
 	var stoppedID string
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		stopSessionFn: func(_ context.Context, id string) error {
 			stoppedID = id
 			return nil
@@ -1123,7 +1254,7 @@ func TestSessionRemoveDeletesSession(t *testing.T) {
 
 		var deletedID string
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:            id,
@@ -1162,7 +1293,7 @@ func TestSessionRemoveDeletesSession(t *testing.T) {
 func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		getSessionStatusFn: func(_ context.Context, id string) (SessionStatusRecord, error) {
 			if id != "sess-1" {
 				t.Fatalf("GetSessionStatus() id = %q, want sess-1", id)
@@ -1204,7 +1335,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		output := int64(24_900)
 		total := input + output
 		amount := 0.7587
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionUsageFn: func(_ context.Context, id string) (SessionUsageRecord, error) {
 				if id != "sess-1" {
 					t.Fatalf("GetSessionUsage() id = %q, want sess-1", id)
@@ -1241,7 +1372,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 
 		total := int64(42)
 		contradictoryAmount := 99.0
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
 				return SessionUsageRecord{
 					TotalTokens:  &total,
@@ -1267,7 +1398,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 		t.Parallel()
 
 		amount := 18.42
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
 				return SessionUsageRecord{TotalCost: &amount, CostCurrency: "USD"}, nil
 			},
@@ -1286,7 +1417,7 @@ func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
 func TestSessionResumeReturnsSessionRecord(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		resumeSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 			return SessionRecord{
 				ID:            id,
@@ -1318,7 +1449,7 @@ func TestSessionResumeLatestUsesBoundedPage(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery SessionListQuery
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
 			seenQuery = query
 			return SessionListPage{
@@ -1360,7 +1491,7 @@ func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 		promptMsg string
 	)
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newWorkspaceTestDeps(t, &stubClient{
 		sendSessionPromptFn: func(_ context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error) {
 			promptID = id
 			promptMsg = request.Message
@@ -1407,7 +1538,7 @@ func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 				Context: contract.GoalContextSnapshot{State: contract.GoalContextUnknown, NudgeRatio: 0.8},
 			},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			sendSessionPromptFn: func(
 				_ context.Context,
 				id string,
@@ -1462,7 +1593,7 @@ func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 						},
 					}
 				}
-				errorDeps := newTestDeps(t, &stubClient{
+				errorDeps := newWorkspaceTestDeps(t, &stubClient{
 					sendSessionPromptFn: func(
 						context.Context,
 						string,
@@ -1500,7 +1631,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		t.Parallel()
 
 		var gotRequest SessionPromptRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			sendSessionPromptFn: func(_ context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error) {
 				if id != "sess-1" {
 					t.Fatalf("SendSessionPrompt() id = %q, want sess-1", id)
@@ -1537,7 +1668,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		t.Parallel()
 
 		var gotRequest SessionPromptRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			sendSessionPromptFn: func(_ context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error) {
 				if id != "sess-1" {
 					t.Fatalf("SendSessionPrompt() id = %q, want sess-1", id)
@@ -1568,7 +1699,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			gotID   string
 			gotText string
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			steerSessionPromptFn: func(_ context.Context, id string, text string) (SessionPromptRecord, error) {
 				gotID = id
 				gotText = text
@@ -1598,7 +1729,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			gotID      string
 			gotEntryID string
 		)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			cancelQueuedSessionPromptFn: func(_ context.Context, id string, queueEntryID string) (SessionPromptRecord, error) {
 				gotID = id
 				gotEntryID = queueEntryID
@@ -1622,7 +1753,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 	t.Run("Should reject mutually exclusive busy actions", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "hello", "--queue", "--steer")
 		if err == nil || !strings.Contains(err.Error(), "choose only one") {
 			t.Fatalf("executeRootCommand(mutually exclusive) error = %v, want choose only one", err)
@@ -1635,7 +1766,7 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		t.Parallel()
 
 		var streamCalled bool
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			promptSessionFn: func(context.Context, string, string) ([]AgentEventRecord, error) {
 				t.Fatal("PromptSession should not be called for prompt -o jsonl")
 				return nil, nil
@@ -1724,7 +1855,7 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		t.Parallel()
 
 		result := contract.GoalCommandResult{Outcome: contract.GoalOutcomeCleared}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			streamPromptSessionFn: func(
 				_ context.Context,
 				id string,
