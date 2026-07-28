@@ -52,6 +52,9 @@ func FmtCheck() error {
 }
 
 func Lint() error {
+	if err := SourceSize(); err != nil {
+		return err
+	}
 	if err := goLint(); err != nil {
 		return err
 	}

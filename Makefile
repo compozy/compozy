@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps fmt fmt-check lint go-lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed
+.PHONY: deps fmt fmt-check lint go-lint source-size test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed
 
 DEMO_HOME ?= $(HOME)/.agh
 
@@ -26,6 +26,9 @@ lint:
 
 go-lint:
 	@$(MAGE_RUN) goLint
+
+source-size:
+	@$(MAGE_RUN) sourceSize
 
 test:
 	@$(MAGE_RUN) test
