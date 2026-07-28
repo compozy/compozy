@@ -91,22 +91,6 @@ func loopClientFromDeps(deps commandDeps) (loopCommandClient, error) {
 	return loopClient, nil
 }
 
-func resolveLoopWorkspaceID(ctx context.Context, client loopCommandClient, workspaceRef string) (string, error) {
-	trimmed := strings.TrimSpace(workspaceRef)
-	if trimmed == "" {
-		return "", errors.New("cli: --workspace is required")
-	}
-	detail, err := client.GetWorkspace(ctx, trimmed)
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve workspace %q: %w", trimmed, err)
-	}
-	id := strings.TrimSpace(detail.Workspace.ID)
-	if id == "" {
-		return "", fmt.Errorf("cli: resolve workspace %q: missing workspace id", trimmed)
-	}
-	return id, nil
-}
-
 func requiredLoopFlag(field string, value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

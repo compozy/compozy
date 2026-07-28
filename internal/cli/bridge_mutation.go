@@ -19,7 +19,7 @@ const (
 
 type bridgeCreateFlags struct {
 	scopeRaw             string
-	workspaceID          string
+	workspaceRef         string
 	platform             string
 	extensionName        string
 	displayName          string
@@ -43,8 +43,15 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			payload, err := buildBridgeCreatePayload(cmd, flags)
+			scope, err := parseBridgeScope(flags.scopeRaw)
+			if err != nil {
+				return err
+			}
+			workspaceID, err := resolveBridgeCreateWorkspaceID(cmd, deps, client, flags, scope)
+			if err != nil {
+				return err
+			}
+			payload, err := buildBridgeCreatePayload(cmd, flags, workspaceID, scope)
 			if err != nil {
 				return err
 			}
@@ -61,7 +68,8 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 		string(bridgepkg.ScopeGlobal),
 		"Bridge scope: global or workspace",
 	)
-	cmd.Flags().StringVar(&flags.workspaceID, "workspace-id", "", "Owning workspace ID for workspace-scoped bridges")
+	cmd.Flags().
+		StringVar(&flags.workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.platform, "platform", "", "Messaging platform name")
 	cmd.Flags().StringVar(&flags.extensionName, "extension", "", "Owning extension name")
 	cmd.Flags().StringVar(&flags.displayName, "display-name", "", "Operator-facing bridge display name")
@@ -94,18 +102,41 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func buildBridgeCreatePayload(cmd *cobra.Command, flags bridgeCreateFlags) (CreateBridgeRequest, error) {
-	scope, err := parseBridgeScope(flags.scopeRaw)
+func resolveBridgeCreateWorkspaceID(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+	flags bridgeCreateFlags,
+	scope bridgepkg.Scope,
+) (string, error) {
+	if scope != bridgepkg.ScopeWorkspace {
+		if strings.TrimSpace(flags.workspaceRef) != "" {
+			return "", errors.New("cli: --workspace requires --scope workspace")
+		}
+		return "", nil
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: flags.workspaceRef},
+	)
 	if err != nil {
-		return CreateBridgeRequest{}, err
+		return "", err
 	}
-	if scope == bridgepkg.ScopeWorkspace && strings.TrimSpace(flags.workspaceID) == "" {
-		return CreateBridgeRequest{}, errors.New("cli: --workspace-id is required when --scope=workspace")
-	}
+	return resolution.ID, nil
+}
 
+func buildBridgeCreatePayload(
+	cmd *cobra.Command,
+	flags bridgeCreateFlags,
+	workspaceID string,
+	scope bridgepkg.Scope,
+) (CreateBridgeRequest, error) {
 	payload := CreateBridgeRequest{
 		Scope:         scope,
-		WorkspaceID:   strings.TrimSpace(flags.workspaceID),
+		WorkspaceID:   strings.TrimSpace(workspaceID),
 		Platform:      strings.TrimSpace(flags.platform),
 		ExtensionName: strings.TrimSpace(flags.extensionName),
 		DisplayName:   strings.TrimSpace(flags.displayName),

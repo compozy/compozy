@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {
@@ -117,27 +119,66 @@ func displaySessionWorkspace(info SessionRecord) string {
 	return firstNonEmpty(strings.TrimSpace(info.WorkspacePath), strings.TrimSpace(info.WorkspaceID))
 }
 
-func resolveSessionCreateWorkspace(deps commandDeps, workspaceRef string, cwd string) (string, string, error) {
+func resolveSessionCreateWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	workspaceRef string,
+	cwd string,
+) (string, string, error) {
 	trimmedWorkspace := strings.TrimSpace(workspaceRef)
 	trimmedCWD := strings.TrimSpace(cwd)
 
 	switch {
 	case trimmedWorkspace != "" && trimmedCWD != "":
 		return "", "", errors.New("cli: --workspace and --cwd are mutually exclusive")
-	case trimmedWorkspace != "":
-		return trimmedWorkspace, "", nil
 	case trimmedCWD != "":
 		if !filepath.IsAbs(trimmedCWD) {
 			return "", "", fmt.Errorf("cli: --cwd must be an absolute path: %q", trimmedCWD)
 		}
-		return "", filepath.Clean(trimmedCWD), nil
-	default:
-		workspacePath, err := currentWorkingDirectory(deps)
-		if err != nil {
-			return "", "", err
+		cleaned := filepath.Clean(trimmedCWD)
+		resolution, err := resolveWorkspaceCandidate(
+			cmd.Context(),
+			cmd,
+			client,
+			cleaned,
+			workspaceResolutionFlag,
+		)
+		if err == nil {
+			identityRef, _ := workspaceRefFromSessionIdentity(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+			)
+			if err := validateResolutionAgainstSessionIdentity(identityRef, resolution.ID); err != nil {
+				return "", "", err
+			}
+			return resolution.ID, "", nil
 		}
-		return "", workspacePath, nil
+		recordWorkspaceResolution(cmd, workspaceResolution{Root: cleaned, Source: workspaceResolutionFlag})
+		return "", cleaned, nil
 	}
+
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: trimmedWorkspace},
+	)
+	if err == nil {
+		return resolution.ID, "", nil
+	}
+	var discoveryErr *workspaceResolutionError
+	if !errors.As(err, &discoveryErr) || strings.TrimSpace(discoveryErr.CWD) == "" {
+		return "", "", err
+	}
+	recordWorkspaceResolution(cmd, workspaceResolution{
+		Root:   discoveryErr.CWD,
+		Source: workspaceResolutionCWD,
+	})
+	return "", discoveryErr.CWD, nil
 }
 
 func flattenHistory(history []TurnHistoryRecord) []SessionEventRecord {

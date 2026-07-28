@@ -576,7 +576,15 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 
 	env := newSkillTestEnv(t, nil)
 
-	stdout, _, err := executeRootCommand(t, env.deps, "skill", "create", "plan-review", "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		skillWorkspaceDeps(t, &env),
+		"skill",
+		"create",
+		"plan-review",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("skill create error = %v", err)
 	}
@@ -610,7 +618,7 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 	t.Run("Should default-name", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 
-		stdout, _, err := executeRootCommand(t, env.deps, "skill", "create")
+		stdout, _, err := executeRootCommand(t, skillWorkspaceDeps(t, &env), "skill", "create")
 		if err != nil {
 			t.Fatalf("skill create default error = %v", err)
 		}
@@ -667,7 +675,7 @@ func TestSkillCreateCommandExistingNameReturnsError(t *testing.T) {
 	env := newSkillTestEnv(t, nil)
 	writeWorkspaceSkill(t, env.workspace, "existing-skill", skillDocument("existing-skill", "Existing skill", "body"))
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "create", "existing-skill")
+	_, _, err := executeRootCommand(t, skillWorkspaceDeps(t, &env), "skill", "create", "existing-skill")
 	if err == nil {
 		t.Fatal("skill create existing error = nil, want failure")
 	}
@@ -711,7 +719,11 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(strings.Join(test.args[1:], "-"), func(t *testing.T) {
-			stdout, _, err := executeRootCommand(t, env.deps, test.args...)
+			deps := env.deps
+			if len(test.args) > 1 && test.args[1] == "create" {
+				deps = skillWorkspaceDeps(t, &env)
+			}
+			stdout, _, err := executeRootCommand(t, deps, test.args...)
 			if err != nil {
 				t.Fatalf("executeRootCommand(%v) error = %v", test.args, err)
 			}
@@ -2478,6 +2490,27 @@ func newSkillTestEnv(t *testing.T, mutateConfig func(*compozyconfig.Config)) ski
 		userHome:  userHome,
 		workspace: workspace,
 	}
+}
+
+func skillWorkspaceDeps(t *testing.T, env *skillTestEnv) commandDeps {
+	t.Helper()
+	deps := env.deps
+	deps.newClient = func(string) (DaemonClient, error) {
+		return &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != env.workspace {
+					t.Fatalf("GetWorkspace() ref = %q, want %q", ref, env.workspace)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{
+						ID:      "ws-skill-test",
+						RootDir: env.workspace,
+					},
+				}, nil
+			},
+		}, nil
+	}
+	return deps
 }
 
 func writeWorkspaceSkill(t *testing.T, workspace, name, content string) string {

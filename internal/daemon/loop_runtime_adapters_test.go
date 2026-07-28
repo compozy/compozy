@@ -203,6 +203,36 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf("Create call count = %d, want 0", got)
 		}
 	})
+
+	t.Run("Should resolve a registered workspace path without registering it", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
+		}})
+		workspacePath := resolved.RootDir
+		resolveOrRegisterCalled := false
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-path"}
+		binder := &loopActionSessionBinder{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byPath:                  map[string]workspacepkg.ResolvedWorkspace{workspacePath: resolved},
+					resolveOrRegisterCalled: &resolveOrRegisterCalled,
+				},
+			},
+		}
+
+		_, err := binder.policyGate.applyResolved(context.Background(), &session.CreateOpts{
+			WorkspacePath: workspacePath,
+		}, "task-worker", nil)
+		if err != nil {
+			t.Fatalf("applyResolved() error = %v", err)
+		}
+		if resolveOrRegisterCalled {
+			t.Fatal("ResolveOrRegister() was called for a registered loop workspace path")
+		}
+	})
 }
 
 func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
@@ -954,8 +984,9 @@ func (m *loopActionBinderSessionManager) stopObservedCanceledContext() bool {
 }
 
 type loopActionBinderWorkspaceResolver struct {
-	byID   map[string]workspacepkg.ResolvedWorkspace
-	byPath map[string]workspacepkg.ResolvedWorkspace
+	byID                    map[string]workspacepkg.ResolvedWorkspace
+	byPath                  map[string]workspacepkg.ResolvedWorkspace
+	resolveOrRegisterCalled *bool
 }
 
 func (r loopActionBinderWorkspaceResolver) Resolve(
@@ -963,6 +994,9 @@ func (r loopActionBinderWorkspaceResolver) Resolve(
 	idOrPath string,
 ) (workspacepkg.ResolvedWorkspace, error) {
 	resolved, ok := r.byID[strings.TrimSpace(idOrPath)]
+	if !ok {
+		resolved, ok = r.byPath[strings.TrimSpace(idOrPath)]
+	}
 	if !ok {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 	}
@@ -973,6 +1007,9 @@ func (r loopActionBinderWorkspaceResolver) ResolveOrRegister(
 	_ context.Context,
 	path string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if r.resolveOrRegisterCalled != nil {
+		*r.resolveOrRegisterCalled = true
+	}
 	resolved, ok := r.byPath[strings.TrimSpace(path)]
 	if !ok {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound

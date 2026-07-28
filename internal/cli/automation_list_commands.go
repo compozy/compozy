@@ -28,7 +28,8 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 			}
 
 			query, err := parseAutomationJobListQuery(
-				cmd.Context(),
+				cmd,
+				deps,
 				client,
 				scopeRaw,
 				workspaceRef,
@@ -51,7 +52,8 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
+	cmd.Flags().
+		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().
 		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config, package, or dynamic")
 	cmd.Flags().BoolVar(
@@ -98,7 +100,8 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 			}
 
 			query, err := parseAutomationTriggerListQuery(
-				cmd.Context(),
+				cmd,
+				deps,
 				client,
 				scopeRaw,
 				workspaceRef,
@@ -122,7 +125,8 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
+	cmd.Flags().
+		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")
 	cmd.Flags().
 		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config, package, or dynamic")

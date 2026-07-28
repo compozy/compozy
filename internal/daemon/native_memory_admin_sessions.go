@@ -107,7 +107,7 @@ func (n *daemonNativeTools) memoryAdminHealthWorkspaces(
 	ctx context.Context,
 	input memoryAdminHealthInput,
 ) ([]string, error) {
-	workspaceRef := firstNonEmpty(input.WorkspaceID, input.Workspace)
+	workspaceRef := input.WorkspaceID
 	if strings.TrimSpace(workspaceRef) == "" {
 		return nil, nil
 	}

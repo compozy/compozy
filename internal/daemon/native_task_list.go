@@ -12,7 +12,7 @@ import (
 
 type taskListInput struct {
 	Scope                string `json:"scope,omitempty"`
-	WorkspaceID          string `json:"workspace_id,omitempty"`
+	WorkspaceID          string `json:"workspace,omitempty"`
 	Status               string `json:"status,omitempty"`
 	Priority             string `json:"priority,omitempty"`
 	IncludeDrafts        bool   `json:"include_drafts,omitempty"`
@@ -44,7 +44,6 @@ func (n *daemonNativeTools) taskList(
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
 		workspaceID, workspaceErr := nativeCallerWorkspaceInput(
 			req.ToolID,
-			"workspace_id",
 			input.WorkspaceID,
 			scope,
 		)

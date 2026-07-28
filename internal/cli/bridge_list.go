@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"errors"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -19,17 +17,26 @@ type bridgeListJSONLItemRecord struct {
 
 func newBridgeListCommand(deps commandDeps) *cobra.Command {
 	query := BridgeListQuery{}
+	var workspaceRef string
 	cmd := &cobra.Command{
 		Use:   bridgeListKey,
 		Short: "List bridge instances",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if strings.TrimSpace(query.WorkspaceID) != "" && strings.TrimSpace(query.Workspace) != "" {
-				return errors.New("cli: --workspace-id and --workspace cannot be combined")
-			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
+			workspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceRef,
+			)
+			if err != nil {
+				return err
+			}
+			query.WorkspaceID = workspaceID
 			result, err := client.ListBridges(cmd.Context(), query)
 			if err != nil {
 				return err
@@ -38,8 +45,7 @@ func newBridgeListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&query.Scope, bridgeScopeKey, "", "Filter by scope: all, global, or workspace")
-	cmd.Flags().StringVar(&query.WorkspaceID, "workspace-id", "", "Filter by active workspace ID")
-	cmd.Flags().StringVar(&query.Workspace, "workspace", "", "Filter by workspace ID, name, or path")
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&query.Search, "q", "", "Search display name, platform, extension, or status")
 	cmd.Flags().StringVar(&query.Platform, "platform", "", "Filter by messaging platform")
 	cmd.Flags().StringVar(&query.Status, bridgeStatusKey, "", "Filter by effective runtime status")

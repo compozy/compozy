@@ -83,6 +83,9 @@ func missingWorkFromFlags(items []string, raw string) (json.RawMessage, error) {
 }
 
 func resolveTaskScopeWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	rawScope string,
 	workspaceRef string,
 	scopeRequired bool,
@@ -102,8 +105,30 @@ func resolveTaskScopeWorkspace(
 			return "", "", errors.New("cli: --workspace must be empty when --scope is global")
 		}
 	case taskpkg.ScopeWorkspace:
-		if workspace == "" {
-			return "", "", errors.New("cli: --workspace is required when --scope is workspace")
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspace},
+		)
+		if err != nil {
+			return "", "", err
+		}
+		workspace = resolution.ID
+	default:
+		if workspace != "" {
+			resolution, err := resolveCommandWorkspace(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceResolutionRequest{FlagRef: workspace},
+			)
+			if err != nil {
+				return "", "", err
+			}
+			workspace = resolution.ID
 		}
 	}
 	return scope, workspace, nil
@@ -272,8 +297,20 @@ func trimAgentTaskCapabilities(values []string) []string {
 	return trimmed
 }
 
-func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTaskRequest, error) {
-	scope, workspace, err := resolveTaskScopeWorkspace(input.ScopeRaw, input.WorkspaceRef, true)
+func buildTaskCreateRequest(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	input taskCreateInput,
+) (CreateTaskRequest, error) {
+	scope, workspace, err := resolveTaskScopeWorkspace(
+		cmd,
+		deps,
+		client,
+		input.ScopeRaw,
+		input.WorkspaceRef,
+		true,
+	)
 	if err != nil {
 		return CreateTaskRequest{}, err
 	}

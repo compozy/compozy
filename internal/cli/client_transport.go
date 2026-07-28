@@ -265,9 +265,6 @@ func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Creden
 	if agentName := strings.TrimSpace(credentials.AgentName); agentName != "" {
 		req.Header.Set(agentidentity.HeaderAgent, agentName)
 	}
-	if workspaceID := strings.TrimSpace(credentials.WorkspaceID); workspaceID != "" {
-		req.Header.Set(agentidentity.HeaderWorkspaceID, workspaceID)
-	}
 }
 
 func decodeSSE(ctx context.Context, body io.ReadCloser, handler SSEHandler) error {

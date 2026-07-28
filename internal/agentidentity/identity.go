@@ -22,8 +22,6 @@ const (
 	HeaderSessionID = "X-Compozy-Session-ID"
 	// HeaderAgent carries EnvAgent over the local UDS HTTP transport.
 	HeaderAgent = "X-Compozy-Agent"
-	// HeaderWorkspaceID optionally narrows an agent request to the caller workspace.
-	HeaderWorkspaceID = "X-Compozy-Workspace-ID"
 )
 
 // ResolveOptions configures agent caller resolution.
@@ -52,7 +50,7 @@ func Resolve(ctx context.Context, opts ResolveOptions) (Caller, error) {
 	if err != nil {
 		return Caller{}, err
 	}
-	if err := validateWorkspace(snapshot, opts.ExpectedWorkspaceID, creds.WorkspaceID); err != nil {
+	if err := ValidateWorkspaceAccess(snapshot.WorkspaceID, opts.ExpectedWorkspaceID); err != nil {
 		return Caller{}, err
 	}
 	actor, err := deriveActorContext(snapshot.ID, snapshot.WorkspaceID, opts.OriginKind, opts.OriginRef)
@@ -159,21 +157,11 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 	return snapshot, nil
 }
 
-func validateWorkspace(snapshot SessionSnapshot, expectedWorkspaceID string, credentialsWorkspaceID string) error {
+// ValidateWorkspaceAccess ensures a validated session workspace matches the requested workspace.
+func ValidateWorkspaceAccess(sessionWorkspaceID string, expectedWorkspaceID string) error {
+	sessionWorkspaceID = strings.TrimSpace(sessionWorkspaceID)
 	expectedWorkspaceID = strings.TrimSpace(expectedWorkspaceID)
-	credentialsWorkspaceID = strings.TrimSpace(credentialsWorkspaceID)
-	if expectedWorkspaceID != "" && credentialsWorkspaceID != "" && expectedWorkspaceID != credentialsWorkspaceID {
-		return identityError(
-			ErrIdentityUnauthorized,
-			"identity_unauthorized",
-			"agent session does not belong to the requested workspace",
-			"use the session workspace or start a session in the requested workspace",
-		)
-	}
-	if expectedWorkspaceID == "" {
-		expectedWorkspaceID = credentialsWorkspaceID
-	}
-	if expectedWorkspaceID == "" || snapshot.WorkspaceID == expectedWorkspaceID {
+	if expectedWorkspaceID == "" || sessionWorkspaceID == expectedWorkspaceID {
 		return nil
 	}
 	return identityError(

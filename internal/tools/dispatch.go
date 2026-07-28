@@ -38,6 +38,16 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	if err := r.ensureDispatchTargetCallable(ctx, &target, req, started); err != nil {
 		return ToolResult{}, err
 	}
+	req, err = r.bindCallInput(ctx, scope, target.descriptor, req)
+	if err != nil {
+		if emitErr := r.emit(ctx, &target, req, ToolCallStarted, ToolEventData{
+			StartedAt: started,
+			Input:     req.Input,
+		}); emitErr != nil {
+			return ToolResult{}, emitErr
+		}
+		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, callInputFailureEvent(err))
+	}
 	if err := r.emit(ctx, &target, req, ToolCallStarted, ToolEventData{
 		StartedAt: started,
 		Input:     req.Input,
@@ -50,6 +60,20 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	patchedReq, err := r.runPreCallHook(ctx, &target, req)
 	if err != nil {
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallDenied)
+	}
+	patchedReq, err = r.bindCallInput(ctx, scope, target.descriptor, patchedReq)
+	if err != nil {
+		return ToolResult{}, r.failDispatch(
+			ctx,
+			&target,
+			patchedReq,
+			started,
+			err,
+			callInputFailureEvent(err),
+		)
+	}
+	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)
 	}
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)

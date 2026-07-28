@@ -27,9 +27,9 @@ const (
 const networkSendInputSchema = `{
 	"type":"object",
 	"description":"` + networkSendSchemaDescription + `",
-	"required":["workspace_id","channel","kind","body"],
+	"required":["channel","kind","body"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"session_id":{
 			"type":"string",
 			"description":"` + networkSendSessionDescription + `"

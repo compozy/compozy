@@ -54,6 +54,7 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithCapabilityChecker(capChecker),
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
+		extensionpkg.WithWorkspaceResolver(deps.WorkspaceResolver),
 		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
 		extensionpkg.WithCompozyExecutableResolver(deps.CompozyExecutable),
 		extensionpkg.WithExtensionToolCallTracker(hostAPI),

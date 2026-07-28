@@ -44,7 +44,7 @@ func TestRolesCommands(t *testing.T) {
 				FallbackChain: []contract.RoleFallbackStatus{}, Provenance: map[string]string{},
 				Diagnostics: []contract.RoleDiagnostic{}},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			listRolesFn: func(_ context.Context, query RoleQuery) ([]RoleRecord, error) {
 				if query.Workspace != "workspace-a" {
 					t.Fatalf("ListRoles() workspace = %q, want workspace-a", query.Workspace)
@@ -91,7 +91,7 @@ func TestRolesCommands(t *testing.T) {
 				Code: "role_warning", Message: "fallback configured", Agent: agent,
 			}},
 		}
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getRoleFn: func(_ context.Context, name string, query RoleQuery) (RoleRecord, error) {
 				if name != "dream" || query.Workspace != "workspace-b" {
 					t.Fatalf("GetRole() role/workspace = %q/%q, want dream/workspace-b", name, query.Workspace)
@@ -120,7 +120,7 @@ func TestRolesCommands(t *testing.T) {
 	t.Run("Should render role_unknown as a structured nonzero failure", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getRoleFn: func(context.Context, string, RoleQuery) (RoleRecord, error) {
 				return RoleRecord{}, &daemonAPIError{
 					statusCode: http.StatusNotFound,

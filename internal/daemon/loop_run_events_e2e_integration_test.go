@@ -644,7 +644,6 @@ func agentUDSJSON(
 	}
 	request.Header.Set(agentidentity.HeaderSessionID, session.ID)
 	request.Header.Set(agentidentity.HeaderAgent, session.AgentName)
-	request.Header.Set(agentidentity.HeaderWorkspaceID, harness.WorkspaceID)
 	response, err := harness.UDSClient.Do(request)
 	if err != nil {
 		t.Fatalf("agent UDS %s %s error = %v", method, path, err)

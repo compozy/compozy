@@ -18,9 +18,8 @@ func TestUnixSocketClientCreateTaskAsAgentSendsIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		credentials := agentidentity.Credentials{
-			SessionID:   "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			SessionID: "sess-1",
+			AgentName: "coder",
 		}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
@@ -66,9 +65,8 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		credentials := agentidentity.Credentials{
-			SessionID:   "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			SessionID: "sess-1",
+			AgentName: "coder",
 		}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
@@ -110,9 +108,8 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 		t.Parallel()
 
 		credentials := agentidentity.Credentials{
-			SessionID:   "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			SessionID: "sess-1",
+			AgentName: "coder",
 		}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
@@ -172,7 +169,12 @@ func TestTaskCreateAsAgentUsesValidatedIdentity(t *testing.T) {
 		t.Parallel()
 
 		var gotRequest CreateTaskRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-1", RootDir: "/workspace/project"},
+				}, nil
+			},
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				if id != "sess-agent" {
 					t.Fatalf("GetSession id = %q, want sess-agent", id)
@@ -218,7 +220,7 @@ func TestTaskCreateAsAgentUsesValidatedIdentity(t *testing.T) {
 		); err != nil {
 			t.Fatalf("executeRootCommand(task create --as-agent) error = %v", err)
 		}
-		if gotRequest.Workspace != "alpha" || gotRequest.Title != "Agent task" {
+		if gotRequest.Workspace != "ws-1" || gotRequest.Title != "Agent task" {
 			t.Fatalf("CreateTaskAsAgent request = %#v", gotRequest)
 		}
 	})

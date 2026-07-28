@@ -89,6 +89,24 @@ type approvalBridgeCall struct {
 	view  ToolView
 }
 
+type recordingCallInputBinder struct {
+	bind func(context.Context, Scope, Descriptor, json.RawMessage) (json.RawMessage, error)
+}
+
+var _ CallInputBinder = (*recordingCallInputBinder)(nil)
+
+func (b *recordingCallInputBinder) BindCallInput(
+	ctx context.Context,
+	scope Scope,
+	descriptor Descriptor,
+	input json.RawMessage,
+) (json.RawMessage, error) {
+	if b.bind != nil {
+		return b.bind(ctx, scope, descriptor, input)
+	}
+	return input, nil
+}
+
 var _ ApprovalBridge = (*recordingApprovalBridge)(nil)
 
 func (b *recordingApprovalBridge) RequestToolApproval(
@@ -455,6 +473,115 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 
 func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bind trusted scope before schema validation and provider invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"required":["query","workspace"],
+			"properties":{"query":{"type":"string"},"workspace":{"type":"string"}},
+			"additionalProperties":false
+		}`)
+		binder := &recordingCallInputBinder{
+			bind: func(
+				_ context.Context,
+				scope Scope,
+				_ Descriptor,
+				input json.RawMessage,
+			) (json.RawMessage, error) {
+				var payload map[string]any
+				if err := json.Unmarshal(input, &payload); err != nil {
+					return nil, err
+				}
+				payload["workspace"] = scope.WorkspaceID
+				return json.Marshal(payload)
+			},
+		}
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				if string(req.Input) != `{"query":"x","workspace":"ws-a"}` {
+					t.Fatalf("CallRequest.Input = %s, want bound workspace", req.Input)
+				}
+				return ToolResult{}, nil
+			},
+		})
+		registry := mustDispatchRegistry(t, provider, WithCallInputBinder(binder))
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{WorkspaceID: "ws-a"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should rebind hook-patched input and deny scope conflicts", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"required":["query","workspace"],
+			"properties":{"query":{"type":"string"},"workspace":{"type":"string"}},
+			"additionalProperties":false
+		}`)
+		binder := &recordingCallInputBinder{
+			bind: func(
+				_ context.Context,
+				scope Scope,
+				_ Descriptor,
+				input json.RawMessage,
+			) (json.RawMessage, error) {
+				var payload map[string]any
+				if err := json.Unmarshal(input, &payload); err != nil {
+					return nil, err
+				}
+				workspace, _ := payload["workspace"].(string)
+				if workspace != "" && workspace != scope.WorkspaceID {
+					return nil, callScopeMismatchError(descriptor.ID, "workspace")
+				}
+				payload["workspace"] = scope.WorkspaceID
+				return json.Marshal(payload)
+			},
+		}
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		hooks := &recordingHookRunner{
+			pre: func(_ context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error) {
+				call.Input = json.RawMessage(`{"query":"patched","workspace":"ws-b"}`)
+				return call, hookAllowedDecision(), nil
+			},
+		}
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithCallInputBinder(binder),
+			WithHookRunner(hooks),
+		)
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{WorkspaceID: "ws-a"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		requireToolReason(t, err, ReasonScopeMismatch)
+		if called {
+			t.Fatal("provider handle was called after hook introduced a workspace conflict")
+		}
+	})
 
 	t.Run("Should preserve call context when pre-call hook patches input", func(t *testing.T) {
 		t.Parallel()

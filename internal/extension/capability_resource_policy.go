@@ -86,9 +86,9 @@ func effectiveResourceGrants(
 
 func sourceTierMaxScope(source ExtensionSource) resources.ResourceScopeKind {
 	switch source {
-	case SourceWorkspace, SourceMarketplace:
+	case SourceWorkspace:
 		return resources.ResourceScopeKindWorkspace
-	case SourceBundled, SourceUser:
+	case SourceBundled, SourceUser, SourceMarketplace:
 		return resources.ResourceScopeKindGlobal
 	default:
 		return ""

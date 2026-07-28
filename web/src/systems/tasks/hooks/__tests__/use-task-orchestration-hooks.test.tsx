@@ -46,7 +46,6 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   forceReleaseTaskRun: vi.fn(),
   retryTaskRun: vi.fn(),
   getAgentContext: vi.fn(),
-  getTaskContextBundle: vi.fn(),
   listTaskBridgeNotificationSubscriptions: vi.fn(),
   createTaskBridgeNotificationSubscription: vi.fn(),
   getTaskBridgeNotificationSubscription: vi.fn(),
@@ -59,7 +58,6 @@ import {
   deleteTaskExecutionProfile,
   getAgentContext,
   getTaskBridgeNotificationSubscription,
-  getTaskContextBundle,
   getTaskExecutionProfile,
   getTaskRunReview,
   listTaskBridgeNotificationSubscriptions,
@@ -268,10 +266,12 @@ describe("review hooks", () => {
 });
 
 describe("agent context hooks", () => {
+  const identity = { agentName: "worker", sessionId: "session_001" };
+
   it("Should expose full agent context", async () => {
     vi.mocked(getAgentContext).mockResolvedValue(agentContextFixture);
 
-    const { result } = renderHook(() => useAgentContext(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAgentContext(identity), { wrapper: createWrapper() });
 
     await waitFor(() => {
       expect(result.current.data?.task.bundle?.task.id).toBe("task_001");
@@ -279,13 +279,16 @@ describe("agent context hooks", () => {
   });
 
   it("Should extract task context bundle", async () => {
-    vi.mocked(getTaskContextBundle).mockResolvedValue(taskContextBundleFixture);
+    vi.mocked(getAgentContext).mockResolvedValue(agentContextFixture);
 
-    const { result } = renderHook(() => useTaskContextBundle(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useTaskContextBundle(identity), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.data?.latest_event_seq).toBe(taskContextBundleFixture.latest_event_seq);
     });
+    expect(getAgentContext).toHaveBeenCalledTimes(1);
   });
 });
 

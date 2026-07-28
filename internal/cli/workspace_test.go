@@ -3,8 +3,13 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func TestWorkspaceAddBuildsRequest(t *testing.T) {
@@ -296,12 +301,15 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		args       []string
-		envValue   string
-		cwd        string
-		wantRef    string
-		wantSource string
+		name               string
+		args               []string
+		envValue           string
+		sessionID          string
+		agentName          string
+		sessionWorkspaceID string
+		cwd                string
+		wantRef            string
+		wantSource         string
 	}{
 		{
 			name:       "Should prefer positional ref over flag and env",
@@ -320,12 +328,33 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 			wantSource: "flag",
 		},
 		{
-			name:       "Should use COMPOZY_WORKSPACE when flag and positional are omitted",
+			name:               "Should use COMPOZY_WORKSPACE when flag and positional are omitted",
+			args:               []string{"workspace", "info", "-o", "json"},
+			envValue:           "ws-beta",
+			sessionID:          "sess-ignored",
+			agentName:          "coder",
+			sessionWorkspaceID: "ws_alpha",
+			cwd:                "/workspace/alpha",
+			wantRef:            "ws-beta",
+			wantSource:         "env",
+		},
+		{
+			name:               "Should use validated session identity before cwd",
+			args:               []string{"workspace", "info", "-o", "json"},
+			sessionID:          "sess-identity",
+			agentName:          "coder",
+			sessionWorkspaceID: "ws-identity",
+			cwd:                "/workspace/alpha",
+			wantRef:            "ws-identity",
+			wantSource:         "session_identity",
+		},
+		{
+			name:       "Should ignore partial session identity",
 			args:       []string{"workspace", "info", "-o", "json"},
-			envValue:   "ws-beta",
+			sessionID:  "sess-partial",
 			cwd:        "/workspace/alpha",
-			wantRef:    "ws-beta",
-			wantSource: "env",
+			wantRef:    "/workspace/alpha",
+			wantSource: "cwd",
 		},
 		{
 			name:       "Should fall back to cwd",
@@ -342,6 +371,18 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 
 			var seenRef string
 			deps := newTestDeps(t, &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+					if id != tt.sessionID {
+						t.Fatalf("GetSession() id = %q, want %q", id, tt.sessionID)
+					}
+					return SessionRecord{
+						ID:            id,
+						AgentName:     tt.agentName,
+						WorkspaceID:   tt.sessionWorkspaceID,
+						WorkspacePath: "/workspace/identity",
+						State:         "active",
+					}, nil
+				},
 				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 					seenRef = ref
 					return WorkspaceDetailRecord{
@@ -357,10 +398,16 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 				return tt.cwd, nil
 			}
 			deps.getenv = func(key string) string {
-				if key == "COMPOZY_WORKSPACE" {
+				switch key {
+				case "COMPOZY_WORKSPACE":
 					return tt.envValue
+				case "COMPOZY_SESSION_ID":
+					return tt.sessionID
+				case "COMPOZY_AGENT":
+					return tt.agentName
+				default:
+					return ""
 				}
-				return ""
 			}
 
 			stdout, _, err := executeRootCommand(t, deps, tt.args...)
@@ -382,6 +429,93 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 			}
 		})
 	}
+
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		envValue string
+	}{
+		{
+			name: "Should reject a positional workspace outside the active session",
+			args: []string{"workspace", "info", "ws-foreign", "-o", "json"},
+		},
+		{
+			name: "Should reject a workspace flag outside the active session",
+			args: []string{"workspace", "info", "--workspace", "ws-foreign", "-o", "json"},
+		},
+		{
+			name:     "Should reject a workspace env override outside the active session",
+			args:     []string{"workspace", "info", "-o", "json"},
+			envValue: "ws-foreign",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+					return SessionRecord{
+						ID:          id,
+						AgentName:   "coder",
+						WorkspaceID: "ws-session",
+						State:       "active",
+					}, nil
+				},
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{
+						Workspace: WorkspaceRecord{ID: ref, RootDir: "/workspace/" + ref},
+					}, nil
+				},
+			})
+			deps.getenv = func(key string) string {
+				switch key {
+				case agentidentity.EnvSessionID:
+					return "sess-identity"
+				case agentidentity.EnvAgent:
+					return "coder"
+				case workspaceEnvName:
+					return tt.envValue
+				default:
+					return ""
+				}
+			}
+
+			_, _, err := executeRootCommand(t, deps, tt.args...)
+			if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
+				t.Fatalf("executeRootCommand(%v) error = %v, want ErrIdentityUnauthorized", tt.args, err)
+			}
+		})
+	}
+
+	t.Run("Should reject an explicitly blank workspace override", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				t.Fatal("GetWorkspace() called for an explicitly blank workspace")
+				return WorkspaceDetailRecord{}, nil
+			},
+		})
+		deps.getenv = func(key string) string {
+			if key == workspaceEnvName {
+				return "ws-env"
+			}
+			return ""
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"workspace",
+			"info",
+			"--workspace=",
+			"-o",
+			"json",
+		)
+		if !errors.Is(err, errWorkspaceReferenceRequired) {
+			t.Fatalf("executeRootCommand(blank workspace) error = %v, want errWorkspaceReferenceRequired", err)
+		}
+	})
 }
 
 func TestWorkspaceOutputFormats(t *testing.T) {
@@ -476,6 +610,7 @@ func TestWorkspaceOutputFormats(t *testing.T) {
 		}
 		if !strings.Contains(infoToon, "skills[1]{name,source,dir}:") ||
 			!strings.Contains(infoToon, "agents[1]{name,provider,model,category,permissions}:") ||
+			!strings.Contains(infoToon, "resolution_source: positional") ||
 			!strings.Contains(infoToon, "Engineering / Tools") {
 			t.Fatalf("info toon output = %q, want TOON detail blocks", infoToon)
 		}
@@ -494,6 +629,43 @@ func TestWorkspaceEditRequiresChanges(t *testing.T) {
 		}
 		if !strings.Contains(stderr, "at least one edit flag is required") {
 			t.Fatalf("stderr = %q, want edit validation message", stderr)
+		}
+	})
+}
+
+func TestWorkspaceResolutionBoundary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose one optional workspace override flag grammar", func(t *testing.T) {
+		t.Parallel()
+
+		root := newRootCommand(commandDeps{})
+		var walk func(*cobra.Command)
+		walk = func(cmd *cobra.Command) {
+			assertWorkspaceFlags(t, cmd, cmd.LocalNonPersistentFlags())
+			assertWorkspaceFlags(t, cmd, cmd.PersistentFlags())
+			for _, child := range cmd.Commands() {
+				walk(child)
+			}
+		}
+		walk(root)
+	})
+}
+
+func assertWorkspaceFlags(t *testing.T, cmd *cobra.Command, flags *pflag.FlagSet) {
+	t.Helper()
+
+	flags.VisitAll(func(flag *pflag.Flag) {
+		switch flag.Name {
+		case "workspace-id", "scope-id":
+			t.Errorf("%s exposes removed --%s alias", cmd.CommandPath(), flag.Name)
+		case "workspace":
+			if !strings.HasPrefix(flag.Usage, "Override ") {
+				t.Errorf("%s --workspace help = %q, want Override prefix", cmd.CommandPath(), flag.Usage)
+			}
+			if _, required := flag.Annotations[cobra.BashCompOneRequiredFlag]; required {
+				t.Errorf("%s marks --workspace required; workspace context must use inference", cmd.CommandPath())
+			}
 		}
 	})
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -113,7 +112,8 @@ func parseAutomationRunListQuery(
 }
 
 func resolveAutomationScopeWorkspace(
-	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
 	client DaemonClient,
 	rawScope string,
 	workspaceRef string,
@@ -131,37 +131,20 @@ func resolveAutomationScopeWorkspace(
 		}
 		return scope, "", nil
 	case automationpkg.AutomationScopeWorkspace:
-		if trimmedWorkspace == "" {
-			return "", "", errors.New("cli: --workspace is required when --scope is workspace")
-		}
-		workspaceID, err := resolveAutomationWorkspaceID(ctx, client, trimmedWorkspace)
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: trimmedWorkspace},
+		)
 		if err != nil {
 			return "", "", err
 		}
-		return scope, workspaceID, nil
+		return scope, resolution.ID, nil
 	default:
 		return "", "", fmt.Errorf("cli: unsupported automation scope %q", scope)
 	}
-}
-
-func resolveAutomationWorkspaceID(
-	ctx context.Context,
-	client DaemonClient,
-	ref string,
-) (string, error) {
-	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" {
-		return "", nil
-	}
-	detail, err := client.GetWorkspace(ctx, trimmed)
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve workspace %q: %w", trimmed, err)
-	}
-	id := strings.TrimSpace(detail.Workspace.ID)
-	if id == "" {
-		return "", fmt.Errorf("cli: resolve workspace %q: missing workspace id", trimmed)
-	}
-	return id, nil
 }
 
 func parseRequiredAutomationScope(raw string) (automationpkg.Scope, error) {

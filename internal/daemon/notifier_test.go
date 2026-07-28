@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -239,10 +241,10 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	})
 }
 
-func TestHooksNotifierOnAgentEventUsesProvidedSessionIDAndLifecycleNoops(t *testing.T) {
+func TestHooksNotifierOnAgentEventFailsLoudlyWithoutWorkspaceIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use the provided session ID and tolerate nil lifecycle sessions", func(t *testing.T) {
+	t.Run("Should refuse hook dispatch and forward the raw event", func(t *testing.T) {
 		t.Parallel()
 
 		var gotSessionID string
@@ -252,10 +254,12 @@ func TestHooksNotifierOnAgentEventUsesProvidedSessionIDAndLifecycleNoops(t *test
 				return nil
 			},
 		}
-		notifier := newHooksNotifier(discardLogger(), func() time.Time {
+		var logs bytes.Buffer
+		notifier := newHooksNotifier(slog.New(slog.NewTextHandler(&logs, nil)), func() time.Time {
 			return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 		})
-		notifier.setRuntime(runtime, &recordingNotifier{})
+		downstream := &recordingNotifier{}
+		notifier.setRuntime(runtime, downstream)
 
 		notifier.OnSessionCreated(testutil.Context(t), nil)
 		notifier.OnSessionStopped(testutil.Context(t), nil)
@@ -276,8 +280,14 @@ func TestHooksNotifierOnAgentEventUsesProvidedSessionIDAndLifecycleNoops(t *test
 			}),
 		})
 
-		if gotSessionID != "sess-direct" {
-			t.Fatalf("tool hook SessionID = %q, want %q", gotSessionID, "sess-direct")
+		if gotSessionID != "" {
+			t.Fatalf("tool hook SessionID = %q, want no hook dispatch", gotSessionID)
+		}
+		if got := downstream.events; !testutil.EqualStringSlices(got, []string{"agent"}) {
+			t.Fatalf("downstream events = %#v, want raw agent event", got)
+		}
+		if !strings.Contains(logs.String(), "refusing hook dispatch without session workspace identity") {
+			t.Fatalf("logs = %q, want explicit missing workspace identity error", logs.String())
 		}
 	})
 }

@@ -89,9 +89,8 @@ func newLoopInspectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopOutputBundle(response, summary))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -161,11 +160,10 @@ func newLoopCreateCommand(deps commandDeps) *cobra.Command {
 			return writeLoopDefinition(cmd, &response)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&filePath, loopFileKey, "", "Loop definition YAML or JSON file")
 	cmd.Flags().StringVar(&forkFrom, "fork-from-name", "", "Read-only Loop name to fork")
 	cmd.Flags().IntVar(&expectedVersion, "expected-version", 0, "Expected published version for CAS publish")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	return cmd
 }
 
@@ -205,10 +203,9 @@ func newLoopValidateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopOutputBundle(response, summary))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&filePath, loopFileKey, "", "Loop definition YAML or JSON file")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Override the route Loop name")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopFileKey)
 	return cmd
 }
@@ -277,7 +274,7 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
 	cmd.Flags().StringArrayVar(&inputs, loopInputKey, nil, "Input key=value (repeatable; JSON values supported)")
 	cmd.Flags().StringArrayVar(
@@ -290,7 +287,6 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&configPath, loopConfigFileKey, "", "Per-run config override YAML or JSON file")
 	cmd.Flags().BoolVar(&dry, loopDryRunKey, false, "Preview the plan without creating a run")
 	bindNetworkParticipationFlags(cmd, &networkFlags)
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -328,11 +324,10 @@ func newLoopConfigureCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, loopOutputBundle(response, fmt.Sprintf("Loop %s configured", loopName)))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
 	cmd.Flags().StringVar(&filePath, loopFileKey, "", "Loop config YAML or JSON file")
 	cmd.Flags().StringArrayVar(&setFlags, "set", nil, "Config field key=value (repeatable; JSON values supported)")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -359,10 +354,9 @@ func newLoopEditCommand(deps commandDeps) *cobra.Command {
 			return writeLoopDefinition(cmd, &response)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
 	cmd.Flags().StringVar(&editor, "editor", "", "Editor command; defaults to $EDITOR")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -393,9 +387,8 @@ func newLoopDeleteCommand(deps commandDeps) *cobra.Command {
 			return writeLoopMutationOK(cmd, "deleted", loopName)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
 }
@@ -409,9 +402,15 @@ func loopClientAndWorkspace(
 	if err != nil {
 		return nil, "", err
 	}
-	workspaceID, err := resolveLoopWorkspaceID(cmd.Context(), client, workspaceRef)
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
 	if err != nil {
 		return nil, "", err
 	}
-	return client, workspaceID, nil
+	return client, resolution.ID, nil
 }

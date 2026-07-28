@@ -14,7 +14,6 @@ import (
 type BridgeListQuery struct {
 	Scope       string
 	WorkspaceID string
-	Workspace   string
 	Search      string
 	Platform    string
 	Status      string
@@ -42,7 +41,6 @@ func bridgeListQueryValues(query BridgeListQuery) url.Values {
 	values := make(url.Values)
 	setBridgeListQueryValue(values, "scope", query.Scope)
 	setBridgeListQueryValue(values, "workspace_id", query.WorkspaceID)
-	setBridgeListQueryValue(values, "workspace", query.Workspace)
 	setBridgeListQueryValue(values, "q", query.Search)
 	setBridgeListQueryValue(values, "platform", query.Platform)
 	setBridgeListQueryValue(values, "status", query.Status)

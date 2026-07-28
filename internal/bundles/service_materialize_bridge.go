@@ -90,7 +90,6 @@ func (s *Service) resolveWorkspace(
 	ctx context.Context,
 	scope Scope,
 	ref string,
-	mode workspaceResolutionMode,
 ) (string, error) {
 	if scope == ScopeGlobal {
 		return "", nil
@@ -104,20 +103,14 @@ func (s *Service) resolveWorkspace(
 		return "", errors.New("bundles: workspace reference is required")
 	}
 
-	var (
-		resolved workspacepkg.ResolvedWorkspace
-		err      error
-	)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
 	if isPathLikeWorkspaceRef(trimmed) {
 		normalized, normalizeErr := compozyconfig.ResolvePath(trimmed)
 		if normalizeErr != nil {
 			return "", normalizeErr
 		}
-		if mode == workspaceResolutionRegisterPaths {
-			resolved, err = s.workspaceResolver.ResolveOrRegister(ctx, normalized)
-		} else {
-			resolved, err = s.workspaceResolver.Resolve(ctx, normalized)
-		}
+		resolved, err = s.workspaceResolver.Resolve(ctx, normalized)
 	} else {
 		resolved, err = s.workspaceResolver.Resolve(ctx, trimmed)
 	}

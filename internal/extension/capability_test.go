@@ -584,84 +584,134 @@ func TestSourceTierResourceHelpers(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name      string
 		source    ExtensionSource
 		wantScope resources.ResourceScopeKind
 	}{
-		{source: SourceBundled, wantScope: resources.ResourceScopeKindGlobal},
-		{source: SourceUser, wantScope: resources.ResourceScopeKindGlobal},
-		{source: SourceWorkspace, wantScope: resources.ResourceScopeKindWorkspace},
-		{source: SourceMarketplace, wantScope: resources.ResourceScopeKindWorkspace},
-		{source: ExtensionSource(99), wantScope: ""},
+		{
+			name:      "Should grant bundled sources a global ceiling",
+			source:    SourceBundled,
+			wantScope: resources.ResourceScopeKindGlobal,
+		},
+		{
+			name:      "Should grant user sources a global ceiling",
+			source:    SourceUser,
+			wantScope: resources.ResourceScopeKindGlobal,
+		},
+		{
+			name:      "Should grant workspace sources a workspace ceiling",
+			source:    SourceWorkspace,
+			wantScope: resources.ResourceScopeKindWorkspace,
+		},
+		{
+			name:      "Should grant marketplace sources a global read ceiling",
+			source:    SourceMarketplace,
+			wantScope: resources.ResourceScopeKindGlobal,
+		},
+		{name: "Should reject an unknown source ceiling", source: ExtensionSource(99), wantScope: ""},
 	}
 
 	for _, tt := range tests {
-		if got := sourceTierMaxScope(tt.source); got != tt.wantScope {
-			t.Fatalf("sourceTierMaxScope(%v) = %q, want %q", tt.source, got, tt.wantScope)
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := sourceTierMaxScope(tt.source); got != tt.wantScope {
+				t.Fatalf("sourceTierMaxScope(%v) = %q, want %q", tt.source, got, tt.wantScope)
+			}
+		})
+	}
+
+	t.Run("Should project scopes through each valid ceiling", func(t *testing.T) {
+		t.Parallel()
+
+		if !slices.Equal(scopesThrough(resources.ResourceScopeKindGlobal), []resources.ResourceScopeKind{
+			resources.ResourceScopeKindGlobal,
+			resources.ResourceScopeKindWorkspace,
+		}) {
+			t.Fatalf(
+				"scopesThrough(global) = %#v, want global+workspace",
+				scopesThrough(resources.ResourceScopeKindGlobal),
+			)
 		}
-	}
-	if !slices.Equal(scopesThrough(resources.ResourceScopeKindGlobal), []resources.ResourceScopeKind{
-		resources.ResourceScopeKindGlobal,
-		resources.ResourceScopeKindWorkspace,
-	}) {
-		t.Fatalf("scopesThrough(global) = %#v, want global+workspace", scopesThrough(resources.ResourceScopeKindGlobal))
-	}
-	if !slices.Equal(scopesThrough(resources.ResourceScopeKindWorkspace), []resources.ResourceScopeKind{
-		resources.ResourceScopeKindWorkspace,
-	}) {
-		t.Fatalf(
-			"scopesThrough(workspace) = %#v, want [workspace]",
-			scopesThrough(resources.ResourceScopeKindWorkspace),
-		)
-	}
-	if got, want := scopeRank(resources.ResourceScopeKindWorkspace), 0; got != want {
-		t.Fatalf("scopeRank(workspace) = %d, want %d", got, want)
-	}
-	if got, want := scopeRank(resources.ResourceScopeKindGlobal), 1; got != want {
-		t.Fatalf("scopeRank(global) = %d, want %d", got, want)
-	}
-	if got, want := scopeRank(resources.ResourceScopeKind("")), 2; got != want {
-		t.Fatalf("scopeRank(unknown) = %d, want %d", got, want)
-	}
-	if got := scopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
-		t.Fatalf("scopesThrough(invalid) = %#v, want nil", got)
-	}
+		if !slices.Equal(scopesThrough(resources.ResourceScopeKindWorkspace), []resources.ResourceScopeKind{
+			resources.ResourceScopeKindWorkspace,
+		}) {
+			t.Fatalf(
+				"scopesThrough(workspace) = %#v, want [workspace]",
+				scopesThrough(resources.ResourceScopeKindWorkspace),
+			)
+		}
+		if got := scopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
+			t.Fatalf("scopesThrough(invalid) = %#v, want nil", got)
+		}
+	})
+
+	t.Run("Should rank workspace before global and unknown scopes", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := scopeRank(resources.ResourceScopeKindWorkspace), 0; got != want {
+			t.Fatalf("scopeRank(workspace) = %d, want %d", got, want)
+		}
+		if got, want := scopeRank(resources.ResourceScopeKindGlobal), 1; got != want {
+			t.Fatalf("scopeRank(global) = %d, want %d", got, want)
+		}
+		if got, want := scopeRank(resources.ResourceScopeKind("")), 2; got != want {
+			t.Fatalf("scopeRank(unknown) = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 	t.Parallel()
 
-	if !ceilingAllowsRequestedGrant([]string{"network.*"}, "network.http") {
-		t.Fatalf("ceilingAllowsRequestedGrant() = false, want true for wildcard superset")
-	}
-	if ceilingAllowsRequestedGrant([]string{"network.http"}, "network.*") {
-		t.Fatalf("ceilingAllowsRequestedGrant() = true, want false when request exceeds ceiling")
-	}
+	t.Run("Should enforce wildcard grant ceilings", func(t *testing.T) {
+		t.Parallel()
 
-	marketplace := sourcePolicy(SourceMarketplace)
-	if marketplace.allowAllActions || marketplace.allowAllSecurity {
-		t.Fatalf("marketplace policy = %#v, want narrowed actions and security", marketplace)
-	}
-	if marketplace.maxResourceScope != resources.ResourceScopeKindWorkspace {
-		t.Fatalf("marketplace maxResourceScope = %q, want workspace", marketplace.maxResourceScope)
-	}
-	if len(marketplace.allowedActions) == 0 || len(marketplace.allowedSecurity) == 0 {
-		t.Fatalf("marketplace policy = %#v, want populated ceilings", marketplace)
-	}
+		if !ceilingAllowsRequestedGrant([]string{"network.*"}, "network.http") {
+			t.Fatalf("ceilingAllowsRequestedGrant() = false, want true for wildcard superset")
+		}
+		if ceilingAllowsRequestedGrant([]string{"network.http"}, "network.*") {
+			t.Fatalf("ceilingAllowsRequestedGrant() = true, want false when request exceeds ceiling")
+		}
+	})
 
-	bundled := sourcePolicy(SourceBundled)
-	if !bundled.allowAllActions || !bundled.allowAllSecurity {
-		t.Fatalf("bundled policy = %#v, want full action and security grants", bundled)
-	}
-	if bundled.maxResourceScope != resources.ResourceScopeKindGlobal {
-		t.Fatalf("bundled maxResourceScope = %q, want global", bundled.maxResourceScope)
-	}
+	t.Run("Should restrict marketplace actions while preserving the global read ceiling", func(t *testing.T) {
+		t.Parallel()
 
-	if got, err := narrowScopeCeiling("", "", "", ""); err != nil || got != "" {
-		t.Fatalf("narrowScopeCeiling(empty) = (%q, %v), want empty nil", got, err)
-	}
-	if _, err := narrowScopeCeiling(resources.ResourceScopeKind("invalid"), "", "", ""); err == nil {
-		t.Fatalf("narrowScopeCeiling(invalid) error = nil, want validation error")
-	}
+		marketplace := sourcePolicy(SourceMarketplace)
+		if marketplace.allowAllActions || marketplace.allowAllSecurity {
+			t.Fatalf("marketplace policy = %#v, want narrowed actions and security", marketplace)
+		}
+		if marketplace.maxResourceScope != resources.ResourceScopeKindGlobal {
+			t.Fatalf("marketplace maxResourceScope = %q, want global", marketplace.maxResourceScope)
+		}
+		if len(marketplace.allowedActions) == 0 || len(marketplace.allowedSecurity) == 0 {
+			t.Fatalf("marketplace policy = %#v, want populated ceilings", marketplace)
+		}
+	})
+
+	t.Run("Should grant bundled extensions their full global ceiling", func(t *testing.T) {
+		t.Parallel()
+
+		bundled := sourcePolicy(SourceBundled)
+		if !bundled.allowAllActions || !bundled.allowAllSecurity {
+			t.Fatalf("bundled policy = %#v, want full action and security grants", bundled)
+		}
+		if bundled.maxResourceScope != resources.ResourceScopeKindGlobal {
+			t.Fatalf("bundled maxResourceScope = %q, want global", bundled.maxResourceScope)
+		}
+	})
+
+	t.Run("Should validate narrowed scope ceilings", func(t *testing.T) {
+		t.Parallel()
+
+		if got, err := narrowScopeCeiling("", "", "", ""); err != nil || got != "" {
+			t.Fatalf("narrowScopeCeiling(empty) = (%q, %v), want empty nil", got, err)
+		}
+		if _, err := narrowScopeCeiling(resources.ResourceScopeKind("invalid"), "", "", ""); err == nil {
+			t.Fatalf("narrowScopeCeiling(invalid) error = nil, want validation error")
+		}
+	})
 }
 
 func newTestCapabilityChecker(

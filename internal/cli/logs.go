@@ -43,7 +43,7 @@ func newLogsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, opts.workspaceRef)
+			workspace, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, opts.workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,8 @@ func registerLogsFlags(cmd *cobra.Command, opts *logsCommandOptions) {
 	cmd.Flags().StringVar(&opts.session, "session", "", "Filter by session id")
 	cmd.Flags().StringVar(&opts.agent, "agent", "", "Filter by agent name")
 	cmd.Flags().StringVar(&opts.typ, logsTypeKey, "", "Filter by event type")
-	cmd.Flags().StringVar(&opts.workspaceRef, "workspace", "", "Workspace root, name, or ID for scoped logs")
+	cmd.Flags().
+		StringVar(&opts.workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&opts.since, "since", "", "Show logs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&opts.last, "last", 0, "Show only the most recent N logs")
 	cmd.Flags().BoolVar(&opts.follow, "follow", false, "Stream new logs over SSE")
@@ -134,9 +135,6 @@ func streamLogs(cmd *cobra.Command, client DaemonClient, query LogsListQuery) er
 		return err
 	}
 
-	encoder := json.NewEncoder(cmd.OutOrStdout())
-	encoder.SetEscapeHTML(false)
-
 	return client.StreamLogs(cmd.Context(), query, "", func(event SSEEvent) error {
 		var payload LogEventRecord
 		if len(event.Data) > 0 {
@@ -150,11 +148,11 @@ func streamLogs(cmd *cobra.Command, client DaemonClient, query LogsListQuery) er
 
 		switch mode {
 		case OutputJSON, OutputJSONL:
-			if err := encoder.Encode(payload); err != nil {
+			if err := writeJSONLine(cmd, payload); err != nil {
 				return err
 			}
 		case OutputToon:
-			if err := writeRawCommandOutput(cmd, renderToonObject("log_event", []string{
+			rendered := renderToonObject("log_event", []string{
 				"id",
 				automationSessionIDKey,
 				logsTypeKey,
@@ -174,7 +172,8 @@ func streamLogs(cmd *cobra.Command, client DaemonClient, query LogsListQuery) er
 				payload.Outcome,
 				payload.Summary,
 				formatTime(payload.Timestamp),
-			})); err != nil {
+			})
+			if err := writeRawCommandOutput(cmd, outputToonWithWorkspaceResolution(cmd, rendered)); err != nil {
 				return err
 			}
 		default:

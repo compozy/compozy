@@ -17,7 +17,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 	t.Run("Should explain how the first public thread is opened", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newWorkspaceTestDeps(t, &stubClient{})
 		stdout, _, err := executeRootCommand(t, deps, "network", "send", "--help")
 		if err != nil {
 			t.Fatalf("network send --help error = %v", err)
@@ -160,7 +160,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				}}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		statusOut, _, err := executeRootCommand(t, deps, "network", "--workspace", "ws-alpha", "status", "-o", "human")
 		if err != nil {
@@ -451,7 +451,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		var seenQuery NetworkThreadsQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkThreadsFn: func(
 				_ context.Context,
 				query NetworkThreadsQuery,
@@ -517,7 +517,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	t.Run("Should show a thread as TOON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkThreadFn: func(_ context.Context, workspaceRef string, channel string, threadID string) (NetworkThreadRecord, error) {
 				if workspaceRef != "ws-alpha" || channel != "builders" || threadID != "thread_launch" {
 					t.Fatalf(
@@ -557,7 +557,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		var seenQuery NetworkConversationMessagesQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkThreadMessagesFn: func(
 				_ context.Context,
 				query NetworkConversationMessagesQuery,
@@ -625,7 +625,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		var seenQuery NetworkDirectsQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkDirectsFn: func(
 				_ context.Context,
 				query NetworkDirectsQuery,
@@ -689,7 +689,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	t.Run("Should resolve a direct room", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkDirectResolveFn: func(
 				_ context.Context,
 				workspaceRef string,
@@ -740,7 +740,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	t.Run("Should show a direct room as TOON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkDirectFn: func(_ context.Context, workspaceRef string, channel string, gotDirectID string) (NetworkDirectRoomRecord, error) {
 				if workspaceRef != "ws-alpha" || channel != "builders" || gotDirectID != directID {
 					t.Fatalf(
@@ -781,7 +781,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		t.Parallel()
 
 		var seenQuery NetworkConversationMessagesQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkDirectMessagesFn: func(
 				_ context.Context,
 				query NetworkConversationMessagesQuery,
@@ -837,7 +837,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	t.Run("Should show work lookup as JSON response wrapper", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkWorkFn: func(_ context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
 				if workspaceRef != "ws-alpha" || workID != "work_1" {
 					t.Fatalf("NetworkWork(%q, %q), want ws-alpha/work_1", workspaceRef, workID)
@@ -873,7 +873,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	t.Run("Should show work status as TOON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			networkWorkFn: func(_ context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
 				if workspaceRef != "ws-alpha" || workID != "work_1" {
 					t.Fatalf("NetworkWork(%q, %q), want ws-alpha/work_1", workspaceRef, workID)
@@ -1068,7 +1068,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{
+			deps := newWorkspaceTestDeps(t, &stubClient{
 				networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
 					t.Fatal("NetworkSend() called for invalid network send flags")
 					return NetworkSendRecord{}, nil

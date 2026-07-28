@@ -50,7 +50,10 @@ func (s workspaceServiceStub) Get(ctx context.Context, ref string) (workspacepkg
 	return s.get(ctx, ref)
 }
 
-func (s workspaceServiceStub) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+func (s workspaceServiceStub) Resolve(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
@@ -166,9 +169,22 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 					State:       session.StateActive,
 				}, nil
 			}},
+			Workspaces: workspaceServiceStub{get: func(
+				_ context.Context,
+				ref string,
+			) (workspacepkg.Workspace, error) {
+				switch ref {
+				case "/workspace/subdir":
+					return workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace"}, nil
+				case "/foreign/subdir":
+					return workspacepkg.Workspace{ID: "ws-2", RootDir: "/foreign"}, nil
+				default:
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			}},
 		}
 
-		actor, err := handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "ws-1")
+		actor, err := handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "/workspace/subdir")
 		if err != nil {
 			t.Fatalf("taskActorContextForWorkspace(agent) error = %v", err)
 		}
@@ -177,6 +193,48 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 			actor.Origin.Kind != taskpkg.OriginKindUDS ||
 			actor.Origin.Ref != "tasks.create" {
 			t.Fatalf("taskActorContextForWorkspace(agent) = %#v", actor)
+		}
+
+		_, err = handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "/foreign/subdir")
+		if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
+			t.Fatalf("foreign taskActorContextForWorkspace() error = %v, want ErrIdentityUnauthorized", err)
+		}
+	})
+
+	t.Run("Should authenticate before looking up a target workspace", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/tasks", http.NoBody)
+		ctx.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		ctx.Request.Header.Set(agentidentity.HeaderAgent, "reviewer")
+		var workspaceLookups int
+		handlers := &BaseHandlers{
+			TransportName: "uds-api",
+			Sessions: sessionManagerStub{status: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:          "sess-agent",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       session.StateActive,
+				}, nil
+			}},
+			Workspaces: workspaceServiceStub{get: func(
+				context.Context,
+				string,
+			) (workspacepkg.Workspace, error) {
+				workspaceLookups++
+				return workspacepkg.Workspace{ID: "ws-2"}, nil
+			}},
+		}
+
+		_, err := handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "ws-2")
+		if !errors.Is(err, agentidentity.ErrIdentityMismatch) {
+			t.Fatalf("taskActorContextForWorkspace() error = %v, want ErrIdentityMismatch", err)
+		}
+		if workspaceLookups != 0 {
+			t.Fatalf("workspace lookups = %d, want 0 before caller authentication", workspaceLookups)
 		}
 	})
 }

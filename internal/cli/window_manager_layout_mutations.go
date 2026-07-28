@@ -38,6 +38,7 @@ func newLayoutArrangeCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandLayoutArrange,
 				payload,
 			)
@@ -161,6 +162,7 @@ func newLayoutResizeCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandLayoutResize,
 				contract.WindowManagerResizeLayoutPayload{
 					SplitID: windowmanager.NodeID(splitID), BoundaryIndex: boundary, Delta: delta,
@@ -206,6 +208,7 @@ func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandLayoutBalance,
 				contract.WindowManagerBalanceLayoutPayload{
 					GroupID: group, SplitID: split,
@@ -258,7 +261,7 @@ func newLayoutHistoryCommand(
 	cmd := &cobra.Command{
 		Use: use, Short: short, Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			request, err := flags.request(cmd, commandID, payload)
+			request, err := flags.request(cmd, deps, commandID, payload)
 			if err != nil {
 				return err
 			}

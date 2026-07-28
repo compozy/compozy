@@ -141,7 +141,7 @@ Workspace overlay layout: `<workspace>/.compozy/config.toml`, `<workspace>/.comp
 - Per-agent overrides: `AgentDef.Provider`, `Model`, `Tools`, `Toolsets`, `DenyTools`, `Permissions`, `MCPServers`, `Hooks`, `Capabilities` — `config/agent.go:17-31, 211-295`. Loaded via `LoadAgentDefFile` (`config/agent.go:91-115`) which: reads file → `ParseAgentDef` → `mergeAgentMCPSidecar` (per-agent `mcp.json`) → `LoadAgentCapabilities` (per-agent capability catalog, single-file or directory).
 - `AGENT.md` parsing accepts either YAML or TOML frontmatter (`config/agent.go:314-336`); `goccy/go-yaml` strict mode for YAML; `BurntSushi/toml` Undecoded() rejection of unknown keys for TOML.
 - `ResolvedWorkspace` is the per-workspace value the daemon hands to sessions / settings / autonomy — `workspace.go:43-51`. Ships a snapshot of `Config`, the merged agents list, the merged skills list, and the resolved sandbox.
-- Workspace inference for HTTP requests: `X-Compozy-Workspace-ID` header (`agentidentity/identity.go:29`) constrains agent operations to the caller's workspace.
+- Workspace inference for agent HTTP requests comes from the daemon-validated session identity; clients cannot supply a separate workspace identity header.
 
 ### 1.10 Frontmatter (`internal/frontmatter/`)
 
@@ -472,7 +472,7 @@ cleanup:
 ````markdown
 ```yaml qa-scenario
 id: cfg-07-workspace-resolver-modes
-title: Workspace resolution by --workspace, COMPOZY_WORKSPACE env, cwd, config-discovery
+title: Workspace resolution by explicit ref, environment, session identity, and cwd
 theme: workspace
 coverage:
   primary:
@@ -484,10 +484,11 @@ preconditions:
 steps:
   - "from /tmp/alpha: compozy workspace info -o json (no flags)  -> expect ws-alpha resolved by cwd"
   - "COMPOZY_WORKSPACE=ws-beta compozy workspace info -o json (still cwd=/tmp/alpha)  -> expect ws-beta (env wins over cwd)"
-  - "compozy workspace info ws-alpha -o json --workspace /tmp/beta  -> expect explicit positional overrides --workspace flag (or stable rule, captured here)"
-  - "from /tmp/elsewhere: compozy workspace info -o json  -> expect daemon-side error 'workspace not found' (cwd matches nothing)"
+  - "compozy workspace info ws-alpha -o json --workspace /tmp/beta  -> expect explicit positional overrides --workspace"
+  - "from a validated ws-beta session with cwd=/tmp/alpha: compozy workspace info -o json  -> expect ws-beta (session identity wins over cwd)"
+  - "from /tmp/elsewhere: compozy workspace info -o json  -> expect a parseable error naming all tried tiers and registration guidance"
 expected:
-  - "Resolution order documented and stable: explicit positional > env > cwd-discovery > config-default"
+  - "Resolution order documented and stable: explicit positional > --workspace > COMPOZY_WORKSPACE > validated session identity > cwd discovery"
   - "Each result records resolution_source in JSON output for agent-debuggability"
 evidence:
   - "Captured JSON for each invocation"
@@ -848,7 +849,7 @@ The QA pass MUST also drive the following edges, each as a one-shot assertion (s
 - **`internal/api/core` (`BaseHandlers`)**: settings + vault HTTP/UDS handlers all use the shared `service` types. `MutationResult.RestartRequired` propagates as the `restart_required` JSON field (`internal/api/contract/settings.go:60,652`).
 - **`internal/api/httpapi` + `udsapi`**: thin transport selection. Tests at `httpapi/helpers_test.go:130, 158, 175` and `udsapi/helpers_test.go:71, 99, 116` cover the same restart-required propagation.
 - **`internal/sse`**: settings projection emitted over SSE for live UI feedback. Log-tail SSE endpoint at `internal/api/core/settings.go:290-340`.
-- **`internal/agentidentity`**: workspace inference via `X-Compozy-Workspace-ID` header (`identity.go:29`). Caller-identity validation before agent-scoped settings/vault ops.
+- **`internal/agentidentity`**: workspace inference from the validated session record. Caller-identity validation precedes agent-scoped settings/vault operations.
 - **`internal/automation`**: workspace-overlayed automation triggers; templates validate against `lookup` (workspace `.env` aware).
 - **`internal/sandbox`**: sandbox-profile env/secret_env subject to `vault.ValidateNonSecretEnvMap` and `ValidateSecretEnvMap`.
 - **`internal/extension`**: `ExtensionsConfig.Resources.AllowedKinds`, `MaxScope`, rate limits — config-driven and re-validated on every overlay mutation.

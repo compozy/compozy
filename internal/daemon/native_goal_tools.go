@@ -315,13 +315,13 @@ func nativeGoalNotActiveError(detail string) error {
 }
 
 type nativeGoalReportInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Status      string `json:"status"`
 	Evidence    string `json:"evidence,omitempty"`
 }
 
 type nativeLoopTurnsInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node,omitempty"`
 	ItemIndex   *int   `json:"item,omitempty"`

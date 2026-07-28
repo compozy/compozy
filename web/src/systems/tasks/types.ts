@@ -1,5 +1,10 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
+export interface AgentContextIdentity {
+  agentName: string;
+  sessionId: string;
+}
+
 export type TaskListItem = OperationResponse<"listTasks", 200>["tasks"][number];
 export type TaskListPage = OperationResponse<"listTasks", 200>;
 export type TaskListFacets = TaskListPage["facets"];

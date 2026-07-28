@@ -1102,9 +1102,8 @@ func performAgentCoreRequest(
 
 func agentCoreHeaders() map[string]string {
 	return map[string]string{
-		agentidentity.HeaderSessionID:   "sess-agent",
-		agentidentity.HeaderAgent:       "coder",
-		agentidentity.HeaderWorkspaceID: "ws-1",
+		agentidentity.HeaderSessionID: "sess-agent",
+		agentidentity.HeaderAgent:     "coder",
 	}
 }
 

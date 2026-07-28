@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -1586,6 +1587,26 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 						t.Parallel()
 						spec := operationFor(t, doc, operation.path, operation.method)
 						assertTagsContain(t, spec, "agent")
+						assertParameter(
+							t,
+							spec,
+							agentidentity.HeaderSessionID,
+							openapi3.ParameterInHeader,
+							true,
+						)
+						assertParameter(
+							t,
+							spec,
+							agentidentity.HeaderAgent,
+							openapi3.ParameterInHeader,
+							true,
+						)
+						assertParameterAbsent(
+							t,
+							spec,
+							"X-Compozy-Workspace-ID",
+							openapi3.ParameterInHeader,
+						)
 					})
 				}
 

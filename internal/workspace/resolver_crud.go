@@ -15,7 +15,9 @@ func (r *Resolver) Register(ctx context.Context, opts RegisterOptions) (Workspac
 		return Workspace{}, err
 	}
 
+	r.registrationMu.Lock()
 	ws, err := r.createWorkspaceRegistration(ctx, opts)
+	r.registrationMu.Unlock()
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -333,21 +335,7 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 		if err != nil {
 			return Workspace{}, err
 		}
-		ws, err := r.store.GetWorkspaceByPath(ctx, canonicalPath)
-		if err == nil {
-			return ws, nil
-		}
-		if !errors.Is(err, ErrWorkspaceNotFound) {
-			return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
-		}
-		ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalPath)
-		if err != nil {
-			if errors.Is(err, ErrWorkspaceNotFound) {
-				return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
-			}
-			return Workspace{}, err
-		}
-		return ws, nil
+		return r.lookupWorkspaceByCanonicalPath(ctx, canonicalPath)
 	default:
 		ws, err := r.store.GetWorkspaceByName(ctx, target)
 		if err != nil {
@@ -355,6 +343,36 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 		}
 		return ws, nil
 	}
+}
+
+func (r *Resolver) lookupWorkspaceByCanonicalPath(
+	ctx context.Context,
+	canonicalPath string,
+) (Workspace, error) {
+	ws, err := r.store.GetWorkspaceByPath(ctx, canonicalPath)
+	if err == nil {
+		return ws, nil
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
+	}
+
+	ws, err = r.lookupWorkspaceByEnclosingRoot(ctx, canonicalPath)
+	if err == nil {
+		return ws, nil
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return Workspace{}, err
+	}
+
+	ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalPath)
+	if err != nil {
+		if errors.Is(err, ErrWorkspaceNotFound) {
+			return Workspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalPath, err)
+		}
+		return Workspace{}, err
+	}
+	return ws, nil
 }
 
 func (r *Resolver) lookupWorkspaceByStableIdentity(ctx context.Context, workspaceID string) (Workspace, error) {

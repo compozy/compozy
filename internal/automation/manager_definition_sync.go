@@ -281,16 +281,14 @@ func (m *Manager) resolveConfigWorkspace(
 		return "", errors.New("automation: workspace reference is required")
 	}
 
-	var (
-		resolved workspacepkg.ResolvedWorkspace
-		err      error
-	)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
 	if isPathLikeWorkspaceRef(trimmedRef) {
 		normalizedPath, normalizeErr := compozyconfig.ResolvePath(trimmedRef)
 		if normalizeErr != nil {
 			return "", fmt.Errorf("automation: resolve config workspace %q: %w", trimmedRef, normalizeErr)
 		}
-		resolved, err = m.workspaceResolver.ResolveOrRegister(ctx, normalizedPath)
+		resolved, err = m.workspaceResolver.Resolve(ctx, normalizedPath)
 	} else {
 		resolved, err = m.workspaceResolver.Resolve(ctx, trimmedRef)
 	}

@@ -209,7 +209,17 @@ func (n *hooksNotifier) DispatchNetworkWorkClosed(
 }
 
 func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, event any) {
-	n.dispatchAgentEvent(ctx, hookspkg.SessionContext{SessionID: strings.TrimSpace(sessionID)}, event)
+	target := strings.TrimSpace(sessionID)
+	n.logger.ErrorContext(
+		ctx,
+		"daemon: refusing hook dispatch without session workspace identity",
+		"session_id",
+		target,
+	)
+	_, agentEventNotify := n.runtime()
+	if agentEventNotify != nil {
+		agentEventNotify.OnAgentEvent(ctx, target, event)
+	}
 }
 
 func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *session.Session, event any) {

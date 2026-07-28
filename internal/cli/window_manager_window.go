@@ -43,11 +43,7 @@ func newWindowListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: agentKernelListKey, Short: "List windows across workspace desktops", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)
-			if err != nil {
-				return err
-			}
-			client, err := windowManagerClientFromDeps(deps)
+			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -58,7 +54,8 @@ func newWindowListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, windowManagerWindowListBundle(snapshot))
 		},
 	}
-	cmd.Flags().StringVar(&workspace, windowManagerWorkspaceFlag, "", "Workspace ID")
+	cmd.Flags().
+		StringVar(&workspace, windowManagerWorkspaceFlag, "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -99,6 +96,7 @@ func runWindowOpenCommand(
 	}
 	request, err := flags.request(
 		cmd,
+		deps,
 		contract.WindowManagerCommandWindowOpen,
 		contract.WindowManagerOpenWindowPayload{Window: spec, RestoreWindowID: restoreWindowID},
 	)
@@ -209,6 +207,7 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowClose,
 				contract.WindowManagerCloseWindowPayload{
 					WindowID: windowmanager.WindowID(windowID), Minimize: minimize,
@@ -261,6 +260,7 @@ func newWindowFocusCommand(deps commandDeps) *cobra.Command {
 			}
 			request, err := flags.request(
 				cmd,
+				deps,
 				contract.WindowManagerCommandWindowFocus,
 				contract.WindowManagerFocusWindowPayload{
 					WindowID: windowIDPtr, Direction: focusDirection,

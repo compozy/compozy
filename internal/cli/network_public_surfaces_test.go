@@ -17,7 +17,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 		t.Parallel()
 
 		updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getNetworkCoordinationFn: func(
 				_ context.Context,
 				workspaceRef string,
@@ -68,7 +68,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured PutNetworkCoordinationRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getNetworkCoordinationFn: func(
 				_ context.Context,
 				workspaceRef string,
@@ -127,7 +127,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured PutNetworkCoordinationInvitationRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getNetworkCoordinationFn: func(
 				_ context.Context,
 				_ string,
@@ -175,7 +175,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 	t.Run("Should render every coordination command as TOON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getNetworkCoordinationFn: func(
 				context.Context,
 				string,
@@ -220,7 +220,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 	t.Run("Should print network usage totals as structured JSON", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			getNetworkUsageFn: func(
 				_ context.Context,
 				workspaceRef string,
@@ -310,7 +310,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 	t.Run("Should describe current Network status without removed queue metrics", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "network", "status", "--help")
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), "network", "status", "--help")
 		if err != nil {
 			t.Fatalf("network status --help error = %v", err)
 		}

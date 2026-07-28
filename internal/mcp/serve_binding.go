@@ -1,19 +1,24 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const hostAPIWorkspaceLiteral = "workspace"
 
 func bindHostAPIParams(
+	ctx context.Context,
 	raw json.RawMessage,
 	binding workspaceBinding,
 	workspaceID string,
 	workspaceRoot string,
+	workspaces workspacepkg.RuntimeResolver,
 ) (json.RawMessage, error) {
 	params := make(map[string]any)
 	trimmed := strings.TrimSpace(string(raw))
@@ -26,21 +31,49 @@ func bindHostAPIParams(
 	var err error
 	switch binding {
 	case workspaceBindingPath:
-		err = bindString(params, hostAPIWorkspaceLiteral, workspaceRoot)
+		err = bindWorkspaceString(
+			ctx,
+			params,
+			hostAPIWorkspaceLiteral,
+			workspaceID,
+			workspaceRoot,
+			workspaces,
+		)
 	case workspaceBindingID:
-		err = bindString(params, "workspace_id", workspaceID)
+		err = bindWorkspaceString(ctx, params, "workspace_id", workspaceID, workspaceID, workspaces)
 	case workspaceBindingTask:
 		err = errors.Join(
 			bindString(params, "scope", hostAPIWorkspaceLiteral),
-			bindString(params, hostAPIWorkspaceLiteral, workspaceRoot),
+			bindWorkspaceString(
+				ctx,
+				params,
+				hostAPIWorkspaceLiteral,
+				workspaceID,
+				workspaceRoot,
+				workspaces,
+			),
 		)
 	case workspaceBindingMemory:
 		err = errors.Join(
 			bindString(params, "scope", hostAPIWorkspaceLiteral),
-			bindString(params, hostAPIWorkspaceLiteral, workspaceRoot),
+			bindWorkspaceString(
+				ctx,
+				params,
+				hostAPIWorkspaceLiteral,
+				workspaceID,
+				workspaceRoot,
+				workspaces,
+			),
 		)
 	case workspaceBindingResource:
-		err = bindResourceScope(params, workspaceID)
+		err = bindResourceScope(ctx, params, workspaceID, workspaces)
+	case workspaceBindingAutomation:
+		err = errors.Join(
+			bindString(params, "scope", hostAPIWorkspaceLiteral),
+			bindWorkspaceString(ctx, params, "workspace_id", workspaceID, workspaceID, workspaces),
+		)
+	case workspaceBindingActor:
+		return raw, nil
 	case workspaceBindingNone:
 		return nil, errors.New("projected method has no workspace binding")
 	default:
@@ -50,6 +83,42 @@ func bindHostAPIParams(
 		return nil, err
 	}
 	return json.Marshal(params)
+}
+
+func bindWorkspaceString(
+	ctx context.Context,
+	params map[string]any,
+	key string,
+	workspaceID string,
+	canonical string,
+	workspaces workspacepkg.RuntimeResolver,
+) error {
+	value, ok := params[key]
+	if !ok || value == nil {
+		params[key] = canonical
+		return nil
+	}
+	provided, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("%s must be a string", key)
+	}
+	provided = strings.TrimSpace(provided)
+	if provided == "" || provided == canonical {
+		params[key] = canonical
+		return nil
+	}
+	if workspaces == nil {
+		return fmt.Errorf("%s conflicts with the bound workspace", key)
+	}
+	resolved, err := workspaces.Resolve(ctx, provided)
+	if err != nil {
+		return fmt.Errorf("resolve %s %q: %w", key, provided, err)
+	}
+	if strings.TrimSpace(resolved.ID) != strings.TrimSpace(workspaceID) {
+		return fmt.Errorf("%s conflicts with the bound workspace", key)
+	}
+	params[key] = canonical
+	return nil
 }
 
 func bindString(params map[string]any, key string, canonical string) error {
@@ -67,7 +136,12 @@ func bindString(params map[string]any, key string, canonical string) error {
 	return nil
 }
 
-func bindResourceScope(params map[string]any, workspaceID string) error {
+func bindResourceScope(
+	ctx context.Context,
+	params map[string]any,
+	workspaceID string,
+	workspaces workspacepkg.RuntimeResolver,
+) error {
 	workspaceScope := map[string]any{"kind": hostAPIWorkspaceLiteral, "id": workspaceID}
 	if records, ok := params["records"].([]any); ok {
 		for index, value := range records {
@@ -75,7 +149,7 @@ func bindResourceScope(params map[string]any, workspaceID string) error {
 			if !ok {
 				return fmt.Errorf("records[%d] must be an object", index)
 			}
-			if err := validateResourceScope(record["scope"], workspaceID); err != nil {
+			if err := validateResourceScope(ctx, record["scope"], workspaceID, workspaces); err != nil {
 				return fmt.Errorf("records[%d].scope: %w", index, err)
 			}
 			record["scope"] = workspaceScope
@@ -83,7 +157,7 @@ func bindResourceScope(params map[string]any, workspaceID string) error {
 		return nil
 	}
 	if scope, ok := params["scope"]; ok && scope != nil {
-		if err := validateResourceScope(scope, workspaceID); err != nil {
+		if err := validateResourceScope(ctx, scope, workspaceID, workspaces); err != nil {
 			return err
 		}
 	}
@@ -91,7 +165,12 @@ func bindResourceScope(params map[string]any, workspaceID string) error {
 	return nil
 }
 
-func validateResourceScope(value any, workspaceID string) error {
+func validateResourceScope(
+	ctx context.Context,
+	value any,
+	workspaceID string,
+	workspaces workspacepkg.RuntimeResolver,
+) error {
 	if value == nil {
 		return nil
 	}
@@ -101,8 +180,21 @@ func validateResourceScope(value any, workspaceID string) error {
 	}
 	kind, kindOK := scope["kind"].(string)
 	id, idOK := scope["id"].(string)
-	if !kindOK || !idOK ||
-		strings.TrimSpace(kind) != hostAPIWorkspaceLiteral || strings.TrimSpace(id) != workspaceID {
+	if !kindOK || !idOK || strings.TrimSpace(kind) != hostAPIWorkspaceLiteral {
+		return errors.New("scope conflicts with the bound workspace")
+	}
+	id = strings.TrimSpace(id)
+	if id == workspaceID {
+		return nil
+	}
+	if workspaces == nil {
+		return errors.New("scope conflicts with the bound workspace")
+	}
+	resolved, err := workspaces.Resolve(ctx, id)
+	if err != nil {
+		return fmt.Errorf("resolve scope workspace %q: %w", id, err)
+	}
+	if strings.TrimSpace(resolved.ID) != strings.TrimSpace(workspaceID) {
 		return errors.New("scope conflicts with the bound workspace")
 	}
 	return nil

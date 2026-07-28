@@ -58,8 +58,18 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspace,
+			)
+			if err != nil {
+				return err
+			}
 			response, err := client.ObserveOverview(cmd.Context(), ObserveOverviewQuery{
-				Workspace:       workspace,
+				Workspace:       workspaceID,
 				UsageWindowDays: usageWindow,
 			})
 			if err != nil {
@@ -69,7 +79,8 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Scope aggregates to one workspace (path, name, or ID)")
+	cmd.Flags().
+		StringVar(&workspace, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().IntVar(&usageWindow, "usage-window", 0, "Usage window in days: 7, 30, or 90 (default 30)")
 	return cmd
 }

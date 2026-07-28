@@ -47,6 +47,8 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 
 func createAgentRequestFromFlags(
 	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
 	name string,
 	flags agentDefinitionFlags,
 ) (contract.CreateAgentRequest, error) {
@@ -61,7 +63,17 @@ func createAgentRequestFromFlags(
 	if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	workspace, err := commandWorkspaceFlag(cmd)
+	workspaceRef, err := commandWorkspaceFlag(cmd)
+	if err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
+	workspace, err := resolveOptionalWorkspaceOverride(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceRef,
+	)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -128,6 +140,8 @@ func updateAgentRequestFromFlags(
 
 func duplicateAgentRequestFromFlags(
 	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	name string,
 	scope string,
 	flags agentDefinitionFlags,
@@ -136,7 +150,7 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	workspace, err := commandWorkspaceFlag(cmd)
+	workspaceRef, err := commandWorkspaceFlag(cmd)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
@@ -144,8 +158,30 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	if createScope == contract.AgentCreateScopeWorkspace && workspace == "" {
-		return contract.DuplicateAgentRequest{}, errors.New("cli: --workspace is required for workspace scope")
+	var workspace string
+	if createScope == contract.AgentCreateScopeWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspaceRef},
+		)
+		if err != nil {
+			return contract.DuplicateAgentRequest{}, err
+		}
+		workspace = resolution.ID
+	} else {
+		workspace, err = resolveOptionalWorkspaceOverride(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceRef,
+		)
+		if err != nil {
+			return contract.DuplicateAgentRequest{}, err
+		}
 	}
 	overrides, err := duplicateAgentOverridesFromFlags(cmd, flags)
 	if err != nil {

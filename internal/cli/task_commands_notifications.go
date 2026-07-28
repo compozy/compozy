@@ -37,7 +37,7 @@ func newTaskNotificationSubscribeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			request, err := buildTaskBridgeNotificationSubscriptionRequest(input)
+			request, err := buildTaskBridgeNotificationSubscriptionRequest(cmd, deps, client, input)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func newTaskNotificationSubscribeCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&input.ScopeRaw, taskScopeKey, string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
 	cmd.Flags().
-		StringVar(&input.WorkspaceID, "workspace", "", "Workspace ID for workspace bridge scope")
+		StringVar(&input.WorkspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&input.PeerID, "peer", "", "Bridge peer ID")
 	cmd.Flags().StringVar(&input.ThreadID, "thread", "", "Bridge thread ID")
 	cmd.Flags().StringVar(&input.GroupID, "group", "", "Bridge group ID")
@@ -88,10 +88,20 @@ func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			resolvedWorkspaceID, err := resolveOptionalWorkspaceOverride(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceID,
+			)
+			if err != nil {
+				return err
+			}
 			query, err := buildTaskBridgeNotificationSubscriptionListQuery(
 				bridgeInstanceID,
 				scopeRaw,
-				workspaceID,
+				resolvedWorkspaceID,
 				last,
 			)
 			if err != nil {
@@ -114,7 +124,8 @@ func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&bridgeInstanceID, "bridge", "", "Filter by bridge instance ID")
 	cmd.Flags().
 		StringVar(&scopeRaw, taskScopeKey, "", "Filter by bridge scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Filter by workspace ID")
+	cmd.Flags().
+		StringVar(&workspaceID, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N subscriptions")
 	return cmd
 }
@@ -164,6 +175,9 @@ func newTaskNotificationDeleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func buildTaskBridgeNotificationSubscriptionRequest(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	input taskNotificationSubscribeInput,
 ) (*TaskBridgeNotificationSubscriptionRequest, error) {
 	scope := bridgepkg.Scope(strings.TrimSpace(input.ScopeRaw)).Normalize()
@@ -174,11 +188,25 @@ func buildTaskBridgeNotificationSubscriptionRequest(
 	if err := mode.Validate(); err != nil {
 		return nil, fmt.Errorf("cli: invalid delivery mode: %w", err)
 	}
+	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	if scope == bridgepkg.ScopeWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceResolutionRequest{FlagRef: workspaceID},
+		)
+		if err != nil {
+			return nil, err
+		}
+		workspaceID = resolution.ID
+	}
 	request := TaskBridgeNotificationSubscriptionRequest{
 		SubscriptionID:   strings.TrimSpace(input.SubscriptionID),
 		BridgeInstanceID: strings.TrimSpace(input.BridgeInstanceID),
 		Scope:            scope,
-		WorkspaceID:      strings.TrimSpace(input.WorkspaceID),
+		WorkspaceID:      workspaceID,
 		PeerID:           strings.TrimSpace(input.PeerID),
 		ThreadID:         strings.TrimSpace(input.ThreadID),
 		GroupID:          strings.TrimSpace(input.GroupID),

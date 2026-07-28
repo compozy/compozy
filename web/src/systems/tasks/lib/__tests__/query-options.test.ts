@@ -4,7 +4,6 @@ import {
   agentContextOptions,
   taskBridgeNotificationSubscriptionOptions,
   taskBridgeNotificationSubscriptionsOptions,
-  taskContextBundleOptions,
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
@@ -155,10 +154,10 @@ describe("orchestration options", () => {
   });
 
   it("Should expose enabled toggle for context queries", () => {
-    expect(agentContextOptions(false).enabled).toBe(false);
-    expect(agentContextOptions().enabled).toBe(true);
-    expect(taskContextBundleOptions(false).enabled).toBe(false);
-    expect(taskContextBundleOptions().enabled).toBe(true);
+    const identity = { agentName: "worker", sessionId: "session_1" };
+
+    expect(agentContextOptions(identity, false).enabled).toBe(false);
+    expect(agentContextOptions(identity).enabled).toBe(true);
   });
 
   it("Should disable bridge notification queries when ids are missing", () => {

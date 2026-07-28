@@ -16,7 +16,7 @@ func TestSchedulerCommandsMapRequests(t *testing.T) {
 	t.Run("Should render scheduler status", func(t *testing.T) {
 		t.Parallel()
 
-		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{
 			schedulerStatusFn: func(context.Context) (SchedulerStatusRecord, error) {
 				return SchedulerStatusRecord{
 					Paused:           true,
@@ -45,7 +45,7 @@ func TestSchedulerCommandsMapRequests(t *testing.T) {
 		t.Parallel()
 
 		var request SchedulerPauseRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			pauseSchedulerFn: func(_ context.Context, got SchedulerPauseRequest) (SchedulerStatusRecord, error) {
 				request = got
 				return SchedulerStatusRecord{Paused: true, PausedReason: got.Reason, AsOf: fixedTestNow}, nil
@@ -80,7 +80,7 @@ func TestSchedulerCommandsMapRequests(t *testing.T) {
 		t.Parallel()
 
 		var request SchedulerDrainRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			drainSchedulerFn: func(_ context.Context, got SchedulerDrainRequest) (SchedulerDrainRecord, error) {
 				request = got
 				return SchedulerDrainRecord{
@@ -122,7 +122,7 @@ func TestSchedulerCommandsMapRequests(t *testing.T) {
 		t.Parallel()
 
 		var query SchedulerBacklogQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newWorkspaceTestDeps(t, &stubClient{
 			schedulerBacklogFn: func(_ context.Context, got SchedulerBacklogQuery) (SchedulerBacklogRecord, error) {
 				query = got
 				taskRecord := sampleTaskSummaryRecord()

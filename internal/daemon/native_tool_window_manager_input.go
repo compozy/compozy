@@ -13,11 +13,11 @@ import (
 )
 
 type windowManagerWorkspaceInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 }
 
 type windowManagerMutationInput struct {
-	WorkspaceID      string                    `json:"workspace_id,omitempty"`
+	WorkspaceID      string                    `json:"workspace,omitempty"`
 	ExpectedRevision windowmanager.Revision    `json:"expected_revision"`
 	ClientID         string                    `json:"client_id,omitempty"`
 	Origin           string                    `json:"origin,omitempty"`
@@ -85,7 +85,7 @@ type windowManagerDesktopDeleteInput struct {
 }
 
 type windowManagerWindowListInput struct {
-	WorkspaceID      string `json:"workspace_id,omitempty"`
+	WorkspaceID      string `json:"workspace,omitempty"`
 	DesktopID        string `json:"desktop_id,omitempty"`
 	IncludeMinimized bool   `json:"include_minimized,omitempty"`
 }
@@ -244,12 +244,12 @@ type windowManagerLayoutHistoryInput struct {
 }
 
 type windowManagerLayoutDocumentInput struct {
-	WorkspaceID string                       `json:"workspace_id,omitempty"`
+	WorkspaceID string                       `json:"workspace,omitempty"`
 	Document    windowmanager.LayoutDocument `json:"document"`
 }
 
 type windowManagerLayoutApplyInput struct {
-	WorkspaceID      string                       `json:"workspace_id,omitempty"`
+	WorkspaceID      string                       `json:"workspace,omitempty"`
 	ExpectedRevision windowmanager.Revision       `json:"expected_revision"`
 	ClientID         string                       `json:"client_id,omitempty"`
 	Origin           string                       `json:"origin,omitempty"`

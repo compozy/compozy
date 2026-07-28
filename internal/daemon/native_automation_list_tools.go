@@ -76,7 +76,7 @@ func (n *daemonNativeTools) automationTriggersList(
 
 type automationJobsListInput struct {
 	Scope       string `json:"scope,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Enabled     *bool  `json:"enabled,omitempty"`
 	LoopName    string `json:"loop,omitempty"`
@@ -111,7 +111,7 @@ func (i automationJobsListInput) query(id toolspkg.ToolID) (automationpkg.JobLis
 
 type automationTriggersListInput struct {
 	Scope       string `json:"scope,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Event       string `json:"event,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Enabled     *bool  `json:"enabled,omitempty"`

@@ -74,6 +74,225 @@ func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bind workspace-scoped extension calls", func(t *testing.T) {
+		t.Parallel()
+
+		for _, method := range protocol.AllHostAPIMethods() {
+			if _, ok := hostAPIWorkspaceBindings[method]; !ok {
+				t.Fatalf("workspace binding decision missing for %q", method)
+			}
+		}
+
+		env := newHostAPITestEnv(t)
+		const extensionName = "ext-workspace-bound"
+		env.grant(extensionName, []string{
+			"sessions/list",
+			"automation/jobs/get",
+			"automation/jobs/update",
+			"automation/jobs/delete",
+			"automation/jobs/trigger",
+			"automation/jobs/runs",
+			"automation/triggers/get",
+			"automation/triggers/update",
+			"automation/triggers/delete",
+			"automation/triggers/runs",
+			"automation/runs",
+		}, []string{"session.read", "automation.read", "automation.write"})
+
+		owned := env.createSession(t)
+		foreignWorkspace := env.addForeignWorkspace(t)
+		foreign, err := env.sessions.Create(testutil.Context(t), session.CreateOpts{
+			AgentName: "coder",
+			Workspace: foreignWorkspace.ID,
+			Type:      session.SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("sessions.Create(foreign) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := env.sessions.Stop(testutil.Context(t), foreign.ID); err != nil {
+				t.Errorf("sessions.Stop(foreign) cleanup error = %v", err)
+			}
+		})
+
+		ctx := withHostAPIResourceSession(testutil.Context(t), &hostAPIResourceSession{
+			Actor: resources.MutationActor{
+				Kind: resources.MutationActorKindExtension,
+				ID:   extensionName,
+				MaxScope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspace,
+					ID:   env.workspace.ID,
+				},
+			},
+		})
+		result, err := env.callWithContext(ctx, t, extensionName, "sessions/list", nil)
+		if err != nil {
+			t.Fatalf("Handle(sessions/list omitted workspace) error = %v", err)
+		}
+		var sessionsList []hostAPISessionSummary
+		decodeResult(t, result, &sessionsList)
+		if len(sessionsList) != 1 || sessionsList[0].ID != owned.ID {
+			t.Fatalf("sessions/list = %#v, want only owned session %q", sessionsList, owned.ID)
+		}
+
+		_, err = env.callWithContext(ctx, t, extensionName, "sessions/list", map[string]string{
+			"workspace": foreignWorkspace.ID,
+		})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		assertErrorContains(t, err, "conflicts with the bound workspace")
+
+		foreignJob, err := env.automation.CreateJob(testutil.Context(t), automationpkg.Job{
+			Name:        "foreign-boundary-job",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			WorkspaceID: foreignWorkspace.ID,
+			AgentName:   "coder",
+			Prompt:      "foreign",
+			Schedule: &automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "1h",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceDynamic,
+		})
+		if err != nil {
+			t.Fatalf("CreateJob(foreign) error = %v", err)
+		}
+		ownedJob := foreignJob
+		ownedJob.ID = ""
+		ownedJob.Name = "owned-boundary-job"
+		ownedJob.WorkspaceID = env.workspace.ID
+		ownedJob, err = env.automation.CreateJob(testutil.Context(t), ownedJob)
+		if err != nil {
+			t.Fatalf("CreateJob(owned) error = %v", err)
+		}
+		foreignTrigger, err := env.automation.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+			Name:        "foreign-boundary-trigger",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			WorkspaceID: foreignWorkspace.ID,
+			AgentName:   "coder",
+			Event:       "ext.boundary.foreign",
+			Prompt:      "foreign",
+			Enabled:     true,
+			Retry:       automationpkg.DefaultRetryConfig(),
+			FireLimit:   automationpkg.DefaultFireLimitConfig(),
+			Source:      automationpkg.JobSourceDynamic,
+		}, automationpkg.WebhookSecretWrite{})
+		if err != nil {
+			t.Fatalf("CreateTrigger(foreign) error = %v", err)
+		}
+
+		for _, tc := range []struct {
+			name          string
+			method        string
+			foreignParams map[string]any
+			missingParams map[string]any
+		}{
+			{
+				name:          "Should hide a foreign job read",
+				method:        "automation/jobs/get",
+				foreignParams: map[string]any{"id": foreignJob.ID},
+				missingParams: map[string]any{"id": "job-missing"},
+			},
+			{
+				name:          "Should hide a foreign job update",
+				method:        "automation/jobs/update",
+				foreignParams: map[string]any{"id": foreignJob.ID, "prompt": "changed"},
+				missingParams: map[string]any{"id": "job-missing", "prompt": "changed"},
+			},
+			{
+				name:          "Should hide a foreign job deletion",
+				method:        "automation/jobs/delete",
+				foreignParams: map[string]any{"id": foreignJob.ID},
+				missingParams: map[string]any{"id": "job-missing"},
+			},
+			{
+				name:          "Should hide a foreign job trigger",
+				method:        "automation/jobs/trigger",
+				foreignParams: map[string]any{"id": foreignJob.ID},
+				missingParams: map[string]any{"id": "job-missing"},
+			},
+			{
+				name:          "Should hide foreign job runs",
+				method:        "automation/jobs/runs",
+				foreignParams: map[string]any{"id": foreignJob.ID},
+				missingParams: map[string]any{"id": "job-missing"},
+			},
+			{
+				name:          "Should hide a foreign trigger read",
+				method:        "automation/triggers/get",
+				foreignParams: map[string]any{"id": foreignTrigger.ID},
+				missingParams: map[string]any{"id": "trigger-missing"},
+			},
+			{
+				name:          "Should hide a foreign trigger update",
+				method:        "automation/triggers/update",
+				foreignParams: map[string]any{"id": foreignTrigger.ID, "prompt": "changed"},
+				missingParams: map[string]any{"id": "trigger-missing", "prompt": "changed"},
+			},
+			{
+				name:          "Should hide a foreign trigger deletion",
+				method:        "automation/triggers/delete",
+				foreignParams: map[string]any{"id": foreignTrigger.ID},
+				missingParams: map[string]any{"id": "trigger-missing"},
+			},
+			{
+				name:          "Should hide foreign trigger runs",
+				method:        "automation/triggers/runs",
+				foreignParams: map[string]any{"id": foreignTrigger.ID},
+				missingParams: map[string]any{"id": "trigger-missing"},
+			},
+			{
+				name:          "Should hide foreign filtered runs",
+				method:        "automation/runs",
+				foreignParams: map[string]any{"job_id": foreignJob.ID},
+				missingParams: map[string]any{"job_id": "job-missing"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, missingErr := env.callWithContext(ctx, t, extensionName, tc.method, tc.missingParams)
+				if missingErr == nil {
+					t.Fatalf("Handle(%s missing) error = nil, want not found", tc.method)
+				}
+				_, foreignErr := env.callWithContext(ctx, t, extensionName, tc.method, tc.foreignParams)
+				if foreignErr == nil {
+					t.Fatalf("Handle(%s foreign) error = nil, want not found", tc.method)
+				}
+				if fmt.Sprintf("%T:%v", foreignErr, foreignErr) != fmt.Sprintf("%T:%v", missingErr, missingErr) {
+					t.Fatalf(
+						"Handle(%s foreign) error = %T:%v, want missing-target result %T:%v",
+						tc.method,
+						foreignErr,
+						foreignErr,
+						missingErr,
+						missingErr,
+					)
+				}
+			})
+		}
+
+		ownedResult, err := env.callWithContext(
+			ctx,
+			t,
+			extensionName,
+			"automation/jobs/get",
+			map[string]any{"id": ownedJob.ID},
+		)
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/get owned) error = %v", err)
+		}
+		var fetchedOwned automationpkg.Job
+		decodeResult(t, ownedResult, &fetchedOwned)
+		if fetchedOwned.ID != ownedJob.ID {
+			t.Fatalf("automation/jobs/get owned id = %q, want %q", fetchedOwned.ID, ownedJob.ID)
+		}
+	})
+}
+
 func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *testing.T) {
 	t.Parallel()
 
@@ -5926,9 +6145,11 @@ func (e *hostAPITestEnv) addForeignWorkspace(t testing.TB) workspacepkg.Resolved
 	foreign := e.workspace
 	foreign.ID = "ws-foreign-registry"
 	foreign.WorkspaceID = "ws-foreign"
-	foreign.ID = "ws-foreign-registry"
 	foreign.RootDir = t.TempDir()
 	foreign.Name = "foreign"
+	if err := e.registry.InsertWorkspace(testutil.Context(t), foreign.Workspace); err != nil {
+		t.Fatalf("registry.InsertWorkspace(foreign) error = %v", err)
+	}
 	e.workspaces.upsert(&foreign)
 	return foreign
 }

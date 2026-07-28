@@ -13,11 +13,13 @@ import (
 
 func buildAutomationTriggerCreateRequest(
 	cmd *cobra.Command,
+	deps commandDeps,
 	client DaemonClient,
 	input automationTriggerCommandInput,
 ) (AutomationTriggerCreateRequest, error) {
 	scope, workspaceID, err := resolveAutomationScopeWorkspace(
-		cmd.Context(),
+		cmd,
+		deps,
 		client,
 		input.ScopeRaw,
 		input.WorkspaceRef,

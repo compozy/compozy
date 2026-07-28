@@ -108,7 +108,7 @@ creating anything:
 compozy workspace list -o json
 compozy extension list -o json
 curl -sS http://127.0.0.1:2123/api/bridges/providers | jq
-compozy bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
+compozy bridge list --scope workspace --workspace ws_8f33a913d23c4fd1 -o json
 ```
 
 Confirm the workspace record has a non-empty `default_agent`. If it does not, assign one before
@@ -164,7 +164,7 @@ Guided setup creates a disabled instance automatically. Generic providers use th
 ```bash
 compozy bridge create \
   --scope workspace \
-  --workspace-id ws_8f33a913d23c4fd1 \
+  --workspace ws_8f33a913d23c4fd1 \
   --platform <provider> \
   --extension <provider> \
   --display-name "<operator-facing name>" \

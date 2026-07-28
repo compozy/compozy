@@ -110,7 +110,7 @@ func (h *BaseHandlers) taskActorContext(c *gin.Context, action string) (taskpkg.
 func (h *BaseHandlers) taskActorContextForWorkspace(
 	c *gin.Context,
 	action string,
-	expectedWorkspaceID string,
+	expectedWorkspaceRef string,
 ) (taskpkg.ActorContext, error) {
 	if h.TaskActorContextResolver != nil {
 		return h.TaskActorContextResolver(c, action)
@@ -121,7 +121,7 @@ func (h *BaseHandlers) taskActorContextForWorkspace(
 			c.Request.Context(),
 			credentials,
 			"tasks."+strings.TrimSpace(action),
-			expectedWorkspaceID,
+			expectedWorkspaceRef,
 		)
 		if err != nil {
 			return taskpkg.ActorContext{}, err

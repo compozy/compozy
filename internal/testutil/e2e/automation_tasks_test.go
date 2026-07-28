@@ -313,9 +313,6 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 			if got, want := r.Header.Get(agentidentity.HeaderAgent), "worker"; got != want {
 				t.Fatalf("complete agent header = %q, want %q", got, want)
 			}
-			if got, want := r.Header.Get(agentidentity.HeaderWorkspaceID), "ws-1"; got != want {
-				t.Fatalf("complete workspace header = %q, want %q", got, want)
-			}
 			writeJSON(w, compozycontract.AgentTaskLeaseResponse{
 				Lease: compozycontract.TaskRunLeaseSummaryPayload{
 					RunID:     "task-run-1",

@@ -1,6 +1,5 @@
 import createClient from "openapi-fetch";
 
-import type { paths as daemonPaths } from "@/generated/compozy-daemon-openapi";
 import type { paths as compozyPaths } from "@/generated/compozy-openapi";
 
 export const apiBaseUrl =
@@ -11,11 +10,6 @@ export const apiBaseUrl =
 export const runtimeFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
 
 export const apiClient = createClient<compozyPaths>({
-  baseUrl: apiBaseUrl,
-  fetch: runtimeFetch,
-});
-
-export const daemonApiClient = createClient<daemonPaths>({
   baseUrl: apiBaseUrl,
   fetch: runtimeFetch,
 });

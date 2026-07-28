@@ -29,38 +29,38 @@ type toolInfoInput struct {
 }
 
 type skillListInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 type skillSearchInput struct {
 	Query       string `json:"query"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 type skillViewInput struct {
 	Name        string `json:"name"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	File        string `json:"file,omitempty"`
 }
 
 type networkPeersInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel,omitempty"`
 }
 
 type networkChannelsInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 }
 
 type networkInboxInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	SessionID   string `json:"session_id,omitempty"`
 }
 
 type networkSendInput struct {
-	WorkspaceID string               `json:"workspace_id"`
+	WorkspaceID string               `json:"workspace"`
 	SessionID   string               `json:"session_id,omitempty"`
 	Channel     string               `json:"channel"`
 	Surface     string               `json:"surface,omitempty"`
@@ -80,19 +80,19 @@ type networkSendInput struct {
 }
 
 type networkDirectResolveInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	SessionID   string `json:"session_id,omitempty"`
 	Channel     string `json:"channel"`
 	PeerID      string `json:"peer_id"`
 }
 
 type networkWorkInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	WorkID      string `json:"work_id"`
 }
 
 type networkSubscriptionsInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
@@ -100,26 +100,26 @@ type networkSubscriptionsInput struct {
 }
 
 type networkSubscriptionInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
 	SessionID   string `json:"session_id"`
 }
 
 type networkSubscriptionDeleteInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
 	SessionID   string `json:"session_id"`
 }
 
 type sessionIDInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	SessionID   string `json:"session_id"`
 }
 
 type sessionEventQueryInput struct {
-	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceID   string `json:"workspace"`
 	SessionID     string `json:"session_id"`
 	Type          string `json:"type,omitempty"`
 	AgentName     string `json:"agent_name,omitempty"`
@@ -130,7 +130,7 @@ type sessionEventQueryInput struct {
 }
 
 type agentHeartbeatStatusInput struct {
-	WorkspaceID             string `json:"workspace_id"`
+	WorkspaceID             string `json:"workspace"`
 	AgentName               string `json:"agent_name"`
 	SessionID               string `json:"session_id,omitempty"`
 	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
@@ -138,7 +138,7 @@ type agentHeartbeatStatusInput struct {
 }
 
 type agentHeartbeatWakeInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	AgentName   string `json:"agent_name"`
 	SessionID   string `json:"session_id"`
 	Source      string `json:"source,omitempty"`

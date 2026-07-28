@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"path/filepath"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -69,24 +67,10 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps, agentName st
 	}, nil
 }
 
-func resolveCLIWorkspaceRoot(deps commandDeps) (string, error) {
-	workspace, err := currentWorkingDirectory(deps)
-	if err != nil {
-		return "", err
-	}
-
-	absWorkspace, err := filepath.Abs(workspace)
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve workspace root %q: %w", workspace, err)
-	}
-	return absWorkspace, nil
-}
-
 func resolveSkillCommandScope(
 	ctx context.Context,
 	cmd *cobra.Command,
 	deps commandDeps,
-	originRef string,
 ) (skillCommandScope, error) {
 	workspaceRef, err := commandWorkspaceFlag(cmd)
 	if err != nil {
@@ -97,42 +81,33 @@ func resolveSkillCommandScope(
 		return skillCommandScope{}, err
 	}
 
-	scope := skillCommandScope{
-		query: SkillQuery{
-			Workspace: workspaceRef,
-			ForAgent:  agentRef,
-		},
-		useDaemon: workspaceRef != "",
-	}
-	if scope.useDaemon {
-		return scope, nil
-	}
-	if agentRef != "" {
-		return scope, nil
-	}
-
-	credentials := agentCredentialsFromEnv(deps)
-	if strings.TrimSpace(credentials.SessionID) == "" && strings.TrimSpace(credentials.AgentName) == "" {
-		return scope, nil
-	}
-
 	client, err := clientFromDeps(deps)
 	if err != nil {
-		return skillCommandScope{}, err
+		if workspaceRef != "" || strings.TrimSpace(deps.getenv(workspaceEnvName)) != "" {
+			return skillCommandScope{}, err
+		}
+		return skillCommandScope{query: SkillQuery{ForAgent: agentRef}}, nil
 	}
-	caller, err := resolveAgentCallerFromEnv(ctx, deps, client, "", originRef)
+	resolution, resolved, err := resolveContextualCommandWorkspace(ctx, cmd, deps, client, workspaceRef)
 	if err != nil {
-		return skillCommandScope{}, err
+		if workspaceRef != "" || strings.TrimSpace(deps.getenv(workspaceEnvName)) != "" {
+			return skillCommandScope{}, err
+		}
+		return skillCommandScope{query: SkillQuery{ForAgent: agentRef}}, nil
 	}
 
-	scope.query = SkillQuery{
-		Workspace: firstNonEmpty(
-			strings.TrimSpace(caller.Session.WorkspaceID),
-			strings.TrimSpace(caller.Session.WorkspacePath),
-		),
-		ForAgent: strings.TrimSpace(caller.Session.AgentName),
+	scope := skillCommandScope{
+		query: SkillQuery{
+			ForAgent: agentRef,
+		},
+		useDaemon: resolved,
 	}
-	scope.useDaemon = scope.query.Workspace != "" || scope.query.ForAgent != ""
+	if resolved {
+		scope.query.Workspace = resolution.ID
+		if scope.query.ForAgent == "" && resolution.Source == workspaceResolutionSessionIdentity {
+			scope.query.ForAgent = resolution.IdentityAgent
+		}
+	}
 	return scope, nil
 }
 

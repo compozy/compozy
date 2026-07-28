@@ -13,6 +13,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 )
@@ -30,8 +31,9 @@ func TestHostAPIProjectionDecisions(t *testing.T) {
 			t.Fatalf("len(hostAPIProjectionDecisions) = %d, want exact registry size %d", got, want)
 		}
 		for method, decision := range hostAPIProjectionDecisions {
-			if decision.Publish && decision.Binding == workspaceBindingNone {
-				t.Fatalf("decision[%q] publishes without a workspace binding", method)
+			binding, bound := extensionpkg.HostAPIWorkspaceBindingFor(method)
+			if decision.Publish && (!bound || binding == workspaceBindingNone) {
+				t.Fatalf("decision[%q] publishes without a canonical workspace binding", method)
 			}
 			if !decision.Publish && strings.TrimSpace(decision.Reason) == "" {
 				t.Fatalf("decision[%q] exclusion has no reason", method)
@@ -79,10 +81,12 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
+			context.Background(),
 			json.RawMessage(`{"session_id":"sess-1"}`),
 			workspaceBindingID,
 			"ws-1",
 			"/workspace",
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("bindHostAPIParams() error = %v", err)
@@ -100,13 +104,54 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		_, err := bindHostAPIParams(
+			context.Background(),
 			json.RawMessage(`{"workspace_id":"ws-2"}`),
 			workspaceBindingID,
 			"ws-1",
 			"/workspace",
+			nil,
 		)
 		if err == nil || !strings.Contains(err.Error(), "conflicts") {
 			t.Fatalf("bindHostAPIParams() error = %v, want conflict", err)
+		}
+	})
+
+	t.Run("Should accept an equivalent workspace ref and rewrite it canonically", func(t *testing.T) {
+		t.Parallel()
+
+		bound, err := bindHostAPIParams(
+			context.Background(),
+			json.RawMessage(`{"workspace":"alpha"}`),
+			workspaceBindingPath,
+			"ws-1",
+			"/workspace",
+			mcpBindingWorkspaceResolver{},
+		)
+		if err != nil {
+			t.Fatalf("bindHostAPIParams(alias) error = %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(bound, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(bound) error = %v", err)
+		}
+		if got := payload["workspace"]; got != "/workspace" {
+			t.Fatalf("workspace = %#v, want /workspace", got)
+		}
+	})
+
+	t.Run("Should reject a ref resolving to another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := bindHostAPIParams(
+			context.Background(),
+			json.RawMessage(`{"workspace":"beta"}`),
+			workspaceBindingPath,
+			"ws-1",
+			"/workspace",
+			mcpBindingWorkspaceResolver{},
+		)
+		if err == nil || !strings.Contains(err.Error(), "conflicts") {
+			t.Fatalf("bindHostAPIParams(foreign ref) error = %v, want conflict", err)
 		}
 	})
 
@@ -114,10 +159,12 @@ func TestHostAPIBinding(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
+			context.Background(),
 			json.RawMessage(`{"title":"Ship"}`),
 			workspaceBindingTask,
 			"ws-1",
 			"/workspace",
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("bindHostAPIParams() error = %v", err)
@@ -131,14 +178,58 @@ func TestHostAPIBinding(t *testing.T) {
 		}
 	})
 
+	t.Run("Should force automation into workspace scope and make bound fields optional", func(t *testing.T) {
+		t.Parallel()
+
+		bound, err := bindHostAPIParams(
+			context.Background(),
+			json.RawMessage(`{"name":"daily"}`),
+			workspaceBindingAutomation,
+			"ws-1",
+			"/workspace",
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("bindHostAPIParams(automation) error = %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(bound, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(bound automation) error = %v", err)
+		}
+		if payload["scope"] != "workspace" || payload["workspace_id"] != "ws-1" {
+			t.Fatalf("bound automation = %#v, want workspace scope/id", payload)
+		}
+
+		schema, err := makeBoundFieldsOptional(
+			json.RawMessage(
+				`{"type":"object","required":["scope","workspace_id","name"],"properties":{"scope":{},"workspace_id":{},"name":{}}}`,
+			),
+			workspaceBindingAutomation,
+		)
+		if err != nil {
+			t.Fatalf("makeBoundFieldsOptional(automation) error = %v", err)
+		}
+		var decoded struct {
+			Required []string `json:"required"`
+		}
+		if err := json.Unmarshal(schema, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(automation schema) error = %v", err)
+		}
+		if !slices.Equal(decoded.Required, []string{"name"}) {
+			t.Fatalf("automation schema required = %#v, want [name]", decoded.Required)
+		}
+	})
+
 	t.Run("Should bind every resource snapshot record to the workspace", func(t *testing.T) {
 		t.Parallel()
 
 		bound, err := bindHostAPIParams(
+			context.Background(),
 			json.RawMessage(`{"records":[{"kind":"tool","id":"a","spec":{}}]}`),
 			workspaceBindingResource,
 			"ws-1",
 			"/workspace",
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("bindHostAPIParams() error = %v", err)
@@ -148,6 +239,33 @@ func TestHostAPIBinding(t *testing.T) {
 			t.Fatalf("bound resource payload = %s, want workspace scope", bound)
 		}
 	})
+}
+
+type mcpBindingWorkspaceResolver struct{}
+
+func (mcpBindingWorkspaceResolver) Resolve(
+	_ context.Context,
+	ref string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	switch strings.TrimSpace(ref) {
+	case "alpha", "ws-1", "/workspace":
+		return workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "alpha", RootDir: "/workspace"},
+		}, nil
+	case "beta", "ws-2", "/foreign":
+		return workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-2", Name: "beta", RootDir: "/foreign"},
+		}, nil
+	default:
+		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+	}
+}
+
+func (mcpBindingWorkspaceResolver) ResolveOrRegister(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
 func TestHostAPIHTTPAuth(t *testing.T) {

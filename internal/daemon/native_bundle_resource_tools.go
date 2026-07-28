@@ -285,7 +285,7 @@ func nativeBundleActivationScope(
 	}
 	workspaceID := ""
 	if activationScope == bundlepkg.ScopeWorkspace {
-		resolved, err := nativeCallerWorkspaceInput(id, "workspace", input.Workspace, scope)
+		resolved, err := nativeCallerWorkspaceInput(id, input.Workspace, scope)
 		if err != nil {
 			return "", "", err
 		}

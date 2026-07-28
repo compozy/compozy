@@ -38,7 +38,9 @@ func newMemoryListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			selector, err := resolveMemorySelectorFlags(
+				cmd,
 				deps,
+				client,
 				flags,
 				memorySelectorOptions{DefaultWorkspace: true},
 			)

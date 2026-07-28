@@ -5,6 +5,7 @@ import (
 
 	"fmt"
 
+	"strings"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -13,20 +14,31 @@ import (
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (n *daemonNativeTools) workspaceList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input struct{}
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaces, err := n.deps.Workspaces.List(ctx)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
+	var workspaces []workspacepkg.Workspace
+	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
+		resolved, err := n.deps.Workspaces.Resolve(ctx, scope.WorkspaceID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		workspaces = []workspacepkg.Workspace{resolved.Workspace}
+	} else {
+		var err error
+		workspaces, err = n.deps.Workspaces.List(ctx)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	payload := make([]any, 0, len(workspaces))
 	for _, workspace := range workspaces {

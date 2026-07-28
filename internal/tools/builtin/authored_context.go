@@ -63,9 +63,9 @@ func authoredContextDescriptors() []toolspkg.Descriptor {
 
 const agentHeartbeatStatusInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","agent_name"],
+	"required":["agent_name"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"session_id":{"type":"string"},
 		"include_session_health":{"type":"boolean"},
@@ -76,9 +76,9 @@ const agentHeartbeatStatusInputSchema = `{
 
 const agentHeartbeatWakeInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","agent_name","session_id"],
+	"required":["agent_name","session_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"session_id":{"type":"string"},
 		"source":{"type":"string"},

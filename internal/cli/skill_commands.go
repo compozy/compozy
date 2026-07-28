@@ -54,7 +54,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
   compozy skill list --source bundled`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.list"))
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps)
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		&workspace,
 		workspaceSkillSource,
 		"",
-		"Resolve daemon-managed skills from a workspace id, name, or path",
+		"Override workspace context (ID, name, or path)",
 	)
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
@@ -129,7 +129,7 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 		&workspace,
 		workspaceSkillSource,
 		"",
-		"Resolve the daemon-managed skill from a workspace id, name, or path",
+		"Override workspace context (ID, name, or path)",
 	)
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
@@ -140,7 +140,7 @@ func runSkillViewCommand(cmd *cobra.Command, deps commandDeps, name string, file
 	if skillName == "" {
 		return errors.New("skill name is required")
 	}
-	scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.view"))
+	scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps)
 	if err != nil {
 		return err
 	}

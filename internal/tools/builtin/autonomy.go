@@ -103,7 +103,7 @@ const autonomyClaimNextInputSchema = `{
 	"type":"object",
 	"properties":{
 		"run_id":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"required_capabilities":{"type":"array","items":{"type":"string"}},
 		"priority_min":{"type":"integer"},
 		"lease_seconds":{"type":"integer"}

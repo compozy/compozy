@@ -116,7 +116,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-a"}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-b","tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`,
+				`{"workspace":"ws-b","tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`,
 			),
 		})
 		if !errors.Is(err, toolspkg.ErrToolDenied) {

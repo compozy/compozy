@@ -4,9 +4,9 @@ area: ET
 title: Load only Compozy extension, package, and OpenAPI identities
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: Extension loaders and real manifests accept only min_compozy_version, workspace packages use @compozy/*, generated contracts are openapi/compozy.json plus web/src/generated/compozy-openapi.d.ts and compozy-daemon-openapi.d.ts, and SDK/scaffolder/site readers resolve those canonical names without a legacy alias or dual manifest field.
-entry_points: extension.toml and JSON manifest loading; compozy extension list|inspect; package.json workspace manifests; openapi/compozy.json; openapi/compozy-daemon.json; web/src/generated/compozy-openapi.d.ts; web/src/generated/compozy-daemon-openapi.d.ts; SDK/scaffolder and site API-reference readers
-qa_status: pass
+expected: Extension loaders and real manifests accept only min_compozy_version, workspace packages use @compozy/*, the sole generated contract is openapi/compozy.json plus web/src/generated/compozy-openapi.d.ts, and SDK/scaffolder/site readers resolve those canonical names without aliases or a second daemon contract.
+entry_points: extension.toml and JSON manifest loading; compozy extension list|inspect; package.json workspace manifests; openapi/compozy.json; web/src/generated/compozy-openapi.d.ts; SDK/scaffolder and site API-reference readers
+qa_status: untested
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
@@ -21,3 +21,7 @@ family without guessing which package, manifest field, or generated OpenAPI decl
 
 QA impact 2026-07-27: Task 12 derived this missing extensibility/contract row from the Task-02 and
 Task-04 hard cuts. Planning only; Task 13 owns the local loader and generated-reader evidence.
+
+QA impact 2026-07-28: the second daemon OpenAPI and generated TypeScript artifacts were deleted, and
+agent identity headers now live only in the canonical contract. Historical evidence remains, but
+the changed hard-cut surface is untested for the next cycle.

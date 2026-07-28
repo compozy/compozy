@@ -129,7 +129,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopList,
-				Input:  json.RawMessage(`{"workspace_id":"ws-beta"}`),
+				Input:  json.RawMessage(`{"workspace":"ws-beta"}`),
 			},
 		)
 
@@ -201,7 +201,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
+					`{"workspace":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
 						`"network_participation":{"mode":"local"},"dry":true}`,
 				),
 			},
@@ -325,9 +325,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		definition := loopAPITestDefinition(t, "release", 1, "Release safely")
 		input, err := json.Marshal(map[string]any{
-			"workspace_id": "ws-alpha",
-			"name":         "release",
-			"definition":   definition,
+			"workspace":  "ws-alpha",
+			"name":       "release",
+			"definition": definition,
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(loop_validate input) error = %v", err)
@@ -533,7 +533,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopApprove,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-alpha","run_id":"looprun-1","gate_id":"human",` +
+					`{"workspace":"ws-alpha","run_id":"looprun-1","gate_id":"human",` +
 						`"decision":"approve","approval_token_hash":"sha256:` +
 						strings.Repeat("a", 64) +
 						`"}`,
@@ -567,7 +567,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopApprove,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-alpha","run_id":"looprun-1","gate_id":"human","decision":"approve","approval_token_hash":"raw-secret-token"}`,
+					`{"workspace":"ws-alpha","run_id":"looprun-1","gate_id":"human","decision":"approve","approval_token_hash":"raw-secret-token"}`,
 				),
 			},
 		)

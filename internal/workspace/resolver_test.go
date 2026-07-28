@@ -145,6 +145,202 @@ func TestResolveMatchesWorkspaceBySameFilesystemRoot(t *testing.T) {
 	})
 }
 
+func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should choose the nearest registered root for a nested directory", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		outerRoot := t.TempDir()
+		innerRoot := filepath.Join(outerRoot, "packages", "inner")
+		cwd := filepath.Join(innerRoot, "src", "feature")
+		if err := os.MkdirAll(cwd, 0o755); err != nil {
+			t.Fatalf("MkdirAll(cwd) error = %v", err)
+		}
+		outer := Workspace{ID: "ws_outer", RootDir: outerRoot, Name: "outer"}
+		inner := Workspace{ID: "ws_inner", RootDir: innerRoot, Name: "inner"}
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(outer, inner),
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		resolved, err := resolver.Resolve(ctx, cwd)
+		if err != nil {
+			t.Fatalf("Resolve(nested cwd) error = %v", err)
+		}
+		if resolved.ID != inner.ID {
+			t.Fatalf("Resolve(nested cwd) ID = %q, want nearest %q", resolved.ID, inner.ID)
+		}
+	})
+
+	t.Run("Should reject path-prefix collisions and not treat AdditionalDirs as CWD roots", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		parent := t.TempDir()
+		root := filepath.Join(parent, "alpha")
+		prefixCollision := filepath.Join(parent, "alpha-2")
+		additional := filepath.Join(parent, "shared")
+		for _, path := range []string{root, prefixCollision, additional} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		workspace := Workspace{
+			ID:             "ws_alpha",
+			RootDir:        root,
+			Name:           "alpha",
+			AdditionalDirs: []string{additional},
+		}
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(workspace),
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		for _, path := range []string{prefixCollision, additional} {
+			_, err := resolver.Resolve(ctx, path)
+			if !errors.Is(err, ErrWorkspaceNotFound) {
+				t.Fatalf("Resolve(%q) error = %v, want ErrWorkspaceNotFound", path, err)
+			}
+		}
+	})
+
+	t.Run("Should preserve symlink canonicalization for nested directories", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		nested := filepath.Join(root, "src", "nested")
+		if err := os.MkdirAll(nested, 0o755); err != nil {
+			t.Fatalf("MkdirAll(nested) error = %v", err)
+		}
+		link := symlinkWorkspaceRootForTest(t, root)
+		workspace := Workspace{ID: "ws_symlink_nested", RootDir: root, Name: "symlink-nested"}
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(workspace),
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		resolved, err := resolver.Resolve(ctx, filepath.Join(link, "src", "nested"))
+		if err != nil {
+			t.Fatalf("Resolve(symlink nested) error = %v", err)
+		}
+		if resolved.ID != workspace.ID {
+			t.Fatalf("Resolve(symlink nested) ID = %q, want %q", resolved.ID, workspace.ID)
+		}
+	})
+
+	t.Run("Should serialize ancestor registration with child auto-registration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		ancestorRoot := t.TempDir()
+		childRoot := filepath.Join(ancestorRoot, "packages", "child")
+		if err := os.MkdirAll(childRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(childRoot) error = %v", err)
+		}
+		store := newSerializedRegistrationStore()
+		resolver := newTestResolver(
+			t,
+			store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		childResult := make(chan error, 1)
+		go func() {
+			_, err := resolver.ResolveOrRegister(ctx, childRoot)
+			childResult <- err
+		}()
+		<-store.firstListStarted
+
+		ancestorResult := make(chan error, 1)
+		go func() {
+			_, err := resolver.Register(ctx, RegisterOptions{RootDir: ancestorRoot, Name: "ancestor"})
+			ancestorResult <- err
+		}()
+
+		select {
+		case inserted := <-store.inserted:
+			close(store.releaseFirstList)
+			t.Fatalf("InsertWorkspace(%q) interleaved before child registration decision completed", inserted)
+		case <-time.After(100 * time.Millisecond):
+		}
+		close(store.releaseFirstList)
+
+		for operation, result := range map[string]<-chan error{
+			"ResolveOrRegister(child)": childResult,
+			"Register(ancestor)":       ancestorResult,
+		} {
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("%s error = %v", operation, err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("%s did not complete", operation)
+			}
+		}
+
+		firstInserted := <-store.inserted
+		secondInserted := <-store.inserted
+		if firstInserted != mustCanonicalRoot(t, childRoot) ||
+			secondInserted != mustCanonicalRoot(t, ancestorRoot) {
+			t.Fatalf(
+				"registration order = [%q, %q], want child decision before ancestor insertion",
+				firstInserted,
+				secondInserted,
+			)
+		}
+	})
+}
+
+func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bind a subdirectory to its enclosing workspace without registering it", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		nested := filepath.Join(root, "src", "feature")
+		if err := os.MkdirAll(nested, 0o755); err != nil {
+			t.Fatalf("MkdirAll(nested) error = %v", err)
+		}
+		workspace := Workspace{ID: "ws_existing_nested", RootDir: root, Name: "existing"}
+		store := newMockWorkspaceStore(workspace)
+		resolver := newTestResolver(
+			t,
+			store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		resolved, err := resolver.ResolveOrRegister(ctx, nested)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister(nested) error = %v", err)
+		}
+		if resolved.ID != workspace.ID {
+			t.Fatalf("ResolveOrRegister(nested) ID = %q, want %q", resolved.ID, workspace.ID)
+		}
+		if len(store.insertCalls) != 0 {
+			t.Fatalf("InsertWorkspace() calls = %d, want 0", len(store.insertCalls))
+		}
+	})
+}
+
 func TestRegisterRejectsSameFilesystemRoot(t *testing.T) {
 	t.Parallel()
 
@@ -2121,6 +2317,51 @@ type countingConfigLoader struct {
 type concurrentPathStore struct {
 	existing       Workspace
 	getByPathCalls int
+}
+
+type serializedRegistrationStore struct {
+	*mockWorkspaceStore
+	mu               sync.Mutex
+	listCalls        int
+	firstListStarted chan struct{}
+	releaseFirstList chan struct{}
+	inserted         chan string
+}
+
+func newSerializedRegistrationStore() *serializedRegistrationStore {
+	return &serializedRegistrationStore{
+		mockWorkspaceStore: newMockWorkspaceStore(),
+		firstListStarted:   make(chan struct{}),
+		releaseFirstList:   make(chan struct{}),
+		inserted:           make(chan string, 2),
+	}
+}
+
+func (s *serializedRegistrationStore) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	s.mu.Lock()
+	s.listCalls++
+	first := s.listCalls == 1
+	s.mu.Unlock()
+
+	workspaces, err := s.mockWorkspaceStore.ListWorkspaces(ctx)
+	if err != nil || !first {
+		return workspaces, err
+	}
+	close(s.firstListStarted)
+	select {
+	case <-s.releaseFirstList:
+		return workspaces, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *serializedRegistrationStore) InsertWorkspace(ctx context.Context, ws Workspace) error {
+	if err := s.mockWorkspaceStore.InsertWorkspace(ctx, ws); err != nil {
+		return err
+	}
+	s.inserted <- ws.RootDir
+	return nil
 }
 
 type concurrentUnregisterStore struct {

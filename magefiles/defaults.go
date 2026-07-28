@@ -12,35 +12,33 @@ import (
 )
 
 const (
-	golangciLintVersion             = "v2.12.2"
-	golangciLintTimeout             = "10m"
-	goUnitTestTimeout               = "30m"
-	goIntegrationPackageLimit       = "2"
-	goIntegrationTestTimeout        = "30m"
-	gotestsumVersion                = "v1.13.0"
-	binDir                          = "bin"
-	cliBinary                       = "compozy"
-	versionPackage                  = "github.com/compozy/compozy/internal/version"
-	openAPISpecPath                 = "openapi/compozy.json"
-	compozyDaemonOpenAPISpecPath    = "openapi/compozy-daemon.json"
-	webOpenAPITypePath              = "web/src/generated/compozy-openapi.d.ts"
-	webCompozyDaemonOpenAPITypePath = "web/src/generated/compozy-daemon-openapi.d.ts"
-	webDistDir                      = "web/dist"
-	webDistIndex                    = "web/dist/index.html"
-	webDistDirEnvVar                = "COMPOZY_WEB_DIST_DIR"
-	webAssetsModulePath             = "github.com/compozy/compozy-web-assets"
-	webAssetsRemoteURL              = "https://github.com/compozy/compozy-web-assets.git"
-	webAssetsModuleDistDir          = "dist"
-	webAssetsMetadataFile           = "assets.go"
-	webAssetsSourceRepository       = "github.com/compozy/compozy"
-	webAssetsTokenEnvVar            = "COMPOZY_WEB_ASSETS_TOKEN"
-	releaseTokenEnvVar              = "RELEASE_TOKEN"
-	daemonBinaryEnvVar              = "COMPOZY_TEST_DAEMON_BIN"
-	driverBinaryEnvVar              = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
-	designSyncScriptPath            = "scripts/sync-design-md.mjs"
-	daytonaSidecarPackage           = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
-	daytonaSidecarToolchain         = "1.26.4"
-	daytonaSidecarRegenHint         = "go run github.com/magefile/mage@v1.17.2 " +
+	golangciLintVersion       = "v2.12.2"
+	golangciLintTimeout       = "10m"
+	goUnitTestTimeout         = "30m"
+	goIntegrationPackageLimit = "2"
+	goIntegrationTestTimeout  = "30m"
+	gotestsumVersion          = "v1.13.0"
+	binDir                    = "bin"
+	cliBinary                 = "compozy"
+	versionPackage            = "github.com/compozy/compozy/internal/version"
+	openAPISpecPath           = "openapi/compozy.json"
+	webOpenAPITypePath        = "web/src/generated/compozy-openapi.d.ts"
+	webDistDir                = "web/dist"
+	webDistIndex              = "web/dist/index.html"
+	webDistDirEnvVar          = "COMPOZY_WEB_DIST_DIR"
+	webAssetsModulePath       = "github.com/compozy/compozy-web-assets"
+	webAssetsRemoteURL        = "https://github.com/compozy/compozy-web-assets.git"
+	webAssetsModuleDistDir    = "dist"
+	webAssetsMetadataFile     = "assets.go"
+	webAssetsSourceRepository = "github.com/compozy/compozy"
+	webAssetsTokenEnvVar      = "COMPOZY_WEB_ASSETS_TOKEN"
+	releaseTokenEnvVar        = "RELEASE_TOKEN"
+	daemonBinaryEnvVar        = "COMPOZY_TEST_DAEMON_BIN"
+	driverBinaryEnvVar        = "COMPOZY_TEST_ACPMOCK_DRIVER_BIN"
+	designSyncScriptPath      = "scripts/sync-design-md.mjs"
+	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
+	daytonaSidecarToolchain   = "1.26.4"
+	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.17.2 " +
 		"daytonaSidecars"
 )
 
@@ -60,10 +58,6 @@ var (
 		{
 			SpecPath:   openAPISpecPath,
 			OutputPath: webOpenAPITypePath,
-		},
-		{
-			SpecPath:   compozyDaemonOpenAPISpecPath,
-			OutputPath: webCompozyDaemonOpenAPITypePath,
 		},
 	}
 )

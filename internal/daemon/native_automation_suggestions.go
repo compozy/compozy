@@ -12,12 +12,12 @@ import (
 )
 
 type automationSuggestionsListInput struct {
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace"`
 	Status      string `json:"status,omitempty"`
 }
 
 type automationSuggestionActionInput struct {
-	WorkspaceID  string `json:"workspace_id"`
+	WorkspaceID  string `json:"workspace"`
 	SuggestionID string `json:"suggestion_id"`
 }
 
@@ -30,7 +30,7 @@ func (n *daemonNativeTools) automationSuggestionsList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := requiredNativeString(req.ToolID, "workspace_id", input.WorkspaceID)
+	workspaceID, err := requiredNativeString(req.ToolID, nativeWorkspaceInputKey, input.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -98,7 +98,7 @@ func decodeAutomationSuggestionActionInput(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return automationSuggestionActionInput{}, err
 	}
-	workspaceID, err := requiredNativeString(req.ToolID, "workspace_id", input.WorkspaceID)
+	workspaceID, err := requiredNativeString(req.ToolID, nativeWorkspaceInputKey, input.WorkspaceID)
 	if err != nil {
 		return automationSuggestionActionInput{}, err
 	}

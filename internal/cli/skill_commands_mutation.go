@@ -24,7 +24,7 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 		Example: "  # Show which skill declaration wins and which ones are shadowed\n  compozy skill where code-review",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.where"))
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps)
 			if err != nil {
 				return err
 			}
@@ -55,14 +55,15 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 		&workspace,
 		workspaceSkillSource,
 		"",
-		"Resolve the daemon-managed skill from a workspace id, name, or path",
+		"Override workspace context (ID, name, or path)",
 	)
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }
 
 func newSkillCreateCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var workspaceRef string
+	cmd := &cobra.Command{
 		Use:   "create [name]",
 		Short: "Scaffold a new workspace skill",
 		Example: `  # Create .compozy/skills/api-review/SKILL.md in the current workspace
@@ -79,7 +80,7 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, err := resolveCLIWorkspaceRoot(deps)
+			workspace, err := resolveCommandWorkspaceRoot(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
@@ -114,6 +115,13 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 			}))
 		},
 	}
+	cmd.Flags().StringVar(
+		&workspaceRef,
+		workspaceSkillSource,
+		"",
+		"Override the target workspace (ID, name, or path)",
+	)
+	return cmd
 }
 
 func newSkillEnableCommand(deps commandDeps) *cobra.Command {
@@ -155,7 +163,6 @@ func newSkillActionCommand(
 				cmd.Context(),
 				cmd,
 				deps,
-				agentActionCLI("skill."+strings.Fields(use)[0]),
 			)
 			if err != nil {
 				return err
@@ -177,7 +184,12 @@ func newSkillActionCommand(
 			return writeCommandOutput(cmd, skillActionBundle(args[0], actionName, result))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Workspace id, name, or path")
+	cmd.Flags().StringVar(
+		&workspaceRef,
+		workspaceSkillSource,
+		"",
+		"Override the workspace context (ID, name, or path)",
+	)
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }

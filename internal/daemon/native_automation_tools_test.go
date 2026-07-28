@@ -466,6 +466,183 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		requireNativeStructuredContains(t, runGetResult, []byte(`"run-1"`))
 	})
 
+	t.Run("Should enforce caller workspace across native automation operations", func(t *testing.T) {
+		t.Parallel()
+
+		var listQuery automationpkg.JobListQuery
+		var createCalls int
+		var updateCalls int
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Automation: apitest.StubAutomationManager{
+				CreateJobFn: func(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
+					createCalls++
+					return job, nil
+				},
+				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+					listQuery = query
+					if query.WorkspaceID != "ws-a" {
+						t.Fatalf("ListJobs() workspace = %q, want ws-a", query.WorkspaceID)
+					}
+					return automationpkg.JobListPage{}, nil
+				},
+				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+					t.Fatal("GetJob() called for a workspace-bound lookup")
+					return automationpkg.Job{}, automationpkg.ErrJobNotFound
+				},
+				UpdateJobFn: func(_ context.Context, job automationpkg.Job) (automationpkg.Job, error) {
+					updateCalls++
+					return job, nil
+				},
+				ListTriggersFn: func(
+					_ context.Context,
+					query automationpkg.TriggerListQuery,
+				) (automationpkg.TriggerListPage, error) {
+					if query.WorkspaceID != "ws-a" {
+						t.Fatalf("ListTriggers() workspace = %q, want ws-a", query.WorkspaceID)
+					}
+					return automationpkg.TriggerListPage{}, nil
+				},
+				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+					t.Fatal("GetTrigger() called for a workspace-bound lookup")
+					return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+				},
+				GetRunFn: func(context.Context, string) (automationpkg.Run, error) {
+					t.Fatal("GetRun() called for a workspace-bound lookup")
+					return automationpkg.Run{}, automationpkg.ErrRunNotFound
+				},
+				ListRunsFn: func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error) {
+					t.Fatal("ListRuns() called without an owned workspace resource")
+					return nil, nil
+				},
+				StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
+					return automationpkg.ManagerStatus{}, nil
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
+
+		t.Run("Should deny creating global automation from a workspace-bound session", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsCreate,
+					Input: json.RawMessage(
+						`{"scope":"global","name":"daily","agent_name":"codex","prompt":"run","schedule":{"mode":"every","interval":"1h"}}`,
+					),
+				},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			if createCalls != 0 {
+				t.Fatalf("CreateJob calls = %d, want 0 for workspace-bound global automation", createCalls)
+			}
+		})
+
+		t.Run("Should fill workspace filters from caller scope", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsList,
+					Input:  json.RawMessage(`{"scope":"workspace"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(automation_jobs_list inferred) error = %v", err)
+			}
+			if listQuery.WorkspaceID != "ws-a" {
+				t.Fatalf("automation jobs workspace filter = %q, want ws-a", listQuery.WorkspaceID)
+			}
+		})
+
+		t.Run("Should make foreign and absent job ids indistinguishable", func(t *testing.T) {
+			_, foreignErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsGet,
+					Input:  json.RawMessage(`{"job_id":"job-b"}`),
+				},
+			)
+			requireToolReason(t, foreignErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			_, absentErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsGet,
+					Input:  json.RawMessage(`{"job_id":"job-missing"}`),
+				},
+			)
+			requireToolReason(t, absentErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			if foreignErr.Error() != absentErr.Error() {
+				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
+			}
+		})
+
+		t.Run("Should reject mutating a foreign workspace job before the update", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsUpdate,
+					Input:  json.RawMessage(`{"job_id":"job-b","name":"foreign-update"}`),
+				},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			if updateCalls != 0 {
+				t.Fatalf("UpdateJob calls = %d, want 0 for foreign workspace job", updateCalls)
+			}
+		})
+
+		t.Run("Should make foreign and absent trigger ids indistinguishable", func(t *testing.T) {
+			_, foreignErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationTriggersGet,
+					Input:  json.RawMessage(`{"trigger_id":"trigger-b"}`),
+				},
+			)
+			requireToolReason(t, foreignErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			_, absentErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationTriggersGet,
+					Input:  json.RawMessage(`{"trigger_id":"trigger-missing"}`),
+				},
+			)
+			requireToolReason(t, absentErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			if foreignErr.Error() != absentErr.Error() {
+				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
+			}
+		})
+
+		t.Run("Should make foreign and absent run ids indistinguishable", func(t *testing.T) {
+			_, foreignErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationRunsGet,
+					Input:  json.RawMessage(`{"run_id":"run-b"}`),
+				},
+			)
+			requireToolReason(t, foreignErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			_, absentErr := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationRunsGet,
+					Input:  json.RawMessage(`{"run_id":"run-missing"}`),
+				},
+			)
+			requireToolReason(t, absentErr, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+			if foreignErr.Error() != absentErr.Error() {
+				t.Fatalf("foreign error = %q, absent error = %q", foreignErr, absentErr)
+			}
+		})
+	})
+
 	t.Run("Should preserve workspace identity across consent-first suggestion tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -538,7 +715,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsList,
-				Input:  json.RawMessage(`{"workspace_id":"workspace-1"}`),
+				Input:  json.RawMessage(`{"workspace":"workspace-1"}`),
 			},
 		)
 		if err != nil {
@@ -552,7 +729,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsAccept,
-				Input:  json.RawMessage(`{"workspace_id":"workspace-1","suggestion_id":"suggestion-1"}`),
+				Input:  json.RawMessage(`{"workspace":"workspace-1","suggestion_id":"suggestion-1"}`),
 			},
 		)
 		if err != nil {
@@ -566,7 +743,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsDismiss,
-				Input:  json.RawMessage(`{"workspace_id":"workspace-1","suggestion_id":"suggestion-1"}`),
+				Input:  json.RawMessage(`{"workspace":"workspace-1","suggestion_id":"suggestion-1"}`),
 			},
 		)
 		if err != nil {
@@ -625,7 +802,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(
-					`{"scope":"global","workspace_id":"ws-1","name":"daily","agent_name":"codex","prompt":"run","schedule":{"mode":"every","interval":"1h"}}`,
+					`{"scope":"global","workspace":"ws-1","name":"daily","agent_name":"codex","prompt":"run","schedule":{"mode":"every","interval":"1h"}}`,
 				),
 			},
 		)

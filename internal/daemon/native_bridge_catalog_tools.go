@@ -14,12 +14,13 @@ import (
 )
 
 const (
-	nativeListPageKey    = "page"
-	nativeBridgeScopeAll = "all"
+	nativeListPageKey       = "page"
+	nativeBridgeScopeAll    = "all"
+	nativeBridgeScopeGlobal = "global"
 )
 
 type bridgeCatalogInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Scope       string `json:"scope,omitempty"`
 	Search      string `json:"q,omitempty"`
 	Platform    string `json:"platform,omitempty"`
@@ -31,7 +32,7 @@ type bridgeCatalogInput struct {
 
 type bridgeStatusInput struct {
 	BridgeID    string `json:"bridge_id,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string `json:"workspace,omitempty"`
 	Scope       string `json:"scope,omitempty"`
 	Search      string `json:"q,omitempty"`
 	Platform    string `json:"platform,omitempty"`
@@ -234,9 +235,9 @@ func nativeBridgeCatalogQuery(
 	requestedWorkspace := strings.TrimSpace(input.WorkspaceID)
 	trustedWorkspace := strings.TrimSpace(scope.WorkspaceID)
 	if !scope.Operator && trustedWorkspace == "" && requestedWorkspace != "" {
-		return bridgepkg.BridgeCatalogQuery{}, nativeScopeMismatchError(id, "workspace_id")
+		return bridgepkg.BridgeCatalogQuery{}, nativeScopeMismatchError(id, nativeWorkspaceInputKey)
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", requestedWorkspace, scope)
+	workspaceID, err := nativeCallerWorkspaceInput(id, requestedWorkspace, scope)
 	if err != nil {
 		return bridgepkg.BridgeCatalogQuery{}, err
 	}

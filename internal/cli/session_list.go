@@ -10,21 +10,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSessionListCommand(deps commandDeps) *cobra.Command {
-	var (
-		includeAll      bool
-		workspaceFilter string
-		stateFilter     string
-		typeFilter      string
-		agentFilter     string
-		search          string
-		resumable       bool
-		includeHealth   bool
-		limit           int
-		sortKey         string
-		cursor          string
-	)
+type sessionListFlags struct {
+	includeAll      bool
+	workspaceFilter string
+	stateFilter     string
+	typeFilter      string
+	agentFilter     string
+	search          string
+	resumable       bool
+	includeHealth   bool
+	limit           int
+	sortKey         string
+	cursor          string
+}
 
+func newSessionListCommand(deps commandDeps) *cobra.Command {
+	flags := sessionListFlags{}
 	cmd := &cobra.Command{
 		Use:   sessionListKey,
 		Short: "List sessions",
@@ -34,53 +35,69 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
   # Page all sessions for one agent in a workspace
   compozy session list --all --workspace checkout-api --agent reviewer --limit 25`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			state := strings.TrimSpace(stateFilter)
-			if state == "" && !includeAll && !resumable {
-				state = string(session.StateActive)
-			}
-			sort := strings.TrimSpace(sortKey)
-			if sort == "" && resumable {
-				sort = session.ListSortLastActivity
-			}
-			page, err := client.ListSessions(cmd.Context(), SessionListQuery{
-				Workspace:     workspaceFilter,
-				State:         state,
-				Type:          typeFilter,
-				Agent:         agentFilter,
-				Query:         search,
-				Resumable:     resumable,
-				IncludeHealth: includeHealth,
-				Limit:         limit,
-				Sort:          sort,
-				Cursor:        cursor,
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
+			return runSessionListCommand(cmd, deps, flags)
 		},
 	}
-	cmd.Flags().BoolVar(&includeAll, "all", false, "Include every session state when --state is omitted")
-	cmd.Flags().StringVar(&workspaceFilter, workspaceSkillSource, "", "Filter by workspace name or ID")
-	cmd.Flags().StringVar(&stateFilter, "state", "", "Filter by state (starting|active|stopping|stopped)")
+	cmd.Flags().BoolVar(&flags.includeAll, "all", false, "Include every session state when --state is omitted")
+	cmd.Flags().
+		StringVar(&flags.workspaceFilter, workspaceSkillSource, "", "Override workspace filter (ID, name, or path)")
+	cmd.Flags().StringVar(&flags.stateFilter, "state", "", "Filter by state (starting|active|stopping|stopped)")
 	cmd.Flags().StringVar(
-		&typeFilter,
+		&flags.typeFilter,
 		"type",
 		"",
 		"Filter by session type (user|system|coordinator|spawned)",
 	)
-	cmd.Flags().StringVar(&agentFilter, "agent", "", "Filter by exact agent definition name")
-	cmd.Flags().StringVar(&search, "query", "", "Search session id, name, agent, provider, or channel")
-	cmd.Flags().BoolVar(&resumable, "resumable", false, "Show only sessions eligible for resume attach")
-	cmd.Flags().BoolVar(&includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Sessions per page (1-100)")
-	cmd.Flags().StringVar(&sortKey, "sort", "", "Sort by recent or last_activity")
-	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from an opaque next_cursor")
+	cmd.Flags().StringVar(&flags.agentFilter, "agent", "", "Filter by exact agent definition name")
+	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
+	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
+	cmd.Flags().
+		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
+	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
+	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent or last_activity")
+	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	return cmd
+}
+
+func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionListFlags) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	workspaceID, err := resolveOptionalWorkspaceOverride(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		flags.workspaceFilter,
+	)
+	if err != nil {
+		return err
+	}
+	state := strings.TrimSpace(flags.stateFilter)
+	if state == "" && !flags.includeAll && !flags.resumable {
+		state = string(session.StateActive)
+	}
+	sort := strings.TrimSpace(flags.sortKey)
+	if sort == "" && flags.resumable {
+		sort = session.ListSortLastActivity
+	}
+	page, err := client.ListSessions(cmd.Context(), SessionListQuery{
+		Workspace:     workspaceID,
+		State:         state,
+		Type:          flags.typeFilter,
+		Agent:         flags.agentFilter,
+		Query:         flags.search,
+		Resumable:     flags.resumable,
+		IncludeHealth: flags.includeHealth,
+		Limit:         flags.limit,
+		Sort:          sort,
+		Cursor:        flags.cursor,
+	})
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
 }
 
 func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {

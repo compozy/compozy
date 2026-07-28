@@ -29,7 +29,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 			}
 			homeWorkspace := ""
 			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
-				homeWorkspace, err = resolveConfigWorkspaceRoot(deps, workspaceRoot)
+				homeWorkspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
 				if err != nil {
 					return err
 				}
@@ -90,7 +90,8 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Path scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped paths")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
 }
 
@@ -112,12 +113,27 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 		Short: "Validate Compozy configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
+			workspace, resolved, err := resolveContextualConfigWorkspaceRoot(cmd, deps, workspaceRoot)
 			if err != nil {
 				return err
 			}
+			var dotenvReport *compozyconfig.DotEnvRepairReport
+			if repairEnv {
+				if !resolved {
+					workspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
+					if err != nil {
+						return err
+					}
+					resolved = true
+				}
+				report, err := compozyconfig.RepairDotEnvFile(compozyconfig.WorkspaceDotEnvFile(workspace))
+				dotenvReport = &report
+				if err != nil {
+					return err
+				}
+			}
 			homeWorkspace := workspace
-			if homeWorkspace == "" {
+			if !resolved {
 				homeWorkspace, err = currentWorkingDirectory(deps)
 				if err != nil {
 					return err
@@ -127,22 +143,8 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			if err != nil {
 				return err
 			}
-			var dotenvReport *compozyconfig.DotEnvRepairReport
-			if repairEnv {
-				if workspace == "" {
-					workspace, err = currentWorkingDirectory(deps)
-					if err != nil {
-						return err
-					}
-				}
-				report, err := compozyconfig.RepairDotEnvFile(compozyconfig.WorkspaceDotEnvFile(workspace))
-				dotenvReport = &report
-				if err != nil {
-					return err
-				}
-			}
 			loadOptions := []compozyconfig.LoadOption{}
-			if workspace != "" {
+			if resolved {
 				loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
 			}
 			if _, err := compozyconfig.LoadForHome(homePaths, loadOptions...); err != nil {
@@ -170,7 +172,8 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			}))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be validated")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	cmd.Flags().BoolVar(&repairEnv, "repair-env", false, "Repair a structured workspace .env before validating")
 	return cmd
 }
@@ -218,7 +221,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 			if err := requireUnmanagedForMutation(deps, "edit config"); err != nil {
 				return err
 			}
-			homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
+			homePaths, target, workspace, err := configWriteTarget(cmd, deps, scopeRaw, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -252,7 +255,8 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Edit scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped edits")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
 }
 

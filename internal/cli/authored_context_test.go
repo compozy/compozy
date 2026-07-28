@@ -36,7 +36,7 @@ func TestAgentSoulCommands(t *testing.T) {
 				}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		stdout, _, err := executeRootCommand(
 			t,
@@ -122,7 +122,7 @@ func TestAgentSoulCommands(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"soul",
 			"write",
@@ -185,7 +185,7 @@ func TestAgentSoulCommands(t *testing.T) {
 
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"soul",
 			"write",
@@ -222,7 +222,7 @@ func TestAgentSoulCommands(t *testing.T) {
 		}
 		_, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"soul",
 			"write",
@@ -283,7 +283,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"heartbeat",
 			"status",
@@ -346,7 +346,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"heartbeat",
 			"write",
@@ -416,7 +416,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 
 		stdout, stderr, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"agent",
 			"heartbeat",
 			"write",
@@ -469,7 +469,7 @@ func TestSessionAuthoredContextCommands(t *testing.T) {
 				return SessionInspectRecord{SessionID: "sess-1", Health: health, ConfigDigest: "sha256:config"}, nil
 			},
 		}
-		deps := newTestDeps(t, client)
+		deps := newWorkspaceTestDeps(t, client)
 
 		healthOut, _, err := executeRootCommand(t, deps, "session", "health", "sess-1", "--json")
 		if err != nil {
@@ -530,7 +530,7 @@ func TestSessionAuthoredContextCommands(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, client),
+			newWorkspaceTestDeps(t, client),
 			"session",
 			"soul",
 			"refresh",
@@ -554,7 +554,7 @@ func TestSessionAuthoredContextCommands(t *testing.T) {
 	t.Run("Should not expose session heartbeat command", func(t *testing.T) {
 		t.Parallel()
 
-		root := newRootCommand(newTestDeps(t, &stubClient{}))
+		root := newRootCommand(newWorkspaceTestDeps(t, &stubClient{}))
 		found, _, err := root.Find([]string{"session", "heartbeat"})
 		if err == nil && found != nil && found.Name() == "heartbeat" {
 			t.Fatal("session heartbeat command exists")

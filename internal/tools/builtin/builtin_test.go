@@ -3,6 +3,7 @@ package builtin
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -620,7 +621,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
 		bridgeListDescriptor := descriptors[toolspkg.ToolIDBridgesList]
-		if !strings.Contains(string(bridgeListDescriptor.InputSchema), `"workspace_id"`) ||
+		if !strings.Contains(string(bridgeListDescriptor.InputSchema), `"workspace"`) ||
 			!strings.Contains(string(bridgeListDescriptor.InputSchema), `"cursor"`) ||
 			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"facets"`) ||
 			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"next_cursor"`) {
@@ -1599,6 +1600,73 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 	}
 	if schema.Type != "string" || !slices.Equal(schema.Enum, want) {
 		t.Fatalf("%s schema = %#v, want string enum %#v", owner, schema, want)
+	}
+}
+
+func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
+	t.Parallel()
+
+	for _, descriptor := range NativeDescriptors() {
+		t.Run("Should preserve the canonical workspace input contract for "+descriptor.ID.String(), func(t *testing.T) {
+			t.Parallel()
+
+			assertNativeWorkspaceInputSchema(t, descriptor.ID.String(), descriptor.InputSchema)
+		})
+	}
+}
+
+func assertNativeWorkspaceInputSchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.Equal(trimmed, []byte("true")) || bytes.Equal(trimmed, []byte("false")) {
+		return
+	}
+	var schema struct {
+		Required   []string                   `json:"required"`
+		Properties map[string]json.RawMessage `json:"properties"`
+		AllOf      []json.RawMessage          `json:"allOf"`
+		AnyOf      []json.RawMessage          `json:"anyOf"`
+		OneOf      []json.RawMessage          `json:"oneOf"`
+		Items      json.RawMessage            `json:"items"`
+	}
+	if err := json.Unmarshal(trimmed, &schema); err != nil {
+		t.Fatalf("json.Unmarshal(%s schema) error = %v", owner, err)
+	}
+	for _, legacy := range []string{"workspace_id", "workspace_root"} {
+		if _, ok := schema.Properties[legacy]; ok && !nativeWorkspaceContractFieldAllowed(owner, legacy) {
+			t.Fatalf("%s properties include legacy workspace field %q", owner, legacy)
+		}
+	}
+	if slices.Contains(schema.Required, "workspace") {
+		t.Fatalf("%s requires workspace even though dispatch can bind caller scope", owner)
+	}
+	for name, property := range schema.Properties {
+		assertNativeWorkspaceInputSchema(t, owner+"."+name, property)
+	}
+	for keyword, branches := range map[string][]json.RawMessage{
+		"allOf": schema.AllOf,
+		"anyOf": schema.AnyOf,
+		"oneOf": schema.OneOf,
+	} {
+		for index, branch := range branches {
+			assertNativeWorkspaceInputSchema(t, fmt.Sprintf("%s.%s[%d]", owner, keyword, index), branch)
+		}
+	}
+	if len(bytes.TrimSpace(schema.Items)) > 0 {
+		assertNativeWorkspaceInputSchema(t, owner+".items", schema.Items)
+	}
+}
+
+func nativeWorkspaceContractFieldAllowed(owner string, field string) bool {
+	if field != "workspace_id" {
+		return false
+	}
+	switch owner {
+	case "compozy__layout_apply.document", "compozy__layout_validate.document":
+		return true
+	default:
+		return false
 	}
 }
 

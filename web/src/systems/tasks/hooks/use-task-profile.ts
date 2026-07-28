@@ -26,8 +26,7 @@ function invalidateProfileRelatedQueries(queryClient: QueryClient, taskId: strin
     queryClient.invalidateQueries({ queryKey: tasksKeys.profile(taskId) }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.lists() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.contextBundle() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.agentContext() }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.agentContextsRoot() }),
   ]);
 }
 

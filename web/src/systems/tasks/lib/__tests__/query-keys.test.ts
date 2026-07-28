@@ -138,12 +138,25 @@ describe("tasksKeys", () => {
   });
 
   it("Should namespace orchestration roots", () => {
+    const identity = { agentName: "worker", sessionId: "session_1" };
+
     expect(tasksKeys.profilesRoot()).toEqual(["tasks", "profile"]);
     expect(tasksKeys.reviewsRoot()).toEqual(["tasks", "reviews"]);
     expect(tasksKeys.streamsRoot()).toEqual(["tasks", "stream"]);
     expect(tasksKeys.bridgeNotificationsRoot()).toEqual(["tasks", "bridge-notifications"]);
-    expect(tasksKeys.agentContext()).toEqual(["tasks", "agent-context"]);
-    expect(tasksKeys.contextBundle()).toEqual(["tasks", "context-bundle"]);
+    expect(tasksKeys.agentContextsRoot()).toEqual(["tasks", "agent-context"]);
+    expect(tasksKeys.agentContext(identity)).toEqual([
+      "tasks",
+      "agent-context",
+      "session_1",
+      "worker",
+    ]);
+    expect(tasksKeys.agentContext(identity)).not.toEqual(
+      tasksKeys.agentContext({ ...identity, sessionId: "session_2" })
+    );
+    expect(tasksKeys.agentContext(identity)).not.toEqual(
+      tasksKeys.agentContext({ ...identity, agentName: "reviewer" })
+    );
   });
 
   it("Should bind profile keys to a task id", () => {

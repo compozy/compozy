@@ -44,7 +44,8 @@ func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
 }
 
@@ -58,7 +59,7 @@ func runConfigUnsetCommand(
 	if err := requireUnmanagedForMutation(deps, "unset config values"); err != nil {
 		return err
 	}
-	homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
+	homePaths, target, workspace, err := configWriteTarget(cmd, deps, scopeRaw, workspaceRoot)
 	if err != nil {
 		return err
 	}
@@ -113,7 +114,7 @@ func newConfigShowCommand(deps commandDeps) *cobra.Command {
 		Short: "Show the redacted effective config",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, resolvedWorkspace, err := loadConfigForDisplay(deps, workspaceRoot)
+			cfg, resolvedWorkspace, err := loadConfigForDisplay(cmd, deps, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -128,7 +129,8 @@ func newConfigShowCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, configShowBundle(record, entries))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be included")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	return cmd
 }
 
@@ -139,7 +141,7 @@ func newConfigListCommand(deps commandDeps) *cobra.Command {
 		Short: "List redacted effective config values",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, resolvedWorkspace, err := loadConfigForDisplay(deps, workspaceRoot)
+			cfg, resolvedWorkspace, err := loadConfigForDisplay(cmd, deps, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -152,7 +154,8 @@ func newConfigListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, configListBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be included")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	return cmd
 }
 
@@ -163,7 +166,7 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 		Short: "Get one redacted effective config value",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadConfigForDisplay(deps, workspaceRoot)
+			cfg, _, err := loadConfigForDisplay(cmd, deps, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -176,7 +179,8 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 			return fmt.Errorf("cli: config path %q not found", path)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be included")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	return cmd
 }
 
@@ -195,7 +199,8 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeGlobal), "Write scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
+	cmd.Flags().
+		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
 }
 
@@ -209,7 +214,7 @@ func runConfigSetCommand(
 	if err := requireUnmanagedForMutation(deps, "set config values"); err != nil {
 		return err
 	}
-	homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
+	homePaths, target, workspace, err := configWriteTarget(cmd, deps, scopeRaw, workspaceRoot)
 	if err != nil {
 		return err
 	}

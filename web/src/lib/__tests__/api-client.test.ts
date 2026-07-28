@@ -5,7 +5,6 @@ import {
   apiClient,
   apiErrorMessage,
   apiRequestFailed,
-  daemonApiClient,
   defaultApiErrorMessage,
   requireResponseData,
   runtimeFetch,
@@ -25,46 +24,6 @@ describe("api client", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-  });
-
-  it("routes daemon browser requests through the runtime fetch and base url", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          daemon: {
-            name: "Compozy Daemon",
-            status: "ready",
-            version: "0.1.0",
-            started_at: "2026-04-20T00:00:00Z",
-            uptime_seconds: 12,
-            http: {
-              host: "127.0.0.1",
-              port: 2123,
-              origin: "http://127.0.0.1:2123",
-            },
-            workspace_count: 1,
-            run_count: 2,
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      )
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await daemonApiClient.GET("/api/status");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(requestUrl(fetchMock.mock.calls[0]?.[0] as RequestInfo | URL)).toBe(
-      `${apiBaseUrl}/api/status`
-    );
-    expect(result.response.ok).toBe(true);
-    expect(result.data?.daemon.name).toBe("Compozy Daemon");
   });
 
   it("keeps the existing compozy client bound to runtime fetch after module import", async () => {

@@ -303,6 +303,10 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 		{name: "Should reject ch recv without identity", args: []string{"ch", "recv", "builders", "-o", "json"}},
 		{name: "Should reject task next without identity", args: []string{"task", "next", "-o", "json"}},
 		{
+			name: "Should reject task next with a workspace before resolving it",
+			args: []string{"task", "next", "--workspace", "ws-foreign", "-o", "json"},
+		},
+		{
 			name: "Should reject task heartbeat without identity",
 			args: []string{"task", "heartbeat", "run-1", "-o", "json"},
 		},
@@ -315,7 +319,12 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &stubClient{}
+			client := &stubClient{
+				getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+					t.Fatal("GetWorkspace should not be called when agent env identity is missing")
+					return WorkspaceDetailRecord{}, errors.New("unexpected")
+				},
+			}
 			_, _, err := executeRootCommand(t, newMissingAgentIdentityDeps(t, client), tt.args...)
 			if !errors.Is(err, agentidentity.ErrIdentityRequired) {
 				t.Fatalf("executeRootCommand(%v) error = %v, want ErrIdentityRequired", tt.args, err)
@@ -819,7 +828,7 @@ func newAgentCommandTestDeps(t *testing.T, client *stubClient) commandDeps {
 		}
 		return agentCommandSessionRecord(), nil
 	}
-	deps := newTestDeps(t, client)
+	deps := newWorkspaceTestDeps(t, client)
 	deps.getenv = agentCommandEnv
 	return deps
 }
@@ -831,7 +840,7 @@ func newMissingAgentIdentityDeps(t *testing.T, client *stubClient) commandDeps {
 		t.Fatal("GetSession should not be called when agent env identity is missing")
 		return SessionRecord{}, errors.New("unexpected")
 	}
-	return newTestDeps(t, client)
+	return newWorkspaceTestDeps(t, client)
 }
 
 func agentCommandEnv(key string) string {
@@ -864,8 +873,7 @@ func assertAgentCredentials(t *testing.T, credentials agentidentity.Credentials)
 	t.Helper()
 
 	if credentials.SessionID != "sess-agent" ||
-		credentials.AgentName != "coder" ||
-		credentials.WorkspaceID != "" {
+		credentials.AgentName != "coder" {
 		t.Fatalf("credentials = %#v, want validated agent env identity", credentials)
 	}
 }

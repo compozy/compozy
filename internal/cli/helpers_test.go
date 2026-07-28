@@ -160,6 +160,7 @@ type stubClient struct {
 	createWorkspaceFn           func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
 	listWorkspacesFn            func(context.Context) ([]WorkspaceRecord, error)
 	getWorkspaceFn              func(context.Context, string) (WorkspaceDetailRecord, error)
+	resolveWorkspaceRefs        bool
 	updateWorkspaceFn           func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn           func(context.Context, string) error
 	listLoopsFn                 func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
@@ -1616,7 +1617,28 @@ func (s *stubClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDet
 	if s.getWorkspaceFn != nil {
 		return s.getWorkspaceFn(ctx, ref)
 	}
+	if s.resolveWorkspaceRefs {
+		return WorkspaceDetailRecord{
+			Workspace: WorkspaceRecord{ID: strings.TrimSpace(ref), RootDir: strings.TrimSpace(ref)},
+		}, nil
+	}
 	return WorkspaceDetailRecord{}, errors.New("unexpected GetWorkspace call")
+}
+
+func withWorkspaceResolution(client *stubClient) *stubClient {
+	if client == nil {
+		client = &stubClient{}
+	}
+	client.resolveWorkspaceRefs = true
+	return client
+}
+
+func newWorkspaceTestDeps(t *testing.T, client DaemonClient) commandDeps {
+	t.Helper()
+	if stub, ok := client.(*stubClient); ok {
+		withWorkspaceResolution(stub)
+	}
+	return newTestDeps(t, client)
 }
 
 func (s *stubClient) UpdateWorkspace(

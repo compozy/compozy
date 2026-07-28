@@ -43,7 +43,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-native-network","channel":"design","purpose":"UI reviews"}`,
+				`{"workspace":"ws-native-network","channel":"design","purpose":"UI reviews"}`,
 			),
 		})
 		if err != nil {
@@ -96,7 +96,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
-				"{\"workspace_id\":\"ws-native-network\",\"channel\":\"general\",\"purpose\":\"Announcements\"}",
+				"{\"workspace\":\"ws-native-network\",\"channel\":\"general\",\"purpose\":\"Announcements\"}",
 			),
 		})
 		if err != nil {
@@ -159,7 +159,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
-				"{\"workspace_id\":\"ws-native-network\",\"channel\":\"durable\",\"purpose\":\"Durable coordination\"}",
+				"{\"workspace\":\"ws-native-network\",\"channel\":\"durable\",\"purpose\":\"Durable coordination\"}",
 			),
 		})
 		if err != nil {
@@ -182,7 +182,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-native-network","channel":"Bad Name","purpose":"x"}`,
+				`{"workspace":"ws-native-network","channel":"Bad Name","purpose":"x"}`,
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -192,7 +192,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-native-network","channel":"general","purpose":"   "}`,
+				`{"workspace":"ws-native-network","channel":"general","purpose":"   "}`,
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -248,7 +248,7 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelUpdate,
 			Input: json.RawMessage(
-				`{"workspace_id":"ws-native-network","channel":"design","purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
+				`{"workspace":"ws-native-network","channel":"design","purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
 			),
 		})
 		if err != nil {

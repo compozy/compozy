@@ -1,15 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { agentContextOptions, taskContextBundleOptions } from "../lib/query-options";
+import { agentContextOptions } from "../lib/query-options";
+import type { AgentContextIdentity } from "../types";
 
 interface QueryHookOptions {
   enabled?: boolean;
 }
 
-export function useAgentContext(options: QueryHookOptions = {}) {
-  return useQuery(agentContextOptions(options.enabled ?? true));
+export function useAgentContext(identity: AgentContextIdentity, options: QueryHookOptions = {}) {
+  return useQuery(agentContextOptions(identity, options.enabled ?? true));
 }
 
-export function useTaskContextBundle(options: QueryHookOptions = {}) {
-  return useQuery(taskContextBundleOptions(options.enabled ?? true));
+export function useTaskContextBundle(
+  identity: AgentContextIdentity,
+  options: QueryHookOptions = {}
+) {
+  return useQuery({
+    ...agentContextOptions(identity, options.enabled ?? true),
+    select: context => context.task.bundle ?? null,
+  });
 }

@@ -120,7 +120,7 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 	if workspacePath == "" {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop session workspace is required")
 	}
-	resolved, err := g.workspaceResolver.ResolveOrRegister(ctx, workspacePath)
+	resolved, err := g.workspaceResolver.Resolve(ctx, workspacePath)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
 			"daemon: resolve loop session workspace path %q: %w",

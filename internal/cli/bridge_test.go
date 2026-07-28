@@ -50,6 +50,14 @@ func TestBridgeListForwardsCatalogQueryAndPreservesPageMetadata(t *testing.T) {
 			Limit:      25,
 		}
 		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "alpha" {
+					t.Fatalf("GetWorkspace() ref = %q, want alpha", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-alpha", RootDir: "/workspace/alpha"},
+				}, nil
+			},
 			listBridgesFn: func(_ context.Context, query BridgeListQuery) (BridgeListRecord, error) {
 				captured = query
 				return result, nil
@@ -61,7 +69,7 @@ func TestBridgeListForwardsCatalogQueryAndPreservesPageMetadata(t *testing.T) {
 			deps,
 			"bridge", "list",
 			"--scope", "all",
-			"--workspace-id", "ws-alpha",
+			"--workspace", "alpha",
 			"--q", "needle",
 			"--platform", "telegram",
 			"--status", "ready",
@@ -95,24 +103,18 @@ func TestBridgeListForwardsCatalogQueryAndPreservesPageMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject ambiguous workspace filters before calling the daemon", func(t *testing.T) {
+	t.Run("Should reject the removed workspace-id alias", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{
-			listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
-				t.Fatal("ListBridges() should not be called for ambiguous workspace filters")
-				return BridgeListRecord{}, nil
-			},
-		})
+		deps := newTestDeps(t, &stubClient{})
 		_, _, err := executeRootCommand(
 			t,
 			deps,
 			"bridge", "list",
 			"--workspace-id", "ws-alpha",
-			"--workspace", "alpha",
 		)
-		if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
-			t.Fatalf("bridge list ambiguous workspace error = %v, want validation", err)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag: --workspace-id") {
+			t.Fatalf("bridge list workspace-id error = %v, want removed alias", err)
 		}
 	})
 
@@ -238,6 +240,14 @@ func testBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 
 	var captured CreateBridgeRequest
 	deps := newTestDeps(t, &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			if ref != "alpha" {
+				t.Fatalf("GetWorkspace() ref = %q, want alpha", ref)
+			}
+			return WorkspaceDetailRecord{
+				Workspace: WorkspaceRecord{ID: "ws-alpha", RootDir: "/workspace/alpha"},
+			}, nil
+		},
 		createBridgeFn: func(_ context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
 			captured = request
 			record := testBridgeRecord(t)
@@ -263,7 +273,7 @@ func testBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 		deps,
 		"bridge", "create",
 		"--scope", "workspace",
-		"--workspace-id", "ws-alpha",
+		"--workspace", "alpha",
 		"--platform", "telegram",
 		"--extension", "ext-telegram",
 		"--display-name", "Support",
@@ -364,29 +374,47 @@ func TestBridgeCreateBuildsTypedProgressSettings(t *testing.T) {
 	})
 }
 
-func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
+func TestBridgeCreateInfersWorkspaceScopeFromCWD(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
-			t.Fatal("CreateBridge() should not be called when workspace scope is invalid")
-			return BridgeRecord{}, nil
-		},
-	})
+	t.Run("Should infer a workspace-scoped bridge from cwd", func(t *testing.T) {
+		t.Parallel()
 
-	_, _, err := executeRootCommand(
-		t,
-		deps,
-		"bridge", "create",
-		"--scope", "workspace",
-		"--platform", "telegram",
-		"--extension", "ext-telegram",
-		"--display-name", "Support",
-	)
-	if err == nil ||
-		!strings.Contains(err.Error(), "--workspace-id is required when --scope=workspace") {
-		t.Fatalf("bridge create error = %v, want missing workspace-id validation", err)
-	}
+		var captured CreateBridgeRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "/workspace/project" {
+					t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-project", RootDir: "/workspace/project"},
+				}, nil
+			},
+			createBridgeFn: func(_ context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
+				captured = request
+				record := testBridgeRecord(t)
+				record.Scope = request.Scope
+				record.WorkspaceID = request.WorkspaceID
+				return record, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "create",
+			"--scope", "workspace",
+			"--platform", "telegram",
+			"--extension", "ext-telegram",
+			"--display-name", "Support",
+		)
+		if err != nil {
+			t.Fatalf("bridge create inferred workspace error = %v", err)
+		}
+		if captured.Scope != bridgepkg.ScopeWorkspace || captured.WorkspaceID != "ws-project" {
+			t.Fatalf("bridge create request = %#v, want inferred canonical workspace", captured)
+		}
+	})
 }
 
 func TestBridgeCreateRejectsOperationalStatusFlag(t *testing.T) {

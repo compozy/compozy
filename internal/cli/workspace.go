@@ -1,14 +1,10 @@
 package cli
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
 
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -138,15 +134,20 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			resolved, err := resolveWorkspaceInfoRef(deps, args, workspaceRef)
+			resolved, err := resolveCommandWorkspace(
+				cmd.Context(),
+				cmd,
+				deps,
+				client,
+				workspaceResolutionRequest{
+					PositionalRef: firstArg(args),
+					FlagRef:       workspaceRef,
+				},
+			)
 			if err != nil {
 				return err
 			}
-			detail, err := client.GetWorkspace(cmd.Context(), resolved.Ref)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, workspaceDetailBundle(detail, resolved.Source))
+			return writeCommandOutput(cmd, workspaceDetailBundle(resolved.Detail))
 		},
 	}
 	cmd.Flags().
@@ -154,79 +155,35 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 			&workspaceRef,
 			workspaceSkillSource,
 			"",
-			"Workspace root/name/id to inspect when no positional ref is supplied",
+			"Override workspace context (ID, name, or path) when no positional ref is supplied",
 		)
 	return cmd
 }
 
-type workspaceInfoRef struct {
-	Ref    string
-	Source string
-}
-
-func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag string) (workspaceInfoRef, error) {
-	if len(args) > 0 {
-		ref := strings.TrimSpace(args[0])
-		if ref == "" {
-			return workspaceInfoRef{}, errors.New("cli: workspace reference is required")
-		}
-		return workspaceInfoRef{Ref: ref, Source: "positional"}, nil
-	}
-	if trimmed := strings.TrimSpace(workspaceFlag); trimmed != "" {
-		if isPathLikeWorkspaceRef(trimmed) {
-			resolved, err := compozyconfig.ResolvePath(trimmed)
-			if err != nil {
-				return workspaceInfoRef{}, err
-			}
-			return workspaceInfoRef{Ref: resolved, Source: workspaceFlagKey}, nil
-		}
-		return workspaceInfoRef{Ref: trimmed, Source: workspaceFlagKey}, nil
-	}
-	if trimmed := strings.TrimSpace(deps.getenv("COMPOZY_WORKSPACE")); trimmed != "" {
-		return workspaceInfoRef{Ref: trimmed, Source: configEnvKey}, nil
-	}
-	cwd, err := currentWorkingDirectory(deps)
-	if err != nil {
-		return workspaceInfoRef{}, err
-	}
-	return workspaceInfoRef{Ref: cwd, Source: "cwd"}, nil
-}
-
 func resolveCLIWorkspaceRouteRef(
-	ctx context.Context,
+	cmd *cobra.Command,
 	deps commandDeps,
 	client DaemonClient,
 	workspaceRef string,
 ) (string, error) {
-	trimmed := strings.TrimSpace(workspaceRef)
-	if trimmed == "" {
-		trimmed = strings.TrimSpace(deps.getenv("COMPOZY_WORKSPACE"))
-	}
-	if trimmed == "" {
-		cwd, err := currentWorkingDirectory(deps)
-		if err != nil {
-			return "", err
-		}
-		trimmed = cwd
-	}
-	if !workspaceRefLooksLikePath(trimmed) {
-		return trimmed, nil
-	}
-	detail, err := client.GetWorkspace(ctx, trimmed)
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
 	if err != nil {
-		return "", fmt.Errorf("cli: resolve workspace %q: %w", trimmed, err)
+		return "", err
 	}
-	workspaceID := strings.TrimSpace(detail.Workspace.ID)
-	if workspaceID == "" {
-		return "", fmt.Errorf("cli: resolve workspace %q: missing workspace id", trimmed)
-	}
-	return workspaceID, nil
+	return resolution.ID, nil
 }
 
-func isPathLikeWorkspaceRef(ref string) bool {
-	return filepath.IsAbs(ref) ||
-		strings.HasPrefix(ref, ".") ||
-		strings.Contains(ref, string(filepath.Separator))
+func firstArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
 }
 
 func workspaceEditFlagsChanged(cmd *cobra.Command) bool {

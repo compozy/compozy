@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"errors"
+	"context"
 	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -29,26 +29,36 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 		Short: "Set an explicit agent-wide or tool-wide approval decision",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workspaceID = strings.TrimSpace(workspaceID)
-			if workspaceID == "" {
-				return errors.New("cli: --workspace is required")
-			}
-			request := toolspkg.ApprovalGrantSetRequest{
-				ToolID:    toolspkg.ToolID(strings.TrimSpace(args[0])),
-				Decision:  toolspkg.ApprovalGrantDecision(decision),
-				Scope:     toolspkg.ApprovalGrantManagementScope(scope),
-				AgentName: agentName,
-			}.Normalize()
-			if _, err := request.BuildGrant(workspaceID); err != nil {
-				return err
-			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				grant, err := client.SetToolApprovalGrant(cmd.Context(), workspaceID, ToolApprovalGrantSetRequest{
-					ToolID:    request.ToolID,
-					Decision:  request.Decision,
-					Scope:     request.Scope,
-					AgentName: request.AgentName,
-				})
+				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceID,
+				)
+				if err != nil {
+					return err
+				}
+				request := toolspkg.ApprovalGrantSetRequest{
+					ToolID:    toolspkg.ToolID(strings.TrimSpace(args[0])),
+					Decision:  toolspkg.ApprovalGrantDecision(decision),
+					Scope:     toolspkg.ApprovalGrantManagementScope(scope),
+					AgentName: agentName,
+				}.Normalize()
+				if _, err := request.BuildGrant(resolvedWorkspaceID); err != nil {
+					return err
+				}
+				grant, err := client.SetToolApprovalGrant(
+					cmd.Context(),
+					resolvedWorkspaceID,
+					ToolApprovalGrantSetRequest{
+						ToolID:    request.ToolID,
+						Decision:  request.Decision,
+						Scope:     request.Scope,
+						AgentName: request.AgentName,
+					},
+				)
 				if err != nil {
 					return err
 				}
@@ -56,7 +66,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Workspace id or reference")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&decision, "decision", "", "Remembered decision: allow or reject")
 	cmd.Flags().StringVar(&scope, "scope", "", "Wider scope: agent or tool")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent name required by agent scope")
@@ -70,12 +80,18 @@ func newToolApprovalsListCommand(deps commandDeps) *cobra.Command {
 		Short: "List remembered native-tool approval decisions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspaceID = strings.TrimSpace(workspaceID)
-			if workspaceID == "" {
-				return errors.New("cli: --workspace is required")
-			}
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				response, err := client.ListToolApprovalGrants(cmd.Context(), workspaceID)
+				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceID,
+				)
+				if err != nil {
+					return err
+				}
+				response, err := client.ListToolApprovalGrants(cmd.Context(), resolvedWorkspaceID)
 				if err != nil {
 					return err
 				}
@@ -83,7 +99,7 @@ func newToolApprovalsListCommand(deps commandDeps) *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Workspace id or reference")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	return cmd
 }
 
@@ -94,21 +110,47 @@ func newToolApprovalsRevokeCommand(deps commandDeps) *cobra.Command {
 		Short: "Revoke one remembered native-tool approval decision",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workspaceID = strings.TrimSpace(workspaceID)
-			if workspaceID == "" {
-				return errors.New("cli: --workspace is required")
-			}
 			id := strings.TrimSpace(args[0])
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
-				if err := client.RevokeToolApprovalGrant(cmd.Context(), workspaceID, id); err != nil {
+				resolvedWorkspaceID, err := resolveToolApprovalWorkspace(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceID,
+				)
+				if err != nil {
 					return err
 				}
-				return writeCommandOutput(cmd, toolApprovalGrantRevokeBundle(workspaceID, id))
+				if err := client.RevokeToolApprovalGrant(cmd.Context(), resolvedWorkspaceID, id); err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, toolApprovalGrantRevokeBundle(resolvedWorkspaceID, id))
 			})
 		},
 	}
-	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Workspace id or reference")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	return cmd
+}
+
+func resolveToolApprovalWorkspace(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	workspaceRef string,
+) (string, error) {
+	resolution, err := resolveCommandWorkspace(
+		ctx,
+		cmd,
+		deps,
+		client,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return "", err
+	}
+	return resolution.ID, nil
 }
 
 func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBundle {

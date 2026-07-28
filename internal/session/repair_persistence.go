@@ -42,7 +42,7 @@ func (m *Manager) persistRepairActions(
 		action.EventID = eventID
 		action.Persisted = true
 		persisted = append(persisted, action)
-		m.notifyRepairEvent(ctx, strings.TrimSpace(meta.ID), event)
+		m.notifyRepairEvent(ctx, meta, event)
 	}
 	return persisted, nil
 }
@@ -77,11 +77,11 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 	return event, nil
 }
 
-func (m *Manager) notifyRepairEvent(ctx context.Context, sessionID string, event acp.AgentEvent) {
+func (m *Manager) notifyRepairEvent(ctx context.Context, meta store.SessionMeta, event acp.AgentEvent) {
 	if m == nil || m.notifier == nil {
 		return
 	}
-	m.notifier.OnAgentEvent(ctx, sessionID, event)
+	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, meta), event)
 }
 
 func repairACPSessionID(meta store.SessionMeta) string {

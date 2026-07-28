@@ -149,8 +149,7 @@ func hookDescriptors() []toolspkg.Descriptor {
 const hooksListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"workspace_root":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"agent":{"type":"string"},
 		"event":{"type":"string"},
 		"source":{"type":"string"},
@@ -164,8 +163,7 @@ const hooksInfoInputSchema = `{
 	"required":["name"],
 	"properties":{
 		"name":{"type":"string"},
-		"workspace_root":{"type":"string"},
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"agent":{"type":"string"},
 		"event":{"type":"string"},
 		"source":{"type":"string"},
@@ -185,9 +183,9 @@ const hooksEventsInputSchema = `{
 
 const hooksRunsInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","session_id"],
+	"required":["session_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
 		"event":{"type":"string"},
 		"outcome":{"type":"string"},
@@ -217,7 +215,7 @@ const hooksNameMutationInputSchema = `{
 	"properties":{
 		"name":{"type":"string"},
 		"scope":{"type":"string"},
-		"workspace_root":{"type":"string"}
+		"workspace":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -225,7 +223,7 @@ const hooksNameMutationInputSchema = `{
 const hooksMutationProperties = `{
 	"name":{"type":"string"},
 	"scope":{"type":"string"},
-	"workspace_root":{"type":"string"},
+	"workspace":{"type":"string"},
 	"event":{"type":"string"},
 	"mode":{"type":"string"},
 	"required":{"type":"boolean"},

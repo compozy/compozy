@@ -13,13 +13,6 @@ func mustMarkFlagRequired(cmd *cobra.Command, name string) {
 	}
 }
 
-// mustMarkPersistentFlagRequired marks a required flag inherited by child commands.
-func mustMarkPersistentFlagRequired(cmd *cobra.Command, name string) {
-	if err := cmd.MarkPersistentFlagRequired(name); err != nil {
-		panic(fmt.Sprintf("cli: mark required persistent flag %q: %v", name, err))
-	}
-}
-
 // mustMarkFlagHidden makes command-construction bugs fail loudly at startup.
 func mustMarkFlagHidden(cmd *cobra.Command, name string) {
 	if err := cmd.Flags().MarkHidden(name); err != nil {

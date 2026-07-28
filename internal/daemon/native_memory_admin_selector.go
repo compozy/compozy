@@ -33,7 +33,7 @@ func (n *daemonNativeTools) memoryAdminResolvedSelector(
 		return contract.MemoryScopeSelectorPayload{}, err
 	}
 	workspaceID := ""
-	workspaceRef := firstNonEmpty(input.WorkspaceID, input.Workspace, callerScope.WorkspaceID)
+	workspaceRef := firstNonEmpty(input.WorkspaceID, callerScope.WorkspaceID)
 	if workspaceRef != "" {
 		resolvedID, _, err := n.memoryWorkspaceIdentity(ctx, workspaceRef)
 		if err != nil {
@@ -68,7 +68,7 @@ func (n *daemonNativeTools) memoryAdminOperationHistoryQuery(
 		return memcontract.OperationHistoryQuery{}, err
 	}
 	workspace := ""
-	workspaceRef := firstNonEmpty(input.WorkspaceID, input.Workspace, callerScope.WorkspaceID)
+	workspaceRef := firstNonEmpty(input.WorkspaceID, callerScope.WorkspaceID)
 	if workspaceRef != "" || scope == memcontract.ScopeWorkspace {
 		_, resolvedWorkspace, err := n.memoryWorkspaceIdentity(ctx, workspaceRef)
 		if err != nil {
@@ -87,7 +87,7 @@ func (n *daemonNativeTools) memoryAdminOperationHistoryQuery(
 func (i memoryAdminSelectorInput) memoryToolSelector() memoryToolSelector {
 	return memoryToolSelector{
 		Scope:     i.Scope,
-		Workspace: firstNonEmpty(i.WorkspaceID, i.Workspace),
+		Workspace: i.WorkspaceID,
 		AgentName: i.AgentName,
 		AgentTier: i.AgentTier,
 	}
@@ -103,7 +103,7 @@ func (n *daemonNativeTools) memoryAdminDefaultScope(
 	if strings.TrimSpace(firstNonEmpty(input.AgentName, callerScope.AgentName)) != "" {
 		return memcontract.ScopeAgent
 	}
-	if strings.TrimSpace(firstNonEmpty(input.WorkspaceID, input.Workspace, callerScope.WorkspaceID)) != "" {
+	if strings.TrimSpace(firstNonEmpty(input.WorkspaceID, callerScope.WorkspaceID)) != "" {
 		return memcontract.ScopeWorkspace
 	}
 	return memcontract.ScopeGlobal
@@ -144,22 +144,4 @@ func (n *daemonNativeTools) memoryAdminRoots(location memoryToolLocation) map[st
 		roots["agent"] = "memory://agent/" + agent
 	}
 	return roots
-}
-
-func memoryAdminSelectorFromPayload(payload contract.MemoryScopeSelectorPayload) memoryToolSelector {
-	return memoryToolSelector{
-		Scope:     string(payload.Scope),
-		Workspace: payload.WorkspaceID,
-		AgentName: payload.AgentName,
-		AgentTier: string(payload.AgentTier),
-	}
-}
-
-func memoryAdminSelectorInputFromPayload(payload contract.MemoryScopeSelectorPayload) memoryAdminSelectorInput {
-	return memoryAdminSelectorInput{
-		Scope:       string(payload.Scope),
-		WorkspaceID: payload.WorkspaceID,
-		AgentName:   payload.AgentName,
-		AgentTier:   string(payload.AgentTier),
-	}
 }

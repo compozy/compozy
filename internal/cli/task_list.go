@@ -37,6 +37,9 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 			}
 
 			query, err := parseTaskListFilters(
+				cmd,
+				deps,
+				client,
 				scopeRaw,
 				workspaceRef,
 				statusRaw,
@@ -62,7 +65,8 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
+	cmd.Flags().
+		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by task status")
 	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Filter by task priority")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
@@ -82,6 +86,9 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 }
 
 func parseTaskListFilters(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
 	scopeRaw string,
 	workspaceRef string,
 	statusRaw string,
@@ -95,7 +102,7 @@ func parseTaskListFilters(
 	cursor string,
 	limit int,
 ) (TaskListQuery, error) {
-	scope, workspace, err := resolveTaskScopeWorkspace(scopeRaw, workspaceRef, false)
+	scope, workspace, err := resolveTaskScopeWorkspace(cmd, deps, client, scopeRaw, workspaceRef, false)
 	if err != nil {
 		if strings.TrimSpace(strings.ToLower(scopeRaw)) != string(taskpkg.CatalogScopeAll) {
 			return TaskListQuery{}, err

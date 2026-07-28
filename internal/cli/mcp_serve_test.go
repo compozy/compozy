@@ -10,16 +10,20 @@ import (
 func TestMCPServeCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should require an explicit workspace", func(t *testing.T) {
+	t.Run("Should dispatch serve when the workspace override is omitted", func(t *testing.T) {
 		t.Parallel()
 
+		called := false
 		cmd := newMCPServeCommand(commandDeps{runMCPServe: func(context.Context, mcpServeOptions) error {
-			t.Fatal("runMCPServe called without required workspace")
+			called = true
 			return nil
 		}})
 		cmd.SetArgs(nil)
-		if err := cmd.ExecuteContext(t.Context()); err == nil || !strings.Contains(err.Error(), "workspace") {
-			t.Fatalf("ExecuteContext() error = %v, want required workspace", err)
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
+			t.Fatalf("ExecuteContext() error = %v", err)
+		}
+		if !called {
+			t.Fatal("runMCPServe was not called")
 		}
 	})
 

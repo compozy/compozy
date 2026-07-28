@@ -8,13 +8,23 @@ import (
 
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
+
+type workspacePathNotRegisteredError struct {
+	path string
+}
+
+func (e *workspacePathNotRegisteredError) Error() string {
+	if e == nil {
+		return "cli: workspace path is not registered"
+	}
+	return fmt.Sprintf("cli: workspace path %q is not registered", e.path)
+}
 
 func (c *unixSocketClient) CreateWorkspace(
 	ctx context.Context,
@@ -55,7 +65,7 @@ func (c *unixSocketClient) GetWorkspace(ctx context.Context, ref string) (Worksp
 func (c *unixSocketClient) workspaceRouteRef(ctx context.Context, ref string) (string, error) {
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
-		return "", errors.New("cli: workspace reference is required")
+		return "", errWorkspaceReferenceRequired
 	}
 	if !workspaceRefLooksLikePath(trimmed) {
 		return trimmed, nil
@@ -68,16 +78,49 @@ func (c *unixSocketClient) workspaceRouteRef(ctx context.Context, ref string) (s
 	if err != nil {
 		return "", fmt.Errorf("cli: list workspaces before resolving path %q: %w", target, err)
 	}
+	return nearestCLIWorkspaceRoute(target, workspaces)
+}
+
+func nearestCLIWorkspaceRoute(target string, workspaces []WorkspaceRecord) (string, error) {
+	target, err := canonicalCLIWorkspacePath(target)
+	if err != nil {
+		return "", err
+	}
+	var (
+		selectedID   string
+		selectedRoot string
+	)
 	for _, workspace := range workspaces {
 		root, err := canonicalCLIWorkspacePath(workspace.RootDir)
 		if err != nil {
 			continue
 		}
-		if root == target {
-			return workspace.ID, nil
+		contains, err := cliWorkspaceRootContains(root, target)
+		if err != nil || !contains {
+			continue
+		}
+		id := strings.TrimSpace(workspace.ID)
+		if id == "" {
+			continue
+		}
+		if len(root) > len(selectedRoot) || (len(root) == len(selectedRoot) && id < selectedID) {
+			selectedID = id
+			selectedRoot = root
 		}
 	}
-	return "", fmt.Errorf("cli: workspace path %q is not registered", target)
+	if selectedID != "" {
+		return selectedID, nil
+	}
+	return "", &workspacePathNotRegisteredError{path: target}
+}
+
+func cliWorkspaceRootContains(root string, target string) (bool, error) {
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		return false, fmt.Errorf("cli: compare workspace root %q with path %q: %w", root, target, err)
+	}
+	return relative == "." ||
+		(relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))), nil
 }
 
 func workspaceRefLooksLikePath(ref string) bool {
@@ -99,9 +142,6 @@ func canonicalCLIWorkspacePath(path string) (string, error) {
 	resolved, err := filepath.EvalSymlinks(cleaned)
 	if err == nil {
 		return resolved, nil
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return cleaned, nil
 	}
 	return "", fmt.Errorf("cli: resolve workspace path %q: %w", cleaned, err)
 }

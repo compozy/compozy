@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	jsonschema "github.com/google/jsonschema-go/jsonschema"
@@ -15,20 +16,21 @@ import (
 
 const hostAPIToolPrefix = "compozy_host__"
 
-type workspaceBinding uint8
+type workspaceBinding = extensionpkg.HostAPIWorkspaceBinding
 
 const (
-	workspaceBindingNone workspaceBinding = iota
-	workspaceBindingPath
-	workspaceBindingID
-	workspaceBindingTask
-	workspaceBindingMemory
-	workspaceBindingResource
+	workspaceBindingNone       = extensionpkg.HostAPIWorkspaceBindingNone
+	workspaceBindingActor      = extensionpkg.HostAPIWorkspaceBindingActor
+	workspaceBindingPath       = extensionpkg.HostAPIWorkspaceBindingPath
+	workspaceBindingID         = extensionpkg.HostAPIWorkspaceBindingID
+	workspaceBindingTask       = extensionpkg.HostAPIWorkspaceBindingTask
+	workspaceBindingMemory     = extensionpkg.HostAPIWorkspaceBindingMemory
+	workspaceBindingResource   = extensionpkg.HostAPIWorkspaceBindingResource
+	workspaceBindingAutomation = extensionpkg.HostAPIWorkspaceBindingAutomation
 )
 
 type projectionDecision struct {
 	Publish bool
-	Binding workspaceBinding
 	Reason  string
 }
 
@@ -72,7 +74,11 @@ func projectedHostAPITools() ([]mcpgo.Tool, error) {
 		if !ok {
 			return nil, fmt.Errorf("mcp: host api method %q has no canonical contract", method)
 		}
-		rawSchema, err := hostAPIInputSchema(spec, decision.Binding)
+		binding, ok := extensionpkg.HostAPIWorkspaceBindingFor(method)
+		if !ok || binding == workspaceBindingNone {
+			return nil, fmt.Errorf("mcp: host api method %q has no workspace binding", method)
+		}
+		rawSchema, err := hostAPIInputSchema(spec, binding)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: build input schema for %q: %w", method, err)
 		}
@@ -116,6 +122,10 @@ func makeBoundFieldsOptional(raw json.RawMessage, binding workspaceBinding) (jso
 		boundFields[hostAPIWorkspaceLiteral] = struct{}{}
 	case workspaceBindingResource:
 		boundFields["scope"] = struct{}{}
+	case workspaceBindingAutomation:
+		boundFields["scope"] = struct{}{}
+		boundFields["workspace_id"] = struct{}{}
+	case workspaceBindingActor:
 	}
 	var schema any
 	if err := json.Unmarshal(raw, &schema); err != nil {

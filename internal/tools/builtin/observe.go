@@ -62,9 +62,8 @@ func observeDescriptors() []toolspkg.Descriptor {
 
 const listLogsInputSchema = `{
 	"type":"object",
-	"required":["workspace_id"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"type":{"type":"string"},
@@ -84,9 +83,9 @@ const listLogsInputSchema = `{
 
 const observeSearchInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","query"],
+	"required":["query"],
 	"properties":{
-		"workspace_id":{"type":"string"},
+		"workspace":{"type":"string"},
 		"query":{"type":"string"},
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},

@@ -65,7 +65,7 @@ type nativeMemoryRecallEntry struct {
 }
 
 type logQueryInput struct {
-	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceID   string `json:"workspace"`
 	SessionID     string `json:"session_id,omitempty"`
 	AgentName     string `json:"agent_name,omitempty"`
 	Type          string `json:"type,omitempty"`
