@@ -26,7 +26,7 @@ loops, memory, permissions, automation, and tools. People can see and steer the 
 shell and CLI; agents operate the same state through structured HTTP, UDS, MCP, and native-tool
 surfaces.
 
-> ![WARNING]
+> [!WARNING]
 > The v0.3 line is in beta. The previous v0.2.15 product is deprecated and maintained only for
 > critical fixes on [`legacy/v0.2`](https://github.com/compozy/compozy/tree/legacy/v0.2). Start with
 > the [migration guide](MIGRATION_GUIDE.md) before replacing an existing v0.2 installation.
