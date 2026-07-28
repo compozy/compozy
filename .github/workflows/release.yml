@@ -532,39 +532,25 @@ jobs:
             echo "::error::Authoritative release ref moved after planning"
             exit 1
           fi
-          existing_commit="$(git rev-list -n 1 "${RELEASE_TAG}" 2>/dev/null || true)"
-          if [[ -n "${existing_commit}" ]]; then
-            if [[ "$(git cat-file -t "${RELEASE_TAG}")" != "tag" ]]; then
-              echo "::error::Release tag ${RELEASE_TAG} is not annotated"
-              exit 1
-            fi
-            if [[ "${existing_commit}" != "${RELEASE_COMMIT}" ]]; then
-              echo "::error::Release tag ${RELEASE_TAG} points to ${existing_commit}, want ${RELEASE_COMMIT}"
-              exit 1
-            fi
-            echo "reusing annotated release tag ${RELEASE_TAG} at ${RELEASE_COMMIT}"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
           git push origin "refs/tags/${RELEASE_TAG}"
 
       # RELEASE_BODY.md carries the release PR's base-version heading (e.g.
-      # "## 0.3.0"). Derive the published body outside the checkout so
-      # GoReleaser's clean-tree validation remains meaningful.
-      - name: Prepare published release body
+      # "## 0.3.0"); align the ephemeral runner copy with the published
+      # version so a beta body never advertises the stable version. No-op
+      # for stable releases.
+      - name: Align release body heading with the published version
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
-          release_body="${RUNNER_TEMP}/RELEASE_BODY.md"
-          cp RELEASE_BODY.md "${release_body}"
-          sed -i -E "1s/^## [^ ]+/## ${RELEASE_VERSION}/" "${release_body}"
-          if ! head -1 "${release_body}" | grep -F "## ${RELEASE_VERSION}" >/dev/null; then
+          sed -i -E "1s/^## [^ ]+/## ${RELEASE_VERSION}/" RELEASE_BODY.md
+          if ! head -1 RELEASE_BODY.md | grep -F "## ${RELEASE_VERSION}" >/dev/null; then
             echo "::warning::RELEASE_BODY.md heading did not align with ${RELEASE_VERSION}"
           fi
-          head -1 "${release_body}"
+          head -1 RELEASE_BODY.md
 
       - uses: goreleaser/goreleaser-action@v6
         with:
@@ -572,7 +558,7 @@ jobs:
           version: v2.17.1
           args: >-
             release --clean
-            --release-notes=${{ runner.temp }}/RELEASE_BODY.md
+            --release-notes=RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
             --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
         env:
