@@ -21,6 +21,7 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 
@@ -288,6 +289,8 @@ type extensionServiceStub struct {
 	listScopedFn       func(context.Context, taskpkg.ActorContext) ([]contract.ExtensionPayload, error)
 	statusScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	removeScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
+	commandsFn         func(context.Context, string) (contract.ExtensionCommandsResponse, error)
+	commandsScopedFn   func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionCommandsResponse, error)
 }
 
 func (s extensionServiceStub) Search(
@@ -437,6 +440,27 @@ func (s extensionServiceStub) RemoveScoped(
 		return s.removeScopedFn(ctx, name, actor)
 	}
 	return s.Remove(ctx, name, actor)
+}
+
+func (s extensionServiceStub) Commands(
+	ctx context.Context,
+	extension string,
+) (contract.ExtensionCommandsResponse, error) {
+	if s.commandsFn != nil {
+		return s.commandsFn(ctx, extension)
+	}
+	return contract.ExtensionCommandsResponse{}, nil
+}
+
+func (s extensionServiceStub) CommandsScoped(
+	ctx context.Context,
+	extension string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionCommandsResponse, error) {
+	if s.commandsScopedFn != nil {
+		return s.commandsScopedFn(ctx, extension, actor)
+	}
+	return s.Commands(ctx, extension)
 }
 
 func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
@@ -594,6 +618,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
+	minimum, maximum := float64(1), float64(10)
 	service := extensionServiceStub{
 		searchFn: func(
 			_ context.Context,
@@ -651,6 +676,33 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 				Message:   "ready",
 			}}, nil
 		},
+		commandsScopedFn: func(
+			_ context.Context,
+			filter string,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionCommandsResponse, error) {
+			if filter != "parity" || actor.Scope.WorkspaceID != "workspace-a" {
+				return contract.ExtensionCommandsResponse{}, fmt.Errorf(
+					"unexpected command scope filter=%q workspace=%q",
+					filter,
+					actor.Scope.WorkspaceID,
+				)
+			}
+			return contract.ExtensionCommandsResponse{
+				Commands: []contract.ExtensionCommandPayload{{
+					Extension: "parity", Verb: "review/fetch", ToolID: "ext__parity__review_fetch",
+					Summary: "Fetch review", RiskClass: toolspkg.RiskMutating, ApprovalRequired: true,
+					Flags: []toolspkg.CommandFlag{{
+						Name: "round", Field: "round", Type: toolspkg.CommandFlagInteger,
+						Required: true, Enum: []string{"1", "2"}, Default: json.RawMessage(`1`),
+						Minimum: &minimum, Maximum: &maximum,
+					}},
+				}},
+				Groups: []contract.ExtensionCommandGroupPayload{{
+					Extension: "parity", Path: "review", Summary: "Review commands",
+				}},
+			}, nil
+		},
 	}
 	for _, request := range []struct {
 		method string
@@ -673,6 +725,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 		},
 		{method: http.MethodGet, path: "/extensions/parity/logs"},
 		{method: http.MethodGet, path: "/extensions/search?q=parity&sources=github&limit=1"},
+		{method: http.MethodGet, path: "/extensions/commands?extension=parity&workspace=workspace-a"},
 		{method: http.MethodPost, path: "/extensions/update", body: []byte(`{"all":true}`)},
 	} {
 		t.Run("Should return identical payloads for "+request.method+" "+request.path, func(t *testing.T) {
@@ -696,6 +749,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 				engine.POST("/extensions/update", handlers.UpdateExtensions)
 				engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
 				engine.GET("/extensions/search", handlers.SearchExtensions)
+				engine.GET("/extensions/commands", handlers.ExtensionCommands)
 				response := performRequest(t, engine, request.method, request.path, request.body)
 				responses[transport] = struct {
 					status int
@@ -704,6 +758,21 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			}
 			if !reflect.DeepEqual(responses["http"], responses["uds"]) {
 				t.Fatalf("transport responses differ: %#v", responses)
+			}
+			if strings.Contains(request.path, "/extensions/commands") {
+				var payload contract.ExtensionCommandsResponse
+				if err := json.Unmarshal([]byte(responses["http"].body), &payload); err != nil {
+					t.Fatalf("json.Unmarshal(commands) error = %v", err)
+				}
+				if len(payload.Commands) != 1 || len(payload.Groups) != 1 {
+					t.Fatalf("commands payload = %#v", payload)
+				}
+				flag := payload.Commands[0].Flags[0]
+				if flag.Type != toolspkg.CommandFlagInteger || !flag.Required || flag.Nullable ||
+					len(flag.Enum) != 2 || string(flag.Default) != "1" || flag.Minimum == nil || flag.Maximum == nil ||
+					!payload.Commands[0].ApprovalRequired {
+					t.Fatalf("command flag contract = %#v; command=%#v", flag, payload.Commands[0])
+				}
 			}
 		})
 	}

@@ -49,6 +49,7 @@ func (e *Extension) GetToolDescriptors() []ExtensionToolRuntimeDescriptor {
 		descriptor.Capabilities = slices.Clone(descriptor.Capabilities)
 		descriptor.InputSchema = cloneRawMessage(descriptor.InputSchema)
 		descriptor.OutputSchema = cloneRawMessage(descriptor.OutputSchema)
+		descriptor.Command = cloneSDKCommandSpec(descriptor.Command)
 		descriptors = append(descriptors, descriptor)
 	}
 	slices.SortFunc(descriptors, func(a, b ExtensionToolRuntimeDescriptor) int {
@@ -104,18 +105,20 @@ func (e *Extension) registerTool(
 		}
 	}
 	descriptor := ExtensionToolRuntimeDescriptor{
-		ID:                 toolID,
-		Handler:            cleanHandler,
-		Description:        strings.TrimSpace(options.Description),
-		FriendlyVerb:       strings.TrimSpace(options.FriendlyVerb),
-		Preview:            strings.TrimSpace(options.Preview),
-		InputSchema:        cloneRawMessage(inputSchema),
-		OutputSchema:       cloneRawMessage(outputSchema),
-		InputSchemaDigest:  inputDigest,
-		OutputSchemaDigest: outputDigest,
-		ReadOnly:           options.ReadOnly,
-		Risk:               risk,
-		Capabilities:       normalizeStrings(options.Capabilities),
+		ID:                  toolID,
+		Handler:             cleanHandler,
+		Description:         strings.TrimSpace(options.Description),
+		FriendlyVerb:        strings.TrimSpace(options.FriendlyVerb),
+		Preview:             strings.TrimSpace(options.Preview),
+		InputSchema:         cloneRawMessage(inputSchema),
+		OutputSchema:        cloneRawMessage(outputSchema),
+		InputSchemaDigest:   inputDigest,
+		OutputSchemaDigest:  outputDigest,
+		ReadOnly:            options.ReadOnly,
+		Risk:                risk,
+		RequiresInteraction: options.RequiresInteraction,
+		Capabilities:        normalizeStrings(options.Capabilities),
+		Command:             cloneSDKCommandSpec(options.Command),
 	}
 
 	e.mu.Lock()

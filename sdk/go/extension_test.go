@@ -145,15 +145,23 @@ func TestToolRegistrationValidation(t *testing.T) {
 			extension,
 			"search",
 			compozysdk.ToolOptions{
-				Description: "Search extension data",
-				ReadOnly:    true,
-				InputSchema: inputSchema,
+				Description:         "Search extension data",
+				ReadOnly:            true,
+				RequiresInteraction: true,
+				InputSchema:         inputSchema,
+				Command: &compozysdk.ExtensionCommandSpec{
+					Verb: "review/search", Summary: "Search reviews",
+					Flags: map[string]string{"query": "query"},
+				},
 			},
 			func(context.Context, compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
 				return compozysdk.EmptyResult(), nil
 			},
 		); err != nil {
 			t.Fatalf("Tool() error = %v", err)
+		}
+		if err := extension.CommandGroup("review", "Review commands"); err != nil {
+			t.Fatalf("CommandGroup() error = %v", err)
 		}
 
 		payload, err := extension.Describe()
@@ -176,6 +184,14 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 		if !jsonEqual(tool.InputSchema, inputSchema) {
 			t.Fatalf("InputSchema = %s, want %s", tool.InputSchema, inputSchema)
+		}
+		if !tool.RequiresInteraction || tool.Command == nil || tool.Command.Verb != "review/search" ||
+			tool.Command.Flags["query"] != "query" {
+			t.Fatalf("Describe().Tools[0] command metadata = %#v", tool)
+		}
+		if len(payload.CommandGroups) != 1 || payload.CommandGroups[0].Path != "review" ||
+			payload.CommandGroups[0].Summary != "Review commands" {
+			t.Fatalf("Describe().CommandGroups = %#v", payload.CommandGroups)
 		}
 	})
 

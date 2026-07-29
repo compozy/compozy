@@ -7,6 +7,7 @@ import { normalizeHostMethodList, normalizeStringList } from "./extension-runtim
 import type {
   DescribePayload,
   ExtensionDefinition,
+  ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
 } from "./types.js";
 import type { RegisteredTool } from "./extension-contract.js";
@@ -14,6 +15,7 @@ import type { RegisteredTool } from "./extension-contract.js";
 interface ExtensionDescribeInput {
   definition: ExtensionDefinition;
   tools: ExtensionToolRuntimeDescriptor[];
+  commandGroups: ExtensionCommandGroupSpec[];
   watchSourceKinds: string[];
   sdkVersion: string;
 }
@@ -52,6 +54,9 @@ export function cloneExtensionToolDescriptors(
       ? {}
       : { output_schema: structuredClone(tool.descriptor.output_schema) }),
     capabilities: [...(tool.descriptor.capabilities ?? [])],
+    ...(tool.descriptor.command === undefined
+      ? {}
+      : { command: structuredClone(tool.descriptor.command) }),
   }));
 }
 
@@ -76,6 +81,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       env: { ...input.definition.subprocess?.env },
     },
     tools: [...input.tools].sort((left, right) => left.handler.localeCompare(right.handler)),
+    command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeStringList(input.definition.supported_hook_events),
     watch_source_kinds: input.watchSourceKinds,
     sdk: {

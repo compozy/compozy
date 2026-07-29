@@ -30,18 +30,20 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 	for _, registered := range e.toolHandlers {
 		descriptor := registered.descriptor
 		tools = append(tools, contracts.ExtensionToolRuntimeDescriptor{
-			ID:                 contracts.ToolID(descriptor.ID),
-			Handler:            descriptor.Handler,
-			Description:        descriptor.Description,
-			FriendlyVerb:       descriptor.FriendlyVerb,
-			Preview:            descriptor.Preview,
-			InputSchema:        cloneRawMessage(descriptor.InputSchema),
-			OutputSchema:       cloneRawMessage(descriptor.OutputSchema),
-			InputSchemaDigest:  descriptor.InputSchemaDigest,
-			OutputSchemaDigest: descriptor.OutputSchemaDigest,
-			ReadOnly:           descriptor.ReadOnly,
-			Risk:               contracts.RiskClass(descriptor.Risk),
-			Capabilities:       slices.Clone(descriptor.Capabilities),
+			ID:                  contracts.ToolID(descriptor.ID),
+			Handler:             descriptor.Handler,
+			Description:         descriptor.Description,
+			FriendlyVerb:        descriptor.FriendlyVerb,
+			Preview:             descriptor.Preview,
+			InputSchema:         cloneRawMessage(descriptor.InputSchema),
+			OutputSchema:        cloneRawMessage(descriptor.OutputSchema),
+			InputSchemaDigest:   descriptor.InputSchemaDigest,
+			OutputSchemaDigest:  descriptor.OutputSchemaDigest,
+			ReadOnly:            descriptor.ReadOnly,
+			Risk:                contracts.RiskClass(descriptor.Risk),
+			RequiresInteraction: descriptor.RequiresInteraction,
+			Capabilities:        slices.Clone(descriptor.Capabilities),
+			Command:             cloneSDKCommandSpec(descriptor.Command),
 		})
 	}
 	slices.SortFunc(tools, func(left, right contracts.ExtensionToolRuntimeDescriptor) int {
@@ -66,6 +68,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Env:     cloneStringMap(e.definition.Subprocess.Env),
 		},
 		Tools:            tools,
+		CommandGroups:    e.commandGroupsLocked(),
 		HookEvents:       normalizeStrings(e.definition.SupportedHookEvents),
 		WatchSourceKinds: e.watchSourceKindsLocked(),
 		SDK: contracts.DescribeSDKInfo{

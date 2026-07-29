@@ -31,6 +31,7 @@ const (
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
+	specAPIExtensionsCommandsPath                            = specAPIExtensionsPath + "/commands"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
 	specAPIExtensionsNameProvenancePath                      = specAPIExtensionsNamePath + "/provenance"
 	specAPIExtensionsNameEnablePath                          = specAPIExtensionsNamePath + "/enable"

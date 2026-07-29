@@ -244,6 +244,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/doctor",
 			"POST /api/drain",
 			"GET /api/extensions",
+			"GET /api/extensions/commands",
 			"GET /api/extensions/search",
 			"GET /api/extensions/:name",
 			"GET /api/extensions/:name/logs",

@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type ToolProgress struct {
+	ToolCallID string            `json:"tool_call_id"`
+	ToolID     string            `json:"tool_id"`
+	Phase      ToolProgressPhase `json:"phase"`
+	Label      string            `json:"label"`
+	Preview    string            `json:"preview,omitempty"`
+	Emoji      string            `json:"emoji,omitempty"`
+	DurationMS int64             `json:"duration_ms,omitempty"`
+	Error      string            `json:"error,omitempty"`
+	Index      int               `json:"index"`
+}
+
+type ToolProgressPhase string
+
+type ToolResult struct {
+	Content    []ToolContent              `json:"content,omitempty"`
+	Structured json.RawMessage            `json:"structured,omitempty"`
+	Preview    string                     `json:"preview,omitempty"`
+	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
+	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
+	Redactions []Redaction                `json:"redactions,omitempty"`
+	Truncated  bool                       `json:"truncated"`
+	Bytes      int64                      `json:"bytes"`
+	DurationMS int64                      `json:"duration_ms"`
+}
+
 type ToolResultPatch struct {
 	Deny       bool            `json:"deny,omitempty"`
 	DenyReason string          `json:"deny_reason,omitempty"`

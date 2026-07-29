@@ -6,7 +6,9 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
@@ -27,13 +29,18 @@ const (
 	manifestNameKey                     = "name"
 	manifestNullKey                     = "null"
 	manifestOutputSchemaKey             = "output_schema"
+	manifestPathKey                     = "path"
 	manifestReadOnlyKey                 = "read_only"
 	manifestResourcesPublishPath        = "resources.publish"
 	manifestRiskKey                     = "risk"
 	manifestSubprocessKey               = "subprocess"
+	manifestSummaryKey                  = "summary"
 	manifestVersionKey                  = "version"
 	manifestVisibilityKey               = "visibility"
 )
+
+type manifestCommandSpec = toolspkg.ExtensionCommandSpec
+type manifestCommandGroupSpec = extensioncontract.ExtensionCommandGroupSpec
 
 const (
 	manifestTOMLFileName = "extension.toml"
@@ -70,14 +77,15 @@ type Manifest struct {
 
 // ResourcesConfig declares static assets bundled with an extension.
 type ResourcesConfig struct {
-	Skills     []string                   `toml:"skills,omitempty"      json:"skills,omitempty"`
-	Loops      []string                   `toml:"loops,omitempty"       json:"loops,omitempty"`
-	Agents     []string                   `toml:"agents,omitempty"      json:"agents,omitempty"`
-	Bundles    []string                   `toml:"bundles,omitempty"     json:"bundles,omitempty"`
-	Hooks      []HookConfig               `toml:"hooks,omitempty"       json:"hooks,omitempty"`
-	Tools      map[string]ToolConfig      `toml:"tools,omitempty"       json:"tools,omitempty"`
-	MCPServers map[string]MCPServerConfig `toml:"mcp_servers,omitempty" json:"mcp_servers,omitempty"`
-	Publish    ResourceGrantRequest       `toml:"publish,omitempty"     json:"publish"`
+	Skills        []string                   `toml:"skills,omitempty"         json:"skills,omitempty"`
+	Loops         []string                   `toml:"loops,omitempty"          json:"loops,omitempty"`
+	Agents        []string                   `toml:"agents,omitempty"         json:"agents,omitempty"`
+	Bundles       []string                   `toml:"bundles,omitempty"        json:"bundles,omitempty"`
+	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
+	Tools         map[string]ToolConfig      `toml:"tools,omitempty"          json:"tools,omitempty"`
+	CommandGroups []manifestCommandGroupSpec `toml:"command_groups,omitempty" json:"command_groups,omitempty"`
+	MCPServers    map[string]MCPServerConfig `toml:"mcp_servers,omitempty"    json:"mcp_servers,omitempty"`
+	Publish       ResourceGrantRequest       `toml:"publish,omitempty"        json:"publish"`
 }
 
 // ResourceGrantRequest declares the resource families and scope ceiling an extension requests.
@@ -196,6 +204,8 @@ type ToolConfig struct {
 	RequiresEnv          []string          `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	RequiredCapabilities []string          `toml:"required_capabilities,omitempty" json:"required_capabilities,omitempty"`
 	Visibility           string            `toml:"visibility,omitempty"            json:"visibility,omitempty"`
+
+	Command *manifestCommandSpec `toml:"command,omitempty" json:"command,omitempty"`
 }
 
 // ToolBackendConfig binds a manifest tool to its backend metadata.

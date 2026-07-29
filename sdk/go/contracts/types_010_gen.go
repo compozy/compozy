@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type HookRunOutcome string
+
+type HookSkillSource string
+
+type HookSource uint8
+
 type InboundAction struct {
 	ActionID  string `json:"action_id"`
 	MessageID string `json:"message_id,omitempty"`
@@ -175,31 +181,3 @@ const (
 	IssueSeverityError   IssueSeverity = "error"
 	IssueSeverityWarning IssueSeverity = "warning"
 )
-
-type Job struct {
-	ID          string          `json:"id"`
-	Scope       Scope           `json:"scope"`
-	Name        string          `json:"name"`
-	TargetKind  TargetKind      `json:"target_kind"`
-	AgentName   string          `json:"agent_name"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Prompt      string          `json:"prompt"`
-	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
-	Task        *JobTaskConfig  `json:"task,omitempty"`
-	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
-	Enabled     bool            `json:"enabled"`
-	Retry       RetryConfig     `json:"retry"`
-	FireLimit   FireLimitConfig `json:"fire_limit"`
-	Source      JobSource       `json:"source"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-}
-
-type JobSource string
-
-type JobTaskConfig struct {
-	Title                string     `json:"title,omitempty"`
-	Description          string     `json:"description,omitempty"`
-	Owner                *Ownership `json:"owner,omitempty"`
-	NetworkParticipation *Request   `json:"network_participation,omitempty"`
-}

@@ -3412,15 +3412,19 @@ func (s *integrationExtensionService) Install(
 	req contract.InstallExtensionRequest,
 	_ taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
-	if strings.TrimSpace(req.Slug) != "" {
+	if req.Source != contract.InstallExtensionSourceLocalPath {
+		sourceFilter := string(req.Source)
+		if req.Source == contract.InstallExtensionSourceCurated {
+			sourceFilter = ""
+		}
 		info, err := extensionpkg.InstallMarketplaceManaged(
 			ctx,
 			s.homePaths,
 			s.registry,
 			s.marketplaceLoader,
 			extensionpkg.MarketplaceInstallRequest{
-				Slug:                   req.Slug,
-				SourceFilter:           req.Source,
+				Slug:                   req.Ref,
+				SourceFilter:           sourceFilter,
 				Version:                req.Version,
 				Asset:                  req.Asset,
 				PolicyAllowsUnverified: s.marketplacePolicyAllowUnverified,
@@ -3437,19 +3441,23 @@ func (s *integrationExtensionService) Install(
 		}
 		return s.Status(ctx, info.Name)
 	}
-	manifest, err := extensionpkg.LoadManifest(req.Path)
+	manifest, err := extensionpkg.LoadManifest(req.Ref)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,
-		req.Path,
+		req.Ref,
 		s.marketplacePolicyAllowUnverified,
 		req.AllowUnverified,
 	); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(req.Ref)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := extensionpkg.InstallLocalManaged(s.homePaths, s.registry, manifest, req.Ref, checksum); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.manager.Reload(ctx); err != nil {

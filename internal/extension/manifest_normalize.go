@@ -120,14 +120,15 @@ func (m *Manifest) MissingEnv(getenv func(string) string) []string {
 
 func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 	return ResourcesConfig{
-		Skills:     normalizeStrings(cfg.Skills),
-		Loops:      normalizeStrings(cfg.Loops),
-		Agents:     normalizeStrings(cfg.Agents),
-		Bundles:    normalizeStrings(cfg.Bundles),
-		Hooks:      normalizeHooks(cfg.Hooks),
-		Tools:      normalizeTools(cfg.Tools),
-		MCPServers: normalizeMCPServers(cfg.MCPServers),
-		Publish:    normalizeResourceGrantRequest(cfg.Publish),
+		Skills:        normalizeStrings(cfg.Skills),
+		Loops:         normalizeStrings(cfg.Loops),
+		Agents:        normalizeStrings(cfg.Agents),
+		Bundles:       normalizeStrings(cfg.Bundles),
+		Hooks:         normalizeHooks(cfg.Hooks),
+		Tools:         normalizeTools(cfg.Tools),
+		CommandGroups: normalizeCommandGroups(cfg.CommandGroups),
+		MCPServers:    normalizeMCPServers(cfg.MCPServers),
+		Publish:       normalizeResourceGrantRequest(cfg.Publish),
 	}
 }
 

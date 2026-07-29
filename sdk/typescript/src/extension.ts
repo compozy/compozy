@@ -13,6 +13,7 @@ import type {
   HealthCheckResult,
   HookEvent,
   ExtensionToolCallResponse,
+  ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
   InitializeResponse,
   JSONRPCRequestEnvelope,
@@ -27,7 +28,6 @@ import {
   isToolProviderMethod,
   validateProvidedMethodCoverage,
 } from "./capabilities.js";
-import { schemaDigest } from "./schema-digest.js";
 import {
   InvalidParamsError,
   MethodNotFoundError,
@@ -37,11 +37,9 @@ import {
 } from "./errors.js";
 
 import {
-  canonicalExtensionToolID,
   ensureSubset,
   implementedExtensionMethods,
   normalizeHostMethodList,
-  normalizeSchema,
   normalizeStringList,
   normalizeToolResult,
   parseShutdownRequest,
@@ -59,6 +57,7 @@ import {
   defaultExtensionDescribeProcess,
   runExtensionDescribeMode,
 } from "./extension-describe.js";
+import { buildRegisteredTool } from "./extension-tool-registration.js";
 import type {
   ExtensionContext,
   ExtensionHandler,
@@ -77,6 +76,7 @@ export class Extension {
   private readonly describeProcess: NonNullable<ExtensionOptions["describeProcess"]>;
   private readonly handlers = new Map<string, ExtensionHandler>();
   private readonly toolHandlers = new Map<string, RegisteredTool>();
+  private readonly commandGroups: ExtensionCommandGroupSpec[] = [];
   private readonly watchSources = new ExtensionWatchSources({
     bindMethod: method => this.bindMethod(method),
     hasUserHandler: method => this.handlers.has(method),
@@ -156,30 +156,10 @@ export class Extension {
     if (this.handlers.has(PROVIDE_TOOLS_METHOD) || this.handlers.has(TOOLS_CALL_METHOD)) {
       throw new Error("provide_tools and tools/call are reserved by extension.tool()");
     }
-    const inputSchema = normalizeSchema(options.inputSchema, "inputSchema");
-    const outputSchema =
-      options.outputSchema === undefined
-        ? undefined
-        : normalizeSchema(options.outputSchema, "outputSchema");
-    const descriptor: ExtensionToolRuntimeDescriptor = {
-      id: options.id ?? canonicalExtensionToolID(this.definition.name, cleanHandler),
-      handler: cleanHandler,
-      ...(options.description?.trim() ? { description: options.description.trim() } : {}),
-      ...(options.friendlyVerb?.trim() ? { friendly_verb: options.friendlyVerb.trim() } : {}),
-      ...(options.preview?.trim() ? { preview: options.preview.trim() } : {}),
-      input_schema: inputSchema,
-      ...(outputSchema ? { output_schema: outputSchema } : {}),
-      input_schema_digest: schemaDigest(inputSchema),
-      ...(outputSchema ? { output_schema_digest: schemaDigest(outputSchema) } : {}),
-      read_only: Boolean(options.readOnly),
-      risk: options.risk ?? (options.readOnly ? "read" : "mutating"),
-      capabilities: normalizeStringList(options.capabilities),
-    };
-    this.toolHandlers.set(cleanHandler, {
-      descriptor,
-      handler: toolHandler as ExtensionToolHandler,
-      sensitiveInputFields: normalizeStringList(options.sensitiveInputFields),
-    });
+    this.toolHandlers.set(
+      cleanHandler,
+      buildRegisteredTool(this.definition.name, cleanHandler, options, toolHandler)
+    );
     this.ensureToolProviderCapability();
     this.ensureToolProviderHandlers();
     return this;
@@ -191,6 +171,14 @@ export class Extension {
     handler: ExtensionWatchSourceHandler<TSpec>
   ): this {
     this.watchSources.register(this.definition, kind, options, handler);
+    return this;
+  }
+
+  public commandGroup(path: string, summary: string): this {
+    if (this.initialized) {
+      throw new Error("extension registration is closed after initialize");
+    }
+    this.commandGroups.push({ path: path.trim(), summary: summary.trim() });
     return this;
   }
 
@@ -248,6 +236,7 @@ export class Extension {
     return buildExtensionDescribePayload({
       definition: this.definition,
       tools: this.getToolDescriptors(),
+      commandGroups: this.commandGroups.map(group => ({ ...group })),
       watchSourceKinds: this.watchSources.kinds(),
       sdkVersion: this.sdkVersion,
     });

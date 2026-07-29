@@ -344,6 +344,12 @@ type ExtensionLogsResponse struct {
 	Logs []ExtensionLogPayload `json:"logs"`
 }
 
+// ExtensionCommandsResponse wraps the storage-free contributed-command projection.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
 // ExtensionProvenanceResponse wraps one installed extension provenance record.
 type ExtensionProvenanceResponse struct {
 	Provenance ExtensionProvenancePayload `json:"provenance"`

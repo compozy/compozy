@@ -5,6 +5,7 @@ import (
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -17,6 +18,7 @@ import (
 )
 
 var enumValuesRegistry = map[reflect.Type][]string{
+	reflect.TypeFor[extensioncontract.CommandFlagType]():            extensioncontract.CommandFlagTypeValues(),
 	reflect.TypeFor[apicontract.IssueSeverity]():                    apicontract.IssueSeverityValues(),
 	reflect.TypeFor[apicontract.AuthoredValidationStatus]():         apicontract.AuthoredValidationStatusValues(),
 	reflect.TypeFor[apicontract.AuthoredDiagnosticSeverity]():       apicontract.AuthoredDiagnosticSeverityValues(),

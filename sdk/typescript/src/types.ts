@@ -8,6 +8,8 @@ import type {
   HookPayloadByEvent,
   HostAPIMethod,
   DescribeSubprocess,
+  ExtensionCommandGroupSpec,
+  ExtensionCommandSpec,
   RiskClass,
   SourceKind,
   ToolID,
@@ -74,6 +76,7 @@ export interface ToolConfig {
   tags?: string[];
   search_hints?: string[];
   required_capabilities?: string[];
+  command?: ExtensionCommandSpec;
 }
 
 export interface ResourcesConfig {
@@ -81,6 +84,7 @@ export interface ResourcesConfig {
   agents?: string[];
   hooks?: HookConfig[];
   tools?: Record<string, ToolConfig>;
+  command_groups?: ExtensionCommandGroupSpec[];
   mcp_servers?: Record<string, MCPServerConfig>;
 }
 

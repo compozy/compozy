@@ -2,7 +2,54 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type NetworkPeersParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel,omitempty"`
+}
+
+type NetworkSendParams struct {
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
+	Body        json.RawMessage            `json:"body"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	ID          string                     `json:"id,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+type NetworkSendPayload struct {
+	ID          string                     `json:"id"`
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
+}
 
 type NetworkStatusPayload struct {
 	Enabled              bool                            `json:"enabled"`
@@ -259,16 +306,3 @@ type Origin struct {
 type OriginKind string
 
 type OwnerKind string
-
-type OwnerRef struct {
-	WorkspaceID string                 `json:"workspace_id"`
-	Kind        ParticipationOwnerKind `json:"kind"`
-	ID          string                 `json:"id"`
-}
-
-type Ownership struct {
-	Kind OwnerKind `json:"kind"`
-	Ref  string    `json:"ref"`
-}
-
-type ParticipationOwnerKind string

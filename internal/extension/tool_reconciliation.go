@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -85,7 +86,19 @@ func runtimeDescriptorMatches(
 		strings.TrimSpace(manifest.InputSchemaDigest) == strings.TrimSpace(runtime.InputSchemaDigest) &&
 		strings.TrimSpace(manifest.OutputSchemaDigest) == strings.TrimSpace(runtime.OutputSchemaDigest) &&
 		manifest.ReadOnly == runtime.ReadOnly &&
-		manifest.Risk == runtime.Risk
+		manifest.Risk == runtime.Risk &&
+		manifest.RequiresInteraction == runtime.RequiresInteraction &&
+		commandSpecsEqual(manifest.Command, runtime.Command)
+}
+
+func commandSpecsEqual(left, right *toolspkg.ExtensionCommandSpec) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return strings.TrimSpace(left.Verb) == strings.TrimSpace(right.Verb) &&
+		strings.TrimSpace(left.Summary) == strings.TrimSpace(right.Summary) &&
+		strings.TrimSpace(left.Example) == strings.TrimSpace(right.Example) &&
+		maps.Equal(left.Flags, right.Flags)
 }
 
 func hasRequiredCapabilities(provided []string, required []string) bool {

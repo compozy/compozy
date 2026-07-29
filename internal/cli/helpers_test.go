@@ -78,6 +78,7 @@ type stubClient struct {
 	promoteNetworkThreadTaskFn  func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
 	searchExtensionsFn          func(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
+	listExtensionCommandsFn     func(context.Context, string, string) (ExtensionCommandsRecord, error)
 	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
 	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
@@ -446,6 +447,17 @@ func (s *stubClient) SearchExtensions(
 		return s.searchExtensionsFn(ctx, request)
 	}
 	return ExtensionSearchRecord{}, errors.New("unexpected SearchExtensions call")
+}
+
+func (s *stubClient) ListExtensionCommands(
+	ctx context.Context,
+	extension string,
+	workspaceID string,
+) (ExtensionCommandsRecord, error) {
+	if s.listExtensionCommandsFn != nil {
+		return s.listExtensionCommandsFn(ctx, extension, workspaceID)
+	}
+	return ExtensionCommandsRecord{}, errors.New("unexpected ListExtensionCommands call")
 }
 
 var _ DaemonClient = (*stubClient)(nil)

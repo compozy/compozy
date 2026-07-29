@@ -121,6 +121,7 @@ type DaemonClient interface {
 	) (PromoteNetworkThreadTaskRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
 	SearchExtensions(ctx context.Context, request ExtensionSearchRequest) (ExtensionSearchRecord, error)
+	ListExtensionCommands(ctx context.Context, extension string, workspaceID string) (ExtensionCommandsRecord, error)
 	MarketplaceClient
 	MCPSettingsClient
 	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)

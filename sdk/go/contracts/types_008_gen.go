@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+type EventRecordPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	RecordType     string          `json:"record_type,omitempty"`
+	Sequence       int64           `json:"sequence,omitempty"`
+	Content        json.RawMessage `json:"content,omitempty"`
+}
+
+type ExtensionCommandGroupSpec struct {
+	Path    string `json:"path"`
+	Summary string `json:"summary"`
+}
+
+type ExtensionCommandSpec struct {
+	Verb    string            `json:"verb"`
+	Summary string            `json:"summary"`
+	Example string            `json:"example,omitempty"`
+	Flags   map[string]string `json:"flags,omitempty"`
+}
+
 type ExtensionManifestSummary struct {
 	Name              string   `json:"name"`
 	Version           string   `json:"version"`
@@ -34,18 +67,20 @@ type ExtensionToolCallResponse struct {
 }
 
 type ExtensionToolRuntimeDescriptor struct {
-	ID                 ToolID          `json:"id"`
-	Handler            string          `json:"handler"`
-	Description        string          `json:"description,omitempty"`
-	FriendlyVerb       string          `json:"friendly_verb,omitempty"`
-	Preview            string          `json:"preview,omitempty"`
-	InputSchema        json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema       json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest  string          `json:"input_schema_digest"`
-	OutputSchemaDigest string          `json:"output_schema_digest,omitempty"`
-	ReadOnly           bool            `json:"read_only"`
-	Risk               RiskClass       `json:"risk"`
-	Capabilities       []string        `json:"capabilities,omitempty"`
+	ID                  ToolID                `json:"id"`
+	Handler             string                `json:"handler"`
+	Description         string                `json:"description,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
+	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
+	ReadOnly            bool                  `json:"read_only"`
+	Risk                RiskClass             `json:"risk"`
+	RequiresInteraction bool                  `json:"requires_interaction"`
+	Capabilities        []string              `json:"capabilities,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitempty"`
 }
 
 type ExtensionToolWorkspaceScope struct {
@@ -139,49 +174,4 @@ type HeartbeatHistoryResponse struct {
 type HeartbeatMutationResponse struct {
 	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
 	Revision  HeartbeatRevisionPayload `json:"revision"`
-}
-
-type HeartbeatPolicyPayload struct {
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	SchemaVersion    int                                `json:"schema_version"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
-	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-type HeartbeatPreferencesPayload struct {
-	MinInterval  string                            `json:"min_interval"`
-	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
-	Context      HeartbeatContextProjectionPayload `json:"context"`
-}
-
-type HeartbeatPromptContributionPayload struct {
-	Active           bool                               `json:"active"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Truncated        bool                               `json:"truncated"`
-	MaxBytes         int64                              `json:"max_bytes"`
-	MaxBodyBytes     int64                              `json:"max_body_bytes"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Context          HeartbeatContextProjectionPayload  `json:"context"`
 }

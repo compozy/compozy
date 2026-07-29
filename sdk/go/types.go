@@ -230,24 +230,31 @@ type ToolOptions struct {
 	OutputSchema         any
 	ReadOnly             bool
 	Risk                 RiskClass
+	RequiresInteraction  bool
 	Capabilities         []string
 	SensitiveInputFields []string
+	Command              *ExtensionCommandSpec
 }
+
+// ExtensionCommandSpec presents an extension tool as an operator-facing command.
+type ExtensionCommandSpec = contracts.ExtensionCommandSpec
 
 // ExtensionToolRuntimeDescriptor is the runtime proof descriptor returned by provide_tools.
 type ExtensionToolRuntimeDescriptor struct {
-	ID                 ToolID          `json:"id"`
-	Handler            string          `json:"handler"`
-	Description        string          `json:"description,omitempty"`
-	FriendlyVerb       string          `json:"friendly_verb,omitempty"`
-	Preview            string          `json:"preview,omitempty"`
-	InputSchema        json.RawMessage `json:"input_schema,omitempty"`
-	OutputSchema       json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest  string          `json:"input_schema_digest"`
-	OutputSchemaDigest string          `json:"output_schema_digest,omitempty"`
-	ReadOnly           bool            `json:"read_only"`
-	Risk               RiskClass       `json:"risk"`
-	Capabilities       []string        `json:"capabilities,omitempty"`
+	ID                  ToolID                `json:"id"`
+	Handler             string                `json:"handler"`
+	Description         string                `json:"description,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
+	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
+	ReadOnly            bool                  `json:"read_only"`
+	Risk                RiskClass             `json:"risk"`
+	RequiresInteraction bool                  `json:"requires_interaction"`
+	Capabilities        []string              `json:"capabilities,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitempty"`
 }
 
 // DescribeSubprocess declares the generated bundle's process entrypoint.

@@ -87,7 +87,7 @@ func (m *Manifest) Validate() error {
 	if err := validateManifestMCPServerEnv(m.Resources.MCPServers); err != nil {
 		return err
 	}
-	if err := validateToolConfigs(m.Name, m.Resources.Tools); err != nil {
+	if err := validateManifestCommandResources(m); err != nil {
 		return err
 	}
 	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {

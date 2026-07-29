@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type OwnerRef struct {
+	WorkspaceID string                 `json:"workspace_id"`
+	Kind        ParticipationOwnerKind `json:"kind"`
+	ID          string                 `json:"id"`
+}
+
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+type ParticipationOwnerKind string
+
 type ParticipationStatus struct {
 	Owner         OwnerRef `json:"owner"`
 	Available     bool     `json:"available"`
@@ -240,14 +253,4 @@ type ProviderModelRefreshResponse struct {
 
 type ProviderModelStatusResponse struct {
 	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-}
-
-type ReasonCode string
-
-type ReasoningSource string
-
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
 }

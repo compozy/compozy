@@ -107,6 +107,28 @@ type ClarifyAskParams struct {
 	Choices      []string `json:"choices,omitempty"`
 }
 
+type CommandFlag struct {
+	Name       string          `json:"name"`
+	Field      string          `json:"field"`
+	Type       CommandFlagType `json:"type"`
+	Repeatable bool            `json:"repeatable"`
+	Required   bool            `json:"required"`
+	Nullable   bool            `json:"nullable"`
+	Enum       []string        `json:"enum,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Minimum    *float64        `json:"minimum,omitempty"`
+	Maximum    *float64        `json:"maximum,omitempty"`
+}
+
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
+
 type CompactionMatcher struct {
 	Reason   string `json:"compaction_reason,omitempty"`
 	Strategy string `json:"compaction_strategy,omitempty"`
@@ -115,32 +137,4 @@ type CompactionMatcher struct {
 type ConsentArea struct {
 	Area   string `json:"area"`
 	Access string `json:"access"`
-}
-
-type ContextBlock struct {
-	Kind     string            `json:"kind,omitempty"`
-	Text     string            `json:"text,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
-}
-
-type ContextCompactPayload struct {
-	Event          HookEvent      `json:"event"`
-	Timestamp      time.Time      `json:"timestamp"`
-	SessionID      string         `json:"session_id,omitempty"`
-	SessionName    string         `json:"session_name,omitempty"`
-	SessionType    string         `json:"session_type,omitempty"`
-	AgentName      string         `json:"agent_name,omitempty"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Workspace      string         `json:"workspace,omitempty"`
-	ACPSessionID   string         `json:"acp_session_id,omitempty"`
-	State          string         `json:"state,omitempty"`
-	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string         `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	TurnID         string         `json:"turn_id,omitempty"`
-	Reason         string         `json:"reason,omitempty"`
-	Strategy       string         `json:"strategy,omitempty"`
-	Summary        string         `json:"summary,omitempty"`
-	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
 }

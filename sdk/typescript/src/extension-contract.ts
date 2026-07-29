@@ -3,6 +3,7 @@ import type {
   AcceptedCapabilities,
   ClarifyAnswer,
   ClarifyAskParams,
+  ExtensionCommandSpec,
   ExtensionToolRuntimeDescriptor,
   ExtensionToolWorkspaceScope,
   InitializeRequest,
@@ -66,8 +67,10 @@ export interface ExtensionToolOptions {
   outputSchema?: JSONValue;
   readOnly?: boolean;
   risk?: RiskClass;
+  requiresInteraction?: boolean;
   capabilities?: string[];
   sensitiveInputFields?: string[];
+  command?: ExtensionCommandSpec;
 }
 
 export interface ExtensionToolContext<TInput = unknown> {

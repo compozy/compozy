@@ -1095,6 +1095,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List active extension-contributed commands */
+    get: operations["listExtensionCommands"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/dev": {
     parameters: {
       query?: never;
@@ -30702,6 +30719,111 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listExtensionCommands: {
+    parameters: {
+      query?: {
+        /** @description Filter by exact extension name */
+        extension?: string;
+        /** @description Operator workspace reference; agent callers use trusted session scope */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            commands: {
+              approval_required: boolean;
+              example?: string;
+              extension: string;
+              flags: {
+                default?: unknown;
+                enum?: string[];
+                field: string;
+                /** Format: double */
+                maximum?: number | null;
+                /** Format: double */
+                minimum?: number | null;
+                name: string;
+                nullable: boolean;
+                repeatable: boolean;
+                required: boolean;
+                type: string;
+              }[];
+              /** @enum {string} */
+              risk_class: "read" | "mutating" | "open_world" | "destructive";
+              summary: string;
+              tool_id: string;
+              verb: string;
+            }[];
+            groups: {
+              extension: string;
+              path: string;
+              summary: string;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
         headers: {
           [name: string]: unknown;
         };

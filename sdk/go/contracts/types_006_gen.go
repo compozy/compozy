@@ -4,6 +4,34 @@ package contracts
 
 import "time"
 
+type ContextBlock struct {
+	Kind     string            `json:"kind,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type ContextCompactPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	Reason         string         `json:"reason,omitempty"`
+	Strategy       string         `json:"strategy,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type ContextCompactionPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -246,24 +274,4 @@ type CursorPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
 	Limit      int    `json:"limit"`
-}
-
-type DeclaredNetworkChannelPayload struct {
-	ActivationID  string `json:"activation_id,omitempty"`
-	ExtensionName string `json:"extension_name,omitempty"`
-	BundleName    string `json:"bundle_name,omitempty"`
-	ProfileName   string `json:"profile_name,omitempty"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	Name          string `json:"name"`
-	Description   string `json:"description,omitempty"`
-	Primary       bool   `json:"primary,omitempty"`
-}
-
-type DeliveryAck struct {
-	DeliveryID             string               `json:"delivery_id"`
-	Seq                    int64                `json:"seq"`
-	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
-	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
-	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
 }

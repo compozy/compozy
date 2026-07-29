@@ -80,6 +80,9 @@ type ExtensionSearchRequest = contract.ExtensionSearchRequest
 // ExtensionSearchRecord is one stable source-union discovery page.
 type ExtensionSearchRecord = contract.ExtensionSearchResponse
 
+// ExtensionCommandsRecord is the contributed-command discovery projection.
+type ExtensionCommandsRecord = contract.ExtensionCommandsResponse
+
 // UpdateExtensionRequest captures the shared extension update payload.
 type UpdateExtensionRequest = contract.UpdateExtensionRequest
 

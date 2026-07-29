@@ -68,6 +68,7 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 		return nil, err
 	}
 	manifest.Resources.Tools = tools
+	manifest.Resources.CommandGroups = cloneCommandGroups(payload.CommandGroups)
 	manifest.Resources.Hooks, err = manifestHooksFromDescribe(payload.HookEvents, payload.Subprocess)
 	if err != nil {
 		return nil, err
@@ -135,11 +136,13 @@ func manifestToolsFromDescribe(
 			OutputSchema:         cloneRawMessage(descriptor.OutputSchema),
 			Risk:                 string(descriptor.Risk),
 			ReadOnly:             descriptor.ReadOnly,
+			RequiresInteraction:  descriptor.RequiresInteraction,
 			Destructive:          descriptor.Risk == toolspkg.RiskDestructive,
 			OpenWorld:            descriptor.Risk == toolspkg.RiskOpenWorld,
 			ConcurrencySafe:      descriptor.ReadOnly,
 			RequiredCapabilities: normalizeStrings(descriptor.Capabilities),
 			Visibility:           string(toolspkg.VisibilityModel),
+			Command:              cloneExtensionCommandSpec(descriptor.Command),
 		}
 	}
 	return result, nil

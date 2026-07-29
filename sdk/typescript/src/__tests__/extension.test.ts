@@ -344,6 +344,7 @@ describe("Extension", () => {
           },
           input_schema_digest: "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01",
           read_only: true,
+          requires_interaction: false,
           risk: "read",
           capabilities: [],
         },
@@ -392,14 +393,21 @@ describe("Extension", () => {
       {
         description: "Search extension data",
         readOnly: true,
+        requiresInteraction: true,
         inputSchema: {
           type: "object",
           required: ["query"],
           properties: { query: { type: "string" } },
         },
+        command: {
+          verb: "review/search",
+          summary: "Search reviews",
+          flags: { query: "query" },
+        },
       },
       async () => ({ content: [], truncated: false, bytes: 0, duration_ms: 0 })
     );
+    extension.commandGroup("review", "Review commands");
     extension.watchSource("reviews", {}, async () => ({ ready: false }));
 
     await expect(extension.start()).resolves.toBeDefined();
@@ -428,8 +436,15 @@ describe("Extension", () => {
             required: ["query"],
             properties: { query: { type: "string" } },
           }),
+          requires_interaction: true,
+          command: {
+            verb: "review/search",
+            summary: "Search reviews",
+            flags: { query: "query" },
+          },
         },
       ],
+      command_groups: [{ path: "review", summary: "Review commands" }],
       hook_events: ["prompt.post_assemble"],
       watch_source_kinds: ["reviews"],
       sdk: {

@@ -4,6 +4,43 @@ package contracts
 
 import "time"
 
+type SessionPreResumePatch struct {
+	Deny        bool    `json:"deny,omitempty"`
+	DenyReason  string  `json:"deny_reason,omitempty"`
+	SessionName *string `json:"session_name,omitempty"`
+	SessionType *string `json:"session_type,omitempty"`
+	AgentName   *string `json:"agent_name,omitempty"`
+	WorkspaceID *string `json:"workspace_id,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
+type SessionPreResumePayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type SessionPreStopPatch struct {
+	Deny        bool    `json:"deny,omitempty"`
+	DenyReason  string  `json:"deny_reason,omitempty"`
+	SessionName *string `json:"session_name,omitempty"`
+	SessionType *string `json:"session_type,omitempty"`
+	AgentName   *string `json:"agent_name,omitempty"`
+	WorkspaceID *string `json:"workspace_id,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
 type SessionPreStopPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -145,43 +182,3 @@ type SkillsListParams struct {
 type Source string
 
 type SourceKind string
-
-type SourceRef struct {
-	Kind            SourceKind `json:"kind"`
-	Owner           string     `json:"owner"`
-	RawServerName   string     `json:"raw_server_name,omitempty"`
-	RawToolName     string     `json:"raw_tool_name,omitempty"`
-	ResourceID      string     `json:"resource_id,omitempty"`
-	ResourceVersion string     `json:"resource_version,omitempty"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	Scope           string     `json:"scope,omitempty"`
-}
-
-type SpawnContext struct {
-	ParentSessionID              string `json:"parent_session_id,omitempty"`
-	RootSessionID                string `json:"root_session_id,omitempty"`
-	ChildSessionID               string `json:"child_session_id,omitempty"`
-	WorkspaceID                  string `json:"workspace_id,omitempty"`
-	Workspace                    string `json:"workspace,omitempty"`
-	AgentName                    string `json:"agent_name,omitempty"`
-	SpawnRole                    string `json:"spawn_role,omitempty"`
-	SpawnDepth                   int    `json:"spawn_depth,omitempty"`
-	TTLSeconds                   int64  `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent             bool   `json:"auto_stop_on_parent,omitempty"`
-	TaskID                       string `json:"task_id,omitempty"`
-	RunID                        string `json:"run_id,omitempty"`
-	WorkflowID                   string `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec  `json:"resolved_network_participation,omitempty"`
-	SoulSnapshotID               string `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string `json:"soul_digest,omitempty"`
-	ParentSoulDigest             string `json:"parent_soul_digest,omitempty"`
-}
-
-type SpawnCreatePatch struct {
-	Deny             bool           `json:"deny,omitempty"`
-	DenyReason       string         `json:"deny_reason,omitempty"`
-	AgentName        *string        `json:"agent_name,omitempty"`
-	SpawnRole        *string        `json:"spawn_role,omitempty"`
-	TTLSeconds       *int64         `json:"ttl_seconds,omitempty"`
-	ChildPermissions *PermissionSet `json:"child_permissions,omitempty"`
-}

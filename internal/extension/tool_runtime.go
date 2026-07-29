@@ -236,6 +236,7 @@ func cloneRuntimeToolDescriptors(
 	for index := range src {
 		cloned[index] = src[index]
 		cloned[index].Capabilities = slices.Clone(src[index].Capabilities)
+		cloned[index].Command = cloneExtensionCommandSpec(src[index].Command)
 	}
 	return cloned
 }

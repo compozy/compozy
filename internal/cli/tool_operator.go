@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	toolOperatorToolIDKey = "tool_id"
+	toolOperatorToolIDKey    = "tool_id"
+	toolOperatorToolIDHeader = "TOOL ID"
 )
 
 const (

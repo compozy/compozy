@@ -1,6 +1,10 @@
 package contract
 
-import "time"
+import (
+	"time"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 // InstallExtensionSource is the closed distribution-source union.
 type InstallExtensionSource string
@@ -132,4 +136,23 @@ type ExtensionBundleSummaryPayload struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	Profiles    []string `json:"profiles,omitempty"`
+}
+
+// ExtensionCommandPayload is one executable command leaf projected from an active extension tool.
+type ExtensionCommandPayload struct {
+	Extension        string                 `json:"extension"`
+	Verb             string                 `json:"verb"`
+	ToolID           string                 `json:"tool_id"`
+	Summary          string                 `json:"summary"`
+	Example          string                 `json:"example,omitempty"`
+	Flags            []toolspkg.CommandFlag `json:"flags"`
+	RiskClass        toolspkg.RiskClass     `json:"risk_class"`
+	ApprovalRequired bool                   `json:"approval_required"`
+}
+
+// ExtensionCommandGroupPayload is one non-executable command presentation group.
+type ExtensionCommandGroupPayload struct {
+	Extension string `json:"extension"`
+	Path      string `json:"path"`
+	Summary   string `json:"summary"`
 }

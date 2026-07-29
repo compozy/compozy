@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func registryExtensionOperations() []OperationSpec {
 	return []OperationSpec{
 		listExtensionsOperationSpec(),
+		listExtensionCommandsOperationSpec(),
 		installExtensionOperationSpec(),
 		getExtensionOperationSpec(),
 		updateExtensionOperationSpec(),
@@ -15,6 +16,26 @@ func registryExtensionOperations() []OperationSpec {
 		devExtensionOperationSpec(),
 		reloadDevExtensionOperationSpec(),
 		getExtensionLogsOperationSpec(),
+	}
+}
+
+func listExtensionCommandsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsCommandsPath,
+		OperationID: "listExtensionCommands",
+		Summary:     "List active extension-contributed commands",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("extension", "Filter by exact extension name", false),
+			queryParam("workspace", "Operator workspace reference; agent callers use trusted session scope", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionCommandsResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 

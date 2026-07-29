@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type ReasonCode string
+
+type ReasoningSource string
+
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
 type Request struct {
 	Mode            *Mode            `json:"mode,omitempty"`
 	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
@@ -135,19 +145,4 @@ type Run struct {
 type RunDesignationSummary struct {
 	Index int    `json:"index"`
 	Brief string `json:"brief,omitempty"`
-}
-
-type RunStatus string
-
-type SandboxExecParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Command     string `json:"command"`
-	Timeout     int    `json:"timeout,omitempty"`
-}
-
-type SandboxExecResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
 }

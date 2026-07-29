@@ -1184,6 +1184,21 @@ export interface ClarifyAskParams {
   choices?: string[];
 }
 
+export type CommandFlagType = "string" | "boolean" | "integer" | "number";
+
+export interface CommandFlag {
+  name: string;
+  field: string;
+  type: CommandFlagType;
+  repeatable: boolean;
+  required: boolean;
+  nullable: boolean;
+  enum?: string[];
+  default?: JSONValue;
+  minimum?: number;
+  maximum?: number;
+}
+
 export interface CompactionMatcher {
   compaction_reason?: string;
   compaction_strategy?: string;
@@ -1572,6 +1587,13 @@ export type ToolID = string;
 
 export type RiskClass = string;
 
+export interface ExtensionCommandSpec {
+  verb: string;
+  summary: string;
+  example?: string;
+  flags?: Record<string, string>;
+}
+
 export interface ExtensionToolRuntimeDescriptor {
   id: ToolID;
   handler: string;
@@ -1584,7 +1606,9 @@ export interface ExtensionToolRuntimeDescriptor {
   output_schema_digest?: string;
   read_only: boolean;
   risk: RiskClass;
+  requires_interaction: boolean;
   capabilities?: string[];
+  command?: ExtensionCommandSpec;
 }
 
 export interface ExtensionCommandGroupSpec {

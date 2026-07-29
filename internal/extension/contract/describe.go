@@ -32,9 +32,3 @@ type DescribeSDKInfo struct {
 	ProtocolVersion   string `json:"protocol_version"`
 	MinCompozyVersion string `json:"min_compozy_version"`
 }
-
-// ExtensionCommandGroupSpec declares a presentation-only command group.
-type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
-}

@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+type TaskInboxFacetsPayload struct {
+	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
+	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
+}
+
+type TaskInboxItemPayload struct {
+	Task             TaskInboxTaskPayload   `json:"task"`
+	Lane             TaskInboxLane          `json:"lane"`
+	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
+	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
+	BlockingReason   string                 `json:"blocking_reason,omitempty"`
+	LatestActivityAt time.Time              `json:"latest_activity_at"`
+	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
+	Triage           TaskTriageStatePayload `json:"triage"`
+}
+
+type TaskInboxLane string
+
 type TaskInboxLaneGroupPayload struct {
 	Lane        TaskInboxLane          `json:"lane"`
 	Count       int                    `json:"count"`
@@ -260,49 +278,4 @@ type TaskRunConversationRefPayload struct {
 	Surface     string `json:"surface"`
 	ThreadID    string `json:"thread_id"`
 	StreamURL   string `json:"stream_url"`
-}
-
-type TaskRunDetail struct {
-	Run     TaskRun                          `json:"run"`
-	Task    *TaskReferencePayload            `json:"task,omitempty"`
-	Session *TaskRunSessionPayload           `json:"session,omitempty"`
-	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-	Network *TaskRunNetworkPayload           `json:"network,omitempty"`
-}
-
-type TaskRunEnqueueParams struct {
-	TaskID               string          `json:"task_id"`
-	IdempotencyKey       string          `json:"idempotency_key,omitempty"`
-	NetworkParticipation *Request        `json:"network_participation,omitempty"`
-	Metadata             json.RawMessage `json:"metadata,omitempty"`
-}
-
-type TaskRunEnqueuedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      *string   `json:"run_kind,omitempty"`
-	WakeID                       string    `json:"wake_id,omitempty"`
-	OwnerKey                     string    `json:"owner_key,omitempty"`
-	TargetSessionID              string    `json:"target_session_id,omitempty"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	TaskStatus                   string    `json:"task_status,omitempty"`
-	RunStatus                    string    `json:"run_status,omitempty"`
-	SoulSnapshotID               string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string    `json:"soul_digest,omitempty"`
-	Attempt                      int       `json:"attempt,omitempty"`
-	LeaseUntil                   time.Time `json:"lease_until"`
-	ReleaseReason                string    `json:"release_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-	IdempotencyKey               string    `json:"idempotency_key,omitempty"`
 }

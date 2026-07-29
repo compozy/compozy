@@ -81,6 +81,16 @@ func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 		}
 		table["hooks"] = hooks
 	}
+	if len(resources.CommandGroups) > 0 {
+		groups := make([]map[string]any, 0, len(resources.CommandGroups))
+		for _, group := range resources.CommandGroups {
+			groups = append(groups, map[string]any{
+				manifestPathKey:    group.Path,
+				manifestSummaryKey: group.Summary,
+			})
+		}
+		table["command_groups"] = groups
+	}
 	return table, nil
 }
 
@@ -102,8 +112,22 @@ func toolTOMLTable(tool ToolConfig) (map[string]any, error) {
 	putNonEmpty(table, "preview", tool.Preview)
 	putNonEmpty(table, manifestVisibilityKey, tool.Visibility)
 	putNonEmptyStrings(table, "required_capabilities", tool.RequiredCapabilities)
+	if tool.Command != nil {
+		command := map[string]any{
+			"verb":    tool.Command.Verb,
+			"summary": tool.Command.Summary,
+		}
+		putNonEmpty(command, "example", tool.Command.Example)
+		if len(tool.Command.Flags) > 0 {
+			command["flags"] = tool.Command.Flags
+		}
+		table["command"] = command
+	}
 	if tool.ConcurrencySafe {
 		table["concurrency_safe"] = true
+	}
+	if tool.RequiresInteraction {
+		table["requires_interaction"] = true
 	}
 	input, err := canonicalSchemaString(tool.InputSchema)
 	if err != nil {

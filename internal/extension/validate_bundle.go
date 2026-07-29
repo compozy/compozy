@@ -34,7 +34,7 @@ type ValidationReport = apicontract.ExtensionValidatePayload
 func ValidateBundle(dir string) (*Manifest, []ValidationIssue, error) {
 	manifest, err := LoadManifest(dir)
 	if err == nil {
-		return manifest, []ValidationIssue{}, nil
+		return manifest, commandAmbiguityWarnings(manifest, bundleManifestPath(dir)), nil
 	}
 	issue, handled, issueErr := validationIssueForError(dir, err)
 	if issueErr != nil {

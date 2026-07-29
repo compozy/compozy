@@ -9,6 +9,8 @@ import (
 
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
 const (
@@ -46,6 +48,7 @@ type Extension struct {
 	mu                 sync.RWMutex
 	handlers           map[string]ExtensionHandler
 	toolHandlers       map[string]registeredTool
+	commandGroups      []contracts.ExtensionCommandGroupSpec
 	watchHandlers      map[string]registeredWatchSource
 	readyCallbacks     []func(context.Context, *HostAPI, ExtensionSession) error
 	initialized        bool

@@ -432,6 +432,7 @@ func runtimeDescriptorForTool(
 		}
 		descriptor := descriptors[i]
 		descriptor.Capabilities = slices.Clone(descriptors[i].Capabilities)
+		descriptor.Command = cloneExtensionCommandSpec(descriptors[i].Command)
 		found = &descriptor
 	}
 	return found, false
@@ -441,6 +442,7 @@ func cloneManifestToolDescriptor(src *ManifestToolDescriptor) ManifestToolDescri
 	cloned := *src
 	cloned.Tool = src.Tool.Descriptor().Tool()
 	cloned.RuntimeDescriptor.Capabilities = slices.Clone(src.RuntimeDescriptor.Capabilities)
+	cloned.RuntimeDescriptor.Command = cloneExtensionCommandSpec(src.RuntimeDescriptor.Command)
 	return cloned
 }
 
