@@ -1,26 +1,29 @@
 ---
 title: Extensions
-description: Install or build packaged Compozy capabilities that bundle skills, agents, hooks, bridge providers, MCP servers, and subprocess services.
+description: Install or build packages that bundle skills, agents, hooks, loops, MCP servers, provide surfaces, and subprocess tools.
 ---
 
-An extension is one installable unit that ships runtime capabilities behind a single manifest. The
+An extension is one installable unit that ships runtime behavior and resources behind a single manifest. The
 operator installs, enables, and removes the bundle as a whole; Compozy wires the contained resources
 into the runtime registry only while the extension is enabled.
 
-Use extensions when a capability should travel between machines or teams with one install command.
+Use extensions when runtime behavior or resources should travel between machines or teams with one install command.
 If the work is only a local instruction set, a skill may be enough. If it includes multiple resources,
-provider-specific bridge code, or a daemon-facing Host API service, an extension gives that package a
+provide surfaces, or a daemon-facing Host API service, an extension gives that package a
 manifest, trust tier, enablement state, and operational lifecycle.
 
 <OperatorNote>
   Resource-only extensions ship files Compozy already loads (skills, agents, hooks, MCP servers).
   Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
-  capability checks. The trust tier of the source determines which extensions are even eligible.
+  permission checks. The trust tier of the source determines which extensions are even eligible.
 </OperatorNote>
 
-The install page is for operators who need to add, enable, disable, inspect, update, or remove an
-extension. The develop page is for authors who need the manifest shape, resource layout, subprocess
-lifecycle, and permission model before packaging an extension for a registry.
+Authors start at [Build your first extension](/runtime/guides/build-your-first-extension): three
+commands from an empty directory to a tool you can invoke. Authoring is code-first — you write code
+and `compozy extension build` generates the manifest.
+
+Operators start at the install page for adding, enabling, disabling, inspecting, updating, or
+removing an extension.
 
 Extensions can also publish a **`MemoryProvider`** for Memory v2. Compozy ships the bundled local
 provider as the reference implementation; only one external `MemoryProvider` may be active per
@@ -38,17 +41,45 @@ to the bundled local provider when the active provider is unhealthy.
 
 <RouteList>
   <RouteRow
-    href="/runtime/core/extensions/install"
-    label="Install"
-    title="Install and operate extensions"
-    description="Use this page for `compozy extension` install, enable, disable, update, and inspect flows, plus marketplace trust tiers."
-    meta="Operate"
-  />
-  <RouteRow
     href="/runtime/core/extensions/develop"
     label="Develop"
     title="Build extensions"
-    description="Use this page for `extension.toml` manifests, bundled resources, subprocess lifecycle, and Host API permissions."
+    description="Use this page for the authoring loop: init, build, validate, dev, reload, logs, provide surfaces, and Host API access."
     meta="Build"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/manifest"
+    label="Manifest"
+    title="Extension manifest reference"
+    description="Use this page for every `extension.toml` field, what `build` generates, and when you write one by hand."
+    meta="Reference"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/permissions"
+    label="Permissions"
+    title="Permissions and consent areas"
+    description="Use this page for the closed Host API permission set, the derived consent summary, and per-source grant ceilings."
+    meta="Reference"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/commands"
+    label="Commands"
+    title="Extension-contributed commands"
+    description="Use this page to present a tool as an operator verb: nested paths, projected flags, and `exec` versus `tool invoke`."
+    meta="Build"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/publish"
+    label="Publish"
+    title="Publish an extension"
+    description="Use this page to ship through GitHub Releases or plain Git, with digest sidecars and no catalog gatekeeper."
+    meta="Distribute"
+  />
+  <RouteRow
+    href="/runtime/core/extensions/install"
+    label="Install"
+    title="Install and operate extensions"
+    description="Use this page for install sources, trust and consent, update, enable, disable, remove, provenance, and troubleshooting."
+    meta="Operate"
   />
 </RouteList>

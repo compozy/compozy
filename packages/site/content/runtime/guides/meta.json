@@ -3,6 +3,7 @@
     "icon": "Book",
     "pages": [
         "index",
+        "build-your-first-extension",
         "choose-an-operator-surface",
         "debug-a-failed-session",
         "coordinate-agents-over-network"

@@ -7,11 +7,14 @@ This guide is for contributors adding a provider under `extensions/bridges/<prov
 repository. It starts with a working reference adapter, then follows one provider from contract
 decisions to manifest, ingress, delivery, conformance, and operator proof.
 
-This walkthrough is specifically for trusted, in-tree Go providers. A local external extension can
-implement the subprocess protocol manually, but external bridge authoring is not yet a first-class
-public SDK workflow. The public SDKs do not cover the complete service and control handshakes,
-marketplace bridge grants are unavailable, and there is no public bridge conformance harness. Do not
-copy these `internal/` imports into another module or present this tutorial as an external SDK path.
+This walkthrough is specifically for trusted, in-tree Go providers. **External bridge authoring is a
+planned follow-up program**, not a supported path today: the public SDKs do not yet cover the
+complete bridge service and control handshakes, there is no public bridge conformance harness, and an
+installed third-party manifest declaring `bridge.adapter` is rejected deterministically. The
+groundwork this program shipped — generated contracts including the bridge service methods, the
+public test-harness pattern, and the single permissions model — is what the follow-up spec builds on.
+Until it lands, do not copy these `internal/` imports into another module or present this tutorial as
+an external SDK path.
 
 ## Prerequisites
 
@@ -28,7 +31,7 @@ copy these `internal/` imports into another module or present this tutorial as a
 Before creating a directory, run the real Telegram reference adapter and its subprocess boundary:
 
 ```bash
-CGO_ENABLED=1 go test -race ./sdk/examples/telegram-reference -count=1
+CGO_ENABLED=1 go test -race ./internal/extension/testdata/telegram-reference -count=1
 CGO_ENABLED=1 go test -race -tags=integration ./internal/extension \
   -run '^TestTelegramReferenceAdapter(IngressAndDeliveryConformance|RestartResumesActiveDelivery)$' \
   -count=1
@@ -41,7 +44,7 @@ providers. Keep these tests green while replacing provider-specific behavior.
 
 The implementation sections use `acme-chat` as a naming placeholder, not as an unpublished finished
 adapter. Replace it consistently; mixed directory, extension, platform, and runtime names fail
-discovery or ownership checks. Use `sdk/examples/telegram-reference` whenever a complete executable
+discovery or ownership checks. Use `internal/extension/testdata/telegram-reference` whenever a complete executable
 checkpoint is needed and the in-tree providers when the target platform needs richer lifecycle or
 delivery behavior.
 
@@ -50,15 +53,15 @@ delivery behavior.
 The shared SDK removes lifecycle boilerplate, but provider behavior is easiest to learn from a
 working owner:
 
-| Need                                                   | Start with                              |
-| ------------------------------------------------------ | --------------------------------------- |
-| CI-safe fake ingress, delivery ACKs, and crash markers | `sdk/examples/telegram-reference`       |
-| Signed webhook, editable delivery, and progress        | `extensions/bridges/slack`              |
-| Remote webhook registration and control runtime        | `extensions/bridges/telegram`           |
-| Ed25519 interactions and webhook events                | `extensions/bridges/discord`            |
-| Conditional direct/Pub/Sub ingress                     | `extensions/bridges/gchat`              |
-| Bot Framework JWT and tenant-aware delivery            | `extensions/bridges/teams`              |
-| Append-only/no-op progress issue provider              | `extensions/bridges/github` or `linear` |
+| Need                                                   | Start with                                       |
+| ------------------------------------------------------ | ------------------------------------------------ |
+| CI-safe fake ingress, delivery ACKs, and crash markers | `internal/extension/testdata/telegram-reference` |
+| Signed webhook, editable delivery, and progress        | `extensions/bridges/slack`                       |
+| Remote webhook registration and control runtime        | `extensions/bridges/telegram`                    |
+| Ed25519 interactions and webhook events                | `extensions/bridges/discord`                     |
+| Conditional direct/Pub/Sub ingress                     | `extensions/bridges/gchat`                       |
+| Bot Framework JWT and tenant-aware delivery            | `extensions/bridges/teams`                       |
+| Append-only/no-op progress issue provider              | `extensions/bridges/github` or `linear`          |
 
 The Telegram reference proves the protocol and integration harness. The in-tree providers show the
 modern `ProviderLifecycle` + `ManagedConfigReconciler` + `ProviderHTTPServer` composition used in
@@ -200,7 +203,7 @@ required = true
 schema = "compozy.bridge.acme-chat"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/instances/get",
@@ -214,10 +217,11 @@ args = ["serve"]
 
 [subprocess.env]
 COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]
 ```
+
+`permissions.requires` is the single authored list; Compozy derives the `bridge:read` and
+`bridge:write` consent areas from it. See
+[Extension Permissions](/runtime/core/extensions/permissions).
 
 Do not put credential-bearing upstream destinations in `provider_config`. Use fixed official
 defaults and explicit operator-owned process variables for trusted sovereign/test overrides. The
@@ -339,7 +343,7 @@ newProvider
 ```
 
 Use `extensions/bridges/slack/provider.go` as the concrete composition owner and
-`sdk/examples/telegram-reference` as the protocol-level fake. Do not paste an isolated reconciler
+`internal/extension/testdata/telegram-reference` as the protocol-level fake. Do not paste an isolated reconciler
 literal with undefined provider methods into a new package.
 
 Inside `reconcileInstanceConfigs`, use one `ManagedConfigReconciler` for the full snapshot. Its
@@ -862,5 +866,5 @@ terminology and unfinished delivery code block review.
 - [Message routing](/runtime/core/bridges/routing)
 - [Extension development](/runtime/core/extensions/develop)
 - [Bridge CLI reference](/runtime/cli-reference/bridge)
-- `sdk/examples/telegram-reference`
+- `internal/extension/testdata/telegram-reference`
 - `internal/bridges/ADDING_A_BRIDGE.md`

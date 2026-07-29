@@ -1,6 +1,6 @@
 # Secret Guard
 
-`secret-guard` is the Go reference extension for the subprocess extension architecture.
+`secret-guard` is an internal Go fixture for the subprocess extension architecture.
 
 It demonstrates two execution paths from a single extension package:
 
@@ -12,7 +12,7 @@ It demonstrates two execution paths from a single extension package:
 From the repository root:
 
 ```bash
-go build -o ./sdk/examples/secret-guard/bin/secret-guard ./sdk/examples/secret-guard
+go build -o ./internal/extension/testdata/secret-guard/bin/secret-guard ./internal/extension/testdata/secret-guard
 ```
 
 Or from this directory:
@@ -27,15 +27,14 @@ go build -o ./bin/secret-guard .
 Build the binary first, then install the extension directory:
 
 ```bash
-compozy extension install ./sdk/examples/secret-guard
+compozy extension install ./internal/extension/testdata/secret-guard
 ```
 
-## Manifest Summary
+## Manifest summary
 
-- Capability: `content.validate`
+- Provide surfaces: none
 - Hook: `input.pre_submit`
-- Host API action: `sessions/list`
-- Security grant: `session.read`
+- Permission: `sessions/list`
 
 ## Optional Runtime Markers
 

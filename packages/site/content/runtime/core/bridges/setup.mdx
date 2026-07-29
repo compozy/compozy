@@ -86,10 +86,11 @@ disabled providers. Check the response's `enabled`, `state`, and `health` fields
 bridge instance. Presence in the catalog does not mean the provider is enabled or healthy.
 
 <OperatorNote>
-  External bridge authoring is not yet a first-class public SDK workflow. The public extension SDKs
-  do not cover the complete bridge service and control handshakes, marketplace installs cannot
-  receive the required bridge grants, and there is no public bridge conformance harness. The current
-  provider author guide is for trusted in-tree contributions.
+  External bridge authoring is a planned follow-up program, not a supported path today. The public
+  extension SDKs do not yet cover the complete bridge service and control handshakes, there is no
+  public bridge conformance harness, and an installed third-party manifest declaring
+  `bridge.adapter` is rejected deterministically. The current provider author guide is for trusted
+  in-tree contributions.
 </OperatorNote>
 
 ## Prerequisites

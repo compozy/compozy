@@ -9,7 +9,7 @@ install them automatically.
 - Operator setup: `packages/site/content/runtime/core/bridges/setup.mdx`
 - In-tree provider author walkthrough: `packages/site/content/runtime/core/bridges/adding-a-bridge.mdx`
 - In-repo review checklist: `internal/bridges/ADDING_A_BRIDGE.md`
-- CI-safe protocol example: `sdk/examples/telegram-reference`
+- CI-safe protocol example: `internal/extension/testdata/telegram-reference`
 
 ## Build and install
 

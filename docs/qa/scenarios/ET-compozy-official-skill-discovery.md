@@ -6,7 +6,7 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A fresh runtime discovers the bundled skill only as `compozy`; HTTP, UDS, CLI, native-tool, and Web reads agree on its declaration and activation state; metadata.compozy gates are enforced while foreign metadata is ignored; no retired skill alias or duplicate catalog entry exists.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -18,3 +18,8 @@ overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates
 
 QA impact 2026-07-26: the official bundled skill, loader namespace, and every structured
 management surface received one hard cut. Planning flag only; the next QA cycle owns execution.
+
+QA impact 2026-07-29 (ext-improvs Phase G): the bundled skill gained
+`references/extension-authoring.md` and a new router row for writing extension code. Resource
+discovery, the reference inventory, and router coverage changed; reset to untested for the next
+cycle.

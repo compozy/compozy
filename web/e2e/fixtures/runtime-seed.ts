@@ -2205,7 +2205,7 @@ async function prepareBrowserBridgeExtension(
   fixtureRoot?: string
 ): Promise<PreparedBrowserBridgeExtension> {
   const repoRoot = resolveBrowserRepoRoot();
-  const sourceDir = path.join(repoRoot, "sdk", "examples", BRIDGE_EXTENSION_NAME);
+  const sourceDir = path.join(repoRoot, "internal", "extension", "testdata", BRIDGE_EXTENSION_NAME);
   const tempRoot = fixtureRoot
     ? path.resolve(fixtureRoot)
     : await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridge-extension-"));
@@ -2228,7 +2228,7 @@ async function prepareBrowserBridgeExtension(
       "build",
       "-o",
       path.join(extensionDir, "bin", BRIDGE_EXTENSION_NAME),
-      "./sdk/examples/telegram-reference",
+      "./internal/extension/testdata/telegram-reference",
     ],
     {
       cwd: repoRoot,

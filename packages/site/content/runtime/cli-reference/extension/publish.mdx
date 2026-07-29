@@ -1,0 +1,43 @@
+---
+title: "compozy extension publish"
+description: "Publish an immutable extension generation to GitHub Releases"
+---
+
+## compozy extension publish
+
+Publish an immutable extension generation to GitHub Releases
+
+```
+compozy extension publish [generation-directory] [flags]
+```
+
+### Options
+
+```
+      --draft               Create or update a draft release
+  -h, --help                help for publish
+      --repository string   GitHub repository in owner/name form
+      --tag string          GitHub release tag
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy extension publish [generation-directory] -o json
+```

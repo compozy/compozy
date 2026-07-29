@@ -78,14 +78,11 @@ path = "layouts/two-up.json"
 
 Each file is one strict `window_layout` resource JSON document. The path must remain inside the extension root after symlink resolution. Extension load validates the authored resource; preview and activation validate it again in the target scope. Materialization derives an activation-scoped record/spec ID, exposes the layout in activation payloads and inventory, and removes only that activation's owned record during reconciliation or deactivation. Never copy the authored ID directly into storage or bypass the canonical codec.
 
-A subprocess extension that publishes layouts directly must declare the generic Host API methods, resource capabilities, and family:
+A subprocess extension that publishes layouts directly must declare the generic Host API permissions and family:
 
 ```toml
-[actions]
+[permissions]
 requires = ["resources/list", "resources/get", "resources/snapshot"]
-
-[security]
-capabilities = ["resources.read", "resources.write"]
 
 [resources.publish]
 families = ["window_layouts"]

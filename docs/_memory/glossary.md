@@ -32,6 +32,32 @@ A capability is **interpretive**, not deterministic — it tells an agent what i
 
 **Capability vs Loop:** a capability is the interpretive network artifact (what an agent offers to peers); a [Loop](#loop) is the deterministic runtime program the daemon owns and executes. The network carries capabilities, never loop execution.
 
+**Capability vs extension vocabulary (disambiguation):** the extension domain uses two neighbouring words that are **not** this artifact. [Provides](#provides) names the runtime interfaces an extension implements (`capabilities.provides` in the manifest — the TOML key is historical). [Permissions](#permissions) names the Host API methods an extension is allowed to call. Neither travels the network, neither is a delegation offer, and neither may be called "a capability" in prose. When an extension manifest key must be named, quote it as `capabilities.provides` and say "provide surface".
+
+---
+
+### Provides
+
+The closed set of **runtime interfaces an extension implements**, declared as `capabilities.provides` in the extension manifest and generated from the SDK declaration by `compozy extension build`.
+
+Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`. `bridge.adapter` exists in the daemon but is excluded from the public surface (ADR-006) — an installed third-party manifest declaring it is rejected.
+
+Each provide binds the extension to the Compozy → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
+
+**Say:** "provide surface", "the extension provides `tool.provider`". **Do not say:** "the extension's capabilities" when you mean this — see the [Capability](#capability) disambiguation.
+
+---
+
+### Permissions
+
+The single authored list of **Host API methods an extension may call**, declared as `permissions.requires` in the extension manifest.
+
+The list is validated against a closed 87-method set at build, validate, install, and daemon load. Compozy **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
+
+Enforcement is per call against the effective grant, which is the declared list narrowed by the install source tier. Published sources (`curated`, `github`, `git`) run under the marketplace ceiling; local-path installs and dev links carry no ceiling.
+
+**Not to be conflated with:** agent permission modes (`[permissions] mode` in `config.toml`, which governs tool approval), or the network [Trust Profile](#trust-profile).
+
 ---
 
 ### Loop

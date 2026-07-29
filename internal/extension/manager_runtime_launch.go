@@ -166,7 +166,7 @@ func (m *Manager) initializeRuntimeRequest(
 			SourceTier: ext.info.Source.String(),
 		},
 		Capabilities: subprocess.InitializeCapabilities{
-			Provides:              normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
+			Provides:              append([]string{}, normalizeUniqueStrings(ext.manifest.Capabilities.Provides)...),
 			GrantedPermissions:    hostAPIMethodsFromStrings(ext.grantedPermissions),
 			GrantedResourceKinds:  resourceKindStrings(ext.grantedResourceKinds),
 			GrantedResourceScopes: resourceScopeStrings(ext.grantedResourceScopes),

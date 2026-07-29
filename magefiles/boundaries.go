@@ -54,7 +54,7 @@ var bridgeDependencyClosureRules = func() []dependencyClosureRule {
 		"./extensions/bridges/whatsapp",
 		"./extensions/bridges/github",
 		"./extensions/bridges/linear",
-		"./sdk/examples/telegram-reference",
+		"./internal/extension/testdata/telegram-reference",
 	}
 	rules := make([]dependencyClosureRule, 0, len(roots))
 	for _, root := range roots {
@@ -400,7 +400,11 @@ func inspectDependencyClosures(
 		if err != nil {
 			return nil, fmt.Errorf("list dependencies for %q: %w", rule.root, err)
 		}
+		selfPath := compozyModulePath + strings.TrimPrefix(rule.root, "./")
 		for _, dependency := range dependencies {
+			if dependency == selfPath {
+				continue
+			}
 			if !dependencyForbiddenByClosureRule(dependency, rule) {
 				continue
 			}

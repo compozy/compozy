@@ -26,6 +26,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	daemonpkg "github.com/compozy/compozy/internal/daemon"
@@ -137,12 +138,12 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	}
 
 	repoRoot := referenceRepoRoot(t)
-	buildReferenceArtifacts(t, repoRoot)
+	clarifyToolInstallSource := buildReferenceArtifacts(t, repoRoot)
 
 	harness := newReferenceHarness(t, repoRoot)
 	promptEnhancerInstallSource := referencePromptEnhancerInstallSource(t, repoRoot)
 
-	secret := harness.installExtension(t, "sdk/examples/secret-guard")
+	secret := harness.installExtension(t, "internal/extension/testdata/secret-guard")
 	if secret.Name != "secret-guard" {
 		t.Fatalf("secret install name = %q, want secret-guard", secret.Name)
 	}
@@ -158,7 +159,7 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 		t.Fatalf("prompt install status = %#v, want active/healthy", promptEnhancer)
 	}
 
-	clarifyTool := harness.installExtension(t, "sdk/examples/clarify-tool")
+	clarifyTool := harness.installExtension(t, clarifyToolInstallSource)
 	if clarifyTool.Name != "clarify-tool" {
 		t.Fatalf("clarify install name = %q, want clarify-tool", clarifyTool.Name)
 	}
@@ -430,17 +431,12 @@ func (h *referenceHarness) installExtension(t *testing.T, relativePath string) c
 	if !filepath.IsAbs(root) {
 		root = filepath.Join(h.repoRoot, relativePath)
 	}
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(root)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", root, err)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	record, err := h.client.InstallExtension(ctx, cli.InstallExtensionRequest{
-		Path:            root,
-		Checksum:        checksum,
+		Source:          compozycontract.InstallExtensionSourceLocalPath,
+		Ref:             root,
 		AllowUnverified: true,
 	})
 	if err != nil {
@@ -980,7 +976,7 @@ func appendJSONLine(path string, value any) (err error) {
 	return err
 }
 
-func buildReferenceArtifacts(t *testing.T, repoRoot string) {
+func buildReferenceArtifacts(t *testing.T, repoRoot string) string {
 	t.Helper()
 
 	runCommand(
@@ -989,20 +985,22 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 		"go",
 		"build",
 		"-o",
-		"./sdk/examples/secret-guard/bin/secret-guard",
-		"./sdk/examples/secret-guard",
-	)
-	runCommand(
-		t,
-		repoRoot,
-		"go",
-		"build",
-		"-o",
-		"./sdk/examples/clarify-tool/bin/clarify-tool",
-		"./sdk/examples/clarify-tool",
+		"./internal/extension/testdata/secret-guard/bin/secret-guard",
+		"./internal/extension/testdata/secret-guard",
 	)
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@compozy/example-prompt-enhancer")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	result, err := extensionpkg.BuildBundle(ctx, extensionpkg.BuildRequest{
+		SourceDir: filepath.Join(repoRoot, "sdk", "examples", "clarify-tool"),
+		OutputDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("BuildBundle(clarify-tool) error = %v", err)
+	}
+	return result.GenerationDir
 }
 
 func referencePromptEnhancerInstallSource(t *testing.T, repoRoot string) string {

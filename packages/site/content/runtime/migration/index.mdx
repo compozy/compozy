@@ -230,16 +230,12 @@ loader, or hidden fallback ships in v0.3.
 | `/workflows/:slug/spec`                                                                        | Replaced                            | `/loops/:name` and `/loops/:name/editor`.                                                                |
 | `/workflows/:slug/tasks` and `/workflows/:slug/tasks/:taskId`                                  | Replaced incompatibly               | `/tasks` and `/tasks/:id`; Loop definitions and durable tasks are separate resources.                    |
 | Public Go facade `compozy.go` and `pkg/compozy/{events,runs}`                                  | Removed                             | Pin v0.2.x for library use; v0.3 is an executable/runtime product.                                       |
-| Public Go extension SDK `sdk/extension`                                                        | Removed as public compatibility API | Port against the private, version-matched `sdk/go` workspace in this repository.                         |
-| Public npm `@compozy/extension-sdk@0.1.x`                                                      | Frozen, no v0.3 registry successor  | Pin 0.1.x for old extensions; current development uses the private `sdk/typescript` workspace.           |
-| Public npm `@compozy/create-extension@0.1.x`                                                   | Frozen, no v0.3 registry successor  | Pin 0.1.x for old scaffolds; current development uses the private `sdk/create-extension` workspace.      |
 | `cy-capture-decisions` extension and skill                                                     | Removed                             | No bundled v0.3 successor; preserve its decision files as repository artifacts if still useful.          |
 | `cy-idea-factory` extension and skill                                                          | Removed                             | No bundled v0.3 successor. Recreate the process outside the runtime if required.                         |
 | `cy-qa-workflow` extension                                                                     | Removed                             | Use the repository's current QA skills/process; no compatibility extension is enrolled.                  |
 | Legacy `compozy` bundled skill                                                                 | Retired                             | Use the new official runtime guide plus the nine dev-cycle skills.                                       |
 | Nine retained process skills                                                                   | Moved                               | Bundled resources of the `dev-cycle` extension.                                                          |
 | Legacy daemon DB, run artifacts, sockets, locks, logs, and state directories                   | Not migrated                        | Start with clean v0.3 state; retain backups only for forensic reference.                                 |
-
 The web route mapping is a semantic mapping, not a redirect promise. v0.3 intentionally ships no
 legacy route aliases.
 
@@ -303,10 +299,9 @@ public Go library. Code importing the root facade, `pkg/compozy/events`, `pkg/co
 Go extension SDK will not compile against v0.3. Pin the final v0.2.x module while you maintain that
 integration, or redesign it against v0.3 CLI/HTTP/UDS/tool/extension contracts.
 
-The public npm extension packages remain on their v0.1.x line. They are not overwritten with the
-API-incompatible v0.3 workspaces. Repository contributors may use `sdk/go`, `sdk/typescript`, and
-`sdk/create-extension` at the exact repository version; those workspaces are private and are not a
-registry compatibility promise.
+Extension authors use the published `@compozy/extension-sdk` npm package or the
+`github.com/compozy/compozy/sdk/go` module. Both are version-matched to the daemon. Scaffold current
+projects with `compozy extension init`.
 
 <a id="domain-and-clean-state"></a>
 

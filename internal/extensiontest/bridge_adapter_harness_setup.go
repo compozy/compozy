@@ -237,7 +237,12 @@ func installHarnessExtension(
 		t.Fatalf("extension.ComputeDirectoryChecksum() error = %v", err)
 	}
 	extensionRegistry := extensionpkg.NewRegistry(globalDB.DB())
-	if err := extensionRegistry.Install(manifest, cfg.ExtensionDir, checksum); err != nil {
+	if err := extensionRegistry.Install(
+		manifest,
+		cfg.ExtensionDir,
+		checksum,
+		extensionpkg.WithInstallSource(extensionpkg.SourceBundled),
+	); err != nil {
 		t.Fatalf("extensionRegistry.Install() error = %v", err)
 	}
 

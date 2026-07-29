@@ -204,6 +204,32 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 }
 
+func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil)
+	request := manager.initializeRuntimeRequest(
+		&managedExtension{
+			info:     ExtensionInfo{Source: SourceUser},
+			manifest: &Manifest{Name: "empty-capabilities", Version: "0.1.0"},
+		},
+		subprocess.InitializeRuntime{},
+		&hostAPIResourceSession{Actor: resources.MutationActor{SessionNonce: "nonce"}},
+	)
+	payload, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(initialize request) error = %v", err)
+	}
+	var wire subprocess.InitializeRequest
+	if err := json.Unmarshal(payload, &wire); err != nil {
+		t.Fatalf("json.Unmarshal(initialize request) error = %v", err)
+	}
+	if wire.Capabilities.Provides == nil || wire.Capabilities.GrantedPermissions == nil ||
+		wire.Capabilities.GrantedResourceKinds == nil || wire.Capabilities.GrantedResourceScopes == nil {
+		t.Fatalf("initialize capabilities = %#v, want JSON arrays for every empty grant", wire.Capabilities)
+	}
+}
+
 func TestExtensionSkillInstalledFrom(t *testing.T) {
 	t.Parallel()
 

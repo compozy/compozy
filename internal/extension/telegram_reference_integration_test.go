@@ -314,7 +314,7 @@ func telegramReferenceRepoRoot(t *testing.T) string {
 }
 
 func telegramReferenceExtensionDir(repoRoot string) string {
-	return filepath.Join(repoRoot, "sdk", "examples", "telegram-reference")
+	return filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference")
 }
 
 func buildTelegramReferenceAdapter(t *testing.T, repoRoot string) {
@@ -329,8 +329,8 @@ func buildTelegramReferenceAdapter(t *testing.T, repoRoot string) {
 			"go",
 			"build",
 			"-o",
-			"./sdk/examples/telegram-reference/bin/telegram-reference",
-			"./sdk/examples/telegram-reference",
+			"./internal/extension/testdata/telegram-reference/bin/telegram-reference",
+			"./internal/extension/testdata/telegram-reference",
 		)
 		cmd.Dir = repoRoot
 		output, err := cmd.CombinedOutput()

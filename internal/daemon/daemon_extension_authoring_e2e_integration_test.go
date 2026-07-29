@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -121,6 +122,186 @@ func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 	if removed.Name != extensionAuthoringE2EName || removed.Status != "removed" || removed.Path != sourceDir {
 		t.Fatalf("extension remove result = %#v, want removed dev link", removed)
 	}
+}
+
+// quickstartGuidePath is the published page that owns the replayed command list. The fenced block
+// between the markers below is the single source: this test never keeps a second copy of it.
+const (
+	quickstartGuidePath  = "packages/site/content/runtime/guides/build-your-first-extension.mdx"
+	quickstartBeginMark  = "{/* extension-quickstart:begin */}"
+	quickstartEndMark    = "{/* extension-quickstart:end */}"
+	quickstartExtension  = "hello"
+	quickstartToolResult = "No results for compozy"
+)
+
+func TestDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	defer cancel()
+
+	repoRoot := extensionAuthoringE2ERepoRoot(t)
+	commands := readQuickstartCommands(t, repoRoot)
+	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		BinaryPath:   binaryPath,
+		StartTimeout: 30 * time.Second,
+	})
+	if _, err := workspacepkg.EnsureIdentity(ctx, harness.WorkspaceRoot); err != nil {
+		t.Fatalf("EnsureIdentity() error = %v", err)
+	}
+
+	lastStdout := ""
+	for _, command := range commands {
+		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, command...)
+		if err != nil {
+			t.Fatalf(
+				"quickstart command %q error = %v; stdout=%s stderr=%s",
+				strings.Join(command, " "),
+				err,
+				strings.TrimSpace(stdout),
+				strings.TrimSpace(stderr),
+			)
+		}
+		lastStdout = stdout
+		// The published page assumes the SDK resolves from its registry. The test runs offline, so
+		// the scaffolded module is pointed at this checkout right after the documented scaffold step.
+		if len(command) >= 2 && command[0] == "extension" && command[1] == "init" {
+			configureExtensionAuthoringSDKReplace(
+				t,
+				ctx,
+				filepath.Join(harness.WorkspaceRoot, quickstartExtension),
+				repoRoot,
+			)
+		}
+	}
+	if !strings.Contains(lastStdout, quickstartToolResult) {
+		t.Fatalf("quickstart tool invocation output = %q, want %q", lastStdout, quickstartToolResult)
+	}
+	assertQuickstartExtensionInstalled(t, ctx, harness)
+}
+
+func assertQuickstartExtensionInstalled(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+	var response compozycontract.ExtensionsResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/extensions?workspace="+url.QueryEscape(harness.WorkspaceID),
+		nil,
+		&response,
+	); err != nil {
+		t.Fatalf("list workspace-scoped extensions error = %v", err)
+	}
+	for _, item := range response.Extensions {
+		if item.Name != quickstartExtension {
+			continue
+		}
+		if !item.Enabled || !item.Dev || strings.TrimSpace(item.GenerationHash) == "" {
+			t.Fatalf("quickstart extension record = %#v, want an enabled dev generation", item)
+		}
+		return
+	}
+	t.Fatalf("workspace extensions = %#v, want %q installed", response.Extensions, quickstartExtension)
+}
+
+// readQuickstartCommands parses the published quickstart's machine-readable block and returns each
+// documented `compozy` invocation as argv. Any drift between the page and this replay is a failure
+// here rather than a silently stale second command list.
+func readQuickstartCommands(t *testing.T, repoRoot string) [][]string {
+	t.Helper()
+	guidePath := filepath.Join(repoRoot, filepath.FromSlash(quickstartGuidePath))
+	data, err := os.ReadFile(guidePath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", guidePath, err)
+	}
+	body := string(data)
+	_, after, found := strings.Cut(body, quickstartBeginMark)
+	if !found {
+		t.Fatalf("quickstart guide %q is missing marker %q", quickstartGuidePath, quickstartBeginMark)
+	}
+	block, _, found := strings.Cut(after, quickstartEndMark)
+	if !found {
+		t.Fatalf("quickstart guide %q is missing marker %q", quickstartGuidePath, quickstartEndMark)
+	}
+	fenced := quickstartFencedLines(t, block)
+	commands := make([][]string, 0, len(fenced))
+	for _, line := range fenced {
+		argv, err := splitQuickstartCommand(line)
+		if err != nil {
+			t.Fatalf("quickstart command %q is not replayable: %v", line, err)
+		}
+		if len(argv) < 2 || argv[0] != "compozy" {
+			t.Fatalf("quickstart command %q must invoke the compozy binary", line)
+		}
+		commands = append(commands, argv[1:])
+	}
+	if len(commands) == 0 {
+		t.Fatalf("quickstart guide %q declares no replayable commands", quickstartGuidePath)
+	}
+	return commands
+}
+
+func quickstartFencedLines(t *testing.T, block string) []string {
+	t.Helper()
+	_, after, found := strings.Cut(block, "```bash\n")
+	if !found {
+		t.Fatal("quickstart block is missing a bash code fence")
+	}
+	fence, _, found := strings.Cut(after, "```")
+	if !found {
+		t.Fatal("quickstart bash code fence is unterminated")
+	}
+	lines := make([]string, 0, 4)
+	for _, raw := range strings.Split(fence, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// splitQuickstartCommand splits one documented shell line into argv, honoring the single and double
+// quoting the page uses. Any other shell metacharacter means the line is not verbatim-replayable.
+func splitQuickstartCommand(line string) ([]string, error) {
+	argv := make([]string, 0, 6)
+	var current strings.Builder
+	quote := rune(0)
+	pending := false
+	for _, character := range line {
+		switch {
+		case quote != 0 && character == quote:
+			quote = 0
+		case quote != 0:
+			current.WriteRune(character)
+		case character == '\'' || character == '"':
+			quote = character
+			pending = true
+		case character == ' ' || character == '\t':
+			if current.Len() > 0 || pending {
+				argv = append(argv, current.String())
+				current.Reset()
+				pending = false
+			}
+		case strings.ContainsRune("|&;<>$`\\*?()", character):
+			return nil, fmt.Errorf("unsupported shell metacharacter %q", character)
+		default:
+			current.WriteRune(character)
+		}
+	}
+	if quote != 0 {
+		return nil, errors.New("unterminated quote")
+	}
+	if current.Len() > 0 || pending {
+		argv = append(argv, current.String())
+	}
+	return argv, nil
 }
 
 func runExtensionAuthoringCLI(

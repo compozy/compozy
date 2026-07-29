@@ -27,23 +27,30 @@ npm run build
 
 The build emits `dist/index.js`, which is used by both the persistent subprocess runtime and the one-shot hook executor.
 
-## Managed-install boundary
+## Using it outside this repository
 
-This example uses `@compozy/extension-sdk` through the repository's `workspace:*` dependency. Its
-`node_modules/@compozy/extension-sdk` entry resolves outside this extension root, and the built
-JavaScript keeps that runtime import. Compozy's managed installer intentionally rejects dependency
-symlinks that escape the source package.
+The only Compozy import in this example is the published package
+[`@compozy/extension-sdk`](https://www.npmjs.com/package/@compozy/extension-sdk). Inside the
+repository it resolves through the `workspace:*` dependency so the example always tracks the
+in-tree SDK.
 
-Use this directory to exercise the SDK from the repository checkout. Do not present it as an
-installable standalone package until the SDK dependency is published or materialized inside the
-extension root.
+To run it as a standalone project, copy this directory out of the repository and replace the
+dependency with the published version matching your daemon:
 
-## Manifest Summary
+```json
+"dependencies": { "@compozy/extension-sdk": "^0.3.0-beta.1" }
+```
 
-- Capability: `prompt.provider`
+Then `bun install` inside the copied directory so the runtime dependency is materialized under the
+extension root. Compozy's managed installer rejects dependency symlinks that escape the package
+boundary, which is what a repository `workspace:*` link produces.
+
+## Declaration summary
+
+- Provide surfaces: none
 - Hook: `prompt.post_assemble`
-- Host API action: `sessions/list`
-- Security grant: `session.read`
+- Host API permission: `sessions/list`
+- Deliberately denied Host API call: `sessions/create`
 
 ## Optional Runtime Markers
 

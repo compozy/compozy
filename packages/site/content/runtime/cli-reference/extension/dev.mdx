@@ -1,0 +1,42 @@
+---
+title: "compozy extension dev"
+description: "Build and link an extension to the current workspace"
+---
+
+## compozy extension dev
+
+Build and link an extension to the current workspace
+
+```
+compozy extension dev [directory] [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for dev
+      --watch              Build and reload when source files change
+      --workspace string   Override workspace context
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy extension dev [directory] -o json
+```

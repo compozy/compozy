@@ -1,6 +1,8 @@
-# Telegram Reference Conformance Runtime
+# Telegram reference conformance runtime
 
-`telegram-reference` is the provider-scoped bridge conformance runtime for Compozy. It is not the production Telegram provider. Its job is to exercise the shared `internal/bridgesdk` runtime, Host API surface, and reusable harness contract that future provider binaries must satisfy.
+`telegram-reference` is the internal provider-scoped bridge conformance runtime for Compozy. It is
+not the production Telegram provider. Its job is to exercise the shared `internal/bridgesdk`
+runtime, Host API surface, and reusable harness contract that future provider binaries must satisfy.
 
 It demonstrates:
 
@@ -11,14 +13,16 @@ It demonstrates:
 - adapter-driven per-instance state reporting through `bridges/instances/report_state`
 - restart-safe delivery markers that the provider-scoped conformance harness can validate
 
-This example is intentionally fake-platform and CI-safe. Instead of talking to the real Telegram API, it tails a JSONL file of Telegram-like updates and writes JSON/JSONL markers that the integration harness reads back.
+This fixture is intentionally fake-platform and CI-safe. Instead of talking to the real Telegram
+API, it tails a JSONL file of Telegram-like updates and writes JSON/JSONL markers that the
+integration harness reads back.
 
 ## Build
 
 From the repository root:
 
 ```bash
-go build -o ./sdk/examples/telegram-reference/bin/telegram-reference ./sdk/examples/telegram-reference
+go build -o ./internal/extension/testdata/telegram-reference/bin/telegram-reference ./internal/extension/testdata/telegram-reference
 ```
 
 Or from this directory:
@@ -28,20 +32,14 @@ mkdir -p bin
 go build -o ./bin/telegram-reference .
 ```
 
-## Install
+## Manifest summary
 
-Build the binary first, then install the extension directory:
-
-```bash
-compozy extension install ./sdk/examples/telegram-reference
-```
-
-## Manifest Summary
-
-- Capability: `bridge.adapter`
-- Host API actions: `bridges/instances/list`, `bridges/messages/ingest`, `bridges/instances/get`, `bridges/instances/report_state`
-- Security grants: `bridge.read`, `bridge.write`
+- Provide surface: `bridge.adapter`
+- Permissions: `bridges/instances/list`, `bridges/messages/ingest`, `bridges/instances/get`, `bridges/instances/report_state`
 - Extension service: `bridges/deliver`
+
+Bridge adapters are bundled-only. The integration harness registers this fixture as bundled before
+activation; it is not a public local-install example.
 
 ## Fake Platform Contract
 

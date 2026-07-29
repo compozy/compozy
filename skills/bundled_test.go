@@ -16,6 +16,7 @@ var expectedCompozyReferences = []string{
 	"references/capabilities-and-bundles.md",
 	"references/contributing-to-compozy.md",
 	"references/docs-design-and-copy.md",
+	"references/extension-authoring.md",
 	"references/memory.md",
 	"references/native-tools.md",
 	"references/network.md",

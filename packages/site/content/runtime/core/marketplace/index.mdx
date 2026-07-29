@@ -113,14 +113,14 @@ Non-curated side-loads use a two-part gate. The live daemon policy must allow th
 individual request must confirm the decision:
 
 ```bash
-compozy config set extensions.marketplace.allow_unverified true -o json
+compozy config set extensions.trust.allow_unverified true -o json
 compozy config reload -o json
 compozy extension install acme/private-extension --allow-unverified --yes -o json
 ```
 
 When policy is disabled, the structured diagnostic code is
 `extension_unverified_policy_blocked`; its evidence points to `/settings/extensions` and the
-`extensions.marketplace.allow_unverified` key. Enabling the policy does not weaken curated digest
+`extensions.trust.allow_unverified` key. Enabling the policy does not weaken curated digest
 verification.
 
 ## Preview And Activate A Bundle
