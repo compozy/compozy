@@ -226,9 +226,9 @@ vi.mock("@/systems/knowledge/adapters/knowledge-api", async importOriginal => ({
 }));
 
 import { Route as AppRoute } from "../../_app";
-import { Route as AgentDetailRoute } from "../agents.$name";
+import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
-import { Route as AgentsRoute } from "../agents";
+import { Route as AgentsRoute } from "../agents.index";
 import { Route as BridgeDetailRoute } from "../bridges.$id";
 import { Route as BridgesRoute } from "../bridges";
 import { Route as HomeRoute } from "../index";

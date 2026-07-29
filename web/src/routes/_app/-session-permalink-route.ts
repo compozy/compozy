@@ -3,9 +3,13 @@ import { redirect } from "@tanstack/react-router";
 
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 import {
+  cachedForeignSessionOwner,
+  resolveSessionOwner,
   SessionNotFoundError,
   sessionDetailOptions,
   sessionTranscriptOptions,
+  type SessionDeepLinkSearch,
+  type SessionOwnerDialogState,
   type SessionPayload,
 } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -14,19 +18,27 @@ import { resolveActiveWorkspaceId } from "./-route-preload";
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;
   permalinkError?: string;
+  /** Present only while the operator is deciding whether to switch workspaces. */
+  sessionOwner?: SessionOwnerDialogState;
 }
+
+export type SessionPermalinkResolution =
+  | { status: "resolved"; session: SessionPayload }
+  | { status: "foreign"; owner: SessionOwnerDialogState };
 
 export async function redirectSessionPermalinkRoute({
   context,
   params,
+  search,
 }: {
   context: RouterContext;
   params: { id: string };
+  search: SessionDeepLinkSearch;
 }): Promise<SessionPermalinkRouteContext> {
   const topbar = { crumb: { label: "Session" } };
-  let session: SessionPayload;
+  let resolution: SessionPermalinkResolution;
   try {
-    session = await resolveSessionPermalink({
+    resolution = await resolveSessionPermalink({
       queryClient: context.queryClient,
       sessionId: params.id,
     });
@@ -42,9 +54,25 @@ export async function redirectSessionPermalinkRoute({
     };
   }
 
+  if (resolution.status === "foreign") {
+    // Declining leaves today's not-found rendering in place; the URL keeps that decision replayable.
+    if (search.workspaceSwitch === "declined") {
+      return { topbar, permalinkError: "Session not found" };
+    }
+    if (search.workspaceSwitch !== "confirm") {
+      throw redirect({
+        to: "/session/$id",
+        params,
+        search: { workspaceSwitch: "confirm" },
+        replace: true,
+      });
+    }
+    return { topbar, sessionOwner: resolution.owner };
+  }
+
   throw redirect({
     to: "/agents/$name/sessions/$id",
-    params: { name: session.agent_name, id: session.id },
+    params: { name: resolution.session.agent_name, id: resolution.session.id },
     replace: true,
   });
 }
@@ -55,15 +83,45 @@ export async function resolveSessionPermalink({
 }: {
   queryClient: QueryClient;
   sessionId: string;
-}): Promise<SessionPayload> {
+}): Promise<SessionPermalinkResolution> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) {
     throw new SessionNotFoundError(sessionId);
   }
 
-  const session = await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+  const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, workspaceId);
+  if (knownOwner) {
+    return { status: "foreign", owner: knownOwner };
+  }
+
+  let session: SessionPayload;
+  try {
+    session = await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+  } catch (error) {
+    if (error instanceof SessionNotFoundError) {
+      return resolveForeignPermalink(queryClient, sessionId, workspaceId);
+    }
+    throw error;
+  }
+
   await Promise.allSettled([
     queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, session.id)),
   ]);
-  return session;
+  return { status: "resolved", session };
+}
+
+/**
+ * Only the minimal owner projection may answer a permalink miss — no foreign detail, transcript,
+ * or catalog read happens before the operator confirms the workspace switch (ADR-004).
+ */
+async function resolveForeignPermalink(
+  queryClient: QueryClient,
+  sessionId: string,
+  activeWorkspaceId: string
+): Promise<SessionPermalinkResolution> {
+  const owner = await resolveSessionOwner(queryClient, sessionId);
+  if (!owner || owner.workspaceId === activeWorkspaceId) {
+    throw new SessionNotFoundError(sessionId);
+  }
+  return { status: "foreign", owner };
 }

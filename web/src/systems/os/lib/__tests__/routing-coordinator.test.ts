@@ -1,6 +1,6 @@
 // Suite: routing coordinator
-// Invariant: URL reconciliation mutates only the daemon-facing controller, initial route intent
-// survives workspace binding exactly once, and user causes produce exactly one history write.
+// Invariant: URL reconciliation mutates only the daemon-facing controller, route intent survives
+// hydration and in-flight authority races, and user causes produce exactly one history write.
 // Owning layer: the sole URL ↔ window-manager bridge.
 import { describe, expect, it, vi } from "vitest";
 
@@ -244,6 +244,28 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("Should keep an accepted route intent authoritative until reconciliation completes", async () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    store.deferLifecycle();
+
+    coordinator.reportRouteMatch(route("/tasks/task-42"));
+    coordinator.reportAuthoritativeState();
+    coordinator.reportRouteMatch(route("/tasks/task-42"));
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
+
+    store.settleLifecycle(true);
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(tasks.id));
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();
@@ -316,6 +338,27 @@ describe("RoutingCoordinator", () => {
     coordinator.reportAuthoritativeState();
 
     expect(router.replace).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep a held decision route through hydration and authoritative focus", () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const { coordinator, router, store } = createCoordinator([tasks]);
+    const decision = route("/agents/general/sessions/sess-1", { workspaceSwitch: "confirm" });
+
+    coordinator.holdRoute(decision);
+    coordinator.completeHydration();
+    store.setAuthoritativeFocus(tasks.id, tasks.route);
+    coordinator.reportAuthoritativeState();
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+
+    coordinator.releaseRouteHold();
+    coordinator.reportAuthoritativeState();
+
+    expect(router.replace).toHaveBeenCalledOnce();
+    expect(router.replace).toHaveBeenCalledWith(tasks.route);
   });
 
   it("Should zoom an inactive window with one command and one history write", async () => {

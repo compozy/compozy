@@ -24,6 +24,7 @@ export type {
   SessionLedgerResponse,
   SessionMessage,
   SessionByIDResponse,
+  SessionOwnerResponse,
   SessionPayload,
   SessionPromptPayload,
   SessionPromptRequest,
@@ -99,6 +100,21 @@ export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export type { QueuedPrompt } from "./lib/queued-prompt";
 export { sessionKeys } from "./lib/query-keys";
+export {
+  cachedForeignSessionOwner,
+  resolveSessionOwner,
+  sessionOwnerDialogState,
+  sessionOwnerKeys,
+  sessionOwnerOptions,
+  type SessionOwnerDialogState,
+} from "./lib/session-owner-query";
+export { fetchSessionOwner } from "./adapters/session-owner-api";
+export {
+  SESSION_WORKSPACE_SWITCH_STATES,
+  validateSessionDeepLinkSearch,
+  type SessionDeepLinkSearch,
+  type SessionWorkspaceSwitchState,
+} from "./lib/session-deeplink-search";
 export {
   sessionClarificationsOptions,
   sessionDetailOptions,
@@ -217,6 +233,10 @@ export {
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
+export {
+  SessionWorkspaceSwitchDialog,
+  type SessionWorkspaceSwitchDialogProps,
+} from "./components/session-workspace-switch-dialog";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,

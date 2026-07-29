@@ -1,5 +1,6 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
+import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
 import {
   buildLiveNetworkParticipationFixture,
   buildLocalNetworkParticipationFixture,
@@ -17,6 +18,12 @@ import {
 import type { CreateSessionParams } from "../types";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
+const storyWorkspaceNameById = new Map(
+  Object.entries(storyWorkspaceIds).map(([key, id]) => [
+    id as string,
+    storyWorkspaceNames[key as keyof typeof storyWorkspaceNames],
+  ])
+);
 const sessionCatalogStreamEncoder = new TextEncoder();
 
 function createSessionCatalogStreamResponse(): Response {
@@ -78,6 +85,21 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({ session });
+  }),
+  compozyApiMock.get("/api/sessions/{session_id}/owner", ({ params }) => {
+    const id = String(params.session_id);
+    const session = sessionById.get(id);
+
+    if (!session) {
+      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+    }
+
+    const workspaceId = session.workspace_id ?? "";
+    return HttpResponse.json({
+      session_id: id,
+      workspace_id: workspaceId,
+      workspace_name: storyWorkspaceNameById.get(workspaceId) ?? workspaceId,
+    });
   }),
   compozyApiMock.post("/api/sessions", async ({ request }) => {
     // Use the adapter's generated request contract rather than a mirrored DTO.

@@ -9,6 +9,8 @@ export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
 export type SessionResponse = OperationResponse<"getSession", 200>;
 export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;
+/** Minimal workspace-ownership projection: the only session read allowed before a switch confirm. */
+export type SessionOwnerResponse = OperationResponse<"getSessionOwner", 200>;
 export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
 export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;

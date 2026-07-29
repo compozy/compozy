@@ -25,6 +25,7 @@ export { DesktopGate } from "./desktop-gate";
 export { OsCommandPalette, type OsCommandPaletteProps } from "./os-command-palette";
 export { OsRouteNotFound } from "./os-route-not-found";
 export { createOsRouteSync } from "./os-route-sync";
+export { OsRouteHold } from "./os-route-hold";
 export { OsWinLayer } from "./os-win-layer";
 export { OsWindow, type OsWindowProps } from "./os-window";
 export { OsWindowErrorBoundary } from "./os-window-error-boundary";

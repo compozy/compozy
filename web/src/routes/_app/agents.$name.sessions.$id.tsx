@@ -1,27 +1,81 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { createOsRouteSync } from "@/systems/os";
+import { createOsRouteSync, OsRouteHold } from "@/systems/os";
+import { SessionWorkspaceSwitchDialog, validateSessionDeepLinkSearch } from "@/systems/session";
 import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
+import { confirmSessionWorkspaceSwitch } from "./-session-workspace-switch";
+
+const SessionRouteSync = createOsRouteSync("session");
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: () => ({
     topbar: { crumb: { label: "Session" } },
   }),
-  loader: async ({ context, params, preload }) => {
+  validateSearch: validateSessionDeepLinkSearch,
+  loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
+  loader: async ({ context, params, deps, preload }) => {
     const data = await prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,
     });
-    if (!preload && data.workspaceId === null) {
-      toast.error("Session not found");
-      throw redirect({
-        to: "/agents/$name",
-        params: { name: params.name },
-        replace: true,
-      });
+    if (preload || data.status === "loaded") {
+      return data;
     }
-    return data;
+    // The URL owns whether the confirmation is open, so a foreign deep link canonicalizes into it.
+    if (data.status === "foreign" && deps.workspaceSwitch !== "declined") {
+      if (deps.workspaceSwitch !== "confirm") {
+        throw redirect({
+          to: "/agents/$name/sessions/$id",
+          params,
+          search: { workspaceSwitch: "confirm" },
+          replace: true,
+        });
+      }
+      return data;
+    }
+    toast.error("Session not found");
+    throw redirect({
+      to: "/agents/$name",
+      params: { name: params.name },
+      replace: true,
+    });
   },
-  component: createOsRouteSync("session"),
+  component: AgentSessionRoute,
 });
+
+function AgentSessionRoute() {
+  const data = Route.useLoaderData();
+  const { workspaceSwitch } = Route.useSearch();
+  const params = Route.useParams();
+  const navigate = Route.useNavigate();
+
+  // The session window must not open on a foreign id: the route stays unreported until the
+  // session belongs to the active workspace.
+  if (data.status !== "foreign") {
+    return <SessionRouteSync />;
+  }
+
+  return (
+    <>
+      <OsRouteHold />
+      <SessionWorkspaceSwitchDialog
+        open={workspaceSwitch === "confirm"}
+        workspaceName={data.owner.workspaceName}
+        onConfirm={() =>
+          confirmSessionWorkspaceSwitch(data.owner, () => {
+            void navigate({
+              to: "/agents/$name/sessions/$id",
+              params,
+              search: {},
+              replace: true,
+            });
+          })
+        }
+        onCancel={() => {
+          void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
+        }}
+      />
+    </>
+  );
+}

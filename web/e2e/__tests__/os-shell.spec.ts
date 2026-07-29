@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
-import { tasksOperatorSelectors } from "../fixtures/selectors";
+import { sessionWorkspaceSwitchSelectors, tasksOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -1483,15 +1483,19 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
     .toMatchObject({ minimized: false });
 });
 
-test("E2E-016: a cross-workspace session deep link is rejected without exposing foreign data", async ({
+test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session deep link confirms before switching and exposes nothing foreign", async ({
   appPage,
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
   const session = await createNamedSession(runtime, secondWorkspace.id, "cross-workspace-session");
+  const confirmSwitch = sessionWorkspaceSwitchSelectors(appPage);
+  const canonicalDeepLink = `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`;
+  const permalink = `/session/${encodeURIComponent(session.id)}`;
+  const menubarWorkspace = appPage.locator('[data-slot="os-menubar-workspace"]');
 
-  // Arrange A so its integrity is checkable after the rejected navigation.
+  // Arrange A so its integrity is checkable across the whole confirmation journey.
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const openedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, "app:tasks");
   await dragWindowBy(appPage, tasks, 130, 70);
@@ -1501,14 +1505,37 @@ test("E2E-016: a cross-workspace session deep link is rejected without exposing 
   const arrangedTasks = await authoritativeWindowRect(appPage, runtime, workspace.id, "app:tasks");
   await expect.poll(() => windowRect(appPage, tasks)).toEqual(arrangedTasks);
 
-  // Follow the session link owned by B: the active workspace remains A and the
-  // foreign session resolves as not found.
-  await appPage.goto(
-    runtime.url(
-      `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`
-    ),
-    { waitUntil: "domcontentloaded" }
+  // Every API path the browser touches, so the pre-confirm reads can be proved minimal.
+  const apiRequests: string[] = [];
+  appPage.on("request", request => {
+    const { pathname } = new URL(request.url());
+    if (pathname.startsWith("/api/")) apiRequests.push(pathname);
+  });
+
+  // Canonical deep link owned by B: the confirmation names B, nothing switches, nothing opens.
+  await appPage.goto(runtime.url(canonicalDeepLink), { waitUntil: "domcontentloaded" });
+  await expect(confirmSwitch.dialog).toBeVisible();
+  await expect(confirmSwitch.dialog).toContainText(secondWorkspace.name);
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(canonicalDeepLink);
+  await expect.poll(() => new URL(appPage.url()).search).toBe("?workspaceSwitch=confirm");
+  await expect(menubarWorkspace).toContainText(workspace.name);
+  await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
+  await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
+
+  // Only the owner projection resolved the miss: no foreign-workspace read, no session payload.
+  expect(new Set(apiRequests.filter(pathname => pathname.includes(session.id)))).toEqual(
+    new Set([
+      `/api/workspaces/${workspace.id}/sessions/${session.id}`,
+      `/api/sessions/${session.id}/owner`,
+    ])
   );
+  expect(
+    apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
+  ).toEqual([]);
+
+  // Cancel keeps A active with its arrangement intact and falls back to today's not-found.
+  await confirmSwitch.cancel.click();
+  await expect(confirmSwitch.dialog).toHaveCount(0);
   await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
     "Session not found"
   );
@@ -1520,14 +1547,38 @@ test("E2E-016: a cross-workspace session deep link is rejected without exposing 
     )
     .toBe(fallbackAgentPath);
   await expect(appPage.getByTestId("os-window-app:agents")).toBeVisible();
-  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(workspace.name);
+  await expect(menubarWorkspace).toContainText(workspace.name);
   await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
-  await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
-  const tasksAfterRejection = appPage.getByTestId("os-window-app:tasks");
-  await expect(tasksAfterRejection).toBeVisible();
+  const tasksAfterCancel = appPage.getByTestId("os-window-app:tasks");
+  await expect(tasksAfterCancel).toBeVisible();
   await expect
-    .poll(async () => rectsClose(await windowRect(appPage, tasksAfterRejection), arrangedTasks))
+    .poll(async () => rectsClose(await windowRect(appPage, tasksAfterCancel), arrangedTasks))
     .toBe(true);
+
+  // A session that exists nowhere keeps the not-found outcome with no confirmation at all.
+  await appPage.goto(
+    runtime.url(`/agents/${encodeURIComponent(session.agent_name)}/sessions/sess_missing`),
+    { waitUntil: "domcontentloaded" }
+  );
+  await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
+    "Session not found"
+  );
+  await expect(confirmSwitch.dialog).toHaveCount(0);
+  await expect(menubarWorkspace).toContainText(workspace.name);
+
+  // The permalink form offers the same confirmation; confirming switches to B and opens the session.
+  await appPage.goto(runtime.url(permalink), { waitUntil: "domcontentloaded" });
+  await expect(confirmSwitch.dialog).toBeVisible();
+  await expect(confirmSwitch.dialog).toContainText(secondWorkspace.name);
+  await expect.poll(() => new URL(appPage.url()).search).toBe("?workspaceSwitch=confirm");
+  await expect(menubarWorkspace).toContainText(workspace.name);
+
+  await confirmSwitch.confirm.click();
+  await expect(confirmSwitch.dialog).toHaveCount(0);
+  await expect(menubarWorkspace).toContainText(secondWorkspace.name);
+  await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toBeVisible();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(canonicalDeepLink);
+  await expect(appPage.getByText("cross-workspace-session").first()).toBeVisible();
 });
 
 test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay working", async ({
