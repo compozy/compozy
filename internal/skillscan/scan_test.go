@@ -40,6 +40,30 @@ func TestScanDirectory(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discover definitions below a symlinked root", func(t *testing.T) {
+		t.Parallel()
+
+		parent := t.TempDir()
+		targetRoot := filepath.Join(parent, "target")
+		writeDefinition(t, targetRoot, filepath.Join("nested", SkillFileName))
+		linkedRoot := filepath.Join(parent, "linked")
+		if err := os.Symlink(targetRoot, linkedRoot); err != nil {
+			t.Skipf("Symlink(%q, %q) unavailable: %v", targetRoot, linkedRoot, err)
+		}
+
+		result, err := ScanDirectory(linkedRoot)
+		if err != nil {
+			t.Fatalf("ScanDirectory() error = %v", err)
+		}
+		definition := filepath.Join(linkedRoot, "nested", SkillFileName)
+		if !reflect.DeepEqual(result.Paths, []string{definition}) {
+			t.Fatalf("ScanDirectory().Paths = %#v, want %#v", result.Paths, []string{definition})
+		}
+		if _, ok := result.Snapshots[definition]; !ok {
+			t.Fatalf("ScanDirectory().Snapshots missing %q", definition)
+		}
+	})
+
 	t.Run("Should cap candidates deterministically", func(t *testing.T) {
 		t.Parallel()
 

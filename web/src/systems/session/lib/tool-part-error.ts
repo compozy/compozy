@@ -30,7 +30,7 @@ export function toolPartResult(part: Record<string, unknown>, isError: boolean):
 
   const error = toolPartErrorText(part);
   if (isRecord(output)) {
-    return nonEmptyString(output.error) ? output : { ...output, error };
+    return { ...output, error };
   }
   if (nonEmptyString(output)) {
     return { content: output, error };

@@ -13,8 +13,9 @@ import (
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
-// ScanDirectory discovers skill definitions below root. It never follows
-// directory symlinks and excludes definitions whose resolved path escapes root.
+// ScanDirectory discovers skill definitions below root. It resolves the root
+// itself, never follows nested directory symlinks, and excludes definitions
+// whose resolved path escapes root.
 func ScanDirectory(root string) (DirectoryResult, error) {
 	scanner, err := newDirectoryScanner(root)
 	if err != nil {
@@ -24,7 +25,7 @@ func ScanDirectory(root string) (DirectoryResult, error) {
 		return scanner.result, nil
 	}
 
-	walkErr := filepath.WalkDir(scanner.root, scanner.visit)
+	walkErr := filepath.WalkDir(scanner.walkRoot, scanner.visit)
 	if walkErr != nil && !isTraversalLimit(walkErr) {
 		return DirectoryResult{}, fmt.Errorf("skillscan: walk root %q: %w", scanner.root, walkErr)
 	}
@@ -34,6 +35,7 @@ func ScanDirectory(root string) (DirectoryResult, error) {
 
 type directoryScanner struct {
 	root           string
+	walkRoot       string
 	resolvedRoot   string
 	result         DirectoryResult
 	visitedEntries int
@@ -71,6 +73,7 @@ func newDirectoryScanner(root string) (*directoryScanner, error) {
 
 	return &directoryScanner{
 		root:         absRoot,
+		walkRoot:     resolvedRoot,
 		resolvedRoot: resolvedRoot,
 		result: DirectoryResult{
 			Paths:     make([]string, 0, MaxCandidates),
@@ -92,8 +95,12 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 		}
 		return nil
 	}
+	reportedCandidate, err := s.reportedCandidate(candidate)
+	if err != nil {
+		return err
+	}
 	if entry.IsDir() {
-		if candidate != s.root && shouldSkipDirectory(entry.Name()) {
+		if candidate != s.walkRoot && shouldSkipDirectory(entry.Name()) {
 			return filepath.SkipDir
 		}
 		return nil
@@ -101,25 +108,33 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	if entry.Name() != SkillFileName {
 		return nil
 	}
-	if err := pathWithinRoot(s.resolvedRoot, candidate); err != nil {
-		slog.Warn("skillscan: skipping definition outside root", "path", candidate, "error", err)
+	if err := pathWithinRoot(s.resolvedRoot, reportedCandidate); err != nil {
+		slog.Warn("skillscan: skipping definition outside root", "path", reportedCandidate, "error", err)
 		return nil
 	}
-	info, err := os.Stat(candidate)
+	info, err := os.Stat(reportedCandidate)
 	if err != nil {
-		slog.Warn("skillscan: skipping unreadable definition", "path", candidate, "error", err)
+		slog.Warn("skillscan: skipping unreadable definition", "path", reportedCandidate, "error", err)
 		return nil
 	}
 	if !info.Mode().IsRegular() {
-		slog.Warn("skillscan: skipping non-regular definition", "path", candidate)
+		slog.Warn("skillscan: skipping non-regular definition", "path", reportedCandidate)
 		return nil
 	}
 	snapshot := filesnap.Snapshot{ModTime: info.ModTime(), Size: info.Size()}
-	s.result.Paths = append(s.result.Paths, candidate)
-	s.result.Snapshots[candidate] = snapshot
+	s.result.Paths = append(s.result.Paths, reportedCandidate)
+	s.result.Snapshots[reportedCandidate] = snapshot
 	if len(s.result.Paths) >= MaxCandidates {
 		slog.Warn("skillscan: candidate limit reached", "root", s.root, "limit", MaxCandidates)
 		return errCandidateLimitReached
 	}
 	return nil
+}
+
+func (s *directoryScanner) reportedCandidate(candidate string) (string, error) {
+	relativePath, err := filepath.Rel(s.walkRoot, candidate)
+	if err != nil {
+		return "", fmt.Errorf("skillscan: relate candidate %q to root %q: %w", candidate, s.walkRoot, err)
+	}
+	return filepath.Join(s.root, relativePath), nil
 }

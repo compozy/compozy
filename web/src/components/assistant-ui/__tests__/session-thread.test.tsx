@@ -562,6 +562,10 @@ describe("SessionThread transcript states", () => {
             timestamp: "2026-07-07T12:00:00Z",
             input: { command: "deploy" },
             errorText: "terminal/create denied before writing workspace marker",
+            output: {
+              error: "stale nested provider error",
+              stderr: "provider diagnostic",
+            },
           },
         ] as unknown as SessionMessage["parts"],
       } as SessionMessage,
