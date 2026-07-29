@@ -265,7 +265,12 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 			agentidentity.HeaderAgent:     "coder",
 		})
 		if denied.Code != http.StatusForbidden {
-			t.Fatalf("approve-reads status = %d, want %d; body=%s", denied.Code, http.StatusForbidden, denied.Body.String())
+			t.Fatalf(
+				"approve-reads status = %d, want %d; body=%s",
+				denied.Code,
+				http.StatusForbidden,
+				denied.Body.String(),
+			)
 		}
 		if !strings.Contains(denied.Body.String(), workspaceaccess.DenialHint) {
 			t.Fatalf("approve-reads body = %s, want denial hint", denied.Body.String())
@@ -279,7 +284,12 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 			agentidentity.HeaderAgent:     "coder",
 		})
 		if allowed.Code != http.StatusCreated {
-			t.Fatalf("approve-all status = %d, want %d; body=%s", allowed.Code, http.StatusCreated, allowed.Body.String())
+			t.Fatalf(
+				"approve-all status = %d, want %d; body=%s",
+				allowed.Code,
+				http.StatusCreated,
+				allowed.Body.String(),
+			)
 		}
 		if created != 1 || policyCalls != 2 {
 			t.Fatalf("created=%d policy_calls=%d, want 1 and 2", created, policyCalls)

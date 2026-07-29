@@ -1217,21 +1217,48 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 
 		binder := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDConfigSet,
-			toolspkg.ToolIDHooksCreate,
-			toolspkg.ToolIDAutomationJobsCreate,
-			toolspkg.ToolIDBridgesList,
-			toolspkg.ToolIDMemoryNote,
+		descriptor.ID = toolspkg.ToolIDMemoryNote
+		bound, err := binder.BindCallInput(
+			t.Context(),
+			toolspkg.Scope{},
+			descriptor,
+			json.RawMessage(`{"scope":"global"}`),
+		)
+		if err != nil {
+			t.Fatalf("BindCallInput(unbound daemon global scope) error = %v", err)
+		}
+		var daemonGlobalInput map[string]json.RawMessage
+		if err := json.Unmarshal(bound, &daemonGlobalInput); err != nil {
+			t.Fatalf("json.Unmarshal(unbound daemon global scope) error = %v", err)
+		}
+		if _, exists := daemonGlobalInput[nativeWorkspaceInputKey]; exists {
+			t.Fatalf("unbound daemon global input = %s, want no workspace binding", bound)
+		}
+
+		for _, test := range []struct {
+			name  string
+			input json.RawMessage
+		}{
+			{name: "Should reject inherited global scope", input: json.RawMessage(`{"scope":"global"}`)},
+			{
+				name:  "Should reject global scope with an explicit home workspace",
+				input: json.RawMessage(`{"scope":"global","workspace":"ws-1"}`),
+			},
+			{
+				name:  "Should reject all scope with an explicit home workspace",
+				input: json.RawMessage(`{"scope":"all","workspace":"ws-1"}`),
+			},
 		} {
-			descriptor.ID = id
-			_, err := binder.BindCallInput(
-				t.Context(),
-				toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
-				descriptor,
-				json.RawMessage(`{"scope":"global"}`),
-			)
-			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := binder.BindCallInput(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
+					descriptor,
+					test.input,
+				)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			})
 		}
 	})
 

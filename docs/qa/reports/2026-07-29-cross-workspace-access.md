@@ -132,17 +132,17 @@ qa_bootstrap:
     - 0/3 declared disruption seeds delivered; no resolved disagreement evidenced
     - CLI race 1329/1329; workspace race 107/107; make lint zero issues
     - make test-e2e-runtime exit 0; make test-e2e-web exit 0
+    - final make verify PASS: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/final-make-verify.log
     - four browser screenshots and cross-workspace-access-results.md indexed under qa-artifacts/qa
-    - strict audit: C1-C10, C12-C13, C15-C16, C18 pass; C11/C17 retain factual playbook gaps; C14 deferred
+    - strict audit: C1-C10, C12-C16, C18 pass; C11/C17 retain factual playbook gaps
   teardown: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/teardown.json
 ```
 
 ## Final Status
 
-- **Exit gate:** focused race suites, zero-tolerance lint, runtime E2E, and browser E2E pass. Strict
-  QA audit is expected to retain the factual disruption/collaboration gaps plus the intentionally
-  deferred final verification; clean teardown remains the final live-lab gate. Program-level
-  `make verify` is intentionally deferred until after the requested deep-review remediation rounds.
+- **Exit gate:** focused race suites, zero-tolerance lint, runtime E2E, browser E2E, and the final
+  program-level `make verify` pass. The strict QA audit retains only the factual disruption and
+  collaboration gaps; clean teardown remains the final live-lab gate.
 - **Issues by user impact:** in-scope Blocks-Completion 2 fixed; existing out-of-scope
   Blocks-Completion P1 1 reproduced and still open.
 - **Coverage:** 4/4 charters; 6/6 selected QA scenarios settled; autonomous playbook 12/12 tasks,

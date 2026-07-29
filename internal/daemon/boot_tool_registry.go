@@ -30,16 +30,9 @@ func (d *Daemon) bootToolRegistry(
 	}
 	workspaceBinder := nativeWorkspaceAccessBinderForBoot(state)
 	var registry *toolspkg.RuntimeRegistry
-	var mcpAuth toolspkg.MCPAuthStatusProvider
-	deps := d.nativeToolsDeps(state, func() toolspkg.Registry {
-		return registry
-	})
-	deps.MCPAuth = func() toolspkg.MCPAuthStatusProvider {
-		return mcpAuth
-	}
-	provider, err := newDaemonNativeProvider(&deps)
+	providers, err := d.bootToolProviders(state, func() toolspkg.Registry { return registry })
 	if err != nil {
-		return fmt.Errorf("daemon: create native tool provider: %w", err)
+		return err
 	}
 	toolsets, err := builtintools.ToolsetCatalog()
 	if err != nil {
@@ -48,22 +41,6 @@ func (d *Daemon) bootToolRegistry(
 	policyResolver, err := newNativeToolPolicyResolverForBoot(state)
 	if err != nil {
 		return fmt.Errorf("daemon: build native tool policy resolver: %w", err)
-	}
-	providers := []toolspkg.Provider{provider}
-	extensionProvider, err := newDaemonExtensionToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create extension tool provider: %w", err)
-	}
-	if extensionProvider != nil {
-		providers = append(providers, extensionProvider)
-	}
-	mcpProvider, mcpAuthProvider, err := d.newDaemonMCPToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create mcp tool provider: %w", err)
-	}
-	mcpAuth = mcpAuthProvider
-	if mcpProvider != nil {
-		providers = append(providers, mcpProvider)
 	}
 	registryOptions := []toolspkg.RegistryOption{
 		toolspkg.WithProviders(providers...),

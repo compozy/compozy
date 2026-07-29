@@ -113,10 +113,26 @@ func DeriveAutomationLinkedAgentSessionActorContext(
 // DeriveAutomationActorContext derives one trusted automation actor context.
 // If originRef is empty, the actor ref is reused as the durable origin ref.
 func DeriveAutomationActorContext(actorRef string, originRef string) (ActorContext, error) {
+	return DeriveAutomationActorContextForWorkspace(actorRef, "", originRef)
+}
+
+// DeriveAutomationActorContextForWorkspace derives one trusted automation
+// actor constrained to a registered workspace.
+func DeriveAutomationActorContextForWorkspace(
+	actorRef string,
+	workspaceID string,
+	originRef string,
+) (ActorContext, error) {
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindAutomation, actorRef, OriginKindAutomation, originRef, CallerScope{})
+	return deriveActorContext(
+		ActorKindAutomation,
+		actorRef,
+		OriginKindAutomation,
+		originRef,
+		CallerScope{WorkspaceID: strings.TrimSpace(workspaceID)},
+	)
 }
 
 // DeriveExtensionActorContext derives one trusted extension actor context. If

@@ -178,6 +178,9 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.actor.Origin.Ref, "run:"+run.ID; got != want {
 		t.Fatalf("CreateTask().origin.ref = %q, want %q", got, want)
 	}
+	if got, want := createCall.actor.Scope.WorkspaceID, job.WorkspaceID; got != want {
+		t.Fatalf("CreateTask().actor.scope.workspace_id = %q, want %q", got, want)
+	}
 	if got, want := createCall.spec.Scope, taskpkg.ScopeWorkspace; got != want {
 		t.Fatalf("CreateTask().scope = %q, want %q", got, want)
 	}

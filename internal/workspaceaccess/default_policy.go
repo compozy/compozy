@@ -5,50 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
-	"strings"
 )
-
-// Mode mirrors the effective permission modes without importing config.
-type Mode string
-
-const (
-	ModeDenyAll      Mode = "deny-all"
-	ModeApproveReads Mode = "approve-reads"
-	ModeApproveAll   Mode = "approve-all"
-)
-
-// ModeSource resolves the effective permission mode of a live session.
-type ModeSource interface {
-	SessionPermissionMode(ctx context.Context, sessionID string) (Mode, error)
-}
-
-// Consent is a session-lifetime answer captured from an ACP prompt.
-type Consent string
-
-const (
-	ConsentAllow  Consent = "allow"
-	ConsentReject Consent = "reject"
-)
-
-// SessionConsentCache stores one cross-workspace answer per live session.
-type SessionConsentCache interface {
-	ConsentFor(ctx context.Context, sessionID string) (Consent, bool)
-	PutConsent(ctx context.Context, sessionID string, consent Consent)
-}
-
-// AuditEmitter appends one best-effort record per decision.
-type AuditEmitter interface {
-	EmitWorkspaceAccess(ctx context.Context, record AccessRecord) error
-}
-
-// Deps contains every dependency required by DefaultPolicy.
-type Deps struct {
-	Modes   ModeSource
-	Consent SessionConsentCache
-	Audit   AuditEmitter
-	Log     *slog.Logger
-}
 
 // DefaultPolicy applies the fixed workspace-access decision chain.
 type DefaultPolicy struct {
@@ -58,10 +15,7 @@ type DefaultPolicy struct {
 	log     *slog.Logger
 }
 
-var (
-	workspaceIDPattern        = regexp.MustCompile(`^(?:ws_[0-9a-f]{16}|[0-9A-HJ-KMNP-TV-Z]{26})$`)
-	_                  Policy = (*DefaultPolicy)(nil)
-)
+var _ Policy = (*DefaultPolicy)(nil)
 
 // New constructs the fail-closed default policy.
 func New(deps Deps) (*DefaultPolicy, error) {
@@ -168,51 +122,6 @@ func (p *DefaultPolicy) warnAuditFailure(ctx context.Context, record AccessRecor
 		return
 	}
 	p.log.WarnContext(ctx, "workspace access audit emission failed", args...)
-}
-
-func normalizeRequest(req Request) Request {
-	req.Actor.SessionID = strings.TrimSpace(req.Actor.SessionID)
-	req.Actor.WorkspaceID = strings.TrimSpace(req.Actor.WorkspaceID)
-	req.Actor.AgentName = strings.TrimSpace(req.Actor.AgentName)
-	req.TargetWorkspaceID = strings.TrimSpace(req.TargetWorkspaceID)
-	return req
-}
-
-func validateRequest(ctx context.Context, req Request) error {
-	if ctx == nil {
-		return errors.New("workspace access: context is required")
-	}
-	if !validActorKind(req.Actor.Kind) {
-		return fmt.Errorf("workspace access: unknown actor kind %q", req.Actor.Kind)
-	}
-	if !workspaceIDPattern.MatchString(req.TargetWorkspaceID) {
-		return fmt.Errorf("workspace access: target workspace id %q is not canonical", req.TargetWorkspaceID)
-	}
-	if !validSeam(req.Seam) {
-		return fmt.Errorf("workspace access: unknown seam %q", req.Seam)
-	}
-	if req.Actor.Kind == ActorAgentSession && req.Actor.SessionID == "" {
-		return errors.New("workspace access: agent session id is required")
-	}
-	return nil
-}
-
-func validActorKind(kind ActorKind) bool {
-	switch kind {
-	case ActorAgentSession, ActorHuman, ActorExtension, ActorAutomation, ActorNetworkPeer, ActorDaemon:
-		return true
-	default:
-		return false
-	}
-}
-
-func validSeam(seam Seam) bool {
-	switch seam {
-	case SeamIdentity, SeamTask, SeamTool, SeamSpawn, SeamCoordination:
-		return true
-	default:
-		return false
-	}
 }
 
 func deniedDecision(promptEligible bool) Decision {

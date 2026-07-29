@@ -1575,13 +1575,16 @@ func assertWorkspaceAccessDeniedResult(t testing.TB, result *sdkmcp.CallToolResu
 	if result == nil || !result.IsError {
 		t.Fatalf("workspace access result = %#v, want denied tool result", result)
 	}
-	raw, err := json.Marshal(result)
-	if err != nil {
-		t.Fatalf("json.Marshal(workspace access result) error = %v", err)
+	if len(result.Content) != 1 {
+		t.Fatalf("workspace access result content = %#v, want one error text item", result.Content)
 	}
-	if !strings.Contains(string(raw), string(toolspkg.ReasonWorkspaceAccessDenied)) ||
-		!strings.Contains(string(raw), workspaceaccess.DenialHint) {
-		t.Fatalf("workspace access result = %s, want reason and denial hint", raw)
+	content, ok := result.Content[0].(sdkmcp.TextContent)
+	if !ok {
+		t.Fatalf("workspace access result content[0] = %T, want sdkmcp.TextContent", result.Content[0])
+	}
+	if !strings.Contains(content.Text, string(toolspkg.ReasonWorkspaceAccessDenied)) ||
+		!strings.Contains(content.Text, workspaceaccess.DenialHint) {
+		t.Fatalf("workspace access result text = %q, want reason and denial hint", content.Text)
 	}
 }
 
@@ -1644,7 +1647,7 @@ func workspaceAccessAuditExists(
 		}
 		var payload workspaceAccessAuditPayload
 		if err := json.Unmarshal(event.Content, &payload); err != nil {
-			continue
+			t.Fatalf("decode matching workspace access audit event %q: %v", event.Content, err)
 		}
 		if payload.TargetWorkspaceID == targetWorkspaceID && payload.Seam == seam && payload.Source == source {
 			return true

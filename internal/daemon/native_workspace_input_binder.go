@@ -22,6 +22,12 @@ const (
 	nativeWorkspaceSchemaOneOfKeyword = "oneOf"
 )
 
+var nativeWorkspaceCompositeKeywords = [...]string{
+	nativeWorkspaceSchemaAllOfKeyword,
+	nativeWorkspaceSchemaAnyOfKeyword,
+	nativeWorkspaceSchemaOneOfKeyword,
+}
+
 type nativeWorkspaceInputBinder struct {
 	workspaces      core.WorkspaceService
 	sessions        core.SessionManager
@@ -112,11 +118,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 		}
 		payload[name] = encoded
 	}
-	for _, keyword := range []string{
-		nativeWorkspaceSchemaAllOfKeyword,
-		nativeWorkspaceSchemaAnyOfKeyword,
-		nativeWorkspaceSchemaOneOfKeyword,
-	} {
+	for _, keyword := range nativeWorkspaceCompositeKeywords {
 		for _, childSchema := range nativeWorkspaceCompositeSchemas(schema[keyword]) {
 			if !nativeWorkspaceSchemaAcceptsWorkspace(childSchema) {
 				continue
@@ -140,19 +142,20 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		return nil
 	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
+	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)
+	if nativeInputHasGlobalScope(payload) {
+		if !hasOperatorAuthority {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+		return nil
+	}
 	if requested == "" {
 		if trusted == "" {
 			return nil
 		}
-		if nativeInputHasGlobalScope(payload) {
-			if scope.Operator {
-				return nil
-			}
-			return nativeWorkspaceAccessDeniedError(id)
-		}
 		return setNativeWorkspaceInput(payload, trusted)
 	}
-	if scope.Operator {
+	if hasOperatorAuthority {
 		return b.resolveNativeWorkspaceInput(ctx, id, payload, requested)
 	}
 	if trusted == "" {
@@ -184,7 +187,7 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	descriptor toolspkg.Descriptor,
 	call toolspkg.CallRequest,
 ) error {
-	if descriptor.Backend.Kind != toolspkg.BackendNativeGo || scope.Operator || nativeWorkspaceScopeUnbound(scope) {
+	if descriptor.Backend.Kind != toolspkg.BackendNativeGo || nativeWorkspaceScopeHasOperatorAuthority(scope) {
 		return nil
 	}
 	schema, acceptsWorkspace := nativeWorkspaceInputSchema(descriptor)
@@ -265,6 +268,10 @@ func nativeWorkspaceScopeUnbound(scope toolspkg.Scope) bool {
 		strings.TrimSpace(scope.ActorKind) == ""
 }
 
+func nativeWorkspaceScopeHasOperatorAuthority(scope toolspkg.Scope) bool {
+	return scope.Operator || nativeWorkspaceScopeUnbound(scope)
+}
+
 func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -314,11 +321,7 @@ func collectNativeWorkspaceTargets(
 			collectNativeWorkspaceTargets(childSchema, childPayload, targets)
 		}
 	}
-	for _, keyword := range []string{
-		nativeWorkspaceSchemaAllOfKeyword,
-		nativeWorkspaceSchemaAnyOfKeyword,
-		nativeWorkspaceSchemaOneOfKeyword,
-	} {
+	for _, keyword := range nativeWorkspaceCompositeKeywords {
 		for _, childSchema := range nativeWorkspaceCompositeSchemas(schema[keyword]) {
 			collectNativeWorkspaceTargets(childSchema, payload, targets)
 		}
@@ -385,11 +388,7 @@ func nativeWorkspaceSchemaAcceptsWorkspace(schema map[string]json.RawMessage) bo
 			return true
 		}
 	}
-	for _, keyword := range []string{
-		nativeWorkspaceSchemaAllOfKeyword,
-		nativeWorkspaceSchemaAnyOfKeyword,
-		nativeWorkspaceSchemaOneOfKeyword,
-	} {
+	for _, keyword := range nativeWorkspaceCompositeKeywords {
 		if slices.ContainsFunc(
 			nativeWorkspaceCompositeSchemas(schema[keyword]),
 			nativeWorkspaceSchemaAcceptsWorkspace,

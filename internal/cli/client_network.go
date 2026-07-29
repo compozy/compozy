@@ -120,7 +120,14 @@ func (c *unixSocketClient) ListNetworkSubscriptions(
 		return nil, err
 	}
 	path += "/subscriptions"
-	if err := c.doNetworkJSON(ctx, http.MethodGet, path, networkSubscriptionsValues(query), nil, &response); err != nil {
+	if err := c.doNetworkJSON(
+		ctx,
+		http.MethodGet,
+		path,
+		networkSubscriptionsValues(query),
+		nil,
+		&response,
+	); err != nil {
 		return nil, err
 	}
 	return response.Subscriptions, nil

@@ -419,7 +419,8 @@ func TestNetworkWorkspaceAccessMiddleware(t *testing.T) {
 
 		request := func(sessionID string, withCredentials bool) *httptest.ResponseRecorder {
 			t.Helper()
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(
+				t.Context(),
 				http.MethodGet,
 				"/workspaces/"+targetWorkspaceID+"/network/probe",
 				http.NoBody,
@@ -434,8 +435,14 @@ func TestNetworkWorkspaceAccessMiddleware(t *testing.T) {
 		}
 
 		denied := request("sess-deny-all", true)
-		if denied.Code != http.StatusForbidden || handlerCalls != 0 {
-			t.Fatalf("denied status/handler calls = %d/%d, want 403/0; body=%s", denied.Code, handlerCalls, denied.Body)
+		if denied.Code != http.StatusForbidden || handlerCalls != 0 ||
+			!strings.Contains(denied.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf(
+				"denied status/handler calls/body = %d/%d/%q, want 403/0 and denial hint",
+				denied.Code,
+				handlerCalls,
+				denied.Body.String(),
+			)
 		}
 		allowed := request("sess-approve-all", true)
 		if allowed.Code != http.StatusNoContent || handlerCalls != 1 {

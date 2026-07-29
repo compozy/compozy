@@ -23,7 +23,10 @@ func networkAgentCredentialsFromContext(ctx context.Context) agentidentity.Crede
 	if ctx == nil {
 		return agentidentity.Credentials{}
 	}
-	credentials, _ := ctx.Value(networkAgentCredentialsKey{}).(agentidentity.Credentials)
+	credentials, ok := ctx.Value(networkAgentCredentialsKey{}).(agentidentity.Credentials)
+	if !ok {
+		return agentidentity.Credentials{}
+	}
 	return credentials
 }
 

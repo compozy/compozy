@@ -2678,6 +2678,18 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 			},
 		},
 		{
+			name: "Should derive workspace automation with its policy home",
+			derive: func() (ActorContext, error) {
+				return DeriveAutomationActorContextForWorkspace("job:nightly", "ws-1", "run:run-1")
+			},
+			want: ActorContext{
+				Actor:     ActorIdentity{Kind: ActorKindAutomation, Ref: "job:nightly"},
+				Origin:    Origin{Kind: OriginKindAutomation, Ref: "run:run-1"},
+				Authority: FullAccessAuthority(),
+				Scope:     CallerScope{WorkspaceID: "ws-1"},
+			},
+		},
+		{
 			name: "extension",
 			derive: func() (ActorContext, error) {
 				return DeriveExtensionActorContext("ext.telegram", "cap.task.write")
@@ -7004,8 +7016,22 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		if err := allowed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); err != nil {
 			t.Fatalf("AuthorizeTaskScope(allow) error = %v", err)
 		}
-		if allowedPolicy.calls != 1 || allowedPolicy.last.Seam != workspaceaccess.SeamTask {
-			t.Fatalf("policy calls/request = %d/%#v, want one task-seam call", allowedPolicy.calls, allowedPolicy.last)
+		wantRequest := workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   "sess-a",
+				WorkspaceID: "ws-a",
+			},
+			TargetWorkspaceID: "ws-b",
+			Seam:              workspaceaccess.SeamTask,
+		}
+		if allowedPolicy.calls != 1 || allowedPolicy.last != wantRequest {
+			t.Fatalf(
+				"policy calls/request = %d/%#v, want 1/%#v",
+				allowedPolicy.calls,
+				allowedPolicy.last,
+				wantRequest,
+			)
 		}
 
 		denied := scopedTaskResourceAuthorizer{workspaceAccess: &recordingTaskWorkspaceAccessPolicy{}}

@@ -575,7 +575,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					),
 				},
 			)
-			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			if createCalls != 0 {
 				t.Fatalf("CreateJob calls = %d, want 0 for workspace-bound global automation", createCalls)
 			}

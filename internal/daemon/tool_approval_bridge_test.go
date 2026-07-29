@@ -258,6 +258,8 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 		}
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
 				cache := newWorkspaceAccessConsentCache()
 				bridge := newWorkspaceAccessPromptBridge(
 					func() sessionPermissionRequester { return test.requester },

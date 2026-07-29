@@ -68,7 +68,12 @@ func TestCoordinationCommandsAuthorizeWorkspaceAccess(t *testing.T) {
 		}
 		if store.getCalls != 0 || policy.calls != 1 || policy.last.Actor.Kind != workspaceaccess.ActorAutomation ||
 			policy.last.Actor.WorkspaceID != "" || policy.last.TargetWorkspaceID != ref.WorkspaceID {
-			t.Fatalf("store/policy/request = %d/%d/%#v, want one denied automation policy call", store.getCalls, policy.calls, policy.last)
+			t.Fatalf(
+				"store/policy/request = %d/%d/%#v, want one denied automation policy call",
+				store.getCalls,
+				policy.calls,
+				policy.last,
+			)
 		}
 	})
 }

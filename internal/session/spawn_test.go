@@ -129,9 +129,19 @@ func TestValidatePermissionSubset(t *testing.T) {
 		if policy.calls != 2 {
 			t.Fatalf("policy calls = %d, want both prepareSpawn validations", policy.calls)
 		}
-		for _, req := range policy.requests {
-			if req.Actor.SessionID != parent.ID || req.Seam != workspaceaccess.SeamSpawn {
-				t.Fatalf("policy request = %#v, want parent actor at spawn seam", req)
+		wantRequest := workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   parent.ID,
+				WorkspaceID: h.workspaceID,
+				AgentName:   "coder",
+			},
+			TargetWorkspaceID: foreign.ID,
+			Seam:              workspaceaccess.SeamSpawn,
+		}
+		for index, req := range policy.requests {
+			if req != wantRequest {
+				t.Fatalf("policy request[%d] = %#v, want %#v", index, req, wantRequest)
 			}
 		}
 

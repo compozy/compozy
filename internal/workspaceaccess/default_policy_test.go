@@ -64,9 +64,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		req := testRequest(ActorAgentSession, testWorkspaceA, "")
 
 		decision, err := policy.Authorize(testutil.Context(t), req)
-		if err == nil || !strings.Contains(err.Error(), `target workspace id "" is not canonical`) {
-			t.Fatalf("Authorize() error = %v, want empty canonical target error", err)
-		}
+		assertErrorContains(t, err, `target workspace id "" is not canonical`)
 		assertDenied(t, decision, false)
 		if modes.calls != 0 {
 			t.Fatalf("mode source calls = %d, want zero", modes.calls)
@@ -106,9 +104,11 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		for _, tc := range cases {
 			t.Run("Should reject "+tc.name, func(t *testing.T) {
 				t.Parallel()
-				if policy, err := New(tc.deps); err == nil || policy != nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("New() = (%#v, %v), want nil policy and error", policy, err)
+				policy, err := New(tc.deps)
+				if policy != nil {
+					t.Fatalf("New() policy = %#v, want nil", policy)
 				}
+				assertErrorContains(t, err, tc.wantErr)
 			})
 		}
 	})
@@ -181,16 +181,28 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 
 	t.Run("Should UT-051 prevent non-agent kinds from inheriting approve-all", func(t *testing.T) {
 		t.Parallel()
+		for _, kind := range []ActorKind{ActorExtension, ActorAutomation, ActorNetworkPeer, ActorDaemon} {
+			t.Run("Should deny "+string(kind), func(t *testing.T) {
+				t.Parallel()
+				modes := &modeSourceStub{mode: ModeApproveAll}
+				consent := &consentCacheStub{}
+				policy := newPolicyForTest(t, modes, consent, &auditEmitterSpy{}, slog.Default())
+				decision, err := policy.Authorize(
+					testutil.Context(t),
+					testRequest(kind, testWorkspaceA, testWorkspaceB),
+				)
+				if err != nil {
+					t.Fatalf("Authorize(%q) error = %v", kind, err)
+				}
+				assertDenied(t, decision, false)
+				if modes.calls != 0 || consent.calls != 0 {
+					t.Fatalf("dependency calls = modes:%d consent:%d, want zero", modes.calls, consent.calls)
+				}
+			})
+		}
 		modes := &modeSourceStub{mode: ModeApproveAll}
 		consent := &consentCacheStub{}
 		policy := newPolicyForTest(t, modes, consent, &auditEmitterSpy{}, slog.Default())
-		for _, kind := range []ActorKind{ActorExtension, ActorAutomation, ActorNetworkPeer, ActorDaemon} {
-			decision, err := policy.Authorize(testutil.Context(t), testRequest(kind, testWorkspaceA, testWorkspaceB))
-			if err != nil {
-				t.Fatalf("Authorize(%q) error = %v", kind, err)
-			}
-			assertDenied(t, decision, false)
-		}
 		decision, err := policy.Authorize(
 			testutil.Context(t),
 			testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB),
@@ -214,22 +226,20 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 			"/tmp/marketing",
 			"ws_marketing",
 		} {
-			modes := &modeSourceStub{mode: ModeApproveAll}
-			policy := newPolicyForTest(t, modes, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
-			decision, err := policy.Authorize(
-				testutil.Context(t),
-				testRequest(ActorAgentSession, testWorkspaceA, target),
-			)
-			if err == nil {
-				t.Fatalf("Authorize(target=%q) error = nil, want non-nil", target)
-			}
-			if !strings.Contains(err.Error(), "is not canonical") {
-				t.Fatalf("Authorize(target=%q) error = %v, want canonical-id validation", target, err)
-			}
-			assertDenied(t, decision, false)
-			if modes.calls != 0 {
-				t.Fatalf("Authorize(target=%q) mode calls = %d, want zero", target, modes.calls)
-			}
+			t.Run("Should reject target "+target, func(t *testing.T) {
+				t.Parallel()
+				modes := &modeSourceStub{mode: ModeApproveAll}
+				policy := newPolicyForTest(t, modes, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
+				decision, err := policy.Authorize(
+					testutil.Context(t),
+					testRequest(ActorAgentSession, testWorkspaceA, target),
+				)
+				assertErrorContains(t, err, "is not canonical")
+				assertDenied(t, decision, false)
+				if modes.calls != 0 {
+					t.Fatalf("Authorize(target=%q) mode calls = %d, want zero", target, modes.calls)
+				}
+			})
 		}
 
 		policy := newPolicyForTest(
@@ -255,9 +265,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		req := testRequest(ActorKind("unknown"), testWorkspaceA, testWorkspaceB)
 
 		decision, err := policy.Authorize(testutil.Context(t), req)
-		if err == nil || !strings.Contains(err.Error(), "unknown actor kind") {
-			t.Fatalf("Authorize() error = %v, want unknown actor kind", err)
-		}
+		assertErrorContains(t, err, "unknown actor kind")
 		assertDenied(t, decision, false)
 		if len(audit.records) != 1 || audit.records[0].Err == "" {
 			t.Fatalf("audit records = %#v, want one error denial", audit.records)
@@ -285,12 +293,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 				consent := &consentCacheStub{consent: ConsentAllow, ok: true}
 				policy := newPolicyForTest(t, modes, consent, &auditEmitterSpy{}, slog.Default())
 				decision, err := policy.Authorize(testutil.Context(t), tc.req)
-				if err == nil {
-					t.Fatal("Authorize() error = nil, want non-nil")
-				}
-				if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("Authorize() error = %v, want %q", err, tc.wantErr)
-				}
+				assertErrorContains(t, err, tc.wantErr)
 				assertDenied(t, decision, false)
 				if modes.calls != 0 || consent.calls != 0 {
 					t.Fatalf("dependency calls = modes:%d consent:%d, want zero", modes.calls, consent.calls)
@@ -410,7 +413,11 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}{
 			{name: "mode read failure", err: errors.New("read failed"), wantErr: "read failed"},
 			{name: "unknown session", err: errors.New("session not found"), wantErr: "session not found"},
-			{name: "unrecognized mode", mode: Mode("unrestricted"), wantErr: `unrecognized permission mode "unrestricted"`},
+			{
+				name:    "unrecognized mode",
+				mode:    Mode("unrestricted"),
+				wantErr: `unrecognized permission mode "unrestricted"`,
+			},
 		}
 		for _, tc := range cases {
 			t.Run("Should reject "+tc.name, func(t *testing.T) {
@@ -427,12 +434,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 					testutil.Context(t),
 					testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB),
 				)
-				if err == nil {
-					t.Fatal("Authorize() error = nil, want non-nil")
-				}
-				if !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("Authorize() error = %v, want %q", err, tc.wantErr)
-				}
+				assertErrorContains(t, err, tc.wantErr)
 				assertDenied(t, decision, false)
 				if len(audit.records) != 1 || audit.records[0].Err == "" || audit.records[0].Mode != tc.mode {
 					t.Fatalf("audit records = %#v, want error and mode %q", audit.records, tc.mode)
@@ -554,6 +556,13 @@ func requestWithoutSessionID() Request {
 	req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
 	req.Actor.SessionID = ""
 	return req
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want substring %q", err, want)
+	}
 }
 
 func assertDenied(t *testing.T, decision Decision, promptEligible bool) {

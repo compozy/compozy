@@ -3665,7 +3665,7 @@ func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
 		[]string{"task.write"},
 	)
 
-	createResult, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+	createResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"title":     "Lifecycle guard task",
 		"workspace": env.workspaceID,
@@ -3677,7 +3677,7 @@ func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
 	var created apicontract.TaskPayload
 	decodeResult(t, createResult, &created)
 
-	enqueueResult, err := env.call(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+	enqueueResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
 		"task_id":         created.ID,
 		"idempotency_key": "enqueue-guard",
 	})
@@ -3688,7 +3688,7 @@ func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
 	var run apicontract.TaskRunPayload
 	decodeResult(t, enqueueResult, &run)
 
-	_, err = env.call(t, "ext-tasks", "tasks/runs/start", map[string]any{
+	_, err = env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
 		"id":              run.ID,
 		"idempotency_key": "start-guard",
 	})
@@ -3702,7 +3702,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("ext-reader", []string{"tasks", "tasks/get"}, []string{"task.read"})
 
-	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	maxAttempts := 3
 	parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
 		Scope:       taskpkg.ScopeWorkspace,
@@ -3782,7 +3782,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
 
-	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+	listResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
 		"scope":          taskpkg.ScopeWorkspace,
 		"workspace":      env.workspaceID,
 		"priority":       taskpkg.PriorityHigh,
@@ -3846,7 +3846,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 		t.Fatal("tasks[0].LastActivityAt = nil, want latest activity timestamp")
 	}
 
-	withDraftsResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+	withDraftsResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
 		"scope":          taskpkg.ScopeWorkspace,
 		"workspace":      env.workspaceID,
 		"owner_kind":     taskpkg.OwnerKindExtension,
@@ -3874,7 +3874,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 		t.Fatal("tasks include_drafts missing draft payload")
 	}
 
-	getResult, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
+	getResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/get) error = %v", err)
 	}
@@ -3957,7 +3957,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		[]string{"task.read"},
 	)
 
-	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
@@ -4023,7 +4023,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("started run participation = %#v, want valid Live snapshot: %v", wantParticipation, err)
 	}
 
-	filteredResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+	filteredResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
 		"participation_channel": channelID,
 	})
 	if err != nil {
@@ -4041,7 +4041,12 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks participation channel filter snapshot = %#v, want channel %q", got, channelID)
 	}
 
-	runDetailResult, err := env.call(t, "ext-reader", "tasks/runs/get", map[string]any{"id": started.ID})
+	runDetailResult, err := env.callFromWorkspace(
+		t,
+		"ext-reader",
+		"tasks/runs/get",
+		map[string]any{"id": started.ID},
+	)
 	if err != nil {
 		t.Fatalf("Handle(tasks/runs/get) error = %v", err)
 	}
@@ -4085,7 +4090,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks/runs/get usage query = %#v, want workspace/run fence", usageQuery)
 	}
 
-	timelineResult, err := env.call(t, "ext-reader", "tasks/timeline", map[string]any{
+	timelineResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/timeline", map[string]any{
 		"id":    child.ID,
 		"limit": 10,
 	})
@@ -4112,7 +4117,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks/timeline run participation = %#v, want %#v", got, wantParticipation)
 	}
 
-	treeResult, err := env.call(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
+	treeResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/tree) error = %v", err)
 	}
@@ -4137,7 +4142,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks/tree active run participation = %#v, want %#v", got, wantParticipation)
 	}
 
-	dashboardResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+	dashboardResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/dashboard", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 	})
@@ -4168,7 +4173,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatal("tasks/dashboard active run latest_event_seq = 0, want durable stream fence")
 	}
 
-	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+	inboxResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/inbox", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 		"lane":      apicontract.TaskInboxLaneApprovals,
@@ -4199,7 +4204,7 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant("ext-writer", []string{"tasks/create", "tasks/update", "tasks/cancel"}, []string{"task.write"})
 
-	createResult, err := env.call(t, "ext-writer", "tasks/create", map[string]any{
+	createResult, err := env.callFromWorkspace(t, "ext-writer", "tasks/create", map[string]any{
 		"scope":           taskpkg.ScopeWorkspace,
 		"workspace":       env.workspaceID,
 		"title":           "Original title",
@@ -4220,7 +4225,7 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 	var created apicontract.TaskPayload
 	decodeResult(t, createResult, &created)
 
-	updateResult, err := env.call(t, "ext-writer", "tasks/update", map[string]any{
+	updateResult, err := env.callFromWorkspace(t, "ext-writer", "tasks/update", map[string]any{
 		"id":              created.ID,
 		"title":           " Updated title ",
 		"description":     " Updated description ",
@@ -4264,7 +4269,7 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		t.Fatalf("tasks/update metadata = %s, want updated marker", string(updated.Metadata))
 	}
 
-	clearOwnerResult, err := env.call(t, "ext-writer", "tasks/update", map[string]any{
+	clearOwnerResult, err := env.callFromWorkspace(t, "ext-writer", "tasks/update", map[string]any{
 		"id":          created.ID,
 		"clear_owner": true,
 	})
@@ -4278,7 +4283,7 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		t.Fatalf("tasks/update clear_owner owner = %#v, want nil", cleared.Owner)
 	}
 
-	cancelResult, err := env.call(t, "ext-writer", "tasks/cancel", map[string]any{
+	cancelResult, err := env.callFromWorkspace(t, "ext-writer", "tasks/cancel", map[string]any{
 		"id":     created.ID,
 		"reason": " user requested ",
 		"metadata": map[string]any{
@@ -4332,7 +4337,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	createTask := func(title string) apicontract.TaskPayload {
 		t.Helper()
 
-		result, err := env.call(t, "ext-runs", "tasks/create", map[string]any{
+		result, err := env.callFromWorkspace(t, "ext-runs", "tasks/create", map[string]any{
 			"scope":     taskpkg.ScopeWorkspace,
 			"workspace": env.workspaceID,
 			"title":     title,
@@ -4355,7 +4360,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		if metadata != nil {
 			params["metadata"] = metadata
 		}
-		result, err := env.call(t, "ext-runs", "tasks/runs/enqueue", params)
+		result, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/enqueue", params)
 		if err != nil {
 			t.Fatalf("Handle(tasks/runs/enqueue %q) error = %v", taskID, err)
 		}
@@ -4385,7 +4390,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	seedHostAPIRunClaimed(t, env, completedQueued.ID, "ext-runs")
 
 	boundSession := env.createSession(t)
-	attachResult, err := env.call(t, "ext-runs", "tasks/runs/attach_session", map[string]any{
+	attachResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/attach_session", map[string]any{
 		"id":         completedQueued.ID,
 		"session_id": boundSession.ID,
 	})
@@ -4399,7 +4404,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs/attach_session session_id = %q, want %q", got, want)
 	}
 
-	startResult, err := env.call(t, "ext-runs", "tasks/runs/start", map[string]any{
+	startResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              completedQueued.ID,
 		"idempotency_key": "start-complete",
 	})
@@ -4413,7 +4418,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs/start status = %q, want %q", got, want)
 	}
 
-	completeResult, err := env.call(t, "ext-runs", "tasks/runs/complete", map[string]any{
+	completeResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/complete", map[string]any{
 		"id":     completedQueued.ID,
 		"result": map[string]any{"ok": true},
 	})
@@ -4433,14 +4438,14 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	failedTask := createTask("Failed run task")
 	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail", nil)
 	seedHostAPIRunClaimed(t, env, failedQueued.ID, "ext-runs")
-	_, err = env.call(t, "ext-runs", "tasks/runs/start", map[string]any{
+	_, err = env.callFromWorkspace(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              failedQueued.ID,
 		"idempotency_key": "start-fail",
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks/runs/start fail path) error = %v", err)
 	}
-	failResult, err := env.call(t, "ext-runs", "tasks/runs/fail", map[string]any{
+	failResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/fail", map[string]any{
 		"id":    failedQueued.ID,
 		"error": " execution failed ",
 		"metadata": map[string]any{
@@ -4463,7 +4468,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 	cancelledTask := createTask("Canceled run task")
 	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel", nil)
 	seedHostAPIRunClaimed(t, env, cancelledQueued.ID, "ext-runs")
-	cancelRunResult, err := env.call(t, "ext-runs", "tasks/runs/cancel", map[string]any{
+	cancelRunResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs/cancel", map[string]any{
 		"id":     cancelledQueued.ID,
 		"reason": " no longer needed ",
 		"metadata": map[string]any{
@@ -4480,7 +4485,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs/cancel status = %q, want %q", got, want)
 	}
 
-	runsResult, err := env.call(t, "ext-runs", "tasks/runs", map[string]any{
+	runsResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs", map[string]any{
 		"id":         completedTask.ID,
 		"status":     taskpkg.TaskRunStatusCompleted,
 		"session_id": boundSession.ID,
@@ -4502,7 +4507,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		t.Fatalf("tasks/runs[0].session_id = %q, want %q", got, want)
 	}
 
-	runsWithMetadataResult, err := env.call(t, "ext-runs", "tasks/runs", map[string]any{
+	runsWithMetadataResult, err := env.callFromWorkspace(t, "ext-runs", "tasks/runs", map[string]any{
 		"id":         completedTask.ID,
 		"status":     taskpkg.TaskRunStatusCompleted,
 		"session_id": boundSession.ID,
@@ -5235,7 +5240,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "network_channel")
 
-	createResult, err := env.call(t, "ext-invalid", "tasks/create", map[string]any{
+	createResult, err := env.callFromWorkspace(t, "ext-invalid", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 		"title":     "Mutable task",
@@ -5247,7 +5252,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 	var created apicontract.TaskPayload
 	decodeResult(t, createResult, &created)
 
-	_, err = env.call(t, "ext-invalid", "tasks/update", map[string]any{
+	_, err = env.callFromWorkspace(t, "ext-invalid", "tasks/update", map[string]any{
 		"id":          created.ID,
 		"owner":       map[string]any{"kind": taskpkg.OwnerKindPool, "ref": "triage"},
 		"clear_owner": true,
@@ -5255,7 +5260,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "cannot both be set")
 
-	_, err = env.call(t, "ext-invalid", "tasks/runs/enqueue", map[string]any{
+	_, err = env.callFromWorkspace(t, "ext-invalid", "tasks/runs/enqueue", map[string]any{
 		"task_id":         created.ID,
 		"idempotency_key": "idem-invalid-channel",
 		"network_channel": "not valid",
@@ -5485,12 +5490,21 @@ type hostAPITestTaskSessionExecutor struct {
 	globalWorkspacePath string
 }
 
-func mustExtensionTaskActorContext(t testing.TB, extensionName string) taskpkg.ActorContext {
+func mustExtensionTaskActorContext(
+	t testing.TB,
+	extensionName string,
+	workspaceID string,
+) taskpkg.ActorContext {
 	t.Helper()
 
-	actor, err := taskpkg.DeriveExtensionActorContext(extensionName, "")
+	actor, err := taskpkg.DeriveExtensionActorContextForWorkspace(extensionName, workspaceID, "")
 	if err != nil {
-		t.Fatalf("DeriveExtensionActorContext(%q) error = %v", extensionName, err)
+		t.Fatalf(
+			"DeriveExtensionActorContextForWorkspace(%q, %q) error = %v",
+			extensionName,
+			workspaceID,
+			err,
+		)
 	}
 	return actor
 }
@@ -6029,6 +6043,25 @@ func (e *hostAPITestEnv) call(t testing.TB, extName string, method string, param
 		return nil, err
 	}
 	return e.handler.Handle(testutil.Context(t), extName, method, eRaw)
+}
+
+func (e *hostAPITestEnv) callFromWorkspace(
+	t testing.TB,
+	extName string,
+	method string,
+	params any,
+) (any, error) {
+	t.Helper()
+
+	ctx := withHostAPIResourceSession(testutil.Context(t), &hostAPIResourceSession{
+		Actor: resources.MutationActor{
+			Kind:     resources.MutationActorKindExtension,
+			ID:       extName,
+			Source:   extensionResourceSource(extName),
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: e.workspaceID},
+		},
+	})
+	return e.callWithContext(ctx, t, extName, method, params)
 }
 
 func (e *hostAPITestEnv) callWithContext(

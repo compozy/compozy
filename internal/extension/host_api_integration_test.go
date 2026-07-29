@@ -385,7 +385,7 @@ func TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun(t *testing.T) {
 		[]string{"task.write", "task.read"},
 	)
 
-	createResult, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+	createResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 		"title":     "Extension-created task",
@@ -400,7 +400,7 @@ func TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun(t *testing.T) {
 		t.Fatal("tasks/create id = empty, want non-empty")
 	}
 
-	enqueueResult, err := env.call(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+	enqueueResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
 		"task_id":         created.ID,
 		"idempotency_key": "enqueue-int",
 	})
@@ -439,7 +439,7 @@ func TestHostAPIIntegrationExtensionCanCreateTaskAndEnqueueRun(t *testing.T) {
 		t.Fatalf("storedRun.Origin.Ref = %q, want %q", got, want)
 	}
 
-	getResult, err := env.call(t, "ext-tasks", "tasks/get", map[string]any{"id": created.ID})
+	getResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/get", map[string]any{"id": created.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/get) error = %v", err)
 	}
@@ -462,7 +462,7 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 		[]string{"task.write"},
 	)
 
-	createResult, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+	createResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 		"title":     "Executable extension task",
@@ -474,7 +474,7 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 	var created apicontract.TaskPayload
 	decodeResult(t, createResult, &created)
 
-	enqueueResult, err := env.call(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
+	enqueueResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/enqueue", map[string]any{
 		"task_id":         created.ID,
 		"idempotency_key": "enqueue-start-int",
 	})
@@ -487,7 +487,7 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 
 	seedHostAPIRunClaimed(t, env, queued.ID, "ext-tasks")
 
-	startResult, err := env.call(t, "ext-tasks", "tasks/runs/start", map[string]any{
+	startResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
 		"id":              queued.ID,
 		"idempotency_key": "start-start-int",
 	})
@@ -535,7 +535,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		[]string{"task.read"},
 	)
 
-	actor := mustExtensionTaskActorContext(t, "seed-writer")
+	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
@@ -587,7 +587,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks.StartRun() error = %v", err)
 	}
 
-	getResult, err := env.call(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
+	getResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/get", map[string]any{"id": child.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/get) error = %v", err)
 	}
@@ -597,7 +597,12 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/get.task.id = %q, want %q", got, want)
 	}
 
-	runDetailResult, err := env.call(t, "ext-reader", "tasks/runs/get", map[string]any{"id": started.ID})
+	runDetailResult, err := env.callFromWorkspace(
+		t,
+		"ext-reader",
+		"tasks/runs/get",
+		map[string]any{"id": started.ID},
+	)
 	if err != nil {
 		t.Fatalf("Handle(tasks/runs/get) error = %v", err)
 	}
@@ -610,7 +615,12 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatal("tasks/runs/get.session = nil/empty, want session link")
 	}
 
-	timelineResult, err := env.call(t, "ext-reader", "tasks/timeline", map[string]any{"id": child.ID, "limit": 10})
+	timelineResult, err := env.callFromWorkspace(
+		t,
+		"ext-reader",
+		"tasks/timeline",
+		map[string]any{"id": child.ID, "limit": 10},
+	)
 	if err != nil {
 		t.Fatalf("Handle(tasks/timeline) error = %v", err)
 	}
@@ -620,7 +630,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatal("tasks/timeline len = 0, want events")
 	}
 
-	treeResult, err := env.call(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
+	treeResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
 	if err != nil {
 		t.Fatalf("Handle(tasks/tree) error = %v", err)
 	}
@@ -630,7 +640,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/tree.root.task.id = %q, want %q", got, want)
 	}
 
-	dashboardResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+	dashboardResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/dashboard", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 	})
@@ -643,7 +653,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
 	}
 
-	dashboardWorkspaceOnlyResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
+	dashboardWorkspaceOnlyResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/dashboard", map[string]any{
 		"workspace": env.workspaceID,
 	})
 	if err != nil {
@@ -655,7 +665,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/dashboard workspace-only tasks_total = %d, want >= 1", dashboardWorkspaceOnly.Totals.TasksTotal)
 	}
 
-	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+	inboxResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/inbox", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
 		"workspace": env.workspaceID,
 		"lane":      apicontract.TaskInboxLaneApprovals,
@@ -673,7 +683,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks/inbox groups = %#v, want task %q", inbox.Groups, approvalTask.ID)
 	}
 
-	inboxWorkspaceOnlyResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
+	inboxWorkspaceOnlyResult, err := env.callFromWorkspace(t, "ext-reader", "tasks/inbox", map[string]any{
 		"workspace": env.workspaceID,
 		"lane":      apicontract.TaskInboxLaneApprovals,
 		"limit":     10,
@@ -696,7 +706,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 		t.Fatalf("tasks.CreateTask(draft) error = %v", err)
 	}
 
-	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+	listResult, err := env.callFromWorkspace(t, "ext-reader", "tasks", map[string]any{
 		"workspace": env.workspaceID,
 		"limit":     1,
 	})

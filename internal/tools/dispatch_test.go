@@ -720,15 +720,26 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RuntimeRegistry.Call() error = %v", err)
 		}
+		wantPolicyRequest := workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
+			TargetWorkspaceID: "ws_0000000000000001",
+			Seam:              workspaceaccess.SeamTool,
+		}
 		if !called || calledWorkspaceID != "ws_0000000000000001" || resolverCalls != 1 || policy.calls != 1 ||
-			policy.last.TargetWorkspaceID != "ws_0000000000000001" || policy.last.Seam != workspaceaccess.SeamTool {
+			policy.last != wantPolicyRequest {
 			t.Fatalf(
-				"called/workspace/resolver/policy/request = %v/%q/%d/%d/%#v, want canonical tool authorization",
+				"called/workspace/resolver/policy/request = %v/%q/%d/%d/%#v, want canonical authorization %#v",
 				called,
 				calledWorkspaceID,
 				resolverCalls,
 				policy.calls,
 				policy.last,
+				wantPolicyRequest,
 			)
 		}
 

@@ -57,7 +57,15 @@ func directTaskActorContext(job *Job, runID string) (taskpkg.ActorContext, error
 	if job == nil {
 		return taskpkg.ActorContext{}, errors.New("automation: task-backed dispatch job is required")
 	}
-	return taskpkg.DeriveAutomationActorContext(strings.TrimSpace(job.ID), automationTaskOriginRef(runID))
+	workspaceID := ""
+	if job.Scope == AutomationScopeWorkspace {
+		workspaceID = strings.TrimSpace(job.WorkspaceID)
+	}
+	return taskpkg.DeriveAutomationActorContextForWorkspace(
+		strings.TrimSpace(job.ID),
+		workspaceID,
+		automationTaskOriginRef(runID),
+	)
 }
 
 func automationSessionTaskActorContext(
