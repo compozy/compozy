@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -307,14 +308,20 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/compozy"`) {
 		t.Fatalf("install.sh must install the same binary name GoReleaser builds")
 	}
-	installerVersion := shellAssignment(t, installScript, "VERSION")
-	if !strings.HasPrefix(installerVersion, "${COMPOZY_VERSION:-v0.3.0-beta.") ||
-		!strings.HasSuffix(installerVersion, "}") {
-		t.Fatalf(
-			"installer VERSION = %q, want an explicit v0.3 beta default with COMPOZY_VERSION override",
-			installerVersion,
+	t.Run("Should use a complete beta semantic version as the installer default", func(t *testing.T) {
+		t.Parallel()
+
+		installerVersion := shellAssignment(t, installScript, "VERSION")
+		betaVersion := regexp.MustCompile(
+			`^\$\{COMPOZY_VERSION:-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)-beta\.(?:0|[1-9][0-9]*)\}$`,
 		)
-	}
+		if !betaVersion.MatchString(installerVersion) {
+			t.Fatalf(
+				"installer VERSION = %q, want a complete beta semver default with COMPOZY_VERSION override",
+				installerVersion,
+			)
+		}
+	})
 	assertNotContainsText(t, "installer", installScript, "resolve_latest_release_tag")
 	assertNotContainsText(t, "installer", installScript, "releases/latest")
 }

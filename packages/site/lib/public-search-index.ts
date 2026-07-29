@@ -23,8 +23,8 @@ type TocHeading = {
 };
 
 const DOC_PATH_LABELS: Readonly<Record<string, string>> = {
-  runtime: "Runtime",
-  protocol: "Protocol",
+  runtime: "CompozyOS",
+  protocol: "Compozy Network",
   core: "Core concepts",
   "cli-reference": "CLI reference",
   "api-reference": "API reference",

@@ -230,7 +230,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Test matrix" }] },
         id: "/protocol/guide/testing",
         url: "/protocol/guide/testing",
-        breadcrumbs: ["Protocol", "Implementation guide"],
+        breadcrumbs: ["Compozy Network", "Implementation guide"],
         tag: "Compozy Network",
       },
       {
@@ -239,7 +239,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Current runtime" }] },
         id: "/protocol/implementation-status",
         url: "/protocol/implementation-status",
-        breadcrumbs: ["Protocol"],
+        breadcrumbs: ["Compozy Network"],
         tag: "Compozy Network",
       },
       {
@@ -248,7 +248,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "List sessions" }] },
         id: "/runtime/api-reference/sessions",
         url: "/runtime/api-reference/sessions",
-        breadcrumbs: ["Runtime", "API reference"],
+        breadcrumbs: ["CompozyOS", "API reference"],
         tag: "Runtime",
       },
       {
@@ -257,7 +257,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Options" }] },
         id: "/runtime/cli-reference/session/resume",
         url: "/runtime/cli-reference/session/resume",
-        breadcrumbs: ["Runtime", "CLI reference", "Session"],
+        breadcrumbs: ["CompozyOS", "CLI reference", "Session"],
         tag: "Runtime",
       },
       {
@@ -266,7 +266,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Browse the session catalog" }] },
         id: "/runtime/core/sessions",
         url: "/runtime/core/sessions",
-        breadcrumbs: ["Runtime", "Core concepts"],
+        breadcrumbs: ["CompozyOS", "Core concepts"],
         tag: "Runtime",
       },
       {
@@ -275,7 +275,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Choose a path" }] },
         id: "/runtime/how-to-use-these-docs",
         url: "/runtime/how-to-use-these-docs",
-        breadcrumbs: ["Runtime"],
+        breadcrumbs: ["CompozyOS"],
         tag: "Runtime",
       },
       {
@@ -284,7 +284,7 @@ describe("public search index", () => {
         structuredData: { headings: [{ content: "Setup" }] },
         id: "/runtime/use-cases/prepare-a-project-workspace",
         url: "/runtime/use-cases/prepare-a-project-workspace",
-        breadcrumbs: ["Runtime", "Use cases"],
+        breadcrumbs: ["CompozyOS", "Use cases"],
         tag: "Runtime",
       },
     ]);
@@ -302,11 +302,11 @@ describe("public search index", () => {
 
     expect(sessions).toEqual([
       {
-        breadcrumbs: ["Runtime", "API reference"],
+        breadcrumbs: ["CompozyOS", "API reference"],
         url: "/runtime/api-reference/sessions",
       },
       {
-        breadcrumbs: ["Runtime", "Core concepts"],
+        breadcrumbs: ["CompozyOS", "Core concepts"],
         url: "/runtime/core/sessions",
       },
     ]);

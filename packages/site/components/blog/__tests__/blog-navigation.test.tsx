@@ -39,6 +39,7 @@ function postWithoutCover(): Post {
     slug: "posts/fallback-visual",
     permalink: "/blog/fallback-visual",
     cover: undefined,
+    kinds: [],
   };
 }
 
