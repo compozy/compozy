@@ -4,7 +4,7 @@ import { redirect } from "@tanstack/react-router";
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 import {
   cachedForeignSessionOwner,
-  resolveSessionOwner,
+  resolveForeignSessionOwner,
   SessionNotFoundError,
   sessionDetailOptions,
   sessionTranscriptOptions,
@@ -119,8 +119,8 @@ async function resolveForeignPermalink(
   sessionId: string,
   activeWorkspaceId: string
 ): Promise<SessionPermalinkResolution> {
-  const owner = await resolveSessionOwner(queryClient, sessionId);
-  if (!owner || owner.workspaceId === activeWorkspaceId) {
+  const owner = await resolveForeignSessionOwner(queryClient, sessionId, activeWorkspaceId);
+  if (!owner) {
     throw new SessionNotFoundError(sessionId);
   }
   return { status: "foreign", owner };

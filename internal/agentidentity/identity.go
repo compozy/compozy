@@ -169,18 +169,22 @@ func ValidateWorkspaceAccess(
 	if targetWorkspaceID == "" || actorWorkspaceID == targetWorkspaceID {
 		return nil
 	}
-	if policy != nil {
-		decision, err := policy.Authorize(ctx, req)
-		if err == nil && decision.Allowed {
-			return nil
-		}
-	}
-	return identityError(
+	denied := identityError(
 		ErrIdentityUnauthorized,
 		"identity_unauthorized",
 		"agent session does not belong to the requested workspace",
 		workspaceaccess.DenialHint,
 	)
+	if policy != nil {
+		decision, err := policy.Authorize(ctx, req)
+		if err != nil {
+			return errors.Join(denied, err)
+		}
+		if decision.Allowed {
+			return nil
+		}
+	}
+	return denied
 }
 
 func deriveActorContext(

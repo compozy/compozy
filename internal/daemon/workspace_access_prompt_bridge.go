@@ -104,7 +104,10 @@ func (b *workspaceAccessPromptBridge) applyWorkspaceAccessOutcome(
 	sessionID string,
 	outcome acpsdk.RequestPermissionOutcome,
 ) (bool, error) {
-	if err := outcome.Validate(); err != nil || outcome.Selected == nil {
+	if err := outcome.Validate(); err != nil {
+		return false, fmt.Errorf("daemon: validate workspace access prompt outcome: %w", err)
+	}
+	if outcome.Selected == nil {
 		return false, errors.New("daemon: workspace access prompt returned no selected outcome")
 	}
 	switch outcome.Selected.OptionId {

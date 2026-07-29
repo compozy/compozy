@@ -411,30 +411,6 @@ func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
-		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeWorkspace,
-			WorkspaceID:      targetWorkspaceID,
-			ClaimerSessionID: "sess-source",
-			LeaseDuration:    time.Minute,
-		}, agent)
-		if err != nil {
-			t.Fatalf("ClaimNextRun(agent) error = %v", err)
-		}
-		if claim.Run.ID != queued.ID || claim.Run.WorkspaceID != targetWorkspaceID {
-			t.Fatalf("ClaimNextRun(agent) run = %#v, want queued run in foreign workspace", claim.Run)
-		}
-		if len(policy.requests) != 1 {
-			t.Fatalf("policy requests after agent claim = %d, want 1", len(policy.requests))
-		}
-		request := policy.requests[0]
-		if request.Actor.Kind != workspaceaccess.ActorAgentSession ||
-			request.Actor.SessionID != "sess-source" ||
-			request.Actor.WorkspaceID != sourceWorkspaceID ||
-			request.TargetWorkspaceID != targetWorkspaceID ||
-			request.Seam != workspaceaccess.SeamTask {
-			t.Fatalf("agent policy request = %#v, want propagated cross-workspace claim", request)
-		}
-
 		automation, err := taskpkg.DeriveAutomationActorContext("rule:nightly", "task.claim.integration")
 		if err != nil {
 			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
@@ -448,8 +424,32 @@ func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
 			t.Fatalf("ClaimNextRun(automation) error = %v, want ErrPermissionDenied", err)
 		}
-		if len(policy.requests) != 2 || policy.requests[1].Actor.Kind != workspaceaccess.ActorAutomation {
+		if len(policy.requests) != 1 || policy.requests[0].Actor.Kind != workspaceaccess.ActorAutomation {
 			t.Fatalf("automation policy requests = %#v, want denied automation kind at task seam", policy.requests)
+		}
+
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      targetWorkspaceID,
+			ClaimerSessionID: "sess-source",
+			LeaseDuration:    time.Minute,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(agent) error = %v", err)
+		}
+		if claim.Run.ID != queued.ID || claim.Run.WorkspaceID != targetWorkspaceID {
+			t.Fatalf("ClaimNextRun(agent) run = %#v, want queued run in foreign workspace", claim.Run)
+		}
+		if len(policy.requests) != 2 {
+			t.Fatalf("policy requests after agent claim = %d, want 2", len(policy.requests))
+		}
+		request := policy.requests[1]
+		if request.Actor.Kind != workspaceaccess.ActorAgentSession ||
+			request.Actor.SessionID != "sess-source" ||
+			request.Actor.WorkspaceID != sourceWorkspaceID ||
+			request.TargetWorkspaceID != targetWorkspaceID ||
+			request.Seam != workspaceaccess.SeamTask {
+			t.Fatalf("agent policy request = %#v, want propagated cross-workspace claim", request)
 		}
 	})
 }

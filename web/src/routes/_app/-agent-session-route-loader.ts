@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import {
   cachedForeignSessionOwner,
-  resolveSessionOwner,
+  resolveForeignSessionOwner,
   SessionNotFoundError,
   sessionDetailOptions,
   sessionTranscriptOptions,
@@ -62,8 +62,8 @@ async function resolveForeignSession(
   sessionId: string,
   activeWorkspaceId: string
 ): Promise<AgentSessionRouteLoaderData> {
-  const owner = await resolveSessionOwner(queryClient, sessionId);
-  if (!owner || owner.workspaceId === activeWorkspaceId) {
+  const owner = await resolveForeignSessionOwner(queryClient, sessionId, activeWorkspaceId);
+  if (!owner) {
     return { status: "not-found" };
   }
   return { status: "foreign", owner };

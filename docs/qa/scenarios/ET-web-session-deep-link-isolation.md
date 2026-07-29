@@ -6,7 +6,7 @@ persona: Théo
 journey: J-open-foreign-session
 expected: A deep link to a foreign-workspace session never changes the active workspace and never renders foreign session data before the operator confirms; cancelling keeps the active workspace, its arrangement, and the existing not-found state, and a session that exists nowhere stays not found with no confirmation offered.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

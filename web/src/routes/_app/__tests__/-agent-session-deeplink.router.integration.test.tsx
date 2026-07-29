@@ -31,6 +31,7 @@ import {
   sessionOwnerKeys,
   validateSessionDeepLinkSearch,
   type SessionDeepLinkSearch,
+  type SessionOwnerDialogState,
   type SessionPayload,
 } from "@/systems/session";
 import {
@@ -42,7 +43,8 @@ import {
 import { routeBeforeLoad, routeComponent, routeLoader } from "@/test/route-options";
 import type { AgentSessionRouteLoaderData } from "../-agent-session-route-loader";
 import { prefetchAgentSessionRoute } from "../-agent-session-route-loader";
-import { confirmSessionWorkspaceSwitch } from "../-session-workspace-switch";
+import type { SessionPermalinkRouteContext } from "../-session-permalink-route";
+import { confirmSessionWorkspaceSwitch } from "../-session-workspace-switch-action";
 import { Route as ProductionSessionPermalinkRoute } from "../session.$id";
 import { Route as ProductionAgentsRoute } from "../agents";
 import { Route as ProductionAgentRoute } from "../agents.$name";
@@ -237,15 +239,6 @@ function buildSessionDeepLinkRouter({
     defaultPreloadStaleTime: 0,
   });
 
-  return {
-    queryClient,
-    router,
-    loadSessionRoute,
-    agentsFleetRoute,
-    agentDetailRoute,
-    sessionRoute,
-  };
-
   function AgentsFleetRouteHarness() {
     return <main>Agents fleet</main>;
   }
@@ -303,14 +296,11 @@ function buildSessionDeepLinkRouter({
   }
 
   function PermalinkRouteHarness() {
-    const context = permalinkRoute.useRouteContext() as {
-      permalinkError?: string;
-      sessionOwner?: { sessionId: string; workspaceId: string; workspaceName: string };
-    };
+    const context = permalinkRoute.useRouteContext() as SessionPermalinkRouteContext;
     const { workspaceSwitch } = permalinkRoute.useSearch();
     const params = permalinkRoute.useParams();
     const navigate = permalinkRoute.useNavigate();
-    const owner = context.sessionOwner;
+    const owner: SessionOwnerDialogState | undefined = context.sessionOwner;
 
     if (!owner) {
       return <p>Permalink error: {context.permalinkError ?? "none"}</p>;
@@ -331,6 +321,15 @@ function buildSessionDeepLinkRouter({
       />
     );
   }
+
+  return {
+    queryClient,
+    router,
+    loadSessionRoute,
+    agentsFleetRoute,
+    agentDetailRoute,
+    sessionRoute,
+  };
 }
 
 function renderRouter(router: ReturnType<typeof buildSessionDeepLinkRouter>["router"]) {

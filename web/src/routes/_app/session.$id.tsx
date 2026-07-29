@@ -2,13 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { OsRouteHold } from "@/systems/os";
-import { SessionWorkspaceSwitchDialog, validateSessionDeepLinkSearch } from "@/systems/session";
+import { validateSessionDeepLinkSearch } from "@/systems/session";
 import {
   redirectSessionPermalinkRoute,
   type SessionPermalinkRouteContext,
 } from "./-session-permalink-route";
-import { confirmSessionWorkspaceSwitch } from "./-session-workspace-switch";
+import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
 
 /**
  * Permalink-by-id redirect. Resolves the agent name for a session and
@@ -38,20 +37,15 @@ function SessionPermalinkFallback() {
   if (!owner) return null;
 
   return (
-    <>
-      <OsRouteHold />
-      <SessionWorkspaceSwitchDialog
-        open={workspaceSwitch === "confirm"}
-        workspaceName={owner.workspaceName}
-        onConfirm={() =>
-          confirmSessionWorkspaceSwitch(owner, () => {
-            void navigate({ to: "/session/$id", params, search: {}, replace: true });
-          })
-        }
-        onCancel={() => {
-          void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
-        }}
-      />
-    </>
+    <SessionWorkspaceSwitchRouteDecision
+      open={workspaceSwitch === "confirm"}
+      owner={owner}
+      onReenter={() => {
+        void navigate({ to: "/session/$id", params, search: {}, replace: true });
+      }}
+      onDecline={() => {
+        void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
+      }}
+    />
   );
 }

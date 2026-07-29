@@ -256,7 +256,12 @@ func (m *Manager) validateSpawnWorkspace(
 	for _, ref := range refs {
 		resolved, resolveErr := resolver.Resolve(ctx, ref)
 		if resolveErr != nil {
-			return SpawnOpts{}, spawnWorkspaceAccessDenied(ref, strings.TrimSpace(parent.WorkspaceID))
+			return SpawnOpts{}, fmt.Errorf(
+				"%w: resolve child workspace %q: %w",
+				ErrSpawnValidation,
+				ref,
+				resolveErr,
+			)
 		}
 		resolvedID := strings.TrimSpace(resolved.ID)
 		if resolvedID == "" {
@@ -290,7 +295,15 @@ func (m *Manager) validateSpawnWorkspace(
 			TargetWorkspaceID: targetWorkspaceID,
 			Seam:              workspaceaccess.SeamSpawn,
 		})
-		if authorizeErr != nil || !decision.Allowed {
+		if authorizeErr != nil {
+			return SpawnOpts{}, fmt.Errorf(
+				"%w: authorize child workspace %q: %w",
+				ErrSpawnValidation,
+				targetWorkspaceID,
+				authorizeErr,
+			)
+		}
+		if !decision.Allowed {
 			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
 		}
 	}

@@ -214,8 +214,8 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 		}
 		workspaces := stubWorkspaceService{
 			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-				if ref != "target" {
-					t.Fatalf("Get() ref = %q, want target", ref)
+				if ref != "target" && ref != targetWorkspaceID {
+					t.Fatalf("Get() ref = %q, want target or %q", ref, targetWorkspaceID)
 				}
 				return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
 			},
@@ -229,14 +229,13 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				}, nil
 			},
 		}
-		policyCalls := 0
+		policyRequests := make([]workspaceaccess.Request, 0, 3)
 		policy := apitestutil.StubWorkspaceAccessPolicy{
 			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-				policyCalls++
+				policyRequests = append(policyRequests, req)
 				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
 					req.Actor.WorkspaceID != sourceWorkspaceID ||
-					req.TargetWorkspaceID != targetWorkspaceID ||
-					req.Seam != workspaceaccess.SeamIdentity {
+					req.TargetWorkspaceID != targetWorkspaceID {
 					t.Fatalf("Authorize() request = %#v, want HTTP identity mapping", req)
 				}
 				return workspaceaccess.Decision{
@@ -278,6 +277,35 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 		if created != 0 {
 			t.Fatalf("CreateTask() calls after deny = %d, want 0", created)
 		}
+		if len(policyRequests) != 1 || policyRequests[0].Seam != workspaceaccess.SeamIdentity {
+			t.Fatalf("task policy requests = %#v, want identity seam", policyRequests)
+		}
+
+		coordinationDenied := performRequestWithHeaders(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/workspaces/"+targetWorkspaceID+"/network-coordination",
+			nil,
+			map[string]string{
+				agentidentity.HeaderSessionID: "sess-approve-reads",
+				agentidentity.HeaderAgent:     "coder",
+			},
+		)
+		if coordinationDenied.Code != http.StatusForbidden {
+			t.Fatalf(
+				"coordination status = %d, want %d; body=%s",
+				coordinationDenied.Code,
+				http.StatusForbidden,
+				coordinationDenied.Body.String(),
+			)
+		}
+		if !strings.Contains(coordinationDenied.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf("coordination body = %s, want denial hint", coordinationDenied.Body.String())
+		}
+		if len(policyRequests) != 2 || policyRequests[1].Seam != workspaceaccess.SeamCoordination {
+			t.Fatalf("coordination policy requests = %#v, want coordination seam", policyRequests)
+		}
 
 		allowed := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
 			agentidentity.HeaderSessionID: "sess-approve-all",
@@ -291,8 +319,8 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				allowed.Body.String(),
 			)
 		}
-		if created != 1 || policyCalls != 2 {
-			t.Fatalf("created=%d policy_calls=%d, want 1 and 2", created, policyCalls)
+		if created != 1 || len(policyRequests) != 3 {
+			t.Fatalf("created=%d policy_requests=%d, want 1 and 3", created, len(policyRequests))
 		}
 	})
 }

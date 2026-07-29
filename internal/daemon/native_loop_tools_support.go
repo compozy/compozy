@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,21 +40,39 @@ func retiredNativeLoopRuntimePath(raw json.RawMessage) (string, bool) {
 	return looppkg.RetiredRuntimeKeyPath(raw)
 }
 
-func nativeLoopWorkspaceID(id toolspkg.ToolID, workspaceID string, scope toolspkg.Scope) (string, error) {
+func (n *daemonNativeTools) nativeLoopWorkspaceID(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceID string,
+	scope toolspkg.Scope,
+) (string, error) {
 	resolved := nativeCallerWorkspaceInput(workspaceID, scope)
 	if strings.TrimSpace(resolved) == "" {
 		return "", nativeRequiredInputError(id, nativeWorkspaceInputKey)
 	}
-	return strings.TrimSpace(resolved), nil
+	resolved = strings.TrimSpace(resolved)
+	if n == nil || n.deps == nil || n.deps.Workspaces == nil {
+		return resolved, nil
+	}
+	workspace, err := n.deps.Workspaces.Resolve(ctx, resolved)
+	if err != nil {
+		return "", nativeNetworkInputError(id, err)
+	}
+	registryID, err := nativeResolvedRegistryWorkspaceID(&workspace)
+	if err != nil {
+		return "", nativeNetworkInputError(id, err)
+	}
+	return registryID, nil
 }
 
-func nativeLoopWorkspaceAndName(
+func (n *daemonNativeTools) nativeLoopWorkspaceAndName(
+	ctx context.Context,
 	id toolspkg.ToolID,
 	workspaceID string,
 	name string,
 	scope toolspkg.Scope,
 ) (string, string, error) {
-	resolvedWorkspaceID, err := nativeLoopWorkspaceID(id, workspaceID, scope)
+	resolvedWorkspaceID, err := n.nativeLoopWorkspaceID(ctx, id, workspaceID, scope)
 	if err != nil {
 		return "", "", err
 	}
@@ -64,13 +83,14 @@ func nativeLoopWorkspaceAndName(
 	return resolvedWorkspaceID, resolvedName, nil
 }
 
-func nativeLoopWorkspaceAndRunID(
+func (n *daemonNativeTools) nativeLoopWorkspaceAndRunID(
+	ctx context.Context,
 	id toolspkg.ToolID,
 	workspaceID string,
 	runID string,
 	scope toolspkg.Scope,
 ) (string, string, error) {
-	resolvedWorkspaceID, err := nativeLoopWorkspaceID(id, workspaceID, scope)
+	resolvedWorkspaceID, err := n.nativeLoopWorkspaceID(ctx, id, workspaceID, scope)
 	if err != nil {
 		return "", "", err
 	}

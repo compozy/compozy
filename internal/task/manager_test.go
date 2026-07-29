@@ -7041,6 +7041,13 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		) {
 			t.Fatalf("AuthorizeTaskScope(deny) error = %v, want ErrPermissionDenied", err)
 		}
+
+		policyErr := errors.New("workspace policy unavailable")
+		failed := scopedTaskResourceAuthorizer{workspaceAccess: &recordingTaskWorkspaceAccessPolicy{err: policyErr}}
+		err := failed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b")
+		if !errors.Is(err, ErrPermissionDenied) || !errors.Is(err, policyErr) {
+			t.Fatalf("AuthorizeTaskScope(policy failure) error = %v, want denial joined with cause", err)
+		}
 	})
 
 	t.Run("Should deny workspace resource reads and mutations from unscoped automation", func(t *testing.T) {

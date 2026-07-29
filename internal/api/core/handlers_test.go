@@ -2776,11 +2776,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if _, err := os.Stat(globalPath); err != nil {
 			t.Fatalf("os.Stat(global twin) error = %v", err)
 		}
-		if soulPurger.workspaceID != "ws-registry" || soulPurger.name != "coder" ||
+		if soulPurger.workspaceID != "ws-identity" || soulPurger.name != "coder" ||
 			soulPurger.sourcePath != workspacePath {
 			t.Fatalf("soul purge = %#v", soulPurger)
 		}
-		if heartbeatPurger.workspaceID != "ws-registry" || heartbeatPurger.sourcePath != workspacePath {
+		if heartbeatPurger.workspaceID != "ws-identity" || heartbeatPurger.sourcePath != workspacePath {
 			t.Fatalf("heartbeat purge = %#v", heartbeatPurger)
 		}
 		repeat := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
@@ -3085,8 +3085,9 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{source},
+						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						WorkspaceID: "ws-identity",
+						Agents:      []compozyconfig.AgentDef{source},
 					}, nil
 				},
 			},
@@ -3105,8 +3106,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-1" {
-			t.Fatalf("duplicate payload = %#v, want ws-1 workspace origin", payload.Agent)
+		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-identity" {
+			t.Fatalf("duplicate payload = %#v, want stable workspace identity", payload.Agent)
 		}
 		targetPath := filepath.Join(
 			workspaceRoot,
@@ -3139,8 +3140,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		var explicitPayload contract.AgentResponse
 		decodeJSON(t, explicitResp.Body.Bytes(), &explicitPayload)
 		if explicitPayload.Agent.Origin != contract.AgentOriginWorkspace ||
-			explicitPayload.Agent.WorkspaceID != "ws-1" {
-			t.Fatalf("explicit duplicate payload = %#v, want ws-1 workspace origin", explicitPayload.Agent)
+			explicitPayload.Agent.WorkspaceID != "ws-identity" {
+			t.Fatalf("explicit duplicate payload = %#v, want stable workspace identity", explicitPayload.Agent)
 		}
 		explicitTargetPath := filepath.Join(
 			workspaceRoot,
@@ -3416,8 +3417,9 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
-							ID: "ws-1", Name: workspaceRef, RootDir: "/workspace",
+							ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
 						},
+						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
 							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
@@ -3498,6 +3500,36 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "ws-1" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
 		}
+
+		catalogResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace="+workspaceRef,
+			nil,
+		)
+		if catalogResp.Code != http.StatusOK {
+			t.Fatalf(
+				"workspace agent catalog status = %d, want %d; body = %s",
+				catalogResp.Code,
+				http.StatusOK,
+				catalogResp.Body.String(),
+			)
+		}
+		var catalog contract.AgentCatalogResponse
+		decodeJSON(t, catalogResp.Body.Bytes(), &catalog)
+		for _, agent := range catalog.Agents {
+			switch agent.Agent.Origin {
+			case contract.AgentOriginWorkspace:
+				if agent.Agent.WorkspaceID != "ws-1" {
+					t.Fatalf("workspace catalog agent = %#v, want durable workspace id ws-1", agent.Agent)
+				}
+			case contract.AgentOriginGlobal:
+				if agent.Agent.WorkspaceID != "" {
+					t.Fatalf("global catalog agent = %#v, want empty workspace id", agent.Agent)
+				}
+			}
+		}
 		onboardingResp := performRequest(
 			t,
 			fixture.Engine,
@@ -3568,7 +3600,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Workspace:   workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
 							{Name: "beta", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},

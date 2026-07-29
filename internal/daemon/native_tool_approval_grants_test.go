@@ -18,8 +18,9 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		grantStore := &recordingApprovalGrantStore{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: grantStore,
+			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{WorkspaceID: "ws-a", AgentName: "codex"}
+		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
@@ -73,8 +74,9 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: grantStore,
+			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{WorkspaceID: "ws-a", AgentName: "codex"}
+		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsList,
@@ -113,14 +115,19 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: &recordingApprovalGrantStore{},
+			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 			Workspaces:     nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
-		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-a"}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDToolApprovalsSet,
-			Input: json.RawMessage(
-				`{"workspace":"ws-b","tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`,
-			),
-		})
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolApprovalsSet,
+				Input: json.RawMessage(
+					`{"workspace":"ws-b","tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`,
+				),
+			},
+		)
 		if !errors.Is(err, toolspkg.ErrToolDenied) {
 			t.Fatalf("Registry.Call(workspace override) error = %v, want ErrToolDenied", err)
 		}
@@ -138,11 +145,16 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: &recordingApprovalGrantStore{},
+			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
-		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-a"}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDToolApprovalsRevoke,
-			Input:  json.RawMessage(`{"id":"foreign-or-missing"}`),
-		})
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolApprovalsRevoke,
+				Input:  json.RawMessage(`{"id":"foreign-or-missing"}`),
+			},
+		)
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Registry.Call(missing revoke) error = %v, want ErrToolNotFound", err)
 		}

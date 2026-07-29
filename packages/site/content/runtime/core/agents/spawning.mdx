@@ -36,17 +36,17 @@ caption="Compozy resolves workspace and provider configuration before launching 
 
 The session manager builds `acp.StartOpts` from the resolved workspace and agent:
 
-| Start option      | Source                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `AgentName`       | resolved `AGENT.md` name                                                                               |
-| `Command`         | `agent.command` or provider `command`                                                                  |
-| `Cwd`             | primary workspace root                                                                                 |
-| `AdditionalDirs`  | registered workspace additional roots                                                                  |
-| `Env`             | provider-policy environment plus Compozy session variables and bound secrets                           |
-| `MCPServers`      | resolved config/provider/agent/skill MCP server list                                                   |
-| `Permissions`     | resolved agent or global permission mode                                                               |
+| Start option      | Source                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `AgentName`       | resolved `AGENT.md` name                                                                                 |
+| `Command`         | `agent.command` or provider `command`                                                                    |
+| `Cwd`             | primary workspace root                                                                                   |
+| `AdditionalDirs`  | registered workspace additional roots                                                                    |
+| `Env`             | provider-policy environment plus Compozy session variables and bound secrets                             |
+| `MCPServers`      | resolved config/provider/agent/skill MCP server list                                                     |
+| `Permissions`     | resolved agent or global permission mode                                                                 |
 | `SystemPrompt`    | assembled startup prompt built from the CompozyOS runtime envelope, runtime context, and `AGENT.md` body |
-| `ResumeSessionID` | stored ACP session ID when resuming                                                                    |
+| `ResumeSessionID` | stored ACP session ID when resuming                                                                      |
 
 The ACP driver validates these before launch:
 

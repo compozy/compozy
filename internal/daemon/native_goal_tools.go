@@ -41,7 +41,7 @@ func (n *daemonNativeTools) goalGet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeLoopWorkspaceID(req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeLoopWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -78,7 +78,7 @@ func (n *daemonNativeTools) goalReport(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := nativeLoopWorkspaceID(req.ToolID, input.WorkspaceID, scope)
+	workspaceID, err := n.nativeLoopWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -138,7 +138,8 @@ func (n *daemonNativeTools) loopTurns(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, runID, err := nativeLoopWorkspaceAndRunID(
+	workspaceID, runID, err := n.nativeLoopWorkspaceAndRunID(
+		ctx,
 		req.ToolID,
 		input.WorkspaceID,
 		input.RunID,

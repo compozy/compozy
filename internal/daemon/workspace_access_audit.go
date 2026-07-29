@@ -13,6 +13,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+const workspaceAccessAuditWriteTimeout = 5 * time.Second
+
 type workspaceAccessAuditEmitter struct {
 	store store.EventSummaryStore
 	now   func() time.Time
@@ -64,7 +66,9 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	if err != nil {
 		return fmt.Errorf("daemon: encode workspace access audit payload: %w", err)
 	}
-	if err := e.store.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
+	defer cancel()
+	if err := e.store.WriteEventSummary(writeCtx, store.EventSummary{
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,

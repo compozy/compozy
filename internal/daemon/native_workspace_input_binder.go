@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -175,167 +174,10 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	if err != nil {
 		return nativeNetworkInputError(id, err)
 	}
-	if strings.TrimSpace(requestedWorkspace.ID) == strings.TrimSpace(trustedWorkspace.ID) {
-		return setNativeWorkspaceInput(payload, trustedWorkspace.ID)
+	if strings.TrimSpace(requestedWorkspace.WorkspaceID) == strings.TrimSpace(trustedWorkspace.WorkspaceID) {
+		return setNativeWorkspaceInput(payload, trustedWorkspace.WorkspaceID)
 	}
-	return setNativeWorkspaceInput(payload, requestedWorkspace.ID)
-}
-
-func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	descriptor toolspkg.Descriptor,
-	call toolspkg.CallRequest,
-) error {
-	if descriptor.Backend.Kind != toolspkg.BackendNativeGo || nativeWorkspaceScopeHasOperatorAuthority(scope) {
-		return nil
-	}
-	schema, acceptsWorkspace := nativeWorkspaceInputSchema(descriptor)
-	if !acceptsWorkspace {
-		return nil
-	}
-	var payload map[string]json.RawMessage
-	if err := json.Unmarshal(call.Input, &payload); err != nil || payload == nil {
-		return nativeWorkspaceObjectInputError(descriptor.ID, err)
-	}
-	targets := make(map[string]struct{})
-	collectNativeWorkspaceTargets(schema, payload, targets)
-	if len(targets) == 0 {
-		return nil
-	}
-	actor, live := b.nativeWorkspaceAccessActor(ctx, scope)
-	targetWorkspaceIDs := make([]string, 0, len(targets))
-	for targetWorkspaceID := range targets {
-		targetWorkspaceIDs = append(targetWorkspaceIDs, targetWorkspaceID)
-	}
-	slices.Sort(targetWorkspaceIDs)
-	for _, targetWorkspaceID := range targetWorkspaceIDs {
-		if err := b.authorizeWorkspaceTarget(
-			ctx,
-			scope,
-			descriptor,
-			call,
-			actor,
-			live,
-			targetWorkspaceID,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	descriptor toolspkg.Descriptor,
-	call toolspkg.CallRequest,
-	actor workspaceaccess.ActorRef,
-	live bool,
-	targetWorkspaceID string,
-) error {
-	if targetWorkspaceID == strings.TrimSpace(actor.WorkspaceID) {
-		return nil
-	}
-	if b == nil || b.workspaceAccess == nil {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
-	}
-	decision, err := b.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
-		Actor:             actor,
-		TargetWorkspaceID: targetWorkspaceID,
-		Seam:              workspaceaccess.SeamTool,
-	})
-	if err != nil {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
-	}
-	if decision.Allowed {
-		return nil
-	}
-	if !decision.PromptEligible || !live || b.prompter == nil {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
-	}
-	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, targetWorkspaceID)
-	if err != nil || !allowed {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
-	}
-	return nil
-}
-
-func nativeWorkspaceScopeUnbound(scope toolspkg.Scope) bool {
-	return strings.TrimSpace(scope.SessionID) == "" &&
-		strings.TrimSpace(scope.WorkspaceID) == "" &&
-		strings.TrimSpace(scope.AgentName) == "" &&
-		strings.TrimSpace(scope.ActorKind) == ""
-}
-
-func nativeWorkspaceScopeHasOperatorAuthority(scope toolspkg.Scope) bool {
-	return scope.Operator || nativeWorkspaceScopeUnbound(scope)
-}
-
-func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
-	ctx context.Context,
-	scope toolspkg.Scope,
-) (workspaceaccess.ActorRef, bool) {
-	actor := workspaceaccess.ActorRef{
-		Kind:        workspaceaccess.ActorAgentSession,
-		SessionID:   strings.TrimSpace(scope.SessionID),
-		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
-		AgentName:   strings.TrimSpace(scope.AgentName),
-	}
-	if b == nil || b.sessions == nil || actor.SessionID == "" {
-		return actor, false
-	}
-	info, err := b.sessions.Status(ctx, actor.SessionID)
-	if err != nil || info == nil {
-		return actor, false
-	}
-	actor.SessionID = strings.TrimSpace(info.ID)
-	actor.WorkspaceID = strings.TrimSpace(info.WorkspaceID)
-	actor.AgentName = strings.TrimSpace(info.AgentName)
-	return actor, info.State == session.StateActive
-}
-
-func collectNativeWorkspaceTargets(
-	schema map[string]json.RawMessage,
-	payload map[string]json.RawMessage,
-	targets map[string]struct{},
-) {
-	properties := nativeWorkspaceSchemaProperties(schema)
-	if _, ok := properties[nativeWorkspaceInputKey]; ok {
-		if value, valid := nativeWorkspaceInputValue(payload[nativeWorkspaceInputKey]); valid {
-			if value = strings.TrimSpace(value); value != "" {
-				targets[value] = struct{}{}
-			}
-		}
-	}
-	for name, rawSchema := range properties {
-		if name == nativeWorkspaceInputKey {
-			continue
-		}
-		childSchema := nativeWorkspaceSchemaObject(rawSchema)
-		if !nativeWorkspaceSchemaAcceptsWorkspace(childSchema) {
-			continue
-		}
-		var childPayload map[string]json.RawMessage
-		if err := json.Unmarshal(payload[name], &childPayload); err == nil && childPayload != nil {
-			collectNativeWorkspaceTargets(childSchema, childPayload, targets)
-		}
-	}
-	for _, keyword := range nativeWorkspaceCompositeKeywords {
-		for _, childSchema := range nativeWorkspaceCompositeSchemas(schema[keyword]) {
-			collectNativeWorkspaceTargets(childSchema, payload, targets)
-		}
-	}
-}
-
-func nativeWorkspaceAccessDeniedError(id toolspkg.ToolID) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeDenied,
-		id,
-		fmt.Sprintf("tool %q denied: %s", id, workspaceaccess.DenialHint),
-		toolspkg.ErrToolDenied,
-		toolspkg.ReasonWorkspaceAccessDenied,
-	)
+	return setNativeWorkspaceInput(payload, requestedWorkspace.WorkspaceID)
 }
 
 func nativeInputHasGlobalScope(payload map[string]json.RawMessage) bool {
@@ -368,7 +210,7 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	if err != nil {
 		return nativeNetworkInputError(id, err)
 	}
-	return setNativeWorkspaceInput(payload, resolved.ID)
+	return setNativeWorkspaceInput(payload, resolved.WorkspaceID)
 }
 
 func nativeWorkspaceInputSchema(

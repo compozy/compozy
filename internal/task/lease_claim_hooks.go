@@ -42,9 +42,21 @@ func (m *Service) normalizeClaimCriteriaForActor(
 	}
 	if normalized.Scope.Normalize() == ScopeWorkspace {
 		targetWorkspaceID := strings.TrimSpace(normalized.WorkspaceID)
-		if targetWorkspaceID != strings.TrimSpace(actor.Scope.WorkspaceID) &&
-			!taskWorkspaceAccessAllowed(ctx, m.workspaceAccess, actor, targetWorkspaceID) {
-			return ClaimCriteria{}, fmt.Errorf("%w: claim workspace does not match trusted caller", ErrPermissionDenied)
+		if targetWorkspaceID != strings.TrimSpace(actor.Scope.WorkspaceID) {
+			allowed, authorizeErr := taskWorkspaceAccessAllowed(ctx, m.workspaceAccess, actor, targetWorkspaceID)
+			if authorizeErr != nil {
+				return ClaimCriteria{}, fmt.Errorf(
+					"%w: authorize claim workspace: %w",
+					ErrPermissionDenied,
+					authorizeErr,
+				)
+			}
+			if !allowed {
+				return ClaimCriteria{}, fmt.Errorf(
+					"%w: claim workspace does not match trusted caller",
+					ErrPermissionDenied,
+				)
+			}
 		}
 	}
 	return normalized, nil

@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
@@ -758,7 +759,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(hosted-native) error = %v", err)
 		}
-		hostedServer := requireHostedMCPStdioServer(t, diagnostics)
+		hostedServer := requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest)
 		client := startHostedMCPClient(t, hostedServer)
 		defer func() {
 			if closeErr := client.Close(); closeErr != nil {
@@ -844,7 +845,10 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(provider-models) error = %v", err)
 		}
-		client := startHostedMCPClient(t, requireHostedMCPStdioServer(t, diagnostics))
+		client := startHostedMCPClient(
+			t,
+			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
+		)
 		defer func() {
 			if closeErr := client.Close(); closeErr != nil {
 				t.Fatalf("Close(hosted provider-models MCP client) error = %v", closeErr)
@@ -1023,6 +1027,10 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveWorkspace(target) error = %v", err)
 	}
+	targetIdentity, err := workspacepkg.EnsureIdentity(ctx, target.RootDir)
+	if err != nil {
+		t.Fatalf("EnsureIdentity(target) error = %v", err)
+	}
 	harness.WorkspaceID = sourceWorkspaceID
 	var (
 		onceSession       compozycontract.SessionPayload
@@ -1047,7 +1055,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				ctx,
 				harness,
 				denySession.ID,
-				target.ID,
+				targetIdentity.WorkspaceID,
 				workspaceaccess.SeamTool,
 				workspaceaccess.SourceDenied,
 				"workspace.access_denied",
@@ -1083,9 +1091,21 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 			onceClient,
 			"cross-once-2",
 			target.ID,
-			"allow-once",
+			"reject-once",
 		)
-		assertWorkspaceAccessAllowedResult(t, secondOnce)
+		assertWorkspaceAccessDeniedResult(t, secondOnce)
+		waitForRuntimeCondition(t, "allow-once workspace access audits", 5*time.Second, func() bool {
+			return workspaceAccessAuditCount(
+				t,
+				ctx,
+				harness,
+				onceSession.ID,
+				targetIdentity.WorkspaceID,
+				workspaceaccess.SeamTool,
+				workspaceaccess.SourceDenied,
+				"workspace.access_denied",
+			) == 2
+		})
 	})
 
 	t.Run("Should reuse allow-session consent within one live session", func(t *testing.T) {
@@ -1248,7 +1268,7 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(wake-creator) error = %v", err)
 	}
-	hostedServer := requireHostedMCPStdioServer(t, diagnostics)
+	hostedServer := requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest)
 	client := startHostedMCPClient(t, hostedServer)
 	clientClosed := false
 	defer func() {
@@ -1417,7 +1437,10 @@ func newWorkspaceAccessHostedSession(
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(%q) error = %v", agentName, err)
 	}
-	client := startHostedMCPClient(t, requireLatestHostedMCPStdioServer(t, diagnostics))
+	client := startHostedMCPClient(
+		t,
+		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
+	)
 	var init sdkmcp.InitializeRequest
 	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
 	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-workspace-access-e2e", Version: "1.0.0"}
@@ -1433,27 +1456,6 @@ func newWorkspaceAccessHostedSession(
 		}
 	})
 	return active, client
-}
-
-func requireLatestHostedMCPStdioServer(
-	t testing.TB,
-	records []acpmock.DiagnosticsRecord,
-) acpsdk.McpServerStdio {
-	t.Helper()
-
-	for index := len(records) - 1; index >= 0; index-- {
-		record := records[index]
-		if record.LifecycleEvent != "session_new" {
-			continue
-		}
-		for _, server := range record.MCPServers {
-			if server.Stdio != nil && server.Stdio.Name == mcppkg.HostedServerName {
-				return *server.Stdio
-			}
-		}
-	}
-	t.Fatalf("diagnostics = %#v, want latest session_new %s stdio MCP server", records, mcppkg.HostedServerName)
-	return acpsdk.McpServerStdio{}
 }
 
 func callWorkspaceAccessTool(
@@ -1583,8 +1585,11 @@ func assertWorkspaceAccessDeniedResult(t testing.TB, result *sdkmcp.CallToolResu
 		t.Fatalf("workspace access result content[0] = %T, want sdkmcp.TextContent", result.Content[0])
 	}
 	if !strings.Contains(content.Text, string(toolspkg.ReasonWorkspaceAccessDenied)) ||
-		!strings.Contains(content.Text, workspaceaccess.DenialHint) {
-		t.Fatalf("workspace access result text = %q, want reason and denial hint", content.Text)
+		!strings.Contains(content.Text, "tool invocation denied") {
+		t.Fatalf("workspace access result text = %q, want canonical denial", content.Text)
+	}
+	if strings.Contains(content.Text, workspaceaccess.DenialHint) {
+		t.Fatalf("workspace access result text = %q, want internal denial hint redacted", content.Text)
 	}
 }
 
@@ -1596,6 +1601,12 @@ func assertSessionPermissionEventCount(
 	want int,
 ) {
 	t.Helper()
+	if want > 0 {
+		waitForRuntimeCondition(t, "session permission event count", 5*time.Second, func() bool {
+			return sessionPermissionEventCount(t, ctx, harness, sessionID) == want
+		})
+		return
+	}
 	count := sessionPermissionEventCount(t, ctx, harness, sessionID)
 	if count != want {
 		t.Fatalf("session %q permission event count = %d, want %d", sessionID, count, want)
@@ -1634,6 +1645,29 @@ func workspaceAccessAuditExists(
 	eventType string,
 ) bool {
 	t.Helper()
+	return workspaceAccessAuditCount(
+		t,
+		ctx,
+		harness,
+		sessionID,
+		targetWorkspaceID,
+		seam,
+		source,
+		eventType,
+	) > 0
+}
+
+func workspaceAccessAuditCount(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	targetWorkspaceID string,
+	seam workspaceaccess.Seam,
+	source workspaceaccess.DecisionSource,
+	eventType string,
+) int {
+	t.Helper()
 
 	path := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 		"&type=" + url.QueryEscape(eventType) + "&limit=100"
@@ -1641,6 +1675,7 @@ func workspaceAccessAuditExists(
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &logs); err != nil {
 		t.Fatalf("UDSJSON(workspace access logs) error = %v", err)
 	}
+	count := 0
 	for _, event := range logs.Events {
 		if event.SessionID != sessionID || event.Type != eventType {
 			continue
@@ -1650,10 +1685,10 @@ func workspaceAccessAuditExists(
 			t.Fatalf("decode matching workspace access audit event %q: %v", event.Content, err)
 		}
 		if payload.TargetWorkspaceID == targetWorkspaceID && payload.Seam == seam && payload.Source == source {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 func assertWorkspaceAccessAgentCLIParity(
@@ -1813,13 +1848,28 @@ func assertWorkspaceAccessSpawnParity(
 	}
 }
 
+type hostedMCPServerSelection string
+
+const (
+	hostedMCPServerEarliest hostedMCPServerSelection = "earliest"
+	hostedMCPServerLatest   hostedMCPServerSelection = "latest"
+)
+
 func requireHostedMCPStdioServer(
 	t testing.TB,
 	records []acpmock.DiagnosticsRecord,
+	selection hostedMCPServerSelection,
 ) acpsdk.McpServerStdio {
 	t.Helper()
 
-	for _, record := range records {
+	start, end, step := 0, len(records), 1
+	if selection == hostedMCPServerLatest {
+		start, end, step = len(records)-1, -1, -1
+	} else if selection != hostedMCPServerEarliest {
+		t.Fatalf("hosted MCP server selection = %q, want earliest or latest", selection)
+	}
+	for index := start; index != end; index += step {
+		record := records[index]
 		if record.LifecycleEvent != "session_new" {
 			continue
 		}
@@ -1830,7 +1880,12 @@ func requireHostedMCPStdioServer(
 			return *server.Stdio
 		}
 	}
-	t.Fatalf("diagnostics = %#v, want session_new %s stdio MCP server", records, mcppkg.HostedServerName)
+	t.Fatalf(
+		"diagnostics = %#v, want %s session_new %s stdio MCP server",
+		records,
+		selection,
+		mcppkg.HostedServerName,
+	)
 	return acpsdk.McpServerStdio{}
 }
 

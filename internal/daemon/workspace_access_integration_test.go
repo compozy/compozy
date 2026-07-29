@@ -139,6 +139,39 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 		if !bytes.Contains(logs.Bytes(), []byte("workspace access audit emission failed")) {
 			t.Fatalf("logs = %q, want audit failure warning", logs.String())
 		}
+
+		deadlineStore := &workspaceAccessIntegrationDeadlineStore{EventSummaryStore: db}
+		deadlineEmitter, err := newWorkspaceAccessAuditEmitter(deadlineStore, time.Now)
+		if err != nil {
+			t.Fatalf("newWorkspaceAccessAuditEmitter(deadline) error = %v", err)
+		}
+		startedAt := time.Now()
+		if err := deadlineEmitter.EmitWorkspaceAccess(ctx, workspaceaccess.AccessRecord{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   "sess-a",
+				WorkspaceID: workspaceAccessIntegrationHome,
+				AgentName:   "coder",
+			},
+			TargetID: workspaceAccessIntegrationTarget,
+			Seam:     workspaceaccess.SeamTool,
+		}); err != nil {
+			t.Fatalf("EmitWorkspaceAccess(deadline) error = %v", err)
+		}
+		if deadlineStore.deadline.Before(startedAt) || deadlineStore.deadline.After(
+			startedAt.Add(workspaceAccessAuditWriteTimeout+time.Second),
+		) {
+			t.Fatalf(
+				"audit deadline = %s, want bounded by %s",
+				deadlineStore.deadline,
+				workspaceAccessAuditWriteTimeout,
+			)
+		}
+		select {
+		case <-deadlineStore.done:
+		default:
+			t.Fatal("audit write context remained live after EmitWorkspaceAccess returned")
+		}
 	})
 
 	t.Run("Should IT-024 resolve only live managed session permission modes", func(t *testing.T) {
@@ -396,6 +429,25 @@ func (workspaceAccessIntegrationAuditStub) EmitWorkspaceAccess(
 type workspaceAccessIntegrationFailingStore struct {
 	store.EventSummaryStore
 	writes int
+}
+
+type workspaceAccessIntegrationDeadlineStore struct {
+	store.EventSummaryStore
+	deadline time.Time
+	done     <-chan struct{}
+}
+
+func (s *workspaceAccessIntegrationDeadlineStore) WriteEventSummary(
+	ctx context.Context,
+	_ store.EventSummary,
+) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("workspace access audit write context has no deadline")
+	}
+	s.deadline = deadline
+	s.done = ctx.Done()
+	return nil
 }
 
 func (s *workspaceAccessIntegrationFailingStore) WriteEventSummary(

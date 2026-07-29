@@ -26,11 +26,6 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
 		}
-		for index := range resolved.Entries {
-			if resolved.Entries[index].Origin == contract.AgentOriginWorkspace {
-				resolved.Entries[index].WorkspaceID = resolved.WorkspaceID
-			}
-		}
 		h.respondAgentEntries(
 			c,
 			resolved.Entries,

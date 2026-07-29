@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
 entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /runtime/core/sessions/permissions#the-prompt-in-approve-reads
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

@@ -249,6 +249,26 @@ func TestResolveAuthorizesWorkspaceAccess(t *testing.T) {
 			t.Fatalf("Resolve() error = %q, want denial hint", err)
 		}
 	})
+
+	t.Run("Should preserve policy failures while denying workspace access", func(t *testing.T) {
+		t.Parallel()
+
+		policyErr := errors.New("policy store unavailable")
+		_, err := Resolve(t.Context(), ResolveOptions{
+			Credentials:         credentials,
+			Lookup:              lookup,
+			ExpectedWorkspaceID: "ws-target",
+			WorkspaceAccess: workspaceAccessPolicyFunc(func(
+				context.Context,
+				workspaceaccess.Request,
+			) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{}, policyErr
+			}),
+		})
+		if !errors.Is(err, ErrIdentityUnauthorized) || !errors.Is(err, policyErr) {
+			t.Fatalf("Resolve() error = %v, want identity denial joined with policy failure", err)
+		}
+	})
 }
 
 type workspaceAccessPolicyFunc func(

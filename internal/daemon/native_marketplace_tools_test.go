@@ -155,7 +155,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
 				Input:  json.RawMessage(`{"kind":"bundle","query":"starter","limit":5}`),
@@ -188,7 +188,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 
 		first, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
 				Input:  json.RawMessage(`{"kind":"bundle","limit":1}`),
@@ -213,7 +213,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		}
 		second, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMarketplaceSearch, Input: secondInput},
 		)
 		if err != nil {
@@ -241,7 +241,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
 				Input:  json.RawMessage(`{"cursor":"opaque"}`),
@@ -335,7 +335,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		state.deps.Extensions = lateBootExtensionService{}
 		result, err := nativeTools.marketplaceSearch(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMarketplaceSearch,
 				Input:  json.RawMessage(`{"kind":"extension"}`),

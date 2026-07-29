@@ -758,6 +758,14 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		if called {
 			t.Fatal("provider handle was called after workspace policy denial")
 		}
+		if policy.calls != 2 || policy.last != wantPolicyRequest {
+			t.Fatalf(
+				"policy calls/request after denial = %d/%#v, want 2/%#v",
+				policy.calls,
+				policy.last,
+				wantPolicyRequest,
+			)
+		}
 	})
 
 	t.Run("Should reject pre-call hook scope spoofing before provider invocation", func(t *testing.T) {

@@ -320,7 +320,12 @@ export class RoutingCoordinator {
     pending: RouteReconciliation,
     outcome: WindowManagerOpenOutcome
   ): void {
-    if (!outcome.accepted) return;
+    if (!outcome.accepted) {
+      if (this.routeReconciliation?.token !== pending.token) return;
+      this.routeReconciliation = null;
+      this.reportAuthoritativeState();
+      return;
+    }
     this.routeReconciliation = { ...pending, inFlight: true };
     void outcome.completion.then(() => {
       if (this.routeReconciliation?.token !== pending.token) return;

@@ -67,9 +67,15 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	if err != nil {
 		return workspaceAgentEntries{}, err
 	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	for index := range entries {
+		if entries[index].Origin == contract.AgentOriginWorkspace {
+			entries[index].WorkspaceID = workspaceID
+		}
+	}
 	return workspaceAgentEntries{
 		Entries:       entries,
-		WorkspaceID:   strings.TrimSpace(resolved.ID),
+		WorkspaceID:   workspaceID,
 		WorkspaceRoot: strings.TrimSpace(resolved.RootDir),
 		Config:        resolved.Config,
 		Diagnostics:   publicAgentDiagnostics(resolved.AgentDiagnostics),
@@ -104,9 +110,6 @@ func (h *BaseHandlers) workspaceAgentDef(
 	}
 	for _, entry := range resolved.Entries {
 		if strings.TrimSpace(entry.Def.Name) == trimmedName {
-			if entry.Origin == contract.AgentOriginWorkspace {
-				entry.WorkspaceID = resolved.WorkspaceID
-			}
 			return entry, resolved.Config, nil
 		}
 	}

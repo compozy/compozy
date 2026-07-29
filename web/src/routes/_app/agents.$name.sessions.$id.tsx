@@ -1,10 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { createOsRouteSync, OsRouteHold } from "@/systems/os";
-import { SessionWorkspaceSwitchDialog, validateSessionDeepLinkSearch } from "@/systems/session";
+import { createOsRouteSync } from "@/systems/os";
+import { validateSessionDeepLinkSearch } from "@/systems/session";
 import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
-import { confirmSessionWorkspaceSwitch } from "./-session-workspace-switch";
+import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
 
 const SessionRouteSync = createOsRouteSync("session");
 
@@ -57,25 +57,20 @@ function AgentSessionRoute() {
   }
 
   return (
-    <>
-      <OsRouteHold />
-      <SessionWorkspaceSwitchDialog
-        open={workspaceSwitch === "confirm"}
-        workspaceName={data.owner.workspaceName}
-        onConfirm={() =>
-          confirmSessionWorkspaceSwitch(data.owner, () => {
-            void navigate({
-              to: "/agents/$name/sessions/$id",
-              params,
-              search: {},
-              replace: true,
-            });
-          })
-        }
-        onCancel={() => {
-          void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
-        }}
-      />
-    </>
+    <SessionWorkspaceSwitchRouteDecision
+      open={workspaceSwitch === "confirm"}
+      owner={data.owner}
+      onReenter={() => {
+        void navigate({
+          to: "/agents/$name/sessions/$id",
+          params,
+          search: {},
+          replace: true,
+        });
+      }}
+      onDecline={() => {
+        void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
+      }}
+    />
   );
 }

@@ -184,7 +184,7 @@ func createAgentDefinitionTargetFor(
 				name,
 				compozyconfig.AgentDefinitionFileName,
 			),
-			WorkspaceID: strings.TrimSpace(resolved.ID),
+			WorkspaceID: strings.TrimSpace(resolved.WorkspaceID),
 			Config:      resolved.Config,
 		}, nil
 	default:

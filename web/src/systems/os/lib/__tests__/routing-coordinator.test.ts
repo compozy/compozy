@@ -266,6 +266,29 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
+  it("Should release an immediately rejected route intent for authoritative recovery", () => {
+    const tasks = windowFixture("tasks", "/tasks");
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([tasks, settings]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    store.openOrFocus.mockReturnValueOnce({
+      windowId: tasks.id,
+      accepted: false,
+      completion: Promise.resolve(false),
+    });
+    const deepLink = route("/tasks/task-42");
+
+    coordinator.reportRouteMatch(deepLink);
+
+    expect(router.replace).toHaveBeenCalledOnce();
+    expect(router.replace).toHaveBeenCalledWith(settings.route);
+
+    coordinator.reportRouteMatch(deepLink);
+
+    expect(store.openOrFocus).toHaveBeenCalledTimes(2);
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();

@@ -255,6 +255,14 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 				timeout:   time.Second,
 				wantError: "selected an unknown option",
 			},
+			{
+				name: "Should preserve a malformed ACP outcome",
+				requester: &recordingPermissionRequester{response: acp.RequestPermissionResponse{
+					Outcome: acpsdk.RequestPermissionOutcome{},
+				}},
+				timeout:   time.Second,
+				wantError: "must have exactly one variant set",
+			},
 		}
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {

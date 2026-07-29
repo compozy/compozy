@@ -136,7 +136,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		installResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
@@ -162,7 +162,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"slug":"acme/bad"}`, sourceDir)),
@@ -179,7 +179,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		sourceDir := writeNativeLocalExtensionFixture(t, "blocked-local-ext", "1.0.0")
 
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
 		})
@@ -201,7 +201,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		installResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
@@ -227,7 +227,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsDisable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -245,7 +245,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsEnable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -257,7 +257,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		source.latestVersion = "2.0.0"
 		checkResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
 				Input:  json.RawMessage(`{"name":"tool-ext","check_only":true}`),
@@ -270,7 +270,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		updateResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
 				Input:  json.RawMessage(`{"name":"tool-ext","allow_unverified":true}`),
@@ -290,7 +290,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDExtensionsList},
 		)
 		if err != nil {
@@ -300,7 +300,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		infoResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInfo,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -313,7 +313,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		removeResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsRemove,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -369,7 +369,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		deps.Extensions = func() core.ExtensionService { return service }
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
 		})
@@ -439,7 +439,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		deps.Extensions = func() core.ExtensionService { return service }
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input: json.RawMessage(
 				`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
@@ -478,7 +478,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext"}`),

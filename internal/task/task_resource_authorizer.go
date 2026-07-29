@@ -2,6 +2,8 @@ package task
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -44,13 +46,14 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	if scope.Normalize() == ScopeWorkspace {
 		actorWorkspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
 		targetWorkspaceID := strings.TrimSpace(workspaceID)
-		if actorWorkspaceID != targetWorkspaceID && !taskWorkspaceAccessAllowed(
-			ctx,
-			a.workspaceAccess,
-			actor,
-			targetWorkspaceID,
-		) {
-			return ErrPermissionDenied
+		if actorWorkspaceID != targetWorkspaceID {
+			allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, targetWorkspaceID)
+			if err != nil {
+				return errors.Join(ErrPermissionDenied, err)
+			}
+			if !allowed {
+				return ErrPermissionDenied
+			}
 		}
 	}
 	return nil
@@ -61,9 +64,9 @@ func taskWorkspaceAccessAllowed(
 	policy workspaceaccess.Policy,
 	actor ActorContext,
 	targetWorkspaceID string,
-) bool {
+) (bool, error) {
 	if policy == nil {
-		return false
+		return false, nil
 	}
 	decision, err := policy.Authorize(ctx, workspaceaccess.Request{
 		Actor: workspaceaccess.ActorRef{
@@ -75,7 +78,18 @@ func taskWorkspaceAccessAllowed(
 		TargetWorkspaceID: strings.TrimSpace(targetWorkspaceID),
 		Seam:              workspaceaccess.SeamTask,
 	})
-	return err == nil && decision.Allowed
+	if err != nil {
+		slog.ErrorContext(
+			ctx,
+			"task: workspace access authorization failed",
+			"error", err,
+			"actor_kind", actor.Actor.Kind.Normalize(),
+			"actor_ref", strings.TrimSpace(actor.Actor.Ref),
+			"workspace_id", strings.TrimSpace(targetWorkspaceID),
+			"seam", workspaceaccess.SeamTask,
+		)
+	}
+	return decision.Allowed, err
 }
 
 func (m *Service) authorizeTaskResource(

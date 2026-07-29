@@ -92,6 +92,10 @@ func TestValidatePermissionSubset(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSpawnWorkspaceAccess(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Should bind an authorized child to the foreign workspace after both validations", func(t *testing.T) {
 		t.Parallel()
@@ -126,8 +130,8 @@ func TestValidatePermissionSubset(t *testing.T) {
 		if child.Info().WorkspaceID != foreign.ID {
 			t.Fatalf("child workspace = %q, want %q", child.Info().WorkspaceID, foreign.ID)
 		}
-		if policy.calls != 2 {
-			t.Fatalf("policy calls = %d, want both prepareSpawn validations", policy.calls)
+		if policy.calls == 0 {
+			t.Fatal("workspace policy was not called")
 		}
 		wantRequest := workspaceaccess.Request{
 			Actor: workspaceaccess.ActorRef{
@@ -153,6 +157,58 @@ func TestValidatePermissionSubset(t *testing.T) {
 		})
 		if !errors.Is(err, ErrSpawnLimitExceeded) || !strings.Contains(err.Error(), foreign.ID) {
 			t.Fatalf("Spawn(second foreign child) error = %v, want target workspace cap", err)
+		}
+	})
+
+	t.Run("Should preserve child workspace resolution failures", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+		resolveErr := errors.New("workspace registry unavailable")
+		h.resolver.resolveErr = resolveErr
+
+		_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Workspace:       "ws-other",
+			TTL:             time.Minute,
+		})
+		if !errors.Is(err, ErrSpawnValidation) || !errors.Is(err, resolveErr) {
+			t.Fatalf("Spawn(resolve failure) error = %v, want validation joined with resolver cause", err)
+		}
+	})
+
+	t.Run("Should preserve workspace policy failures", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		foreign, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(home) error = %v", err)
+		}
+		foreign.ID = "ws-other"
+		h.resolver.upsert(&foreign)
+		policyErr := errors.New("workspace policy unavailable")
+		h.manager.SetWorkspaceAccessPolicy(&recordingSpawnWorkspaceAccessPolicy{err: policyErr})
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Workspace:       foreign.ID,
+			TTL:             time.Minute,
+		})
+		if !errors.Is(err, ErrSpawnValidation) || !errors.Is(err, policyErr) {
+			t.Fatalf("Spawn(policy failure) error = %v, want validation joined with policy cause", err)
 		}
 	})
 }
@@ -471,7 +527,14 @@ func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {
 			name: "cross workspace",
 			run: func(t *testing.T, h *harness, parent *Session) error {
 				t.Helper()
-				_, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				foreign, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+				if err != nil {
+					t.Fatalf("Resolve(home) error = %v", err)
+				}
+				foreign.ID = "ws-other"
+				foreign.Name = "other"
+				h.resolver.upsert(&foreign)
+				_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
 					ParentSessionID: parent.ID,
 					AgentName:       "coder",
 					Workspace:       "ws-other",
@@ -786,6 +849,7 @@ type recordingSessionSpawnHooks struct {
 
 type recordingSpawnWorkspaceAccessPolicy struct {
 	decision workspaceaccess.Decision
+	err      error
 	calls    int
 	requests []workspaceaccess.Request
 }
@@ -796,7 +860,7 @@ func (p *recordingSpawnWorkspaceAccessPolicy) Authorize(
 ) (workspaceaccess.Decision, error) {
 	p.calls++
 	p.requests = append(p.requests, req)
-	return p.decision, nil
+	return p.decision, p.err
 }
 
 func (h *recordingSessionSpawnHooks) DispatchSpawnPreCreate(

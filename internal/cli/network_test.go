@@ -52,6 +52,12 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				}
 				return []NetworkChannelRecord{}, nil
 			},
+			networkStatusFn: func(ctx context.Context) (NetworkStatusRecord, error) {
+				if got := networkAgentCredentialsFromContext(ctx); got != credentials {
+					t.Fatalf("NetworkStatus() credentials = %#v, want %#v", got, credentials)
+				}
+				return NetworkStatusRecord{}, nil
+			},
 		}
 		deps := newWorkspaceTestDeps(t, client)
 		deps.getenv = func(key string) string {
@@ -76,6 +82,18 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			"json",
 		); err != nil {
 			t.Fatalf("network channels error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"foreign-alias",
+			"status",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("network status error = %v", err)
 		}
 	})
 

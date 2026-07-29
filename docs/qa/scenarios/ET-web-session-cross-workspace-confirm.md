@@ -6,7 +6,7 @@ persona: Nia
 journey: J-open-foreign-session
 expected: A foreign-workspace session deep link shows a confirmation naming the owning workspace, and confirming activates that workspace and opens the session on both the canonical and short permalink routes; the confirmation state lives in the route so the link is replayable.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=confirm; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

@@ -91,7 +91,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 		Short: "Operate the daemon-owned network runtime",
 	}
 
-	cmd.AddCommand(newNetworkStatusCommand(deps))
+	cmd.AddCommand(newNetworkStatusCommand(deps, &workspaceRef))
 	cmd.PersistentFlags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.AddCommand(newNetworkPeersCommand(deps, &workspaceRef))
@@ -170,13 +170,16 @@ func resolveAgentNetworkWorkspaceRef(
 	return workspaceID, nil
 }
 
-func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
+func newNetworkStatusCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   networkStatusKey,
 		Short: "Show Network availability, Live participation, and runtime metrics",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
+				return err
+			}
+			if _, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef); err != nil {
 				return err
 			}
 

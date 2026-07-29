@@ -102,12 +102,15 @@ export type { QueuedPrompt } from "./lib/queued-prompt";
 export { sessionKeys } from "./lib/query-keys";
 export {
   cachedForeignSessionOwner,
+  resolveForeignSessionOwner,
   resolveSessionOwner,
   sessionOwnerDialogState,
+} from "./lib/session-owner-resolution";
+export {
   sessionOwnerKeys,
   sessionOwnerOptions,
   type SessionOwnerDialogState,
-} from "./lib/session-owner-query";
+} from "./lib/query-options";
 export { fetchSessionOwner } from "./adapters/session-owner-api";
 export {
   SESSION_WORKSPACE_SWITCH_STATES,

@@ -495,6 +495,9 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 					workspaceResolutionCrossAttempt,
 				)
 			}
+			if decoded.Workspace.ID != "ws-foreign" {
+				t.Fatalf("Workspace.ID = %q, want ws-foreign", decoded.Workspace.ID)
+			}
 		})
 	}
 
