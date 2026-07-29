@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -181,17 +180,9 @@ func openSessionDBReadOnlyOnce(ctx context.Context, sessionID string, path strin
 }
 
 func readOnlySessionSQLiteDSN(path string) string {
-	// Windows drive-letter normalization: absolute "C:\..." paths must be
-	// prefixed with "/" so url.URL serializes as "file:///C:/..." rather than
-	// "file://C:/..." (which SQLite parses as invalid uri authority "C:").
-	// See sqlite_config.go sqliteFilePath for full rationale.
-	slashPath := filepath.ToSlash(path)
-	if filepath.IsAbs(path) && !strings.HasPrefix(slashPath, "/") {
-		slashPath = "/" + slashPath
-	}
 	u := url.URL{
 		Scheme: "file",
-		Path:   slashPath,
+		Path:   store.SqliteFilePath(path),
 	}
 	query := u.Query()
 	query.Set("mode", "ro")
