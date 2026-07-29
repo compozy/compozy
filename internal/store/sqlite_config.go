@@ -28,10 +28,27 @@ func sqliteInitializationDSN(path string) string {
 	return sqliteDSNWithPragmas(path, false)
 }
 
+// SqliteFilePath normalizes a filesystem path for use as a file:// URL Path in a SQLite DSN.
+// url.URL requires an absolute path starting with "/" to produce the three-slash form
+// "file:///...". On Windows, filepath.IsAbs returns true for drive-letter paths (e.g.
+// "C:\..."), but filepath.ToSlash yields "C:/..." which url.URL serializes as "file://C:/..."
+// — the SQLite URI parser then interprets "C:" as the network authority rather than a drive
+// letter (failing with "invalid uri authority: C:"). Prepend "/" only for absolute paths
+// that lack one; relative paths are left unchanged so callers that pass relative paths are
+// unaffected. Exported so sibling packages (e.g. internal/store/sessiondb) build SQLite
+// DSNs through the same canonical normalization instead of duplicating the logic.
+func SqliteFilePath(path string) string {
+	slashPath := filepath.ToSlash(path)
+	if filepath.IsAbs(path) && !strings.HasPrefix(slashPath, "/") {
+		slashPath = "/" + slashPath
+	}
+	return slashPath
+}
+
 func sqliteReadOnlyDSN(path string) string {
 	u := url.URL{
 		Scheme: sqliteFileScheme,
-		Path:   filepath.ToSlash(path),
+		Path:   SqliteFilePath(path),
 	}
 	query := u.Query()
 	query.Set("mode", "ro")
@@ -42,7 +59,7 @@ func sqliteReadOnlyDSN(path string) string {
 func sqliteDSNWithPragmas(path string, runtimePragmas bool, extraPragmas ...string) string {
 	u := url.URL{
 		Scheme: sqliteFileScheme,
-		Path:   filepath.ToSlash(path),
+		Path:   SqliteFilePath(path),
 	}
 	query := u.Query()
 	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))

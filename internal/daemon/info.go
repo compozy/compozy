@@ -160,20 +160,3 @@ func RemoveInfo(path string) error {
 	}
 	return nil
 }
-
-func syncDir(path string) (returnErr error) {
-	dir, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("daemon: open directory %q for sync: %w", path, err)
-	}
-	defer func() {
-		if err := dir.Close(); err != nil {
-			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close directory %q after sync: %w", path, err))
-		}
-	}()
-
-	if err := dir.Sync(); err != nil {
-		return fmt.Errorf("daemon: sync directory %q: %w", path, err)
-	}
-	return nil
-}

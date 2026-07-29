@@ -19,10 +19,16 @@ func StartedAt(pid int) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("procutil: open process %d: %w", pid, err)
 	}
+	if handle == 0 || handle == windows.InvalidHandle {
+		return time.Time{}, fmt.Errorf("procutil: open process %d: invalid handle", pid)
+	}
 	defer windows.CloseHandle(handle)
 
-	var createdAt windows.Filetime
-	if err := windows.GetProcessTimes(handle, &createdAt, nil, nil, nil); err != nil {
+	// GetProcessTimes crashes with ACCESS_VIOLATION when passed nil pointers
+	// for the exit/kernel/user time outputs on some Windows builds. Allocate
+	// discard buffers so the syscall receives four valid Filetime pointers.
+	var createdAt, exitAt, kernelTime, userTime windows.Filetime
+	if err := windows.GetProcessTimes(handle, &createdAt, &exitAt, &kernelTime, &userTime); err != nil {
 		return time.Time{}, fmt.Errorf("procutil: read process %d times: %w", pid, err)
 	}
 

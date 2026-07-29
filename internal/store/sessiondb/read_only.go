@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -183,7 +182,7 @@ func openSessionDBReadOnlyOnce(ctx context.Context, sessionID string, path strin
 func readOnlySessionSQLiteDSN(path string) string {
 	u := url.URL{
 		Scheme: "file",
-		Path:   filepath.ToSlash(path),
+		Path:   store.SqliteFilePath(path),
 	}
 	query := u.Query()
 	query.Set("mode", "ro")

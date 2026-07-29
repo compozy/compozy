@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 func spawnDetachedLoggedProcess(
@@ -51,9 +52,15 @@ func spawnDetachedLoggedProcess(
 		return nil, errors.Join(err, closeDetachedLaunchHandles(stdinFile, logFile, req.LogPath))
 	}
 
+	// CREATE_NEW_PROCESS_GROUP detaches the daemon from the parent CLI's
+	// process group so Ctrl+C events sent to the CLI are not forwarded to
+	// the daemon. Unix uses Setpgid: true for the same effect.
 	process, err := startDetachedProcess(binary, launchArgv(binary, req.Args), &os.ProcAttr{
 		Env:   launchSandbox(req.Sandbox),
 		Files: []*os.File{stdinFile, logFile, logFile},
+		Sys: &syscall.SysProcAttr{
+			CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+		},
 	})
 	if err != nil {
 		return nil, errors.Join(
