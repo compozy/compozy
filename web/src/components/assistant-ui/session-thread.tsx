@@ -1,21 +1,20 @@
 import {
-  type DataMessagePartProps,
   MessagePrimitive,
-  type TextMessagePartProps,
   ThreadPrimitive,
   ReadonlyThreadProvider,
   type ThreadMessage,
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { ArrowDown } from "lucide-react";
+import { AlertCircle, ArrowDown } from "lucide-react";
 import { type ComponentPropsWithoutRef, useEffect, useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
+import { Marker } from "@compozy/ui";
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
-import { useSessionTranscriptThreadState } from "@/systems/session";
+import { SessionDecisionDock, useSessionTranscriptThreadState } from "@/systems/session";
 import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { isGoalCommandFailureGuidance } from "@/systems/session/lib/session-goal-chat-transport";
 import {
@@ -33,8 +32,8 @@ import { useThreadScrollController } from "./hooks/use-thread-scroll-controller"
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { MessageActions } from "./message-actions";
 import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
-import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
 import { formatMessageError } from "./session-thread-error";
+import { UserMessage } from "./session-user-message";
 import { SessionThreadErrorBoundary } from "./session-thread-error-boundary";
 import { AssistantMessageTimeline } from "./session-timeline-render";
 import { ThreadStatePane } from "./session-thread-states";
@@ -48,14 +47,6 @@ interface SessionThreadProps extends SessionComposerProps {
   acpSessionId?: string;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
-}
-
-function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
-  return <SessionMessageText text={text} streaming={state?.type === "running"} />;
-}
-
-function SessionDataPart(part: DataMessagePartProps<unknown>) {
-  return <SessionDataEventCard name={part.name} data={part.data} />;
 }
 
 function SessionMessageErrorNotice() {
@@ -72,39 +63,14 @@ function SessionMessageErrorNotice() {
   }
 
   return (
-    <div
+    <Marker
       role="alert"
       data-testid="session-message-error"
-      className={cn(
-        "rounded-md border px-3 py-2 text-small-body",
-        "border-danger/30 bg-danger/8",
-        "text-danger"
-      )}
+      tone="danger"
+      icon={<AlertCircle strokeWidth={1.8} />}
     >
       {error}
-    </div>
-  );
-}
-
-function UserMessage() {
-  return (
-    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pb-4 pt-1">
-      <div className="flex min-w-0 max-w-[min(80%,42rem)] flex-col items-end gap-1">
-        <div className={cn("w-full rounded-xl border px-4 py-3", "border-line bg-canvas-soft")}>
-          <MessagePrimitive.Parts
-            components={{
-              Text: ({ text, status }: TextMessagePartProps) => (
-                <SessionTextPart text={text} state={status} />
-              ),
-              data: {
-                Fallback: SessionDataPart,
-              },
-            }}
-          />
-        </div>
-        <MessageActions align="end" copyLabel="Copy message" testId="user-message-actions" />
-      </div>
-    </MessagePrimitive.Root>
+    </Marker>
   );
 }
 
@@ -116,9 +82,9 @@ function AssistantMessage() {
 
   return (
     <MessagePrimitive.Root
-      className={cn("group/message flex w-full min-w-0 pt-1", isRunning ? "pb-2" : "pb-4")}
+      className={cn("group/message flex w-full min-w-0 pt-1", isRunning ? "pb-[7px]" : "pb-[18px]")}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-[7px]">
         <SessionThreadErrorBoundary>
           <AssistantMessageTimeline />
         </SessionThreadErrorBoundary>
@@ -406,11 +372,13 @@ export function SessionThread({
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SessionComposerPrefillProvider setComposerText={composerState.prefillComposer}>
         {workspaceId && sessionState !== "starting" ? (
-          <SessionGoalHeaderContainer
-            onPrefillComposer={composerState.prefillComposer}
-            sessionId={sessionId}
-            workspaceId={workspaceId}
-          />
+          <ThreadContentRail inset={contentInset}>
+            <SessionGoalHeaderContainer
+              onPrefillComposer={composerState.prefillComposer}
+              sessionId={sessionId}
+              workspaceId={workspaceId}
+            />
+          </ThreadContentRail>
         ) : null}
         <ThreadViewport
           agentName={agentName}
@@ -427,6 +395,11 @@ export function SessionThread({
         <SessionComposer
           composerState={composerState}
           contentInset={contentInset}
+          decisionDock={
+            workspaceId ? (
+              <SessionDecisionDock sessionId={sessionId} workspaceId={workspaceId} />
+            ) : undefined
+          }
           canPrompt={lifecycleCanPrompt}
           onCancelPrompt={handleCancelPrompt}
           onQueuePrompt={onQueuePrompt}

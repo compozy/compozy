@@ -1,74 +1,72 @@
 import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
-import { CodeBlock } from "@compozy/ui";
-
 import type { UIMessage } from "../../types";
+import { DetailPre } from "./detail-pre";
 
-/** Format non-stderr output (stderr is rendered separately with error styling). */
+const VISIBLE_OUTPUT_LINES = 20;
+
+function clampLines(text: string, expanded: boolean): string {
+  if (expanded) return text;
+  const lines = text.split("\n");
+  if (lines.length <= VISIBLE_OUTPUT_LINES) return text;
+  return lines.slice(0, VISIBLE_OUTPUT_LINES).join("\n");
+}
+
+/** Format non-stderr output (stderr renders separately as danger text lines). */
 function formatBashOutput(result: NonNullable<UIMessage["toolResult"]>): string {
   const parts: string[] = [];
   if (result.stdout) parts.push(result.stdout);
   if (result.content && !result.stdout) parts.push(result.content);
-  if (result.error) parts.push(result.error);
   return parts.join("\n");
 }
 
+/**
+ * Bash detail in the rail grammar: the full command as a context line, stdout
+ * as muted mono, stderr and error channels as danger **text** — never a tinted
+ * block or ring.
+ */
 export function BashContent({ message }: { message: UIMessage }) {
   const command = message.toolInput?.command;
   const result = message.toolResult;
   const [expanded, setExpanded] = useState(false);
 
-  const formattedResult = result ? formatBashOutput(result) : "";
-  const totalLines = formattedResult ? formattedResult.split("\n").length : 0;
-  const truncateLines = expanded ? undefined : 20;
+  const output = result ? formatBashOutput(result) : "";
+  const stderr = result?.stderr ?? "";
+  const errorText = result?.error ?? "";
+  const totalLines =
+    (output ? output.split("\n").length : 0) + (stderr ? stderr.split("\n").length : 0);
+  const overflow = totalLines > VISIBLE_OUTPUT_LINES;
 
   return (
-    <div className="space-y-1.5 text-small-body" data-testid="bash-content">
-      {!!command && (
-        <CodeBlock code={String(command)} copyable={false} density="compact" truncateLines={4} />
-      )}
-      {result ? (
-        <div>
-          {result.stderr ? (
-            <CodeBlock
-              code={result.stderr}
-              copyable={false}
-              density="compact"
-              showPrompt={false}
-              tone="danger"
-            />
+    <div className="flex min-w-0 flex-col gap-1" data-testid="bash-content">
+      {command ? (
+        <DetailPre className="text-subtle" data-testid="bash-command">
+          $ {String(command)}
+        </DetailPre>
+      ) : null}
+      {output || stderr || errorText ? (
+        <DetailPre>
+          {output ? clampLines(output, expanded) : null}
+          {output && (stderr || errorText) ? "\n" : null}
+          {stderr ? (
+            <span className="text-danger" data-testid="bash-stderr">
+              {clampLines(stderr, expanded)}
+            </span>
           ) : null}
-          {formattedResult ? (
-            <CodeBlock
-              code={formattedResult}
-              copyable={false}
-              density="compact"
-              showPrompt={false}
-              truncateLines={truncateLines}
-            />
-          ) : null}
-          {!expanded && totalLines > 20 ? (
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              className="mt-1 flex items-center gap-1 text-form-label font-medium text-muted hover:text-fg transition-colors"
-            >
-              <ChevronsUpDown className="size-3" />
-              Show full output ({totalLines} lines)
-            </button>
-          ) : null}
-          {expanded && totalLines > 20 ? (
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="mt-1 flex items-center gap-1 text-form-label font-medium text-muted hover:text-fg transition-colors"
-            >
-              <ChevronsUpDown className="size-3" />
-              Collapse
-            </button>
-          ) : null}
-        </div>
+          {stderr && errorText ? "\n" : null}
+          {errorText ? <span className="text-danger">{errorText}</span> : null}
+        </DetailPre>
+      ) : null}
+      {overflow ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(value => !value)}
+          className="flex w-fit items-center gap-1 text-[11.5px] text-subtle transition-colors hover:text-fg"
+        >
+          <ChevronsUpDown aria-hidden="true" className="size-3" />
+          {expanded ? "Collapse" : `Show full output (${totalLines} lines)`}
+        </button>
       ) : null}
     </div>
   );

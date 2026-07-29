@@ -1,6 +1,6 @@
-import { Plus, Star } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import { cn, Kbd, SkeletonRows } from "@compozy/ui";
+import { cn, Eyebrow, SkeletonRows } from "@compozy/ui";
 
 import { ModelRow } from "./model-row";
 import type {
@@ -15,6 +15,11 @@ const AVAILABILITY_TONE: Record<GroupAvailability["tone"], string> = {
   danger: "text-danger",
 };
 
+/**
+ * Compact sticky group head (design ref: runtime-selector-variations.html,
+ * variation A): provider name, optional harness badge, and availability as a
+ * dot — labelled for AT and on hover, since color alone never carries state.
+ */
 function GroupHead({
   name,
   harnessBadge,
@@ -27,9 +32,9 @@ function GroupHead({
   return (
     <div
       role="presentation"
-      className="sticky top-0 z-[1] flex items-center gap-2 bg-canvas-soft px-2.5 pt-[9px] pb-[5px]"
+      className="sticky top-0 z-[1] flex items-center gap-1.5 bg-canvas px-2 pt-[7px] pb-[3px]"
     >
-      <span className="text-eyebrow font-semibold text-subtle">{name}</span>
+      <Eyebrow className="text-faint">{name}</Eyebrow>
       {harnessBadge ? (
         <span className="rounded-xxs bg-badge-fill px-[5px] py-px font-mono text-micro font-semibold tracking-mono text-faint">
           {harnessBadge.toUpperCase()}
@@ -37,25 +42,15 @@ function GroupHead({
       ) : null}
       {availability ? (
         <span
-          className={cn(
-            "ml-auto inline-flex items-center gap-1.5 text-badge font-medium",
-            AVAILABILITY_TONE[availability.tone]
-          )}
+          title={availability.label}
+          className={cn("ml-auto grid place-items-center", AVAILABILITY_TONE[availability.tone])}
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-          {availability.label}
+          <span className="sr-only">{availability.label}</span>
         </span>
       ) : null}
     </div>
   );
-}
-
-/** The active row's identity + favorite state, for the external favorite toggle. */
-export interface HighlightedFavorite {
-  name: string;
-  /** Provider display name — part of the button's stable accessible name. */
-  providerName: string;
-  favorite: boolean;
 }
 
 export interface ModelListProps {
@@ -70,9 +65,8 @@ export interface ModelListProps {
   onSelect: (provider: string, id: string) => void;
   /** Pointer hover activates a row by its keyboard index. */
   onHover: (rowIndex: number) => void;
-  /** The active row for the external favorite action (undefined when none). */
-  highlightedFavorite?: HighlightedFavorite;
-  onToggleHighlightedFavorite: () => void;
+  /** Pointer path for a row's favorite star (keyboard path is Alt+F in search). */
+  onToggleFavorite: (row: RuntimeGroupModel) => void;
   onCustomCommit: (id: string) => void;
   onFocusSearch: () => void;
 }
@@ -87,31 +81,27 @@ export function ModelList({
   providerKind,
   onSelect,
   onHover,
-  highlightedFavorite,
-  onToggleHighlightedFavorite,
+  onToggleFavorite,
   onCustomCommit,
   onFocusSearch,
 }: ModelListProps) {
-  const renderRow = (row: RuntimeGroupModel) => (
+  const renderRow = (row: RuntimeGroupModel, showGlyph: boolean) => (
     <ModelRow
       key={row.cursor}
       id={optionId(row.rowIndex)}
       model={row.model}
       providerName={providerName(row.model.provider)}
       iconKind={providerKind(row.model.provider)}
+      showGlyph={showGlyph}
       selected={row.selected}
       favorite={row.favorite}
       highlighted={row.rowIndex === highlightIndex}
       onSelect={onSelect}
       onHover={() => onHover(row.rowIndex)}
+      onToggleFavorite={() => onToggleFavorite(row)}
     />
   );
 
-  // Stable accessible name for the external favorite toggle — it never flips
-  // Favorite/Unfavorite; aria-pressed carries the on/off truth.
-  const favoriteLabel = highlightedFavorite
-    ? `Favorite ${highlightedFavorite.name} from ${highlightedFavorite.providerName}`
-    : "Favorite the active model";
   const hasOptions = listModel.flatRows.length > 0;
   const showsOptions = !loading && hasOptions;
 
@@ -119,7 +109,7 @@ export function ModelList({
     // Outer scroller owns the overflow so sticky group heads stick to its top,
     // while the `role="listbox"` stays PURE options — the custom-ID affordance is an
     // action, not a selectable option, so it sits OUTSIDE the listbox.
-    <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-1.5 pt-1.5 pb-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-1 pt-0.5 pb-1.5">
       <div
         role={showsOptions ? "listbox" : "status"}
         id={listId}
@@ -133,11 +123,11 @@ export function ModelList({
             className="px-2 py-2"
             count={5}
             data-testid="runtime-selector-loading"
-            rowClassName="border-b border-line-soft px-2 py-3"
+            rowClassName="border-b border-line-soft px-2 py-2.5"
           />
         ) : !hasOptions ? (
           <div
-            className="px-5 py-10 text-center text-small-body text-subtle"
+            className="px-4 py-8 text-center text-small-body text-subtle"
             data-testid="runtime-selector-empty"
           >
             No models match your search.
@@ -149,7 +139,8 @@ export function ModelList({
             {listModel.pinned.length > 0 ? (
               <div>
                 <GroupHead name={listModel.pinnedHeading} />
-                {listModel.pinned.map(renderRow)}
+                {/* Pinned rows span providers, so they keep the provider mark. */}
+                {listModel.pinned.map(row => renderRow(row, true))}
               </div>
             ) : null}
             {listModel.groups.map(group => (
@@ -159,50 +150,24 @@ export function ModelList({
                   harnessBadge={group.harnessBadge}
                   availability={group.availability}
                 />
-                {group.models.map(renderRow)}
+                {group.models.map(row => renderRow(row, false))}
               </div>
             ))}
           </>
         )}
       </div>
-      {!loading ? (
-        // A REAL favorite toggle, outside the listbox, acting on the active row.
-        // Pointer- and keyboard-activatable (Alt+F). Its accessible name is STABLE
-        // ("Favorite <model> from <provider>", provider identity included) and does
-        // NOT flip on toggle — favorite truth rides on aria-pressed, the toggle-
-        // button pattern. Never a fake span nested inside a listbox option. The
-        // visible text equals the accessible name (WCAG 2.5.3 label-in-name).
-        <button
-          type="button"
-          data-testid="runtime-selector-favorite-action"
-          data-favorite={highlightedFavorite?.favorite ? "true" : "false"}
-          disabled={!highlightedFavorite}
-          aria-pressed={highlightedFavorite?.favorite ?? false}
-          aria-keyshortcuts={highlightedFavorite ? "Alt+F" : undefined}
-          aria-label={favoriteLabel}
-          onClick={onToggleHighlightedFavorite}
-          className="mx-1.5 mt-1 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2.5 py-2 text-left text-small-body text-muted outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 data-[favorite=true]:text-warning"
-        >
-          <Star
-            aria-hidden="true"
-            className={cn("size-3.5 shrink-0", highlightedFavorite?.favorite && "fill-current")}
-          />
-          <span className="min-w-0 flex-1 truncate">{favoriteLabel}</span>
-          <Kbd className="shrink-0">⌥F</Kbd>
-        </button>
-      ) : null}
       {!loading && listModel.customLabel ? (
         <button
           type="button"
           data-testid="runtime-selector-custom"
-          className="mx-1.5 mt-1 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-md border border-dashed border-line-strong px-2.5 py-2.5 text-left text-small-body text-muted outline-none transition-colors hover:border-accent-dim hover:text-fg-strong focus-visible:border-accent-dim focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent"
+          className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:border-accent-dim hover:text-fg-strong focus-visible:border-accent-dim focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent"
           onClick={() => {
             if (listModel.customCommit) onCustomCommit(listModel.customCommit);
             else onFocusSearch();
           }}
         >
-          <Plus aria-hidden="true" className="size-3.5" />
-          {listModel.customLabel}
+          <Plus aria-hidden="true" className="size-3 shrink-0" />
+          <span className="min-w-0 truncate">{listModel.customLabel}</span>
         </button>
       ) : null}
     </div>

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SessionResumeFailure } from "../session-resume-failure";
 
 describe("SessionResumeFailure", () => {
-  it("renders a dedicated panel with session id and missing provider", () => {
+  it("renders the session-level banner with the provider and ids as body text", () => {
     render(
       <SessionResumeFailure
         agentName="claude-agent"
@@ -18,28 +18,18 @@ describe("SessionResumeFailure", () => {
     );
 
     expect(screen.getByTestId("session-resume-failure")).toBeInTheDocument();
-    expect(screen.getByTestId("session-resume-failure-provider")).toHaveTextContent("codex");
     expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
       "Attach failed: provider no longer available"
     );
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveAttribute(
-      "data-slot",
-      "alert-title"
+    // The provider reads inside the body sentence — no id pills, no chips.
+    expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
+      "provider codex"
     );
-    expect(screen.getByTestId("session-resume-failure-message")).toHaveAttribute(
-      "data-slot",
-      "alert-description"
-    );
-    expect(screen.getByTestId("session-resume-failure-meta").className).not.toContain("eyebrow");
-    expect(screen.getByTestId("session-resume-failure-meta").className).toContain("text-form-hint");
-    expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("sess_123");
-    expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("claude-agent");
-    expect(screen.getByTestId("session-resume-failure-meta").textContent).not.toMatch(
-      /SESS_123|CLAUDE-AGENT/
-    );
-    expect(screen.getByTestId("session-resume-failure-retry").className).toContain(
-      "bg-btn-default-fill"
-    );
+    const meta = screen.getByTestId("session-resume-failure-meta");
+    expect(meta.className).toContain("font-mono");
+    expect(meta).toHaveTextContent("sess_123");
+    expect(meta).toHaveTextContent("claude-agent");
+    expect(meta.textContent).not.toMatch(/SESS_123|CLAUDE-AGENT/);
   });
 
   it("falls back to the raw message when no provider could be parsed", () => {

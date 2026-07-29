@@ -15,7 +15,7 @@ import { IntensityMeter, UIProvider } from "@compozy/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
 import { runtimeModelKey } from "../model-key";
-import { ReasoningBar } from "../reasoning-bar";
+import { SelectorFooter } from "../selector-footer";
 import { RuntimeSelector, type RuntimeSelectorProps } from "../runtime-selector";
 import {
   hydrateRuntimeFavoritesFromStorage,
@@ -351,9 +351,9 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     expect(meter).toHaveAttribute("data-position", "0");
   });
 
-  it("Should render only the model's efforts as slider stops in canonical order — no None, no Default", async () => {
+  it("Should expose only the model's efforts as slider stops in canonical order — no None, no Default", async () => {
     const user = userEvent.setup();
-    renderSelector({
+    const { onChange } = renderSelector({
       value: { provider: "codex", model: "leveled", reasoning_effort: "" },
       models: [
         model("leveled", {
@@ -365,59 +365,29 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
 
     await openSelector(user);
 
+    // `none` is filtered out and there is no "" (Default) stop: four real levels
+    // → aria range 0..3, and the range edges are the lowest/highest real levels.
+    const track = screen.getByTestId("runtime-selector-reasoning-track");
+    expect(track).toHaveAttribute("aria-valuemin", "0");
+    expect(track).toHaveAttribute("aria-valuemax", "3");
+    fireEvent.keyDown(track, { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "leveled",
+      reasoning_effort: "low",
+    });
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "leveled",
+      reasoning_effort: "xhigh",
+    });
     const strip = screen.getByTestId("runtime-selector-reasoning");
-    const buttons = Array.from(strip.querySelectorAll<HTMLElement>("button[data-rz]"));
-    // `none` is filtered out and there is no "" (Default) stop — the first
-    // stop is the lowest real level.
-    expect(buttons.map(button => button.getAttribute("data-rz"))).toEqual([
-      "low",
-      "medium",
-      "high",
-      "xhigh",
-    ]);
     expect(within(strip).queryByText("Default")).not.toBeInTheDocument();
     expect(within(strip).queryByText("None")).not.toBeInTheDocument();
   });
 
-  it("Should tag the reasoning footer source badge as ACP for acp-sourced reasoning", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "acp-model", reasoning_effort: "" },
-      models: [
-        model("acp-model", {
-          name: "ACP Model",
-          efforts: ["low", "high"],
-          reasoning_source: "acp",
-        }),
-      ],
-    });
-
-    await openSelector(user);
-    expect(
-      within(screen.getByTestId("runtime-selector-reasoning")).getByText("ACP")
-    ).toBeInTheDocument();
-  });
-
-  it("Should tag the reasoning footer source badge as CATALOG for catalog-sourced reasoning", async () => {
-    const user = userEvent.setup();
-    renderSelector({
-      value: { provider: "codex", model: "cat-model", reasoning_effort: "" },
-      models: [
-        model("cat-model", {
-          name: "Catalog Model",
-          efforts: ["low", "high"],
-          reasoning_source: "catalog",
-        }),
-      ],
-    });
-
-    await openSelector(user);
-    expect(
-      within(screen.getByTestId("runtime-selector-reasoning")).getByText("CATALOG")
-    ).toBeInTheDocument();
-  });
-
-  it("Should emit the chosen effort when a reasoning footer level is clicked", async () => {
+  it("Should commit the level under the pointer when the track is clicked", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "leveled", reasoning_effort: "" },
@@ -425,9 +395,24 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     });
 
     await openSelector(user);
-    await user.click(
-      screen.getByTestId("runtime-selector-reasoning").querySelector('button[data-rz="high"]')!
-    );
+    const track = screen.getByTestId("runtime-selector-reasoning-track");
+    // jsdom has no layout: give the track real geometry so the pointer x → stop
+    // math resolves (16px round caps padded on both sides).
+    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 216,
+      bottom: 24,
+      width: 216,
+      height: 24,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    // Press + release at the far right cap → the highest level commits.
+    fireEvent.pointerDown(track, { button: 0, clientX: 208, pointerId: 1 });
+    fireEvent.pointerUp(track, { clientX: 208, pointerId: 1 });
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
@@ -459,12 +444,13 @@ describe("RuntimeSelector reasoning slider", () => {
 
     await openSelector(user);
 
-    // The default reads as selected (accent, marked label) without ever
-    // emitting a change — "" still means provider default on the wire.
+    // The default reads as selected (accent fill, current label in the thumb
+    // tip) without ever emitting a change — "" still means provider default on
+    // the wire.
     const track = sliderTrack();
     expect(track).toHaveAttribute("aria-valuenow", "1");
     expect(track).toHaveAttribute("aria-valuetext", "Medium (model default)");
-    expect(document.querySelector('button[data-rz="medium"]')).toHaveAttribute("data-on", "true");
+    expect(screen.getByTestId("runtime-selector-reasoning-tip")).toHaveTextContent("Medium");
     expect(screen.getByTestId("runtime-selector-reasoning-slider")).toHaveAttribute(
       "data-unset",
       "false"
@@ -531,7 +517,7 @@ describe("RuntimeSelector reasoning slider", () => {
     });
   });
 
-  it("Should commit the default level explicitly when its stop label is clicked", async () => {
+  it("Should commit the displayed default explicitly when its track position is clicked", async () => {
     const user = userEvent.setup();
     const { onChange } = renderSelector({
       value: { provider: "codex", model: "leveled", reasoning_effort: "" },
@@ -545,10 +531,24 @@ describe("RuntimeSelector reasoning slider", () => {
     });
 
     await openSelector(user);
-    await user.click(document.querySelector<HTMLElement>('button[data-rz="medium"]')!);
+    const track = sliderTrack();
+    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 216,
+      bottom: 24,
+      width: 216,
+      height: 24,
+      toJSON: () => ({}),
+    } as DOMRect);
 
-    // Clicking the already-displayed default is an explicit pick: the level
-    // goes on the wire instead of remaining "".
+    // Clicking the already-displayed default (track center = medium) is an
+    // explicit pick: the level goes on the wire instead of remaining "".
+    fireEvent.pointerDown(track, { button: 0, clientX: 108, pointerId: 1 });
+    fireEvent.pointerUp(track, { clientX: 108, pointerId: 1 });
+
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
       model: "leveled",
@@ -926,24 +926,24 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     return raw ? (JSON.parse(raw) as string[]) : [];
   }
 
-  it("Should persist a favorite toggle via the external favorite action (pointer)", async () => {
+  it("Should persist a favorite toggle from the row star without selecting the row (pointer)", async () => {
     const user = userEvent.setup();
-    renderSelector({
+    const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
       models: [model("gpt-a", { name: "GPT A" })],
     });
 
     await openSelector(user);
-    // Hover activates the row; the real external favorite button acts on it — no
-    // interactive control is nested inside the listbox option.
-    await user.hover(row("gpt-a"));
-    await user.click(screen.getByTestId("runtime-selector-favorite-action"));
+    // The star is a pointer-only affordance inside the option; clicking it
+    // toggles the favorite and must NOT commit the row as a selection.
+    await user.click(row("gpt-a").querySelector<HTMLElement>("[data-favorite-indicator]")!);
 
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
     expect(row("gpt-a")).toHaveAttribute("data-favorite", "true");
+    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("Should expose the favorite action as a real toggle button with no interactive control nested in options", async () => {
+  it("Should keep options pure — no focusable control nests inside, and the star stays out of the a11y tree", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -951,26 +951,18 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     });
 
     await openSelector(user);
-    // ARIA-valid list: a listbox option wraps no button / role=button descendant.
-    expect(row("gpt-a").querySelector("button, [role='button']")).toBeNull();
-
-    await user.hover(row("gpt-a"));
-    const favButton = screen.getByTestId("runtime-selector-favorite-action");
-    expect(favButton.tagName).toBe("BUTTON");
-    // A real toggle button whose accessible name is STABLE (includes provider
-    // identity) and does NOT flip on toggle — favorite truth rides on aria-pressed.
-    expect(favButton).toHaveAttribute("aria-pressed", "false");
-    expect(favButton).toHaveAccessibleName("Favorite GPT A from Codex");
-
-    await user.click(favButton);
-    // Toggling flips aria-pressed; the accessible name stays identical.
-    expect(favButton).toHaveAttribute("aria-pressed", "true");
-    expect(favButton).toHaveAccessibleName("Favorite GPT A from Codex");
+    // ARIA-valid list: a listbox option wraps no button / role=button / tabbable
+    // descendant; the star affordance is aria-hidden (keyboard/AT path = Alt+F).
+    const option = row("gpt-a");
+    expect(option.querySelector("button, [role='button'], [tabindex='0']")).toBeNull();
+    const star = option.querySelector<HTMLElement>("[data-favorite-indicator]");
+    expect(star).not.toBeNull();
+    expect(star).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("Should keep the favorite action disabled for a disabled row", async () => {
+  it("Should ignore star clicks on a disabled row and Alt+F with no highlight", async () => {
     const user = userEvent.setup();
-    renderSelector({
+    const { onChange } = renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
       models: [
         model("gpt-disabled", {
@@ -982,10 +974,9 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     });
 
     await openSelector(user);
-    await user.hover(row("gpt-disabled"));
-    const favorite = screen.getByTestId("runtime-selector-favorite-action");
-    expect(favorite).toBeDisabled();
-    expect(favorite).not.toHaveAttribute("aria-keyshortcuts");
+    await user.click(row("gpt-disabled").querySelector<HTMLElement>("[data-favorite-indicator]")!);
+    expect(readList(FAVORITES_STORAGE_KEY)).toEqual([]);
+    expect(onChange).not.toHaveBeenCalled();
 
     fireEvent.keyDown(screen.getByTestId("runtime-selector-search"), {
       code: "KeyF",
@@ -1011,7 +1002,7 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     expect(readList(FAVORITES_STORAGE_KEY)).toContain(runtimeModelKey("codex", "gpt-a"));
   });
 
-  it("Should carry the Alt+F shortcut on the external favorite control, never on listbox options", async () => {
+  it("Should carry the Alt+F shortcut on the search combobox, never on listbox options", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -1019,11 +1010,10 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     });
 
     await openSelector(user);
-    // The option is pure — no aria-keyshortcuts. The real external favorite button
-    // is the only carrier of the Alt+F accelerator once it has an active target.
+    // Options stay pure — no aria-keyshortcuts. The search input (where focus
+    // lives during list navigation) is the accelerator's carrier.
     expect(row("gpt-a")).not.toHaveAttribute("aria-keyshortcuts");
-    await user.hover(row("gpt-a"));
-    expect(screen.getByTestId("runtime-selector-favorite-action")).toHaveAttribute(
+    expect(screen.getByTestId("runtime-selector-search")).toHaveAttribute(
       "aria-keyshortcuts",
       "Alt+F"
     );
@@ -1076,7 +1066,8 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     const search = screen.getByTestId("runtime-selector-search");
     expect(search).toHaveAttribute("aria-activedescendant", occurrences[1].id);
 
-    await user.click(screen.getByTestId("runtime-selector-favorite-action"));
+    // Unfavoriting the grouped occurrence collapses the pinned duplicate.
+    await user.click(occurrences[1].querySelector<HTMLElement>("[data-favorite-indicator]")!);
     await waitFor(() =>
       expect(document.querySelectorAll<HTMLElement>('[data-model="gpt-a"]')).toHaveLength(1)
     );
@@ -1488,9 +1479,10 @@ describe("RuntimeSelector compound provider·model identity", () => {
     });
 
     await openSelector(user);
-    // Hover the Claude row so the external favorite action targets that exact tuple.
-    await user.hover(rowFor("claude", "shared-model"));
-    await user.click(screen.getByTestId("runtime-selector-favorite-action"));
+    // The Claude row's own star targets exactly that (provider, model) tuple.
+    await user.click(
+      rowFor("claude", "shared-model").querySelector<HTMLElement>("[data-favorite-indicator]")!
+    );
 
     const favorites = readStoredList(FAVORITES_STORAGE_KEY);
     expect(favorites).toContain(runtimeModelKey("claude", "shared-model"));
@@ -1686,7 +1678,7 @@ describe("RuntimeSelector single-line row", () => {
     expect(row("plain").querySelector("[data-reasoning-indicator]")).toBeNull();
   });
 
-  it("Should mark the selected row with a neutral tint and a check, never the accent tint", async () => {
+  it("Should mark the selected row with the accent tint and a structural check", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "picked", reasoning_effort: "" },
@@ -1698,9 +1690,9 @@ describe("RuntimeSelector single-line row", () => {
       '[data-model="picked"][data-selected="true"]'
     );
     expect(selected).not.toBeNull();
-    // Selection is the neutral row tint + structural check — not the accent wash.
-    expect(selected?.className).toContain("bg-row-selected");
-    expect(selected?.className).not.toContain("bg-accent-tint");
+    // Variation A contract (runtime-selector-variations.html): the selected row
+    // carries the accent tint as live selection state, plus the non-color check.
+    expect(selected?.className).toContain("bg-accent-tint");
     expect(selected?.querySelector("[data-selected-check]")).not.toBeNull();
   });
 });
@@ -1740,7 +1732,115 @@ describe("RuntimeSelector reasoning footer modes", () => {
       reasoning_effort: "",
     });
     expect(footer).toHaveAttribute("data-reasoning-mode", "none");
-    expect(footer).toHaveTextContent("doesn’t use reasoning effort");
+    expect(footer).toHaveTextContent("No reasoning effort");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ACP speed request (PR #267)
+// ---------------------------------------------------------------------------
+
+describe("RuntimeSelector speed request", () => {
+  const leveledModels = [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })];
+
+  it("Should render no speed switch when the surface does not wire onSpeedChange", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+    });
+
+    await openSelector(user);
+    expect(screen.queryByTestId("runtime-selector-speed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("Should expose the wired speed switch as a checked switch named Fast and toggle the request", async () => {
+    const user = userEvent.setup();
+    const onSpeedChange = vi.fn();
+    renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+      props: { speed: "normal", onSpeedChange },
+    });
+
+    await openSelector(user);
+    const speedSwitch = screen.getByTestId("runtime-selector-speed");
+    expect(speedSwitch).toHaveRole("switch");
+    expect(speedSwitch).toHaveAccessibleName("Fast");
+    expect(speedSwitch).toHaveAttribute("aria-checked", "false");
+
+    await user.click(speedSwitch);
+    expect(onSpeedChange).toHaveBeenLastCalledWith("fast");
+  });
+
+  it("Should report fast as checked and emit normal on the next toggle", async () => {
+    const user = userEvent.setup();
+    const onSpeedChange = vi.fn();
+    renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+      props: { speed: "fast", onSpeedChange },
+    });
+
+    await openSelector(user);
+    const speedSwitch = screen.getByTestId("runtime-selector-speed");
+    expect(speedSwitch).toHaveAttribute("aria-checked", "true");
+
+    await user.click(speedSwitch);
+    expect(onSpeedChange).toHaveBeenLastCalledWith("normal");
+  });
+
+  it("Should render the speed switch beside every reasoning footer mode when wired", async () => {
+    const user = userEvent.setup();
+    const withSwitch = renderSelector({
+      value: { provider: "codex", model: "plain", reasoning_effort: "" },
+      models: [model("plain", { name: "Plain", efforts: [] })],
+      props: { speed: "normal", onSpeedChange: vi.fn() },
+    });
+
+    await openSelector(user);
+    const footer = screen.getByTestId("runtime-selector-reasoning");
+    expect(footer).toHaveAttribute("data-reasoning-mode", "none");
+    expect(within(footer).getByTestId("runtime-selector-speed")).toBeInTheDocument();
+    withSwitch.unmount();
+  });
+
+  it("Should mark the trigger with the fast bolt and speak the request in the accessible summary", () => {
+    renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+      props: { speed: "fast", onSpeedChange: vi.fn() },
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
+    expect(trigger).toHaveAccessibleName(
+      "Runtime: Codex / Leveled, reasoning provider default, fast speed requested"
+    );
+  });
+
+  it("Should keep the trigger bolt off while the request is normal or the surface is unwired", () => {
+    const normalWired = renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+      props: { speed: "normal", onSpeedChange: vi.fn() },
+    });
+    expect(
+      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
+    ).toBeNull();
+    normalWired.unmount();
+
+    // An unwired surface must never show speed state, even if a stale `speed`
+    // prop leaks in without its handler.
+    renderSelector({
+      value: { provider: "codex", model: "leveled", reasoning_effort: "" },
+      models: leveledModels,
+      props: { speed: "fast" },
+    });
+    expect(
+      screen.getByTestId("rt-trigger").querySelector('[data-slot="runtime-selector-fast"]')
+    ).toBeNull();
   });
 });
 
@@ -1755,20 +1855,8 @@ describe("RuntimeSelector reasoning slider label identity", () => {
     );
     render(
       <UIProvider reducedMotion="never" skipAnimations>
-        <ReasoningBar
-          reasoning={reasoning}
-          value=""
-          providerName="Codex"
-          modelName="Leveled"
-          onSelect={() => {}}
-        />
-        <ReasoningBar
-          reasoning={reasoning}
-          value=""
-          providerName="Codex"
-          modelName="Leveled"
-          onSelect={() => {}}
-        />
+        <SelectorFooter reasoning={reasoning} value="" modelName="Leveled" onSelect={() => {}} />
+        <SelectorFooter reasoning={reasoning} value="" modelName="Leveled" onSelect={() => {}} />
       </UIProvider>
     );
 

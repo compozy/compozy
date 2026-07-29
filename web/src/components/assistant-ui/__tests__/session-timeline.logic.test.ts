@@ -37,20 +37,20 @@ function text(
 }
 
 describe("session timeline derivation", () => {
-  it("Should fold 8 settled consecutive tool parts into one work cluster with a +7 toggle", () => {
+  it("Should collapse a settled run of 8 into one semantic summary row", () => {
     const rows = deriveSessionRows(Array.from({ length: 8 }, (_, index) => tool(index + 1)));
 
-    expect(rows).toHaveLength(2);
-    const [workRow, toggleRow] = rows;
+    expect(rows).toHaveLength(1);
+    const workRow = rows[0];
     if (workRow?.kind !== "work") throw new Error("expected work row");
     expect(workRow.entries).toHaveLength(8);
-    expect(workRow.grouped).toBe(true);
-    expect(workRow.visibleCount).toBe(1);
-    expect(visibleWorkEntries(workRow).map(entry => entry.id)).toEqual(["tool-8"]);
-    expect(toggleRow).toMatchObject({ kind: "work-toggle", hiddenCount: 7, expanded: false });
+    expect(workRow.summary?.label).toBe("Read 8 files");
+    expect(workRow.grouped).toBe(false);
+    expect(workRow.expanded).toBe(false);
+    expect(workRow.active).toBe(false);
   });
 
-  it("Should reveal every entry once the work group is marked expanded", () => {
+  it("Should mark the summary row expanded once the work group is toggled open", () => {
     const groupId = "work:turn-1:tool-1";
     const rows = deriveSessionRows(
       Array.from({ length: 8 }, (_, index) => tool(index + 1)),
@@ -61,11 +61,11 @@ describe("session timeline derivation", () => {
     if (workRow?.kind !== "work") throw new Error("expected work row");
     expect(workRow.groupId).toBe(groupId);
     expect(workRow.expanded).toBe(true);
+    expect(workRow.summary).not.toBeNull();
     expect(visibleWorkEntries(workRow)).toHaveLength(8);
-    expect(rows[1]).toMatchObject({ kind: "work-toggle", expanded: true });
   });
 
-  it("Should break the cluster into two groups when text and reasoning interleave", () => {
+  it("Should break the cluster into two runs when text and reasoning interleave", () => {
     const parts: SessionTimelinePart[] = [
       tool(1),
       tool(2),
@@ -76,10 +76,17 @@ describe("session timeline derivation", () => {
 
     const rows = deriveSessionRows(parts);
 
-    expect(rows.map(row => row.kind)).toEqual(["work", "work-toggle", "text", "reasoning", "work"]);
+    expect(rows.map(row => row.kind)).toEqual(["work", "text", "reasoning", "work"]);
+    const [first, , , last] = rows;
+    if (first?.kind !== "work" || last?.kind !== "work") throw new Error("expected work rows");
+    // The settled 2-run collapses to a summary; the lone trailing call stays a
+    // plain row (below the 2+ fold minimum).
+    expect(first.summary?.label).toBe("Read 2 files");
+    expect(last.summary).toBeNull();
+    expect(last.entries).toHaveLength(1);
   });
 
-  it("Should cap active work at four visible calls while keeping the group id stable while streaming", () => {
+  it("Should cap the live tail at four visible calls with the overflow toggle above them", () => {
     const four = deriveSessionRows(
       Array.from({ length: 4 }, (_, index) =>
         tool(index + 1, { status: "running", result: undefined })
@@ -92,19 +99,108 @@ describe("session timeline derivation", () => {
     );
 
     // Four running tools stay inline (no overflow), and a fifth streamed part
-    // keeps the same group id, capping the visible set at the four latest.
+    // keeps the same group id, capping the visible set at the four latest with
+    // the "+N previous tool calls" toggle rendered above the visible tail.
     expect(four).toHaveLength(1);
-    expect(four[0]?.id).toBe(five[0]?.id);
-    const grouped = five[0];
+    expect(five[0]).toMatchObject({ kind: "work-toggle", hiddenCount: 1, expanded: false });
+    const grouped = five[1];
     if (grouped?.kind !== "work") throw new Error("expected work row");
+    expect(four[0]?.id).toBe(grouped.id);
     expect(grouped.visibleCount).toBe(4);
+    expect(grouped.summary).toBeNull();
+    expect(grouped.active).toBe(true);
     expect(visibleWorkEntries(grouped).map(entry => entry.id)).toEqual([
       "tool-2",
       "tool-3",
       "tool-4",
       "tool-5",
     ]);
-    expect(five[1]).toMatchObject({ kind: "work-toggle", hiddenCount: 1 });
+  });
+
+  it("Should keep the trailing run of the active turn open even when fully settled", () => {
+    const rows = deriveSessionRows(
+      Array.from({ length: 3 }, (_, index) => tool(index + 1)),
+      { activeTurnId: "turn-1" }
+    );
+
+    expect(rows).toHaveLength(1);
+    const workRow = rows[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    expect(workRow.summary).toBeNull();
+    expect(workRow.active).toBe(true);
+  });
+
+  it("Should collapse an earlier run the moment it settles, even mid-turn", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1),
+      tool(2),
+      tool(3),
+      text("narration", "Progress so far", "turn-1", "2026-07-07T12:00:04Z"),
+      tool(4, { status: "running", result: undefined }),
+      tool(5, { status: "running", result: undefined }),
+    ];
+
+    const rows = deriveSessionRows(parts, { activeTurnId: "turn-1" });
+
+    expect(rows.map(row => row.kind)).toEqual(["work", "text", "work"]);
+    const [settled, , live] = rows;
+    if (settled?.kind !== "work" || live?.kind !== "work") throw new Error("expected work rows");
+    expect(settled.summary?.label).toBe("Read 3 files");
+    expect(settled.active).toBe(false);
+    expect(live.summary).toBeNull();
+    expect(live.active).toBe(true);
+  });
+
+  it("Should keep failed calls individually visible between collapsed summary runs", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1),
+      tool(2),
+      tool(3, {
+        toolName: "Bash",
+        args: { command: "make verify" },
+        isError: true,
+        result: undefined,
+      }),
+      tool(4),
+      tool(5),
+    ];
+
+    const rows = deriveSessionRows(parts);
+
+    expect(rows.map(row => row.kind)).toEqual(["work", "work", "work"]);
+    const [before, failed, after] = rows;
+    if (before?.kind !== "work" || failed?.kind !== "work" || after?.kind !== "work") {
+      throw new Error("expected three work rows");
+    }
+    expect(before.summary?.label).toBe("Read 2 files");
+    expect(failed.summary).toBeNull();
+    expect(failed.entries.map(entry => entry.id)).toEqual(["tool-3"]);
+    expect(after.summary?.label).toBe("Read 2 files");
+  });
+
+  it("Should order summary categories Ran, Edited, Read, Searched, agent, Used with distinct-file counts", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, { toolName: "mcp__linear__list_issues", args: {} }),
+      tool(2, { toolName: "Task", args: { prompt: "explore" } }),
+      tool(3, { toolName: "Grep", args: { pattern: "Alert" } }),
+      tool(4, { toolName: "Read", args: { file_path: "/src/a.ts" } }),
+      tool(5, { toolName: "Read", args: { file_path: "/src/a.ts" } }),
+      tool(6, {
+        toolName: "Edit",
+        args: { file_path: "/src/b.ts", old_string: "a", new_string: "b" },
+      }),
+      tool(7, { toolName: "Bash", args: { command: "ls" } }),
+    ];
+
+    const rows = deriveSessionRows(parts);
+
+    const workRow = rows[0];
+    if (workRow?.kind !== "work") throw new Error("expected work row");
+    // Fixed presentation order regardless of call order; the two same-path
+    // Reads count as one distinct file.
+    expect(workRow.summary?.label).toBe(
+      "Ran 1 command · Edited 1 file · Read 1 file · Searched 1 file · Ran 1 agent task · Used 1 tool"
+    );
   });
 
   it("Should keep unchanged row references across passes and leave prior rows intact on append", () => {
@@ -518,5 +614,80 @@ describe("changed-files roll-up derivation", () => {
 
     expect(second).toBe(first);
     expect(second.result.some(row => row.kind === "changed-files")).toBe(true);
+  });
+});
+
+describe("marker clustering", () => {
+  function markerEvent(id: string, kind: string, timestamp = "2026-07-07T12:00:00Z") {
+    return {
+      kind: "data",
+      id,
+      name: "data-compozy-event",
+      data: { type: "runtime", marker: { kind, occurred_at: timestamp, summary: kind } },
+      turnId: "turn-1",
+      timestamp,
+      state: "done",
+    } satisfies SessionTimelinePart;
+  }
+
+  it("Should merge consecutive same-kind markers into one row carrying the count", () => {
+    const rows = deriveSessionRows([
+      markerEvent("m1", "provider-retry"),
+      markerEvent("m2", "provider-retry", "2026-07-07T12:00:01Z"),
+      markerEvent("m3", "provider-retry", "2026-07-07T12:00:02Z"),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    if (row?.kind !== "data") throw new Error("expected data row");
+    expect(row.count).toBe(3);
+    expect(row.parts).toHaveLength(3);
+    // The row anchors to the first event: stable id + render anchor part.
+    expect(row.id).toBe("data:m1");
+    expect(row.part.id).toBe("m1");
+  });
+
+  it("Should split marker clusters when the kind changes", () => {
+    const rows = deriveSessionRows([
+      markerEvent("m1", "provider-retry"),
+      markerEvent("m2", "compaction"),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map(row => (row.kind === "data" ? row.count : row.kind))).toEqual([1, 1]);
+  });
+
+  it("Should never cluster permission or clarification parts", () => {
+    const permission = (id: string): SessionTimelinePart => ({
+      kind: "data",
+      id,
+      name: "data-compozy-permission",
+      data: { type: "permission", request_id: id, decision: "allow-once" },
+      turnId: "turn-1",
+      timestamp: "2026-07-07T12:00:00Z",
+      state: "done",
+    });
+    const clarify = (id: string): SessionTimelinePart => ({
+      kind: "data",
+      id,
+      name: "data-compozy-event",
+      data: { type: "clarify", status: "pending", request: { request_id: id, question: "?" } },
+      turnId: "turn-1",
+      timestamp: "2026-07-07T12:00:00Z",
+      state: "done",
+    });
+
+    const rows = deriveSessionRows([
+      permission("p1"),
+      permission("p2"),
+      clarify("c1"),
+      clarify("c2"),
+    ]);
+
+    expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      if (row.kind !== "data") throw new Error("expected data rows");
+      expect(row.count).toBe(1);
+    }
   });
 });

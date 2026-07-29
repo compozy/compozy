@@ -96,6 +96,7 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
 .btn svg{width:14px;height:14px}
 .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
 .btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.45;cursor:default;pointer-events:none}
 .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
 .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
 .btn--ghost{background:transparent;border-color:transparent}
@@ -220,6 +221,18 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
 .trow__detail .err{color:var(--danger)}
 .trow__detail-cap{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:7px 0 3px}
 .trow__detail-cap:first-child{margin-top:0}
+
+/* Retained full result (ToolResultArtifact) — a quiet action line in
+   the same detail rail. Pages load in place; failure is danger text
+   with a Retry, never an Alert card. */
+.trow__artifact{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.trow__artifact-line{display:flex;align-items:baseline;gap:8px}
+.trow__open{font-size:11px;font-weight:500;color:var(--info);padding:1px 2px;border-radius:var(--radius-xs)}
+.trow__open:hover{text-decoration:underline;text-underline-offset:2px}
+.trow__bytes{font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.trow__artifact-err{font-size:11px;color:var(--danger)}
+.trow__artifact-err button{margin-left:6px;font-size:11px;color:var(--info)}
+.trow__artifact-err button:hover{text-decoration:underline;text-underline-offset:2px}
 
 /* ============ 04 · GROUPING & FOLDING ============ */
 /* Collapsed group — same 24px geometry as a tool row; a semantic
@@ -375,6 +388,43 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
   font-family:var(--font-mono);font-size:10px;color:var(--subtle);font-variant-numeric:tabular-nums;
 }
 .choice__hint{margin-left:auto;font-size:11px;color:var(--subtle)}
+/* deadline hint — static mono, never ticks */
+.dock__deadline{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+/* free-text answer — rendered when the question has no bounded choices */
+.choice__free{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+.choice__free textarea{
+  width:100%;resize:none;min-height:52px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--elevated);padding:7px 9px;
+  font:inherit;font-size:12.5px;line-height:1.5;color:var(--fg);
+}
+.choice__free textarea::placeholder{color:var(--subtle)}
+.choice__free textarea:focus{outline:none;border-color:var(--accent-dim)}
+.choice__free-bar{display:flex;align-items:center}
+.choice__free-bar .spacer{flex:1}
+/* quiet dock status lines — submitting / retryable error */
+.dock__status{margin-top:7px;font-size:11px;color:var(--subtle)}
+.dock__status[data-tone="danger"]{color:var(--danger)}
+/* reject split menu — keeps all four ACP decisions reachable (key 4
+   fires reject-always even while the menu is closed) */
+.dock__reject{position:relative;display:inline-flex;gap:1px}
+.dock__reject-chev{padding:0 4px}
+.dock__reject-chev svg{width:11px;height:11px;transition:transform var(--dur-slow) var(--ease)}
+.dock__reject[data-open="true"] .dock__reject-chev svg{transform:rotate(180deg)}
+.dock__menu{
+  position:absolute;right:0;bottom:calc(100% + 5px);min-width:158px;
+  border:1px solid var(--line-strong);border-radius:var(--radius-md);
+  background:var(--elevated);box-shadow:var(--shadow-overlay);
+  padding:3px;display:none;z-index:5;
+}
+.dock__reject[data-open="true"] .dock__menu{display:block}
+.dock__menu button{
+  display:flex;align-items:center;gap:8px;width:100%;
+  min-height:28px;padding:3px 8px;border-radius:var(--radius-xs);
+  font-size:12px;color:var(--danger);text-align:left;
+}
+.dock__menu button:hover{background:var(--row-hover)}
+.dock__menu kbd{margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--faint)}
 
 /* In-transcript receipts — one quiet line each, same marker grammar */
 .receipt{display:flex;align-items:center;gap:7px;min-height:22px;padding:2px 4px;font-size:12px;color:var(--subtle)}
@@ -412,6 +462,20 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
 .goalstrip__v{color:var(--muted);min-width:0}
 .goalstrip__v a{color:var(--info);text-decoration:none}
 .goalstrip__v a:hover{text-decoration:underline;text-underline-offset:2px}
+.goalstrip[data-state="paused"] .goalstrip__dot{background:var(--warning)}
+.goalstrip[data-state="moved"] .goalstrip__dot{background:var(--faint)}
+.goalstrip__mono{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+/* body Actions row — prefill stages a /goal command into the composer,
+   never auto-sends (goal-status-controls prefill affordance) */
+.goalstrip__acts{display:flex;align-items:center;gap:6px}
+.goalstrip__act{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:1px 7px;min-height:22px;border-radius:var(--radius-xs);
+  font-size:11.5px;color:var(--muted);border:1px solid transparent;
+  transition:color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.goalstrip__act:hover{color:var(--fg);background:var(--row-hover);border-color:var(--line)}
+.goalstrip__act svg{width:11px;height:11px;color:var(--subtle)}
 /* goal marker inside the transcript (was GoalPromptNotice card) */
 .marker--goal .marker__meta{margin-left:2px}
 
@@ -534,3 +598,200 @@ kbd{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
 .disclose>*{min-height:0;overflow:hidden}
 [data-open="true"]>.disclose,[data-open="true"]+.disclose{grid-template-rows:1fr;opacity:1}
 @media (prefers-reduced-motion:reduce){.disclose{transition:none}}
+
+/* ============ 13 · QUEUED PROMPTS (composer strip) ============ */
+/* Follow-ups staged while a turn runs (SessionComposerQueuedPrompts).
+   Rows fuse onto the composer top; each row is a real durable queue
+   entry the daemon accepted. Steer injects it into the running turn,
+   edit moves it back into the field, remove cancels it. Quiet grammar:
+   no fills, no accent — the queue is bookkeeping, not an event. */
+.qstrip{
+  border:1px solid var(--line);border-bottom:0;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  background:var(--elevated);
+}
+.dock+.qstrip{border-radius:0}
+.qstrip+.composer{border-top-left-radius:0;border-top-right-radius:0}
+/* an emptied (hidden) strip must not leave the composer with squared corners */
+.qstrip[hidden]+.composer:not(.composer--docked){border-top-left-radius:var(--radius-lg);border-top-right-radius:var(--radius-lg)}
+.qrow{display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 7px 3px 13px}
+.qrow+.qrow{border-top:1px solid var(--line-soft)}
+/* one quiet settle flash when a draft lands in the queue */
+.qrow[data-new]{animation:qrow-in .45s var(--ease)}
+@keyframes qrow-in{from{background:var(--badge-fill)}to{background:transparent}}
+.qrow>svg{width:13px;height:13px;flex:none;color:var(--faint)}
+.qrow__text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)}
+.qrow__acts{display:flex;align-items:center;gap:1px;flex:none}
+.qrow__steer{
+  display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;
+  border-radius:var(--radius-sm);font-size:11px;font-weight:500;color:var(--muted);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.qrow__steer:hover{background:var(--row-hover);color:var(--fg-strong)}
+.qrow__steer svg{width:11px;height:11px}
+.qrow__ib{
+  display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-sm);color:var(--faint);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.qrow__ib:hover{background:var(--row-hover);color:var(--fg)}
+.qrow__ib svg{width:11.5px;height:11.5px}
+
+/* ============ 14 · RUNTIME SELECTOR (composer · variation A) ============ */
+/* Provider/model/reasoning selector, "flat palette" anatomy from
+   runtime-selector-variations.html (chosen proposal A): one column,
+   provider filter as a 32px chip line, favorites on-row, reasoning
+   slider + ACP speed switch in a single footer line. Trigger rides
+   the composer bar at 28px (compact context — parity is anatomy,
+   not literal height). Accent budget: slider fill + selected row. */
+.rtsel{position:relative;flex:none;--spring:cubic-bezier(.3,1.35,.35,1)}
+.rtpop{
+  position:absolute;bottom:calc(100% + 8px);left:0;z-index:var(--z-menu);
+  width:320px;max-height:440px;
+  background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-overlay);overflow:hidden;display:flex;flex-direction:column;
+}
+.provglyph{display:grid;place-items:center;flex:none;color:var(--muted)}
+.provglyph svg{width:14px;height:14px}
+/* trigger — parity with trigger.tsx anatomy, compact 28px for the bar */
+.pmr{
+  display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 9px;
+  background:var(--btn-fill);border:1px solid var(--line);border-radius:var(--radius-md);
+  user-select:none;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.pmr:hover{background:var(--btn-hover);border-color:var(--line-strong)}
+.pmr[aria-expanded="true"]{border-color:var(--accent-dim)}
+.pmr__name{font-size:12px;font-weight:520;color:var(--fg-strong);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pmr__chev{width:12px;height:12px;color:var(--faint);transition:transform var(--dur) var(--ease),color var(--dur) var(--ease)}
+.pmr[aria-expanded="true"] .pmr__chev{transform:rotate(180deg);color:var(--fg)}
+.pmr__bolt{display:grid;place-items:center;color:var(--accent-strong);flex:none}
+.pmr__bolt svg{width:11px;height:11px}
+/* canonical 7-bar intensity meter */
+.im{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
+.im i{width:2px;border-radius:1px;background:var(--faint);opacity:.5}
+.im i[data-on]{background:var(--accent);opacity:1}
+.im[data-hollow] i{opacity:.35}
+.im i:nth-child(1){height:4px}.im i:nth-child(2){height:5px}.im i:nth-child(3){height:6.5px}.im i:nth-child(4){height:8px}
+.im i:nth-child(5){height:9.5px}.im i:nth-child(6){height:11px}.im i:nth-child(7){height:12px}
+/* search row */
+.srch{display:flex;align-items:center;gap:8px;flex:none;height:36px;border-bottom:1px solid var(--line-soft);padding:0 11px}
+.srch svg{width:13px;height:13px;color:var(--faint);flex:none}
+.srch input{flex:1;min-width:0;background:transparent;border:0;outline:none;font-size:12.5px;color:var(--fg-strong)}
+.srch input::placeholder{color:var(--faint)}
+.iconbtn{
+  display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-sm);background:transparent;
+  color:var(--faint);flex:none;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.iconbtn:hover{background:var(--row-hover);color:var(--fg-strong)}
+.iconbtn svg{width:13px;height:13px}
+.iconbtn[data-spin] svg{animation:rtspin .8s linear infinite}
+@keyframes rtspin{to{transform:rotate(360deg)}}
+/* provider filter chips */
+.chips{display:flex;align-items:center;gap:3px;flex:none;height:32px;padding:0 7px;border-bottom:1px solid var(--line-soft)}
+.chip{
+  display:grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-sm);background:transparent;
+  color:var(--subtle);position:relative;transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.chip:hover{background:var(--row-hover);color:var(--fg)}
+.chip[data-on]{background:var(--row-selected);color:var(--fg-strong);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.chip svg{width:13px;height:13px}
+.chip[data-dim]{opacity:.45}
+.chips__sep{width:1px;height:14px;background:var(--line);margin:0 3px;flex:none}
+.chips__sp{flex:1}
+.chips[data-searching] .chip{opacity:.4;pointer-events:none}
+/* model rows */
+.mlist{overflow-y:auto;padding:5px 5px 6px;flex:1;min-height:0;max-height:264px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+.ghead{
+  position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:6px;padding:7px 7px 3px;background:var(--canvas);
+  font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);
+}
+.ghead .dotv{width:5px;height:5px;border-radius:50%;background:var(--success);margin-left:auto}
+.ghead .dotv[data-tone="warning"]{background:var(--warning)}
+.mrow{
+  display:flex;align-items:center;gap:8px;width:100%;padding:0 7px;height:28px;border-radius:var(--radius);
+  text-align:left;transition:background var(--dur-fast) var(--ease);
+}
+.mrow:hover{background:var(--row-hover)}
+.mrow[data-sel]{background:var(--accent-tint)}
+.mrow__name{font-size:12.5px;font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.008em}
+.mrow[data-sel] .mrow__name{color:var(--fg-strong)}
+.mrow__brain{color:var(--faint);flex:none;display:grid;place-items:center}
+.mrow__brain svg{width:11.5px;height:11.5px}
+.mrow__sp{flex:1}
+.mrow__un{font-size:10.5px;color:var(--warning);white-space:nowrap;flex:none}
+.mrow__check{color:var(--accent-strong);flex:none;display:none}
+.mrow__check svg{width:12px;height:12px}
+.mrow[data-sel] .mrow__check{display:grid}
+.mrow__star{
+  display:grid;place-items:center;width:18px;height:18px;border-radius:var(--radius-xs);
+  color:var(--faint);flex:none;opacity:0;transition:opacity var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.mrow:hover .mrow__star{opacity:1}
+.mrow__star[data-fav]{opacity:1;color:var(--warning)}
+.mrow__star svg{width:11.5px;height:11.5px}
+.mrow__star[data-fav] svg{fill:currentColor}
+.rtempty{padding:26px 18px;text-align:center;font-size:12px;color:var(--subtle);line-height:1.55}
+.customrow{
+  display:flex;align-items:center;gap:8px;margin:4px 2px 2px;padding:7px 9px;width:calc(100% - 4px);
+  border:1px dashed var(--line-strong);border-radius:var(--radius);font-size:12px;color:var(--muted);text-align:left;
+  transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.customrow:hover{border-color:var(--accent-dim);color:var(--fg-strong)}
+.customrow svg{width:11px;height:11px;flex:none}
+.customrow .mono{font-size:11px;color:var(--fg)}
+/* reasoning slider (.rz) — quiet control: 16px track, 20px thumb,
+   accent only on the fill (locked reasoning-slider contract) */
+.rz{--rz-h:16px;--rz-thumb:20px;position:relative;touch-action:none;user-select:none;flex:1;min-width:0}
+.rz__track{position:relative;height:24px;cursor:pointer;border-radius:var(--radius);outline:none}
+.rz__rail{
+  position:absolute;left:0;right:0;top:50%;height:var(--rz-h);transform:translateY(-50%);
+  border-radius:var(--radius-pill);background:var(--canvas-soft);box-shadow:inset 0 0 0 1px var(--line-soft);
+}
+.rz__fill{position:absolute;top:2px;bottom:2px;left:2px;border-radius:var(--radius-pill);background:var(--accent);transition:width 260ms var(--spring)}
+.rz[data-unset] .rz__fill{background:var(--btn-fill)}
+.rz[data-drag] .rz__fill{transition:none}
+.rz__dot{position:absolute;top:50%;width:3px;height:3px;border-radius:50%;background:var(--faint);transform:translate(-50%,-50%)}
+.rz__thumb{
+  position:absolute;top:50%;width:var(--rz-thumb);height:var(--rz-thumb);border-radius:50%;background:var(--fg-strong);
+  box-shadow:0 0 0 2px var(--canvas);transform:translateY(-50%);transition:left 260ms var(--spring);
+}
+.rz[data-drag] .rz__thumb{transition:none;transform:translateY(-50%) scale(1.05)}
+.rz__tip{
+  position:absolute;bottom:calc(100% + 3px);transform:translateX(-50%);font-family:var(--font-mono);font-size:9.5px;
+  color:var(--fg);background:var(--elevated);border:1px solid var(--line-strong);border-radius:var(--radius-xs);
+  padding:1px 5px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity var(--dur-fast) var(--ease),left 260ms var(--spring);
+}
+.rz[data-drag] .rz__tip{transition:opacity var(--dur-fast) var(--ease)}
+.rz__track:hover .rz__tip,.rz[data-drag] .rz__tip,.rz__track:focus-visible .rz__tip{opacity:1}
+/* footer line: reasoning + speed in one pass */
+.rzline{display:flex;align-items:center;gap:10px;flex:none;height:44px;padding:0 12px;border-top:1px solid var(--line-soft);background:var(--canvas)}
+.rzline .eyebrow{font-size:9.5px;flex:none;letter-spacing:.05em}
+.rznote{display:flex;align-items:center;gap:8px;flex:none;height:38px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--subtle)}
+.rznote>svg{width:12.5px;height:12.5px;color:var(--faint);flex:none}
+.rznote__sp{flex:1}
+/* ACP speed switch (PR #267: speed normal|fast) — bolt rides the thumb */
+.spdsw{display:inline-flex;align-items:center;gap:7px;height:24px;padding:0;background:transparent;flex:none;user-select:none}
+.spdsw__lbl{font-size:11px;font-weight:560;color:var(--subtle);letter-spacing:-.005em;transition:color var(--dur) var(--ease)}
+.spdsw:hover .spdsw__lbl{color:var(--fg)}
+.spdsw[aria-checked="true"] .spdsw__lbl{color:var(--fg-strong)}
+.spdsw__track{
+  position:relative;width:40px;height:22px;border-radius:var(--radius-pill);background:var(--canvas-soft);
+  box-shadow:inset 0 0 0 1px var(--line-soft);flex:none;transition:background 260ms var(--ease),box-shadow 260ms var(--ease);
+}
+.spdsw[aria-checked="true"] .spdsw__track{background:var(--accent-tint-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.spdsw__thumb{
+  position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;background:var(--elevated);color:var(--faint);
+  box-shadow:0 0 0 1px var(--line-strong),0 1px 2px rgba(0,0,0,.35);
+  transition:transform 300ms var(--spring),width 160ms var(--ease),background 260ms var(--ease),color 260ms var(--ease);
+}
+.spdsw[aria-checked="true"] .spdsw__thumb{transform:translateX(18px);background:var(--fg-strong);color:var(--accent)}
+.spdsw:not([disabled]):active .spdsw__thumb{width:22px}
+.spdsw[aria-checked="true"]:not([disabled]):active .spdsw__thumb{transform:translateX(14px)}
+.spdsw__thumb svg{width:12px;height:12px}
+.spdsw[data-anim] .spdsw__thumb svg{animation:boltzap 420ms var(--spring)}
+@keyframes boltzap{0%{transform:scale(.6) rotate(-14deg)}55%{transform:scale(1.2) rotate(7deg)}100%{transform:scale(1) rotate(0deg)}}
+.spdsw[disabled]{opacity:.4;cursor:not-allowed;pointer-events:none}
+@media (prefers-reduced-motion:reduce){
+  .spdsw__thumb,.spdsw__track,.rz__fill,.rz__thumb,.rz__tip{transition:none}
+  .spdsw[data-anim] .spdsw__thumb svg{animation:none}
+}

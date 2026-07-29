@@ -59,6 +59,8 @@ tokens:
       btn-default-fill: "rgba(255, 255, 255, 0.04)"
       btn-default-hover: "rgba(255, 255, 255, 0.07)"
       badge-fill: "rgba(255, 255, 255, 0.05)"
+      chat-fill-user: "rgba(255, 255, 255, 0.045)"
+      chat-fill-code: "rgba(255, 255, 255, 0.03)"
       overlay-scrim: "rgba(0, 0, 0, 0.55)"
       overlay-ghost-hover: "rgba(255, 255, 255, 0.06)"
       kind-say: "var(--color-neutral)"

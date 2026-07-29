@@ -2,6 +2,8 @@ import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import {
+  SessionGoalHeadAction,
+  useSessionGoalHeader,
   useSessionInspectorState,
   useSessionLedger,
   useSessionTopbarSlot,
@@ -48,6 +50,11 @@ export function useSessionWindowController(input: {
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const clearDialog = useSessionClearDialog(controls.handleClear);
   const inspector = useSessionInspectorState(sessionId);
+  // Secondary goal reader for the head action — the goal strip inside the
+  // thread owns the loop-stream reconciliation, so this instance reads cache only.
+  const goal = useSessionGoalHeader(session.workspace_id ?? "", sessionId, undefined, {
+    stream: false,
+  });
 
   useSessionTopbarSlot({
     session,
@@ -57,6 +64,16 @@ export function useSessionWindowController(input: {
     isClearing: controls.isClearing,
     canClear: controls.canClear,
     inspectorOpen: inspector.open,
+    goalAction: (
+      <SessionGoalHeadAction
+        snapshot={goal.snapshot}
+        pendingAction={goal.pendingAction}
+        onPause={goal.onPause}
+        onResume={goal.onResume}
+        onApprove={goal.onApprove}
+        onClear={goal.onClear}
+      />
+    ),
     onInspectorToggle: inspector.toggle,
     onDelete: deleteDialog.openDialog,
     onStop: controls.handleStop,

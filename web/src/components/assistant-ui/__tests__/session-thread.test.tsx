@@ -496,25 +496,25 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // Collapsed settled cluster: only the latest call renders, under an "N tool
-    // calls" group label, with the rest behind the previous-calls toggle.
-    expect(await screen.findByText("/tmp/file-8.ts")).toBeInTheDocument();
-    expect(screen.getByText("8 tool calls")).toBeInTheDocument();
-    expect(screen.queryByText("/tmp/file-1.ts")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tool-call-row")).toHaveLength(1);
+    // A settled run rests as one semantic summary line — no tool rows, no
+    // paths, no count eyebrow. The two same-path variants stay distinct files.
+    const summaryLabel = await screen.findByTestId("work-summary-label");
+    expect(summaryLabel).toHaveTextContent("Read 8 files");
+    expect(screen.queryByText(/\/tmp\/file-8\.ts/)).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
 
-    const toggle = screen.getByRole("button", { name: "+7 previous tool calls" });
+    const toggle = screen.getByRole("button", { name: /Read 8 files/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
 
-    expect(await screen.findByText("/tmp/file-1.ts")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByText(/\/tmp\/file-1\.ts/)).toBeInTheDocument();
     expect(screen.getAllByTestId("tool-call-row")).toHaveLength(8);
-    const openToggle = screen.getByRole("button", { name: "Show fewer tool calls" });
-    expect(openToggle).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(openToggle);
-    expect(screen.getAllByTestId("tool-call-row")).toHaveLength(1);
-    expect(screen.queryByText("/tmp/file-1.ts")).not.toBeInTheDocument();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
+    expect(screen.queryByText(/\/tmp\/file-1\.ts/)).not.toBeInTheDocument();
   });
 
   it("Should render an empty-args tool mid-stream as the pending row state (not a bordered box)", async () => {
@@ -733,20 +733,24 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("Launch notes are ready.")).toBeInTheDocument();
     const fold = screen.getByRole("button", { name: "Worked for 5s" });
-    expect(screen.queryByText("/tmp/launch.md")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/tmp\/launch\.md/)).not.toBeInTheDocument();
     expect(fold).toHaveAttribute("aria-expanded", "false");
 
     await user.click(fold);
 
     expect(fold).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByText("/tmp/launch.md")).toBeInTheDocument();
+    expect(await screen.findByText(/\/tmp\/launch\.md/)).toBeInTheDocument();
     await user.click(screen.getByTestId("thinking-trigger"));
-    expect(screen.getByText("Need to inspect the launch file.")).toBeInTheDocument();
+    // The settled thinking row previews the first line; the body carries the
+    // full reasoning markdown once expanded.
+    expect(
+      within(screen.getByTestId("thinking-content")).getByText("Need to inspect the launch file.")
+    ).toBeInTheDocument();
 
     await user.click(fold);
 
     expect(fold).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("/tmp/launch.md")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/tmp\/launch\.md/)).not.toBeInTheDocument();
     expect(screen.queryByText("Need to inspect the launch file.")).not.toBeInTheDocument();
   });
 
@@ -861,7 +865,7 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText("You stopped after 7s")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /You stopped after/i })).not.toBeInTheDocument();
     // Work stays expanded without a click, and the terminal message is visible.
-    expect(screen.getByText("/tmp/interrupted.md")).toBeInTheDocument();
+    expect(screen.getByText(/\/tmp\/interrupted\.md/)).toBeInTheDocument();
     expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
   });
 
@@ -1044,10 +1048,10 @@ describe("SessionThread transcript states", () => {
     }
   });
 
-  it("Should render the working row with typing dots and a live timer while a turn streams, and drop it once settled", async () => {
+  it("Should render the working row with stepped dots and a live timer while a turn streams, and drop it once settled", async () => {
     // A streaming reasoning part marks the live turn; the settled turn carries only
     // a done text part. The working row must appear once (live turn), never on the
-    // settled turn, and it must be the typing-dots + timer, not the old spinner.
+    // settled turn, and it must be the stepped 4px dots + timer, not the old spinner.
     const startedAtIso = new Date(Date.now() - 5000).toISOString();
     const transcript = [
       {
@@ -1083,8 +1087,8 @@ describe("SessionThread transcript states", () => {
     const workingRow = await screen.findByTestId("session-working-row");
     // Only the streaming turn carries the indicator; the settled turn drops it.
     expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
-    // Typing dots wire the `typing-bounce` keyframe; the old spinner row is gone.
-    expect(workingRow.querySelector('[data-slot="typing-dots"]')).not.toBeNull();
+    // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
+    expect(workingRow.querySelectorAll(".session-working-dot")).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
     // Live "Working for Xs" tabular-nums timer, counting from the turn start.
     expect(workingRow).toHaveTextContent(/Working for/);
@@ -1222,18 +1226,18 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // Collapsed cluster: the latest call is visible; the reader has scrolled to a
-    // fixed offset before expanding the group.
-    expect(await screen.findByText("/tmp/anchor-8.ts")).toBeInTheDocument();
+    // Collapsed settled run: the summary line is visible; the reader has
+    // scrolled to a fixed offset before expanding the group.
+    expect(await screen.findByTestId("work-summary-label")).toHaveTextContent("Read 8 files");
     const viewport = screen.getByTestId("chat-view");
     primeScrolledAwayViewport(viewport);
 
-    // Expanding reveals the hidden calls without yanking the reader's position: the
-    // anchor-preserving toggle corrects scrollTop by the height delta (0 under the
-    // static jsdom geometry), so the reading offset is unchanged.
-    fireEvent.click(screen.getByRole("button", { name: "+7 previous tool calls" }));
+    // Expanding reveals the folded calls without yanking the reader's position:
+    // the anchor-preserving toggle corrects scrollTop by the height delta (0
+    // under the static jsdom geometry), so the reading offset is unchanged.
+    fireEvent.click(screen.getByRole("button", { name: /Read 8 files/ }));
 
-    expect(await screen.findByText("/tmp/anchor-1.ts")).toBeInTheDocument();
+    expect(await screen.findByText(/\/tmp\/anchor-1\.ts/)).toBeInTheDocument();
     expect(viewport.scrollTop).toBe(300);
   });
 });
@@ -1434,14 +1438,17 @@ describe("SessionThread composer running semantics", () => {
 
     expect(await screen.findByTestId("composer-send-button")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("composer-enter-hint")).not.toBeInTheDocument();
+    // Idle: the quiet ⏎ hint reads "send".
+    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/send/);
 
     rerender({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt: vi.fn() });
 
     const stop = await screen.findByTestId("composer-stop-button");
     expect(stop).toHaveAttribute("aria-label", "Stop generation");
     expect(screen.queryByTestId("composer-send-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/Enter/);
+    // Busy: Enter has one meaning — queue the draft — and the hint says so.
+    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/queue/);
+    expect(screen.getByTestId("composer-enter-hint")).not.toHaveTextContent(/send/);
   });
 
   it("Should render queued rows with steer, edit, and remove wired to real entries", async () => {

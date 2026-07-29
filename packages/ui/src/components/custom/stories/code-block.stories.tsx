@@ -192,16 +192,10 @@ export const CopyInteraction: Story = {
   },
 };
 
-export const WarningToneTruncated: Story = {
+export const Truncated: Story = {
   args: {
-    code: [
-      "First warning line",
-      "Second warning line",
-      "Third warning line",
-      "Fourth warning line",
-    ].join("\n"),
+    code: ["First line", "Second line", "Third line", "Fourth line"].join("\n"),
     showPrompt: false,
-    tone: "warning",
     truncateLines: 2,
   },
 };

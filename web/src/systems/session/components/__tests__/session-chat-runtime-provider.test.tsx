@@ -1394,7 +1394,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
   }, 10_000);
 
-  it("renders only unresolved permission events as interactive prompts", async () => {
+  it("keeps pending permissions out of the transcript and renders receipts for resolved ones", async () => {
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),
       {
@@ -1430,12 +1430,17 @@ describe("SessionChatRuntimeProvider", () => {
 
     renderSessionThread();
 
+    // The resolved request keeps only its one-line receipt in the transcript.
     await waitFor(() => {
-      expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-rejected-notice")).toBeInTheDocument();
     });
-
-    expect(screen.getAllByTestId("permission-prompt")).toHaveLength(1);
-    expect(screen.getByTestId("permission-prompt")).toHaveTextContent("pending.txt");
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Edit resolved file"
+    );
+    // The pending ask renders nothing in the transcript — it docks on the
+    // composer instead (owned by session-decision-dock.test.tsx).
+    expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
   }, 10_000);
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
@@ -1598,7 +1603,8 @@ describe("SessionChatRuntimeProvider", () => {
     expect(beforeIndex).toBeGreaterThanOrEqual(0);
     expect(dataIndex).toBeGreaterThan(beforeIndex);
     expect(afterIndex).toBeGreaterThan(dataIndex);
-    expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("Provider note");
+    // The marker line names the raw event as mono meta — no payload preview card.
+    expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("data-provider-note");
   }, 10_000);
 
   it("reconciles durable transcript after a live session stream event", async () => {

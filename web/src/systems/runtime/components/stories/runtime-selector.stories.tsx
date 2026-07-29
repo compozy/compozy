@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import type { RuntimeSpeed } from "@/lib/api-contract";
+
 import {
   RuntimeSelector,
   runtimeModelKey,
@@ -107,9 +109,22 @@ const models: RuntimeModelOption[] = [
 
 function ControlledRuntimeSelector({ value: initial, ...props }: RuntimeSelectorProps) {
   const [value, setValue] = useState<RuntimeSelectorValue>(initial);
+  // Speed state is controlled only when the story wires the request (mirrors
+  // real surfaces: unwired selectors never show the switch).
+  const [speed, setSpeed] = useState<RuntimeSpeed>(props.speed ?? "normal");
+  const speedProps = props.onSpeedChange
+    ? {
+        speed,
+        onSpeedChange: (next: RuntimeSpeed) => {
+          props.onSpeedChange?.(next);
+          setSpeed(next);
+        },
+      }
+    : {};
   return (
     <RuntimeSelector
       {...props}
+      {...speedProps}
       value={value}
       onChange={next => {
         props.onChange(next);
@@ -137,7 +152,7 @@ const meta: Meta<typeof RuntimeSelector> = {
     docs: {
       description: {
         component:
-          "Unified provider · model · reasoning selector. Closed it is a single button (provider mark, model name, reasoning meter); open it is a named dialog with a provider-filter radiogroup, a models listbox (combobox/activedescendant), and a reasoning slider footer. Options arrive via props (data-agnostic). Fixtures are a truthful aggregate `view=all` set — including one canonical id shared across two providers.",
+          "Unified provider · model · reasoning · speed selector (design ref: runtime-selector-variations.html, variation A). Closed it is a single button (provider mark, model name, reasoning meter, fast bolt); open it is a compact 320px dialog: search, a horizontal provider-chip radiogroup, a models listbox (combobox/activedescendant), and a one-line footer joining the reasoning slider with the ACP speed switch (PR #267 — rendered only when the surface wires it). Options arrive via props (data-agnostic). Fixtures are a truthful aggregate `view=all` set — including one canonical id shared across two providers.",
       },
     },
   },
@@ -329,7 +344,53 @@ export const PopupReasoningProviderDecides: Story = {
     // The 'provider decides' footer settled: supported-nolevels mode + the note text.
     const footer = await body.findByTestId("runtime-selector-reasoning");
     await expect(footer).toHaveAttribute("data-reasoning-mode", "supported-nolevels");
-    await expect(within(footer).getByText(/expose selectable effort/i)).toBeInTheDocument();
+    await expect(within(footer).getByText(/provider decides/i)).toBeInTheDocument();
+  },
+};
+
+/** ACP speed request (PR #267): the wired switch shares the footer line with the slider. */
+export const PopupSpeedControl: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    onSpeedChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Speed wired (session-create shape), resting on normal: the footer's Fast switch requests `speed: fast`; the daemon resolves it at dispatch, so the switch is intent — never a per-model capability claim.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    const speedSwitch = await body.findByTestId("runtime-selector-speed");
+    await expect(speedSwitch).toHaveAttribute("aria-checked", "false");
+  },
+};
+
+/** Fast engaged: the bolt thumb crosses the track and the closed trigger gains the bolt. */
+export const PopupSpeedFast: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    onSpeedChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Fast requested: the switch is checked (accent track, bolt on the thumb) and the closed trigger mirrors the request with the fast bolt beside the reasoning meter.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    const speedSwitch = await body.findByTestId("runtime-selector-speed");
+    await userEvent.click(speedSwitch);
+    await expect(speedSwitch).toHaveAttribute("aria-checked", "true");
+    // The closed-trigger bolt mirrors the active fast request.
+    const trigger = within(canvasElement).getByRole("button", { name: /^Runtime:/ });
+    await expect(trigger.querySelector('[data-slot="runtime-selector-fast"]')).not.toBeNull();
   },
 };
 

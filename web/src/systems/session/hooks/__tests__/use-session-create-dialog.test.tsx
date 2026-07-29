@@ -517,6 +517,39 @@ describe("useSessionCreateDialog", () => {
     expect(payload).not.toHaveProperty("provider");
     expect(payload).not.toHaveProperty("model");
     expect(payload).not.toHaveProperty("reasoning_effort");
+    expect(payload).not.toHaveProperty("speed");
+  });
+
+  it("Should send speed: fast on the create body when the fast request is active", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("claude-agent"));
+    expect(result.current.runtimeSpeed).toBe("normal");
+
+    act(() => result.current.onRuntimeSpeedChange("fast"));
+    expect(result.current.runtimeSpeed).toBe("fast");
+    await submitWithPrompt(result);
+
+    expect(mockMutateAsync.mock.calls.at(-1)?.[0]).toMatchObject({ speed: "fast" });
+  });
+
+  it("Should reset the fast request to normal when agent identity changes", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("claude-agent"));
+    act(() => result.current.onRuntimeSpeedChange("fast"));
+    expect(result.current.runtimeSpeed).toBe("fast");
+
+    // Speed is a per-launch request riding the runtime-override lifecycle:
+    // agent identity change resets it to the daemon default.
+    act(() => result.current.onAgentChange("codex-agent"));
+    expect(result.current.runtimeSpeed).toBe("normal");
   });
 
   it("Should snap advanced-only selections back to a Simple-valid default when leaving Advanced", async () => {

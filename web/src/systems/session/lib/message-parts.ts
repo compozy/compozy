@@ -13,7 +13,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizePermissionDecision(value: unknown): PermissionDecision | null {
+export function normalizePermissionDecision(value: unknown): PermissionDecision | null {
   switch (typeof value === "string" ? value.trim() : "") {
     case "allow-once":
       return "allow-once";

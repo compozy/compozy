@@ -1,21 +1,23 @@
-import { ChevronRight, FileText } from "lucide-react";
+import { ChevronDown, FileText } from "lucide-react";
 import { useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { Eyebrow } from "@compozy/ui";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
 
+// Expanded file lines cap — beyond it a bare "+N more" line closes the list.
+const CHANGED_FILES_VISIBLE_CAP = 8;
+
 // Signal palette as information, never decoration: additions read `--success`,
-// deletions `--danger`. The +/- sign carries the meaning too, so the stat never
+// deletions `--danger`. The +/− sign carries the meaning too, so the stat never
 // depends on color alone.
 function DiffStat({ additions, deletions }: { additions: number; deletions: number }) {
   return (
     <span
       data-slot="changed-files-diffstat"
-      className="flex shrink-0 items-center gap-2 font-mono text-eyebrow tabular-nums"
+      className="flex shrink-0 items-center gap-[5px] font-mono text-[11px] tabular-nums"
     >
-      <span className="text-success">+{additions}</span>
-      <span className="text-danger">-{deletions}</span>
+      <span className="font-medium text-success">+{additions}</span>
+      <span className="font-medium text-danger">−{deletions}</span>
     </span>
   );
 }
@@ -31,10 +33,10 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
   return (
     <div
       data-testid="changed-file-row"
-      className="flex min-w-0 items-center gap-2 px-2.5 py-1 text-small-body"
+      className="flex min-h-[22px] min-w-0 items-center gap-2 text-[12px]"
     >
-      <FileText aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
-      <span className="flex min-w-0 flex-1 items-baseline" title={file.path}>
+      <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
+      <span className="flex min-w-0 flex-1 items-baseline font-mono text-[11px]" title={file.path}>
         {dir ? <span className="truncate text-subtle">{dir}</span> : null}
         <span className="shrink-0 text-fg">{name}</span>
       </span>
@@ -44,12 +46,10 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
 }
 
 /**
- * The settled-turn "Changed files" roll-up card. Collapsed, it reads
- * `Edited N files +a/-d`; expanded, it lists each modified file with its diff
- * stats. Display-only — CompozyOS exposes no checkpoint/Undo semantics, so this
- * carries no Undo/Review actions (truthful UI). Styling per `analysis/07 §4.2
- * #26`: `--radius-lg` + `border-line` + `bg-canvas-soft` + `<Eyebrow>` header,
- * no `bg-card/45` translucency or custom shadow.
+ * The settled-turn changed-files outcome, calm-transcript grammar: one
+ * "Edited N files +A −D" line that expands to bare mono file lines behind the
+ * detail rail — no card, no fill. Display-only (CompozyOS exposes no
+ * checkpoint/Undo semantics), capped at 8 lines with a bare "+N more" tail.
  */
 export function SessionChangedFilesRowView({
   row,
@@ -60,43 +60,51 @@ export function SessionChangedFilesRowView({
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
   const fileCount = row.files.length;
+  const visibleFiles = row.files.slice(0, CHANGED_FILES_VISIBLE_CAP);
+  const hiddenCount = fileCount - visibleFiles.length;
   return (
-    <div
-      data-testid="changed-files-row"
-      data-expanded={String(row.expanded)}
-      className="my-1 overflow-hidden rounded-md border border-line bg-canvas-soft"
-    >
+    <div data-testid="changed-files-row" data-expanded={String(row.expanded)} className="min-w-0">
       <button
         ref={ref}
         type="button"
         aria-expanded={row.expanded}
         onClick={() => onToggle(ref.current)}
         className={cn(
-          "group flex w-full min-w-0 items-center gap-2 px-2.5 py-1.5 text-left",
-          "transition-colors duration-base ease-out hover:bg-hover",
-          "focus-visible:outline-none focus-visible:shadow-focus-ring"
+          "group inline-flex min-h-6 items-center gap-[7px] rounded-md px-1 text-left",
+          "text-small-body font-medium text-muted",
+          "transition-colors duration-base ease-out hover:bg-hover hover:text-fg",
+          "focus-visible:shadow-focus-ring focus-visible:outline-none"
         )}
       >
-        <ChevronRight
+        <span className="flex size-[18px] shrink-0 items-center justify-center">
+          <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
+        </span>
+        <span className="min-w-0 shrink truncate">
+          Edited {fileCount} {fileCount === 1 ? "file" : "files"}
+        </span>
+        <DiffStat additions={row.additions} deletions={row.deletions} />
+        <ChevronDown
           aria-hidden="true"
           className={cn(
-            "size-3 shrink-0 text-subtle transition-transform duration-base ease-out motion-reduce:transition-none",
-            row.expanded ? "rotate-90 text-muted" : null
+            "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
+            row.expanded ? "rotate-180" : null
           )}
           strokeWidth={1.75}
         />
-        <Eyebrow className="min-w-0 shrink truncate text-muted group-hover:text-fg">
-          Edited {fileCount} {fileCount === 1 ? "file" : "files"}
-        </Eyebrow>
-        <span className="ml-auto shrink-0">
-          <DiffStat additions={row.additions} deletions={row.deletions} />
-        </span>
       </button>
       {row.expanded ? (
-        <div data-testid="changed-files-list" className="border-t border-line py-0.5">
-          {row.files.map(file => (
+        <div
+          data-testid="changed-files-list"
+          className="mt-0.5 mb-0.5 ml-[25px] flex flex-col gap-px border-l border-line pl-[11px]"
+        >
+          {visibleFiles.map(file => (
             <ChangedFileRow key={file.path} file={file} />
           ))}
+          {hiddenCount > 0 ? (
+            <span className="min-h-[22px] content-center text-[11.5px] text-subtle">
+              +{hiddenCount} more
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -23,6 +23,8 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { SessionGoalHeaderContainer } = await import("../goal/session-goal-header-container");
+const { SessionGoalHeadAction } = await import("../goal/goal-head-action");
+const { useSessionGoalHeader } = await import("../../hooks/use-session-goal-header");
 
 const WORKSPACE_ID = "ws_1";
 const SESSION_ID = "session_1";
@@ -110,12 +112,29 @@ function requestBody(
   return Promise.resolve({});
 }
 
+// Mirrors the production split: the strip (container) owns stream
+// reconciliation; the window-head action reads the shared query cache.
+function HeadActionHarness() {
+  const goal = useSessionGoalHeader(WORKSPACE_ID, SESSION_ID, undefined, { stream: false });
+  return (
+    <SessionGoalHeadAction
+      snapshot={goal.snapshot}
+      pendingAction={goal.pendingAction}
+      onPause={goal.onPause}
+      onResume={goal.onResume}
+      onApprove={goal.onApprove}
+      onClear={goal.onClear}
+    />
+  );
+}
+
 function renderHeader(setComposerText = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const result = render(
     <QueryClientProvider client={queryClient}>
+      <HeadActionHarness />
       <SessionGoalHeaderContainer
         onPrefillComposer={setComposerText}
         sessionId={SESSION_ID}
@@ -178,7 +197,7 @@ describe("SessionGoalHeader", () => {
     vi.unstubAllGlobals();
   });
 
-  it("Should merge live turns, invalidate only on status, and settle pause then clear", async () => {
+  it("Should merge live turns, invalidate only on status, and pause from the window head", async () => {
     renderHeader();
     expect(await screen.findByTestId("session-goal-header")).toBeInTheDocument();
     expect(goalReads).toBe(1);
@@ -190,8 +209,9 @@ describe("SessionGoalHeader", () => {
     act(() => {
       FakeEventSource.latest?.dispatch("goal_turn_started", { turn: 8 }, 1);
     });
+    // The strip facts carry the merged turn count as mono text.
     await waitFor(() =>
-      expect(screen.getByRole("region", { name: "Goal status" })).toHaveTextContent("8 / 20")
+      expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent("turn 8/20 · ctx 50%")
     );
     expect(goalReads).toBe(1);
 
@@ -200,7 +220,9 @@ describe("SessionGoalHeader", () => {
     });
     await waitFor(() => expect(goalReads).toBe(2));
 
-    fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
+    // The one gated head action pauses the goal; the strip reflects the change
+    // and the head action flips to Resume (never two actions at once).
+    fireEvent.click(screen.getByTestId("goal-head-pause"));
     await waitFor(() => expect(commands).toContain("/goal pause"));
     await waitFor(() =>
       expect(screen.getByRole("region", { name: "Goal status" })).toHaveAttribute(
@@ -208,15 +230,25 @@ describe("SessionGoalHeader", () => {
         "paused"
       )
     );
+    expect(screen.getByTestId("goal-head-resume")).toBeInTheDocument();
+    expect(screen.queryByTestId("goal-head-pause")).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear goal" }));
+  it("Should clear only a terminal snapshot from the window head", async () => {
+    visibleGoal = snapshot({ live: false, status: "complete", run_status: "done" });
+    renderHeader();
+
+    const clear = await screen.findByTestId("goal-head-clear");
+    expect(screen.queryByTestId("goal-head-pause")).not.toBeInTheDocument();
+    fireEvent.click(clear);
+
     await waitFor(() => expect(commands).toContain("/goal clear"));
     await waitFor(() =>
       expect(screen.queryByTestId("session-goal-header")).not.toBeInTheDocument()
     );
   });
 
-  it("Should preserve the current stale-replacement snapshot and prefill its exact run id", async () => {
+  it("Should preserve the current stale-replacement snapshot and stage its exact run id", async () => {
     const current = snapshot({ objective: "Current objective" });
     visibleGoal = current;
     sessionStore.trigger.goalCommandReported({
@@ -232,7 +264,9 @@ describe("SessionGoalHeader", () => {
     const setComposerText = vi.fn();
     renderHeader(setComposerText);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Prefill replacement" }));
+    // The prefill affordance lives in the strip body — open the strip first.
+    fireEvent.click(await screen.findByTestId("goal-strip-line"));
+    fireEvent.click(screen.getByRole("button", { name: "Draft replacement" }));
     expect(setComposerText).toHaveBeenCalledWith("/goal replace run_1 Requested replacement");
     expect(screen.getByRole("region", { name: "Goal status" })).toHaveTextContent(
       "Current objective"

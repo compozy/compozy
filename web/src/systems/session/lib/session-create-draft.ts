@@ -1,4 +1,4 @@
-import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption } from "@/systems/workspace";
 
@@ -13,6 +13,8 @@ export interface SessionCreateDialogDraft {
   providerOverride: string;
   modelOverride: string;
   reasoningEffort: ReasoningEffort | "";
+  /** ACP speed request (PR #267); "normal" is omitted from the POST body. */
+  speed: RuntimeSpeed;
   networkParticipationMode: "local" | "live";
   networkChannelId: string;
   networkChannelStrategy: NetworkParticipationStrategy | "";
@@ -31,6 +33,7 @@ export const RUNTIME_OVERRIDE_DEFAULTS = {
   providerOverride: "",
   modelOverride: "",
   reasoningEffort: "" as ReasoningEffort | "",
+  speed: "normal" as RuntimeSpeed,
 };
 
 export const EMPTY_SESSION_CREATE_DRAFT: SessionCreateDialogDraft = {

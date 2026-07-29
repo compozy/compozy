@@ -1,8 +1,7 @@
 import { Activity } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
-import { formatDataPreview } from "./session-message-parts.logic";
+import { Marker, MarkerMeta } from "@compozy/ui";
 
 export function SessionMessageText({
   text,
@@ -14,29 +13,15 @@ export function SessionMessageText({
   return <MessageMarkdown content={text} streaming={streaming} />;
 }
 
-export function SessionDataEventCard({ name, data }: { name: string; data: unknown }) {
-  const preview = formatDataPreview(data);
-  const clippedPreview =
-    preview && preview.length > 180 ? `${preview.slice(0, 180).trimEnd()}...` : preview;
-
+/**
+ * Unrecognized data event as a one-line marker: the raw event name is the mono
+ * meta — never a pill, never a payload-preview card. The full payload stays
+ * inspectable through the session inspector, not the transcript.
+ */
+export function SessionDataEventCard({ name }: { name: string; data: unknown }) {
   return (
-    <div
-      data-testid="session-data-part"
-      className={cn(
-        "my-2 flex w-full min-w-0 items-start gap-2 rounded-md border px-3 py-2",
-        "border-line bg-canvas-soft text-form-input text-muted"
-      )}
-    >
-      <Activity aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-      <div className="min-w-0">
-        <div className="text-card-title text-fg">Data event</div>
-        <div className="truncate text-form-label text-subtle">{name}</div>
-        {clippedPreview ? (
-          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-small-body text-muted">
-            {clippedPreview}
-          </pre>
-        ) : null}
-      </div>
-    </div>
+    <Marker data-testid="session-data-part" icon={<Activity strokeWidth={1.8} />}>
+      <b>Data event</b> <MarkerMeta>{name}</MarkerMeta>
+    </Marker>
   );
 }

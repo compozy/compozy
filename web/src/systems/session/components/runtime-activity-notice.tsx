@@ -1,13 +1,6 @@
 import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertMeta,
-  AlertTitle,
-  formatDuration as formatCanonicalDuration,
-  Pill,
-} from "@compozy/ui";
+import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 import {
@@ -143,33 +136,45 @@ function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPa
   return marker?.kind || event.title || event.type;
 }
 
-const NOTICE_CLASS = "my-1.5 w-full min-w-0";
+/** Faint ×N mono count appended when consecutive same-kind events clustered. */
+function ClusterCount({ count }: { count: number }) {
+  if (count <= 1) return null;
+  return <MarkerMeta data-testid="marker-cluster-count"> ×{count}</MarkerMeta>;
+}
 
-export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
+/**
+ * Runtime events as one-line markers — the calm replacement for the old tinted
+ * Alert cards. Tone lives in the 12px glyph; the raw kind string renders as
+ * faint mono meta, never as a pill; consecutive same-kind events arrive
+ * pre-clustered with a ×N count.
+ */
+export function RuntimeActivityNotice({
+  event,
+  count = 1,
+}: {
+  event: AgentEventPayload;
+  count?: number;
+}) {
   if (isSessionErrorEvent(event)) {
     const failureKind = event.failure?.kind?.trim();
 
     return (
-      <Alert
+      <Marker
         role="alert"
         data-testid="session-error-notice"
-        data-tone="danger"
-        className={NOTICE_CLASS}
-        variant="danger"
+        tone="danger"
+        icon={<AlertCircle strokeWidth={1.8} />}
       >
-        <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-        <AlertTitle>Session failed</AlertTitle>
+        <b>Session failed</b> —{" "}
+        <span data-testid="session-error-detail">{sessionErrorDescription(event)}</span>
         {failureKind ? (
-          <AlertMeta data-testid="session-error-meta">
-            <Pill mono size="xs" tone="danger">
-              {failureKind}
-            </Pill>
-          </AlertMeta>
+          <>
+            {" "}
+            <MarkerMeta data-testid="session-error-meta">{failureKind}</MarkerMeta>
+          </>
         ) : null}
-        <AlertDescription className="break-words" data-testid="session-error-detail">
-          {sessionErrorDescription(event)}
-        </AlertDescription>
-      </Alert>
+        <ClusterCount count={count} />
+      </Marker>
     );
   }
 
@@ -178,28 +183,19 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
     const tone = markerTone(marker);
     const Icon = tone === "info" ? Info : AlertTriangle;
     return (
-      <Alert
+      <Marker
         role={tone === "info" ? "status" : "alert"}
         data-testid="transcript-marker-notice"
-        data-tone={tone}
-        className={NOTICE_CLASS}
-        variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}
+        data-marker-tone={tone}
+        tone={tone}
+        icon={<Icon strokeWidth={1.8} />}
       >
-        <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-        <AlertTitle>Transcript marker</AlertTitle>
-        <AlertMeta data-testid="transcript-marker-kind">
-          <Pill
-            mono
-            size="xs"
-            tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}
-          >
-            {markerLabel(marker, event)}
-          </Pill>
-        </AlertMeta>
-        <AlertDescription className="break-words" data-testid="transcript-marker-summary">
+        <span data-testid="transcript-marker-summary">
           {marker?.summary || event.text || "Runtime marker recorded."}
-        </AlertDescription>
-      </Alert>
+        </span>{" "}
+        <MarkerMeta data-testid="transcript-marker-kind">{markerLabel(marker, event)}</MarkerMeta>
+        <ClusterCount count={count} />
+      </Marker>
     );
   }
 
@@ -212,62 +208,52 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
   const detail = describeActivity(activity);
   const meta = activityMeta(activity);
 
-  // Progress stays a quiet in-thread meta row — WorkingIndicator owns activity chrome.
   if (!isWarning) {
     const title = event.text?.trim() || detail;
     return (
-      <div
+      <Marker
         role="status"
         data-testid="runtime-activity-notice"
-        data-tone="progress"
-        className="my-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-1"
+        data-marker-tone="progress"
+        icon={<Activity strokeWidth={1.8} />}
       >
-        <Activity aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-        <span className="min-w-0 truncate text-small-body text-fg">{title}</span>
+        <b>{title}</b>
         {meta ? (
-          <span
-            className="text-form-hint text-muted tabular-nums"
-            data-testid="runtime-activity-meta"
-          >
-            {meta}
-          </span>
-        ) : null}
+          <>
+            {" "}
+            <MarkerMeta data-testid="runtime-activity-meta">{meta}</MarkerMeta>
+          </>
+        ) : null}{" "}
         {title !== detail ? (
-          <span
-            className="min-w-0 truncate text-form-hint text-muted"
-            data-testid="runtime-activity-detail"
-          >
-            {detail}
-          </span>
+          <span data-testid="runtime-activity-detail">{detail}</span>
         ) : (
           <span className="sr-only" data-testid="runtime-activity-detail">
             {detail}
           </span>
         )}
-      </div>
+        <ClusterCount count={count} />
+      </Marker>
     );
   }
 
   const title = event.text?.trim() || "Runtime warning";
 
   return (
-    <Alert
+    <Marker
       role="alert"
       data-testid="runtime-activity-notice"
-      data-tone="warning"
-      className={NOTICE_CLASS}
-      variant="warning"
+      data-marker-tone="warning"
+      tone="warning"
+      icon={<AlertTriangle strokeWidth={1.8} />}
     >
-      <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-      <AlertTitle>{title}</AlertTitle>
+      <b>{title}</b> — <span data-testid="runtime-activity-detail">{detail}</span>
       {meta ? (
-        <AlertMeta data-testid="runtime-activity-meta">
-          <span className="tabular-nums">{meta}</span>
-        </AlertMeta>
+        <>
+          {" "}
+          <MarkerMeta data-testid="runtime-activity-meta">{meta}</MarkerMeta>
+        </>
       ) : null}
-      <AlertDescription className="truncate" data-testid="runtime-activity-detail">
-        {detail}
-      </AlertDescription>
-    </Alert>
+      <ClusterCount count={count} />
+    </Marker>
   );
 }

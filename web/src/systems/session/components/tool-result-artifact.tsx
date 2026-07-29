@@ -1,11 +1,10 @@
-import { Alert, AlertDescription, AlertTitle, Button, CodeBlock, Spinner } from "@compozy/ui";
-import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
 import { ToolArtifactApiError } from "../adapters/tool-artifact-api";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useToolArtifact } from "../hooks/use-tool-artifact";
 import type { ToolArtifactRef, ToolUseResult } from "../types";
+import { DetailPre } from "./tool-renderers/detail-pre";
 
 const TOOL_ARTIFACT_URI_PREFIX = "compozy://tool-artifacts/";
 const BYTE_FORMATTER = new Intl.NumberFormat();
@@ -18,6 +17,37 @@ function byteProgress(loaded: number, total: number): string {
   return `${BYTE_FORMATTER.format(loaded)} of ${BYTE_FORMATTER.format(total)} bytes`;
 }
 
+/** Quiet `--info` text action in the artifact line — never a filled button. */
+function ArtifactAction({
+  label,
+  disabled,
+  onClick,
+  testId,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      disabled={disabled}
+      onClick={onClick}
+      className="w-fit rounded-xs px-0.5 text-[11px] font-medium text-info transition-colors hover:underline hover:underline-offset-2 disabled:pointer-events-none disabled:opacity-60"
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * Retained-result affordance inside the tool detail rail (`.trow__artifact`):
+ * the truncated preview stays in the mono pre; below it a quiet info action
+ * loads the full artifact paginated **in place**, with faint mono byte
+ * progress. Load failure is a danger text line with Retry — never an Alert.
+ */
 export function ToolResultArtifact({ result }: { result: ToolUseResult }) {
   const context = useSessionRuntimeRenderContext();
   const artifact = retainedArtifact(result);
@@ -26,84 +56,58 @@ export function ToolResultArtifact({ result }: { result: ToolUseResult }) {
   const query = useToolArtifact(context?.workspaceId ?? "", artifactURI, opened && !!artifact);
   const canOpen = artifact !== undefined && context !== null;
   const error = query.error instanceof ToolArtifactApiError ? query.error : null;
+  const showFull = opened && query.isSuccess;
 
   return (
-    <div data-testid="tool-result-artifact" className="flex min-w-0 flex-col gap-2.5">
-      {result.preview ? (
-        <CodeBlock
-          caption="Result preview"
-          code={result.preview}
-          copyable
-          density="compact"
-          showPrompt={false}
-          wrapLines
-        />
+    <div data-testid="tool-result-artifact" className="flex min-w-0 flex-col gap-1">
+      {showFull ? (
+        <DetailPre data-testid="full-tool-result">{query.content}</DetailPre>
+      ) : result.preview ? (
+        <DetailPre data-testid="tool-result-preview">{result.preview}</DetailPre>
       ) : null}
 
-      {!opened && canOpen ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-fit"
-          onClick={() => setOpened(true)}
-        >
-          Open full result
-        </Button>
-      ) : null}
-
-      {opened && query.isPending ? (
-        <Button type="button" variant="outline" size="sm" className="w-fit" disabled>
-          <Spinner aria-hidden="true" className="size-3.5" />
-          Opening full result
-        </Button>
-      ) : null}
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+        {!opened && canOpen ? (
+          <ArtifactAction
+            label="Open full result"
+            onClick={() => setOpened(true)}
+            testId="artifact-open"
+          />
+        ) : null}
+        {opened && query.isPending ? (
+          <span className="text-[11px] text-subtle">Opening full result…</span>
+        ) : null}
+        {showFull && query.hasNextPage ? (
+          <ArtifactAction
+            label={query.isFetchingNextPage ? "Loading more…" : "Load more"}
+            disabled={query.isFetchingNextPage}
+            onClick={() => query.fetchNextPage()}
+            testId="artifact-load-more"
+          />
+        ) : null}
+        {showFull ? (
+          <span className="font-mono text-[10px] text-faint tabular-nums">
+            {byteProgress(query.loadedBytes, query.totalBytes)}
+          </span>
+        ) : !opened && canOpen && typeof artifact?.bytes === "number" ? (
+          <span className="font-mono text-[10px] text-faint tabular-nums">
+            {BYTE_FORMATTER.format(artifact.bytes)} bytes retained
+          </span>
+        ) : null}
+      </div>
 
       {opened && query.isError ? (
-        <Alert variant="danger">
-          <AlertTriangle aria-hidden="true" />
-          <AlertTitle>Full result unavailable</AlertTitle>
-          <AlertDescription>
-            {error?.message ?? "Couldn't load the retained result. Try again."}
-          </AlertDescription>
+        <div data-testid="artifact-error" className="text-[11px] text-danger">
+          {error?.message ?? "Couldn't load the retained result. Try again."}
           {error?.statusCode !== 404 ? (
-            <div className="col-start-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => query.refetch()}>
-                Retry full result
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={() => query.refetch()}
+              className="ml-1.5 rounded-xs font-medium text-info transition-colors hover:underline hover:underline-offset-2"
+            >
+              Retry
+            </button>
           ) : null}
-        </Alert>
-      ) : null}
-
-      {opened && query.isSuccess ? (
-        <div className="flex min-w-0 flex-col gap-2">
-          <CodeBlock
-            data-testid="full-tool-result"
-            caption="Full tool result"
-            code={query.content}
-            copyable
-            density="compact"
-            language="json"
-            showPrompt={false}
-            wrapLines
-          />
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <span className="text-form-hint text-faint tabular-nums">
-              {byteProgress(query.loadedBytes, query.totalBytes)}
-            </span>
-            {query.hasNextPage ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={query.isFetchingNextPage}
-                onClick={() => query.fetchNextPage()}
-              >
-                {query.isFetchingNextPage ? "Loading more result" : "Load more"}
-              </Button>
-            ) : null}
-          </div>
         </div>
       ) : null}
     </div>

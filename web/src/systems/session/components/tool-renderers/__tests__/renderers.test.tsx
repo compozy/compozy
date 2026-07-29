@@ -36,7 +36,8 @@ describe("BashContent", () => {
         })}
       />
     );
-    expect(screen.getByText("echo hello")).toBeInTheDocument();
+    // The command renders as a `$ `-prefixed context line in the detail rail.
+    expect(screen.getByText(/echo hello/)).toBeInTheDocument();
     // stdout is rendered in a pre element; getByText normalizes whitespace so use getAllByText
     const matches = screen.getAllByText(/hello/);
     expect(matches.length).toBeGreaterThanOrEqual(1);
@@ -52,9 +53,11 @@ describe("BashContent", () => {
         })}
       />
     );
-    expect(screen.getByText("command not found")).toBeInTheDocument();
-    const stderrEl = screen.getByText("command not found");
-    expect(stderrEl.closest("pre")).toHaveClass("text-danger");
+    // stderr renders as danger TEXT inside the muted detail pre — no tinted block.
+    const stderrEl = screen.getByTestId("bash-stderr");
+    expect(stderrEl).toHaveTextContent("command not found");
+    expect(stderrEl).toHaveClass("text-danger");
+    expect(stderrEl.closest("pre")).not.toHaveClass("bg-danger-tint");
   });
 
   it("renders without command when toolInput has no command", () => {
@@ -124,7 +127,8 @@ describe("WriteContent", () => {
       />
     );
     expect(screen.getByText("/out.txt")).toBeInTheDocument();
-    expect(screen.getByText("hello world")).toBeInTheDocument();
+    // Written content renders as `+ `-prefixed success text lines.
+    expect(screen.getByText(/\+ hello world/)).toBeInTheDocument();
   });
 
   it("truncates long content", () => {

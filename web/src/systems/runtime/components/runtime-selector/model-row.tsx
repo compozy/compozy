@@ -12,35 +12,42 @@ export interface ModelRowProps {
   providerName: string;
   /** Icon key from the owning provider option (`runtime_provider` or id). */
   iconKind: string;
+  /**
+   * Cross-provider sections (pinned recents/favorites) show the provider mark;
+   * provider-grouped rows drop it — the group head already carries identity.
+   */
+  showGlyph: boolean;
   selected: boolean;
   favorite: boolean;
   highlighted: boolean;
   onSelect: (provider: string, id: string) => void;
-  /** Pointer hover makes this the active row (so the external favorite action targets it). */
+  /** Pointer hover makes this the active row (so Alt+F targets it). */
   onHover: () => void;
+  /** Pointer path for the row's favorite star (keyboard path is Alt+F). */
+  onToggleFavorite: () => void;
 }
 
 /**
- * One `role="option"` in the models listbox — a single line: bare provider
- * mark, model name, and a faint brain glyph when the model reasons. Context,
- * cost, and tool metadata deliberately do not render here; the catalog is a
- * picker, not a spec sheet. A listbox option MUST NOT wrap a focusable or
- * interactive control, so the row stays pure: selection is its only action.
- * The favorite star is a NON-interactive `aria-hidden` indicator — the real
- * favorite control is the footer button (+ Alt+F) acting on the active row,
- * and pointer hover activates the row so that control targets whatever the
- * cursor is over.
+ * One `role="option"` in the models listbox — a compact 28px line (design ref:
+ * runtime-selector-variations.html, variation A): name, a faint brain glyph
+ * when the model reasons, and a favorite star on the trailing edge. A listbox
+ * option MUST NOT wrap a focusable control, so the star is `aria-hidden` and
+ * never enters the Tab order: pointer clicks are intercepted before row
+ * selection, while keyboard/AT users favorite the active row with Alt+F
+ * (announced by the popup's polite status region). Its hit area stays ≥24px.
  */
 export function ModelRow({
   id,
   model,
   providerName,
   iconKind,
+  showGlyph,
   selected,
   favorite,
   highlighted,
   onSelect,
   onHover,
+  onToggleFavorite,
 }: ModelRowProps) {
   const disabled = Boolean(model.disabled);
   const reasons = model.efforts.length > 0 || Boolean(model.supports_reasoning);
@@ -59,10 +66,10 @@ export function ModelRow({
       data-highlighted={highlighted ? "true" : "false"}
       data-favorite={favorite ? "true" : "false"}
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors",
+        "group flex h-7 w-full items-center gap-2 rounded-md pr-0.5 pl-2 text-left transition-colors",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-row-hover",
         highlighted && !disabled && "bg-row-hover ring-1 ring-line-strong ring-inset",
-        selected && "bg-row-selected"
+        selected && "bg-accent-tint"
       )}
       onMouseEnter={disabled ? undefined : onHover}
       onClick={event => {
@@ -71,15 +78,24 @@ export function ModelRow({
         onSelect(model.provider, model.id);
       }}
     >
-      <KindIcon
-        kind={iconKind}
-        registry={providerKindIconRegistry}
-        size="md"
-        tone="default"
-        className="shrink-0"
-      />
+      {showGlyph ? (
+        <KindIcon
+          kind={iconKind}
+          registry={providerKindIconRegistry}
+          size="sm"
+          tone="default"
+          className="shrink-0"
+        />
+      ) : null}
       <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-small-body font-medium text-fg-strong">{model.name}</span>
+        <span
+          className={cn(
+            "truncate text-small-body font-medium",
+            selected ? "text-fg-strong" : "text-fg"
+          )}
+        >
+          {model.name}
+        </span>
         <span className="sr-only">from {providerName}</span>
         {reasons ? (
           <span
@@ -87,13 +103,13 @@ export function ModelRow({
             title="Supports reasoning"
             className="grid shrink-0 place-items-center text-faint"
           >
-            <Brain aria-hidden="true" className="size-3.5" />
+            <Brain aria-hidden="true" className="size-3" />
             <span className="sr-only">, supports reasoning</span>
           </span>
         ) : null}
         {favorite ? <span className="sr-only">, favorited</span> : null}
       </span>
-      <span className="flex shrink-0 items-center gap-2.5">
+      <span className="flex shrink-0 items-center gap-1.5">
         {disabled ? (
           <span className="text-badge font-medium whitespace-nowrap text-warning">
             {model.disabled_reason ?? "Unavailable"}
@@ -107,15 +123,24 @@ export function ModelRow({
             data-selected-check="true"
           />
         ) : null}
-        {/* Decorative favorite-state indicator only — never interactive. The real
-            favorite control is the footer button + Alt+F acting on the active row. */}
+        {/* Pointer-only favorite affordance: aria-hidden (never focusable, never
+            in the a11y tree) with a 24px hit target; the keyboard/AT path is the
+            Alt+F shortcut acting on the active row. */}
         <span
           aria-hidden="true"
           data-favorite-indicator={favorite ? "true" : "false"}
           className={cn(
-            "pointer-events-none grid size-5 place-items-center rounded text-faint transition-opacity",
-            favorite ? "text-warning opacity-100" : "opacity-0"
+            "grid size-6 shrink-0 place-items-center rounded transition-opacity",
+            favorite
+              ? "text-warning opacity-100"
+              : "text-faint opacity-0 hover:text-fg-strong group-hover:opacity-100 group-data-[highlighted=true]:opacity-100"
           )}
+          onClick={event => {
+            if (disabled) return;
+            event.stopPropagation();
+            event.preventDefault();
+            onToggleFavorite();
+          }}
         >
           <Star aria-hidden="true" className={cn("size-3.5", favorite && "fill-current")} />
         </span>

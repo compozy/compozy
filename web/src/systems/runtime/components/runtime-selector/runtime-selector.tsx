@@ -1,11 +1,12 @@
 import { RefreshCw, Search } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 
+import { type RuntimeSpeed } from "@/lib/api-contract";
 import { cn, Popover, PopoverContent } from "@compozy/ui";
 
 import { ModelList } from "./model-list";
-import { ProviderRail } from "./provider-rail";
-import { ReasoningBar } from "./reasoning-bar";
+import { ProviderChips } from "./provider-chips";
+import { SelectorFooter } from "./selector-footer";
 import { RuntimeSelectorTrigger } from "./trigger";
 import { useRuntimeSelector } from "./use-runtime-selector";
 import { useRuntimeSelectorPopup } from "./use-runtime-selector-popup";
@@ -34,6 +35,14 @@ export interface RuntimeSelectorProps {
   /** Rendered under the search header (stale/error/count status). */
   catalogStatus?: ReactNode;
   onOpenProviderSettings?: () => void;
+  /**
+   * Session-level ACP speed request (PR #267). Both props together render the
+   * footer switch and the trigger bolt; leave them unwired on surfaces whose
+   * create contract has no `speed` field. The daemon resolves the request at
+   * prompt dispatch — this is intent, never a per-model capability claim.
+   */
+  speed?: RuntimeSpeed;
+  onSpeedChange?: (next: RuntimeSpeed) => void;
   triggerId?: string;
   triggerTestId?: string;
   /** id of the surface's visible caption; names the trigger group via aria-labelledby. */
@@ -55,6 +64,8 @@ export function RuntimeSelector({
   refreshing = false,
   catalogStatus,
   onOpenProviderSettings,
+  speed,
+  onSpeedChange,
   triggerId,
   triggerTestId,
   ariaLabelledby,
@@ -63,10 +74,11 @@ export function RuntimeSelector({
   const controller = useRuntimeSelector({ value, onChange, providers, models });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const inert = disabled || readOnly;
   const popup = useRuntimeSelectorPopup({
     controller,
     providers,
-    disabled: disabled || readOnly,
+    disabled: inert,
     triggerRef,
     searchRef,
   });
@@ -98,6 +110,7 @@ export function RuntimeSelector({
         readOnly={readOnly}
         needsAuth={controller.activeProvider?.needs_auth}
         modelPlaceholder={modelPlaceholder}
+        speed={onSpeedChange ? speed : undefined}
         popupId={popup.popupId}
         ariaLabelledby={ariaLabelledby}
         onPress={popup.handleTriggerPress}
@@ -110,15 +123,15 @@ export function RuntimeSelector({
         initialFocus={popup.resolveInitialFocus}
         finalFocus={popup.finalFocus}
         aria-label="Runtime selector"
-        className="max-h-[min(520px,var(--available-height))] w-[min(528px,94vw)] overflow-hidden p-0 shadow-overlay"
+        className="max-h-[min(440px,var(--available-height))] w-[min(320px,94vw)] overflow-hidden bg-canvas p-0 shadow-overlay"
       >
         <div
           id={popup.popupId}
           className="flex max-h-[inherit] flex-col"
           data-testid="runtime-selector-popup"
         >
-          <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line-soft px-3">
-            <Search aria-hidden="true" className="size-4 shrink-0 text-subtle" />
+          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line-soft px-3">
+            <Search aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
             <input
               ref={searchRef}
               type="text"
@@ -128,6 +141,7 @@ export function RuntimeSelector({
               aria-controls={popup.listId}
               aria-autocomplete="list"
               aria-activedescendant={popup.activeDescendant}
+              aria-keyshortcuts="Alt+F"
               value={controller.query}
               onChange={event => controller.changeQuery(event.target.value)}
               onKeyDown={popup.handleSearchKeyDown}
@@ -145,7 +159,7 @@ export function RuntimeSelector({
                 data-testid="runtime-selector-refresh"
                 disabled={refreshing}
                 onClick={() => onRefreshCatalog()}
-                className="grid size-button-icon-default shrink-0 place-items-center rounded text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
+                className="grid size-6 shrink-0 place-items-center rounded-sm text-subtle outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
               >
                 <RefreshCw
                   aria-hidden="true"
@@ -154,6 +168,13 @@ export function RuntimeSelector({
               </button>
             ) : null}
           </div>
+          <ProviderChips
+            providers={providers}
+            railFilter={controller.railFilter}
+            searching={controller.listModel.searching}
+            onRail={controller.changeRail}
+            onOpenSettings={handleOpenSettings}
+          />
           {catalogStatus ? (
             <div
               className="shrink-0 border-b border-line-soft px-3 py-1.5 text-badge text-subtle"
@@ -162,47 +183,31 @@ export function RuntimeSelector({
               {catalogStatus}
             </div>
           ) : null}
-          <div className="flex min-h-0 flex-1">
-            <ProviderRail
-              providers={providers}
-              railFilter={controller.railFilter}
-              searching={controller.listModel.searching}
-              onRail={controller.changeRail}
-              onOpenSettings={handleOpenSettings}
-            />
-            <ModelList
-              listId={popup.listId}
-              optionId={popup.optionId}
-              listModel={controller.listModel}
-              highlightIndex={controller.highlightIndex}
-              loading={loading}
-              providerName={popup.providerName}
-              providerKind={popup.providerKind}
-              onSelect={controller.pickModel}
-              onHover={controller.highlightRow}
-              highlightedFavorite={
-                controller.highlightedRow
-                  ? {
-                      name: controller.highlightedRow.model.name,
-                      providerName: popup.providerName(controller.highlightedRow.model.provider),
-                      favorite: controller.highlightedRow.favorite,
-                    }
-                  : undefined
-              }
-              onToggleHighlightedFavorite={controller.toggleHighlightedFavorite}
-              onCustomCommit={controller.pickCustom}
-              onFocusSearch={() => searchRef.current?.focus()}
-            />
-          </div>
-          <ReasoningBar
+          <ModelList
+            listId={popup.listId}
+            optionId={popup.optionId}
+            listModel={controller.listModel}
+            highlightIndex={controller.highlightIndex}
+            loading={loading}
+            providerName={popup.providerName}
+            providerKind={popup.providerKind}
+            onSelect={controller.pickModel}
+            onHover={controller.highlightRow}
+            onToggleFavorite={row => controller.toggleFavoriteFor(row.model)}
+            onCustomCommit={controller.pickCustom}
+            onFocusSearch={() => searchRef.current?.focus()}
+          />
+          <SelectorFooter
             reasoning={controller.reasoningState}
             value={value.reasoning_effort}
-            providerName={popup.providerName(value.provider)}
             modelName={modelName || value.provider}
             onSelect={controller.setReasoning}
+            speed={speed}
+            onSpeedChange={onSpeedChange}
+            speedDisabled={inert}
           />
-          {/* Polite status: the favorite button's aria-pressed flip is not
-              announced while focus stays in search (Alt+F), so speak the result. */}
+          {/* Polite status: favoriting never moves focus (pointer star or Alt+F
+              in search), so speak the result. */}
           <span
             role="status"
             aria-live="polite"

@@ -1,94 +1,103 @@
 import { memo, useState } from "react";
-import { Brain, ChevronRight } from "lucide-react";
+import { Brain, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  Eyebrow,
-  TypingDots,
-} from "@compozy/ui";
 
 export interface ThinkingBlockProps {
   thinking: string;
   thinkingComplete?: boolean;
-  /** How many reasoning updates are grouped into this block; shows "N updates" when > 1. */
-  updateCount?: number;
+}
+
+/** Collapsed-row preview: the first non-empty reasoning line, trimmed. */
+function firstThinkingLine(thinking: string): string {
+  for (const line of thinking.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return "";
 }
 
 /**
- * `ThinkingBlock` renders one (possibly grouped) span of agent reasoning as a
- * muted collapsible row in the same visual family as `ToolCallRow`: a `size-5`
- * icon well + `size-3.5` Brain glyph, a quiet label, an optional "N updates"
- * count, and a `size-3` chevron, expanding to an indented left-rule region
- * (`ml-7 border-l border-line pl-3`) that renders the reasoning as markdown.
- *
- * It auto-opens while the turn streams and auto-collapses once settled, unless
- * the operator has toggled it (a user toggle pins the state either way).
+ * Agent reasoning in the calm-transcript grammar. Live, it is a shimmering
+ * "Thinking…" text label with the streaming body auto-opened beneath it;
+ * settled, it collapses to a tool-row line — "Thought" verb + first-line
+ * preview + chevron — expanding to the indented muted body. A user toggle pins
+ * the state either way (auto-open while live, auto-collapse on settle).
  */
 export const ThinkingBlock = memo(
-  function ThinkingBlock({ thinking, thinkingComplete, updateCount = 1 }: ThinkingBlockProps) {
+  function ThinkingBlock({ thinking, thinkingComplete }: ThinkingBlockProps) {
     const [userOpen, setUserOpen] = useState<boolean | null>(null);
-    const open = userOpen ?? !thinkingComplete;
-    const label = thinkingComplete ? "Thought process" : "Thinking";
+    const live = !thinkingComplete;
+    const open = userOpen ?? live;
+    const preview = firstThinkingLine(thinking);
 
     return (
-      <Collapsible open={open} onOpenChange={setUserOpen}>
-        <CollapsibleTrigger
-          className={cn(
-            "group/reasoning flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5",
-            "rounded-sm px-1 text-left",
-            "transition-colors duration-base ease-out hover:bg-hover",
-            "focus-visible:outline-none focus-visible:shadow-focus-ring"
-          )}
-          data-testid="thinking-trigger"
-        >
-          <span className="flex size-5 shrink-0 items-center justify-center">
-            <Brain
-              className="size-3.5 shrink-0 text-subtle transition-colors group-hover/reasoning:text-muted"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-          </span>
-          <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="truncate text-form-label font-medium text-muted transition-colors group-hover/reasoning:text-fg">
-              {label}
+      <div
+        data-testid="thinking-block"
+        data-live={live || undefined}
+        className="flex min-w-0 flex-col"
+      >
+        {live ? (
+          <button
+            type="button"
+            data-testid="thinking-trigger"
+            aria-expanded={open}
+            onClick={() => setUserOpen(!open)}
+            className={cn(
+              "w-fit rounded-sm px-1 py-0.5 text-left",
+              "focus-visible:shadow-focus-ring focus-visible:outline-none"
+            )}
+          >
+            <span className="session-shimmer text-small-body font-medium">Thinking…</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="thinking-trigger"
+            aria-expanded={open}
+            onClick={() => setUserOpen(!open)}
+            className={cn(
+              "group/thinking flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-[7px]",
+              "rounded-sm px-1 text-left",
+              "transition-colors duration-base ease-out hover:bg-hover",
+              "focus-visible:shadow-focus-ring focus-visible:outline-none"
+            )}
+          >
+            <span className="flex size-[18px] shrink-0 items-center justify-center">
+              <Brain aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
             </span>
-            {thinkingComplete ? null : <TypingDots className="shrink-0" />}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-subtle">
-            {updateCount > 1 ? (
-              <Eyebrow className="text-muted">{updateCount} updates</Eyebrow>
-            ) : null}
-            <ChevronRight
+            <span className="flex min-w-0 flex-1 items-baseline gap-[7px] text-small-body">
+              <span className="shrink-0 font-medium text-muted transition-colors group-hover/thinking:text-fg">
+                Thought
+              </span>
+              {preview ? (
+                <span className="min-w-0 flex-1 truncate text-subtle">{preview}</span>
+              ) : null}
+            </span>
+            <ChevronDown
+              aria-hidden="true"
               className={cn(
-                "size-3 shrink-0 text-subtle transition-transform duration-base ease-out",
-                "motion-reduce:transition-none",
-                open ? "rotate-90 text-muted" : null
+                "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
+                open ? "rotate-180" : null
               )}
               strokeWidth={1.75}
-              aria-hidden="true"
             />
-          </span>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
+          </button>
+        )}
+        {open ? (
           <div
-            className={cn(
-              "mt-1 ml-7 max-h-60 overflow-y-auto border-l border-line pl-3",
-              "select-text text-form-input text-muted"
-            )}
             data-testid="thinking-content"
+            className={cn(
+              "mt-0.5 mb-1 ml-[25px] max-h-60 overflow-y-auto border-l border-line pl-[11px]",
+              "text-[12px] leading-relaxed text-muted select-text"
+            )}
           >
-            <MessageMarkdown content={thinking} streaming={!thinkingComplete} />
+            <MessageMarkdown content={thinking} streaming={live} />
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        ) : null}
+      </div>
     );
   },
-  (prev, next) =>
-    prev.thinking === next.thinking &&
-    prev.thinkingComplete === next.thinkingComplete &&
-    prev.updateCount === next.updateCount
+  (prev, next) => prev.thinking === next.thinking && prev.thinkingComplete === next.thinkingComplete
 );

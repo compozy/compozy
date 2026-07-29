@@ -216,7 +216,6 @@ export {
   type CodeBlockDensity,
   type CodeBlockHighlightState,
   type CodeBlockProps,
-  type CodeBlockTone,
   type CopyIconButtonProps,
 } from "./components/custom/code-block";
 export {
@@ -361,6 +360,11 @@ export {
   type ToolCallRowSectionProps,
   type ToolCallStatus,
 } from "./components/custom/tool-call-row";
+export { Marker, MarkerMeta, type MarkerProps, type MarkerTone } from "./components/custom/marker";
+export { Receipt, type ReceiptProps, type ReceiptTone } from "./components/custom/receipt";
+export { Dock, type DockProps, type DockStatusProps } from "./components/custom/dock";
+export { ChoiceFree, ChoiceFreeBar, ChoiceFreeTextarea } from "./components/custom/choice";
+export { ChoiceHint, ChoiceKey, ChoiceList, ChoiceRow } from "./components/custom/choice";
 export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,

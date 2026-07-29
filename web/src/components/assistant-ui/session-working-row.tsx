@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { TypingDots } from "@compozy/ui";
+import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { formatWorkingElapsed } from "./session-working-row.logic";
 import type { SessionWorkingRow } from "./session-timeline.logic";
@@ -31,14 +31,20 @@ function WorkingTimer({ startedAt }: { startedAt: number }) {
   );
 }
 
+const WORKING_DOT_DELAYS = [
+  "[animation-delay:0ms]",
+  "[animation-delay:200ms]",
+  "[animation-delay:400ms]",
+];
+
 /**
  * Presentational streaming indicator, split from the row wrapper so Storybook can
  * render both the motion and reduced-motion variants without touching `matchMedia`.
  *
- * Motion: typing dots (`@compozy/ui` `TypingDots`, wiring the `typing-bounce`
- * keyframe on `bg-subtle` dots) beside a live "Working for Xs" `tabular-nums`
- * timer. Reduced motion degrades to a resting label — no `TypingDots`, no
- * ticking timer — so no animation class reaches the DOM.
+ * Motion: three 4px dots on a stepped 2s duty cycle beside a live
+ * "Working for Xs" `tabular-nums` timer — the smallest, dimmest text on the
+ * surface. Reduced motion degrades to a resting label — no dots, no ticking
+ * timer — so no animation class reaches the DOM.
  */
 export function WorkingIndicator({
   startedAt,
@@ -53,7 +59,7 @@ export function WorkingIndicator({
         role="status"
         aria-label="Working"
         data-testid="session-working-row"
-        className="flex items-center gap-2 text-small-body text-muted"
+        className="flex min-h-[22px] items-center gap-2 px-1 py-0.5 text-[11.5px] text-subtle"
       >
         <span>Working…</span>
       </div>
@@ -65,9 +71,16 @@ export function WorkingIndicator({
       role="status"
       aria-label="Working"
       data-testid="session-working-row"
-      className="flex items-center gap-2 text-small-body text-muted"
+      className="flex min-h-[22px] items-center gap-2 px-1 py-0.5 text-[11.5px] text-subtle"
     >
-      <TypingDots />
+      <span aria-hidden="true" className="flex items-center gap-[3px]">
+        {WORKING_DOT_DELAYS.map(delay => (
+          <span
+            key={delay}
+            className={cn("session-working-dot size-1 rounded-full bg-faint", delay)}
+          />
+        ))}
+      </span>
       <span aria-hidden="true" className="tabular-nums">
         {startedAt !== undefined ? (
           <>

@@ -43,7 +43,9 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
     <div class="win-dots"><i></i><i></i><i></i></div>
     <div class="win-title"><span class="d"></span><span>Calm transcript migration</span><span class="sub">claude-code · compozy</span></div>
     <div class="win-actions">
-      <button class="btn btn--sm" type="button">Share</button>
+      <!-- state-gated goal action: active goal → Pause (paused → Resume,
+           needs-approval → Approve, terminal → Clear; one at a time) -->
+      <button class="btn btn--sm" type="button" data-od-id="goal-pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</button>
       <button class="btn btn--sm btn--danger-ghost" type="button">Stop</button>
     </div>
   </header>
@@ -63,6 +65,12 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
           <div class="disclose"><div><div class="goalstrip__body">
             <div class="goalstrip__row"><span class="goalstrip__k">Contract</span><span class="goalstrip__v">All 16 transcript components on session.css tokens; make verify green.</span></div>
             <div class="goalstrip__row"><span class="goalstrip__k">Run</span><span class="goalstrip__v"><a href="#">plan-4 · generation 2</a> — active in this session</span></div>
+            <div class="goalstrip__row"><span class="goalstrip__k">Context</span><span class="goalstrip__v"><span class="goalstrip__mono">84,120 / 200,000 tokens · nudge at 70%</span></span></div>
+            <div class="goalstrip__row"><span class="goalstrip__k">Last verdict</span><span class="goalstrip__v">continue — 2 blocking issues resolved</span></div>
+            <div class="goalstrip__row"><span class="goalstrip__k">Actions</span><span class="goalstrip__v"><span class="goalstrip__acts">
+              <button class="goalstrip__act" type="button" data-prefill="/goal Migrate session transcript to the calm-surface vocabulary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Draft goal command</button>
+              <button class="goalstrip__act" type="button" data-prefill="/goal replace plan-4 Migrate session transcript to the calm-surface vocabulary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Draft replacement</button>
+            </span></span></div>
           </div></div></div>
         </div>
       </div>
@@ -78,7 +86,8 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
 
           <!-- ===== turn 1 (settled, folded) ===== -->
           <div class="t-row t-msg msg-user" data-od-id="msg-user-1">
-            <div class="msg-user__bubble">Take a look at the session transcript UI — tool calls, banners, goal chip. It's way too loud. Make it calm: text-first, grouped calls, no colored cards.</div>
+            <div class="msg-user__bubble" data-clamped="true">Take a look at the session transcript UI — tool calls, banners, goal chip. It's way too loud. Make it calm: text-first, grouped calls, no colored cards. Some context before you start: the transcript renders sixteen distinct component kinds and five of them are visually identical bordered cards. The goal chip alone stacks an icon tile, two status pills, a three-column meter grid, a moved-session strip and a five-button control bar. The permission prompt is sticky and chases the scroll, every runtime event gets its own tinted Alert, and the changed-files summary is yet another bordered card. Flatten all of it into one calm vocabulary — text lines, glyphs for status, a single neutral ramp — without losing a single capability along the way.</div>
+            <button class="msg-more" type="button">Show more</button>
             <div class="msg-meta"><span>14:02</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
           </div>
 
@@ -143,10 +152,14 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
             <div class="msg-meta"><span>14:05</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
           </div>
 
-          <!-- permission receipt stays OUTSIDE the fold -->
+          <!-- permission receipts stay OUTSIDE the fold -->
           <div class="t-row receipt" data-tone="allowed" data-od-id="receipt-allowed">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Allowed <code>Bash</code> once — <code>bun install</code></span>
+          </div>
+          <div class="t-row receipt" data-tone="rejected" data-od-id="receipt-rejected">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span>Rejected <code>Write</code> — asked for a dry run instead</span>
           </div>
 
           <div class="turnfold" data-open="false" data-od-id="turn-2-fold">
@@ -191,10 +204,25 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
             <span><b>Context 41% full</b> — no compaction needed yet.</span>
           </div>
 
+          <!-- ===== interrupted turn — never folds ===== -->
+          <div class="t-row t-msg msg-user" data-od-id="msg-user-stop">
+            <div class="msg-user__bubble">Hold on — pause that for a second.</div>
+            <div class="msg-meta"><span>14:10</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          </div>
+          <div class="turnfold turnfold--stopped t-row--turn-end" data-od-id="turn-stopped">
+            <span class="turnfold__label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>Stopped after 34s — 1 tool call interrupted</span>
+          </div>
+
           <!-- ===== turn 3 (live) ===== -->
           <div class="t-row t-msg msg-user" data-od-id="msg-user-3">
             <div class="msg-user__bubble">Now the markers and the goal strip. Keep the receipts outside the folds like you did.</div>
             <div class="msg-meta"><span>14:12</span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          </div>
+
+          <!-- goal continuation marker (was GoalPromptNotice card) -->
+          <div class="t-row marker marker--goal" data-tone="info" data-od-id="marker-goal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span><b>Goal continuation</b> <span class="marker__meta">generation 2 · turn 3</span></span>
           </div>
 
           <!-- live plan -->
@@ -220,15 +248,29 @@ body{background:var(--rail);display:grid;place-items:center;min-height:100vh;pad
               <span class="trow__text"><span class="trow__verb">Ran</span><span class="trow__prev">bunx turbo run typecheck --filter=./web</span></span>
               <span class="trow__aside"><span class="trow__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span><span class="trow__status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></span>
             </button>
-            <div class="disclose"><div><div class="trow__detail"><pre><span class="err">error TS2339: Property 'tone' does not exist on type 'MarkerProps'.</span>
+            <div class="disclose"><div><div class="trow__detail"><pre id="artPre"><span class="err">error TS2339: Property 'tone' does not exist on type 'MarkerProps'.</span>
 <span class="ctx">  src/systems/session/components/runtime-activity-notice.tsx:47</span>
-exit code 2</pre></div></div></div></div>
+exit code 2</pre>
+            <!-- retained result (ToolResultArtifact) — quiet action in the same rail -->
+            <div class="trow__artifact" data-od-id="tool-artifact"><div class="trow__artifact-line">
+              <button class="trow__open" type="button" id="artOpen">Open full result</button>
+              <span class="trow__bytes" id="artBytes">2,048 of 96,410 bytes</span>
+            </div></div></div></div></div></div>
             <div class="trow" data-status="running"><div class="trow__line">
               <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
               <span class="trow__text"><span class="trow__verb">Editing</span><span class="trow__prev">runtime-activity-notice.tsx</span></span>
               <span class="trow__aside"><span class="trow__status"><svg class="trow__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg></span></span>
             </div></div>
           </div>
+
+          <!-- consecutive same-kind events cluster into one marker with ×N -->
+          <div class="t-row marker" data-tone="warning" data-od-id="marker-retry">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span><b>Provider overloaded</b> — retried, run continuing. <span class="marker__meta">×3</span></span>
+          </div>
+
+          <!-- live thinking — shimmer label only -->
+          <div class="t-row thinking-live" data-od-id="thinking-live"><span class="shimmer">Retoning the marker components…</span></div>
 
           <!-- working row -->
           <div class="t-row working" data-od-id="working-row">
@@ -253,14 +295,39 @@ exit code 2</pre></div></div></div></div>
             <button class="btn btn--primary" type="button" data-decide="allow">Allow once<kbd>1</kbd></button>
             <button class="btn" type="button" data-decide="always">Always allow<kbd>2</kbd></button>
             <span class="spacer"></span>
-            <button class="btn btn--danger-ghost" type="button" data-decide="reject">Reject<kbd>3</kbd></button>
+            <!-- reject split — all four ACP decisions reachable; key 4 fires
+                 reject-always even with the menu closed -->
+            <div class="dock__reject" data-open="false" data-od-id="reject-split">
+              <button class="btn btn--danger-ghost" type="button" data-decide="reject">Reject<kbd>3</kbd></button>
+              <button class="btn btn--danger-ghost dock__reject-chev" type="button" data-toggle aria-expanded="false" aria-label="More reject options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg></button>
+              <div class="dock__menu"><button type="button" data-decide="reject-always">Reject always<kbd>4</kbd></button></div>
+            </div>
+          </div>
+        </div>
+        <!-- queued follow-ups (SessionComposerQueuedPrompts) — staged while the turn runs -->
+        <div class="qstrip" id="qstrip" data-od-id="queued-prompts">
+          <div class="qrow" data-qtext="Convert the states gallery to the marker vocabulary too">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
+            <span class="qrow__text">Convert the states gallery to the marker vocabulary too</span>
+            <div class="qrow__acts">
+              <button class="qrow__steer" type="button" data-qact="steer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>Steer</button>
+              <button class="qrow__ib" type="button" data-qact="edit" aria-label="Edit queued prompt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <button class="qrow__ib" type="button" data-qact="remove" aria-label="Remove queued prompt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
           </div>
         </div>
         <div class="composer composer--docked" id="composer">
           <textarea rows="1" placeholder="Reply to the agent…"></textarea>
           <div class="composer__bar">
-            <span class="composer__hint"><kbd>⏎</kbd> send</span>
+            <!-- runtime selector — variation A (flat palette), popup opens above -->
+            <div class="rtsel" id="rtsel" data-od-id="runtime-selector">
+              <button class="pmr" id="rtTrig" type="button" aria-expanded="false" aria-haspopup="dialog" data-od-id="runtime-selector-trigger"></button>
+              <div class="rtpop" id="rtPop" role="dialog" aria-label="Runtime selector" hidden data-od-id="runtime-selector-popup"></div>
+            </div>
+            <span class="composer__hint"><kbd>⏎</kbd> queue</span>
             <span class="spacer"></span>
+            <button class="btn btn--ghost btn--sm" type="button" id="btnQueue" data-od-id="composer-queue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>Queue</button>
+            <button class="btn btn--ghost btn--sm" type="button" id="btnInterrupt" data-od-id="composer-interrupt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>Interrupt</button>
             <button class="composer__stop" type="button" aria-label="Stop turn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></button>
             <button class="composer__send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
           </div>
@@ -282,34 +349,424 @@ document.addEventListener("click",(e)=>{
 /* working ticker — mutates the text node only */
 (()=>{let s=134;const el=document.getElementById("tick");
 setInterval(()=>{s++;el.textContent=Math.floor(s/60)+"m "+String(s%60).padStart(2,"0")+"s";},1000);})();
-/* permission decision → dock resolves into a transcript receipt */
+/* permission decision → receipt; then the pending clarification docks.
+   Keys: 1 allow-once · 2 allow-always · 3 reject-once · 4 reject-always
+   (key 4 works with the reject menu closed). */
 (()=>{
-  const dock=document.getElementById("dock");
   const composer=document.getElementById("composer");
   const transcript=document.querySelector(".transcript");
-  const decide=(kind)=>{
+  const zone=document.querySelector(".composer-zone .chat-col");
+  const strip=document.getElementById("qstrip");
+  const scroll=()=>{document.querySelector(".chat-scroll").scrollTop=1e6;};
+  const receipt=(html,tone)=>{
     const r=document.createElement("div");
     r.className="t-row receipt";
-    const allowed=kind!=="reject";
-    r.setAttribute("data-tone",allowed?"allowed":"rejected");
-    r.innerHTML=allowed
-      ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><span>Allowed <code>Bash</code> '+(kind==="always"?"for this session":"once")+' — <code>bunx turbo run lint…</code></span>'
-      :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Rejected <code>Bash</code></span>';
-    transcript.appendChild(r);
-    dock.remove();
-    composer.classList.remove("composer--docked");
-    document.querySelector(".chat-scroll").scrollTop=1e6;
+    if(tone)r.setAttribute("data-tone",tone);
+    r.innerHTML=html;
+    transcript.appendChild(r);scroll();
   };
-  dock.addEventListener("click",(e)=>{const b=e.target.closest("[data-decide]");if(b)decide(b.getAttribute("data-decide"));});
+  const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+  const XX='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  const ASK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8Z"/></svg>';
+
+  /* stage 2 — clarification dock (bounded choices; the free-text
+     variant renders when a question ships no choices — DS §08) */
+  const mountClarification=()=>{
+    const d=document.createElement("div");
+    d.className="dock";d.id="dock";d.setAttribute("data-od-id","clarification-dock");
+    d.innerHTML='<div class="dock__head"><span class="dock__eyebrow">Question</span><span class="dock__title">Where should the marker stories live?</span><span class="dock__deadline">times out 14:32</span></div>'
+      +'<div class="choice">'
+      +'<button class="choice__row" type="button" data-answer="packages/ui (shared primitive)"><span class="choice__key">1</span>packages/ui (shared primitive) <span class="choice__hint">recommended</span></button>'
+      +'<button class="choice__row" type="button" data-answer="web/src/systems/session"><span class="choice__key">2</span>web/src/systems/session</button>'
+      +'<button class="choice__row" type="button" data-answer="skip stories for now"><span class="choice__key">3</span>skip stories for now</button>'
+      +'</div>';
+    zone.insertBefore(d,strip);
+    d.addEventListener("click",(e)=>{
+      const b=e.target.closest("[data-answer]");if(!b)return;
+      receipt(ASK+'<span>Answered <b>"'+b.getAttribute("data-answer")+'"</b> to the stories question</span>');
+      d.remove();
+      if(strip.hidden)composer.classList.remove("composer--docked");
+    });
+  };
+
+  const decide=(kind)=>{
+    const dock=document.getElementById("dock");
+    if(!dock||!dock.querySelector("[data-decide]"))return;
+    const allowed=kind==="allow"||kind==="always";
+    if(allowed)receipt(CHECK+'<span>Allowed <code>Bash</code> '+(kind==="always"?"for this session":"once")+' — <code>bunx turbo run lint…</code></span>',"allowed");
+    else receipt(XX+'<span>Rejected <code>Bash</code>'+(kind==="reject-always"?" for this session":"")+'</span>',"rejected");
+    dock.remove();
+    mountClarification();
+  };
+  document.addEventListener("click",(e)=>{const b=e.target.closest("[data-decide]");if(b)decide(b.getAttribute("data-decide"));});
   document.addEventListener("keydown",(e)=>{
-    if(!document.getElementById("dock"))return;
-    if(e.target.tagName==="TEXTAREA")return;
-    if(e.key==="1")decide("allow");else if(e.key==="2")decide("always");else if(e.key==="3")decide("reject");
+    const dock=document.getElementById("dock");if(!dock)return;
+    if(e.target.tagName==="TEXTAREA"||e.target.tagName==="INPUT")return;
+    if(e.target.closest&&e.target.closest("#rtPop"))return;
+    if(dock.querySelector("[data-decide]")){
+      if(e.key==="1")decide("allow");else if(e.key==="2")decide("always");
+      else if(e.key==="3")decide("reject");else if(e.key==="4")decide("reject-always");
+    }else{
+      const rows=dock.querySelectorAll("[data-answer]");
+      const i=Number(e.key)-1;
+      if(Number.isInteger(i)&&i>=0&&i<rows.length)rows[i].click();
+    }
+  });
+})();
+
+/* user-message clamp — mask toggles, text is never truncated */
+document.addEventListener("click",(e)=>{
+  const b=e.target.closest(".msg-more");if(!b)return;
+  const bubble=b.closest(".msg-user").querySelector(".msg-user__bubble");
+  const clamped=bubble.getAttribute("data-clamped")==="true";
+  bubble.setAttribute("data-clamped",String(!clamped));
+  b.textContent=clamped?"Show less":"Show more";
+});
+
+/* goal prefill — stages the /goal command into the composer, never sends */
+document.addEventListener("click",(e)=>{
+  const b=e.target.closest("[data-prefill]");if(!b)return;
+  const ta=document.querySelector(".composer textarea");
+  ta.value=b.getAttribute("data-prefill");
+  ta.dispatchEvent(new Event("input"));ta.focus();
+});
+
+/* retained full result — pages load in place (ToolResultArtifact) */
+(()=>{
+  const open=document.getElementById("artOpen");if(!open)return;
+  const bytes=document.getElementById("artBytes");
+  const pre=document.getElementById("artPre");
+  let page=0;
+  const pages=[
+    '<span class="ctx">— full result · page 1 —</span>\nsrc/systems/session/components/runtime-activity-notice.tsx:47:12\n  47 |   &lt;Marker tone={tone}&gt;\n     |           ^^^^ TS2339: Property \'tone\' does not exist on type \'MarkerProps\'.\nsrc/systems/session/components/runtime-activity-notice.tsx:83:5',
+    '<span class="ctx">— full result · page 2 —</span>\nsrc/components/assistant-ui/session-timeline-render.tsx:214:9\n  Found 3 errors in 2 files.\n  Command exited with code 2.'
+  ];
+  const sizes=["49,152 of 96,410 bytes","96,410 of 96,410 bytes"];
+  open.addEventListener("click",(e)=>{
+    e.stopPropagation(); /* keep the row's disclosure closed-state intact */
+    if(page>=pages.length)return;
+    pre.insertAdjacentHTML("beforeend","\n"+pages[page]);
+    bytes.textContent=sizes[page];
+    page++;
+    if(page>=pages.length)open.remove();
+    else open.textContent="Load more";
   });
 })();
 /* autosize composer */
 (()=>{const ta=document.querySelector(".composer textarea");
 ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,180)+"px";});})();
+
+/* ===== queue + steer (SessionComposer busy phase) =====
+   While the turn runs, Enter and the Queue button stage the draft as a
+   durable queue entry; Steer on a row injects it into the running turn;
+   Interrupt sends the draft immediately into the current turn. */
+(()=>{
+  const strip=document.getElementById("qstrip");
+  const ta=document.querySelector(".composer textarea");
+  const transcript=document.querySelector(".transcript");
+  const working=document.querySelector(".working");
+  const scroller=document.querySelector(".chat-scroll");
+  const svgQueue='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>';
+  const svgSteer='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>';
+  const svgEdit='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  const svgTrash='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  /* first non-empty line, markdown markers stripped (queuedPromptPreview) */
+  const preview=(text)=>{
+    const first=text.split(/\r?\n/).map(l=>l.trim()).find(l=>l.length>0)||"";
+    if(!first)return "Queued prompt";
+    if(/^(?:`{3,}|~{3,})/.test(first))return "Code block";
+    const n=first.replace(/^#{1,6}\s+/,"").replace(/^>\s?/,"").replace(/^- \[[ xX]\]\s+/,"").replace(/^[-*+]\s+/,"").replace(/^\d+[.)]\s+/,"").trim();
+    return n||"Queued prompt";
+  };
+  const syncStrip=()=>{strip.hidden=strip.children.length===0;};
+  const addQueue=(text)=>{
+    const row=document.createElement("div");
+    row.className="qrow";row.setAttribute("data-qtext",text);
+    row.innerHTML=svgQueue+'<span class="qrow__text"></span>'
+      +'<div class="qrow__acts">'
+      +'<button class="qrow__steer" type="button" data-qact="steer">'+svgSteer+'Steer</button>'
+      +'<button class="qrow__ib" type="button" data-qact="edit" aria-label="Edit queued prompt">'+svgEdit+'</button>'
+      +'<button class="qrow__ib" type="button" data-qact="remove" aria-label="Remove queued prompt">'+svgTrash+'</button>'
+      +'</div>';
+    row.querySelector(".qrow__text").textContent=preview(text);
+    row.setAttribute("data-new","");
+    row.addEventListener("animationend",()=>row.removeAttribute("data-new"),{once:true});
+    strip.appendChild(row);syncStrip();
+  };
+  /* steering injects the text into the running turn — it shows up as a user message */
+  const inject=(text)=>{
+    const msg=document.createElement("div");
+    msg.className="t-row t-msg msg-user";
+    const bubble=document.createElement("div");
+    bubble.className="msg-user__bubble";bubble.textContent=text;
+    msg.appendChild(bubble);
+    transcript.insertBefore(msg,working);
+    scroller.scrollTop=1e6;
+  };
+  const draft=()=>ta.value.trim();
+  const btnQueue=document.getElementById("btnQueue");
+  const btnInterrupt=document.getElementById("btnInterrupt");
+  /* mirror canSubmitBusyInput: busy actions need a non-empty draft */
+  const syncBusy=()=>{const has=draft().length>0;btnQueue.disabled=!has;btnInterrupt.disabled=!has;};
+  const clear=()=>{ta.value="";ta.style.height="auto";syncBusy();};
+  const queueDraft=()=>{const t=draft();if(!t)return;addQueue(t);clear();};
+  btnQueue.addEventListener("click",queueDraft);
+  btnInterrupt.addEventListener("click",()=>{const t=draft();if(!t)return;inject(t);clear();});
+  ta.addEventListener("input",syncBusy);
+  syncBusy();
+  /* while the turn runs, Enter has ONE meaning: queue the draft */
+  ta.addEventListener("keydown",(e)=>{
+    if(e.key==="Enter"&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.isComposing){e.preventDefault();queueDraft();}
+  });
+  strip.addEventListener("click",(e)=>{
+    const btn=e.target.closest("[data-qact]");if(!btn)return;
+    const row=btn.closest(".qrow");const text=row.getAttribute("data-qtext");
+    if(btn.dataset.qact==="steer"){inject(text);row.remove();}
+    else if(btn.dataset.qact==="edit"){
+      if(draft().length&&draft()!==text.trim())return; /* don't clobber a live draft */
+      ta.value=text;ta.dispatchEvent(new Event("input"));ta.focus();row.remove();
+    }
+    else if(btn.dataset.qact==="remove"){row.remove();}
+    syncStrip();
+  });
+  syncStrip();
+})();
+
+/* ===== runtime selector — variation A (flat palette) =====
+   Ported from runtime-selector-variations.html (chosen proposal). State
+   mirrors RuntimeProviderOption / RuntimeModelOption + PR #267 speed. */
+(()=>{
+  const I={
+    search:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.4"/><path d="m13.4 13.4-3-3"/></svg>',
+    refresh:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.7"/><path d="M13.4 2.6v2.8h-2.8" stroke-linecap="round"/></svg>',
+    gear:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1"/></svg>',
+    grid:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.2" y="2.2" width="4.8" height="4.8" rx="1"/><rect x="9" y="2.2" width="4.8" height="4.8" rx="1"/><rect x="2.2" y="9" width="4.8" height="4.8" rx="1"/><rect x="9" y="9" width="4.8" height="4.8" rx="1"/></svg>',
+    star:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.9l1.9 3.9 4.2.6-3 3 .7 4.2L8 11.6l-3.8 2 .7-4.2-3-3 4.2-.6z"/></svg>',
+    brain:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M6.5 2.6a2 2 0 0 0-2 2c-1.1.2-1.9 1-1.9 2.2 0 .6.2 1.1.6 1.5-.4.4-.6 1-.6 1.5 0 1.2.9 2.1 2 2.2.2 1 1 1.7 2 1.7.7 0 1.4-.5 1.4-1.1V3.7c0-.6-.7-1.1-1.5-1.1z"/><path d="M9.5 2.6a2 2 0 0 1 2 2c1.1.2 1.9 1 1.9 2.2 0 .6-.2 1.1-.6 1.5.4.4.6 1 .6 1.5 0 1.2-.9 2.1-2 2.2-.2 1-1 1.7-2 1.7-.7 0-1.4-.5-1.4-1.1V3.7c0-.6.7-1.1 1.5-1.1z"/></svg>',
+    check:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3.2L13 5"/></svg>',
+    plus:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+    bolt:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.2 1.3 3.6 9h3.1l-1 5.7L11.4 7H8.3l.9-5.7z"/></svg>',
+    anthropic:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.4 2.5h2.3L16 13.5h-2.3L9.4 2.5zM4.3 2.5h2.4l4.3 11H8.6l-.9-2.3H3.3l-.9 2.3H0l4.3-11zm2.6 6.7L5.5 5.4 4 9.2h2.9z"/></svg>',
+    openai:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2.2c1.1 0 2 .5 2.6 1.2 1 .1 1.9.6 2.4 1.5.6 1 .6 2.1.2 3 .4.9.4 2-.2 3-.5.9-1.4 1.4-2.4 1.5-.6.7-1.5 1.2-2.6 1.2s-2-.5-2.6-1.2c-1-.1-1.9-.6-2.4-1.5-.6-1-.6-2.1-.2-3-.4-.9-.4-2 .2-3 .5-.9 1.4-1.4 2.4-1.5C6 2.7 6.9 2.2 8 2.2z"/><path d="M8 5.2v5.6M5.6 6.6l4.8 2.8M5.6 9.4l4.8-2.8"/></svg>',
+    google:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.6 8.2c0-.5 0-.9-.1-1.3H8v2.5h3.2a2.9 2.9 0 0 1-1.2 1.9v1.6h2A5.6 5.6 0 0 0 13.6 8.2z" fill="currentColor" stroke="none" opacity=".9"/><path d="M8 13.8a5.5 5.5 0 0 0 3.9-1.4l-2-1.6a3.5 3.5 0 0 1-5.2-1.8H2.7v1.6A5.8 5.8 0 0 0 8 13.8z" fill="currentColor" stroke="none" opacity=".55"/><path d="M4.7 9a3.4 3.4 0 0 1 0-2.2V5.2H2.7a5.8 5.8 0 0 0 0 5.4L4.7 9z" fill="currentColor" stroke="none" opacity=".4"/><path d="M8 4.5c.9 0 1.8.3 2.4 1l1.8-1.8A5.6 5.6 0 0 0 2.7 5.2l2 1.6A3.5 3.5 0 0 1 8 4.5z" fill="currentColor" stroke="none" opacity=".7"/></svg>',
+    xai:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l10 10M13 3 8.7 8.7M3 13l4-4.6"/></svg>',
+  };
+  const EFFORTS=["none","minimal","low","medium","high","xhigh","max"];
+  const LBL={none:"None",minimal:"Minimal",low:"Low",medium:"Medium",high:"High",xhigh:"Extra high",max:"Max"};
+  const pos=e=>EFFORTS.indexOf(e)+1;
+  const PROVIDERS=[
+    {id:"anthropic",name:"Anthropic",availability:"live"},
+    {id:"openai",name:"OpenAI",availability:"live"},
+    {id:"google",name:"Google",availability:"stale"},
+    {id:"xai",name:"xAI",needs_auth:true,availability:"live"},
+  ];
+  /* fast:true = adapter advertises the speed option (PR #267); absent → toggle disabled */
+  const MODELS=[
+    {id:"claude-fable-5",provider:"anthropic",name:"Fable 5",efforts:["low","medium","high","xhigh","max"],default_effort:"high",fast:true},
+    {id:"claude-opus-5",provider:"anthropic",name:"Opus 5",efforts:["low","medium","high","xhigh","max"],default_effort:"medium",fast:true},
+    {id:"claude-sonnet-5",provider:"anthropic",name:"Sonnet 5",efforts:["low","medium","high"],default_effort:""},
+    {id:"claude-haiku-4-5",provider:"anthropic",name:"Haiku 4.5",efforts:[],supports_reasoning:false},
+    {id:"gpt-5.2",provider:"openai",name:"GPT-5.2",efforts:["minimal","low","medium","high","xhigh"],default_effort:"medium",fast:true},
+    {id:"gpt-5.2-codex",provider:"openai",name:"GPT-5.2 Codex",efforts:["low","medium","high","xhigh"],default_effort:"high",fast:true},
+    {id:"gpt-5-mini",provider:"openai",name:"GPT-5 mini",efforts:["minimal","low","medium"],default_effort:""},
+    {id:"gemini-3-pro",provider:"google",name:"Gemini 3 Pro",efforts:["low","medium","high"],default_effort:"medium"},
+    {id:"gemini-3-flash",provider:"google",name:"Gemini 3 Flash",efforts:[],supports_reasoning:true},
+    {id:"grok-4",provider:"xai",name:"Grok 4",efforts:[],supports_reasoning:true,disabled:true,disabled_reason:"Sign in"},
+  ];
+  const provOf=id=>PROVIDERS.find(p=>p.id===id);
+  const st={value:{provider:"anthropic",model:"claude-fable-5",reasoning_effort:"",speed:"normal"},favs:new Set(["claude-fable-5","gpt-5.2"]),query:""};
+  let scope="all";
+  const model=()=>MODELS.find(m=>m.id===st.value.model&&m.provider===st.value.provider);
+  function rzState(m){
+    if(!m)return {mode:"no-model",levels:[],def:""};
+    const levels=m.efforts.filter(e=>e!=="none");
+    if(levels.length){const d=m.default_effort??"";return {mode:"levels",levels,def:d!==""&&levels.includes(d)?d:""};}
+    if(m.supports_reasoning)return {mode:"supported-nolevels",levels:[],def:""};
+    return {mode:"none",levels:[],def:""};
+  }
+  function meterHTML(effort,hollow){
+    const p=hollow?0:pos(effort);let bars="";
+    for(let i=1;i<=7;i++)bars+="<i "+(i<=p?"data-on":"")+"></i>";
+    return '<span class="im" '+(hollow?"data-hollow":"")+' aria-hidden="true">'+bars+"</span>";
+  }
+  function triggerHTML(){
+    const m=model(),rz=rzState(m);
+    const cur=st.value.reasoning_effort||rz.def;
+    const meter=rz.mode==="levels"?meterHTML(cur,cur===""):"";
+    const bolt=(st.value.speed||"normal")==="fast"?'<span class="pmr__bolt" title="Fast mode">'+I.bolt+"</span>":"";
+    return '<span class="provglyph">'+(I[st.value.provider]||I.grid)+'</span>'
+      +'<span class="pmr__name">'+(m?m.name:st.value.model)+'</span>'+meter+bolt
+      +'<svg class="pmr__chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>';
+  }
+  function speedChipHTML(){
+    const m=model();const sup=Boolean(m&&m.fast);const on=(st.value.speed||"normal")==="fast";
+    return '<button class="spdsw" type="button" data-act="speed" role="switch" aria-checked="'+on+'" '+(sup?"":"disabled")
+      +' title="'+(sup?"Runtime speed · normal | fast":"This adapter does not expose speed for the model")+'">'
+      +'<span class="spdsw__lbl">Fast</span><span class="spdsw__track"><span class="spdsw__thumb">'+I.bolt+"</span></span></button>";
+  }
+  function rowHTML(m){
+    const sel=m.provider===st.value.provider&&m.id===st.value.model;
+    const fav=st.favs.has(m.id);const rz=rzState(m);
+    const reasons=rz.mode==="levels"||m.supports_reasoning;
+    return '<button class="mrow" type="button" role="option" aria-selected="'+sel+'" data-mid="'+m.id+'" data-prov="'+m.provider+'" '
+      +(sel?"data-sel":"")+' '+(m.disabled?'data-disabled style="opacity:.5;cursor:not-allowed"':"")+'>'
+      +'<span class="mrow__name">'+m.name+"</span>"
+      +(reasons?'<span class="mrow__brain" title="Supports reasoning">'+I.brain+"</span>":"")
+      +'<span class="mrow__sp"></span>'
+      +(m.disabled?'<span class="mrow__un">'+(m.disabled_reason||"Unavailable")+"</span>":"")
+      +'<span class="mrow__check">'+I.check+"</span>"
+      +'<span class="mrow__star" role="button" tabindex="-1" aria-label="Favorite '+m.name+'" data-star="'+m.id+'" '+(fav?"data-fav":"")+">"+I.star+"</span></button>";
+  }
+  function filterModels(){
+    const q=st.query.trim().toLowerCase();let list=MODELS;
+    if(q)list=list.filter(m=>(m.name+" "+m.id+" "+provOf(m.provider).name).toLowerCase().includes(q));
+    else if(scope==="fav")list=list.filter(m=>st.favs.has(m.id));
+    else if(scope&&scope!=="all")list=list.filter(m=>m.provider===scope);
+    return list;
+  }
+  function groupByProvider(list){
+    const out=[];
+    for(const p of PROVIDERS){const models=list.filter(m=>m.provider===p.id);if(models.length)out.push({p,models});}
+    return out;
+  }
+  function sliderHTML(rz){
+    const levels=rz.levels,last=levels.length-1;
+    const cur=st.value.reasoning_effort||rz.def;
+    const idx=Math.max(0,levels.indexOf(cur));
+    const unset=(st.value.reasoning_effort||"")==="";
+    const p=last>0?idx/last:0;
+    const dots=levels.map((e,i)=>'<span class="rz__dot" style="left:calc('+(last>0?i/last:0)+' * (100% - var(--rz-h)) + calc(var(--rz-h) / 2))"></span>').join("");
+    return '<div class="rz" data-rzroot '+(unset?"data-unset":"")+'>'
+      +'<div class="rz__track" role="slider" tabindex="0" aria-label="Reasoning effort" aria-valuemin="0" aria-valuemax="'+last+'" aria-valuenow="'+idx+'" aria-valuetext="'+LBL[levels[idx]]+(unset?" (default)":"")+'">'
+      +'<div class="rz__rail">'
+      +'<div class="rz__fill" style="width:calc('+p+' * (100% - var(--rz-h)) + calc(var(--rz-h) - 4px))"></div>'+dots
+      +'<div class="rz__thumb" style="left:calc('+p+' * (100% - var(--rz-h)) - calc((var(--rz-thumb) - var(--rz-h)) / 2))"></div>'
+      +'</div><span class="rz__tip" style="left:calc('+p+' * (100% - var(--rz-h)) + calc(var(--rz-h) / 2))">'+(unset?(LBL[cur]||"Default"):LBL[cur])+"</span></div></div>";
+  }
+  function bindSlider(rz,onCommit){
+    const el=pop.querySelector("[data-rzroot]");if(!el)return;
+    const track=el.querySelector(".rz__track");
+    const levels=rz.levels,last=levels.length-1;
+    let dragging=false;
+    const idxFromEvent=ev=>{
+      const r=track.getBoundingClientRect();const pad=8;
+      const x=Math.min(Math.max(ev.clientX-r.left-pad,0),r.width-pad*2);
+      return Math.round((x/(r.width-pad*2))*last);
+    };
+    const paint=(i,live)=>{
+      const p=last>0?i/last:0;
+      el.querySelector(".rz__fill").style.width="calc("+p+" * (100% - var(--rz-h)) + calc(var(--rz-h) - 4px))";
+      el.querySelector(".rz__thumb").style.left="calc("+p+" * (100% - var(--rz-h)) - calc((var(--rz-thumb) - var(--rz-h)) / 2))";
+      const tip=el.querySelector(".rz__tip");
+      tip.style.left="calc("+p+" * (100% - var(--rz-h)) + calc(var(--rz-h) / 2))";
+      tip.textContent=LBL[levels[i]];
+      if(live)el.removeAttribute("data-unset");
+    };
+    track.addEventListener("pointerdown",ev=>{dragging=true;el.setAttribute("data-drag","");track.setPointerCapture(ev.pointerId);paint(idxFromEvent(ev),true);});
+    track.addEventListener("pointermove",ev=>{if(dragging)paint(idxFromEvent(ev),true);});
+    const finish=ev=>{if(!dragging)return;dragging=false;el.removeAttribute("data-drag");onCommit(levels[idxFromEvent(ev)]);};
+    track.addEventListener("pointerup",finish);
+    track.addEventListener("pointercancel",()=>{dragging=false;el.removeAttribute("data-drag");});
+    track.addEventListener("keydown",ev=>{
+      const cur=st.value.reasoning_effort||rz.def;
+      let i=Math.max(0,levels.indexOf(cur));
+      if(ev.key==="ArrowRight"||ev.key==="ArrowUp")i=Math.min(last,i+1);
+      else if(ev.key==="ArrowLeft"||ev.key==="ArrowDown")i=Math.max(0,i-1);
+      else if(ev.key==="Home")i=0;else if(ev.key==="End")i=last;else return;
+      ev.preventDefault();onCommit(levels[i]);
+    });
+  }
+  const trig=document.getElementById("rtTrig");
+  const pop=document.getElementById("rtPop");
+  function render(){
+    trig.innerHTML=triggerHTML();
+    const m=model(),rz=rzState(m);
+    const searching=st.query.trim().length>0;
+    const list=filterModels();
+    const groups=groupByProvider(list);
+    const showHeads=searching||scope==="all"||scope==="fav";
+    const chips='<div class="chips" '+(searching?"data-searching":"")+' role="radiogroup" aria-label="Filter by provider">'
+      +'<button class="chip" type="button" data-scope="all" '+(scope==="all"?"data-on":"")+' title="All models">'+I.grid+"</button>"
+      +'<button class="chip" type="button" data-scope="fav" '+(scope==="fav"?"data-on":"")+' title="Favorites">'+I.star+"</button>"
+      +'<span class="chips__sep"></span>'
+      +PROVIDERS.map(p=>'<button class="chip" type="button" data-scope="'+p.id+'" '+(scope===p.id?"data-on":"")+' '+(p.needs_auth?"data-dim":"")+' title="'+p.name+(p.needs_auth?" · needs sign-in":"")+'">'+I[p.id]+"</button>").join("")
+      +'<span class="chips__sp"></span>'
+      +'<button class="chip" type="button" data-act="settings" title="Provider settings">'+I.gear+"</button></div>";
+    let listHTML="";
+    if(!list.length){
+      listHTML='<div class="rtempty">No models match your search.<br/>Try a provider name or an exact ID.</div>';
+    }else if(showHeads){
+      listHTML=groups.map(g=>'<div class="ghead">'+g.p.name+'<span class="dotv" data-tone="'+(g.p.availability==="stale"?"warning":"success")+'" title="'+g.p.availability+'"></span></div>'+g.models.map(rowHTML).join("")).join("");
+    }else{
+      listHTML=list.map(rowHTML).join("");
+    }
+    if(searching){
+      listHTML+='<button class="customrow" type="button" data-act="custom">'+I.plus+'Use <span class="mono">'+st.query.trim()+"</span> as custom ID</button>";
+    }
+    let rzHTML;
+    if(rz.mode==="levels"){
+      rzHTML='<div class="rzline" data-od-id="runtime-reasoning"><span class="eyebrow">Reasoning</span>'+sliderHTML(rz)+speedChipHTML()+"</div>";
+    }else if(rz.mode==="supported-nolevels"){
+      rzHTML='<div class="rznote">'+I.brain+'<span><b style="color:var(--muted);font-weight:500">Reasoning on.</b> The provider decides.</span><span class="rznote__sp"></span>'+speedChipHTML()+"</div>";
+    }else{
+      rzHTML='<div class="rznote">'+I.brain+"<span>No reasoning effort.</span><span class=\"rznote__sp\"></span>"+speedChipHTML()+"</div>";
+    }
+    pop.innerHTML='<div class="srch">'+I.search
+      +'<input type="text" placeholder="Search models, providers…" value="'+st.query.replace(/"/g,"&quot;")+'" aria-label="Search models and providers" />'
+      +'<button class="iconbtn" type="button" data-act="refresh" title="Refresh catalog">'+I.refresh+"</button></div>"
+      +chips+'<div class="mlist" role="listbox" aria-label="Models">'+listHTML+"</div>"+rzHTML;
+    bind(rz);
+  }
+  function bind(rz){
+    const input=pop.querySelector(".srch input");
+    input.addEventListener("input",()=>{st.query=input.value;const v=input.value;render();
+      const ni=pop.querySelector(".srch input");ni.focus();ni.setSelectionRange(v.length,v.length);});
+    pop.querySelectorAll(".chip[data-scope]").forEach(ch=>ch.addEventListener("click",()=>{scope=ch.dataset.scope;render();}));
+    const refresh=pop.querySelector('[data-act="refresh"]');
+    refresh.addEventListener("click",()=>{refresh.setAttribute("data-spin","");setTimeout(render,700);});
+    pop.querySelectorAll(".mrow").forEach(row=>row.addEventListener("click",ev=>{
+      const star=ev.target.closest(".mrow__star");
+      if(star){ev.stopPropagation();const id=star.dataset.star;st.favs.has(id)?st.favs.delete(id):st.favs.add(id);render();return;}
+      if(row.dataset.prov&&!row.hasAttribute("data-disabled")){
+        /* speed is sticky but collapses to normal when the next adapter lacks the capability */
+        const next=MODELS.find(mm=>mm.id===row.dataset.mid&&mm.provider===row.dataset.prov);
+        const keepFast=st.value.speed==="fast"&&Boolean(next&&next.fast);
+        st.value={provider:row.dataset.prov,model:row.dataset.mid,reasoning_effort:"",speed:keepFast?"fast":"normal"};
+        render();
+      }
+    }));
+    const custom=pop.querySelector('[data-act="custom"]');
+    if(custom)custom.addEventListener("click",()=>{
+      st.value={provider:scope==="all"||scope==="fav"?"anthropic":scope,model:st.query.trim(),reasoning_effort:"",speed:"normal"};
+      st.query="";render();
+    });
+    const spd=pop.querySelector('[data-act="speed"]');
+    if(spd)spd.addEventListener("click",()=>{
+      const on=st.value.speed!=="fast";
+      st.value.speed=on?"fast":"normal";
+      /* patch in place so the thumb transition actually runs */
+      spd.setAttribute("aria-checked",String(on));
+      spd.removeAttribute("data-anim");
+      if(on){void spd.offsetWidth;spd.setAttribute("data-anim","");}
+      trig.innerHTML=triggerHTML();
+    });
+    if(rz.mode==="levels")bindSlider(rz,effort=>{st.value.reasoning_effort=effort;render();});
+  }
+  const setOpen=(open)=>{
+    trig.setAttribute("aria-expanded",String(open));
+    pop.hidden=!open;
+    if(open)pop.querySelector(".srch input").focus();
+  };
+  trig.addEventListener("click",()=>setOpen(pop.hidden));
+  document.addEventListener("click",(e)=>{
+    if(pop.hidden)return;
+    if(!e.target.closest("#rtsel"))setOpen(false);
+  });
+  document.addEventListener("keydown",(e)=>{
+    if(e.key==="Escape"&&!pop.hidden)setOpen(false);
+  });
+  render();
+})();
 </script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import { WriteContent } from "./write-content";
 import { EditContent } from "./edit-content";
 import { SearchContent } from "./search-content";
 import { GenericContent } from "./generic-content";
+import { TodoContent } from "./todo-content";
 
 /** Routes a UIMessage to its tool-specific expanded renderer. */
 export function ExpandedToolContent({ message }: { message: UIMessage }) {
@@ -20,6 +21,8 @@ export function ExpandedToolContent({ message }: { message: UIMessage }) {
     case "Grep":
     case "Glob":
       return <SearchContent message={message} />;
+    case "TodoWrite":
+      return <TodoContent message={message} />;
     default:
       return <GenericContent message={message} />;
   }

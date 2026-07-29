@@ -211,18 +211,11 @@ describe("CodeBlock", () => {
     expect(button.getAttribute("data-copied")).toBeNull();
   });
 
-  it("Should apply tone and line truncation attributes", () => {
+  it("Should apply line truncation attributes", () => {
     const { container } = render(
-      <CodeBlock
-        code={"one\ntwo\nthree\nfour"}
-        showPrompt={false}
-        tone="warning"
-        truncateLines={2}
-      />
+      <CodeBlock code={"one\ntwo\nthree\nfour"} showPrompt={false} truncateLines={2} />
     );
-    const root = container.querySelector<HTMLElement>('[data-slot="code-block"]');
     const pre = container.querySelector<HTMLElement>('[data-slot="code-block-pre"]');
-    expect(root).toHaveAttribute("data-tone", "warning");
     expect(pre?.style.getPropertyValue("--code-block-lines")).toBe("2");
   });
 

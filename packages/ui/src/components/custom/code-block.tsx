@@ -25,13 +25,11 @@ export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "child
   showLineNumbers?: boolean;
   showPrompt?: boolean;
   themeMode?: CodeBlockThemeMode;
-  tone?: CodeBlockTone;
   truncateLines?: number;
   wrapLines?: boolean;
 }
 
 export type CodeBlockDensity = "default" | "compact";
-export type CodeBlockTone = "default" | "warning" | "danger" | "success" | "info" | "accent";
 
 export interface CopyIconButtonProps extends Omit<React.ComponentProps<typeof Button>, "children"> {
   copiedLabel?: string;
@@ -61,7 +59,6 @@ function CodeBlock({
   copyFailedLabel = "Copy failed",
   density = "default",
   themeMode = "auto",
-  tone = "default",
   truncateLines,
   showLineNumbers = false,
   highlightLines,
@@ -87,11 +84,9 @@ function CodeBlock({
       data-language={normalizedLanguage ?? undefined}
       data-density={density}
       data-theme={resolvedThemeName}
-      data-tone={tone}
       className={cn(
         "relative overflow-hidden border border-line",
         density === "compact" ? "rounded-sm bg-canvas" : "rounded-lg bg-rail",
-        codeBlockToneClass(tone),
         className
       )}
       {...props}
@@ -134,7 +129,6 @@ function CodeBlock({
             ? "px-3 py-2 text-small-body leading-normal"
             : "px-5 py-4 text-card-title leading-relaxed",
           wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
-          codeBlockToneTextClass(tone),
           label ? (density === "compact" ? "pt-7" : "pt-9") : null,
           copyable ? (density === "compact" ? "pr-10" : "pr-12") : null,
           clampedLines
@@ -294,40 +288,6 @@ function codeTokenStyle(token: HighlightedCodeToken): React.CSSProperties | unde
   if (token.textDecorationLine) style.textDecorationLine = token.textDecorationLine;
 
   return Object.keys(style).length > 0 ? style : undefined;
-}
-
-function codeBlockToneClass(tone: CodeBlockTone): string {
-  switch (tone) {
-    case "warning":
-      return "ring-1 ring-warning/35 bg-warning-tint";
-    case "danger":
-      return "ring-1 ring-danger/35 bg-danger-tint";
-    case "success":
-      return "ring-1 ring-success/35 bg-success-tint";
-    case "info":
-      return "ring-1 ring-info/35 bg-info-tint";
-    case "accent":
-      return "ring-1 ring-accent/35 bg-accent-tint";
-    default:
-      return "";
-  }
-}
-
-function codeBlockToneTextClass(tone: CodeBlockTone): string {
-  switch (tone) {
-    case "warning":
-      return "text-warning";
-    case "danger":
-      return "text-danger";
-    case "success":
-      return "text-success";
-    case "info":
-      return "text-info";
-    case "accent":
-      return "text-accent";
-    default:
-      return "";
-  }
 }
 
 function shouldRenderPrompt(line: string): boolean {

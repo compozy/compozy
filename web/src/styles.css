@@ -31,6 +31,99 @@
   animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
 }
 
+/* Runtime speed switch: the bolt zaps as fast engages (design ref:
+   runtime-selector-variations.html). Global reduced-motion collapse in
+   @compozy/ui tokens-runtime.css zeroes this out. */
+@keyframes runtime-speed-bolt {
+  0% {
+    transform: scale(0.6) rotate(-14deg);
+  }
+  55% {
+    transform: scale(1.2) rotate(7deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.runtime-speed-bolt {
+  animation: runtime-speed-bolt 420ms var(--ease-spring);
+}
+
+/* Session live-thinking shimmer — a shimmering text label only (design ref:
+   session.css §05). Reduced motion falls back to static subtle text because the
+   effect relies on background-clip, which a zeroed animation alone can't undo. */
+@keyframes session-shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+.session-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-subtle) 0%,
+    var(--color-subtle) 40%,
+    rgba(246, 246, 248, 0.9) 50%,
+    var(--color-subtle) 60%,
+    var(--color-subtle) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: session-shimmer 2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-shimmer {
+    animation: none;
+    background: none;
+    color: var(--color-subtle);
+  }
+}
+
+/* Session working row — three 4px dots on a stepped 2s duty cycle (design ref:
+   session.css §05). The component itself swaps to a static label under reduced
+   motion; the global collapse in tokens-runtime.css also zeroes this. */
+@keyframes session-working-pulse {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  50%,
+  90% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.session-working-dot {
+  animation: session-working-pulse 2s steps(6) infinite;
+}
+
+/* Running-state accent dot (todo active row, goal strip active) — a quiet
+   box-shadow pulse (design ref: session.css §08/§09). Reduced motion is zeroed
+   by the global collapse in tokens-runtime.css; the dot itself stays visible. */
+@keyframes session-state-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-accent-tint);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+.session-state-pulse {
+  animation: session-state-pulse 2.4s var(--ease-out) infinite;
+}
+
 /* First-run setup step change: the incoming pane fades and rises so the panel
    reads as one surface changing shape, not two panels swapping. */
 @keyframes onboarding-setup-pane-in {
