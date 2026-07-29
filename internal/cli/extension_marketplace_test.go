@@ -18,34 +18,34 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 
 	called := false
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		browseMarketplaceFn: func(
+		searchExtensionsFn: func(
 			_ context.Context,
-			kind string,
-			query string,
-			limit int,
-			cursor string,
-			scope MarketplaceReadScope,
-		) (MarketplaceKindRecord, error) {
+			request ExtensionSearchRequest,
+		) (ExtensionSearchRecord, error) {
 			called = true
-			if kind != "extension" || query != "bridge" || limit != 7 {
-				t.Fatalf("BrowseMarketplace(%q, %q, %d), want extension bridge 7", kind, query, limit)
+			if request.Query != "bridge" || request.Limit != 7 {
+				t.Fatalf("SearchExtensions(%#v), want bridge limit 7", request)
 			}
-			if cursor != "" {
-				t.Fatalf("BrowseMarketplace cursor = %q, want empty", cursor)
+			if request.Cursor != "next" {
+				t.Fatalf("SearchExtensions cursor = %q, want next", request.Cursor)
 			}
-			if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
-				t.Fatalf("Marketplace read scope = %#v, want global", scope)
+			if !reflect.DeepEqual(request.Sources, []string{"curated", "github"}) {
+				t.Fatalf("SearchExtensions sources = %#v, want curated/github", request.Sources)
 			}
-			return MarketplaceKindRecord{Kind: "extension", Items: []MarketplaceListingRecord{{
-				Kind:        "extension",
-				EntryID:     "bridge-ext",
-				Name:        "bridge-ext",
-				Description: "Bridge extension",
-				Author:      "acme",
-				Version:     "1.0.0",
-				InstallSlug: "acme/bridge-ext",
-				Source:      "registry",
-			}}}, nil
+			return ExtensionSearchRecord{
+				Items: []contract.ExtensionSearchItem{{
+					Slug:        "acme/bridge-ext",
+					Name:        "bridge-ext",
+					Description: "Bridge extension",
+					Author:      "acme",
+					Version:     "1.0.0",
+					Source:      "curated",
+					Tier:        "official",
+					Integrity:   "catalog_digest",
+				}},
+				NextCursor:      "page-two",
+				SourcesDegraded: []string{"github"},
+			}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -58,6 +58,8 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 		"bridge",
 		"--limit",
 		"7",
+		"--cursor",
+		"next",
 		"-o",
 		"json",
 	)
@@ -65,13 +67,14 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 		t.Fatalf("extension search error = %v", err)
 	}
 	if !called {
-		t.Fatal("BrowseMarketplace was not called")
+		t.Fatal("SearchExtensions was not called")
 	}
-	var payload []marketplaceExtensionSearchItem
+	var payload ExtensionSearchRecord
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(search) error = %v; stdout=%s", err, stdout)
 	}
-	if len(payload) != 1 || payload[0].Slug != "acme/bridge-ext" {
+	if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/bridge-ext" ||
+		payload.NextCursor != "page-two" || !reflect.DeepEqual(payload.SourcesDegraded, []string{"github"}) {
 		t.Fatalf("search payload = %#v, want bridge-ext", payload)
 	}
 }
@@ -110,9 +113,7 @@ func TestExtensionInstallCommandUsesDaemonForMarketplaceInstalls(t *testing.T) {
 		deps,
 		"extension",
 		"install",
-		"acme/install-ext",
-		"--from",
-		"github",
+		"github:acme/install-ext",
 		"--version",
 		"1.2.0",
 		"--asset",
@@ -126,8 +127,8 @@ func TestExtensionInstallCommandUsesDaemonForMarketplaceInstalls(t *testing.T) {
 		t.Fatalf("extension install marketplace error = %v", err)
 	}
 	want := InstallExtensionRequest{
-		Slug:            "acme/install-ext",
-		Source:          "github",
+		Source:          contract.InstallExtensionSourceGitHub,
+		Ref:             "acme/install-ext",
 		Version:         "1.2.0",
 		Asset:           "darwin-arm64",
 		AllowUnverified: true,
@@ -246,31 +247,25 @@ func TestExtensionRemoveCommandUsesDaemonClient(t *testing.T) {
 func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	t.Parallel()
 
-	var capturedName string
-	var capturedRequest UpdateExtensionRequest
+	var capturedRequest UpdateExtensionsRequest
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		extensionStatusFn: func(_ context.Context, name string) (ExtensionRecord, error) {
-			return marketplaceExtensionRecord(name, "1.0.0"), nil
-		},
-		updateExtensionFn: func(
+		updateExtensionsFn: func(
 			_ context.Context,
-			name string,
-			request UpdateExtensionRequest,
-		) (ExtensionUpdateRecord, error) {
-			capturedName = name
+			request UpdateExtensionsRequest,
+		) ([]ExtensionUpdateRecord, error) {
 			capturedRequest = request
-			return ExtensionUpdateRecord{
-				Name:           name,
-				Slug:           "acme/" + name,
+			return []ExtensionUpdateRecord{{
+				Name:           request.Names[0],
+				Slug:           "acme/" + request.Names[0],
 				Registry:       "github",
 				CurrentVersion: "1.0.0",
 				LatestVersion:  "1.2.0",
-				Path:           "/tmp/" + name,
+				Path:           "/tmp/" + request.Names[0],
 				Status:         extensionpkg.MarketplaceUpdateStatusUpdated,
 				Warnings: []contract.DiagnosticItem{{
 					Code: contract.CodeExtensionUpdateCleanupFailed,
 				}},
-			}, nil
+			}}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -291,12 +286,9 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extension update error = %v", err)
 	}
-	if capturedName != "update-ext" {
-		t.Fatalf("UpdateExtension name = %q, want update-ext", capturedName)
-	}
-	want := UpdateExtensionRequest{Version: "1.2.0", AllowUnverified: true}
+	want := UpdateExtensionsRequest{Names: []string{"update-ext"}, Version: "1.2.0", AllowUnverified: true}
 	if !reflect.DeepEqual(capturedRequest, want) {
-		t.Fatalf("UpdateExtension request = %#v, want %#v", capturedRequest, want)
+		t.Fatalf("UpdateExtensions request = %#v, want %#v", capturedRequest, want)
 	}
 	var payload []extensionUpdateItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
@@ -320,25 +312,21 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 func TestExtensionUpdateCheckDoesNotRequireAllowUnverified(t *testing.T) {
 	t.Parallel()
 
-	var captured UpdateExtensionRequest
+	var captured UpdateExtensionsRequest
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		extensionStatusFn: func(_ context.Context, name string) (ExtensionRecord, error) {
-			return marketplaceExtensionRecord(name, "1.0.0"), nil
-		},
-		updateExtensionFn: func(
+		updateExtensionsFn: func(
 			_ context.Context,
-			name string,
-			request UpdateExtensionRequest,
-		) (ExtensionUpdateRecord, error) {
+			request UpdateExtensionsRequest,
+		) ([]ExtensionUpdateRecord, error) {
 			captured = request
-			return ExtensionUpdateRecord{
-				Name:           name,
-				Slug:           "acme/" + name,
+			return []ExtensionUpdateRecord{{
+				Name:           request.Names[0],
+				Slug:           "acme/" + request.Names[0],
 				Registry:       "github",
 				CurrentVersion: "1.0.0",
 				LatestVersion:  "1.2.0",
 				Status:         extensionpkg.MarketplaceUpdateStatusAvailable,
-			}, nil
+			}}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -347,9 +335,9 @@ func TestExtensionUpdateCheckDoesNotRequireAllowUnverified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extension update --check error = %v", err)
 	}
-	want := UpdateExtensionRequest{CheckOnly: true}
+	want := UpdateExtensionsRequest{Names: []string{"update-ext"}, CheckOnly: true}
 	if !reflect.DeepEqual(captured, want) {
-		t.Fatalf("UpdateExtension check request = %#v, want %#v", captured, want)
+		t.Fatalf("UpdateExtensions check request = %#v, want %#v", captured, want)
 	}
 	var payload []extensionUpdateItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
@@ -360,34 +348,29 @@ func TestExtensionUpdateCheckDoesNotRequireAllowUnverified(t *testing.T) {
 	}
 }
 
-func TestExtensionUpdateAllSkipsLocalExtensions(t *testing.T) {
+func TestExtensionUpdateAllUsesOneDaemonBatch(t *testing.T) {
 	t.Parallel()
 
-	updated := []string{}
+	calls := 0
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		listExtensionsFn: func(context.Context) ([]ExtensionRecord, error) {
-			return []ExtensionRecord{
-				marketplaceExtensionRecord("market-ext", "1.0.0"),
-				{Name: "local-ext", Version: "1.0.0", Source: extensionpkg.SourceUser.String()},
-			}, nil
-		},
-		updateExtensionFn: func(
+		updateExtensionsFn: func(
 			_ context.Context,
-			name string,
-			request UpdateExtensionRequest,
-		) (ExtensionUpdateRecord, error) {
-			if !request.CheckOnly {
-				t.Fatalf("UpdateExtension request.CheckOnly = false, want true")
+			request UpdateExtensionsRequest,
+		) ([]ExtensionUpdateRecord, error) {
+			calls++
+			if !request.All || !request.CheckOnly || len(request.Names) != 0 {
+				t.Fatalf("UpdateExtensions request = %#v, want all check-only", request)
 			}
-			updated = append(updated, name)
-			return ExtensionUpdateRecord{
-				Name:           name,
-				Slug:           "acme/" + name,
+			return []ExtensionUpdateRecord{{
+				Name:           "market-ext",
+				Slug:           "acme/market-ext",
 				Registry:       "github",
 				CurrentVersion: "1.0.0",
 				LatestVersion:  "1.2.0",
 				Status:         extensionpkg.MarketplaceUpdateStatusAvailable,
-			}, nil
+			}, {
+				Name: "failed-ext", Status: extensionpkg.MarketplaceUpdateStatusFailed,
+			}}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -395,8 +378,8 @@ func TestExtensionUpdateAllSkipsLocalExtensions(t *testing.T) {
 	if _, _, err := executeRootCommand(t, deps, "extension", "update", "--all", "--check", "-o", "json"); err != nil {
 		t.Fatalf("extension update --all --check error = %v", err)
 	}
-	if !reflect.DeepEqual(updated, []string{"market-ext"}) {
-		t.Fatalf("updated names = %#v, want market-ext only", updated)
+	if calls != 1 {
+		t.Fatalf("UpdateExtensions calls = %d, want one batch", calls)
 	}
 }
 
@@ -405,17 +388,4 @@ func markExtensionDaemonRunning(deps *commandDeps) {
 		return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
 	}
 	deps.processAlive = func(int) bool { return true }
-}
-
-func marketplaceExtensionRecord(name string, version string) ExtensionRecord {
-	return ExtensionRecord{
-		Name:    name,
-		Version: version,
-		Source:  extensionpkg.SourceMarketplace.String(),
-		Provenance: &contract.ExtensionProvenancePayload{
-			Slug:          "acme/" + name,
-			InstalledFrom: extensionpkg.ExtensionInstalledFromMarketplace,
-			RegistryTier:  extensionpkg.ExtensionRegistryTierCommunity,
-		},
-	}
 }

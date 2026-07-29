@@ -19,7 +19,6 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -68,13 +67,9 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
-		}
 		if _, err := first.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-			Path:            extensionDir,
-			Checksum:        checksum,
+			Source:          compozycontract.InstallExtensionSourceLocalPath,
+			Ref:             extensionDir,
 			AllowUnverified: true,
 		}); err != nil {
 			t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)
@@ -282,14 +277,9 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	)
 	registerBridgeExtensionArtifacts(t, harness, markers, registration, &bridgeID, &sessionID)
 
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
-	}
-
 	installed, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-		Path:            extensionDir,
-		Checksum:        checksum,
+		Source:          compozycontract.InstallExtensionSourceLocalPath,
+		Ref:             extensionDir,
 		AllowUnverified: true,
 	})
 	if err != nil {

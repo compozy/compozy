@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -441,8 +442,10 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	); err != nil {
 		t.Fatalf("extension install online error = %v", err)
 	}
-	if captured.Path == "" || captured.Checksum == "" || !captured.AllowUnverified {
-		t.Fatalf("captured install request = %#v, want path, checksum, and allow_unverified", captured)
+	if captured.Source != contract.InstallExtensionSourceLocalPath ||
+		captured.Ref != filepath.Clean(dir) ||
+		!captured.AllowUnverified {
+		t.Fatalf("captured install request = %#v, want local_path ref and allow_unverified", captured)
 	}
 }
 

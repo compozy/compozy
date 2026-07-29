@@ -132,7 +132,7 @@ func registryInstallInfo(
 		SourceURL:        manifestPath,
 		ChecksumSHA256:   actualChecksum,
 		ChecksumVerified: config.source != SourceMarketplace,
-		RegistryTier:     registryTierForSource(config.source, dereferenceOptionalString(config.registryName)),
+		RegistryTier:     ExtensionRegistryTierUnverified,
 		Permissions:      extensionPermissions(resolvedManifest),
 		InstalledAt:      installedAt,
 		InstalledBy:      extensionTrustInstalledByOperator,

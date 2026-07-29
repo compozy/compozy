@@ -269,6 +269,13 @@ func Boundaries() error {
 			},
 		},
 		{
+			importer: "internal/registry/gitsrc",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/fileutil": {},
+				"github.com/compozy/compozy/internal/registry": {},
+			},
+		},
+		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/redact": {},

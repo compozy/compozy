@@ -29,6 +29,7 @@ type lifecycleSource struct {
 	slug          string
 	latestVersion string
 	archives      map[string][]byte
+	expectedSHA   string
 	closeErr      error
 	closeCount    int
 }
@@ -88,11 +89,12 @@ func (s *lifecycleSource) Download(
 		return nil, fmt.Errorf("test source missing version %q", version)
 	}
 	return &registrypkg.DownloadResult{
-		Reader:      io.NopCloser(bytes.NewReader(archive)),
-		Slug:        s.packageSlug(),
-		Version:     version,
-		ContentSize: -1,
-		ContentType: "application/gzip",
+		Reader:         io.NopCloser(bytes.NewReader(archive)),
+		Slug:           s.packageSlug(),
+		Version:        version,
+		ContentSize:    -1,
+		ContentType:    "application/gzip",
+		ExpectedSHA256: s.expectedSHA,
 	}, nil
 }
 
@@ -437,11 +439,15 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 		if !errors.Is(err, ErrManifestInvalid) {
 			t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
 		}
-		if len(updates) != 1 || updates[0].Name != "a-good" || updates[0].Status != MarketplaceUpdateStatusUpdated {
-			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want committed a-good update", updates)
+		if len(updates) != 2 || updates[0].Name != "a-good" ||
+			updates[0].Status != MarketplaceUpdateStatusUpdated || updates[1].Name != "z-bad" ||
+			updates[1].Status != MarketplaceUpdateStatusFailed || updates[1].Error == nil ||
+			updates[1].Error.Code != diagnosticcontract.CodeExtensionUpdateFailed ||
+			strings.Contains(updates[1].Error.Message, "wrong-identity") {
+			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want updated then redacted failed result", updates)
 		}
-		if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 1 ||
-			!reflect.DeepEqual(batchErr.Completed[0], updates[0]) {
+		if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 2 ||
+			!reflect.DeepEqual(batchErr.Completed, updates) {
 			t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
 		}
 		for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
@@ -1092,6 +1098,70 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestMarketplaceLifecycleKeepsGitHubSidecarsIntegrityOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name        string
+		withSidecar bool
+		wantMatched bool
+	}{
+		{name: "Should require consent without a digest sidecar"},
+		{name: "Should require identical consent with a matching digest sidecar", withSidecar: true, wantMatched: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			env := newRegistryTestEnv(t)
+			source := newLifecycleSource(t, "1.0.0")
+			if testCase.withSidecar {
+				source.expectedSHA = lifecycleArchiveDigest(source.archives["1.0.0"])
+			}
+			loader := func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			}
+
+			_, err = InstallMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceInstallRequest{
+					Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true,
+				},
+			)
+			if !errors.Is(err, ErrExtensionChecksumUnverified) {
+				t.Fatalf(
+					"InstallMarketplaceManaged(without consent) error = %v, want ErrExtensionChecksumUnverified",
+					err,
+				)
+			}
+
+			installed, err := InstallMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceInstallRequest{
+					Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+				},
+			)
+			if err != nil {
+				t.Fatalf("InstallMarketplaceManaged(with consent) error = %v", err)
+			}
+			provenance := installed.Provenance
+			if provenance.DigestMatched != testCase.wantMatched || provenance.ChecksumVerified ||
+				provenance.RegistryTier != ExtensionRegistryTierUnverified || !provenance.AllowUnverified {
+				t.Fatalf("installed provenance = %#v, want integrity-only sidecar with unverified consent", provenance)
+			}
+		})
+	}
 }
 
 func assertUnverifiedCatalogProvenance(t *testing.T, provenance ExtensionProvenance) {

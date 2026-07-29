@@ -139,5 +139,6 @@ func (i *Installer) installDownloadedPackage(
 		Slug: firstNonEmpty(download.Slug, trimmedSlug), Name: metadata.name,
 		Version: firstNonEmpty(download.Version, metadata.version), InstallPath: absTarget,
 		Checksum: checksum, ArchiveDigestSHA256: archiveDigest,
+		DigestMatched: strings.TrimSpace(download.expectedSHA256) != "",
 	}, nil
 }

@@ -96,21 +96,51 @@ max_scope = "workspace"
 
 ## Extension Install Trust
 
-`compozy extension install <slug> -o json` resolves curated extensions through the daemon-owned catalog. The runtime verifies the downloaded archive against the catalog-pinned SHA-256 digest before extraction, then persists separate catalog entry, archive digest, and extracted-tree checksum provenance. Inspect the decision with `compozy extension provenance <name> -o json`. A curated digest mismatch is terminal and cannot be bypassed.
+Install takes one closed source union — `curated`, `github`, `git`, or `local_path` — plus a required
+`ref` and optional `version`, `asset`, and `allow_unverified`. `compozy extension install <source>`
+owns the shorthand: a filesystem path (`./`, `../`, or absolute) becomes `local_path`,
+`github:owner/repo[@ref]` and `git:<url>[@ref]` become their named sources, and a bare
+`owner/repo[@ref]` tries `curated` first and falls back to `github` only on a `404`. A path that does
+not exist fails naming that path instead of degrading into a slug lookup, and a git URL carrying
+embedded credentials is rejected before any request. Git installs shallow-clone with the `git`
+executable; a missing binary is the deterministic `extension_git_unavailable` `503`.
 
-Non-curated side-loads require both live policy `extensions.marketplace.allow_unverified = true` and the request-level `--allow-unverified` confirmation. The policy defaults to `false`; a block returns a structured diagnostic that points to Settings › Extensions. Changing the policy applies live and does not weaken curated digest verification.
+Curated refs resolve through the daemon-owned catalog: the runtime downloads the feed-owned artifact
+when the entry carries one, verifies the catalog-pinned SHA-256 before extraction, then persists
+separate catalog entry, archive digest, and extracted-tree checksum provenance. Official and community
+catalog tiers install with no consent. Every other install — curated `unverified` tier, `github`,
+`git`, `local_path` — needs live policy `extensions.trust.allow_unverified` (default `true`) plus the
+request-level `--allow-unverified`, which is the whole consent. Policy off returns
+`extension_unverified_policy_blocked` with evidence path `/settings/extensions`; policy on without
+consent returns `extension_checksum_unverified`. Both are `422`. Human output prompts on
+`--allow-unverified` unless `--yes`; structured output requires `--yes`. The deleted key is
+`extensions.marketplace.allow_unverified`, and `compozy config set` names its replacement.
 
-The stable block code is `extension_unverified_policy_blocked`; its evidence path is
-`/settings/extensions`. The stable curated mismatch code is `extension_archive_digest_mismatch`;
-the mismatch is terminal for that catalog version and has no unverified bypass. Registry tier and
-digest verification are provenance signals, not safety guarantees. `extension.digest.verify` event
-queries report `outcome=success` for matching bytes and `outcome=failure` for mismatches.
+A curated digest mismatch is `extension_archive_digest_mismatch`, terminal for that catalog version
+and with no unverified bypass. A GitHub release may carry an `<asset>.sha256` sidecar; when one
+exists the daemon verifies the archive against it before extraction and records `digest_matched`.
+That fact is integrity only: it never raises `registry_tier` above `unverified`, never sets
+`checksum_verified`, and never removes the consent requirement. Any digest failure aborts before the
+registry write, so no partial install survives. Registry tier and digest verification are provenance
+signals, not safety guarantees. `extension.digest.verify` event queries report `outcome=success` for
+matching bytes and `outcome=failure` for mismatches.
+
+Read the persisted decision with `compozy extension provenance <name> -o json`,
+`GET /api/extensions/{name}/provenance`, or `compozy__extensions_provenance`; `installed_from` is
+`marketplace_registry`, `github`, `git_url`, or `local_path`.
 
 An extension update commits when the registry, managed directory, and runtime reload all succeed.
 Post-commit backup or staging cleanup failure does not roll back or relabel that active update:
 `status` remains `updated`, and `warnings[]` contains `extension_update_cleanup_failed` with the
 cleanup target and residual path. Verify the active version before asking an operator to remove the
 residue.
+
+A batch update (`compozy extension update --all`, `POST /api/extensions/update` on HTTP and UDS,
+`compozy__extensions_update`) stops at the first failing target without discarding the progress
+before it. The response is `200` carrying every completed item plus the failed one, whose `status` is
+`failed` and whose `error` carries `extension_update_failed`. Targets after the failure are not
+attempted; resolve that item and re-run rather than reading the short list as success. Only a batch
+that completed nothing maps to an error status.
 
 Extension removal follows the same commit boundary. After the registry, managed directory, and
 runtime reload confirm removal, backup cleanup failure leaves `status` as `removed` and reports
@@ -119,10 +149,11 @@ restore or operate the removed extension from it.
 
 ## Extension Authoring And Dev Loop
 
-Authoring runs `init` → `build` → `validate` → `dev` → `reload` → `logs`. Native tool IDs and risk
-flags live in `references/native-tools.md`. CLI parity is
-`compozy extension init|build|validate|dev|reload|logs`; HTTP/UDS parity is `POST /api/extensions/dev`,
-`POST /api/extensions/{name}/reload`, and `GET /api/extensions/{name}/logs`.
+Authoring runs `init` → `build` → `validate` → `dev` → `reload` → `logs` → `publish`. Native tool IDs
+and risk flags live in `references/native-tools.md`. CLI parity is
+`compozy extension init|build|validate|dev|reload|logs|publish`; HTTP/UDS parity is
+`POST /api/extensions/dev`, `POST /api/extensions/{name}/reload`, and
+`GET /api/extensions/{name}/logs`. Publish has no HTTP/UDS route.
 
 `build` compiles source, runs SDK describe mode, and publishes one immutable generation at
 `<origin>/dist/gen-<hash>`, where `generation_hash` is the 64-lowercase-hex checksum of that tree.
@@ -136,6 +167,13 @@ manifest, permission, and consent-area report that never executes extension code
 `compozy extension dev` and `compozy extension reload` build locally and send the resulting hash. The
 native `compozy__extensions_dev` and `compozy__extensions_reload` never build: call
 `compozy__extensions_build` first and pass its `generation_hash`.
+
+`compozy extension publish [generation-directory] --repository <owner/name> --tag <tag> [--draft]`
+uploads that generation's archive plus its `<asset>.sha256` sidecar to a GitHub release and returns
+the release URL, asset URL, and digest; the directory defaults to the working directory. No surface
+accepts a credential field. The CLI reads `GITHUB_TOKEN` from its own process environment, while
+`compozy__extensions_publish` resolves `env:GITHUB_TOKEN` then `vault:github/publish` inside the
+daemon and registers the value for redaction. An unresolvable credential fails before any upload.
 
 ### Instance Scoping
 
@@ -229,7 +267,9 @@ If a rename touches code, storage, APIs, CLI, extensions, specs, docs, and task 
 `base_url` defaults to the public `compozy/compozy` catalog on `main`, `ttl` defaults to `1h`, and
 `timeout` defaults to `10s`; all three paths apply live to the next fetch. Use the structured config
 surfaces plus `compozy config reload -o json` and apply history to change or verify them. These keys do
-not replace the independent `skills.marketplace.*` and `extensions.marketplace.*` registry settings.
+not replace the independent `skills.marketplace.*` feed settings or the `extensions.trust.*` and
+`extensions.sources.*` distribution settings. `extensions.trust.allow_unverified` applies live; every
+other `extensions.*` path is restart-required.
 
 `[autonomy.scheduler]` tunes the mechanical scheduler's convergence escalation ladder for starved runs. Keys are wake-cycle counts that must stay positive and monotonic (`fan_out_after` ≤ `spawn_after` ≤ `event_after` ≤ `needs_attention_after`) plus a `min_queued_age` duration. Defaults: `fan_out_after = 2`, `spawn_after = 4`, `event_after = 6`, `needs_attention_after = 10`, `min_queued_age = "2m"`. Validation rejects non-monotonic or non-positive values at load.
 

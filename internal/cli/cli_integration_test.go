@@ -3136,6 +3136,21 @@ type integrationExtensionService struct {
 	marketplaceTrust                 *extensionpkg.MarketplaceTrustEvidence
 }
 
+func (s *integrationExtensionService) Search(
+	context.Context,
+	contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	return contract.ExtensionSearchResponse{}, nil
+}
+
+func (s *integrationExtensionService) UpdateBatch(
+	context.Context,
+	contract.UpdateExtensionsRequest,
+	taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	return nil, nil
+}
+
 type integrationBridgeSecretStore interface {
 	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
 	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error

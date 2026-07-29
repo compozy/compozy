@@ -19,12 +19,6 @@ import (
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
-const (
-	skillUpdateStatusCurrent   = "already up to date"
-	skillUpdateStatusAvailable = "update available"
-	skillUpdateStatusUpdated   = "updated"
-)
-
 type skillRegistrySourceLoader func(*runtimeContext) ([]registrypkg.Source, error)
 
 type skillRegistry interface {

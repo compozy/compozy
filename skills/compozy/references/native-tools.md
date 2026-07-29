@@ -182,11 +182,15 @@ dismiss; retry CAS conflicts.
 query, scope, workspace, and source projection; grouped searches omit them. Paging and installed
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
-Extension tools are `compozy__extensions_{init,build,validate,dev,reload,logs,list,info,install,update,remove,enable,disable}`;
-there is no extension-specific native search tool. `validate` and `logs` are read-only; `init`, `build`,
-`dev`, and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction. Resolve live
-schemas first; authoring, workspace binding, generation handles, update/remove commit boundaries, and
-cleanup warnings live in `references/capabilities-and-bundles.md`.
+Extension tools are
+`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,search,provenance,publish,install,update,remove,enable,disable}`.
+`validate`, `logs`, `list`, `info`, `search`, and `provenance` are read-only; `init`, `build`, `dev`,
+and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction; `remove` is
+destructive; `publish` is open-world, interaction-gated, and takes no credential field because the
+daemon resolves and redacts that token server-side. `compozy__extensions_search` spans the `curated`
+and `github` sources only and is not `compozy__marketplace_search`. Resolve live schemas first;
+install sources, consent, authoring, workspace binding, generation handles, commit boundaries,
+batch-update outcomes, and cleanup warnings live in `references/capabilities-and-bundles.md`.
 
 The `compozy__automation_jobs_create` and `compozy__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 

@@ -354,6 +354,11 @@ type ExtensionUpdateResponse struct {
 	Update ManagedExtensionUpdatePayload `json:"update"`
 }
 
+// ExtensionUpdateBatchResponse wraps per-item extension update outcomes.
+type ExtensionUpdateBatchResponse struct {
+	Updates []ManagedExtensionUpdatePayload `json:"updates"`
+}
+
 // ExtensionRemoveResponse wraps one removed extension result.
 type ExtensionRemoveResponse struct {
 	Extension ManagedExtensionRemovePayload `json:"extension"`
@@ -369,6 +374,7 @@ type ManagedExtensionUpdatePayload struct {
 	Path           string           `json:"path"`
 	Status         string           `json:"status"`
 	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
+	Error          *DiagnosticItem  `json:"error,omitempty"`
 }
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,10 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -43,6 +47,9 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/procutil"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygithub "github.com/compozy/compozy/internal/registry/github"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
@@ -2117,14 +2124,9 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	); err != nil {
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
 	}
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(fixtureDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
-	}
-
 	installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-		Path:            fixtureDir,
-		Checksum:        checksum,
+		Source:          contract.InstallExtensionSourceLocalPath,
+		Ref:             fixtureDir,
 		AllowUnverified: true,
 	}, actor)
 	if err != nil {
@@ -2132,6 +2134,18 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 	if installed.Name != "service-ext" || installed.State != "active" || !installed.DaemonRunning {
 		t.Fatalf("installed extension = %#v, want active daemon-backed extension", installed)
+	}
+	if installed.Provenance == nil ||
+		installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromLocalPath ||
+		installed.Provenance.ChecksumVerified || !installed.Provenance.AllowUnverified {
+		t.Fatalf("installed provenance = %#v, want consented local-path provenance", installed.Provenance)
+	}
+	listed, err := service.List(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("service.List() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].Name != "service-ext" || !listed[0].Enabled {
+		t.Fatalf("service.List() = %#v, want one auto-enabled local extension", listed)
 	}
 
 	info, err := registry.Get("service-ext")
@@ -2178,7 +2192,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("disabled extension after second disable = %#v, want disabled extension", disabled)
 	}
 
-	listed, err := service.List(testutil.Context(t))
+	listed, err = service.List(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("service.List() error = %v", err)
 	}
@@ -2215,6 +2229,215 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 	if !bytes.Contains(installContent, []byte("\"allow_unverified\":true")) {
 		t.Fatalf("install event content = %s, want allow_unverified=true", string(installContent))
+	}
+}
+
+func TestDaemonExtensionServiceInstallsPublishedSources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should install GitHub releases with optional integrity-only sidecars", func(t *testing.T) {
+		t.Parallel()
+
+		archive := nativeExtensionTarGz(t, "1.0.0")
+		digestBytes := sha256.Sum256(archive)
+		digest := fmt.Sprintf("%x", digestBytes)
+		mismatch := strings.Repeat("0", sha256.Size*2)
+		for _, testCase := range []struct {
+			name        string
+			sidecar     *string
+			wantMatched bool
+			wantErr     error
+		}{
+			{name: "Should install without a sidecar"},
+			{name: "Should verify a matching sidecar", sidecar: &digest, wantMatched: true},
+			{
+				name: "Should roll back a mismatching sidecar", sidecar: &mismatch,
+				wantErr: extensionpkg.ErrExtensionArchiveDigestMismatch,
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				server := newDaemonGitHubReleaseServer(t, archive, testCase.sidecar)
+				homePaths, registry, service, actor := newDaemonDistributionInstallService(
+					t,
+					func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
+						return []registrypkg.Source{registrygithub.NewClient(server.URL)}, nil
+					},
+				)
+				installed, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+					Source: contract.InstallExtensionSourceGitHub, Ref: "acme/tool-ext", AllowUnverified: true,
+				}, actor)
+				if testCase.wantErr != nil {
+					if !errors.Is(err, testCase.wantErr) {
+						t.Fatalf("service.Install(github) error = %v, want %v", err, testCase.wantErr)
+					}
+					if _, getErr := registry.Get("tool-ext"); !errors.Is(getErr, extensionpkg.ErrExtensionNotFound) {
+						t.Fatalf("registry.Get(tool-ext) error = %v, want no partial row", getErr)
+					}
+					if _, statErr := os.Stat(
+						extensionpkg.ManagedInstallPath(homePaths, "tool-ext"),
+					); !errors.Is(statErr, os.ErrNotExist) {
+						t.Fatalf("os.Stat(managed tool-ext) error = %v, want no partial files", statErr)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("service.Install(github) error = %v", err)
+				}
+				if installed.Provenance == nil ||
+					installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub ||
+					installed.Provenance.DigestMatched != testCase.wantMatched ||
+					installed.Provenance.ChecksumVerified ||
+					installed.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierUnverified {
+					t.Fatalf("github provenance = %#v, want truthful integrity-only provenance", installed.Provenance)
+				}
+			})
+		}
+	})
+
+	t.Run("Should install a tagged local git repository with git URL provenance", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := exec.LookPath("git"); err != nil {
+			t.Fatalf("exec.LookPath(git) error = %v", err)
+		}
+		repository := t.TempDir()
+		manifestPath := filepath.Join(repository, "extension.toml")
+		if err := os.WriteFile(
+			manifestPath,
+			[]byte(daemonTestExtensionManifest("git-ext", daemonTestExtensionOptions{})),
+			0o644,
+		); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
+		}
+		runDaemonGit(t, repository, "init", "-q")
+		runDaemonGit(t, repository, "config", "user.email", "extension-test@compozy.local")
+		runDaemonGit(t, repository, "config", "user.name", "Compozy Extension Test")
+		runDaemonGit(t, repository, "add", "extension.toml")
+		runDaemonGit(t, repository, "commit", "-q", "-m", "fixture")
+		runDaemonGit(t, repository, "tag", "v1.0.0")
+
+		_, _, service, actor := newDaemonDistributionInstallService(
+			t,
+			func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{registrygit.NewClient()}, nil
+			},
+		)
+		installed, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceGit, Ref: repository, Version: "v1.0.0", AllowUnverified: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("service.Install(git) error = %v", err)
+		}
+		if installed.Provenance == nil ||
+			installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitURL ||
+			installed.Provenance.SourceURL != repository || installed.Provenance.ChecksumVerified ||
+			installed.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierUnverified {
+			t.Fatalf("git provenance = %#v, want truthful git URL provenance", installed.Provenance)
+		}
+	})
+}
+
+func newDaemonDistributionInstallService(
+	t *testing.T,
+	loader extensionMarketplaceSourceLoader,
+) (
+	compozyconfig.HomePaths,
+	*extensionpkg.Registry,
+	*daemonExtensionService,
+	taskpkg.ActorContext,
+) {
+	t.Helper()
+	homePaths := testHomePaths(t)
+	db := openDaemonTestGlobalDB(t)
+	registry := extensionpkg.NewRegistry(db.DB())
+	service, ok := newDaemonExtensionService(
+		registry,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		homePaths,
+		discardLogger(),
+		time.Now,
+		withDaemonExtensionMarketplace(
+			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
+			loader,
+		),
+	).(*daemonExtensionService)
+	if !ok {
+		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
+	}
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	return homePaths, registry, service, actor
+}
+
+func newDaemonGitHubReleaseServer(t *testing.T, archive []byte, sidecar *string) *httptest.Server {
+	t.Helper()
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assetName := "tool-ext-v1.0.0.tar.gz"
+		assets := []map[string]any{{
+			"name": assetName, "url": server.URL + "/downloads/" + assetName,
+			"content_type": "application/gzip", "size": len(archive),
+		}}
+		if sidecar != nil {
+			assets = append(assets, map[string]any{
+				"name": assetName + ".sha256", "url": server.URL + "/downloads/" + assetName + ".sha256",
+				"content_type": "text/plain", "size": len(*sidecar),
+			})
+		}
+		release := map[string]any{
+			"tag_name": "1.0.0", "name": "tool-ext", "html_url": server.URL + "/releases/1.0.0",
+			"assets": assets, "author": map[string]any{"login": "acme"},
+		}
+		switch request.URL.Path {
+		case "/repos/acme/tool-ext/releases/latest":
+			writeDaemonTestJSON(writer, release)
+		case "/repos/acme/tool-ext/releases":
+			writeDaemonTestJSON(writer, []any{release})
+		case "/downloads/" + assetName:
+			writer.Header().Set("Content-Type", "application/gzip")
+			if _, err := writer.Write(archive); err != nil {
+				panic(err)
+			}
+		case "/downloads/" + assetName + ".sha256":
+			writer.Header().Set("Content-Type", "text/plain")
+			if sidecar == nil {
+				http.NotFound(writer, request)
+				return
+			}
+			if _, err := writer.Write([]byte(*sidecar + "  " + assetName + "\n")); err != nil {
+				panic(err)
+			}
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func writeDaemonTestJSON(writer http.ResponseWriter, value any) {
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(value); err != nil {
+		panic(err)
+	}
+}
+
+func runDaemonGit(t *testing.T, repository string, args ...string) {
+	t.Helper()
+	command := exec.CommandContext(t.Context(), "git", args...)
+	command.Dir = repository
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s error = %v; output=%s", strings.Join(args, " "), err, string(output))
 	}
 }
 
@@ -2386,14 +2609,9 @@ Broken agent missing required name.
 			t.Fatalf("os.WriteFile(AGENT.md) error = %v", err)
 		}
 
-		checksum, err := extensionpkg.ComputeDirectoryChecksum(fixtureDir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
-		}
-
 		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-			Path:            fixtureDir,
-			Checksum:        checksum,
+			Source:          contract.InstallExtensionSourceLocalPath,
+			Ref:             fixtureDir,
 			AllowUnverified: true,
 		}, actor)
 		if err == nil {
@@ -8908,9 +9126,19 @@ const (
 	daemonExtensionHelperMarkerKey   = "COMPOZY_TEST_DAEMON_EXTENSION_MARKER"
 )
 
-func TestDaemonExtensionHelperProcess(_ *testing.T) {
+func TestDaemonExtensionHelperProcess(t *testing.T) {
 	if os.Getenv(daemonExtensionHelperEnvKey) != "1" {
 		return
+	}
+	if strings.TrimSpace(os.Getenv(daemonExtensionHelperScenarioKey)) == "secret_hygiene" {
+		if _, err := fmt.Fprintf(
+			os.Stderr,
+			"runtime_secret=%s provider_token=%s safe=visible\n",
+			os.Getenv("BOUND_SECRET"),
+			os.Getenv("BOUND_PROVIDER_TOKEN"),
+		); err != nil {
+			t.Fatalf("fmt.Fprintf(os.Stderr) error = %v", err)
+		}
 	}
 
 	server := newDaemonExtensionHelperServer(
@@ -8998,6 +9226,7 @@ type daemonTestExtensionOptions struct {
 	runtimeCommand    string
 	runtimeArgs       []string
 	runtimeEnv        map[string]string
+	runtimeSecretEnv  map[string]string
 	hookCommand       string
 	hookArgs          []string
 	hookEvent         hookspkg.HookEvent
@@ -9153,6 +9382,17 @@ command = ` + fmt.Sprintf("%q", command) + `
 		slices.Sort(keys)
 		for _, key := range keys {
 			fmt.Fprintf(&builder, "%s = %q\n", key, opts.runtimeEnv[key])
+		}
+	}
+	if len(opts.runtimeSecretEnv) > 0 {
+		builder.WriteString("\n[subprocess.secret_env]\n")
+		keys := make([]string, 0, len(opts.runtimeSecretEnv))
+		for key := range opts.runtimeSecretEnv {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			fmt.Fprintf(&builder, "%s = %q\n", key, opts.runtimeSecretEnv[key])
 		}
 	}
 

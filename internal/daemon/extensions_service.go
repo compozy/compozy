@@ -14,6 +14,8 @@ import (
 
 type daemonExtensionService struct {
 	marketplaceMu      sync.RWMutex
+	searchMu           sync.Mutex
+	searchCache        map[string]extensionSearchSnapshot
 	registry           *extensionpkg.Registry
 	runtime            extensionRuntime
 	hookBinds          hookBindingPublisher

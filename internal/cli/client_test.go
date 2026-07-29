@@ -2465,9 +2465,12 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 					if err != nil {
 						t.Fatalf("io.ReadAll(extension install body) error = %v", err)
 					}
-					if !strings.Contains(string(body), `"path":"/tmp/ext-a"`) ||
-						!strings.Contains(string(body), `"checksum":"abc123"`) {
-						t.Fatalf("extension install body = %s, want path and checksum", body)
+					var input contract.InstallExtensionRequest
+					if err := json.Unmarshal(body, &input); err != nil {
+						t.Fatalf("json.Unmarshal(extension install body) error = %v", err)
+					}
+					if input.Source != contract.InstallExtensionSourceLocalPath || input.Ref != "/tmp/ext-a" {
+						t.Fatalf("extension install body = %#v, want local_path ref", input)
 					}
 					return newHTTPResponse(
 						http.StatusCreated,
@@ -2503,8 +2506,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	}
 
 	installed, err := client.InstallExtension(ctx, InstallExtensionRequest{
-		Path:     "/tmp/ext-a",
-		Checksum: "abc123",
+		Source: contract.InstallExtensionSourceLocalPath,
+		Ref:    "/tmp/ext-a",
 	})
 	if err != nil || installed.Name != "ext-a" {
 		t.Fatalf("InstallExtension() = %#v, %v", installed, err)

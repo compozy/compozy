@@ -48,35 +48,6 @@ func prepareExtensionInstall(path string) (preparedExtensionInstall, error) {
 	}, nil
 }
 
-func prepareLocalExtensionInstallIfPresent(path string) (preparedExtensionInstall, bool, error) {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return preparedExtensionInstall{}, false, errors.New("extension: install path or registry slug is required")
-	}
-
-	absPath, err := filepath.Abs(trimmed)
-	if err != nil {
-		return preparedExtensionInstall{}, false, fmt.Errorf("extension: resolve install path %q: %w", path, err)
-	}
-
-	info, err := os.Stat(absPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return preparedExtensionInstall{}, false, nil
-	}
-	if err != nil {
-		return preparedExtensionInstall{}, false, fmt.Errorf("extension: stat install path %q: %w", absPath, err)
-	}
-	if !info.IsDir() {
-		return preparedExtensionInstall{}, false, fmt.Errorf("extension: install path %q must be a directory", absPath)
-	}
-
-	prepared, err := prepareExtensionInstall(absPath)
-	if err != nil {
-		return preparedExtensionInstall{}, false, err
-	}
-	return prepared, true, nil
-}
-
 func installPreparedExtension(
 	homePaths compozyconfig.HomePaths,
 	registry localExtensionRegistry,

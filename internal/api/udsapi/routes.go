@@ -405,8 +405,10 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions := api.Group("/extensions")
 	{
 		extensions.GET("", handlers.ListExtensions)
+		extensions.GET("/search", handlers.SearchExtensions)
 		extensions.POST("", handlers.InstallExtension)
 		extensions.POST("/dev", handlers.DevExtension)
+		extensions.POST("/update", handlers.UpdateExtensions)
 		extensions.PUT("/:name", handlers.UpdateExtension)
 		extensions.DELETE("/:name", handlers.RemoveExtension)
 		extensions.GET("/:name/provenance", handlers.ExtensionProvenance)

@@ -84,6 +84,7 @@ const (
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
 	CodeExtensionInstallFailed        = "extension_install_failed"
 	CodeExtensionRemoveCleanupFailed  = "extension_remove_cleanup_failed"
+	CodeExtensionUpdateFailed         = "extension_update_failed"
 	CodeExtensionUpdateCleanupFailed  = "extension_update_cleanup_failed"
 	CodeExtensionInUse                = "extension_in_use"
 	CodeExtensionNotFound             = "extension_not_found"
@@ -213,6 +214,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},
 	{Code: CodeExtensionRemoveCleanupFailed, Category: CategoryExtension},
+	{Code: CodeExtensionUpdateFailed, Category: CategoryExtension},
 	{Code: CodeExtensionUpdateCleanupFailed, Category: CategoryExtension},
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},

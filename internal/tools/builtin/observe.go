@@ -51,7 +51,7 @@ var observeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
-		[]string{observeObserveKey, "search"},
+		[]string{observeObserveKey, descriptorKeywordSearch},
 		[]string{"observe search", "search runtime events"},
 	),
 }

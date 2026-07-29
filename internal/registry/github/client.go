@@ -2,15 +2,10 @@ package github
 
 import (
 	"context"
-
 	"fmt"
-
 	"log/slog"
-
 	"net/http"
-
 	"os"
-
 	"strings"
 	"sync"
 	"time"
@@ -20,23 +15,17 @@ import (
 
 const (
 	clientApplicationXGzipPath = "application/x-gzip"
-)
-
-const (
-	clientApplicationGzipPath = "application/gzip"
-)
-
-const (
-	defaultBaseURL          = "https://api.github.com"
-	defaultRequestTimeout   = 30 * time.Second
-	defaultInitialBackoff   = time.Second
-	defaultMaxBackoff       = 30 * time.Second
-	defaultMaxRetries       = 3
-	maxErrorBodyBytes       = 64 << 10
-	rateLimitWarnThreshold  = 10
-	acceptJSON              = "application/vnd.github+json"
-	acceptBinary            = "application/octet-stream"
-	githubRepositoryBaseURL = "https://github.com"
+	clientApplicationGzipPath  = "application/gzip"
+	defaultBaseURL             = "https://api.github.com"
+	defaultRequestTimeout      = 30 * time.Second
+	defaultInitialBackoff      = time.Second
+	defaultMaxBackoff          = 30 * time.Second
+	defaultMaxRetries          = 3
+	maxErrorBodyBytes          = 64 << 10
+	rateLimitWarnThreshold     = 10
+	acceptJSON                 = "application/vnd.github+json"
+	acceptBinary               = "application/octet-stream"
+	githubRepositoryBaseURL    = "https://github.com"
 )
 
 // Option customizes a GitHub client.
@@ -62,12 +51,15 @@ type repoSlug struct {
 }
 
 type release struct {
+	ID         int64          `json:"id"`
 	Name       string         `json:"name"`
 	Body       string         `json:"body"`
 	TagName    string         `json:"tag_name"`
 	Draft      bool           `json:"draft"`
 	Prerelease bool           `json:"prerelease"`
 	TarballURL string         `json:"tarball_url"`
+	UploadURL  string         `json:"upload_url"`
+	HTMLURL    string         `json:"html_url"`
 	Assets     []releaseAsset `json:"assets"`
 	Author     releaseAuthor  `json:"author"`
 }
@@ -77,6 +69,7 @@ type releaseAuthor struct {
 }
 
 type releaseAsset struct {
+	ID                 int64  `json:"id"`
 	URL                string `json:"url"`
 	Name               string `json:"name"`
 	ContentType        string `json:"content_type"`
@@ -186,12 +179,12 @@ func (c *Client) Name() string {
 
 // Capabilities reports which registry operations GitHub supports.
 func (c *Client) Capabilities() registry.SourceCaps {
-	return registry.SourceCaps{Search: false}
+	return registry.SourceCaps{Search: true}
 }
 
-// Search reports that the GitHub Releases adapter is slug-only.
-func (c *Client) Search(context.Context, string, registry.SearchOpts) ([]registry.Listing, error) {
-	return nil, registry.ErrNotSupported
+// Search discovers repositories carrying the Compozy extension topic.
+func (c *Client) Search(ctx context.Context, query string, opts registry.SearchOpts) ([]registry.Listing, error) {
+	return c.searchRepositories(ctx, query, opts)
 }
 
 // Info fetches metadata from the latest published release and page one of the
@@ -247,6 +240,10 @@ func (c *Client) Download(
 	if err != nil {
 		return nil, fmt.Errorf("github: resolve release asset for %q: %w", repo.full, err)
 	}
+	expectedSHA256, err := c.fetchReleaseDigestSidecar(ctx, repo, release, selection)
+	if err != nil {
+		return nil, err
+	}
 
 	response, checksum, contentSize, err := c.openDownloadResponse(ctx, repo, release, selection)
 	if err != nil {
@@ -264,12 +261,13 @@ func (c *Client) Download(
 	}
 
 	return &registry.DownloadResult{
-		Reader:      reader,
-		Slug:        repo.full,
-		Version:     strings.TrimSpace(release.TagName),
-		ContentSize: contentSize,
-		Checksum:    checksum,
-		ContentType: contentType,
+		Reader:         reader,
+		Slug:           repo.full,
+		Version:        strings.TrimSpace(release.TagName),
+		ContentSize:    contentSize,
+		Checksum:       checksum,
+		ContentType:    contentType,
+		ExpectedSHA256: expectedSHA256,
 	}, nil
 }
 

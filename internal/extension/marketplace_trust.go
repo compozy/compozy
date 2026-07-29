@@ -15,8 +15,8 @@ import (
 var (
 	// ErrExtensionUnverifiedPolicyBlocked reports a side-load denied by daemon policy.
 	ErrExtensionUnverifiedPolicyBlocked = errors.New("extension: unverified install blocked by policy")
-	// ErrExtensionArchiveDigestMismatch reports a curated archive that differs from its feed pin.
-	ErrExtensionArchiveDigestMismatch = errors.New("extension: curated archive digest mismatch")
+	// ErrExtensionArchiveDigestMismatch reports an archive that differs from its declared digest.
+	ErrExtensionArchiveDigestMismatch = errors.New("extension: archive digest mismatch")
 )
 
 // MarketplaceCatalogRegistryName identifies feed-owned extension artifacts in installed provenance.
@@ -118,6 +118,9 @@ type ExtensionArchiveDigestMismatchError struct {
 
 func (e *ExtensionArchiveDigestMismatchError) Error() string {
 	if e == nil {
+		return ErrExtensionArchiveDigestMismatch.Error()
+	}
+	if strings.TrimSpace(e.EntryID) == "" && strings.TrimSpace(e.Version) == "" {
 		return ErrExtensionArchiveDigestMismatch.Error()
 	}
 	return fmt.Sprintf(
@@ -253,17 +256,21 @@ func wrapCuratedDigestMismatch(
 	err error,
 	trust *MarketplaceTrustEvidence,
 ) error {
-	if !errors.Is(err, registrypkg.ErrArchiveDigestMismatch) || trust == nil {
+	if !errors.Is(err, registrypkg.ErrArchiveDigestMismatch) {
 		return err
 	}
-	entryID := strings.TrimSpace(trust.CatalogEntryID)
-	version := strings.TrimSpace(trust.Version)
+	entryID := ""
+	version := ""
+	if trust != nil {
+		entryID = strings.TrimSpace(trust.CatalogEntryID)
+		version = strings.TrimSpace(trust.Version)
+	}
 	item := diagnostics.NewItem(
 		"extension.archive_digest_mismatch",
 		diagnosticcontract.CodeExtensionArchiveDigestMismatch,
 		diagnosticcontract.CategoryExtension,
-		"Curated extension archive does not match its digest",
-		"The downloaded archive differs from the version reviewed in the curated catalog. Nothing was installed.",
+		"Extension archive does not match its digest",
+		"The downloaded archive differs from its declared SHA-256 digest. Nothing was installed.",
 		diagnosticcontract.SeverityError,
 		diagnosticcontract.FreshnessLive,
 		diagnostics.WithEvidence(map[string]any{"entry_id": entryID, extensionTrustEvidenceVersionKey: version}),

@@ -90,7 +90,7 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		SourceURL:        info.ManifestPath,
 		ChecksumSHA256:   info.Checksum,
 		ChecksumVerified: info.Source != SourceMarketplace,
-		RegistryTier:     registryTierForSource(info.Source, dereferenceOptionalString(info.RegistryName)),
+		RegistryTier:     ExtensionRegistryTierUnverified,
 		Permissions:      extensionPermissionsFromParts(info.Capabilities, info.Permissions),
 		InstalledAt:      info.InstalledAt,
 		InstalledBy:      extensionTrustInstalledByOperator,

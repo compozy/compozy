@@ -7,10 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -35,7 +40,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
-					"{\"source\":\"marketplace\",\"slug\":\"acme/tool-ext\",\"registry\":\"github\",\"allow_unverified\":true}",
+					"{\"source\":\"github\",\"ref\":\"acme/tool-ext\",\"allow_unverified\":true}",
 				),
 			},
 		); err != nil {
@@ -130,8 +135,15 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				t.Errorf("extension manager Stop() error = %v", err)
 			}
 		})
+		const publishCredential = "native-publish-secret-value"
+		publishServer, publishCapture := newNativeExtensionPublishServer(t, publishCredential)
+		defer publishServer.Close()
 		deps.ExtensionRuntime = func() extensionRuntime { return manager }
 		deps.WorkspaceResolver = resolver
+		deps.ExtensionConfig.Sources.GitHub.BaseURL = publishServer.URL
+		deps.ExtensionSecrets = nativeExtensionSecretResolver{
+			values: map[string]string{"env:GITHUB_TOKEN": publishCredential},
+		}
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{WorkspaceID: workspaceID, Operator: true}
 
@@ -188,6 +200,41 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			t.Fatalf("Registry.Call(extensions_reload) error = %v", err)
 		}
 		requireNativeStructuredContains(t, reloadResult, []byte(secondBuild.GenerationHash))
+
+		searchResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsSearch,
+			Input:  json.RawMessage(`{"query":"tool","sources":["github"],"limit":1}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_search) error = %v", err)
+		}
+		requireNativeStructuredContains(t, searchResult, []byte(`"source":"github"`))
+
+		provenanceResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsProvenance,
+			Input:  json.RawMessage(`{"name":"global-native"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_provenance) error = %v", err)
+		}
+		requireNativeStructuredContains(t, provenanceResult, []byte(`"installed_from":"local_path"`))
+
+		publishResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsPublish,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"generation_dir":%q,"repository":"acme/native-dev","tag_name":"v0.2.0"}`,
+				secondBuild.GenerationDir,
+			)),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_publish) error = %v", err)
+		}
+		requireNativeStructuredContains(t, publishResult, []byte(`"digest_sha256"`))
+		if strings.Contains(string(publishResult.Structured), publishCredential) ||
+			strings.Contains(publishResult.Preview, publishCredential) {
+			t.Fatal("extensions_publish result contains the bound credential")
+		}
+		publishCapture.requireComplete(t, publishCredential)
 
 		logsResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsLogs,
@@ -319,7 +366,13 @@ requires = []
 	if err != nil {
 		t.Fatalf("ComputeDirectoryChecksum(global extension) error = %v", err)
 	}
-	if err := registry.Install(manifest, dir, checksum); err != nil {
+	provenance := extensionpkg.LocalPathProvenance(manifest, dir, checksum, time.Now().UTC(), true)
+	if err := registry.Install(
+		manifest,
+		dir,
+		checksum,
+		extensionpkg.WithInstallProvenance(provenance),
+	); err != nil {
 		t.Fatalf("Registry.Install(global extension) error = %v", err)
 	}
 }
@@ -363,5 +416,127 @@ func assertNativeExtensionAuthoringRisk(t *testing.T) {
 	validate := descriptors[toolspkg.ToolIDExtensionsValidate]
 	if !validate.ReadOnly || validate.RequiresInteraction || validate.Risk != toolspkg.RiskRead {
 		t.Fatalf("validate descriptor = %#v, want read-only non-interactive", validate)
+	}
+	for _, id := range []toolspkg.ToolID{
+		toolspkg.ToolIDExtensionsSearch,
+		toolspkg.ToolIDExtensionsProvenance,
+	} {
+		descriptor := descriptors[id]
+		if !descriptor.ReadOnly || descriptor.RequiresInteraction || descriptor.Risk != toolspkg.RiskRead {
+			t.Fatalf("descriptor %s = %#v, want read-only non-interactive", id, descriptor)
+		}
+	}
+	publish := descriptors[toolspkg.ToolIDExtensionsPublish]
+	if publish.ReadOnly || !publish.RequiresInteraction || publish.Risk != toolspkg.RiskOpenWorld {
+		t.Fatalf("publish descriptor = %#v, want interaction-gated open-world mutation", publish)
+	}
+}
+
+type nativeExtensionSecretResolver struct {
+	values map[string]string
+}
+
+func (r nativeExtensionSecretResolver) ResolveRef(_ context.Context, ref string) (string, error) {
+	value, ok := r.values[ref]
+	if !ok {
+		return "", errors.New("test secret binding unavailable")
+	}
+	return value, nil
+}
+
+type nativeExtensionPublishCapture struct {
+	mu            sync.Mutex
+	authorization []string
+	assetNames    []string
+	payloads      [][]byte
+	err           error
+}
+
+func newNativeExtensionPublishServer(
+	t *testing.T,
+	credential string,
+) (*httptest.Server, *nativeExtensionPublishCapture) {
+	t.Helper()
+	capture := &nativeExtensionPublishCapture{}
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		payload, err := io.ReadAll(request.Body)
+		if err != nil {
+			http.Error(writer, "read request", http.StatusInternalServerError)
+			capture.recordError(err)
+			return
+		}
+		capture.recordRequest(request.Header.Get("Authorization"), request.URL.Query().Get("name"), payload)
+		if request.Header.Get("Authorization") != "Bearer "+credential {
+			http.Error(writer, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/acme/native-dev/releases/tags/v0.2.0":
+			writer.WriteHeader(http.StatusNotFound)
+		case request.Method == http.MethodPost && request.URL.Path == "/repos/acme/native-dev/releases":
+			writer.WriteHeader(http.StatusCreated)
+			capture.encode(writer, map[string]any{
+				"id": 1, "html_url": server.URL + "/release/v0.2.0",
+				"upload_url": server.URL + "/uploads/assets{?name,label}", "assets": []any{},
+			})
+		case request.Method == http.MethodPost && request.URL.Path == "/uploads/assets":
+			writer.WriteHeader(http.StatusCreated)
+			capture.encode(writer, map[string]any{
+				"id": 2, "browser_download_url": server.URL + "/downloads/" + request.URL.Query().Get("name"),
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	return server, capture
+}
+
+func (c *nativeExtensionPublishCapture) recordRequest(authorization string, assetName string, payload []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.authorization = append(c.authorization, authorization)
+	if strings.TrimSpace(assetName) != "" {
+		c.assetNames = append(c.assetNames, assetName)
+		c.payloads = append(c.payloads, append([]byte(nil), payload...))
+	}
+}
+
+func (c *nativeExtensionPublishCapture) recordError(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.err = errors.Join(c.err, err)
+}
+
+func (c *nativeExtensionPublishCapture) encode(writer http.ResponseWriter, value any) {
+	if err := json.NewEncoder(writer).Encode(value); err != nil {
+		c.recordError(err)
+	}
+}
+
+func (c *nativeExtensionPublishCapture) requireComplete(t *testing.T, credential string) {
+	t.Helper()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.err != nil {
+		t.Fatalf("publish server error = %v", c.err)
+	}
+	if len(c.assetNames) != 2 || !strings.HasSuffix(c.assetNames[1], ".sha256") {
+		t.Fatalf("published assets = %#v, want archive and digest sidecar", c.assetNames)
+	}
+	for _, authorization := range c.authorization {
+		if authorization != "Bearer "+credential {
+			t.Fatalf("publish authorization = %q, want bound credential", authorization)
+		}
+	}
+	for index, payload := range c.payloads {
+		if len(payload) == 0 {
+			t.Fatalf("published payload %d is empty", index)
+		}
+		if strings.Contains(string(payload), credential) {
+			t.Fatalf("published payload %d contains credential", index)
+		}
 	}
 }

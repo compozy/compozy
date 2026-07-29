@@ -54,6 +54,7 @@ func (stubVaultService) DeleteSecret(context.Context, string) error {
 
 type stubExtensionService struct {
 	ListFn             func(context.Context) ([]contract.ExtensionPayload, error)
+	SearchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	MarketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	InstallFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	UpdateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
@@ -65,6 +66,16 @@ type stubExtensionService struct {
 	DevFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	ReloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	ExtensionLogsFn    func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
+}
+
+func (s stubExtensionService) Search(
+	ctx context.Context,
+	req contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	if s.SearchFn == nil {
+		return contract.ExtensionSearchResponse{}, nil
+	}
+	return s.SearchFn(ctx, req)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -105,6 +116,14 @@ func (s stubExtensionService) Update(
 		return contract.ManagedExtensionUpdatePayload{}, nil
 	}
 	return s.UpdateFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) UpdateBatch(
+	context.Context,
+	contract.UpdateExtensionsRequest,
+	taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	return nil, nil
 }
 
 func (s stubExtensionService) Remove(

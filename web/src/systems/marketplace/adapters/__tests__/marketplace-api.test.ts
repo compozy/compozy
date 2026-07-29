@@ -229,7 +229,8 @@ describe("marketplace acquisition transport", () => {
   it("Should install extensions and activate bundles through separate mutations", async () => {
     const extensionBody = {
       allow_unverified: true,
-      slug: "review-pack",
+      ref: "review-pack",
+      source: "curated",
       version: "2.0.0",
     };
     mockJsonResponse({ extension: { name: "review-pack" } }, { status: 201 });
@@ -265,7 +266,10 @@ describe("marketplace acquisition transport", () => {
     ],
     ["skill install", () => installMarketplaceSkill({ slug: "@compozy/reviewer" })],
     ["skill update", () => updateMarketplaceSkill({ name: "reviewer" })],
-    ["extension install", () => installMarketplaceExtension({ slug: "review-pack" })],
+    [
+      "extension install",
+      () => installMarketplaceExtension({ ref: "review-pack", source: "curated" }),
+    ],
     [
       "bundle preview",
       () =>

@@ -77,6 +77,7 @@ type stubClient struct {
 	networkInboxFn              func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
 	promoteNetworkThreadTaskFn  func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
+	searchExtensionsFn          func(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
 	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
@@ -92,6 +93,7 @@ type stubClient struct {
 	logoutSettingsMCPAuthFn      func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
 	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	updateExtensionsFn           func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
 	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
 	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
@@ -434,6 +436,16 @@ type stubClient struct {
 	agentTaskCompleteFn    func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskFailFn        func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskReleaseFn     func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+}
+
+func (s *stubClient) SearchExtensions(
+	ctx context.Context,
+	request ExtensionSearchRequest,
+) (ExtensionSearchRecord, error) {
+	if s.searchExtensionsFn != nil {
+		return s.searchExtensionsFn(ctx, request)
+	}
+	return ExtensionSearchRecord{}, errors.New("unexpected SearchExtensions call")
 }
 
 var _ DaemonClient = (*stubClient)(nil)
@@ -1050,6 +1062,16 @@ func (s *stubClient) UpdateExtension(
 		return s.updateExtensionFn(ctx, name, request)
 	}
 	return ExtensionUpdateRecord{}, errors.New("unexpected UpdateExtension call")
+}
+
+func (s *stubClient) UpdateExtensions(
+	ctx context.Context,
+	request UpdateExtensionsRequest,
+) ([]ExtensionUpdateRecord, error) {
+	if s.updateExtensionsFn != nil {
+		return s.updateExtensionsFn(ctx, request)
+	}
+	return nil, errors.New("unexpected UpdateExtensions call")
 }
 
 func (s *stubClient) RemoveExtension(

@@ -16,6 +16,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     catalog_entry_id: "otel-bridge",
     checksum_sha256: "sha256:otel-bridge-060",
     checksum_verified: true,
+    digest_matched: true,
     installed_at: "2026-07-10T14:20:00Z",
     installed_by: "operator:web",
     installed_from: "marketplace_registry",
@@ -29,6 +30,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     catalog_entry_id: "slack-notify",
     checksum_sha256: "sha256:slack-notify-114",
     checksum_verified: false,
+    digest_matched: false,
     installed_at: "2026-07-08T09:15:00Z",
     installed_by: "operator:cli",
     installed_from: "marketplace_registry",
@@ -44,8 +46,10 @@ export const extensionFixtures: ExtensionEntry[] = [
   {
     bundles: [],
     capabilities: ["loop.watch_source", "tool.provider"],
+    consecutive_failures: 0,
     daemon_running: true,
     diagnostics: [],
+    digest_matched: true,
     enabled: true,
     health: "healthy",
     health_message: "Collector connection healthy",
@@ -55,6 +59,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     pid: 4812,
     provenance: extensionProvenanceFixtures["otel-bridge"],
     requires_env: ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+    restart_backoff_ms: 0,
     source: "marketplace",
     state: "running",
     trust: {
@@ -65,6 +70,7 @@ export const extensionFixtures: ExtensionEntry[] = [
       warnings: [],
     },
     type: "backend",
+    update_available: false,
     uptime_seconds: 18420,
     version: "0.5.2",
   },
@@ -77,6 +83,7 @@ export const extensionFixtures: ExtensionEntry[] = [
       },
     ],
     capabilities: ["tool.provider"],
+    consecutive_failures: 0,
     daemon_running: false,
     diagnostics: [
       {
@@ -90,6 +97,7 @@ export const extensionFixtures: ExtensionEntry[] = [
         title: "Required environment is missing",
       },
     ],
+    digest_matched: false,
     enabled: true,
     health: "degraded",
     health_message: "Waiting for required environment",
@@ -99,6 +107,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     permissions: ["network/send", "sessions/list"],
     provenance: extensionProvenanceFixtures["slack-notify"],
     requires_env: ["SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"],
+    restart_backoff_ms: 0,
     source: "marketplace",
     state: "stopped",
     trust: {
@@ -109,6 +118,7 @@ export const extensionFixtures: ExtensionEntry[] = [
       warnings: [trustWarning],
     },
     type: "backend",
+    update_available: false,
     version: "1.1.4",
   },
 ];

@@ -2,13 +2,12 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -24,6 +23,7 @@ const (
 	extensionMarketplaceDescriptionValue  = "Description"
 	extensionMarketplacePathValue         = "Path"
 	extensionMarketplaceStatusValue       = "Status"
+	extensionMarketplaceTierValue         = "Tier"
 	extensionMarketplaceCurrentVersionKey = "current_version"
 	extensionMarketplaceDescriptionKey    = "description"
 	extensionMarketplacePathKey           = "path"
@@ -37,82 +37,39 @@ type extensionRemoveItem = ManagedExtensionRemoveRecord
 
 type extensionUpdateItem = ExtensionUpdateRecord
 
-type marketplaceExtensionSearchItem struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Author      string `json:"author"`
-	Version     string `json:"version"`
-	Downloads   int    `json:"downloads"`
-	Source      string `json:"source"`
+type extensionSearchItem = contract.ExtensionSearchItem
+
+type extensionSearchPageRecord struct {
+	Type            string   `json:"type"`
+	Returned        int      `json:"returned"`
+	NextCursor      string   `json:"next_cursor,omitempty"`
+	SourcesDegraded []string `json:"sources_degraded,omitempty"`
 }
 
-func searchExtensions(
+func searchExtensionsPage(
 	ctx context.Context,
 	deps commandDeps,
 	query string,
+	sources []string,
 	limit int,
-) ([]marketplaceExtensionSearchItem, error) {
+	cursor string,
+) (ExtensionSearchRecord, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("cli: search limit must be positive: %d", limit)
+		return ExtensionSearchRecord{}, fmt.Errorf("cli: search limit must be positive: %d", limit)
 	}
 	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
-		return nil, err
+		return ExtensionSearchRecord{}, err
 	}
-	response, err := client.BrowseMarketplace(
-		ctx,
-		"extension",
-		query,
-		limit,
-		"",
-		MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
-	)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]marketplaceExtensionSearchItem, 0, len(response.Items))
-	for _, listing := range response.Items {
-		installSlug := strings.TrimSpace(listing.InstallSlug)
-		if installSlug == "" {
-			return nil, fmt.Errorf("cli: marketplace extension %q has no install slug", listing.EntryID)
-		}
-		downloads := 0
-		if listing.Downloads != nil {
-			downloads = *listing.Downloads
-		}
-		items = append(items, marketplaceExtensionSearchItem{
-			Slug: installSlug, Name: listing.Name, Description: listing.Description,
-			Author: listing.Author, Version: listing.Version, Downloads: downloads, Source: listing.Source,
-		})
-	}
-	return items, nil
-}
-
-func installMarketplaceExtension(
-	ctx context.Context,
-	deps commandDeps,
-	slug string,
-	sourceFilter string,
-	version string,
-	asset string,
-	allowUnverified bool,
-) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
-	if err != nil {
-		return ExtensionRecord{}, err
-	}
-	item, err := client.InstallExtension(ctx, InstallExtensionRequest{
-		Slug:            strings.TrimSpace(slug),
-		Source:          strings.TrimSpace(sourceFilter),
-		Version:         strings.TrimSpace(version),
-		Asset:           strings.TrimSpace(asset),
-		AllowUnverified: allowUnverified,
+	response, err := client.SearchExtensions(ctx, ExtensionSearchRequest{
+		Query: strings.TrimSpace(query), Sources: sources, Limit: limit, Cursor: strings.TrimSpace(cursor),
 	})
 	if err != nil {
-		return ExtensionRecord{}, err
+		return ExtensionSearchRecord{}, err
 	}
-	return item, nil
+	response.Items = append([]extensionSearchItem(nil), response.Items...)
+	response.SourcesDegraded = append([]string(nil), response.SourcesDegraded...)
+	return response, nil
 }
 
 func updateMarketplaceExtensions(
@@ -128,103 +85,26 @@ func updateMarketplaceExtensions(
 	if err != nil {
 		return nil, err
 	}
-	targets, err := selectDaemonMarketplaceExtensionsForUpdate(ctx, client, args, updateAll)
+	names := make([]string, 0, len(args))
+	for _, name := range args {
+		if name = strings.TrimSpace(name); name != "" {
+			names = append(names, name)
+		}
+	}
+	items, err := client.UpdateExtensions(ctx, UpdateExtensionsRequest{
+		Names: names, All: updateAll, Version: strings.TrimSpace(version), CheckOnly: checkOnly,
+		AllowUnverified: allowUnverified && !checkOnly,
+	})
 	if err != nil {
 		return nil, err
 	}
-	items := make([]extensionUpdateItem, 0, len(targets))
-	for _, target := range targets {
-		updated, err := client.UpdateExtension(ctx, target.Name, UpdateExtensionRequest{
-			Version:         strings.TrimSpace(version),
-			CheckOnly:       checkOnly,
-			AllowUnverified: allowUnverified && !checkOnly,
-		})
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, daemonExtensionUpdateItem(target, updated, checkOnly))
-	}
-	return items, nil
+	return append([]extensionUpdateItem(nil), items...), nil
 }
 
-func selectDaemonMarketplaceExtensionsForUpdate(
-	ctx context.Context,
-	client DaemonClient,
-	args []string,
-	updateAll bool,
-) ([]ExtensionRecord, error) {
-	if updateAll {
-		items, err := client.ListExtensions(ctx)
-		if err != nil {
-			return nil, err
-		}
-		selected := make([]ExtensionRecord, 0, len(items))
-		for _, item := range items {
-			if extensionRecordMarketplaceSlug(item) != "" {
-				selected = append(selected, item)
-			}
-		}
-		return selected, nil
-	}
-	name := ""
-	if len(args) > 0 {
-		name = strings.TrimSpace(args[0])
-	}
-	if name == "" {
-		return nil, errors.New("cli: extension name is required unless --all is set")
-	}
-	item, err := client.ExtensionStatus(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-	if extensionRecordMarketplaceSlug(item) == "" {
-		return nil, fmt.Errorf("cli: extension %q is not a marketplace-installed extension", item.Name)
-	}
-	return []ExtensionRecord{item}, nil
-}
-
-func daemonExtensionUpdateItem(
-	before ExtensionRecord,
-	after ExtensionUpdateRecord,
-	checkOnly bool,
-) extensionUpdateItem {
-	status := after.Status
-	if status == "" && checkOnly {
-		status = skillUpdateStatusCurrent
-	}
-	if status == "" {
-		status = skillUpdateStatusUpdated
-	}
-	return extensionUpdateItem{
-		Name:           firstNonEmpty(after.Name, before.Name),
-		Slug:           firstNonEmpty(after.Slug, extensionRecordMarketplaceSlug(before)),
-		Registry:       firstNonEmpty(after.Registry, extensionRecordMarketplaceRegistry(before)),
-		CurrentVersion: firstNonEmpty(after.CurrentVersion, before.Version),
-		LatestVersion:  firstNonEmpty(after.LatestVersion, before.Version),
-		Path:           after.Path,
-		Status:         status,
-		Warnings:       append([]contract.DiagnosticItem(nil), after.Warnings...),
-	}
-}
-
-func extensionRecordMarketplaceSlug(item ExtensionRecord) string {
-	if item.Provenance == nil || item.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromMarketplace {
-		return ""
-	}
-	return strings.TrimSpace(item.Provenance.Slug)
-}
-
-func extensionRecordMarketplaceRegistry(item ExtensionRecord) string {
-	if item.Provenance == nil {
-		return ""
-	}
-	return strings.TrimSpace(item.Provenance.RegistryTier)
-}
-
-func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle {
-	return listBundle(
-		items,
-		items,
+func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
+	bundle := listBundle(
+		response.Items,
+		response.Items,
 		"Extension Registry Results",
 		[]string{
 			extensionMarketplaceSlugValue,
@@ -234,6 +114,8 @@ func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle 
 			versionValue,
 			"Downloads",
 			authoredContextSourceValue,
+			extensionMarketplaceTierValue,
+			"Integrity",
 		},
 		"extensions",
 		[]string{
@@ -244,8 +126,10 @@ func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle 
 			versionKey,
 			"downloads",
 			automationSourceKey,
+			"tier",
+			"integrity",
 		},
-		func(item marketplaceExtensionSearchItem) []string {
+		func(item extensionSearchItem) []string {
 			return []string{
 				stringOrDash(item.Slug),
 				stringOrDash(item.Name),
@@ -254,9 +138,11 @@ func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle 
 				stringOrDash(item.Version),
 				strconv.Itoa(item.Downloads),
 				stringOrDash(item.Source),
+				stringOrDash(item.Tier),
+				stringOrDash(item.Integrity),
 			}
 		},
-		func(item marketplaceExtensionSearchItem) []string {
+		func(item extensionSearchItem) []string {
 			return []string{
 				item.Slug,
 				item.Name,
@@ -265,8 +151,58 @@ func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle 
 				item.Version,
 				strconv.Itoa(item.Downloads),
 				item.Source,
+				item.Tier,
+				item.Integrity,
 			}
 		},
+	)
+	return withExtensionSearchPage(bundle, response)
+}
+
+func withExtensionSearchPage(bundle outputBundle, response ExtensionSearchRecord) outputBundle {
+	page := extensionSearchPageRecord{
+		Type: listPageRecordType, Returned: len(response.Items), NextCursor: response.NextCursor,
+		SourcesDegraded: append([]string(nil), response.SourcesDegraded...),
+	}
+	bundle.jsonValue = response
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		if err := writeJSONLines(cmd, response.Items); err != nil {
+			return err
+		}
+		return writeJSONLine(cmd, page)
+	}
+	baseHuman := bundle.human
+	bundle.human = func() (string, error) {
+		table, err := baseHuman()
+		if err != nil {
+			return "", err
+		}
+		return renderHumanBlocks(table, extensionSearchPageHuman(page)), nil
+	}
+	baseToon := bundle.toon
+	bundle.toon = func() (string, error) {
+		items, err := baseToon()
+		if err != nil {
+			return "", err
+		}
+		return items + "\n" + extensionSearchPageToon(page), nil
+	}
+	return bundle
+}
+
+func extensionSearchPageHuman(page extensionSearchPageRecord) string {
+	return renderHumanSection("Page", []keyValue{
+		{Label: "Returned", Value: strconv.Itoa(page.Returned)},
+		{Label: listNextCursorLabel, Value: stringOrDash(page.NextCursor)},
+		{Label: "Sources Degraded", Value: stringOrDash(strings.Join(page.SourcesDegraded, ", "))},
+	})
+}
+
+func extensionSearchPageToon(page extensionSearchPageRecord) string {
+	return renderToonObject(
+		listPageRecordType,
+		[]string{listReturnedField, listNextCursorField, "sources_degraded"},
+		[]string{strconv.Itoa(page.Returned), page.NextCursor, strings.Join(page.SourcesDegraded, ",")},
 	)
 }
 

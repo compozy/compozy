@@ -13,6 +13,7 @@ import (
 
 const (
 	ExtensionInstalledFromMarketplace = "marketplace_registry"
+	ExtensionInstalledFromGitHub      = "github"
 	ExtensionInstalledFromLocalPath   = "local_path"
 	ExtensionInstalledFromGitURL      = "git_url"
 
@@ -27,7 +28,6 @@ const (
 	extensionTrustInstalledByOperator = "operator"
 	extensionTrustEvidenceSourceKey   = "source"
 	extensionTrustEvidenceVersionKey  = "version"
-	extensionTrustGitHubSource        = "github"
 )
 
 var ErrExtensionChecksumUnverified = errors.New("extension: checksum is unverified")
@@ -40,6 +40,7 @@ type ExtensionProvenance struct {
 	SourceURL           string                    `json:"source_url,omitempty"`
 	ChecksumSHA256      string                    `json:"checksum_sha256"`
 	ArchiveDigestSHA256 string                    `json:"archive_digest_sha256,omitempty"`
+	DigestMatched       bool                      `json:"digest_matched"`
 	ChecksumVerified    bool                      `json:"checksum_verified"`
 	RegistryTier        string                    `json:"registry_tier"`
 	Permissions         []string                  `json:"permissions,omitempty"`
@@ -278,17 +279,14 @@ func installedFromForSource(source ExtensionSource) string {
 	}
 }
 
-func registryTierForSource(source ExtensionSource, registryName string) string {
-	if source != SourceMarketplace {
-		return ExtensionRegistryTierUnverified
-	}
-	switch strings.ToLower(strings.TrimSpace(registryName)) {
-	case extensionTrustGitHubSource:
-		return ExtensionRegistryTierCommunity
-	case "":
-		return ExtensionRegistryTierUnverified
+func installedFromForRegistrySource(source string) string {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case ExtensionInstalledFromGitHub:
+		return ExtensionInstalledFromGitHub
+	case "git":
+		return ExtensionInstalledFromGitURL
 	default:
-		return ExtensionRegistryTierCommunity
+		return ExtensionInstalledFromMarketplace
 	}
 }
 

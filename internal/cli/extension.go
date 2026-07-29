@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -67,26 +66,33 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionDisableCommand(deps))
 	cmd.AddCommand(newExtensionStatusCommand(deps))
 	cmd.AddCommand(newExtensionProvenanceCommand(deps))
+	cmd.AddCommand(newExtensionPublishCommand(deps))
 	return cmd
 }
 
 func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 	limit := defaultExtensionRegistrySearchLimit
+	sources := "curated,github"
+	cursor := ""
 
 	cmd := &cobra.Command{
 		Use:   extensionSearchQueryValue,
-		Short: "Search marketplace extensions",
+		Short: "Search curated and GitHub extensions",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			results, err := searchExtensions(cmd.Context(), deps, args[0], limit)
+			result, err := searchExtensionsPage(
+				cmd.Context(), deps, args[0], strings.Split(sources, ","), limit, cursor,
+			)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionSearchBundle(results))
+			return writeCommandOutput(cmd, extensionSearchBundle(result))
 		},
 	}
 	cmd.Flags().
 		IntVar(&limit, "limit", defaultExtensionRegistrySearchLimit, "Maximum number of extension registry results to return")
+	cmd.Flags().StringVar(&sources, "sources", "curated,github", "Comma-separated discovery sources: curated,github")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue a stable extension search page")
 	return cmd
 }
 
@@ -105,53 +111,30 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
-	var sourceFilter string
 	var version string
 	var asset string
 	var allowUnverified bool
 	var yes bool
 
 	cmd := &cobra.Command{
-		Use:   "install <path-or-slug>",
-		Short: "Install a local extension or download one from a registry",
+		Use:   "install <source>",
+		Short: "Install an extension from curated, GitHub, git, or a local path",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			prepared, isLocalPath, err := prepareLocalExtensionInstallIfPresent(args[0])
+			plan, err := parseExtensionInstallPlan(args[0], version, asset, allowUnverified)
 			if err != nil {
 				return err
 			}
 			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified, yes); err != nil {
 				return err
 			}
-			if isLocalPath {
-				if strings.TrimSpace(sourceFilter) != "" || strings.TrimSpace(version) != "" ||
-					strings.TrimSpace(asset) != "" {
-					return errors.New("cli: --from, --version, and --asset are only supported for registry installs")
-				}
-
-				item, err := installExtension(cmd.Context(), deps, prepared, allowUnverified)
-				if err != nil {
-					return err
-				}
-				return writeCommandOutput(cmd, extensionBundle(item))
-			}
-
-			item, err := installMarketplaceExtension(
-				cmd.Context(),
-				deps,
-				args[0],
-				sourceFilter,
-				version,
-				asset,
-				allowUnverified,
-			)
+			item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, extensionBundle(item))
 		},
 	}
-	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only use one configured extension registry source")
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(
@@ -209,7 +192,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
-		Short: "Check for or install updates for marketplace extensions",
+		Short: "Check for or install extension updates",
 		Args: func(_ *cobra.Command, args []string) error {
 			if updateAll && len(args) > 0 {
 				return errors.New("cli: update accepts either an extension name or --all, not both")

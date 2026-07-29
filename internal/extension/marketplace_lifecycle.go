@@ -21,6 +21,8 @@ const (
 	MarketplaceUpdateStatusAvailable = "available"
 	// MarketplaceUpdateStatusUpdated reports that a remote update was applied.
 	MarketplaceUpdateStatusUpdated = "updated"
+	// MarketplaceUpdateStatusFailed reports one failed item in a batch.
+	MarketplaceUpdateStatusFailed = "failed"
 )
 
 // LifecycleRegistry is the installed-extension persistence surface required by
@@ -92,6 +94,7 @@ type MarketplaceUpdateResult struct {
 	Path           string                              `json:"path"`
 	Status         string                              `json:"status"`
 	Warnings       []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
+	Error          *diagnosticcontract.DiagnosticItem  `json:"error,omitempty"`
 }
 
 type stagedExtensionDirChange struct {
@@ -107,6 +110,7 @@ type marketplaceManagedInstall struct {
 	finalDir      string
 	checksum      string
 	archiveDigest string
+	digestMatched bool
 	remoteVersion string
 	trust         *MarketplaceTrustEvidence
 }
@@ -221,6 +225,7 @@ func prepareMarketplaceManagedInstall(
 		finalDir:      finalDir,
 		checksum:      result.Checksum,
 		archiveDigest: result.ArchiveDigestSHA256,
+		digestMatched: result.DigestMatched,
 		remoteVersion: firstNonEmpty(result.Version, detail.Version, manifest.Version),
 		trust:         req.Trust,
 	}, nil
@@ -305,6 +310,7 @@ func marketplaceInstallProvenance(
 			),
 			ChecksumSHA256:      prepared.checksum,
 			ArchiveDigestSHA256: prepared.archiveDigest,
+			DigestMatched:       prepared.digestMatched,
 			ChecksumVerified:    true,
 			RegistryTier:        registryTier,
 			Permissions:         extensionPermissions(prepared.manifest),
@@ -314,15 +320,17 @@ func marketplaceInstallProvenance(
 		}
 	}
 	return ExtensionProvenance{
-		Slug:             prepared.slug,
-		InstalledFrom:    ExtensionInstalledFromMarketplace,
-		SourceURL:        strings.TrimSpace(prepared.detail.Repository),
-		ChecksumSHA256:   prepared.checksum,
-		ChecksumVerified: false,
-		RegistryTier:     registryTierForSource(SourceMarketplace, strings.TrimSpace(prepared.detail.Source)),
-		Permissions:      extensionPermissions(prepared.manifest),
-		InstalledBy:      firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
-		AllowUnverified:  req.AllowUnverified,
+		Slug:                prepared.slug,
+		InstalledFrom:       installedFromForRegistrySource(prepared.detail.Source),
+		SourceURL:           strings.TrimSpace(prepared.detail.Repository),
+		ChecksumSHA256:      prepared.checksum,
+		ArchiveDigestSHA256: prepared.archiveDigest,
+		DigestMatched:       prepared.digestMatched,
+		ChecksumVerified:    false,
+		RegistryTier:        ExtensionRegistryTierUnverified,
+		Permissions:         extensionPermissions(prepared.manifest),
+		InstalledBy:         firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
+		AllowUnverified:     req.AllowUnverified,
 		Warnings: []diagnosticcontract.DiagnosticItem{
 			extensionChecksumUnverifiedDiagnostic(prepared.slug, prepared.detail.Source, true),
 		},

@@ -206,7 +206,10 @@ func nativeInteractiveExtensionDescriptor(
 }
 
 func extensionDescriptors() []toolspkg.Descriptor {
-	return extensionTools
+	items := make([]toolspkg.Descriptor, 0, len(extensionTools)+len(extensionDistributionTools))
+	items = append(items, extensionTools...)
+	items = append(items, extensionDistributionTools...)
+	return items
 }
 
 func nativeExtensionDescriptor(
@@ -248,12 +251,10 @@ const extensionNameInputSchema = `{
 
 const extensionInstallInputSchema = `{
 	"type":"object",
+	"required":["source","ref"],
 	"properties":{
-		"source":{"type":"string","enum":["local","marketplace"]},
-		"path":{"type":"string"},
-		"checksum":{"type":"string"},
-		"slug":{"type":"string"},
-		"registry":{"type":"string"},
+		"source":{"type":"string","enum":["curated","github","git","local_path"]},
+		"ref":{"type":"string","minLength":1},
 		"version":{"type":"string"},
 		"asset":{"type":"string"},
 		"allow_unverified":{"type":"boolean"}

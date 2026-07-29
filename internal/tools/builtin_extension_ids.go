@@ -27,4 +27,10 @@ const (
 	ToolIDExtensionsReload ToolID = "compozy__extensions_reload"
 	// ToolIDExtensionsLogs reads redacted logs for the trusted extension instance.
 	ToolIDExtensionsLogs ToolID = "compozy__extensions_logs"
+	// ToolIDExtensionsSearch discovers extensions across curated and GitHub sources.
+	ToolIDExtensionsSearch ToolID = "compozy__extensions_search"
+	// ToolIDExtensionsProvenance reads persisted install provenance.
+	ToolIDExtensionsProvenance ToolID = "compozy__extensions_provenance"
+	// ToolIDExtensionsPublish publishes an immutable generation to GitHub Releases.
+	ToolIDExtensionsPublish ToolID = "compozy__extensions_publish"
 )

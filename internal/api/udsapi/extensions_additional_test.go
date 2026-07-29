@@ -63,7 +63,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 				req contract.InstallExtensionRequest,
 				_ taskpkg.ActorContext,
 			) (contract.ExtensionPayload, error) {
-				if req.Path != "/tmp/ext-a" || req.Checksum != "sha256:abc" {
+				if req.Source != contract.InstallExtensionSourceLocalPath || req.Ref != "/tmp/ext-a" {
 					t.Fatalf("Install() req = %#v", req)
 				}
 				return contract.ExtensionPayload{Name: "ext-a", State: "installed"}, nil
@@ -76,7 +76,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/extensions",
-			[]byte(`{"path":" /tmp/ext-a ","checksum":" sha256:abc "}`),
+			[]byte(`{"source":"local_path","ref":" /tmp/ext-a "}`),
 		)
 		if recorder.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -97,14 +97,14 @@ func TestInstallExtensionHandler(t *testing.T) {
 		wantMessage string
 	}{
 		{
-			name:        "ShouldRejectMissingPath",
-			payload:     `{"checksum":"sha256:abc"}`,
-			wantMessage: "path",
+			name:        "Should reject a missing source",
+			payload:     `{"ref":"/tmp/ext-a"}`,
+			wantMessage: "source",
 		},
 		{
-			name:        "ShouldRejectMissingChecksum",
-			payload:     `{"path":"/tmp/ext-a"}`,
-			wantMessage: "checksum",
+			name:        "Should reject a missing ref",
+			payload:     `{"source":"local_path"}`,
+			wantMessage: "ref",
 		},
 	}
 
@@ -154,7 +154,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/extensions",
-			[]byte(`{"path":"/tmp/blocked","checksum":"sha256:abc","allow_unverified":true}`),
+			[]byte(`{"source":"local_path","ref":"/tmp/blocked","allow_unverified":true}`),
 		)
 		if recorder.Code != http.StatusUnprocessableEntity {
 			t.Fatalf(

@@ -74,8 +74,17 @@ type PromoteNetworkThreadTaskRecord = contract.PromoteNetworkThreadTaskResponse
 // InstallExtensionRequest captures the shared extension install payload.
 type InstallExtensionRequest = contract.InstallExtensionRequest
 
+// ExtensionSearchRequest captures source-union discovery filters.
+type ExtensionSearchRequest = contract.ExtensionSearchRequest
+
+// ExtensionSearchRecord is one stable source-union discovery page.
+type ExtensionSearchRecord = contract.ExtensionSearchResponse
+
 // UpdateExtensionRequest captures the shared extension update payload.
 type UpdateExtensionRequest = contract.UpdateExtensionRequest
+
+// UpdateExtensionsRequest captures one daemon-selected update batch.
+type UpdateExtensionsRequest = contract.UpdateExtensionsRequest
 
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload

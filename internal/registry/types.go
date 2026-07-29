@@ -50,6 +50,7 @@ type DownloadResult struct {
 	ContentSize    int64
 	Checksum       string
 	ContentType    string
+	ExpectedSHA256 string
 	expectedSHA256 string
 }
 
@@ -83,4 +84,5 @@ type InstallResult struct {
 	InstallPath         string `json:"install_path"`
 	Checksum            string `json:"checksum"`
 	ArchiveDigestSHA256 string `json:"archive_digest_sha256"`
+	DigestMatched       bool   `json:"digest_matched"`
 }

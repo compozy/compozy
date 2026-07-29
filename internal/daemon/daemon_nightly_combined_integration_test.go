@@ -18,7 +18,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/sandbox"
 	sessionpkg "github.com/compozy/compozy/internal/session"
@@ -344,14 +343,9 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		&combined,
 	)
 
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
-	}
-
 	if _, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-		Path:            extensionDir,
-		Checksum:        checksum,
+		Source:          compozycontract.InstallExtensionSourceLocalPath,
+		Ref:             extensionDir,
 		AllowUnverified: true,
 	}); err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)

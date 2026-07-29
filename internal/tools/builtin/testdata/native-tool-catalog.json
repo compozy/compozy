@@ -734,7 +734,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "1c82d43abe4afd74f34157373e9f80b04c40e80e54724b8671d7f9a9ad426cee",
+    "input_schema_digest": "b142c74b9b820366b1bb3dd76aed6881401fde9848a42b227726679bf1ff12f5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -764,6 +764,32 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__extensions_provenance",
+    "native_name": "extensions_provenance",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_publish",
+    "native_name": "extensions_publish",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "open_world",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "e03de10cc6dbd06be509ba72cb246f8fe6333d6e0ea77c4801b3be8cbdd502e2",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__extensions_reload",
     "native_name": "extensions_reload",
     "toolsets": [
@@ -787,6 +813,19 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_search",
+    "native_name": "extensions_search",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bf62428a759fa468f372727f8ff90eaecc660516ca721cf97698242666ab71d3",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

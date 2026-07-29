@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,8 +15,11 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -142,8 +146,140 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 	})
 }
 
+func TestExtensionDistributionHandlers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward search filters and return the stable source page", func(t *testing.T) {
+		t.Parallel()
+
+		service := extensionServiceStub{searchFn: func(
+			_ context.Context,
+			req contract.ExtensionSearchRequest,
+		) (contract.ExtensionSearchResponse, error) {
+			want := contract.ExtensionSearchRequest{
+				Query: "bridge", Sources: []string{"curated", "github"}, Limit: 7, Cursor: "next",
+			}
+			if !reflect.DeepEqual(req, want) {
+				t.Fatalf("Search() request = %#v, want %#v", req, want)
+			}
+			return contract.ExtensionSearchResponse{
+				Items:           []contract.ExtensionSearchItem{{Slug: "acme/bridge", Source: "github"}},
+				SourcesDegraded: []string{"curated"},
+			}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.GET("/extensions/search", handlers.SearchExtensions)
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/extensions/search?q=bridge&sources=curated,github&limit=7&cursor=next",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionSearchResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(search) error = %v", err)
+		}
+		if len(payload.Items) != 1 || payload.Items[0].Slug != "acme/bridge" ||
+			!reflect.DeepEqual(payload.SourcesDegraded, []string{"curated"}) {
+			t.Fatalf("search response = %#v", payload)
+		}
+	})
+
+	t.Run("Should return updated and failed batch outcomes without discarding progress", func(t *testing.T) {
+		t.Parallel()
+
+		failed := &contract.DiagnosticItem{
+			Code: diagnosticcontract.CodeExtensionUpdateFailed, Message: "Extension update failed.",
+		}
+		items := []contract.ManagedExtensionUpdatePayload{
+			{Name: "a-good", Status: extensionpkg.MarketplaceUpdateStatusUpdated},
+			{Name: "z-bad", Status: extensionpkg.MarketplaceUpdateStatusFailed, Error: failed},
+		}
+		service := extensionServiceStub{updateBatchFn: func(
+			_ context.Context,
+			req contract.UpdateExtensionsRequest,
+			actor taskpkg.ActorContext,
+		) ([]contract.ManagedExtensionUpdatePayload, error) {
+			if !req.All || !req.CheckOnly || !actor.Authority.Write {
+				t.Fatalf("UpdateBatch() request=%#v actor=%#v, want writable all/check", req, actor)
+			}
+			return items, &extensionpkg.MarketplaceUpdateBatchError{
+				FailedName: "z-bad", Cause: errors.New("secret-sentinel upstream failure"),
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Extensions: service, Logger: testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.POST("/extensions/update", handlers.UpdateExtensions)
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/extensions/update",
+			[]byte(`{"all":true,"check_only":true}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), "secret-sentinel") {
+			t.Fatalf("response leaked internal error: %s", response.Body.String())
+		}
+		var payload contract.ExtensionUpdateBatchResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(update batch) error = %v", err)
+		}
+		if !reflect.DeepEqual(payload.Updates, items) {
+			t.Fatalf("update batch response = %#v, want %#v", payload.Updates, items)
+		}
+	})
+
+	t.Run("Should return structured issues for install validation failures", func(t *testing.T) {
+		t.Parallel()
+
+		service := extensionServiceStub{installFn: func(
+			context.Context,
+			contract.InstallExtensionRequest,
+			taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.ManifestValidationError{
+				Field: "capabilities.provides", Value: "bridge.adapter",
+				Message: "external bridge authoring is a planned follow-up",
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/extensions",
+			[]byte(`{"source":"local_path","ref":"/tmp/bridge","allow_unverified":true}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(validation error) error = %v", err)
+		}
+		if len(payload.Issues) != 1 || payload.Issues[0].Field != "capabilities.provides" ||
+			!strings.Contains(payload.Issues[0].Message, "planned follow-up") {
+			t.Fatalf("validation issues = %#v", payload.Issues)
+		}
+	})
+}
+
 type extensionServiceStub struct {
 	listFn             func(context.Context) ([]contract.ExtensionPayload, error)
+	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
+	updateBatchFn      func(context.Context, contract.UpdateExtensionsRequest, taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error)
 	installFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	marketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	devFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
@@ -152,6 +288,16 @@ type extensionServiceStub struct {
 	listScopedFn       func(context.Context, taskpkg.ActorContext) ([]contract.ExtensionPayload, error)
 	statusScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	removeScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
+}
+
+func (s extensionServiceStub) Search(
+	ctx context.Context,
+	req contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	if s.searchFn != nil {
+		return s.searchFn(ctx, req)
+	}
+	return contract.ExtensionSearchResponse{}, nil
 }
 
 func (s extensionServiceStub) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -179,6 +325,17 @@ func (extensionServiceStub) Update(
 	taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
 	return contract.ManagedExtensionUpdatePayload{}, nil
+}
+
+func (s extensionServiceStub) UpdateBatch(
+	ctx context.Context,
+	req contract.UpdateExtensionsRequest,
+	actor taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	if s.updateBatchFn != nil {
+		return s.updateBatchFn(ctx, req, actor)
+	}
+	return nil, nil
 }
 
 func (extensionServiceStub) Remove(
@@ -282,7 +439,7 @@ func (s extensionServiceStub) RemoveScoped(
 	return s.Remove(ctx, name, actor)
 }
 
-func TestExtensionStatusCodeMapsDevelopmentErrors(t *testing.T) {
+func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 	t.Parallel()
 
 	for _, testCase := range []struct {
@@ -290,14 +447,37 @@ func TestExtensionStatusCodeMapsDevelopmentErrors(t *testing.T) {
 		err  error
 		want int
 	}{
+		{name: "Should map nil to ok", want: http.StatusOK},
+		{name: "Should map a missing extension to not found", err: extensionpkg.ErrExtensionNotFound, want: http.StatusNotFound},
+		{name: "Should map a missing catalog entry to not found", err: marketplacepkg.ErrEntryNotFound, want: http.StatusNotFound},
+		{name: "Should map a missing registry package to not found", err: registrypkg.ErrPackageNotFound, want: http.StatusNotFound},
+		{name: "Should map an existing extension to conflict", err: extensionpkg.ErrExtensionExists, want: http.StatusConflict},
+		{name: "Should map a checksum mismatch to bad request", err: extensionpkg.ErrExtensionChecksumMismatch, want: http.StatusBadRequest},
+		{name: "Should map an archive digest mismatch to bad request", err: extensionpkg.ErrExtensionArchiveDigestMismatch, want: http.StatusBadRequest},
+		{name: "Should map missing unverified consent to unprocessable", err: extensionpkg.ErrExtensionChecksumUnverified, want: http.StatusUnprocessableEntity},
+		{name: "Should map blocked unverified policy to unprocessable", err: extensionpkg.ErrExtensionUnverifiedPolicyBlocked, want: http.StatusUnprocessableEntity},
+		{name: "Should map manifest validation to bad request", err: extensionpkg.ErrManifestInvalid, want: http.StatusBadRequest},
+		{name: "Should map bridge authoring rejection to bad request", err: &extensionpkg.ManifestValidationError{Field: "capabilities.provides", Value: "bridge.adapter", Message: "external bridge authoring is a planned follow-up"}, want: http.StatusBadRequest},
+		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},
+		{name: "Should map missing manifests to bad request", err: extensionpkg.ErrManifestNotFound, want: http.StatusBadRequest},
+		{name: "Should map active bundle ownership to conflict", err: extensionpkg.ErrExtensionHasActiveBundles, want: http.StatusConflict},
 		{name: "Should map a missing development origin to conflict", err: extensionpkg.ErrExtensionDevOriginMissing, want: http.StatusConflict},
 		{name: "Should map a missing development link to conflict", err: extensionpkg.ErrExtensionNotDevLinked, want: http.StatusConflict},
 		{name: "Should map an invalid generation to bad request", err: extensionpkg.ErrExtensionGenerationInvalid, want: http.StatusBadRequest},
 		{name: "Should map cross-workspace access to forbidden", err: extensionpkg.ErrExtensionWorkspaceDenied, want: http.StatusForbidden},
+		{name: "Should map unavailable marketplace sources to unavailable", err: extensionpkg.ErrMarketplaceSourceUnavailable, want: http.StatusServiceUnavailable},
+		{name: "Should map an unavailable git binary to unavailable", err: registrygit.ErrGitUnavailable, want: http.StatusServiceUnavailable},
+		{name: "Should map invalid search cursors to bad request", err: extensionpkg.ErrExtensionSearchInvalid, want: http.StatusBadRequest},
+		{name: "Should map missing local paths to bad request", err: os.ErrNotExist, want: http.StatusBadRequest},
+		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			if got := core.ExtensionStatusCode(fmt.Errorf("wrapped: %w", testCase.err)); got != testCase.want {
+			err := testCase.err
+			if err != nil {
+				err = fmt.Errorf("wrapped: %w", err)
+			}
+			if got := core.ExtensionStatusCode(err); got != testCase.want {
 				t.Fatalf("ExtensionStatusCode() = %d, want %d", got, testCase.want)
 			}
 		})
@@ -402,7 +582,7 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 	}
 }
 
-func TestDevelopmentExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
+func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
 
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
@@ -415,6 +595,29 @@ func TestDevelopmentExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 	}
 	service := extensionServiceStub{
+		searchFn: func(
+			_ context.Context,
+			req contract.ExtensionSearchRequest,
+		) (contract.ExtensionSearchResponse, error) {
+			return contract.ExtensionSearchResponse{
+				Items: []contract.ExtensionSearchItem{{
+					Slug: "acme/parity", Name: req.Query, Source: "github", Tier: "unverified",
+				}},
+			}, nil
+		},
+		updateBatchFn: func(
+			_ context.Context,
+			_ contract.UpdateExtensionsRequest,
+			_ taskpkg.ActorContext,
+		) ([]contract.ManagedExtensionUpdatePayload, error) {
+			return []contract.ManagedExtensionUpdatePayload{
+				{Name: "a-good", Status: extensionpkg.MarketplaceUpdateStatusUpdated},
+				{
+					Name: "z-bad", Status: extensionpkg.MarketplaceUpdateStatusFailed,
+					Error: &contract.DiagnosticItem{Code: diagnosticcontract.CodeExtensionUpdateFailed},
+				},
+			}, &extensionpkg.MarketplaceUpdateBatchError{FailedName: "z-bad", Cause: errors.New("upstream failure")}
+		},
 		devFn: func(
 			_ context.Context,
 			req contract.DevLinkExtensionRequest,
@@ -469,6 +672,8 @@ func TestDevelopmentExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			),
 		},
 		{method: http.MethodGet, path: "/extensions/parity/logs"},
+		{method: http.MethodGet, path: "/extensions/search?q=parity&sources=github&limit=1"},
+		{method: http.MethodPost, path: "/extensions/update", body: []byte(`{"all":true}`)},
 	} {
 		t.Run("Should return identical payloads for "+request.method+" "+request.path, func(t *testing.T) {
 			t.Parallel()
@@ -488,7 +693,9 @@ func TestDevelopmentExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 				engine := gin.New()
 				engine.POST("/extensions/dev", handlers.DevExtension)
 				engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
+				engine.POST("/extensions/update", handlers.UpdateExtensions)
 				engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
+				engine.GET("/extensions/search", handlers.SearchExtensions)
 				response := performRequest(t, engine, request.method, request.path, request.body)
 				responses[transport] = struct {
 					status int
@@ -613,7 +820,7 @@ func TestInstallExtensionReturnsPolicyDiagnosticOverHTTP(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/extensions",
-			[]byte(`{"path":"/tmp/blocked","checksum":"sha256:abc","allow_unverified":true}`),
+			[]byte(`{"source":"local_path","ref":"/tmp/blocked","allow_unverified":true}`),
 		)
 		if response.Code != http.StatusUnprocessableEntity {
 			t.Fatalf(

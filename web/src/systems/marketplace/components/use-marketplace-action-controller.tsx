@@ -27,7 +27,12 @@ import {
 } from "../hooks/use-marketplace-actions";
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import { marketplaceEntryOptions } from "../lib/query-options";
-import type { MarketplaceKind, MarketplaceListing, MCPInstallRequest } from "../types";
+import type {
+  ExtensionInstallRequest,
+  MarketplaceKind,
+  MarketplaceListing,
+  MCPInstallRequest,
+} from "../types";
 import { marketplaceRouteKindFor } from "../types";
 import { MarketplaceActionDialogs } from "./marketplace-action-dialogs";
 import { marketplaceEntrySlug, marketplaceErrorMessage } from "./marketplace-ui";
@@ -63,6 +68,19 @@ function installedName(entry: MarketplaceListing): string {
     throw new Error(`Installed identity is unavailable for ${entry.name}`);
   }
   return entry.installed_name;
+}
+
+// Marketplace listings resolve through the curated catalog, so the listing slug is the install ref.
+function curatedInstallRequest(
+  entry: MarketplaceListing,
+  allowUnverified: boolean
+): ExtensionInstallRequest {
+  return {
+    allow_unverified: allowUnverified,
+    ref: marketplaceEntrySlug(entry),
+    source: "curated",
+    version: entry.version,
+  };
 }
 
 function useMarketplaceActionController(
@@ -220,11 +238,7 @@ function useMarketplaceActionController(
           );
           return;
         }
-        await installExtension.mutateAsync({
-          allow_unverified: false,
-          slug: marketplaceEntrySlug(entry),
-          version: entry.version,
-        });
+        await installExtension.mutateAsync(curatedInstallRequest(entry, false));
         pending.flash(entry);
         viewInstalledToast(entry, `${entry.name} installed`);
         return;
@@ -262,11 +276,7 @@ function useMarketplaceActionController(
             });
             return;
           }
-          await installExtension.mutateAsync({
-            allow_unverified: true,
-            slug: marketplaceEntrySlug(entry),
-            version: entry.version,
-          });
+          await installExtension.mutateAsync(curatedInstallRequest(entry, true));
         }),
     });
   };

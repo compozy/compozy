@@ -30223,6 +30223,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -30239,6 +30240,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -30299,6 +30301,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -30342,7 +30345,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -30366,6 +30372,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -30439,10 +30446,8 @@ export interface operations {
         "application/json": {
           allow_unverified?: boolean;
           asset?: string;
-          checksum?: string;
-          path?: string;
-          slug?: string;
-          source?: string;
+          ref: string;
+          source: string;
           version?: string;
         };
       };
@@ -30462,6 +30467,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -30478,6 +30484,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -30538,6 +30545,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -30581,7 +30589,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -30605,6 +30616,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -30774,6 +30786,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -30790,6 +30803,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -30850,6 +30864,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -30893,7 +30908,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -30917,6 +30935,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -31028,6 +31047,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -31044,6 +31064,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -31104,6 +31125,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -31147,7 +31169,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -31171,6 +31196,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -31286,6 +31312,20 @@ export interface operations {
           "application/json": {
             update: {
               current_version?: string;
+              error?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              } | null;
               latest_version?: string;
               name: string;
               path: string;
@@ -31656,6 +31696,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -31672,6 +31713,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -31732,6 +31774,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -31775,7 +31818,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -31799,6 +31845,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -31935,6 +31982,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -31951,6 +31999,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -32011,6 +32060,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -32054,7 +32104,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -32078,6 +32131,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
@@ -32327,6 +32381,7 @@ export interface operations {
               catalog_entry_id?: string;
               checksum_sha256: string;
               checksum_verified: boolean;
+              digest_matched: boolean;
               /** Format: date-time */
               installed_at: string;
               installed_by: string;
@@ -32486,6 +32541,7 @@ export interface operations {
                 profiles?: string[];
               }[];
               capabilities?: string[];
+              consecutive_failures: number;
               daemon_running: boolean;
               dev?: boolean;
               diagnostics?: {
@@ -32502,6 +32558,7 @@ export interface operations {
                 suggested_command?: string;
                 title: string;
               }[];
+              digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
               generation_hash?: string;
@@ -32562,6 +32619,7 @@ export interface operations {
                 catalog_entry_id?: string;
                 checksum_sha256: string;
                 checksum_verified: boolean;
+                digest_matched: boolean;
                 /** Format: date-time */
                 installed_at: string;
                 installed_by: string;
@@ -32605,7 +32663,10 @@ export interface operations {
                   title: string;
                 }[];
               } | null;
+              remote_version?: string;
               requires_env?: string[];
+              /** Format: int64 */
+              restart_backoff_ms: number;
               source: string;
               state: string;
               trust?: {
@@ -32629,6 +32690,7 @@ export interface operations {
                 }[];
               } | null;
               type: string;
+              update_available: boolean;
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;

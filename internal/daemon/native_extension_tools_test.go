@@ -141,7 +141,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"source":"local_path","ref":%q,"allow_unverified":true}`,
+					sourceDir,
+				)),
 			},
 		)
 		if err != nil {
@@ -167,10 +170,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"slug":"acme/bad"}`, sourceDir)),
+				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"slug":"acme/bad"}`, sourceDir)),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
 	t.Run("Should require live policy plus request consent for local side-loads", func(t *testing.T) {
@@ -183,7 +186,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
+			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"allow_unverified":true}`, sourceDir)),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonExtensionSourceForbidden)
 		if _, err := extRegistry.Get("blocked-local-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -207,7 +210,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
-					`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+					`{"source":"github","ref":"acme/tool-ext","allow_unverified":true}`,
 				),
 			},
 		)
@@ -413,7 +416,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
+			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
@@ -484,7 +487,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input: json.RawMessage(
-				`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+				`{"source":"curated","ref":"acme/tool-ext","allow_unverified":true}`,
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
@@ -523,7 +526,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext"}`),
+				Input:  json.RawMessage(`{"source":"github","ref":"acme/tool-ext"}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
