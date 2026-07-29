@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Dock } from "@compozy/ui";
 
 import { useSessionClarifications } from "../hooks/use-session-clarifications";
-import { useSessionTranscriptThreadState } from "../hooks/use-session-transcript-thread-messages";
+import { useSessionDecisionMessages } from "../hooks/use-session-transcript-thread-messages";
 import { derivePendingPermissions } from "../lib/pending-permissions";
 import { ClarificationDock } from "./clarification-dock";
 import { PermissionDock } from "./permission-dock";
@@ -20,7 +20,7 @@ export interface SessionDecisionDockProps {
  * transcript keeps only one-line receipts.
  */
 export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionDockProps) {
-  const { messages } = useSessionTranscriptThreadState();
+  const decisionMessages = useSessionDecisionMessages();
   const clarifications = useSessionClarifications(workspaceId, sessionId);
   // Locally-resolved ids hide a decided ask before the durable transcript /
   // pending-list catch up, so the next queued decision surfaces immediately.
@@ -32,7 +32,7 @@ export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionD
       return next;
     });
 
-  const pendingPermissions = derivePendingPermissions(messages).filter(
+  const pendingPermissions = derivePendingPermissions(decisionMessages).filter(
     permission => !resolvedIds.has(permission.requestId)
   );
   const pendingClarifications = clarifications.error

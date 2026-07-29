@@ -49,6 +49,7 @@ export function useOsShortcuts(
   const { projection, manager } = useOsShell();
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Escape") {
+      if (event.defaultPrevented) return;
       handlers.onEscape();
       return;
     }

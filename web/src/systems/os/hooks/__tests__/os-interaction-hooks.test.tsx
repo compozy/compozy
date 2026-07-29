@@ -413,6 +413,28 @@ describe("useOsShortcuts", () => {
     expect(handlers.onEscape).toHaveBeenCalledOnce();
   });
 
+  it("Should leave a prevented Escape to the nested control", () => {
+    const { wrapper } = createShell({ live: false });
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers), { wrapper });
+
+    const event = new KeyboardEvent("keydown", {
+      key: "Escape",
+      code: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    document.dispatchEvent(event);
+
+    expect(handlers.onEscape).not.toHaveBeenCalled();
+  });
+
   it("Should dispatch window-manager chords only for a live client outside editable targets", () => {
     const liveShell = createShell();
     const unavailableShell = createShell({ live: false });

@@ -72,12 +72,14 @@ function clarification(overrides: Partial<ClarificationPending> = {}): Clarifica
 
 interface RenderDockOptions {
   messages?: readonly ThreadMessage[];
+  liveMessages?: readonly ThreadMessage[];
   clarifications?: ClarificationPending[];
   clarificationError?: Error;
 }
 
 function renderDock({
   messages = [] as readonly ThreadMessage[],
+  liveMessages,
   clarifications = [] as ClarificationPending[],
   clarificationError,
 }: RenderDockOptions = {}) {
@@ -90,6 +92,7 @@ function renderDock({
   return render(
     <QueryClientProvider client={queryClient}>
       <SessionTranscriptThreadProvider
+        liveMessages={liveMessages}
         messages={messages}
         status="success"
         error={null}
@@ -134,9 +137,24 @@ describe("SessionDecisionDock", () => {
     expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
   });
 
+  it("Should dock a live permission before the durable transcript catches up", () => {
+    const livePermission = permissionMessage("req-live");
+    const partialTranscript = {
+      id: livePermission.id,
+      role: "assistant",
+      content: [{ type: "text", text: "Permission requested." }],
+    } as unknown as ThreadMessage;
+
+    renderDock({ messages: [partialTranscript], liveMessages: [livePermission] });
+
+    expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Bash");
+  });
+
   it("Should not dock a permission the transcript already resolved", () => {
     const { container } = renderDock({
       messages: [permissionMessage("req-1", { decision: "allow-once" })],
+      liveMessages: [permissionMessage("req-1")],
     });
     expect(container.querySelector('[data-testid="permission-dock"]')).toBeNull();
   });

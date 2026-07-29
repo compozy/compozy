@@ -219,7 +219,9 @@ test.describe("seeded agent detail", () => {
 
     const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
     await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
-    await reasoningStrip.locator('button[data-rz="high"]').click();
+    const reasoningSlider = reasoningStrip.getByRole("slider");
+    await reasoningSlider.press("End");
+    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
     await appPage.keyboard.press("Escape");
     await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
     await expect(runtimeTrigger).toContainText("High");

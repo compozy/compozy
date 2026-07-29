@@ -103,7 +103,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 	return AgentCatalogEntry{}, compozyconfig.Config{}, fmt.Errorf(
 		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
-		strings.TrimSpace(workspaceRef),
+		workspaceID,
 		workspacepkg.ErrAgentNotAvailable,
 	)
 }

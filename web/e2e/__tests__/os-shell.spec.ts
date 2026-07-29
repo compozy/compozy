@@ -1512,9 +1512,14 @@ test("E2E-016: a cross-workspace session deep link is rejected without exposing 
   await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
     "Session not found"
   );
+  const fallbackAgentPath = `/agents/${encodeURIComponent(session.agent_name)}`;
   await expect
-    .poll(() => new URL(appPage.url()).pathname)
-    .toBe(`/agents/${encodeURIComponent(session.agent_name)}`);
+    .poll(
+      async () =>
+        (await windowManagerSnapshot(runtime, workspace.id)).windows["app:agents"]?.route.pathname
+    )
+    .toBe(fallbackAgentPath);
+  await expect(appPage.getByTestId("os-window-app:agents")).toBeVisible();
   await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(workspace.name);
   await expect(appPage.getByTestId(`os-window-session:${session.id}`)).toHaveCount(0);
   await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);

@@ -67,7 +67,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		return resolvedAgentDefinition{}, fmt.Errorf(
 			"api: agent %q is not available in workspace %q: %w",
 			target,
-			workspaceRef,
+			strings.TrimSpace(resolved.ID),
 			workspacepkg.ErrAgentNotAvailable,
 		)
 	}

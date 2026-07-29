@@ -502,8 +502,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       network_selected_direct: networkSelectedDirect,
       network_view_visible: document.querySelector('[data-testid="network-shell"]') !== null,
       network_work_count: countByPrefix("network-work-inspector-row-"),
-      permission_prompt_visible:
-        document.querySelector('[data-testid="permission-prompt"]') !== null,
+      permission_prompt_visible: document.querySelector('[data-testid="permission-dock"]') !== null,
       processing_indicator_visible:
         document.querySelector('[data-testid="processing-indicator"]') !== null,
       resume_button_visible: document.querySelector('[data-testid="resume-button"]') !== null,

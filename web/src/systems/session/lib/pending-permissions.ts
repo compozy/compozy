@@ -36,7 +36,11 @@ export function derivePendingPermissions(messages: readonly MessageLike[]): Perm
   for (const message of messages) {
     const content = Array.isArray(message.content) ? message.content : [];
     for (const part of content) {
-      if (!isRecord(part) || part.type !== "data-compozy-permission") continue;
+      if (!isRecord(part)) continue;
+      const isPermissionPart =
+        part.type === "data-compozy-permission" ||
+        (part.type === "data" && part.name === "compozy-permission");
+      if (!isPermissionPart) continue;
       if (!isPermissionData(part.data)) continue;
       byRequest.set(part.data.request_id, part.data);
     }

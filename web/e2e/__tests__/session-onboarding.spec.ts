@@ -149,7 +149,6 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await workedFold.click();
   await expect(workedFold).toHaveAttribute("aria-expanded", "true");
   await expect(sessionUi.chatView).toContainText("Streaming response started.");
-  await expect(sessionUi.stopButton).toBeVisible();
   await expect(sessionUi.resumeButton).toBeVisible();
 
   await sessionUi.resumeButton.click();

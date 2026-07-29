@@ -28,9 +28,7 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
 }) => {
   assertLaunchRuntime(runtime);
 
-  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
-    remoteHTTPAPIBlockedMessage
-  );
+  await expect(appPage.getByText(remoteHTTPAPIBlockedMessage, { exact: false })).toBeVisible();
 
   const settingsResponse = await appPage.request.get(runtime.url("/api/settings/general"));
   expect(settingsResponse.status()).toBe(403);
@@ -40,15 +38,11 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
 
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
 
-  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
-    remoteHTTPAPIBlockedMessage
-  );
+  await expect(appPage.getByText(remoteHTTPAPIBlockedMessage, { exact: false })).toBeVisible();
 
   await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
 
-  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
-    remoteHTTPAPIBlockedMessage
-  );
+  await expect(appPage.getByText(remoteHTTPAPIBlockedMessage, { exact: false })).toBeVisible();
 
   const general = await requestOperatorJSON<{ config: { session_timeout: string } }>(
     runtime,

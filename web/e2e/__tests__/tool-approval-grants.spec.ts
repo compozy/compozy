@@ -131,9 +131,14 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     toolCall = pendingCall;
 
     await expect(sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-    // The prompt shows a humanized tool title; assert the unique tool input instead so this
-    // is unambiguously our hosted-tool call.
-    await expect(sessionUI.permissionPrompt).toContainText("e2e-nonexistent-grant");
+    // The dock prioritizes the runtime's humanized resource over raw JSON. The exact input is
+    // proven below by the persisted sha256 digest after this decision completes.
+    await expect(sessionWin.getByTestId("permission-dock-title")).toHaveText(
+      "Tool Approvals Revoke"
+    );
+    await expect(sessionWin.getByTestId("permission-dock-meta")).toContainText(
+      "session/request_permission"
+    );
     const approvePromise = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&

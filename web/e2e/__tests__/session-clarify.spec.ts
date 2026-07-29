@@ -167,7 +167,7 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     // selected label — proving the timeline reflects broker truth, not just local card hiding.
     await expect(clarifyUI.receipt).toBeVisible({ timeout: 20_000 });
     expect(await clarifyUI.receipt.getAttribute("data-status")).toBe("resolved");
-    await expect(clarifyUI.receiptAnswer).toHaveText(CLARIFY_CHOICES[CHOSEN_INDEX]!);
+    await expect(clarifyUI.receiptAnswer).toHaveText(`"${CLARIFY_CHOICES[CHOSEN_INDEX]!}"`);
 
     // The original callTool promise resolves with the exact frozen structured answer.
     const callResult = await pendingCall;

@@ -2041,9 +2041,9 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await approvedUI.composerTextarea.press("Enter");
     await expect(approvedUI.chatView).toContainText("hello from golden");
     await expect(approvedUI.permissionPrompt).toBeVisible();
-    await expect(approvedWin.getByText("Permission Required")).toBeVisible();
-    await expect(approvedWin.getByRole("button", { name: /allow always/i })).toBeVisible();
-    await expect(approvedWin.getByRole("button", { name: /reject always/i })).toBeVisible();
+    await expect(approvedWin.getByRole("region", { name: "Permission required" })).toBeVisible();
+    await expect(approvedWin.getByRole("button", { name: /always allow/i })).toBeVisible();
+    await expect(approvedWin.getByRole("button", { name: /^reject 3$/i })).toBeVisible();
     await assertPermissionKeyboardPath(approvedWin);
 
     const approveResponsePromise = appPage.waitForResponse(
@@ -2072,19 +2072,20 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await deniedUI.composerTextarea.press("Enter");
     await expect(deniedUI.chatView).toContainText("Permission hardening started.");
     await expect(deniedUI.permissionPrompt).toBeVisible();
-    await expect(deniedWin.getByTestId("permission-tool-input")).toContainText("hardening.txt");
+    await expect(deniedWin.getByTestId("permission-dock-subject")).toHaveText("hardening.txt");
 
     const rejectResponsePromise = appPage.waitForResponse(
       response =>
         response.request().method() === "POST" &&
         response.url().endsWith(sessionAPIPath(workspace.id, denied.session.id, "/approve"))
     );
+    await deniedWin.getByTestId("permission-reject-menu-trigger").click();
     await deniedWin.getByTestId("permission-reject-always").click();
     expect((await rejectResponsePromise).ok()).toBe(true);
     await expect(deniedUI.permissionPrompt).toBeHidden();
-    await expect(deniedWin.getByTestId("permission-rejected-notice")).toContainText(
-      "Permission Rejected"
-    );
+    const rejectedNotice = deniedWin.getByTestId("permission-rejected-notice");
+    await expect(rejectedNotice).toHaveAttribute("data-decision", "reject-always");
+    await expect(rejectedNotice).toContainText("hardening.txt");
     const deniedSnapshot = await captureSessionSnapshot(runtime, workspace.id, denied.session.id);
     expect(JSON.stringify(deniedSnapshot.events)).toContain("perm-hardening-reject-1");
     expect(JSON.stringify(deniedSnapshot.events)).toContain("reject-always");
@@ -2521,7 +2522,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
       "permission-allow-once",
       "permission-allow-always",
       "permission-reject-once",
-      "permission-reject-always",
+      "permission-reject-menu-trigger",
     ];
     await win.getByTestId(focusOrder[0]).focus();
     for (const testID of focusOrder) {
@@ -2530,6 +2531,12 @@ test.describe("Extension and bundle marketplace runtime", () => {
         await page.keyboard.press("Tab");
       }
     }
+    await page.keyboard.press("Enter");
+    await expect(win.getByTestId("permission-reject-menu")).toBeVisible();
+    await expect(win.getByTestId("permission-reject-always")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(win.getByTestId("permission-reject-menu")).toBeHidden();
+    await expect(win.getByTestId("permission-reject-menu-trigger")).toBeFocused();
   }
 
   function expectTool(response: ToolsResponse, label: string): ToolPayload {
