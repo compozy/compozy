@@ -755,8 +755,8 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	workspaceConfig := filepath.Join(root, compozyconfig.DirName, compozyconfig.ConfigName)
 	agentFile := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder", agentDefinitionFile)
 	skillsDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
-	skillOne := filepath.Join(skillsDir, "alpha")
-	skillTwo := filepath.Join(skillsDir, "beta")
+	skillOne := filepath.Join(skillsDir, "marketing", "alpha")
+	skillTwo := filepath.Join(skillsDir, "marketing", "beta")
 
 	writeFile(t, workspaceConfig, "[http]\nport = 4242\n")
 	writeAgentDef(t, agentFile, "coder", "v1")
@@ -836,6 +836,14 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		t.Fatalf("agent model after agent invalidation = %q, want %q", got, "v2")
 	}
 
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(before nested skill creation) error = %v", err)
+	}
+	if got := loader.Calls(); got != 3 {
+		t.Fatalf("config loader calls before nested skill creation = %d, want 3", got)
+	}
+
 	writeSkill(t, skillTwo)
 	touchPath(t, skillsDir, modTime.Add(1*time.Minute))
 	currentTime = currentTime.Add(1 * time.Minute)
@@ -850,13 +858,59 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		t.Fatalf("skill names after skill invalidation = %#v, want %#v", got, []string{"alpha", "beta"})
 	}
 
+	modTime = modTime.Add(1 * time.Minute)
+	writeFile(t, filepath.Join(skillOne, skillDefinitionFile), strings.Join([]string{
+		"---",
+		"name: alpha",
+		"description: updated test skill",
+		"---",
+		"",
+		"Updated skill body.",
+		"",
+	}, "\n"))
+	touchPath(t, filepath.Join(skillOne, skillDefinitionFile), modTime)
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after nested skill definition change) error = %v", err)
+	}
+	if got := loader.Calls(); got != 5 {
+		t.Fatalf("config loader calls after nested skill definition invalidation = %d, want 5", got)
+	}
+
+	modTime = modTime.Add(1 * time.Minute)
+	mcpPath := filepath.Join(skillTwo, compozyconfig.MCPJSONName)
+	writeFile(t, mcpPath, `{"mcpServers":{}}`)
+	touchPath(t, mcpPath, modTime)
+	currentTime = currentTime.Add(1 * time.Minute)
+	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
+		t.Fatalf("Resolve(after nested skill MCP change) error = %v", err)
+	}
+	if got := loader.Calls(); got != 6 {
+		t.Fatalf("config loader calls after nested skill MCP invalidation = %d, want 6", got)
+	}
+
+	if err := os.Remove(filepath.Join(skillTwo, skillDefinitionFile)); err != nil {
+		t.Fatalf("Remove(nested skill definition) error = %v", err)
+	}
+	currentTime = currentTime.Add(1 * time.Minute)
+	afterSkillRemoval, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(after nested skill removal) error = %v", err)
+	}
+	if got := loader.Calls(); got != 7 {
+		t.Fatalf("config loader calls after nested skill removal invalidation = %d, want 7", got)
+	}
+	if got := skillNames(afterSkillRemoval.Skills); !slices.Equal(got, []string{"alpha"}) {
+		t.Fatalf("skill names after nested skill removal = %#v, want %#v", got, []string{"alpha"})
+	}
+
 	resolver.Invalidate(ws.ID)
 	currentTime = currentTime.Add(1 * time.Minute)
 	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
 		t.Fatalf("Resolve(after invalidate) error = %v", err)
 	}
-	if got := loader.Calls(); got != 5 {
-		t.Fatalf("config loader calls after Invalidate = %d, want 5", got)
+	if got := loader.Calls(); got != 8 {
+		t.Fatalf("config loader calls after Invalidate = %d, want 8", got)
 	}
 
 	resolver.InvalidateAll()
@@ -864,16 +918,16 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
 		t.Fatalf("Resolve(after InvalidateAll) error = %v", err)
 	}
-	if got := loader.Calls(); got != 6 {
-		t.Fatalf("config loader calls after InvalidateAll = %d, want 6", got)
+	if got := loader.Calls(); got != 9 {
+		t.Fatalf("config loader calls after InvalidateAll = %d, want 9", got)
 	}
 
 	currentTime = currentTime.Add(11 * time.Minute)
 	if _, err := resolver.Resolve(ctx, ws.ID); err != nil {
 		t.Fatalf("Resolve(after TTL expiry) error = %v", err)
 	}
-	if got := loader.Calls(); got != 7 {
-		t.Fatalf("config loader calls after TTL eviction = %d, want 7", got)
+	if got := loader.Calls(); got != 10 {
+		t.Fatalf("config loader calls after TTL eviction = %d, want 10", got)
 	}
 }
 
@@ -2591,7 +2645,11 @@ func skillNames(skills []SkillPath) []string {
 
 	names := make([]string, 0, len(skills))
 	for _, skill := range skills {
-		names = append(names, filepath.Base(skill.Dir))
+		name := skill.Name
+		if name == "" {
+			name = filepath.Base(skill.Dir)
+		}
+		names = append(names, name)
 	}
 	return names
 }

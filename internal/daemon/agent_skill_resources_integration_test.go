@@ -893,7 +893,13 @@ Use the workspace tool catalog.
   }
 }`)
 
-	skillDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName, "workspace-review")
+	skillDir := filepath.Join(
+		root,
+		compozyconfig.DirName,
+		compozyconfig.SkillsDirName,
+		"review",
+		"workspace-review",
+	)
 	writeAgentSkillIntegrationFile(t, filepath.Join(skillDir, "SKILL.md"), `---
 name: workspace-review
 description: Workspace review skill
@@ -1071,7 +1077,7 @@ func agentSkillIntegrationSkillWorkspace(t *testing.T, withOverride bool) string
 		skillsRoot := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		writeAgentSkillIntegrationFile(
 			t,
-			filepath.Join(skillsRoot, "cy-execute-task", "SKILL.md"),
+			filepath.Join(skillsRoot, "overrides", "cy-execute-task", "SKILL.md"),
 			`---
 name: cy-execute-task
 description: Workspace A execution override
@@ -1082,7 +1088,7 @@ Workspace A execution override.
 		)
 		writeAgentSkillIntegrationFile(
 			t,
-			filepath.Join(skillsRoot, "workspace-only-a", "SKILL.md"),
+			filepath.Join(skillsRoot, "workspace-only", "workspace-only-a", "SKILL.md"),
 			`---
 name: workspace-only-a
 description: Available only inside workspace A

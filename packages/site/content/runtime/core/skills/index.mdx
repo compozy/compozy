@@ -44,11 +44,12 @@ only when it needs it.
 ## What a Skill Contains
 
 ```text
-<scope>/skills/refactor-checklist/
-  SKILL.md
-  mcp.json
-  references/
-    review-template.md
+<scope>/skills/marketing/
+  campaign-brief/
+    SKILL.md
+    mcp.json
+    references/
+      review-template.md
 ```
 
 `SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives Compozy the
@@ -60,20 +61,52 @@ or with `compozy skill view <name> --file <path>` from the operator CLI.
 The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
 the web UI lightweight while preserving the full instruction set for explicit reads.
 
+## Grouping Skill Directories
+
+Directories below a skill scan root are organizational groups, not skills themselves. A group does
+not need a `SKILL.md` and may be empty. Compozy discovers every eligible `SKILL.md` below the root, so
+groups can be nested as deeply as the workspace needs:
+
+```text
+<workspace>/.compozy/skills/
+  marketing/                  # group only; no SKILL.md required
+    campaign-brief/
+      SKILL.md
+  engineering/
+    reviews/
+      api-review/
+        SKILL.md
+```
+
+The `name` in frontmatter, not the directory path, is the skill identity and catalog key. Groups do
+not create namespaces or change how agents call `compozy__skill_view`, `compozy skill view`, or
+`compozy skill where`. Declarations with the same `name` keep normal source precedence and shadow
+audit behavior.
+
+Use `--group` to scaffold a workspace skill under a group:
+
+```bash
+compozy skill create campaign-brief --group marketing
+```
+
+`--group` accepts a relative slash-separated path such as `marketing/content`. Each path segment must
+be a valid visible directory name; absolute paths, traversal segments, and hidden directories are
+rejected.
+
 ## Source Hierarchy
 
 Compozy starts from the filesystem-backed skill layers implemented today, then applies the winning
 agent's `skills/` directory as a final overlay when one effective agent is selected. Later rows
 override earlier rows when the same skill name is visible.
 
-| Precedence | Source          | Directory or owner                                      | Notes                                                                        |
-| ---------- | --------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 1          | Bundled         | compiled into the binary from `skills/*/SKILL.md`       | Lowest precedence. Always available when skills are enabled.                 |
-| 2          | Marketplace     | `$COMPOZY_HOME/skills/<name>` with `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
-| 3          | User            | `$COMPOZY_HOME/skills/<name>`                           | Local operator-controlled global skills.                                     |
-| 4          | Additional root | `<additional-dir>/.compozy/skills/<name>`               | Visible to workspaces that registered additional roots.                      |
-| 5          | Workspace       | `<workspace>/.compozy/skills/<name>`                    | Highest base precedence for that workspace.                                  |
-| 6          | Agent-local     | `<effective-agent-root>/skills/<name>`                  | Final overlay for the winning agent definition only.                         |
+| Precedence | Source          | Directory or owner                                                       | Notes                                                                        |
+| ---------- | --------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| 1          | Bundled         | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
+| 2          | Marketplace     | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
+| 3          | User            | `$COMPOZY_HOME/skills/<group>/.../<name>`                                | Local operator-controlled global skills.                                     |
+| 4          | Additional root | `<additional-dir>/.compozy/skills/<group>/.../<name>`                    | Visible to workspaces that registered additional roots.                      |
+| 5          | Workspace       | `<workspace>/.compozy/skills/<group>/.../<name>`                         | Highest base precedence for that workspace.                                  |
+| 6          | Agent-local     | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                         |
 
 In short, bundled, marketplace, user, additional root, and workspace form the base stack, then
 Agent-local overlays on top. Agent-local is resolved from the winning `AGENT.md` directory only
@@ -251,7 +284,7 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 | Workspace skill edit          | Workspace skill cache uses file snapshots and is rechecked when a workspace is resolved. Cache entries expire after 10 minutes.                         |
 | Agent-local skill edit        | Agent-local resolution is rechecked when the winning `AGENT.md` or its `skills/` tree changes. Invalid agent-local state is fail-closed for that agent. |
 | Missing global directory      | Treated as empty.                                                                                                                                       |
-| Scan depth                    | Compozy looks for `SKILL.md` files up to depth 4 under each scanned directory.                                                                          |
+| Scan depth                    | No fixed depth. Compozy discovers eligible `SKILL.md` files at arbitrary nesting under each scanned directory.                                          |
 | Scan limit                    | Each scanned directory is capped at 300 `SKILL.md` candidates.                                                                                          |
 | Critical verification finding | The skill is blocked from loading.                                                                                                                      |
 | Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |

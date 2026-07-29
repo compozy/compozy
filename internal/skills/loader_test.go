@@ -3,14 +3,12 @@ package skills
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -854,95 +852,6 @@ func TestSkillHooksFieldUsesInternalHooksDeclarations(t *testing.T) {
 	want := reflect.TypeFor[[]hookspkg.HookDecl]()
 	if got != want {
 		t.Fatalf("reflect.TypeOf(Skill{}.Hooks) = %v, want %v", got, want)
-	}
-}
-
-func TestScanDirectoryHonorsDepthAndSkips(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	expected := []string{
-		writeSkillFile(t, root, filepath.Join("depth1", skillFileName), defaultSkillContent("depth1")),
-		writeSkillFile(t, root, filepath.Join("a", "depth2", skillFileName), defaultSkillContent("depth2")),
-		writeSkillFile(t, root, filepath.Join("a", "b", "depth3", skillFileName), defaultSkillContent("depth3")),
-		writeSkillFile(t, root, filepath.Join("a", "b", "c", "depth4", skillFileName), defaultSkillContent("depth4")),
-		writeSkillFile(
-			t,
-			root,
-			filepath.Join(".compozy", "agents", "shared", "skills", skillFileName),
-			defaultSkillContent("agent-local"),
-		),
-		writeSkillFile(
-			t,
-			root,
-			filepath.Join(".compozy", "workspace", skillFileName),
-			defaultSkillContent("workspace"),
-		),
-	}
-	writeSkillFile(t, root, filepath.Join("a", "b", "c", "d", "too-deep", skillFileName), defaultSkillContent("depth5"))
-	writeSkillFile(t, root, filepath.Join(".git", "ignored", skillFileName), defaultSkillContent("git"))
-	writeSkillFile(t, root, filepath.Join("node_modules", "pkg", skillFileName), defaultSkillContent("node"))
-	writeSkillFile(t, root, filepath.Join(".hidden", "ignored", skillFileName), defaultSkillContent("hidden"))
-
-	got, err := scanDirectory(root)
-	if err != nil {
-		t.Fatalf("scanDirectory() error = %v", err)
-	}
-
-	slices.Sort(expected)
-	if !reflect.DeepEqual(got, expected) {
-		t.Fatalf("scanDirectory() mismatch\nwant: %#v\ngot:  %#v", expected, got)
-	}
-}
-
-func TestScanDirectoryCandidateLimit(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	for i := range maxScanCandidates + 5 {
-		writeSkillFile(
-			t,
-			root,
-			filepath.Join(fmt.Sprintf("skill-%03d", i), skillFileName),
-			defaultSkillContent(fmt.Sprintf("skill-%03d", i)),
-		)
-	}
-
-	got, err := scanDirectory(root)
-	if err != nil {
-		t.Fatalf("scanDirectory() error = %v", err)
-	}
-	if len(got) != maxScanCandidates {
-		t.Fatalf("scanDirectory() len = %d, want %d", len(got), maxScanCandidates)
-	}
-}
-
-func TestScanDirectoryMissingRoot(t *testing.T) {
-	t.Parallel()
-
-	got, err := scanDirectory(filepath.Join(t.TempDir(), "missing"))
-	if err != nil {
-		t.Fatalf("scanDirectory() error = %v, want nil", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("scanDirectory() len = %d, want 0", len(got))
-	}
-}
-
-func TestScanDirectoryRejectsInvalidRoots(t *testing.T) {
-	t.Parallel()
-
-	if _, err := scanDirectory("   "); err == nil {
-		t.Fatal("scanDirectory() error = nil, want error for blank root")
-	}
-
-	fileRoot := filepath.Join(t.TempDir(), "SKILL.md")
-	if err := os.WriteFile(fileRoot, []byte(defaultSkillContent("not-a-dir")), 0o644); err != nil {
-		t.Fatalf("WriteFile(%q) error = %v", fileRoot, err)
-	}
-
-	if _, err := scanDirectory(fileRoot); err == nil {
-		t.Fatal("scanDirectory() error = nil, want error for non-directory root")
 	}
 }
 

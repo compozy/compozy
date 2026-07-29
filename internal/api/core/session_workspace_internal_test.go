@@ -23,6 +23,26 @@ type workspaceGetterStub struct {
 	get func(context.Context, string) (workspacepkg.Workspace, error)
 }
 
+func TestWorkspaceSkillPayloads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the resolved frontmatter identity", func(t *testing.T) {
+		t.Parallel()
+
+		payloads := WorkspaceSkillPayloads([]workspacepkg.SkillPath{{
+			Name:   "campaign-brief",
+			Dir:    "/workspace/.compozy/skills/marketing/brief",
+			Source: "workspace",
+		}})
+		if len(payloads) != 1 {
+			t.Fatalf("len(WorkspaceSkillPayloads()) = %d, want 1", len(payloads))
+		}
+		if got, want := payloads[0].Name, "campaign-brief"; got != want {
+			t.Fatalf("WorkspaceSkillPayloads()[0].Name = %q, want %q", got, want)
+		}
+	})
+}
+
 func (s workspaceGetterStub) Get(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
 	return s.get(ctx, ref)
 }

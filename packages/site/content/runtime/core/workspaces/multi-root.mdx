@@ -47,7 +47,7 @@ The CLI prevents adding and removing the same directory in one edit command.
 | `.compozy/config.toml`                | yes                     | no                       | global config is separate         |
 | `.compozy/mcp.json` top-level sidecar | yes                     | no                       | global sidecar is separate        |
 | `.compozy/agents/*/AGENT.md`          | yes, highest precedence | yes, in registered order | yes, lowest precedence            |
-| `.compozy/skills/*/SKILL.md`          | yes, highest precedence | yes, in registered order | yes, lowest filesystem precedence |
+| `.compozy/skills/**/SKILL.md`         | yes, highest precedence | yes, in registered order | yes, lowest filesystem precedence |
 | `.compozy/memory/`                    | yes                     | no                       | global memory is separate         |
 
 The session start options use:
@@ -71,8 +71,9 @@ Discovery order is first-wins:
 For agents, the first `AGENT.md` whose parsed `name` matches wins. Compozy does not merge two agent
 definitions with the same name.
 
-For skills, the first skill directory name wins. Compozy does not merge two `SKILL.md` files with the
-same directory name.
+For skills, the first declaration of the same frontmatter `name` wins. Group directories are
+organizational and do not change identity, so Compozy does not merge two `SKILL.md` files with the
+same `name` even when they sit in different groups.
 
 <Mermaid
   chart={`flowchart LR
@@ -99,7 +100,8 @@ acme-platform/
     agents/
       monorepo-maintainer/AGENT.md
     skills/
-      architecture-map/SKILL.md
+      architecture/
+        architecture-map/SKILL.md
   services/
     checkout/
     billing/
@@ -143,7 +145,8 @@ acme/
       agents/
         incident-reviewer/AGENT.md
       skills/
-        runbook-reader/SKILL.md
+        operations/
+          runbook-reader/SKILL.md
 ```
 
 Register each project with the same shared root:

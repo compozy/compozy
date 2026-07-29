@@ -12,6 +12,7 @@ import (
 const (
 	defaultSkillName            = "new-skill"
 	skillMarkdownFileName       = "SKILL.md"
+	reservedSkillDirectoryName  = "node_modules"
 	defaultMarketplaceRegistry  = "clawhub"
 	defaultMarketplaceSearchLim = 20
 )
@@ -60,6 +61,7 @@ type skillInfoItem struct {
 
 type skillCreateItem struct {
 	Name   string `json:"name"`
+	Group  string `json:"group,omitempty"`
 	Path   string `json:"path"`
 	File   string `json:"file"`
 	Source string `json:"source"`

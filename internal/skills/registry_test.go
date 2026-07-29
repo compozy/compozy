@@ -2424,13 +2424,13 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 	workspaceSkillPath := writeSkillFile(
 		t,
 		filepath.Join(workspace, ".compozy", "skills"),
-		filepath.Join("shared", skillFileName),
+		filepath.Join("marketing", "shared", skillFileName),
 		skillWithDescription("shared", "Workspace override"),
 	)
 	additionalSkillPath := writeSkillFile(
 		t,
 		filepath.Join(additional, ".compozy", "skills"),
-		filepath.Join("shared", skillFileName),
+		filepath.Join("quality", "shared", skillFileName),
 		skillWithDescription("shared", "Additional override"),
 	)
 

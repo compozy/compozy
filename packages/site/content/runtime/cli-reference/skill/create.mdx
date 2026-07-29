@@ -16,11 +16,15 @@ compozy skill create [name] [flags]
 ```
   # Create .compozy/skills/api-review/SKILL.md in the current workspace
   compozy skill create api-review
+
+  # Organize a skill beneath an optional group directory
+  compozy skill create campaign-brief --group marketing
 ```
 
 ### Options
 
 ```
+      --group string       Place the skill under a relative group path
   -h, --help               help for create
       --workspace string   Override the target workspace (ID, name, or path)
 ```

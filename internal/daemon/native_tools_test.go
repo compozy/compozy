@@ -5605,7 +5605,11 @@ func TestDaemonNativeTools(t *testing.T) {
 					WorkspaceID: "ws-1",
 					Agents:      []compozyconfig.AgentDef{{Name: "coder", Provider: "codex"}},
 					Skills: []workspacepkg.SkillPath{
-						{Dir: "/workspace/compozy/skills/review", Source: "workspace"},
+						{
+							Name:   "campaign-brief",
+							Dir:    "/workspace/compozy/skills/marketing/brief",
+							Source: "workspace",
+						},
 					},
 				}, nil
 			},
@@ -5622,7 +5626,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{toolspkg.ToolIDWorkspaceList, nil, []byte(`"workspaces"`)},
 			{toolspkg.ToolIDWorkspaceInfo, json.RawMessage(`{"workspace":"ws-1"}`), []byte(`"workspace"`)},
-			{toolspkg.ToolIDWorkspaceDescribe, json.RawMessage(`{"workspace":"ws-1"}`), []byte(`"skills"`)},
+			{
+				toolspkg.ToolIDWorkspaceDescribe,
+				json.RawMessage(`{"workspace":"ws-1"}`),
+				[]byte(`"name":"campaign-brief"`),
+			},
 		} {
 			t.Run(tc.id.String(), func(t *testing.T) {
 				result, err := registry.Call(

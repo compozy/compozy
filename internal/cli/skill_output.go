@@ -305,25 +305,33 @@ func skillCreateBundle(item skillCreateItem) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return renderHumanSection("Skill", []keyValue{
+			entries := []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
-				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
-				{Label: "File", Value: stringOrDash(item.File)},
-				{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
-			}), nil
+			}
+			if item.Group != "" {
+				entries = append(entries, keyValue{Label: "Group", Value: item.Group})
+			}
+			entries = append(entries,
+				keyValue{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+				keyValue{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
+				keyValue{Label: "File", Value: stringOrDash(item.File)},
+				keyValue{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
+			)
+			return renderHumanSection("Skill", entries), nil
 		},
 		toon: func() (string, error) {
+			keys := []string{automationNameKey}
+			values := []string{item.Name}
+			if item.Group != "" {
+				keys = append(keys, "group")
+				values = append(values, item.Group)
+			}
+			keys = append(keys, automationSourceKey, skillOutputPathKey, "file", skillOutputStatusKey)
+			values = append(values, item.Source, item.Path, item.File, item.Status)
 			return renderToonObject(
 				"skill",
-				[]string{automationNameKey, automationSourceKey, skillOutputPathKey, "file", skillOutputStatusKey},
-				[]string{
-					item.Name,
-					item.Source,
-					item.Path,
-					item.File,
-					item.Status,
-				},
+				keys,
+				values,
 			), nil
 		},
 	}

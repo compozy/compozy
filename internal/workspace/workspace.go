@@ -68,6 +68,7 @@ type AgentDiagnostic struct {
 
 // SkillPath identifies a discovered skill directory and its origin.
 type SkillPath struct {
+	Name   string
 	Dir    string
 	Source string
 }

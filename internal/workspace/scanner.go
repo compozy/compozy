@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/skillscan"
 )
 
 const (
@@ -29,9 +32,10 @@ type agentCandidate struct {
 }
 
 type skillCandidate struct {
-	name   string
-	dir    string
-	source string
+	name      string
+	dir       string
+	source    string
+	rootOrder int
 }
 
 func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceScan, error) {
@@ -70,7 +74,7 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
 	}
 
-	for _, root := range compozyconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
+	for rootOrder, root := range compozyconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
 		if err := checkContext(ctx); err != nil {
 			return workspaceScan{}, err
 		}
@@ -78,7 +82,7 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
 			return workspaceScan{}, err
 		}
-		if err := scanSkillSource(root, scan.snapshots, &scan.skills); err != nil {
+		if err := scanSkillSource(root, rootOrder, scan.snapshots, &scan.skills); err != nil {
 			return workspaceScan{}, err
 		}
 	}
@@ -151,6 +155,7 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 
 func scanSkillSource(
 	root compozyconfig.WorkspaceDiscoveryRoot,
+	rootOrder int,
 	snapshots map[string]filesnap.Snapshot,
 	dst *[]skillCandidate,
 ) error {
@@ -159,38 +164,39 @@ func scanSkillSource(
 		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
 	}
 
-	entries, err := os.ReadDir(skillsDir)
+	result, err := skillscan.ScanDirectory(skillsDir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("workspace: read skills directory %q: %w", skillsDir, err)
+		return fmt.Errorf("workspace: scan skills directory %q: %w", skillsDir, err)
 	}
+	maps.Copy(snapshots, result.Snapshots)
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	for _, skillFile := range result.Paths {
+		skillDir := filepath.Dir(skillFile)
+		skillName, err := loadWorkspaceSkillName(skillFile)
+		if err != nil {
+			skillName = filepath.Base(skillDir)
+			slog.Warn(
+				"workspace: falling back to skill directory name",
+				"path",
+				skillFile,
+				"name",
+				skillName,
+				"error",
+				err,
+			)
 		}
 
-		skillDir := filepath.Join(skillsDir, entry.Name())
-		skillFile := filepath.Join(skillDir, skillDefinitionFile)
 		if err := addSnapshotIfExists(skillDir, snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill directory %q: %w", skillDir, err)
 		}
 		if err := addSnapshotIfExists(filepath.Join(skillDir, compozyconfig.MCPJSONName), snapshots); err != nil {
 			return fmt.Errorf("workspace: snapshot skill MCP sidecar %q: %w", skillDir, err)
 		}
-		if err := addSnapshotIfExists(skillFile, snapshots); err != nil {
-			return fmt.Errorf("workspace: snapshot skill definition %q: %w", skillFile, err)
-		}
-		if _, ok := snapshots[skillFile]; !ok {
-			continue
-		}
-
 		*dst = append(*dst, skillCandidate{
-			name:   entry.Name(),
-			dir:    skillDir,
-			source: string(root.Source),
+			name:      skillName,
+			dir:       skillDir,
+			source:    string(root.Source),
+			rootOrder: rootOrder,
 		})
 	}
 
@@ -279,18 +285,30 @@ func mergeSkillPaths(candidates []skillCandidate) []SkillPath {
 	}
 
 	skills := make([]SkillPath, 0, len(candidates))
-	seen := make(map[string]struct{}, len(candidates))
+	type winner struct {
+		index     int
+		rootOrder int
+	}
+	winners := make(map[string]winner, len(candidates))
 
 	for _, candidate := range candidates {
-		if _, ok := seen[candidate.name]; ok {
+		current, exists := winners[candidate.name]
+		if exists && current.rootOrder != candidate.rootOrder {
 			continue
 		}
 
-		seen[candidate.name] = struct{}{}
-		skills = append(skills, SkillPath{
+		resolved := SkillPath{
+			Name:   candidate.name,
 			Dir:    candidate.dir,
 			Source: candidate.source,
-		})
+		}
+		if exists {
+			skills[current.index] = resolved
+			continue
+		}
+
+		winners[candidate.name] = winner{index: len(skills), rootOrder: candidate.rootOrder}
+		skills = append(skills, resolved)
 	}
 
 	return skills
