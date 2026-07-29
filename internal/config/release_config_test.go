@@ -406,41 +406,136 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	}
 }
 
+func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	preflight := filepath.Join(root, "scripts", "release-preflight.sh")
+	tests := []struct {
+		name            string
+		contamination   string
+		wantSuccess     bool
+		wantOutputParts []string
+	}{
+		{
+			name:        "Should accept a valid clean release workspace",
+			wantSuccess: true,
+			wantOutputParts: []string{
+				"release preflight: PASS",
+			},
+		},
+		{
+			name:          "Should reject an untracked file in the release workspace",
+			contamination: "untracked",
+			wantOutputParts: []string{
+				"Release worktree must be clean before publication",
+				"?? release-workflow-tools/",
+			},
+		},
+		{
+			name:          "Should reject a tracked modification in the release workspace",
+			contamination: "tracked",
+			wantOutputParts: []string{
+				"Release worktree must be clean before publication",
+				" M RELEASE_BODY.md",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, pathDir := newReleasePreflightFixture(t)
+			switch tt.contamination {
+			case "untracked":
+				contamination := filepath.Join(repo, "release-workflow-tools", "tool.sh")
+				if err := os.MkdirAll(filepath.Dir(contamination), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(contamination) error = %v", err)
+				}
+				if err := os.WriteFile(contamination, []byte("#!/bin/sh\n"), 0o600); err != nil {
+					t.Fatalf("os.WriteFile(contamination) error = %v", err)
+				}
+			case "tracked":
+				releaseBody := filepath.Join(repo, "RELEASE_BODY.md")
+				if err := os.WriteFile(releaseBody, []byte("# Changed release body\n"), 0o600); err != nil {
+					t.Fatalf("os.WriteFile(RELEASE_BODY.md) error = %v", err)
+				}
+			}
+
+			cmd := exec.CommandContext(t.Context(), "bash", preflight)
+			cmd.Dir = repo
+			cmd.Env = append(os.Environ(), "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := cmd.CombinedOutput()
+			if tt.wantSuccess && err != nil {
+				t.Fatalf("release-preflight.sh error = %v, output = %s", err, output)
+			}
+			if !tt.wantSuccess && err == nil {
+				t.Fatalf("release-preflight.sh unexpectedly succeeded, output = %s", output)
+			}
+			for _, want := range tt.wantOutputParts {
+				assertContainsText(t, "release preflight output", string(output), want)
+			}
+		})
+	}
+}
+
 func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Parallel()
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
 
-	t.Run("Should load recovery tooling outside the release checkout", func(t *testing.T) {
+	t.Run("Should share workflow tool staging outside the release checkout", func(t *testing.T) {
 		t.Parallel()
 
 		for _, snippet := range []string{
+			"&load-release-workflow-tools",
+			"*load-release-workflow-tools",
 			"WORKFLOW_COMMIT: ${{ github.sha }}",
-			`workflow_tool="${RUNNER_TEMP}/release-publication-state.sh"`,
+			"release-publication-state.sh",
+			"release-preflight.sh",
 			"Accept: application/vnd.github.raw+json",
-			"repos/${GITHUB_REPOSITORY}/contents/scripts/release-publication-state.sh?ref=${WORKFLOW_COMMIT}",
+			"repos/${GITHUB_REPOSITORY}/contents/scripts/${workflow_tool}?ref=${WORKFLOW_COMMIT}",
 			`run: bash "${RUNNER_TEMP}/release-publication-state.sh"`,
 		} {
 			assertContainsText(t, "release workflow", workflow, snippet)
 		}
+		if got := strings.Count(workflow, "Accept: application/vnd.github.raw+json"); got != 1 {
+			t.Fatalf("release workflow tool loader count = %d, want 1 shared definition", got)
+		}
 		assertNotContainsText(t, "release workflow", workflow, ".release-workflow-tools")
 	})
 
-	t.Run("Should reject a dirty checkout before pushing the release tag", func(t *testing.T) {
+	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
 
-		cleanGuard := strings.Index(workflow, "git status --porcelain --untracked-files=normal")
-		if cleanGuard == -1 {
-			t.Fatal("release workflow missing clean-worktree guard")
+		preflightDefinition := strings.Index(workflow, "- &run-release-preflight")
+		if preflightDefinition == -1 {
+			t.Fatal("release workflow missing shared preflight definition")
+		}
+		dryRun := strings.Index(workflow, `go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output`)
+		if dryRun == -1 {
+			t.Fatal("release workflow missing release PR dry-run")
+		}
+		if preflightDefinition > dryRun {
+			t.Fatal("release workflow must run the preflight before the release PR dry-run")
+		}
+
+		preflightAlias := strings.Index(workflow, "- *run-release-preflight")
+		if preflightAlias == -1 {
+			t.Fatal("release workflow missing production preflight alias")
 		}
 		tagPush := strings.Index(workflow, `git push origin "refs/tags/${RELEASE_TAG}"`)
 		if tagPush == -1 {
 			t.Fatal("release workflow missing release tag push")
 		}
-		if cleanGuard > tagPush {
-			t.Fatal("release workflow must verify the checkout before pushing the release tag")
+		if preflightAlias > tagPush {
+			t.Fatal("release workflow must run the preflight before pushing the release tag")
 		}
+		if got := strings.Count(workflow, `run: bash "${RUNNER_TEMP}/release-preflight.sh"`); got != 1 {
+			t.Fatalf("release workflow preflight definition count = %d, want 1 shared definition", got)
+		}
+		assertNotContainsText(t, "release workflow", workflow, "git status --porcelain --untracked-files=normal")
 	})
 }
 
@@ -510,6 +605,65 @@ func findRepoRootForReleaseConfigTest(t *testing.T) string {
 			t.Fatal("repo root with .goreleaser.yml not found")
 		}
 		dir = parent
+	}
+}
+
+func newReleasePreflightFixture(t *testing.T) (string, string) {
+	t.Helper()
+
+	repo := t.TempDir()
+	files := map[string]string{
+		"RELEASE_BODY.md":                    "# Release body\n",
+		"RELEASE_NOTES.md":                   "# Release notes\n",
+		".goreleaser.release-header.md.tmpl": "# Header\n",
+		".goreleaser.release-footer.md.tmpl": "# Footer\n",
+		"packages/site/public/install.sh":    "#!/bin/sh\nCOSIGN_VERSION=\"v2.2.4\"\n# checksums.txt.sigstore.json\n# refs/heads/main\n",
+		".goreleaser.yml":                    "release:\n  extra_files:\n    - glob: ./packages/site/public/install.sh\nsigns:\n  - args:\n      - \"--bundle=${signature}\"\nnpms:\n  - name: \"@compozy/cli\"\n",
+	}
+	for path, contents := range files {
+		target := filepath.Join(repo, path)
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%s) error = %v", path, err)
+		}
+		if err := os.WriteFile(target, []byte(contents), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%s) error = %v", path, err)
+		}
+	}
+
+	pathDir := filepath.Join(repo, "test-bin")
+	if err := os.MkdirAll(pathDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(test-bin) error = %v", err)
+	}
+	goStub := "#!/bin/sh\nset -eu\n" +
+		`[ "$*" = "run github.com/magefile/mage@v1.17.2 releaseInstallCheck" ]` + "\n"
+	if err := os.WriteFile(filepath.Join(pathDir, "go"), []byte(goStub), 0o755); err != nil {
+		t.Fatalf("os.WriteFile(go stub) error = %v", err)
+	}
+
+	runReleasePreflightFixtureCommand(t, repo, "git", "init", "--initial-branch=main")
+	runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.name", "Compozy Release Preflight")
+	runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.email", "release-preflight@compozy.com")
+	runReleasePreflightFixtureCommand(t, repo, "git", "add", ".")
+	runReleasePreflightFixtureCommand(
+		t,
+		repo,
+		"git",
+		"-c",
+		"commit.gpgsign=false",
+		"commit",
+		"-m",
+		"test: seed release preflight",
+	)
+	return repo, pathDir
+}
+
+func runReleasePreflightFixtureCommand(t *testing.T, dir string, name string, args ...string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), name, args...)
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%s %s error = %v, output = %s", name, strings.Join(args, " "), err, output)
 	}
 }
 

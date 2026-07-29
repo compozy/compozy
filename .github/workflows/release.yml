@@ -126,6 +126,28 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # Stage the workflow-version release tools outside the checkout. The
+      # production job reuses this exact step, including for older release refs.
+      - &load-release-workflow-tools
+        name: Load release workflow tools
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          WORKFLOW_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          workflow_tools=(
+            release-publication-state.sh
+            release-preflight.sh
+          )
+          for workflow_tool in "${workflow_tools[@]}"; do
+            target="${RUNNER_TEMP}/${workflow_tool}"
+            gh api \
+              -H "Accept: application/vnd.github.raw+json" \
+              "repos/${GITHUB_REPOSITORY}/contents/scripts/${workflow_tool}?ref=${WORKFLOW_COMMIT}" \
+              >"${target}"
+            bash -n "${target}"
+          done
+
       - name: Prepare Go temporary directory
         env:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
@@ -163,8 +185,9 @@ jobs:
           setup-docker-login: false
           setup-qemu: false
 
-      - name: Validate release install contract
-        run: go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
+      - &run-release-preflight
+        name: Run release preflight
+        run: bash "${RUNNER_TEMP}/release-preflight.sh"
 
       - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
@@ -423,20 +446,8 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }}
 
       # A release may target an older ref whose recovery logic predates the
-      # current workflow. Load the workflow-version script directly into the
-      # runner temp directory so GoReleaser still sees a clean release checkout.
-      - name: Load release recovery tool
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          WORKFLOW_COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          workflow_tool="${RUNNER_TEMP}/release-publication-state.sh"
-          gh api \
-            -H "Accept: application/vnd.github.raw+json" \
-            "repos/${GITHUB_REPOSITORY}/contents/scripts/release-publication-state.sh?ref=${WORKFLOW_COMMIT}" \
-            >"${workflow_tool}"
-          bash -n "${workflow_tool}"
+      # current workflow. Reuse the exact staging step defined by dry-run.
+      - *load-release-workflow-tools
 
       - name: Prepare Go temporary directory
         env:
@@ -478,66 +489,7 @@ jobs:
           setup-qemu: false
           cosign-version: "v2.2.4"
 
-      - name: Validate generated release assets
-        if: steps.publication.outputs.already_published != 'true'
-        run: |
-          if [ ! -s RELEASE_BODY.md ]; then
-            echo "::error::Missing or empty RELEASE_BODY.md; release-pr must generate the current release body"
-            exit 1
-          fi
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Missing or empty RELEASE_NOTES.md; release-pr must generate historical release notes"
-            exit 1
-          fi
-          for path in .goreleaser.release-header.md.tmpl .goreleaser.release-footer.md.tmpl; do
-            if [ ! -f "$path" ]; then
-              echo "::error::Missing release asset: $path"
-              exit 1
-            fi
-          done
-
-          if [ ! -s packages/site/public/install.sh ]; then
-            echo "::error::Missing or empty curl installer: packages/site/public/install.sh"
-            exit 1
-          fi
-          sh -n packages/site/public/install.sh
-          if ! grep -q 'checksums.txt.sigstore.json' packages/site/public/install.sh; then
-            echo "::error::install.sh must verify checksums.txt with checksums.txt.sigstore.json"
-            exit 1
-          fi
-          if ! grep -q 'COSIGN_VERSION="v2.2.4"' packages/site/public/install.sh; then
-            echo "::error::install.sh must bootstrap a pinned cosign verifier when cosign is absent"
-            exit 1
-          fi
-          if ! grep -q 'refs/heads/main' packages/site/public/install.sh; then
-            echo "::error::install.sh must verify checksums against the production release workflow identity"
-            exit 1
-          fi
-          go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
-          if ! grep -q 'packages/site/public/install.sh' .goreleaser.yml; then
-            echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
-            exit 1
-          fi
-          if ! grep -q -- "--bundle=\${signature}" .goreleaser.yml; then
-            echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
-            exit 1
-          fi
-          if ! grep -q 'name: "@compozy/cli"' .goreleaser.yml; then
-            echo "::error::.goreleaser.yml must publish the @compozy/cli npm package"
-            exit 1
-          fi
-
-      - name: Verify release worktree is clean
-        env:
-          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
-        run: |
-          set -euo pipefail
-          worktree_state="$(git status --porcelain --untracked-files=normal)"
-          if [[ -n "${worktree_state}" ]]; then
-            echo "::error::Release worktree must be clean before creating ${RELEASE_TAG}"
-            printf '%s\n' "${worktree_state}" >&2
-            exit 1
-          fi
+      - *run-release-preflight
 
       - name: Create and push annotated release tag
         env:
