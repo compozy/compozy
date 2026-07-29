@@ -45,7 +45,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                                 |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
-| `[permissions]`                      | Default permission mode.                                                             | `mode = "approve-all"`                                                                                |
+| `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                  | `mode = "approve-all"`                                                                                |
 | `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                                   |
 | `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
 | `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
@@ -1026,6 +1026,11 @@ digest and triggers a fresh resolution at the next wake decision.
 | Field  | Type   | Default       | Valid values                               | Description                                                                              |
 | ------ | ------ | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `mode` | string | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
+
+The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
+asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
+crosses and never prompts. There is no separate workspace-access key. See
+[Permissions](/runtime/core/sessions/permissions#cross-workspace-access).
 
 ## `[tools]`
 
