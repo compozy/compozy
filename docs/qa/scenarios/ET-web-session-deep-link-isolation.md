@@ -2,10 +2,10 @@
 id: ET-web-session-deep-link-isolation
 area: ET
 title: Never move a session deep link across workspaces without confirmation
-persona: Ada
-journey: J-operate-workspace-context
+persona: Théo
+journey: J-open-foreign-session
 expected: A deep link to a foreign-workspace session never changes the active workspace and never renders foreign session data before the operator confirms; cancelling keeps the active workspace, its arrangement, and the existing not-found state, and a session that exists nowhere stays not found with no confirmation offered.
-entry_points: /agents/:agent/sessions/:session; /session/:session
+entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
 qa_status: untested
 bug_ids:
 fix_status:
@@ -45,3 +45,8 @@ resolves a minimal owner projection and asks before switching (ADR-004), so the 
 from "never changes workspace" to "never changes workspace or exposes foreign session data without
 confirmation". Retest the pre-confirmation exposure surface and the cancel path. Status remains
 untested; no QA replay ran in this documentation slice.
+
+Planning 2026-07-29 (task 06): re-homed to the new `J-open-foreign-session` flow and re-assigned from
+Ada to Théo — the negative control is about an arranged, in-use workspace surviving an unanswered
+link, which is Théo's surface. Entry points now name the owner projection and the declined route
+state. Settled by charter `CH-foreign-session-deep-link`, alongside the positive switch.

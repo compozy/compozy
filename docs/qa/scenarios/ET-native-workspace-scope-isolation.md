@@ -34,3 +34,9 @@ slice.
 QA impact 2026-07-29: foreign native workspace input is no longer unconditionally rejected. The
 binder now canonicalizes the target and consults the shared mode-anchored policy before the handler.
 Status remains untested; no QA replay ran in this documentation slice.
+
+Planning 2026-07-29 (task 06): stays on `J-operate-workspace-context` — it owns same-workspace
+binding and the pre-handler boundary, not the mode outcomes. Its overlapping neighbours
+`ET-workspace-access-mode-matrix` and `ET-workspace-access-prompt-outcomes` moved to
+`J-cross-workspace-access`, which makes this file the adjacent regression canary for that cycle.
+Settled by charter `CH-workspace-binding-canary`.

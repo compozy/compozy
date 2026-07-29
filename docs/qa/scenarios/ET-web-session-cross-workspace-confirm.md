@@ -2,10 +2,10 @@
 id: ET-web-session-cross-workspace-confirm
 area: ET
 title: Confirm and switch into the workspace that owns a linked session
-persona: Ada
-journey: J-operate-workspace-context
+persona: Nia
+journey: J-open-foreign-session
 expected: A foreign-workspace session deep link shows a confirmation naming the owning workspace, and confirming activates that workspace and opens the session on both the canonical and short permalink routes; the confirmation state lives in the route so the link is replayable.
-entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=confirm; ?workspaceSwitch=declined
+entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=confirm; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
 qa_status: untested
 bug_ids:
 fix_status:
@@ -35,3 +35,8 @@ Operator UX only. Agent sessions never cross workspaces through web routing — 
 
 QA impact 2026-07-29: new behavior from the cross-workspace access program (ADR-004). Planning flag
 only; no QA replay ran in this documentation slice.
+
+Planning 2026-07-29 (task 06): re-homed to the new `J-open-foreign-session` flow and re-assigned from
+Ada to Nia — this is a cold first open of a shared link, the surface Nia owns; agents never reach it.
+Entry points now name the owner projection the confirmation reads. Settled by charter
+`CH-foreign-session-deep-link`.
