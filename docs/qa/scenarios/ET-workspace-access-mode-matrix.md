@@ -6,13 +6,13 @@ persona: Ada
 journey: J-cross-workspace-access
 expected: An approve-all session reaches another workspace at every seam, a deny-all session is denied at every seam with the permission-mode hint and no prompt, and an approve-reads session is denied with the same hint at the agent-identity, task, spawn, and coordination seams; each policy evaluation produces the expected workspace.access_granted or workspace.access_denied audit event in a healthy store, naming target, seam, source, and mode.
 entry_points: compozy__workspace_info; compozy__memory_list; compozy__task_run_claim_next; compozy task next --workspace; compozy spawn --workspace; compozy network coordination status --workspace; POST /api/agent/spawn (HTTP+UDS); POST /api/agent/tasks/claim-next (HTTP+UDS); GET /api/agent/me (HTTP+UDS); GET /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); PUT /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); compozy logs --type workspace.access_denied; /runtime/cli-reference/spawn; /runtime/core/agents/spawning; /runtime/core/autonomy/safe-spawn; /runtime/core/configuration/config-toml; /runtime/core/hooks/event-catalog; /runtime/core/sessions/permissions#cross-workspace-access; /runtime/core/workspaces; /runtime/core/workspaces/resolver#isolation-and-cross-workspace-access; skills/compozy/references/native-tools.md; skills/compozy/references/agent-definitions.md
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260729-coordination-cli-drops-agent-identity
+fix_status: fixed
+retest_status: pass
+fix_commits: 4ef8e8c
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
+last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
 overlaps: ET-workspace-access-prompt-outcomes; ET-native-workspace-scope-isolation; MS-workspace-resolution-chain
 ---
 
@@ -61,3 +61,8 @@ Planning 2026-07-29 (task 06): re-homed from `J-operate-workspace-context` to th
 audit visibility. Entry points widened to the agent-driven CLI, the HTTP/UDS identity and
 coordination routes, and the shipped site/official-skill guidance. Settled by charter
 `CH-cross-workspace-mode-seams`.
+
+QA 2026-07-29: the deny/read/all matrix passed across native tools, agent CLI, HTTP, and UDS after
+fixing the coordination CLI identity transport. Denials carried the exact daemon hint, deny-all
+raised zero workspace prompts, approve-reads prompted only at the tool seam, and approve-all crossed
+promptless. All four audit readers agreed on attributable events.

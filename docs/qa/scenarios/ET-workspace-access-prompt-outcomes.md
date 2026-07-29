@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
 entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /runtime/core/sessions/permissions#the-prompt-in-approve-reads
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
+last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants
 ---
 
@@ -54,3 +54,8 @@ Planning 2026-07-29 (task 06): re-homed to `J-cross-workspace-access` and re-ass
 Bruno — the agent triggers the prompt, but the answering, the consent lifetime, and the audit read
 are all operator work. Entry points widened to the cross-seam reuse surfaces, both answer surfaces,
 and all four audit readers. Settled by charter `CH-cross-workspace-consent-audit`.
+
+QA 2026-07-29: allow/reject once and session answers passed through both operator answer surfaces.
+Session grants crossed task, coordination, and spawn seams, expired on stop and daemon restart, and
+an unanswered request timed out without storing consent. CLI, HTTP, native logs, and native search
+agreed on the attributable audit trail.

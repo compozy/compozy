@@ -6,13 +6,13 @@ persona: Nia
 journey: J-open-foreign-session
 expected: A foreign-workspace session deep link shows a confirmation naming the owning workspace, and confirming activates that workspace and opens the session on both the canonical and short permalink routes; the confirmation state lives in the route so the link is replayable.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=confirm; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-switched.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-shortlink-confirm.png
+last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
 overlaps: ET-web-session-deep-link-isolation; MS-workspace-resolution-chain
 ---
 
@@ -40,3 +40,7 @@ Planning 2026-07-29 (task 06): re-homed to the new `J-open-foreign-session` flow
 Ada to Nia — this is a cold first open of a shared link, the surface Nia owns; agents never reach it.
 Entry points now name the owner projection the confirmation reads. Settled by charter
 `CH-foreign-session-deep-link`.
+
+QA 2026-07-29: canonical and short links named the registered owner, replayed confirmation through
+back/forward/reload and a second tab, ignored an injected workspace query, and switched to the target
+desktop/session only after confirmation.

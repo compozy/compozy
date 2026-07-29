@@ -6,13 +6,13 @@ persona: Théo
 journey: J-open-foreign-session
 expected: A deep link to a foreign-workspace session never changes the active workspace and never renders foreign session data before the operator confirms; cancelling keeps the active workspace, its arrangement, and the existing not-found state, and a session that exists nowhere stays not found with no confirmation offered.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-cancelled.png
+last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
 overlaps: ET-web-session-cross-workspace-confirm; ET-native-workspace-scope-isolation; MS-workspace-resolution-chain
 ---
 
@@ -50,3 +50,8 @@ Planning 2026-07-29 (task 06): re-homed to the new `J-open-foreign-session` flow
 Ada to Théo — the negative control is about an arranged, in-use workspace surviving an unanswered
 link, which is Théo's surface. Entry points now name the owner projection and the declined route
 state. Settled by charter `CH-foreign-session-deep-link`, alongside the positive switch.
+
+QA 2026-07-29: before confirmation the browser fetched only the actor-scoped missing detail and the
+three-field owner projection; no target-scoped session detail or content rendered. Cancel preserved
+the actor workspace/arrangement, unknown IDs remained not found, and an actor-owned session opened
+directly on both route forms.

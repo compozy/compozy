@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-workspace-context
 expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260729-nearest-workspace-case-alias
+fix_status: fixed
+retest_status: pass
+fix_commits: 4e81f17
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
+last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
 overlaps: ET-workspace-access-mode-matrix; ET-workspace-access-prompt-outcomes; MS-workspace-resolution-chain; ET-workspace-host-api-mcp
 ---
 
@@ -40,3 +40,8 @@ binding and the pre-handler boundary, not the mode outcomes. Its overlapping nei
 `ET-workspace-access-mode-matrix` and `ET-workspace-access-prompt-outcomes` moved to
 `J-cross-workspace-access`, which makes this file the adjacent regression canary for that cycle.
 Settled by charter `CH-workspace-binding-canary`.
+
+QA 2026-07-29: an approve-reads session invoked workspace info with omitted workspace and its own
+workspace by ID, name, and path. All four calls reached the same canonical ID with zero permission
+request and zero cross-workspace policy event. The adjacent case-alias discovery regression was
+fixed and retested in the same canary.
