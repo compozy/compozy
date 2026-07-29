@@ -152,4 +152,16 @@ describe("session MSW handlers", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ clarifications: [] });
   });
+
+  it("Should hide a known session's clarifications from another workspace", async () => {
+    const sample = sessionFixtures[0]!;
+    const response = await fetch(
+      `${API}/api/workspaces/workspace_other/sessions/${sample.id}/clarifications`
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: `Session not found: ${sample.id}`,
+    });
+  });
 });

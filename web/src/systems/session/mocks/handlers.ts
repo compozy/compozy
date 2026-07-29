@@ -252,8 +252,10 @@ export const handlers: HttpHandler[] = [
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
     ({ params }) => {
       const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
 
-      if (!sessionById.has(id)) {
+      if (!session || session.workspace_id !== workspaceId) {
         return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
       }
 
