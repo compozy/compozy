@@ -1,17 +1,21 @@
 ---
-title: Signature Verification
-description: Reference for Compozy Network v1 trust-state processing, Ed25519 proof verification, unsigned messages, key resolution, and verification errors.
+title: Optional Signature Verification (v1)
+description: Reference for the optional RFC 004 v1 trust profile layered on compozy-network/v0; CompozyOS currently routes proof as opaque JSON and does not run this algorithm.
 icon: ShieldCheck
 ---
 
-Compozy Network v1 inserts trust evaluation between core envelope validation and routing. A receiver
-uses this step to classify each message as `verified`, `unverified`, or `rejected`.
+The optional RFC 004 v1 trust profile inserts trust evaluation between core v0 envelope validation
+and routing. A receiver claiming that profile uses this step to classify each message as `verified`,
+`unverified`, or `rejected`. The core wire identifier remains `compozy-network/v0`, while the
+profile-aware validator applies `nickname@fingerprint` to signed senders instead of the ordinary v0
+Peer ID grammar used by the current CompozyOS runtime.
 
-This page is normative unless a section is marked as an example.
+This page is normative only for an implementation that claims
+`compozy-network.trust.ed25519-jcs/v1`.
 
 <OperatorNote label="Implementation status">
-  The current Compozy Runtime implementation validates v0 envelopes and routes opaque `proof`
-  values. The trust-state algorithm below is the RFC 004 v1 contract for implementers.
+  The CompozyOS reference implementation validates v0 envelopes and routes opaque `proof` values. It
+  does not run the trust-state algorithm below.
 </OperatorNote>
 
 ## Trust states
@@ -28,8 +32,8 @@ requested action.
 
 ## Processing order
 
-Receivers MUST evaluate trust after core validation and freshness checks, but before routing and
-extension-specific behavior.
+A receiver claiming this trust profile MUST evaluate trust after core validation and freshness
+checks, but before routing and extension-specific behavior.
 
 <Mermaid
   chart={`flowchart TD
@@ -47,7 +51,7 @@ extension-specific behavior.
 
 ## Verification algorithm
 
-To mark an envelope as `verified` under the baseline profile, a receiver MUST perform every step in
+To mark an envelope as `verified` under the optional profile, a receiver MUST perform every step in
 this order:
 
 1. Confirm that `proof` is a JSON object.
@@ -216,7 +220,7 @@ func VerifyCanonical(pubkey ed25519.PublicKey, canonical []byte, signature []byt
 
 ## Receiver invariants
 
-A conforming verifier MUST preserve these invariants:
+A verifier claiming this profile MUST preserve these invariants:
 
 - It MUST validate freshness before verification.
 - It MUST verify the full canonical envelope, not only `body`.

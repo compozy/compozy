@@ -1,5 +1,5 @@
 ---
-title: Production Checklist
+title: Production checklist
 description: Prepare Compozy for persistent unattended operation with clear pass and fail checks.
 ---
 
@@ -198,15 +198,15 @@ confirm status and health.
 
 ## Final readiness gate
 
-| Area             | Ready when                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------- |
-| Daemon lifecycle | `compozy daemon start`, `compozy status`, and `compozy daemon stop` work under the service manager.     |
-| Socket           | The CLI can reach the configured UDS socket as the intended operator user.                              |
-| HTTP             | HTTP is bound only where intended and health endpoints are reachable.                                   |
-| Logs             | Logs rotate and recent errors are actionable.                                                           |
-| Databases        | Backups include `compozy.db`, per-session `events.db` files, metadata, and sidecars.                    |
-| Sessions         | Test session creation, stop, list, and resume work with the production service environment.             |
-| Recovery         | Operators know how to restore a backup into a separate `COMPOZY_HOME` before touching production state. |
+| Area             | Ready when                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| Daemon lifecycle | `compozy daemon start`, `compozy status`, and `compozy daemon stop` work under the service manager.         |
+| Socket           | The CLI can reach the configured UDS socket as the intended operator user.                                  |
+| HTTP             | HTTP is bound only where intended and health endpoints are reachable.                                       |
+| Logs             | Logs rotate and recent errors are actionable.                                                               |
+| Databases        | Backups include `compozy.db`, per-session `events.db` files, metadata, and sidecars.                        |
+| Sessions         | Create a test session, attach while it is active, stop it, then confirm status and history remain readable. |
+| Recovery         | Operators know how to restore a backup into a separate `COMPOZY_HOME` before touching production state.     |
 
 ## Related pages
 

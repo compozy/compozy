@@ -6,29 +6,31 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { allReleases } from "../blog";
 import { siteRoot } from "../content-test-utils";
 
 const publicRoot = resolve(siteRoot, "public");
 const installScriptPath = resolve(publicRoot, "install.sh");
 const headersPath = resolve(publicRoot, "_headers");
 const installPagePath = resolve(siteRoot, "content/runtime/core/getting-started/installation.mdx");
-const launchPostPath = resolve(
-  siteRoot,
-  "content/blog/posts/introducing-compozy-the-first-agent-network-protocol.mdx"
-);
+const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
 const readmePath = resolve(siteRoot, "../../README.md");
 const releaseHeaderPath = resolve(siteRoot, "../../.goreleaser.release-header.md.tmpl");
 const releaseFooterPath = resolve(siteRoot, "../../.goreleaser.release-footer.md.tmpl");
 const cliffPath = resolve(siteRoot, "../../cliff.toml");
 
-const betaVersion = "v0.3.0-beta.1";
+const latestBeta = allReleases().find(release => release.status === "beta");
+if (!latestBeta) {
+  throw new Error("public install contract requires a published beta release");
+}
+const betaVersion = latestBeta.version;
 const npmInstallCommand = "npm install -g @compozy/cli@beta";
 const goInstallCommand = `go install github.com/compozy/compozy@${betaVersion}`;
 const verifiedInstallerCommand = "curl -fsSL https://compozy.com/install.sh | sh";
 const sourceInstallCommand = "go build -o ./bin/compozy .";
-const workspaceAddCommand = 'compozy workspace add "$PWD" --name current';
-const firstSessionCommand = "compozy session new --workspace current --agent general";
+const firstSessionCommand = "compozy session new --agent general --name first-run";
+const historicalLaunchBeta = "v0.3.0-beta.1";
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["COMPOZY_VERSION", "COMPOZY_INSTALL_DIR", "COMPOZY_SKIP_BOOTSTRAP"];
 const cosignVersion = "v2.2.4";
@@ -280,7 +282,7 @@ describe("public install contract", () => {
     expect(script).toContain(
       "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/compozy/\\.github/workflows/release\\.yml@refs/heads/main$'"
     );
-    expect(script).toContain('VERSION="${COMPOZY_VERSION:-v0.3.0-beta.1}"');
+    expect(script).toContain(`VERSION="\${COMPOZY_VERSION:-${betaVersion}}"`);
     expect(script).toContain("v[0-9][A-Za-z0-9._-]*)");
     expect(script).toContain(
       'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
@@ -455,17 +457,12 @@ describe("public install contract", () => {
     expect(headers).toContain("Content-Security-Policy:");
   });
 
-  it("keeps README, landing, docs, and launch post aligned on beta install commands", () => {
+  it("keeps living install surfaces on the latest published beta", () => {
     const installPage = readSiteFile(installPagePath);
     const launchPost = readSiteFile(launchPostPath);
 
     for (const command of [verifiedInstallerCommand, npmInstallCommand, goInstallCommand]) {
-      const missingPrimaryCommand = [
-        readmePath,
-        landingInstallPath,
-        installPagePath,
-        launchPostPath,
-      ]
+      const missingPrimaryCommand = [readmePath, landingInstallPath, installPagePath]
         .filter(path => !readSiteFile(path).includes(command))
         .map(path => relative(siteRoot, path));
       expect(missingPrimaryCommand, command).toEqual([]);
@@ -473,13 +470,12 @@ describe("public install contract", () => {
 
     expect(installPage).toContain(verifiedInstallerCommand);
     expect(installPage).toContain(sourceInstallCommand);
-    expect(launchPost).toContain("compozy install");
-    for (const command of [workspaceAddCommand, firstSessionCommand]) {
-      const missingFirstSessionCommand = [readmePath, launchPostPath]
-        .filter(path => !readSiteFile(path).includes(command))
-        .map(path => relative(siteRoot, path));
-      expect(missingFirstSessionCommand, command).toEqual([]);
-    }
+    expect(readSiteFile(readmePath)).toContain(firstSessionCommand);
+    expect(readSiteFile(landingInstallPath)).toContain(firstSessionCommand);
+    expect(launchPost).toContain(`records ${historicalLaunchBeta}`);
+    expect(launchPost).toContain(
+      "[installation guide](/runtime/core/getting-started/installation)"
+    );
     for (const option of installOptions.slice(0, -1)) {
       expect(installPage, option).toContain(option);
     }

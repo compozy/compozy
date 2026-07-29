@@ -395,6 +395,9 @@ envelope inside a public thread, and then opens lifecycle-bearing work to adapt 
 caption="One structured capability concept appears as brief discovery, rich discovery, and transfer."
 />
 
+In every step, `workspace_id` scopes the outer envelope. The brief, rich, and transferred capability
+records do not repeat it.
+
 ### 1. Curator advertises a capability through brief discovery
 
 ```json
@@ -419,7 +422,6 @@ caption="One structured capability concept appears as brief discovery, rich disc
         "compozy.capabilities_brief": [
           {
             "id": "fix-go-migration-tests",
-            "workspace_id": "ws_alpha",
             "summary": "Repair failing Go migration tests and explain the change."
           }
         ]
@@ -480,7 +482,6 @@ caption="One structured capability concept appears as brief discovery, rich disc
         "compozy.capabilities_brief": [
           {
             "id": "fix-go-migration-tests",
-            "workspace_id": "ws_alpha",
             "summary": "Repair failing Go migration tests and explain the change."
           }
         ]
@@ -492,7 +493,6 @@ caption="One structured capability concept appears as brief discovery, rich disc
       "capabilities": [
         {
           "id": "fix-go-migration-tests",
-          "workspace_id": "ws_alpha",
           "summary": "Repair failing Go migration tests and explain the change.",
           "outcome": "A validated patch summary with the corrected assertions.",
           "version": "1.2.0",
@@ -526,7 +526,6 @@ caption="One structured capability concept appears as brief discovery, rich disc
   "body": {
     "capability": {
       "id": "fix-go-migration-tests",
-      "workspace_id": "ws_alpha",
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
@@ -596,4 +595,4 @@ caption="One structured capability concept appears as brief discovery, rich disc
   conversation-container binding.
 - [Capability Discovery](/protocol/capability-discovery) expands the capability-transfer flow.
 - [Protocol Implementation Status](/protocol/implementation-status) clarifies which examples map to
-  current Compozy Runtime behavior and which pages are implementer guidance.
+  current CompozyOS reference behavior and which pages are implementer guidance.

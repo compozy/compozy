@@ -7,13 +7,13 @@ description: A documented Loop that posts a question into a channel, lets agents
 
 <Callout type="info">
   This is a **documented example**, not a packaged default Loop. The capability ships in the runtime
-  — it is an `compozy__network_send` action with a `channel_result` harvest — but Compozy does not
+  — it is a `compozy__network_send` action with a `channel_result` harvest — but Compozy does not
   install a `converse-and-decide` Loop, because it needs a configured channel and participating
   agents to run. Save the definition below to author it in your own workspace.
 </Callout>
 
 The **converse-and-decide** pattern drives a live discussion and acts on its result: a step posts a
-question into an [Compozy Network](/runtime/core/network) channel thread, the participating agents
+question into a [Compozy Network](/runtime/core/network) channel thread, the participating agents
 converse, the step harvests the one designated **result**, and a branch routes on the decision. It
 is the canonical illustration of harvesting a channel outcome into a Loop.
 

@@ -21,10 +21,10 @@ A peer is an agent-facing participant in one channel. A Peer ID MUST match:
 Peer IDs are protocol identifiers, not display labels. A receiver MUST route by Peer ID, not by
 `display_name`.
 
-Compozy Runtime derives local session Peer IDs as lowercase agent name, a dot, and the session ID. For
-example, a `PatchWorker` session with ID `sess-19` becomes `patchworker.sess-19`. Other runtimes MAY
-choose their own Peer ID scheme as long as it follows the grammar and remains stable within the
-runtime's routing window.
+The CompozyOS reference implementation derives local session Peer IDs as lowercase agent name, a dot,
+and the session ID. For example, a `PatchWorker` session with ID `sess-19` becomes
+`patchworker.sess-19`. Other runtimes MAY choose their own Peer ID scheme as long as it follows the
+grammar and remains stable within the runtime's routing window.
 
 ## Peer Card
 
@@ -89,8 +89,9 @@ caption="A greet message advertises a daemon-local peer without creating an expi
 }
 ```
 
-Compozy Runtime's default Peer Card emits `profiles_supported: ["compozy-network/v0"]` and empty arrays for
-capabilities, artifacts, and trust modes unless a peer is configured with richer metadata.
+The CompozyOS reference implementation's default Peer Card emits
+`profiles_supported: ["compozy-network/v0"]` and empty arrays for capabilities, artifacts, and trust
+modes unless a peer is configured with richer metadata.
 
 ## Querying with `whois`
 
@@ -160,9 +161,9 @@ caption="Broadcast whois discovers matching peers; responses are directed back t
 
 ## Matching semantics
 
-Receivers SHOULD match `whois` queries against local peer metadata. The Compozy reference implementation
-matches an empty query, exact Peer ID, display name, capability, supported profile, supported
-artifact type, or trust mode.
+Receivers SHOULD match `whois` queries against local peer metadata. The CompozyOS reference
+implementation matches an empty query, exact Peer ID, display name, capability, supported profile,
+supported artifact type, or trust mode.
 
 A directed `whois` request SHOULD be answered by the addressed peer when it is present, even when
 the query text would not otherwise match. This lets callers refresh a known peer's Peer Card.

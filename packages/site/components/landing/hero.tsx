@@ -1,15 +1,15 @@
 import { Eyebrow } from "@compozy/ui";
 
 import { HeroPlayer } from "./hero-player";
-import { SUPPORTED_AGENT_COUNT } from "./provider-data";
+import { BUILTIN_PROVIDER_COUNT } from "./provider-data";
 import { CtaButton } from "./primitives/cta-button";
 import { NETWORK_KIND_COUNT } from "./primitives/network-kinds";
 
 const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
-const additionalAgentCount = Math.max(0, SUPPORTED_AGENT_COUNT - featuredAgentNames.length);
+const additionalProviderCount = Math.max(0, BUILTIN_PROVIDER_COUNT - featuredAgentNames.length);
 const featuredAgentDetail =
-  additionalAgentCount > 0
-    ? `${featuredAgentNames.join(", ")}, and ${additionalAgentCount} more ${additionalAgentCount === 1 ? "agent" : "agents"}.`
+  additionalProviderCount > 0
+    ? `${featuredAgentNames.join(", ")}, and ${additionalProviderCount} more built-in integrations.`
     : `${featuredAgentNames.join(", ")}.`;
 
 // Locked launch hero (COPY.md §2, packages/site/CLAUDE.md): the headline and this definition
@@ -19,11 +19,11 @@ const DEFINITION =
 
 const signalItems = [
   {
-    label: "compozy-network/v0",
-    detail: `${NETWORK_KIND_COUNT} message kinds. Commit-first delivery. Audited outcomes.`,
+    label: "Durable sessions, one state",
+    detail: "Agent work stays visible and inspectable beyond one terminal interaction.",
   },
   {
-    label: `${SUPPORTED_AGENT_COUNT} ACP drivers supported`,
+    label: `${BUILTIN_PROVIDER_COUNT} built-in providers`,
     detail: featuredAgentDetail,
   },
   {
@@ -31,8 +31,8 @@ const signalItems = [
     detail: "Native tools, MCP servers, and extensions on one control path.",
   },
   {
-    label: "Single binary, no infra",
-    detail: "No Docker. No Postgres. compozy daemon start.",
+    label: "Local by default, Live by choice",
+    detail: `${NETWORK_KIND_COUNT} typed message kinds, commit-first delivery, and explicit external boundaries.`,
   },
 ];
 
@@ -67,8 +67,8 @@ export function Hero() {
               <CtaButton href="/runtime/core/getting-started/installation" variant="primary">
                 Install the beta
               </CtaButton>
-              <CtaButton href="/protocol" variant="ghost">
-                Read the compozy-network/v0 spec
+              <CtaButton href="/runtime" variant="ghost">
+                See how CompozyOS works
               </CtaButton>
             </div>
           </div>

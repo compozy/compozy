@@ -14,7 +14,7 @@ const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[
     id: "installer",
     label: "Installer",
     command: "curl -fsSL https://compozy.com/install.sh | sh",
-    note: "Verified beta · macOS + Linux · Sigstore provenance",
+    note: "Verified beta · Sigstore provenance · opens bootstrap on an interactive terminal",
   },
   {
     id: "npm",
@@ -25,33 +25,41 @@ const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[
   {
     id: "go",
     label: "Go",
-    command: "go install github.com/compozy/compozy@v0.3.0-beta.1",
+    command: "go install github.com/compozy/compozy@v0.3.0-beta.2",
     note: "Pinned beta · requires Go · builds from the public module",
   },
 ];
 
-const STEPS = [
+type InstallStep = {
+  title: string;
+  description: string;
+  code: string;
+};
+
+const BOOTSTRAP_STEP: InstallStep = {
+  title: "Bootstrap your CompozyOS home",
+  description:
+    "npm and Go install the binary only. Create ~/.compozy/config.toml and the default general agent once.",
+  code: "compozy install",
+};
+
+const COMMON_STEPS: InstallStep[] = [
   {
-    step: "01",
-    title: "Bootstrap your CompozyOS home",
-    description:
-      "Create ~/.compozy/config.toml and the default general agent before you start the daemon.",
-    code: "compozy install",
-  },
-  {
-    step: "02",
     title: "Start the daemon",
     description: "One local process, detached by default, exposing CLI, HTTP/SSE, and the web UI.",
     code: "compozy daemon start",
   },
   {
-    step: "03",
     title: "Launch a real session",
     description:
-      "Create the session from the repository you want CompozyOS to manage so workspace resolution is explicit.",
-    code: 'compozy workspace add "$PWD" --name current\ncompozy session new --workspace current --agent general',
+      "Run from the repository you want to manage. CompozyOS infers and registers the workspace from your current directory.",
+    code: "compozy session new --agent general --name first-run",
   },
 ];
+
+function nextSteps(tab: TabId): InstallStep[] {
+  return tab === "installer" ? COMMON_STEPS : [BOOTSTRAP_STEP, ...COMMON_STEPS];
+}
 
 function getTabId(id: TabId) {
   return `install-tab-${id}`;
@@ -106,8 +114,8 @@ export function InstallSection() {
       <SectionHeader
         align="center"
         eyebrow="Getting started"
-        title="Three commands. First session in under a minute."
-        description="macOS and Linux. Install the beta with the verified installer, npm, or Go. Homebrew returns with the stable release."
+        title="Install the beta. Start one durable session."
+        description="Use the verified installer on macOS or Linux, the npm beta channel, or the pinned Go release. Homebrew returns with the stable release."
       />
 
       <div className="mx-auto mt-10 w-full max-w-190">
@@ -157,14 +165,14 @@ export function InstallSection() {
 
       <div className="mx-auto mt-14 max-w-190">
         <div className="flex flex-col gap-5">
-          {STEPS.map(item => (
+          {nextSteps(tab).map((item, index) => (
             <div
-              key={item.step}
+              key={item.title}
               className="flex flex-col gap-4 rounded-diagram border border-line bg-canvas p-6"
             >
               <div className="flex items-start gap-4">
                 <span className="mt-0.5 font-mono text-lg font-medium text-accent">
-                  {item.step}
+                  {String(index + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1">
                   <h3 className="text-lg font-medium text-fg">{item.title}</h3>

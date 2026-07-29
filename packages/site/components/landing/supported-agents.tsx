@@ -38,14 +38,14 @@ import {
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { SUPPORTED_AGENT_PROVIDERS, type SupportedAgentProvider } from "./provider-data";
+import { BUILTIN_PROVIDER_INTEGRATIONS, type BuiltinProviderIntegration } from "./provider-data";
 import { SectionFrame } from "./primitives/section-frame";
 
-type Provider = SupportedAgentProvider & { logo: ReactNode };
+type Provider = BuiltinProviderIntegration & { logo: ReactNode };
 
 const logoClassName = "size-6 text-fg";
 
-const providerLogos: Record<SupportedAgentProvider["id"], ReactNode> = {
+const providerLogos: Record<BuiltinProviderIntegration["id"], ReactNode> = {
   claude: <ClaudeLogo aria-hidden className="size-6" />,
   codex: <OpenAILogo aria-hidden className="size-6" mode="dark" />,
   gemini: <GeminiLogo aria-hidden className="size-6" />,
@@ -74,7 +74,7 @@ const providerLogos: Record<SupportedAgentProvider["id"], ReactNode> = {
   groq: <GroqLogo aria-hidden className="size-6" />,
 };
 
-const PROVIDERS: Provider[] = SUPPORTED_AGENT_PROVIDERS.map(provider => ({
+const PROVIDERS: Provider[] = BUILTIN_PROVIDER_INTEGRATIONS.map(provider => ({
   ...provider,
   logo: providerLogos[provider.id],
 }));
@@ -109,20 +109,19 @@ function indexQuiltSlots(layout: readonly ("logo" | "empty")[]): QuiltSlot[] {
 const QUILT_SLOTS = indexQuiltSlots(QUILT_LAYOUT);
 
 /**
- * Compact strip showing which agent CLIs are supported. Frames each CLI as a
- * peer on Compozy Network, the strip's job is to make a visitor see their own
- * existing CLI as the entry point to the network.
+ * Compact strip showing the built-in provider integrations that can launch
+ * durable sessions through the CompozyOS runtime.
  */
 export function SupportedAgents() {
   return (
     <SectionFrame background="canvas" padY="md" className="border-b border-line">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         <div className="max-w-[40ch]">
-          <Eyebrow className="text-accent">Your CLI on the network</Eyebrow>
+          <Eyebrow className="text-accent">Bring the agents you use</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
-            CompozyOS runs the CLIs you already use as durable sessions and joins them to the
-            workplace as peers. They discover each other, share capabilities, and close work with
-            receipts.
+            CompozyOS launches built-in CLI and provider integrations as durable sessions. Local is
+            the default; choose Live when a session should discover peers, share capabilities, and
+            coordinate through Compozy Network.
           </p>
           <Link
             href="/runtime/core/agents/providers"
@@ -152,7 +151,7 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
       <UIProvider>
         <TooltipProvider delay={120}>
           <ul
-            aria-label="Supported agent CLIs"
+            aria-label="Built-in provider integrations"
             className="grid w-full gap-1.5"
             style={{ gridTemplateColumns: `repeat(${QUILT_COLS}, minmax(0, 1fr))` }}
           >

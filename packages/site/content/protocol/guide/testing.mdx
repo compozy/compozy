@@ -1,6 +1,6 @@
 ---
 title: Testing Your Implementation
-description: Test Compozy Network envelopes, lifecycle, trust, and your implementation-owned carrier with repeatable evidence.
+description: Test Compozy Network v0 envelopes, lifecycle, your implementation-owned carrier, and the optional v1 trust profile only when you claim it.
 icon: Activity
 ---
 
@@ -54,7 +54,7 @@ func TestCoreSenderFixture(t *testing.T) {
 Add a carrier integration test only after fixtures pass. A carrier acknowledgement proves carrier
 handling; it does not prove protocol acceptance, trust, or completed work.
 
-## Compozy Runtime evidence
+## CompozyOS reference evidence
 
 Inside the Compozy repository, scoped package tests exercise the reference implementation:
 
@@ -63,7 +63,8 @@ go test -race ./internal/network/...
 ```
 
 Those tests are not a standalone third-party conformance runner. Publish your implementation
-version, claimed role, fixture revision, carrier test commands, passed groups, and known gaps.
+version, claimed role, test-corpus revision, carrier test commands, covered groups, and known gaps.
 
-Use the deterministic [Ed25519 example](/protocol/ed25519-jcs/#worked-example) only when claiming
-Trust. A Core claim does not require the trust profile.
+When claiming Trust, create and publish your own versioned vectors using the
+[Ed25519 + JCS requirements](/protocol/ed25519-jcs/#producing-conformance-vectors). CompozyOS does not
+currently ship trust vectors or a trust runner. A Core claim does not require the optional profile.

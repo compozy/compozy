@@ -12,17 +12,16 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## 1. Command map
 
-Install the v0.3 beta through one of the beta paths. Replace `beta.N` with the published prerelease
-number when using the versioned Go command. Homebrew still serves v0.2 during the beta window and is
-therefore not an upgrade path.
+Install v0.3.0-beta.2 through one of the beta paths. Homebrew still serves v0.2 during the beta
+window and is therefore not an upgrade path.
 
 ```bash
 npm install -g @compozy/cli@beta
 
 curl -fsSL https://compozy.com/install.sh | \
-  sh -s -- --version v0.3.0-beta.N
+  sh -s -- --version v0.3.0-beta.2
 
-go install github.com/compozy/compozy@v0.3.0-beta.N
+go install github.com/compozy/compozy@v0.3.0-beta.2
 ```
 
 Workspace-scoped v0.3 commands infer the active workspace in this order: positional workspace ref,
@@ -32,29 +31,29 @@ override that context.
 
 The primary delivery mappings are:
 
-| v0.2.15                                                                             | v0.3 beta                                                                         | Notes                                                                                                                                    |
-| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy tasks run demo`                                                            | `compozy loop run --name software-delivery --input slug=demo`                     | Run from the project tree. Uses the bundled delivery Loop and the existing `.compozy/tasks/demo/` tree.                                  |
-| `--task-runtime type=frontend,ide=codex,model=gpt-5.5-codex,reasoning-effort=xhigh` | `--runtime type=frontend:codex/gpt-5.5-codex@xhigh`                               | `--runtime` is repeatable. It also accepts `worker=`, `judge=`, `id=`, and `complexity=` selectors.                                      |
-| `--dry-run`                                                                         | `--dry-run`                                                                       | The v0.3 plan reports effective input values and origins and creates no run.                                                             |
-| `--auto-commit`                                                                     | `--input auto_commit=true`                                                        | Supported by both bundled dev-cycle Loops. Neither Loop pushes.                                                                          |
-| `compozy reviews fix <task>`                                                        | `compozy loop run --name review-and-fix --input task_name=<task>`                 | Run from the project tree. A Compozy reviewer agent authors a new round before fixers run; provider-fetched rounds are not imported.     |
-| `compozy reviews watch <task> --pr <N>`                                             | Same `review-and-fix` command above                                               | Semantic change: there is no PR polling, CodeRabbit fetch, thread resolution, or push tail. `--pr` and `--provider` have no replacement. |
-| `compozy exec "prompt"`                                                             | `compozy session new --agent <name>`, then `compozy session prompt <id> "prompt"` | Run from the project tree. v0.3 makes the durable session explicit; use `events`, `status`, `wait`, `stop`, and `resume` for control.    |
-| `compozy agents list` / `agents inspect <name>`                                     | `compozy agent list` / `compozy agent info <name>`                                | v0.3 agent definitions are daemon-managed resources, not setup assets.                                                                   |
-| `compozy mcp-serve`                                                                 | `compozy mcp serve`                                                               | Run from the project tree. The relay binds the inferred workspace; `--workspace` overrides it.                                           |
-| `compozy workspaces list/show/register/unregister`                                  | `compozy workspace list/info/add/remove`                                          | Use IDs or explicit roots returned by the daemon. The old `resolve` verb has no direct command replacement.                              |
-| `compozy daemon start`                                                              | `compozy install`, then `compozy status`                                          | `install` bootstraps the supervised runtime. Use `daemon relaunch` for an installed daemon.                                              |
-| `compozy daemon status/stop`                                                        | `compozy status` / `compozy daemon stop`                                          | Structured output is available with `-o json`.                                                                                           |
-| `compozy upgrade`                                                                   | `compozy update`                                                                  | A beta build tracks newer v0.3 beta releases, never the v0.2 stable line.                                                                |
-| `compozy ext list/install/enable/disable/doctor`                                    | `compozy extension list/install/enable/disable/status` plus `compozy doctor`      | Extension manifests and SDK contracts are API-incompatible; reinstall or port extensions instead of reusing old directories.             |
-| `compozy runs watch <id>`                                                           | `compozy loop status --run-id <id>` or the printed `/loop-runs/<id>` URL          | Run from the project tree. Legacy run IDs do not exist in the new database; for sessions use `status`, `events`, and `wait`.             |
-| `compozy runs attach <id>`                                                          | No TUI replacement                                                                | Use structured status/events and the web run page.                                                                                       |
-| `compozy runs purge`                                                                | No bulk compatibility verb                                                        | Start with clean v0.3 runtime state. Remove individual session history with `session remove` when appropriate.                           |
-| `compozy sync`                                                                      | No replacement required                                                           | Loop task import and daemon resource registration happen through their owning runtime surfaces.                                          |
-| `compozy archive`                                                                   | No replacement                                                                    | Move completed task folders manually only after preserving the evidence your repository requires.                                        |
-| `compozy tasks validate`                                                            | Removed; no `loop validate` replacement                                           | `loop validate` validates a Loop definition, not legacy task files. Do not substitute it in scripts or bundled process guidance.         |
-| `compozy migrate`                                                                   | Run the v0.2 command before upgrading, only for XML-era task/review artifacts     | This is the old XML-to-frontmatter converter. It is not `compozy migrate config`.                                                        |
+| v0.2.15                                                                             | v0.3 beta                                                                         | Notes                                                                                                                                                         |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy tasks run demo`                                                            | `compozy loop run --name software-delivery --input slug=demo`                     | Run from the project tree. Uses the bundled delivery Loop and the existing `.compozy/tasks/demo/` tree.                                                       |
+| `--task-runtime type=frontend,ide=codex,model=gpt-5.5-codex,reasoning-effort=xhigh` | `--runtime type=frontend:codex/gpt-5.5-codex@xhigh`                               | `--runtime` is repeatable. It also accepts `worker=`, `judge=`, `id=`, and `complexity=` selectors.                                                           |
+| `--dry-run`                                                                         | `--dry-run`                                                                       | The v0.3 plan reports effective input values and origins and creates no run.                                                                                  |
+| `--auto-commit`                                                                     | `--input auto_commit=true`                                                        | Supported by both bundled dev-cycle Loops. Neither Loop pushes.                                                                                               |
+| `compozy reviews fix <task>`                                                        | `compozy loop run --name review-and-fix --input task_name=<task>`                 | Run from the project tree. A Compozy reviewer agent authors a new round before fixers run; provider-fetched rounds are not imported.                          |
+| `compozy reviews watch <task> --pr <N>`                                             | Same `review-and-fix` command above                                               | Semantic change: there is no PR polling, CodeRabbit fetch, thread resolution, or push tail. `--pr` and `--provider` have no replacement.                      |
+| `compozy exec "prompt"`                                                             | `compozy session new --agent <name>`, then `compozy session prompt <id> "prompt"` | Run from the project tree. v0.3 makes the durable session explicit. Use `resume` only to attach another client while the session is live; `stop` is terminal. |
+| `compozy agents list` / `agents inspect <name>`                                     | `compozy agent list` / `compozy agent info <name>`                                | v0.3 agent definitions are daemon-managed resources, not setup assets.                                                                                        |
+| `compozy mcp-serve`                                                                 | `compozy mcp serve`                                                               | Run from the project tree. The relay binds the inferred workspace; `--workspace` overrides it.                                                                |
+| `compozy workspaces list/show/register/unregister`                                  | `compozy workspace list/info/add/remove`                                          | Use IDs or explicit roots returned by the daemon. The old `resolve` verb has no direct command replacement.                                                   |
+| `compozy daemon start`                                                              | `compozy install` once, then `compozy daemon start`                               | `install` bootstraps config and the default agent; it does not start the daemon. Use `compozy status` after startup.                                          |
+| `compozy daemon status/stop`                                                        | `compozy status` / `compozy daemon stop`                                          | Structured output is available with `-o json`.                                                                                                                |
+| `compozy upgrade`                                                                   | `compozy update`                                                                  | A beta build tracks newer v0.3 beta releases, never the v0.2 stable line.                                                                                     |
+| `compozy ext list/install/enable/disable/doctor`                                    | `compozy extension list/install/enable/disable/status` plus `compozy doctor`      | Extension manifests and SDK contracts are API-incompatible; reinstall or port extensions instead of reusing old directories.                                  |
+| `compozy runs watch <id>`                                                           | `compozy loop status --run-id <id>` or the printed `/loop-runs/<id>` URL          | Run from the project tree. Legacy run IDs do not exist in the new database; for sessions use `status`, `events`, and `wait`.                                  |
+| `compozy runs attach <id>`                                                          | No TUI replacement                                                                | Use structured status/events and the web run page.                                                                                                            |
+| `compozy runs purge`                                                                | No bulk compatibility verb                                                        | Start with clean v0.3 runtime state. Remove individual session history with `session remove` when appropriate.                                                |
+| `compozy sync`                                                                      | No replacement required                                                           | Loop task import and daemon resource registration happen through their owning runtime surfaces.                                                               |
+| `compozy archive`                                                                   | No replacement                                                                    | Move completed task folders manually only after preserving the evidence your repository requires.                                                             |
+| `compozy tasks validate`                                                            | Removed; no `loop validate` replacement                                           | `loop validate` validates a Loop definition, not legacy task files. Do not substitute it in scripts or bundled process guidance.                              |
+| `compozy migrate`                                                                   | Run the v0.2 command before upgrading, only for XML-era task/review artifacts     | This is the old XML-to-frontmatter converter. It is not `compozy migrate config`.                                                                             |
 
 The complete v0.2 flag-family disposition is:
 
@@ -81,7 +80,7 @@ The complete v0.2 flag-family disposition is:
 
 ## 2. Configuration translation contract
 
-The live config migrator is deferred, so this is both the manual mapping and the future Task 14
+No live config migrator ships in the current v0.3 beta. This section is the manual translation
 contract. Apply global and workspace changes separately. v0.3 precedence is per-run value, then
 workspace `[loops.inputs.<loop>]`, then global input default, then the Loop definition default.
 Explicit `false`, `0`, and valid empty strings remain present values.
@@ -141,12 +140,10 @@ the named Loop only during dry-run or submission, because Loops can enroll dynam
 
 ## 3. Config migrator status
 
-`compozy migrate config` does **not** ship in this task or in the current v0.3 beta. Backup,
-idempotent rewrite, legacy-state first-boot probing, and the executable translation report are
-deferred to Task 14. Do not run that command, build automation around it, or assume the daemon will
-read v0.2 config as a fallback.
+`compozy migrate config` does **not** ship in the current v0.3 beta. Do not run that command, build
+automation around it, or assume the daemon will read v0.2 config as a fallback.
 
-Until Task 14 ships:
+For v0.3 beta:
 
 1. Back up `~/.compozy/` and each `<workspace>/.compozy/` directory.
 2. Translate the config manually with the table above into a fresh v0.3 config.
@@ -158,8 +155,8 @@ Until Task 14 ships:
 
 The old v0.2 `compozy migrate` command is unrelated. It converts XML-tagged task and review
 artifacts into frontmatter. If your task tree still contains `<task_context>` or `<review_context>`,
-run the v0.2.15 converter **before** replacing the CLI. The future `migrate config` command is not a
-replacement for that artifact conversion.
+run the v0.2.15 converter **before** replacing the CLI. No v0.3 config command replaces that artifact
+conversion.
 
 <a id="skills"></a>
 
@@ -216,7 +213,7 @@ loader, or hidden fallback ships in v0.3.
 | Reusable-agent `setup` assets                                                                  | Removed                             | Re-author runtime agent definitions through `compozy agent`; do not copy legacy setup state.             |
 | `compozy ext` command and old manifest API                                                     | Replaced incompatibly               | Port to the v0.3 manifest/SDK and manage with `compozy extension`.                                       |
 | `compozy migrate` XML converter                                                                | Legacy-only                         | Run v0.2.15 before upgrading when XML-era artifacts exist.                                               |
-| `compozy migrate config`                                                                       | Deferred to Task 14                 | Use the manual matrix and clean-state procedure in this guide.                                           |
+| `compozy migrate config`                                                                       | Not available in v0.3 beta          | Use the manual matrix and clean-state procedure in this guide.                                           |
 | `sync` / `archive`                                                                             | Removed                             | Runtime owners ingest their own resources; archive task folders manually when safe.                      |
 | `runs watch` / `runs purge`                                                                    | Removed                             | Use Loop/session-specific lifecycle surfaces; legacy run history restarts cleanly.                       |
 | `exec` ad-hoc runner                                                                           | Replaced by explicit sessions       | Use `session new` plus `session prompt` and lifecycle commands.                                          |

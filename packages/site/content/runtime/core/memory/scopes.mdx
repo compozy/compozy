@@ -1,5 +1,5 @@
 ---
-title: Memory Scopes
+title: Memory scopes
 description: How Compozy resolves the three memory scopes — global, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
 ---
 
@@ -22,7 +22,7 @@ Shadowed entries are never silently merged. The packaged recall block lists scop
 **least-specific first** so agents see global context, then workspace, then agent baseline, then
 agent-workspace overrides.
 
-## File Locations
+## File locations
 
 | Scope                 | Default location                              | Notes                                                                    |
 | --------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
@@ -62,7 +62,7 @@ Typical layout:
 workspace directory. Memory keying never uses `workspace_root` paths. See
 [Workspace Resolver](/runtime/core/workspaces/resolver).
 
-## Choosing A Scope
+## Choosing a scope
 
 | Question                                                           | Likely scope          |
 | ------------------------------------------------------------------ | --------------------- |
@@ -81,7 +81,7 @@ Examples:
 | "Reviewer keeps blocking findings first and cites file:line."          | `feedback` | `agent`     | `global`    |
 | "In this repo, reviewer must call out release-risk on bridge changes." | `feedback` | `agent`     | `workspace` |
 
-## Default Write Posture
+## Default write posture
 
 The default write posture is conservative.
 
@@ -91,8 +91,19 @@ The default write posture is conservative.
   must be explicit and requires `--agent <name>` plus a validated `--agent-tier {workspace,
 global}`. The agent tier defaults to `workspace` when omitted.
 - **Cross-workspace promotion.** Agent-global writes are explicit. Operators run
-  `compozy memory promote --to agent-global <filename>` (or use the controller-backed equivalent over
-  HTTP/UDS) when a workspace-tier entry should travel with the agent.
+  `compozy memory promote <filename> --from <scope[:tier]> --to agent:global --agent <name>`
+  (or use the controller-backed equivalent over HTTP/UDS) when an entry should travel with a
+  specific agent across workspaces.
+
+For example, promote one reviewer entry from the workspace tier to the global agent tier:
+
+```bash
+compozy memory promote feedback_repo-reviewer-rules.md \
+  --from agent:workspace \
+  --to agent:global \
+  --agent reviewer \
+  --workspace checkout-api
+```
 
 ```bash
 compozy memory write \
@@ -127,7 +138,7 @@ Sessions without an active workspace cannot write `--scope workspace` or `--scop
 --agent-tier workspace`. The controller rejects those calls with `memory.scope.workspace_required`
 instead of silently routing them to `global`.
 
-## Show, Edit, And Delete Resolution
+## Show, edit, and delete resolution
 
 `show`, `edit`, and `delete` commands accept an explicit selector or resolve a filename within the
 current snapshot when it is unambiguous.
@@ -147,7 +158,7 @@ compozy memory delete project_docs-package.md --scope workspace
 compozy memory show user_pedro-style.md --scope agent --agent reviewer --agent-tier global
 ```
 
-## API Selectors
+## API selectors
 
 HTTP and UDS routes use the same selector shape (`scope`, `workspace_id`, `agent_name`,
 `agent_tier`) and the same controller path:
@@ -182,7 +193,7 @@ curl -X POST http://localhost:2123/api/memory \
 Public selectors use `workspace_id` and `agent_name`. There is no path-style `workspace` field on
 the wire and no `PUT /api/memory/{filename}` route.
 
-## Shadow-By-Id
+## Shadow-by-ID
 
 Shadowing is structural, not heuristic:
 
@@ -193,7 +204,7 @@ Shadowing is structural, not heuristic:
 
 Shadow events are observable through `compozy memory decisions list` and the events feed.
 
-## Related Pages
+## Related pages
 
 - [Memory System](/runtime/core/memory/system) explains the controller WAL, frozen snapshot, and control surfaces.
 - [Dream](/runtime/core/memory/dream) explains gated dreaming runs and signal-based promotion.

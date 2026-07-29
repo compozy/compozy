@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -17,6 +17,17 @@ function readProtocolJSON<T>(...parts: string[]): T {
 
 function runtimePageExists(...parts: string[]): boolean {
   return existsSync(resolve(runtimeRoot, ...parts));
+}
+
+function generatedCLITopLevelPages(): string[] {
+  return readdirSync(resolve(runtimeRoot, "cli-reference"), { withFileTypes: true })
+    .filter(
+      entry =>
+        entry.isDirectory() ||
+        (entry.isFile() && entry.name.endsWith(".mdx") && entry.name !== "index.mdx")
+    )
+    .map(entry => (entry.isDirectory() ? entry.name : entry.name.slice(0, -".mdx".length)))
+    .sort();
 }
 
 function protocolPageExists(...parts: string[]): boolean {
@@ -118,6 +129,13 @@ describe("runtime docs discovery", () => {
     expect(dreamMeta.pages).not.toContain("consolidate");
     expect(runtimePageExists("cli-reference", "memory", "dream", "trigger.mdx")).toBe(true);
     expect(runtimePageExists("cli-reference", "memory", "dream", "consolidate.mdx")).toBe(false);
+  });
+
+  it("keeps every generated top-level CLI command discoverable from authored navigation", () => {
+    const cliMeta = readRuntimeJSON<{ pages: string[] }>("cli-reference/meta.json");
+    const navigablePages = cliMeta.pages.filter(page => !page.startsWith("---"));
+
+    expect(navigablePages.sort()).toEqual(["index", ...generatedCLITopLevelPages()].sort());
   });
 
   it("exposes the memory tag in the generated api-reference meta", () => {

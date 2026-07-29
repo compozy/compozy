@@ -1,490 +1,81 @@
 ---
 title: CLI Reference
-description: Command tree, global options, configuration inputs, and common Compozy CLI workflows.
+description: Generated command reference and cross-cutting behavior for the Compozy CLI.
 ---
 
-The `compozy` CLI is the control surface for the local Compozy daemon. Use it to bootstrap the home
-directory, start the daemon, create durable sessions, inspect workspaces, manage skills and
-extensions, and query runtime state over the daemon socket.
+The `compozy` CLI is the operator and agent control surface for the local Compozy daemon. Its
+command pages are generated from the same Cobra tree that powers the executable.
 
 <OperatorNote>
-  The command pages in this section are generated from the Cobra command tree by `make cli-docs`.
-  This overview is hand-authored and is preserved when the generated reference is refreshed.
+  Run `make cli-docs` after changing a command, flag, example, or help string. `make cli-docs-check`
+  and the repository codegen gate reject drift.
 </OperatorNote>
 
-<Mermaid
-  chart={`flowchart TD
-  compozy[compozy]
-  runtime[Runtime process]
-  work[Durable work]
-  config[Project context]
-  capabilities[Capabilities]
-  observability[Observability]
-  system[System setup]
+## Generated Command Reference
 
-compozy --> runtime
-runtime --> daemon[daemon]
-runtime --> status[status]
-runtime --> doctor[doctor]
-runtime --> network[network]
-runtime --> bridge[bridge]
-runtime --> mcp[mcp]
-runtime --> vault[vault]
+[Open the complete generated command tree](/runtime/cli-reference/compozy) to browse every current
+top-level command and its subcommands. Each page includes live synopsis, examples, local options,
+inherited options, and links to related commands.
 
-compozy --> work
-work --> session[session]
-work --> task[task]
-work --> automation[automation]
-
-compozy --> config
-config --> workspace[workspace]
-config --> agent[agent]
-
-compozy --> capabilities
-capabilities --> marketplace[marketplace]
-capabilities --> skill[skill]
-capabilities --> extension[extension]
-capabilities --> hooks[hooks]
-capabilities --> memory[memory]
-
-compozy --> observability
-observability --> observe[observe]
-
-compozy --> system
-system --> install[install]
-system --> completion[completion]
-system --> whoami[whoami]
-system --> version[version]`}
-caption="The CLI groups commands by the runtime surface they operate: daemon process, durable work, project context, capabilities, observability, and local setup."
-/>
-
-## Command Groups
-
-<RouteList>
-  <RouteRow
-    href="/runtime/cli-reference/agent"
-    label="Agents"
-    title="Inspect resolved agent definitions"
-    description="Use this group to list available agents and inspect one resolved definition by name."
-    meta="Discovery"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/session"
-    label="Sessions"
-    title="Create, resume, prompt, wait on, and inspect sessions"
-    description="Use this group for durable agent work: `new`, `list`, `resume`, `events`, `history`, `status`, `prompt`, `wait`, and `stop`."
-    meta="Core workflow"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/task"
-    label="Tasks"
-    title="Create tasks and operate task runs"
-    description="Use this group for queued work, dependencies, child tasks, approvals, and run lifecycle."
-    meta="Durable work"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/workspace"
-    label="Workspaces"
-    title="Register workspace roots and defaults"
-    description="Use this group to add, list, inspect, edit, or remove workspace registrations."
-    meta="Project scope"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/daemon"
-    label="Daemon"
-    title="Start and stop the background runtime"
-    description="Use this group for daemon lifecycle. Use `compozy status` and `compozy doctor` for runtime inspection."
-    meta="Runtime process"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/status"
-    label="Status"
-    title="Read consolidated runtime state"
-    description="Use this command for daemon, session, provider, MCP, task, bridge, config, and log-tail status over the shared public contract."
-    meta="Runtime process"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/doctor"
-    label="Doctor"
-    title="Run runtime diagnostics"
-    description="Use this command for DiagnosticItem-backed health checks that match the HTTP and UDS doctor payload."
-    meta="Diagnostics"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/mcp"
-    label="MCP"
-    title="Install, authorize, and inspect MCP integrations"
-    description="Use this group for curated install, remote MCP OAuth completion, redacted auth status, refresh diagnostics, and logout."
-    meta="Runtime integrations"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/automation"
-    label="Automation"
-    title="Manage jobs, triggers, and runs"
-    description="Use this group for scheduled work, event-triggered work, and run history."
-    meta="Queued work"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/hooks"
-    label="Hooks"
-    title="Inspect hook catalog, events, and run history"
-    description="Use this group when you need to understand what lifecycle hooks exist and how they executed."
-    meta="Policy"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/bridge"
-    label="Bridges"
-    title="Manage platform bridge instances"
-    description="Use this group for bridge instance creation, routing, lifecycle, and delivery tests."
-    meta="External channels"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/vault"
-    label="Vault"
-    title="Manage encrypted daemon Vault metadata"
-    description="Use this group to list redacted metadata, write values from stdin, inspect one ref, and delete refs."
-    meta="Secrets"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/marketplace"
-    label="Marketplace"
-    title="Discover installable capabilities"
-    description="Use this group to search MCP servers, extensions, skills, and bundles, inspect stable catalog entries, and refresh feed-backed kinds."
-    meta="Capability discovery"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/skill"
-    label="Skills"
-    title="Create, inspect, install, update, and remove skills"
-    description="Use this group for local AgentSkills and marketplace-installed skill directories."
-    meta="Agent capability"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/memory"
-    label="Memory"
-    title="Show, write, search, and operate Memory v2"
-    description="Use this group for scoped durable memory, controller decisions, recall, and dream triggers."
-    meta="Durable context"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/extension"
-    label="Extensions"
-    title="Install, enable, disable, update, and inspect extensions"
-    description="Use this group for the extension marketplace and installed extension state."
-    meta="Runtime plugins"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/tool"
-    label="Tools"
-    title="Inspect and invoke registry tools"
-    description="Use this group to list, search, info, and invoke tools through the operator projection. Agents call the same tools through the registry directly."
-    meta="Tool registry"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/toolsets"
-    label="Toolsets"
-    title="Inspect registry toolsets"
-    description="Use this group to list and expand named toolsets such as compozy__bootstrap, compozy__catalog, and compozy__autonomy."
-    meta="Tool registry"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/network"
-    label="Network"
-    title="Inspect peers, channels, inboxes, and send envelopes"
-    description="Use this group when a session participates in Compozy Network coordination."
-    meta="Coordination"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/observe"
-    label="Observe"
-    title="Query global observability streams"
-    description="Use this group for global event history and observability views. Runtime health moved to `compozy status` and `compozy doctor`."
-    meta="Observability"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/completion"
-    label="Completion"
-    title="Generate shell completion scripts"
-    description="Use this group to install Bash, Zsh, Fish, or PowerShell completion for `compozy`."
-    meta="Shell setup"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/install"
-    label="Bootstrap"
-    title="Initialize ~/.compozy and the default general agent"
-    description="Use this command when you are setting up Compozy on one machine for the first time."
-    meta="First run"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/whoami"
-    label="Identity"
-    title="Inspect the agent identity exported into the current environment"
-    description="Use this command inside managed sessions or automation when you need the current Compozy identity envelope."
-    meta="Environment"
-  />
-  <RouteRow
-    href="/runtime/cli-reference/version"
-    label="Version"
-    title="Inspect the installed Compozy build"
-    description="Use this command to confirm the binary version before debugging or filing issues."
-    meta="Build info"
-  />
-</RouteList>
+This overview documents only behavior shared across command groups so it does not duplicate the
+generated tree.
 
 ## Global Options
 
-The current CLI has one persistent flag inherited by every user-facing command.
+Every user-facing command inherits these root options:
 
-| Flag                  | Default | Values                  | Behavior                                                                                       |
-| --------------------- | ------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `-o, --output string` | `human` | `human`, `json`, `toon` | Selects output rendering. Use `json` for scripts and `toon` for compact agent-readable output. |
-| `-h, --help`          | n/a     | n/a                     | Added by Cobra for every command. Prints command usage and exits.                              |
+| Option                | Default | Behavior                                                                                |
+| --------------------- | ------- | --------------------------------------------------------------------------------------- |
+| `-o, --output <mode>` | `human` | Select `human`, `json`, `jsonl`, or `toon` output.                                      |
+| `--json`              | off     | Emit JSON as a shorthand for `--output json`.                                           |
+| `-h, --help`          | n/a     | Print help for the current command. Cobra adds this option to each user-facing command. |
 
-There is no global `--config`, `--log-level`, or `--socket` flag today. These settings come from
-the Compozy home directory and `config.toml`.
-
-| Input                                        | Default                                       | Effect                                                                                                                                                           |
-| -------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `COMPOZY_HOME`                               | `~/.compozy`                                  | Overrides the global Compozy home directory. This changes the default config path, socket path, log path, session store, skill store, and memory store together. |
-| `~/.compozy/config.toml`                     | created by `compozy install`                  | Global configuration loaded by the daemon and most CLI commands before they contact the socket.                                                                  |
-| `[daemon].socket`                            | `$COMPOZY_HOME/daemon.sock`                   | Overrides the Unix domain socket path used by daemon clients. Empty values fall back to the Compozy home socket.                                                 |
-| `[log].level`                                | `info`                                        | Controls daemon structured logging. Accepted values are `debug`, `info`, `warn`, and `error`.                                                                    |
-| `[http].host`, `[http].port`                 | `localhost`, `2123`                           | Controls the daemon HTTP/SSE bind address exposed behind the runtime.                                                                                            |
-| `COMPOZY_SESSION_ID`                         | injected into managed agent sessions          | Identifies the current Compozy session for agent-side CLI calls and `compozy whoami`.                                                                            |
-| `COMPOZY_SESSION_CHANNEL`, `COMPOZY_PEER_ID` | injected only for executions resolved as Live | Identify the immutable participation channel and daemon-owned peer identity for agent-side `compozy network` calls.                                              |
-| `COMPOZY_AGENT`, `COMPOZY_AGENT_NAME`        | caller-provided when present                  | Read by `compozy whoami`; current session launch code does not synthesize these values.                                                                          |
-
-Example: run a separate Compozy home for a demo without touching your normal daemon.
+Use `json` for one machine-readable result, `jsonl` for commands that stream one JSON record per
+line, and `toon` for compact agent-readable output. The generated page for each command states
+which modes are meaningful for that command.
 
 ```bash
-COMPOZY_HOME="$PWD/.compozy-demo" compozy install
-COMPOZY_HOME="$PWD/.compozy-demo" compozy daemon start
-COMPOZY_HOME="$PWD/.compozy-demo" compozy status --output json
+compozy status --output json
+compozy session wait sess_123 --output jsonl
+compozy task list --output toon
 ```
 
-Example: set the daemon socket and log level in `~/.compozy/config.toml`.
+## Workspace Inference and Overrides
 
-```toml
-[daemon]
-socket = "~/.compozy/custom-daemon.sock"
+Workspace-aware commands accept a workspace ID, registered name, or path. When a command requires
+workspace context, the shared resolver selects the first available source in this order:
 
-[log]
-level = "debug"
-```
+1. A positional workspace reference, when that command defines one.
+2. The command-level `--workspace <id|name|path>` override.
+3. `COMPOZY_WORKSPACE`.
+4. The workspace bound to the current managed session identity.
+5. The registered workspace discovered from the current working directory.
 
-## Common Workflows
-
-### Start Daemon and Create a Session
-
-Use this sequence after `compozy install` has created a global config and a default `general` agent.
+`--workspace` is not a global flag; it appears only on commands that support an explicit workspace
+override. An explicit but empty override is an error, and an explicit reference that cannot be
+resolved does not fall through to another source.
 
 ```bash
-compozy daemon start
-compozy workspace add "$PWD" --name current
-compozy session new --workspace current --agent general --name first-run
+# Infer the registered workspace from the current directory.
+compozy session new --agent general
+
+# Override inference with a registered name.
+compozy agent list --workspace checkout-api --output json
+
+# Set workspace context for commands in one shell invocation.
+COMPOZY_WORKSPACE="$PWD" compozy task list --output json
 ```
 
-Then inspect the session and follow its event stream.
+Inside a managed agent session, the session identity fences workspace access. A positional
+reference, `--workspace`, or `COMPOZY_WORKSPACE` that resolves to another workspace is rejected
+instead of bypassing that boundary.
+
+If current-directory inference cannot find a registered workspace, register the project and retry:
 
 ```bash
-compozy session list
-compozy session events sess_1234 --follow
+compozy workspace add "$PWD" --name checkout-api
+compozy session new --agent general
 ```
 
-The daemon start command waits until the socket responds. If a daemon is already running, it returns
-an error instead of starting a second process.
-
-### Attach to a Session
-
-Live sessions expose an explicit attach path. List eligible sessions with `--resumable`, attach by
-ID, and use recap when you need a deterministic read-only reconstruction.
-
-```bash
-compozy session list --resumable
-compozy session resume sess_1234
-compozy session recap sess_1234
-compozy session status sess_1234
-```
-
-`compozy session resume` attaches to an eligible live session. It does not start a new provider
-subprocess or rewrite transcript history. Terminal sessions stay available through
-`compozy session recap`, `compozy session events`, and `compozy session history`.
-
-### Manage Workspaces
-
-Register a workspace when you want stable names, additional directories, or a workspace default
-agent.
-
-```bash
-compozy workspace add "$PWD" --name checkout-api --default-agent reviewer
-compozy workspace list
-compozy workspace info checkout-api
-```
-
-Edit the registration when the project moves or its default agent changes.
-
-```bash
-compozy workspace edit checkout-api --name checkout
-compozy workspace edit checkout --default-agent ""
-compozy workspace remove checkout
-```
-
-`compozy session new --workspace <name-or-id>` uses a registered workspace. `compozy session new --cwd <absolute-path>` asks the daemon to use an absolute path directly and auto-register it when needed.
-
-## Shell Completion
-
-Cobra generates completion scripts from the same command tree used for the reference pages.
-
-| Shell      | Setup                                                                           |
-| ---------- | ------------------------------------------------------------------------------- |
-| Bash       | `compozy completion bash > "$(brew --prefix)/etc/bash_completion.d/compozy"`    |
-| Zsh        | `compozy completion zsh > "$(brew --prefix)/share/zsh/site-functions/_compozy"` |
-| Fish       | `compozy completion fish > ~/.config/fish/completions/compozy.fish`             |
-| PowerShell | `compozy completion powershell > compozy.ps1`                                   |
-
-See the generated completion pages for shell-specific notes:
-
-- [Bash completion](/runtime/cli-reference/completion/bash)
-- [Zsh completion](/runtime/cli-reference/completion/zsh)
-- [Fish completion](/runtime/cli-reference/completion/fish)
-- [PowerShell completion](/runtime/cli-reference/completion/powershell)
-
-## Full Command Tree
-
-```text
-compozy
-|-- agent
-|   |-- info <name>
-|   `-- list
-|-- automation
-|   |-- jobs
-|   |   |-- create
-|   |   |-- delete <id>
-|   |   |-- get <id>
-|   |   |-- history <id>
-|   |   |-- trigger <id>
-|   |   `-- update <id>
-|   |-- runs
-|   |   `-- get <id>
-|   `-- triggers
-|       |-- create
-|       |-- delete <id>
-|       |-- get <id>
-|       |-- history <id>
-|       `-- update <id>
-|-- bridge
-|   |-- create
-|   |-- disable <id>
-|   |-- enable <id>
-|   |-- get <id>
-|   |-- list
-|   |-- restart <id>
-|   |-- routes <id>
-|   |-- test-delivery <id>
-|   `-- update <id>
-|-- completion
-|   |-- bash
-|   |-- fish
-|   |-- powershell
-|   `-- zsh
-|-- daemon
-|   |-- start
-|   |-- status
-|   `-- stop
-|-- extension
-|   |-- disable <name>
-|   |-- enable <name>
-|   |-- install <path-or-slug>
-|   |-- list
-|   |-- remove <name>
-|   |-- search <query>
-|   |-- status <name>
-|   `-- update [name]
-|-- hooks
-|   |-- events
-|   |-- info <name>
-|   |-- list
-|   `-- runs
-|-- install
-|-- memory
-|   |-- consolidate
-|   |-- delete <filename>
-|   |-- list
-|   |-- read <filename>
-|   `-- write <filename>
-|-- network
-|   |-- channels
-|   |-- inbox
-|   |-- peers [channel]
-|   |-- send
-|   `-- status
-|-- observe
-|   |-- events
-|   `-- health
-|-- session
-|   |-- events <id>
-|   |-- history <id>
-|   |-- list
-|   |-- new
-|   |-- prompt <id> <message>
-|   |-- resume <id>
-|   |-- status <id>
-|   |-- stop <id>
-|   `-- wait <id>
-|-- skill
-|   |-- create [name]
-|   |-- info <name>
-|   |-- install <slug>
-|   |-- list
-|   |-- remove <name>
-|   |-- search <query>
-|   |-- update [name]
-|   `-- view <name>
-|-- task
-|   |-- approve <id>
-|   |-- cancel <id>
-|   |-- child
-|   |   `-- create <parent-id>
-|   |-- complete <run-id>
-|   |-- create
-|   |-- dependency
-|   |   |-- add <task-id> --depends-on <depends-on-id>
-|   |   `-- remove <task-id> <depends-on-id>
-|   |-- fail <run-id>
-|   |-- get <id>
-|   |-- heartbeat <run-id>
-|   |-- list
-|   |-- next
-|   |-- publish <id>
-|   |-- release <run-id>
-|   |-- run
-|   |   |-- attach-session <run-id>
-|   |   |-- cancel <run-id>
-|   |   |-- claim <run-id>
-|   |   |-- complete <run-id>
-|   |   |-- enqueue <task-id>
-|   |   |-- fail <run-id>
-|   |   |-- list <task-id>
-|   |   `-- start <run-id>
-|   |-- start <id>
-|   `-- update <id>
-|-- tool
-|   |-- info <id>
-|   |-- invoke <id>
-|   |-- list
-|   `-- search
-|-- toolsets
-|   |-- info <id>
-|   `-- list
-|-- version
-|-- whoami
-`-- workspace
-    |-- add <path>
-    |-- edit <name-or-id>
-    |-- info <name-or-id>
-    |-- list
-    `-- remove <name-or-id>
-```
-
-The hidden `compozy doc` command is intentionally excluded from the user-facing tree. It exists only so
-the repository can regenerate these reference pages.
+Commands that intentionally operate globally may omit workspace context or expose only an optional
+workspace filter. Follow the generated command page for the exact inputs and fallback behavior.

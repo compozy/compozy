@@ -39,6 +39,7 @@ function postWithoutCover(): Post {
     slug: "posts/fallback-visual",
     permalink: "/blog/fallback-visual",
     cover: undefined,
+    kinds: [],
   };
 }
 
@@ -117,12 +118,16 @@ describe("blog navigation components", () => {
     );
   });
 
-  it("keeps the featured fallback visual from making live availability claims", () => {
+  it("uses current protocol kinds and beta maturity without making Live availability claims", () => {
     const post = postWithoutCover();
     const { container } = render(<FeaturedPost post={post} authorInitial="A" />);
 
     expect(screen.getByText("compozy-network/v0")).toBeDefined();
-    expect(screen.getByText("ALPHA")).toBeDefined();
+    expect(screen.getByText("BETA")).toBeDefined();
+    for (const kind of ["greet", "say", "receipt", "trace"]) {
+      expect(screen.getByText(kind)).toBeDefined();
+    }
+    expect(screen.queryByText("direct")).toBeNull();
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(post.date);
     expect(screen.queryByText("LIVE")).toBeNull();
   });

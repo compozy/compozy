@@ -25,7 +25,7 @@ journey:
   entry_points:
     - url: https://compozy.com
       origin: direct
-    - url: https://compozy.com/blog/introducing-compozy-the-first-agent-network-protocol
+    - url: https://compozy.com/blog/introducing-compozyos
       origin: external-share
   actions:
     - step: 1

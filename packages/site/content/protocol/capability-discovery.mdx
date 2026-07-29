@@ -29,6 +29,9 @@ This page is normative unless a section is marked as an example.
 The full catalog never rides inside `peer_card.ext`. It is always scoped to an explicit `whois`
 exchange or a `capability` envelope so that routine peer cards remain small.
 
+Workspace scope belongs to the outer envelope's `workspace_id`. Brief entries, rich catalog entries,
+and transferred `body.capability` documents do not contain a nested `workspace_id`.
+
 ## Brief discovery
 
 A peer with a local capability catalog MUST project it into its Peer Card in two places:
@@ -97,7 +100,6 @@ The payload shape is:
   "capabilities": [
     {
       "id": "build-site",
-      "workspace_id": "ws_alpha",
       "summary": "Build the landing page.",
       "outcome": "A finished landing page.",
       "version": "1.0.0",
@@ -126,8 +128,9 @@ Field rules for each entry:
 - When the responder has no local catalog, `compozy.capability_catalog.capabilities` MUST be `[]`.
 - When `compozy.capability_ids` filters out every capability (including when every ID is unknown),
   `compozy.capability_catalog.capabilities` MUST be `[]`.
-- Responses that would exceed the protocol envelope size limit MUST be rejected by the responder
-  before emission.
+- The CompozyOS reference implementation rejects a normalized, encoded envelope larger than 1 MiB.
+  That is a reference-runtime bound, not a protocol-wide v0 maximum. Other implementations SHOULD
+  publish and test their own envelope or carrier limits.
 
 ## Full example
 
@@ -189,7 +192,6 @@ Field rules for each entry:
       "capabilities": [
         {
           "id": "build-site",
-          "workspace_id": "ws_alpha",
           "summary": "Build the landing page.",
           "outcome": "A finished landing page.",
           "version": "1.0.0",
@@ -255,5 +257,5 @@ messages, so that newer capability metadata can travel unchanged through older r
   that transfers a full structured capability artifact.
 - [Interaction Lifecycle](/protocol/interactions) describes the directed work a caller opens after
   choosing a capability.
-- [Agent Capabilities](/runtime/core/agents/capabilities) documents how Compozy Runtime authors and
-  loads the local catalog that feeds this wire contract.
+- [Agent Capabilities](/runtime/core/agents/capabilities) documents how the CompozyOS runtime loads
+  the local catalog that feeds this wire contract.

@@ -1,5 +1,5 @@
 ---
-title: Prepare a Project Workspace
+title: Prepare a project workspace
 description: Turn an existing repository into a Compozy workspace that agents can inspect, remember, and operate through durable sessions.
 ---
 
@@ -93,13 +93,15 @@ built-in provider key, not because the workspace model depends on that provider.
     factual; do not paste a full architecture document into memory.
 
     ```bash
-    compozy memory write project-map.md \
+    compozy memory write \
       --scope workspace \
+      --workspace checkout-api \
       --type project \
+      --name "Project map" \
       --description "Where agents should start in this repository" \
       --content "Start with README.md, then inspect packages/site for docs and internal/ for runtime code."
 
-    compozy memory list --scope workspace -o json
+    compozy memory list --scope workspace --workspace checkout-api -o json
     ```
 
     What happened: Compozy wrote a workspace-scoped Markdown memory and refreshed the index so future
@@ -125,13 +127,13 @@ built-in provider key, not because the workspace model depends on that provider.
 
 ## Evidence to keep
 
-| Evidence              | Command                                                        | What it proves                                                     |
-| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Workspace resolution  | `compozy workspace info checkout-api -o json`                  | The registered root, default agent, additional roots, and sandbox. |
-| Agent visibility      | `compozy agent info reviewer --workspace checkout-api -o json` | The workspace-local `AGENT.md` parses and wins discovery.          |
-| Memory indexing       | `compozy memory list --scope workspace -o json`                | The project note is visible to workspace-scoped sessions.          |
-| Session runtime state | `compozy session status sess_1234 -o json`                     | The live session is attached to the intended workspace and agent.  |
-| Session transcript    | `compozy session history sess_1234`                            | The smoke-test answer is durable after the terminal closes.        |
+| Evidence              | Command                                                                  | What it proves                                                     |
+| --------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Workspace resolution  | `compozy workspace info checkout-api -o json`                            | The registered root, default agent, additional roots, and sandbox. |
+| Agent visibility      | `compozy agent info reviewer --workspace checkout-api -o json`           | The workspace-local `AGENT.md` parses and wins discovery.          |
+| Memory indexing       | `compozy memory list --scope workspace --workspace checkout-api -o json` | The project note is visible to workspace-scoped sessions.          |
+| Session runtime state | `compozy session status sess_1234 -o json`                               | The live session is attached to the intended workspace and agent.  |
+| Session transcript    | `compozy session history sess_1234`                                      | The smoke-test answer is durable after the terminal closes.        |
 
 ## Failure path
 

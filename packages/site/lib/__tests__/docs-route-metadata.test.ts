@@ -23,13 +23,13 @@ const mockedDocs = vi.hoisted(() => {
       slugs: [],
       url: "/runtime",
       title: "Runtime Overview",
-      description: "Understand Compozy Runtime and choose the right operator path.",
+      description: "Understand the CompozyOS runtime and choose the right operator path.",
     },
     {
       slugs: ["how-to-use-these-docs"],
       url: "/runtime/how-to-use-these-docs",
       title: "How to Use These Docs",
-      description: "Choose the right Compozy Runtime docs path for your goal.",
+      description: "Choose the right CompozyOS docs path for your goal.",
     },
   ];
   const protocolPages = [
@@ -43,7 +43,7 @@ const mockedDocs = vi.hoisted(() => {
       slugs: ["implementation-status"],
       url: "/protocol/implementation-status",
       title: "Implementation Status",
-      description: "Understand what compozy-network/v0 implements in the alpha runtime.",
+      description: "Understand the current compozy-network/v0 reference implementation.",
     },
   ];
 

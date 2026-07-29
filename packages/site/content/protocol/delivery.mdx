@@ -10,15 +10,15 @@ with application acceptance.
 
 ## Core guarantees
 
-| Topic                   | v0 behavior                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| Exactly once            | Not guaranteed.                                                               |
-| At most / at least once | Not guaranteed by the core.                                                   |
-| Durable replay          | Not guaranteed by the core.                                                   |
-| Total ordering          | Not guaranteed.                                                               |
-| Deduplication           | Receivers SHOULD deduplicate by envelope `id` inside a bounded replay window. |
-| Expiration              | Receivers MUST reject an expired envelope before side effects.                |
-| Receipts                | Receivers SHOULD emit receipts when directed acceptance matters.              |
+| Topic                   | v0 behavior                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| Exactly once            | Not guaranteed.                                                                         |
+| At most / at least once | Not guaranteed by the core.                                                             |
+| Durable replay          | Not guaranteed by the core.                                                             |
+| Total ordering          | Not guaranteed.                                                                         |
+| Deduplication           | Receivers SHOULD deduplicate by envelope `id` inside a bounded replay window.           |
+| Expiration              | Receivers MUST reject an expired envelope before side effects.                          |
+| Receipts                | Explicit protocol messages; receivers SHOULD emit one when directed acceptance matters. |
 
 ## Receiver responsibilities
 
@@ -26,27 +26,38 @@ A receiver SHOULD validate the complete envelope before routing, reject stale co
 by `id`, preserve terminal lifecycle state, ignore unknown `ext` keys, and distinguish protocol
 rejection from carrier failure. Peer Card capabilities are claims, never authorization.
 
+Receipts are conditional application messages, not automatic return values from transport or
+runtime acceptance. Likewise, `trace_id` is optional correlation metadata; receipt emission and
+delivery do not create one implicitly.
+
 ## Retry and ordering
 
 A retry of the same logical message SHOULD preserve the original `id` and correlation fields. A
 changed intent gets a new ID. Implementations MUST NOT rely on ordering across peers or channels.
 Once a `work_id` is terminal, delayed non-terminal traces cannot reopen it.
 
-## Compozy Runtime reference path
+## CompozyOS reference path
 
-Compozy Runtime uses one atomic SQLite acceptance transaction for the message, immutable recipient
-decisions, Live wake admission, admitted `network_wake` task runs, and accounting rows. It notifies
-the scheduler in process only after commit. Restart recovery uses the ordinary task-run path.
+The CompozyOS reference implementation uses one atomic SQLite acceptance transaction for the
+accepted message, immutable recipient decisions, Live wake admission, admitted `network_wake` task
+runs, and accounting rows. It notifies the scheduler in process only after commit. Restart recovery
+uses the ordinary task-run path.
 
 This provides a reference-runtime guarantee:
 
-- conversation truth commits before notification
+- the accepted conversation message and recipient decisions commit before notification
 - a crash cannot leave a published-but-unpersisted message
 - admitted work is durable without a second Network queue
 - model activation remains separate from message persistence
 
-A valid message can remain durable without starting a model turn. Compozy Runtime admits only directly
-addressed or explicitly mentioned Live recipients, subject to availability and finite bounds.
+An accepted message can remain durable without starting a model turn. The CompozyOS runtime admits
+only directly addressed or explicitly mentioned Live recipients, subject to availability and finite
+bounds. It does not synthesize a receipt or trace for every accepted message; peers send those
+envelopes explicitly when their interaction requires them.
+
+The durable guarantee applies to accepted messages. Input rejected before persistence is hash-logged
+rather than inserted as a conversation message, and a later audit-sink failure does not roll back an
+already committed message.
 
 ## Receipts
 

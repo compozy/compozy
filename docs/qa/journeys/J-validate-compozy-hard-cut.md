@@ -73,4 +73,5 @@ journey:
 
 - Safety invariants: 7, 10, 13; hard-cut delete targets from the TechSpec.
 - ADRs: ADR-005 and ADR-006, plus the wire and skill hard-cut decisions in Tasks 02–04.
-- Deferred: live config translation and first-boot legacy-state migration remain Task 14 work.
+- Not shipped in v0.3 beta: live config translation and first-boot legacy-state migration. The
+  migration guide owns the manual clean-state procedure.

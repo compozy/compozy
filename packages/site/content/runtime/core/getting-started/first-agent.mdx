@@ -1,5 +1,5 @@
 ---
-title: Your First Custom Agent
+title: Your first custom agent
 description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace.
 ---
 
@@ -76,15 +76,20 @@ compozy session prompt sess_1234 "Review the changes in this repository and tell
 Because the agent uses `approve-reads`, read operations can proceed automatically, while write or
 terminal operations still require approval.
 
-## 5. Know what this tutorial does not claim
+## 5. Understand the enforcement boundaries
 
-Two field families are easy to overread:
+This minimal definition sets only a provider and permission mode, but the other runtime fields are
+not descriptive metadata:
 
-- `permissions` is enforced by the runtime and matters immediately.
-- `tools` and `model` are useful metadata, but you should treat the full field behavior according to
-  the current reference docs, not as a separate enforcement layer introduced by this tutorial.
+- `permissions` sets the runtime approval policy.
+- `model` is selected through the provider's live ACP options before the first prompt. An
+  unadvertised model fails startup instead of silently falling back.
+- `tools` and `toolsets` narrow the callable tool registry for the agent. `deny_tools` narrows it
+  further and wins when an allow and deny overlap.
 
-That distinction is important when you start designing stricter agents.
+Read the complete [AGENT.md contract](/runtime/core/configuration/agent-md) before adding those
+fields. A stricter definition changes runtime authority and startup behavior, not only discovery
+labels.
 
 ## 6. Add more later
 
@@ -95,7 +100,7 @@ When you are ready to go beyond the minimal example:
 - use [AGENT.md](/runtime/core/configuration/agent-md) for the full field contract
 - use [mcp.json](/runtime/core/configuration/mcp-json) when you want MCP sidecars
 
-## Next Step
+## Next step
 
 Open the [Web UI](/runtime/core/getting-started/web-ui) and inspect the same runtime state in the
 browser.

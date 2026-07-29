@@ -97,6 +97,19 @@ const runtimePageTree: Root = {
     },
     {
       type: "folder",
+      $id: "migration",
+      name: "Migration",
+      children: [
+        {
+          type: "page",
+          $id: "migration/index.mdx",
+          name: "Migrate from v0.2",
+          url: "/runtime/migration",
+        },
+      ],
+    },
+    {
+      type: "folder",
       $id: "cli-reference",
       name: "CLI Reference",
       root: true,
@@ -140,7 +153,7 @@ describe("runtime navigation tree", () => {
     expect(core).toBeDefined();
     if (!core) throw new Error("expected unified core folder");
     expect(core.root).toBe(true);
-    expect(getNodeName(core)).toBe("Core Concepts");
+    expect(getNodeName(core)).toBe("CompozyOS");
 
     const ids = core.children.map(child => child.$id ?? getNodeName(child));
     expect(ids[0]).toBe("runtime-overview");
@@ -150,10 +163,16 @@ describe("runtime navigation tree", () => {
     const sectionLabels = core.children
       .filter(child => child.type === "separator")
       .map(child => getNodeName(child));
-    expect(sectionLabels).toEqual(["Foundation", "Capabilities", "Workspace", "Settings", "Learn"]);
+    expect(sectionLabels).toEqual([
+      "System foundations",
+      "Tools & automation",
+      "Workspace & isolation",
+      "Operations & settings",
+      "Guides & scenarios",
+    ]);
   });
 
-  it("Should place automation, bridges under Capabilities and operations, configuration, extensions, hooks under Settings", () => {
+  it("Should group runtime surfaces by reader intent", () => {
     const layoutTree = createRuntimeLayoutTree(runtimePageTree);
     const core = findFolder(layoutTree.children, "core");
     if (!core) throw new Error("expected unified core folder");
@@ -168,12 +187,12 @@ describe("runtime navigation tree", () => {
       if (child.$id) labelByChildId.set(child.$id, currentLabel);
     }
 
-    expect(labelByChildId.get("core/automation")).toBe("Capabilities");
-    expect(labelByChildId.get("core/bridges")).toBe("Capabilities");
-    expect(labelByChildId.get("core/operations")).toBe("Settings");
-    expect(labelByChildId.get("core/configuration")).toBe("Settings");
-    expect(labelByChildId.get("core/extensions")).toBe("Settings");
-    expect(labelByChildId.get("core/hooks")).toBe("Settings");
+    expect(labelByChildId.get("core/automation")).toBe("Tools & automation");
+    expect(labelByChildId.get("core/bridges")).toBe("Tools & automation");
+    expect(labelByChildId.get("core/operations")).toBe("Operations & settings");
+    expect(labelByChildId.get("core/configuration")).toBe("Operations & settings");
+    expect(labelByChildId.get("core/extensions")).toBe("Operations & settings");
+    expect(labelByChildId.get("core/hooks")).toBe("Operations & settings");
   });
 
   it("Should nest guides and use-cases as collapsible folders under the Learn section", () => {
@@ -198,16 +217,20 @@ describe("runtime navigation tree", () => {
     expect(useCaseUrls).toContain("/runtime/use-cases/review-a-change");
   });
 
-  it("Should drop guides and use-cases as outer-level folders while keeping cli + api refs", () => {
+  it("Should retain migration while nesting guides and use cases", () => {
     const layoutTree = createRuntimeLayoutTree(runtimePageTree);
     const outerIds = layoutTree.children
       .filter(child => child.type === "folder")
       .map(folder => folder.$id);
 
-    expect(outerIds).toEqual(["core", "cli-reference", "api-reference"]);
+    expect(outerIds).toEqual(["core", "migration", "cli-reference", "api-reference"]);
+    const migration = findFolder(layoutTree.children, "migration");
+    expect(
+      migration?.children.some(child => child.type === "page" && child.url === "/runtime/migration")
+    ).toBe(true);
   });
 
-  it("Should expose 3 tabs and route Core Concepts to /runtime instead of /runtime/core", () => {
+  it("Should route the CompozyOS tab to /runtime instead of /runtime/core", () => {
     const layoutTree = createRuntimeLayoutTree(runtimePageTree);
     const tabs = getLayoutTabs(layoutTree);
     const tabUrls = tabs.map(tab => tab.url);

@@ -13,7 +13,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Blog");
     expect(metadata.description).toBe(
-      "Field notes from the runtime, protocol design, engineering, and release receipts."
+      "Field notes on building, operating, extending, and releasing the integrated CompozyOS agent operating system."
     );
     expect(metadata.alternates?.canonical).toBe("/blog/");
     expect(metadata.openGraph?.title).toBe("Blog");
@@ -32,7 +32,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Changelog");
     expect(metadata.description).toBe(
-      "Every alpha receipt and release note for the Compozy runtime and compozy-network/v0."
+      "Release notes, breaking changes, and verification receipts for CompozyOS."
     );
     expect(metadata.alternates?.canonical).toBe("/changelog/");
     expect(metadata.openGraph?.title).toBe("Changelog");

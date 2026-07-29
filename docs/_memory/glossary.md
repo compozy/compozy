@@ -210,7 +210,7 @@ Default write scope is declared per agent in `memory.scope`.
 
 ### Consolidation Gates (cascade by cost)
 
-**Time Gate** (default 24h since last consolidation) → **Session Gate** (default 5 sessions touched) → **Lock Gate** (`tryAcquireConsolidationLock` to prevent multi-instance races). All must pass. Never replace with naive heuristics.
+**Time Gate** (default 24h since last consolidation) → **Session Gate** (default 3 sessions touched) → **Lock Gate** (`tryAcquireConsolidationLock` to prevent multi-instance races). All must pass. Never replace with naive heuristics.
 
 ---
 

@@ -6,8 +6,10 @@ description: Open the Compozy web UI, inspect the session you already created, a
 The web UI is another surface on the same daemon you already used in Quick Start. The goal of this
 page is not to start a second run; it is to inspect the exact same runtime state in a browser.
 
-**Before you begin:** Complete [Quick Start](/runtime/core/getting-started/quick-start) so you
-already have a real session to inspect.
+**Before you begin:** Complete [Quick Start](/runtime/core/getting-started/quick-start) through the
+history step, but leave its cleanup step until the end of this tutorial. You need an active session
+to send the comparison prompt below. If you already stopped it, create a new session instead of
+trying to attach to the terminal record.
 
 ## 1. Open the runtime in your browser
 
@@ -24,8 +26,9 @@ If you changed `[http].host` or `[http].port` in `~/.compozy/config.toml`, use t
 Open the session you already created from the CLI. The browser should show the same durable session
 state, not a second copy of the work.
 
-The exact UI layout will evolve, but the important point is stable: the browser is reading the same
-daemon-owned session catalog, event store, and redacted Vault metadata as the CLI.
+The browser reads the same daemon-owned session catalog and persisted transcript as the CLI. This
+tutorial relies only on those session read surfaces; it does not assume that every CLI management
+operation has a matching browser control.
 
 ## 3. Compare browser state with CLI state
 
@@ -41,9 +44,8 @@ Use them to confirm that the CLI and browser are reflecting the same runtime fac
 
 - session identity
 - session state
-- live event activity
-- resume/stop behavior
-- session-scoped Vault metadata when entries exist below `vault:sessions/<session_id>/`
+- persisted transcript entries
+- live activity while the prompt is running
 
 ## 4. Watch live events
 
@@ -56,17 +58,30 @@ compozy session prompt sess_1234 "Tell me the last thing you learned about this 
 Then watch the session in the browser update from the same persisted event stream. This is the
 fastest way to understand how Compozy keeps CLI, API, and UI surfaces aligned.
 
-## 5. Use the browser as an control surface
+## 5. Choose the browser for visual inspection
 
-The web UI is the easiest place to inspect runtime state visually. Depending on the current build,
-you may see surfaces for sessions, tasks, bridges, network state, skills, and settings. Settings >
-Vault lists redacted metadata for encrypted Compozy-managed secrets and supports write-only updates and
-deletes. Session pages include a Vault tab in the inspector for entries under
-`vault:sessions/<session_id>/`.
+Use the web UI when you want to scan the session catalog and transcript visually. Use the CLI,
+HTTP/SSE, UDS, or native tools for an operation whose exact contract is not exposed by the current
+browser surface.
 
-Treat the CLI as the canonical fallback for any flow that is not yet exposed in the browser.
+The daemon remains the authority in either case. Closing the browser or its event stream detaches
+that viewer; it does not cancel an accepted prompt.
 
-## 6. Change the HTTP address if needed
+## 6. Clean up the session
+
+Return to the Quick Start cleanup:
+
+```bash
+compozy session stop sess_1234
+compozy session history sess_1234
+```
+
+The stopped session remains visible as history, but it is no longer attachable.
+
+## Change the HTTP address if needed
+
+Changing the listener restarts the daemon, so do this before creating a live session or after
+cleanup.
 
 ```toml
 [http]
@@ -84,11 +99,10 @@ compozy daemon start
 > **Note:** Binding to a non-local host exposes the browser and API surfaces to a wider network.
 > Do that only when you understand the trust boundary of the machine running Compozy.
 
-## Next Steps
+## Next steps
 
 - [Sessions](/runtime/core/sessions/lifecycle) explains the lifecycle the UI is visualizing.
 - [Event Streaming](/runtime/core/sessions/events) explains the persisted and live streams behind
   the browser view.
-- [Vault](/runtime/core/configuration/vault) documents the redacted secret metadata surfaces.
 - [CLI Reference](/runtime/cli-reference) gives you the exact commands behind the same control
   surface.

@@ -5,7 +5,7 @@ export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
 export type BlogCover = { src: string; alt: string; width: number; height: number };
 
 const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
-  "posts/introducing-compozy-the-first-agent-network-protocol": {
+  "posts/introducing-compozyos": {
     src: "/static/blog/introducing-compozy-cover.png",
     alt: "compozy-network/v0, three peers exchanging direct, receipt, and trace envelopes",
     width: 1600,

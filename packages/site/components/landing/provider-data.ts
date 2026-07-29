@@ -1,4 +1,4 @@
-export const SUPPORTED_AGENT_PROVIDERS = [
+export const BUILTIN_PROVIDER_INTEGRATIONS = [
   { id: "claude", name: "Claude Code" },
   { id: "codex", name: "Codex" },
   { id: "gemini", name: "Gemini CLI" },
@@ -27,6 +27,6 @@ export const SUPPORTED_AGENT_PROVIDERS = [
   { id: "groq", name: "Groq" },
 ] as const;
 
-export type SupportedAgentProvider = (typeof SUPPORTED_AGENT_PROVIDERS)[number];
+export type BuiltinProviderIntegration = (typeof BUILTIN_PROVIDER_INTEGRATIONS)[number];
 
-export const SUPPORTED_AGENT_COUNT = SUPPORTED_AGENT_PROVIDERS.length;
+export const BUILTIN_PROVIDER_COUNT = BUILTIN_PROVIDER_INTEGRATIONS.length;

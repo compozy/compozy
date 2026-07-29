@@ -34,14 +34,14 @@ export default function BlogIndexPage() {
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">BLOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
-            <Eyebrow className="text-muted">Field notes from the runtime</Eyebrow>
+            <Eyebrow className="text-muted">Field notes from CompozyOS</Eyebrow>
           </div>
           <h1 className="mt-6 max-w-[20ch] font-display text-site-blog-title font-normal leading-none tracking-tight text-fg">
-            The runtime, the protocol, the receipts.
+            How CompozyOS is built, operated, and released.
           </h1>
           <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted">
-            Protocol design, runtime engineering, and release receipts from the team shipping{" "}
-            <span className="text-fg">compozy-network/v0</span>. Read in any order.
+            Engineering notes on durable agent work, extensibility, Compozy Network, and the
+            releases that connect them. Read in any order.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-2">
             <CategoryPill label="All" count={posts.length} href="/blog" active />

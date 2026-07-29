@@ -222,8 +222,8 @@ watch-events batch. The kind select and lint error text always name the registry
 set, so the grammar never changes as families are added.
 
 The parked read-model — the active subscriptions, per-stream cursors, and last wake — is visible on the
-run detail (`compozy loop runs show -o json`, HTTP/UDS, and the web run page) only while the Loop is
-dormant on events.
+run detail (`compozy loop status --run-id <run-id> -o json`, HTTP/UDS, and the web run page) only
+while the Loop is dormant on events.
 
 ## The gate contract
 

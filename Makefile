@@ -94,7 +94,7 @@ help:
 	@$(MAGE_RUN) -l
 
 # Documentation Site
-.PHONY: site-dev site-build cli-docs migration-guide-check
+.PHONY: site-dev site-build cli-docs cli-docs-check migration-guide-check
 
 site-dev:
 	@cd packages/site && bun run dev
@@ -103,11 +103,13 @@ site-build:
 	@bunx turbo run build --filter=./packages/site
 
 cli-docs:
-	@go run ./cmd/compozy doc --output-dir packages/site/content/runtime/cli-reference
-	@bunx oxfmt packages/site/content/runtime/cli-reference
+	@$(MAGE_RUN) cliDocs
+
+cli-docs-check:
+	@$(MAGE_RUN) cliDocsCheck
 
 migration-guide-check:
-	@bash scripts/verify-migration-guide-parity.sh
+	@$(MAGE_RUN) migrationGuideCheck
 
 # Web UI
 .PHONY: web-dev web-build web-fmt web-typecheck web-test

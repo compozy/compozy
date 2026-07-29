@@ -13,10 +13,11 @@ export type FooterColumn = {
 
 export const footerColumns: FooterColumn[] = [
   {
-    title: "Runtime",
+    title: "CompozyOS",
     items: [
       { label: "Overview", href: "/runtime" },
       { label: "Getting started", href: "/runtime/core/getting-started/installation" },
+      { label: "Migrate from v0.2", href: "/runtime/migration" },
       { label: "API reference", href: "/runtime/api-reference" },
       { label: "CLI reference", href: "/runtime/cli-reference" },
     ],

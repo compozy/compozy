@@ -1,25 +1,33 @@
 ---
-title: Choose the Right control surface
-description: Decide when Compozy work should go through CLI, HTTP/SSE, UDS, or the web UI.
+title: Choose a control surface
+description: Choose among the CLI, web UI, HTTP/SSE, UDS, native tools, and MCP by actor and trust boundary.
 ---
 
 This guide helps you choose the Compozy surface for the actor in front of you: a human operator, a
-script, a local agent, a web UI, or a remote integration. It intentionally avoids flag-by-flag
-reference. Use the generated references when you need exact syntax.
+script, a managed Compozy agent, a trusted external MCP client, or a browser integration. Start with
+the actor and its trust boundary; the surfaces are not interchangeable authority shortcuts.
 
 <OperatorNote label="Runtime truth">
-  A feature is incomplete if agents can only manage it through the web UI. Durable runtime state
-  should be available through structured CLI, HTTP/SSE, or UDS paths.
+  A feature is incomplete if agents can only manage it through the web UI. Managed agents should use
+  policy-filtered native tools when available. CLI, HTTP/UDS, and workspace-bound MCP projection
+  cover control and integration paths that do not belong in a normal native tool call.
 </OperatorNote>
 
 ## The short version
 
-| Surface  | Best for                                 | Use when                                                               | Reference                                      |
-| -------- | ---------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
-| CLI      | Humans, scripts, local agents            | You need a stable command, shell pipeline, or `-o json` output.        | [CLI Reference](/runtime/cli-reference)        |
-| HTTP/SSE | Browser UI, integrations, stream readers | You need daemon state over TCP or live events over Server-Sent Events. | [API Reference](/runtime/api-reference)        |
-| UDS      | Local agents and tools                   | You need daemon control without exposing a TCP listener.               | [API Reference](/runtime/api-reference)        |
-| Web UI   | Human inspection                         | You need to scan sessions, events, and runtime state visually.         | [Web UI](/runtime/core/getting-started/web-ui) |
+| Actor                                       | Trust boundary                                                                | Preferred surface        | Use when                                                                                 |
+| ------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| Human on the daemon host                    | The OS account and selected `COMPOZY_HOME` carry operator authority.          | CLI                      | You need an explicit command, shell pipeline, or `-o json` result.                       |
+| Human in the browser                        | The daemon's HTTP listener defines who can reach the UI and API.              | Web UI                   | You need to scan current runtime state visually.                                         |
+| Managed Compozy agent                       | Session identity, workspace binding, tool policy, and capability gates apply. | Native `compozy__*` tool | You need a structured, policy-filtered runtime operation inside the managed session.     |
+| Trusted external MCP client                 | The relay binds the client to one workspace and delegates operator authority. | `compozy mcp serve`      | An external agent client needs the approved Host API subset over stdio or loopback HTTP. |
+| Local process on the daemon host            | Filesystem access to the UDS socket controls local reach.                     | UDS                      | You need daemon APIs without exposing another TCP listener.                              |
+| Browser or intentionally remote integration | The configured TCP listener is part of the deployment's network boundary.     | HTTP/SSE                 | You need request/response APIs or ordered live events over Server-Sent Events.           |
+
+Use [CLI Reference](/runtime/cli-reference) for exact commands,
+[API Reference](/runtime/api-reference) for HTTP/UDS contracts,
+[Tools](/runtime/core/tools) for the native registry, and
+[MCP Serve](/runtime/core/operations/mcp-serve) for external-client projection.
 
 ## Choose by actor
 
@@ -38,22 +46,31 @@ reference. Use the generated references when you need exact syntax.
 
   </WorkflowStep>
 
-  <WorkflowStep title="An agent needs to inspect or mutate Compozy">
-    Prefer CLI JSON output or the local UDS API. Agents should avoid scraping terminal prose or web
-    UI state.
+  <WorkflowStep title="A managed agent needs to inspect or mutate Compozy">
+    Prefer a callable native tool. Resolve `compozy__tool_search`, inspect the selected descriptor
+    through `compozy__tool_info`, then invoke the returned tool reference with that live schema.
+    Availability and risk policy are part of the result.
 
-    ```bash
-    compozy session list -o json
-    compozy memory search release notes -o json
-    compozy tool list -o json
-    ```
-
-    What happened: the agent received machine-readable runtime state it can validate before taking
-    the next action.
+    Use CLI or HTTP/UDS only when the native tool is absent, denied, too narrow, or explicitly
+    requested. Never scrape the web UI or guess a tool schema from its ID.
 
   </WorkflowStep>
 
-  <WorkflowStep title="A browser surface needs live updates">
+  <WorkflowStep title="A trusted external agent client needs Compozy">
+    Run a foreground MCP relay bound to the intended workspace:
+
+    ```bash
+    compozy mcp serve --workspace checkout-api
+    ```
+
+    The stdio relay talks to the running daemon. It does not start another daemon or open stores
+    directly. The spawning process receives the published operator methods for that workspace, so
+    launch it only for a trusted client. Use the authenticated loopback HTTP mode documented in
+    [MCP Serve](/runtime/core/operations/mcp-serve) when the client cannot spawn stdio.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="A browser or integration needs live updates">
     Use HTTP plus SSE. Polling hides ordering and makes recovery harder; Compozy events are already
     append-only runtime records.
 
@@ -131,18 +148,21 @@ Start with:
 
 ### Let agents manage work
 
-Use surfaces with structured output:
+Inside a managed session, use the native task and autonomy tools exposed by the live registry.
+Read-only catalog work starts with `compozy__task_list`; claiming, heartbeating, completing, failing,
+and releasing a run use the session-bound `compozy__task_run_*` tools. Inspect every descriptor
+before the first call.
 
-- `compozy task next -o json` for claimable work
-- `compozy task heartbeat <run-id> -o json` for lease extension
-- `compozy task complete <run-id> -o json` for task completion
-- `compozy ch send <channel>` and `compozy ch recv <channel>` for coordination channels
+The CLI and HTTP/UDS expose equivalent operator paths when a native tool is unavailable or when a
+person needs to compare the same daemon state. The web UI may present that state, but it is not an
+agent automation interface.
 
-These are agent-operable surfaces, not hidden in-process calls. A managed agent can use them when
-its session has CLI/tool access to the runtime; a human operator can run the same commands from a
-shell and compare the same JSON output.
+### Keep operator-only authority on control surfaces
 
-The web UI can show the same state, but it should not be the only way an agent can act.
+Daemon lifecycle, raw secrets, provider bootstrap, MCP OAuth, trust roots, destructive repair, and
+cross-session terminal-state mutation stay on CLI, HTTP, or UDS unless the live registry explicitly
+exposes a scoped tool. `compozy mcp serve` does not widen this boundary; it publishes only its approved
+workspace-bound Host API subset.
 
 ## Next steps
 

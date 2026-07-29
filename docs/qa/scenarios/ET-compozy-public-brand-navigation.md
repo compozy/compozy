@@ -5,7 +5,7 @@ title: Navigate the public Compozy brand and launch post
 persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: The public site, launch post, metadata, OpenGraph assets, sitemap, robots, RSS, llms output, and authored runtime guidance identify Compozy at https://compozy.com; no compatibility redirect or active page points at the retired site.
-entry_points: local packages/site root and metadata outputs; local /blog/introducing-compozy-the-first-agent-network-protocol; canonical https://compozy.com declarations
+entry_points: local packages/site root and metadata outputs; local /blog/introducing-compozyos; canonical https://compozy.com declarations
 qa_status: untested
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
@@ -25,3 +25,7 @@ cycle owns route, metadata, RSS, search, and social-card evidence.
 
 QA impact 2026-07-27: the final identity hard cut removed the retired launch-post compatibility
 redirect. The next QA cycle owns route and metadata verification.
+
+QA impact 2026-07-29: the launch URL now names CompozyOS directly, and the homepage, blog metadata,
+search, RSS, OpenGraph, and internal links must expose `/blog/introducing-compozyos` with no old
+Network-first route. The scenario remains `untested`.

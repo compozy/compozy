@@ -62,7 +62,7 @@ export default function ChangelogPage() {
                     Install the runtime
                   </Link>
                   <Link
-                    href="/blog/introducing-compozy-the-first-agent-network-protocol"
+                    href="/blog/introducing-compozyos"
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-line px-3.5 font-sans text-sm font-medium text-fg transition-colors hover:bg-hover"
                   >
                     Read the launch post

@@ -1,5 +1,5 @@
 ---
-title: Debug a Failed or Stuck Session
+title: Debug a failed or stuck session
 description: Diagnose Compozy sessions by checking daemon health, session status, event history, repair output, and stored runtime files.
 ---
 
@@ -33,7 +33,20 @@ Useful follow-up pages:
 - [Troubleshooting](/runtime/core/operations/troubleshooting)
 - [File Locations](/runtime/core/configuration/file-locations)
 
-## 2. Check global runtime health
+## 2. Preserve a support bundle before mutation
+
+When the daemon is reachable, create its bounded, redacted incident artifact before changing
+configuration, repairing a transcript, or removing a session:
+
+```bash
+compozy support bundle --yes --output /tmp/compozy-support-bundle.tar.gz
+```
+
+The bundle contains status, doctor diagnostics, provider metadata, redacted config, event summaries,
+and a bounded log tail. It excludes transcripts and per-session event databases. Keep the archive
+private; redaction does not replace secure handling.
+
+## 3. Check global runtime health
 
 ```bash
 compozy doctor -o json
@@ -43,7 +56,7 @@ Look for unhealthy subsystems before focusing on the agent process. Memory index
 or daemon connectivity problems can make a session look broken even when the provider process is
 not the root cause.
 
-## 3. Inspect the session status
+## 4. Inspect the session status
 
 ```bash
 compozy session status sess_1234 -o json
@@ -54,13 +67,15 @@ Check:
 - session state
 - agent name and workspace
 - stop reason
+- attachability
+- failure kind and bounded summary
 - current prompt state
 - created and updated timestamps
 
 What happened: the daemon returned the current session record, not a reconstructed transcript. Use
 this to learn what Compozy thinks the session is doing right now.
 
-## 4. Read the durable event stream
+## 5. Read the durable event stream
 
 ```bash
 compozy session events sess_1234
@@ -77,7 +92,7 @@ prompt submission, permission requests, provider messages, tool calls, errors, a
 The CLI follow mode reads raw persisted events; browser live-tail clients use transcript SSE frames
 when they need assembled UI messages.
 
-## 5. Reconstruct the conversation history
+## 6. Reconstruct the conversation history
 
 ```bash
 compozy session history sess_1234
@@ -86,25 +101,38 @@ compozy session history sess_1234
 Use history when you need to understand the user-visible turn sequence. Use events when you need
 operational detail.
 
-## 6. Run repair when the transcript is interrupted
+## 7. Dry-run repair when the transcript is interrupted
 
 ```bash
-compozy session repair sess_1234
+compozy session repair sess_1234 --dry-run -o json
 ```
 
-What happened: Compozy inspected the session transcript and reported whether it can repair interrupted
-state. Repair is for damaged or interrupted transcript state, not a substitute for daemon health
-checks.
+Repair can append events only when the session is `stopped`. Without `--force`, mutation is limited
+to stop reasons `agent_crashed` and `error`. If the dry run reports safe actions for an eligible
+session, apply them explicitly:
 
-## 7. Attach or recap only after the state is understood
+```bash
+compozy session repair sess_1234 -o json
+```
+
+`--force` broadens mutation to other stopped-session reasons; it does not make an active session
+eligible and does not restart a terminal session. Repair is append-only transcript terminalization,
+not a substitute for daemon health checks.
+
+## 8. Attach or recap only after the state is understood
 
 ```bash
 compozy session recap sess_1234
+```
+
+If status reports `active` and `attachable: true`, attach to that live session:
+
+```bash
 compozy session resume sess_1234
 ```
 
-`compozy session resume` attaches to an eligible live session. If the session is terminal or not
-attachable, inspect the deterministic recap, history, and repair output before starting new work.
+If the session is terminal or not attachable, use recap, history, events, and repair output as
+evidence, then create a new session for new work.
 Read [Resume Attach and Replay](/runtime/core/sessions/resume) before treating attach refusal as a
 data-loss problem.
 
@@ -112,8 +140,8 @@ data-loss problem.
 
 | Symptom                          | First check                                                    | Then read                                                 |
 | -------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- |
-| `compozy session prompt` hangs   | `compozy session events --follow`                              | [Event Streaming](/runtime/core/sessions/events)          |
-| Session is stopped unexpectedly  | `compozy session status -o json`                               | [Session Lifecycle](/runtime/core/sessions/lifecycle)     |
+| `compozy session prompt` hangs   | `compozy session events sess_1234 --follow`                    | [Event Streaming](/runtime/core/sessions/events)          |
+| Session is stopped unexpectedly  | `compozy session status sess_1234 -o json`                     | [Session Lifecycle](/runtime/core/sessions/lifecycle)     |
 | Web UI is stale                  | `compozy status` and `compozy doctor`                          | [Web UI](/runtime/core/getting-started/web-ui)            |
 | Attach is refused                | `compozy session list --resumable` and `compozy session recap` | [Resume Attach and Replay](/runtime/core/sessions/resume) |
 | Agent cannot see project context | `compozy workspace info <name>`                                | [Workspace Resolver](/runtime/core/workspaces/resolver)   |
@@ -121,23 +149,21 @@ data-loss problem.
 
 ## Evidence to collect before filing a bug
 
-Collect output from:
+Create a support bundle first, then retain the exact session commands you used:
 
 ```bash
-compozy status -o json
-compozy doctor -o json
+compozy support bundle --yes --output /tmp/compozy-support-bundle.tar.gz
 compozy session status sess_1234 -o json
-compozy session events sess_1234
-compozy session history sess_1234
+compozy session repair sess_1234 --dry-run -o json
 ```
 
 Do not include raw secrets, provider API keys, OAuth tokens, or claim tokens in bug reports. Compozy
-redacts sensitive runtime fields, but copied terminal context may still include local environment
-details.
+redacts sensitive runtime fields in the bundle, but copied terminal context and session transcripts
+may still contain private project or prompt content.
 
 ## Next steps
 
-- Use [Choose the Right control surface](/runtime/guides/choose-an-operator-surface) when you need
+- Use [Choose a control surface](/runtime/guides/choose-an-operator-surface) when you need
   the best surface for scripts, agents, or browser integrations.
 - Use [Database Operations](/runtime/core/operations/database) when event or catalog storage is the
   likely problem.

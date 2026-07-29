@@ -289,6 +289,9 @@ context, and optional execution hints without adopting a second artifact concept
 
 The body MUST contain a `capability` object.
 
+Workspace scope comes from the outer envelope's `workspace_id`; `body.capability` has no nested
+`workspace_id` field.
+
 | Field                | Type             | Required | Rule                                                                                                                        |
 | -------------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `id`                 | string           | Yes      | MUST identify the capability within the sender.                                                                             |
@@ -324,7 +327,6 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
   "body": {
     "capability": {
       "id": "fix-go-migration-tests",
-      "workspace_id": "ws_alpha",
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",

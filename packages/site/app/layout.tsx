@@ -54,7 +54,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "CompozyOS runtime and coordination protocol",
+        alt: "CompozyOS agent operating system for durable, extensible agent work",
       },
     ],
   },

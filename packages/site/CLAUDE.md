@@ -22,7 +22,7 @@ bunx turbo run typecheck|test|build --filter=./packages/site   # focused @compoz
 cd packages/site && bun run source:generate         # Fumadocs MDX -> .source/
 cd packages/site && bun run content:generate        # Velite MDX/YAML -> .velite/
 cd packages/site && bun run dev  (or make site-dev)  # next dev (predev runs both generators)
-make cli-docs                                        # regenerate CLI reference from cobra JSON export
+make cli-docs / make cli-docs-check                  # regenerate / verify the Cobra CLI reference
 ```
 
 `predev` and direct builds run `generate`; Turbo-backed build/typecheck/test reuse the cacheable `generate:openapi → generate:content` graph. `.source/`, `.velite/`, `out/`, `.next/`, `tsconfig.tsbuildinfo` are generated — never commit them.
@@ -43,14 +43,14 @@ make cli-docs                                        # regenerate CLI reference 
 ## Coding Style
 
 - TypeScript strict (no `any` when the concrete type is known). Functional React components only — no `React.FC`; named exports; kebab-case files; `@/*` alias.
-- MDX lives under `content/runtime/` + `content/protocol/` (Fumadocs) and `content/blog/` (Velite). CLI docs auto-generate under `content/runtime/cli/` — never hand-edit; edit the cobra command source.
+- MDX lives under `content/runtime/` + `content/protocol/` (Fumadocs) and `content/blog/` (Velite). CLI docs auto-generate under `content/runtime/cli-reference/` — never hand-edit generated pages; edit the Cobra command source.
 - Blog layout: `content/blog/posts/<slug>.mdx`, `content/blog/changelog/<version>.mdx`, `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
 - Pages need `<title>` + meta via Fumadocs metadata helpers. Code blocks use the project syntax-highlight theme — no new variants.
 
 ## Truthful Docs > Plausible Docs
 
 - Document only behavior the runtime supports today. When the Compozy Network RFC differs from the daemon, docs follow the daemon and link the RFC as "future profile".
-- API/CLI references are generated from `openapi/compozy.json` + the cobra JSON export — never paraphrase; if the generated reference is wrong, fix the source.
+- API/CLI references are generated from `openapi/compozy.json` + the Cobra command tree — never paraphrase; if the generated reference is wrong, fix the source.
 - Changelog entries (`content/blog/changelog/*.mdx`) reflect real merged work — source `added`/`changed`/`fixed`/`breaking` from `git log` + PR descriptions, not aspirational copy.
 
 ## Testing

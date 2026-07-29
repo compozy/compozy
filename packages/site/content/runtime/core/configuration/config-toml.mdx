@@ -3,7 +3,7 @@ title: config.toml
 description: Complete Compozy config.toml schema, defaults, valid values, merge behavior, and annotated examples.
 ---
 
-`config.toml` is the main Compozy runtime desired-state file. Compozy loads the built-in defaults, then
+`config.toml` is the main CompozyOS runtime desired-state file. Compozy loads the built-in defaults, then
 overlays global and workspace files when they exist. The daemon only treats a change as runtime
 truth after `ConfigApplyService` advances the active generation and writes a `config_apply_records`
 audit row.
