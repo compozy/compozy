@@ -13,51 +13,70 @@ import (
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
+// ScanDirectory discovers skill definitions below root. It never follows
+// directory symlinks and excludes definitions whose resolved path escapes root.
+func ScanDirectory(root string) (DirectoryResult, error) {
+	scanner, err := newDirectoryScanner(root)
+	if err != nil {
+		return DirectoryResult{}, err
+	}
+	if scanner.skipTraversal {
+		return scanner.result, nil
+	}
+
+	walkErr := filepath.WalkDir(scanner.root, scanner.visit)
+	if walkErr != nil && !isTraversalLimit(walkErr) {
+		return DirectoryResult{}, fmt.Errorf("skillscan: walk root %q: %w", scanner.root, walkErr)
+	}
+	slices.Sort(scanner.result.Paths)
+	return scanner.result, nil
+}
+
 type directoryScanner struct {
 	root           string
 	resolvedRoot   string
 	result         DirectoryResult
 	visitedEntries int
+	skipTraversal  bool
 }
 
-// ScanDirectory discovers skill definitions below root. It never follows
-// directory symlinks and excludes definitions whose resolved path escapes root.
-func ScanDirectory(root string) (DirectoryResult, error) {
+func newDirectoryScanner(root string) (*directoryScanner, error) {
 	trimmedRoot := strings.TrimSpace(root)
 	if trimmedRoot == "" {
-		return DirectoryResult{}, errors.New("skillscan: directory root is required")
+		return nil, errors.New("skillscan: directory root is required")
 	}
+
 	absRoot, err := filepath.Abs(trimmedRoot)
 	if err != nil {
-		return DirectoryResult{}, fmt.Errorf("skillscan: resolve root %q: %w", root, err)
+		return nil, fmt.Errorf("skillscan: resolve root %q: %w", root, err)
 	}
 	info, err := os.Stat(absRoot)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return emptyDirectoryResult(), nil
+			return &directoryScanner{
+				root:          absRoot,
+				result:        emptyDirectoryResult(),
+				skipTraversal: true,
+			}, nil
 		}
-		return DirectoryResult{}, fmt.Errorf("skillscan: stat root %q: %w", absRoot, err)
+		return nil, fmt.Errorf("skillscan: stat root %q: %w", absRoot, err)
 	}
 	if !info.IsDir() {
-		return DirectoryResult{}, fmt.Errorf("skillscan: root %q is not a directory", absRoot)
+		return nil, fmt.Errorf("skillscan: root %q is not a directory", absRoot)
 	}
 	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
 	if err != nil {
-		return DirectoryResult{}, fmt.Errorf("skillscan: resolve root %q: %w", absRoot, err)
+		return nil, fmt.Errorf("skillscan: resolve root %q: %w", absRoot, err)
 	}
-	scanner := directoryScanner{
+
+	return &directoryScanner{
 		root:         absRoot,
 		resolvedRoot: resolvedRoot,
 		result: DirectoryResult{
 			Paths:     make([]string, 0, MaxCandidates),
 			Snapshots: make(map[string]filesnap.Snapshot, MaxCandidates),
 		},
-	}
-	if err := filepath.WalkDir(absRoot, scanner.visit); err != nil && !isTraversalLimit(err) {
-		return DirectoryResult{}, fmt.Errorf("skillscan: walk root %q: %w", absRoot, err)
-	}
-	slices.Sort(scanner.result.Paths)
-	return scanner.result, nil
+	}, nil
 }
 
 func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr error) error {
@@ -82,10 +101,6 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 	if entry.Name() != SkillFileName {
 		return nil
 	}
-	return s.addDefinition(candidate)
-}
-
-func (s *directoryScanner) addDefinition(candidate string) error {
 	if err := pathWithinRoot(s.resolvedRoot, candidate); err != nil {
 		slog.Warn("skillscan: skipping definition outside root", "path", candidate, "error", err)
 		return nil

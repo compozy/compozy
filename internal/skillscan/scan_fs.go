@@ -10,15 +10,33 @@ import (
 	"strings"
 )
 
+// ScanFS discovers skill definitions below root in an fs.FS source.
+func ScanFS(fsys fs.FS, root string) ([]string, error) {
+	scanner, err := newFilesystemScanner(fsys, root)
+	if err != nil {
+		return nil, err
+	}
+	if scanner.skipTraversal {
+		return scanner.paths, nil
+	}
+
+	walkErr := fs.WalkDir(scanner.fsys, scanner.root, scanner.visit)
+	if walkErr != nil && !isTraversalLimit(walkErr) {
+		return nil, fmt.Errorf("skillscan: walk filesystem root %q: %w", scanner.root, walkErr)
+	}
+	slices.Sort(scanner.paths)
+	return scanner.paths, nil
+}
+
 type filesystemScanner struct {
 	fsys           fs.FS
 	root           string
 	paths          []string
 	visitedEntries int
+	skipTraversal  bool
 }
 
-// ScanFS discovers skill definitions below root in an fs.FS source.
-func ScanFS(fsys fs.FS, root string) ([]string, error) {
+func newFilesystemScanner(fsys fs.FS, root string) (*filesystemScanner, error) {
 	if fsys == nil {
 		return nil, errors.New("skillscan: filesystem is required")
 	}
@@ -33,23 +51,24 @@ func ScanFS(fsys fs.FS, root string) ([]string, error) {
 	info, err := fs.Stat(fsys, cleanRoot)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return []string{}, nil
+			return &filesystemScanner{
+				fsys:          fsys,
+				root:          cleanRoot,
+				paths:         []string{},
+				skipTraversal: true,
+			}, nil
 		}
 		return nil, fmt.Errorf("skillscan: stat filesystem root %q: %w", cleanRoot, err)
 	}
 	if !info.IsDir() {
 		return nil, fmt.Errorf("skillscan: filesystem root %q is not a directory", cleanRoot)
 	}
-	scanner := filesystemScanner{
+
+	return &filesystemScanner{
 		fsys:  fsys,
 		root:  cleanRoot,
 		paths: make([]string, 0, MaxCandidates),
-	}
-	if err := fs.WalkDir(fsys, cleanRoot, scanner.visit); err != nil && !isTraversalLimit(err) {
-		return nil, fmt.Errorf("skillscan: walk filesystem root %q: %w", cleanRoot, err)
-	}
-	slices.Sort(scanner.paths)
-	return scanner.paths, nil
+	}, nil
 }
 
 func (s *filesystemScanner) visit(candidate string, entry fs.DirEntry, walkErr error) error {
@@ -74,10 +93,6 @@ func (s *filesystemScanner) visit(candidate string, entry fs.DirEntry, walkErr e
 	if path.Base(candidate) != SkillFileName {
 		return nil
 	}
-	return s.addDefinition(candidate)
-}
-
-func (s *filesystemScanner) addDefinition(candidate string) error {
 	info, err := fs.Stat(s.fsys, candidate)
 	if err != nil {
 		slog.Warn("skillscan: skipping unreadable filesystem definition", "path", candidate, "error", err)
