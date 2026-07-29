@@ -111,6 +111,25 @@ function row(id: string): HTMLElement {
   return el;
 }
 
+function stubTrackGeometry(track: HTMLElement) {
+  vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: 216,
+    bottom: 24,
+    width: 216,
+    height: 24,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
+
+function clickTrackAt(track: HTMLElement, clientX: number) {
+  fireEvent.pointerDown(track, { button: 0, clientX, pointerId: 1 });
+  fireEvent.pointerUp(track, { clientX, pointerId: 1 });
+}
+
 function optionOrder(): string[] {
   return screen
     .getAllByRole("option")
@@ -398,21 +417,10 @@ describe("RuntimeSelector reasoning trigger + footer", () => {
     const track = screen.getByTestId("runtime-selector-reasoning-track");
     // jsdom has no layout: give the track real geometry so the pointer x → stop
     // math resolves (16px round caps padded on both sides).
-    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 216,
-      bottom: 24,
-      width: 216,
-      height: 24,
-      toJSON: () => ({}),
-    } as DOMRect);
+    stubTrackGeometry(track);
 
     // Press + release at the far right cap → the highest level commits.
-    fireEvent.pointerDown(track, { button: 0, clientX: 208, pointerId: 1 });
-    fireEvent.pointerUp(track, { clientX: 208, pointerId: 1 });
+    clickTrackAt(track, 208);
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",
@@ -532,22 +540,11 @@ describe("RuntimeSelector reasoning slider", () => {
 
     await openSelector(user);
     const track = sliderTrack();
-    vi.spyOn(track, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 216,
-      bottom: 24,
-      width: 216,
-      height: 24,
-      toJSON: () => ({}),
-    } as DOMRect);
+    stubTrackGeometry(track);
 
     // Clicking the already-displayed default (track center = medium) is an
     // explicit pick: the level goes on the wire instead of remaining "".
-    fireEvent.pointerDown(track, { button: 0, clientX: 108, pointerId: 1 });
-    fireEvent.pointerUp(track, { clientX: 108, pointerId: 1 });
+    clickTrackAt(track, 108);
 
     expect(onChange).toHaveBeenLastCalledWith({
       provider: "codex",

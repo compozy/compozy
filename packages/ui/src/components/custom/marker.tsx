@@ -33,8 +33,8 @@ function Marker({ tone = "neutral", icon, children, className, ...props }: Marke
       data-slot="marker"
       data-tone={tone}
       className={cn(
-        "flex min-h-[22px] min-w-0 items-start gap-[7px] px-1 py-0.5",
-        "text-[12px] leading-[1.55] text-subtle",
+        "flex min-h-transcript-row min-w-0 items-start gap-transcript-inline-gap px-1 py-0.5",
+        "text-transcript-body leading-normal text-subtle",
         className
       )}
       {...props}
@@ -43,7 +43,7 @@ function Marker({ tone = "neutral", icon, children, className, ...props }: Marke
         <span
           aria-hidden="true"
           data-slot="marker-icon"
-          className={cn("mt-[2.5px] shrink-0 *:[svg]:size-3", TONE_ICON[tone])}
+          className={cn("mt-0.5 shrink-0 *:[svg]:size-3", TONE_ICON[tone])}
         >
           {icon}
         </span>

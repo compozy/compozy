@@ -363,8 +363,15 @@ export {
 export { Marker, MarkerMeta, type MarkerProps, type MarkerTone } from "./components/custom/marker";
 export { Receipt, type ReceiptProps, type ReceiptTone } from "./components/custom/receipt";
 export { Dock, type DockProps, type DockStatusProps } from "./components/custom/dock";
-export { ChoiceFree, ChoiceFreeBar, ChoiceFreeTextarea } from "./components/custom/choice";
-export { ChoiceHint, ChoiceKey, ChoiceList, ChoiceRow } from "./components/custom/choice";
+export {
+  ChoiceFree,
+  ChoiceFreeBar,
+  ChoiceFreeTextarea,
+  ChoiceHint,
+  ChoiceKey,
+  ChoiceList,
+  ChoiceRow,
+} from "./components/custom/choice";
 export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,

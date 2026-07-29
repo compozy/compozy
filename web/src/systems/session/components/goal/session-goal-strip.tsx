@@ -68,8 +68,8 @@ function prefillCommand(affordance: GoalComposerAffordance): string {
 
 function StripRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-2.5 text-[12px] leading-normal">
-      <span className="w-[76px] shrink-0 pt-px text-[11px] text-faint">{label}</span>
+    <div className="flex gap-2.5 text-transcript-body leading-normal">
+      <span className="w-[76px] shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
       <span className="min-w-0 text-muted">{children}</span>
     </div>
   );
@@ -225,7 +225,7 @@ export function SessionGoalStrip({
                   onClick={() => onPrefillComposer(prefillCommand(composerAffordance))}
                   className={cn(
                     "inline-flex min-h-[22px] items-center gap-[5px] rounded-xs border border-transparent px-2",
-                    "text-[11.5px] text-muted transition-colors duration-base ease-out",
+                    "text-transcript-meta text-muted transition-colors duration-base ease-out",
                     "hover:border-line hover:bg-hover hover:text-fg",
                     "focus-visible:shadow-focus-ring focus-visible:outline-none"
                   )}

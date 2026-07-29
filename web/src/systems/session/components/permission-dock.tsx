@@ -139,11 +139,11 @@ export function PermissionDock({
                       role="menuitem"
                       data-testid="permission-reject-always"
                       disabled={isSubmitting}
-                      className="flex min-h-7 w-full items-center gap-2 rounded-xs px-2 py-[3px] text-left text-[12px] text-danger transition-colors hover:bg-hover"
+                      className="flex min-h-7 w-full items-center gap-2 rounded-xs px-2 py-transcript-meta-gap text-left text-transcript-body text-danger transition-colors hover:bg-hover"
                       onClick={() => decide("reject-always")}
                     >
                       Reject always
-                      <kbd className="ml-auto font-mono text-[9px] text-faint">4</kbd>
+                      <kbd className="ml-auto font-mono text-pill-group-badge text-faint">4</kbd>
                     </button>
                   </div>
                 ) : null}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { cn } from "@/lib/utils";
 import { ToolArtifactApiError } from "../adapters/tool-artifact-api";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import { useToolArtifact } from "../hooks/use-tool-artifact";
@@ -23,11 +24,13 @@ function ArtifactAction({
   disabled,
   onClick,
   testId,
+  className,
 }: {
   label: string;
   disabled?: boolean;
   onClick: () => void;
   testId?: string;
+  className?: string;
 }) {
   return (
     <button
@@ -35,7 +38,10 @@ function ArtifactAction({
       data-testid={testId}
       disabled={disabled}
       onClick={onClick}
-      className="w-fit rounded-xs px-0.5 text-[11px] font-medium text-info transition-colors hover:underline hover:underline-offset-2 disabled:pointer-events-none disabled:opacity-60"
+      className={cn(
+        "w-fit rounded-xs px-0.5 text-transcript-caption font-medium text-info transition-colors hover:underline hover:underline-offset-2 disabled:pointer-events-none disabled:opacity-60",
+        className
+      )}
     >
       {label}
     </button>
@@ -75,7 +81,7 @@ export function ToolResultArtifact({ result }: { result: ToolUseResult }) {
           />
         ) : null}
         {opened && query.isPending ? (
-          <span className="text-[11px] text-subtle">Opening full result…</span>
+          <span className="text-transcript-caption text-subtle">Opening full result…</span>
         ) : null}
         {showFull && query.hasNextPage ? (
           <ArtifactAction
@@ -86,27 +92,26 @@ export function ToolResultArtifact({ result }: { result: ToolUseResult }) {
           />
         ) : null}
         {showFull ? (
-          <span className="font-mono text-[10px] text-faint tabular-nums">
+          <span className="font-mono text-badge text-faint tabular-nums">
             {byteProgress(query.loadedBytes, query.totalBytes)}
           </span>
         ) : !opened && canOpen && typeof artifact?.bytes === "number" ? (
-          <span className="font-mono text-[10px] text-faint tabular-nums">
+          <span className="font-mono text-badge text-faint tabular-nums">
             {BYTE_FORMATTER.format(artifact.bytes)} bytes retained
           </span>
         ) : null}
       </div>
 
       {opened && query.isError ? (
-        <div data-testid="artifact-error" className="text-[11px] text-danger">
+        <div data-testid="artifact-error" className="text-transcript-caption text-danger">
           {error?.message ?? "Couldn't load the retained result. Try again."}
           {error?.statusCode !== 404 ? (
-            <button
-              type="button"
+            <ArtifactAction
+              label="Retry"
               onClick={() => query.refetch()}
-              className="ml-1.5 rounded-xs font-medium text-info transition-colors hover:underline hover:underline-offset-2"
-            >
-              Retry
-            </button>
+              testId="artifact-retry"
+              className="ml-1.5 px-0"
+            />
           ) : null}
         </div>
       ) : null}

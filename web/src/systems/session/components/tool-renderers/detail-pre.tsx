@@ -13,7 +13,7 @@ export function DetailPre({ children, className, ...props }: React.ComponentProp
     <pre
       data-slot="tool-detail-pre"
       className={cn(
-        "max-h-60 overflow-auto font-mono text-[11px] leading-[1.7] text-muted",
+        "max-h-60 overflow-auto font-mono text-transcript-caption leading-prose text-muted",
         "break-words whitespace-pre-wrap",
         className
       )}

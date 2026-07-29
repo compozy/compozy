@@ -45,12 +45,15 @@ export function SessionComposerQueuedPrompts({
           key={prompt.id}
           data-testid="composer-queued-prompt-row"
           className={cn(
-            "flex min-h-8 min-w-0 items-center gap-2 py-[3px] pr-[7px] pl-3",
+            "flex min-h-8 min-w-0 items-center gap-2 py-transcript-meta-gap pr-transcript-inline-gap pl-3",
             index > 0 && "border-t border-line-soft"
           )}
         >
           <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
-          <span className="min-w-0 flex-1 truncate text-[12px] text-muted" title={prompt.text}>
+          <span
+            className="min-w-0 flex-1 truncate text-transcript-body text-muted"
+            title={prompt.text}
+          >
             {queuedPromptPreview(prompt.text)}
           </span>
           <div className="flex shrink-0 items-center gap-px">
@@ -63,7 +66,7 @@ export function SessionComposerQueuedPrompts({
               data-testid="composer-queued-steer"
               className="text-muted hover:text-fg-strong"
             >
-              <CornerDownRight aria-hidden="true" className="size-[11px]" />
+              <CornerDownRight aria-hidden="true" className="size-3" />
               Steer
             </Button>
             <Button
@@ -76,7 +79,7 @@ export function SessionComposerQueuedPrompts({
               aria-label="Edit queued prompt"
               className="text-faint hover:text-fg"
             >
-              <Pencil aria-hidden="true" className="size-[11px]" />
+              <Pencil aria-hidden="true" className="size-3" />
             </Button>
             <Button
               type="button"
@@ -88,7 +91,7 @@ export function SessionComposerQueuedPrompts({
               aria-label="Remove queued prompt"
               className="text-faint hover:text-fg"
             >
-              <Trash2 aria-hidden="true" className="size-[11px]" />
+              <Trash2 aria-hidden="true" className="size-3" />
             </Button>
           </div>
         </div>

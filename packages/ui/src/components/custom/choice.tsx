@@ -28,6 +28,7 @@ function ChoiceRow({ children, className, type, ...props }: React.ComponentProps
         "min-h-[30px] px-2 py-1 text-left text-small-body text-fg",
         "transition-colors duration-base ease-out motion-reduce:transition-none",
         "hover:border-line hover:bg-hover",
+        "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-transparent disabled:hover:bg-transparent",
         "aria-pressed:border-line-strong aria-pressed:bg-row-selected",
         "focus-visible:shadow-focus focus-visible:outline-none",
         className

@@ -129,6 +129,26 @@ describe("SessionResumeFailure", () => {
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
+  it("dismisses the banner when Escape was not handled", () => {
+    const onDismiss = vi.fn();
+    render(
+      <SessionResumeFailure
+        isRetrying={false}
+        message="Attach failed."
+        missingProvider="codex"
+        onDismiss={onDismiss}
+        onRetry={vi.fn()}
+        sessionId="sess_escape_unhandled"
+      />
+    );
+
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    );
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it("disables retry while an attach attempt is in flight", () => {
     render(
       <SessionResumeFailure

@@ -22,6 +22,13 @@ import (
 )
 
 func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
+	t.Run(
+		"Should persist approval grants across restart and surfaces",
+		testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces,
+	)
+}
+
+func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 

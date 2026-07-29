@@ -36,8 +36,8 @@ function GroupHead({
     >
       <Eyebrow className="text-faint">{name}</Eyebrow>
       {harnessBadge ? (
-        <span className="rounded-xxs bg-badge-fill px-[5px] py-px font-mono text-micro font-semibold tracking-mono text-faint">
-          {harnessBadge.toUpperCase()}
+        <span className="rounded-xxs bg-badge-fill px-[5px] py-px text-faint">
+          <Eyebrow>{harnessBadge.toUpperCase()}</Eyebrow>
         </span>
       ) : null}
       {availability ? (
