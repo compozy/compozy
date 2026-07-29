@@ -168,7 +168,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "ws-workspace" {
+				t.Fatalf("workspace Get ref = %q, want ws-workspace", ref)
+			}
+			return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+		},
+	}, nil, nil)
 
 	t.Run("Should list sessions", func(t *testing.T) {
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
@@ -238,6 +245,42 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("Should return only the minimal session owner projection", func(t *testing.T) {
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/owner", nil)
+		if ownerResp.Code != http.StatusOK {
+			t.Fatalf("owner status = %d, want %d; body=%s", ownerResp.Code, http.StatusOK, ownerResp.Body.String())
+		}
+
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(owner fields) error = %v", err)
+		}
+		if len(fields) != 3 || fields["session_id"] == nil || fields["workspace_id"] == nil ||
+			fields["workspace_name"] == nil {
+			t.Fatalf("owner fields = %v, want exactly session_id workspace_id workspace_name", fields)
+		}
+
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &owner); err != nil {
+			t.Fatalf("json.Unmarshal(owner) error = %v", err)
+		}
+		want := contract.SessionOwner{
+			SessionID:     "sess-a",
+			WorkspaceID:   "ws-workspace",
+			WorkspaceName: "Primary workspace",
+		}
+		if owner != want {
+			t.Fatalf("owner = %#v, want %#v", owner, want)
+		}
+	})
+
+	t.Run("Should return not found for a missing session owner", func(t *testing.T) {
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing/owner", nil)
+		if ownerResp.Code != http.StatusNotFound {
+			t.Fatalf("owner missing status = %d, want %d", ownerResp.Code, http.StatusNotFound)
 		}
 	})
 
