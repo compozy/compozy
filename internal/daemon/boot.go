@@ -44,6 +44,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -95,6 +96,8 @@ type bootState struct {
 	network               networkRuntime
 	networkWakeRunner     *networkWakeRunner
 	participationResolver participation.Resolver
+	accessPolicy          workspaceaccess.Policy
+	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
 	toolArtifacts         toolspkg.ToolArtifactStore
 	toolsets              core.ToolsetRegistry

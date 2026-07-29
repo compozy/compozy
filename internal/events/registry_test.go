@@ -130,6 +130,27 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should UT-046 expose canonical workspace access metadata", func(t *testing.T) {
+		t.Parallel()
+
+		denied, ok := Lookup(WorkspaceAccessDenied)
+		if !ok {
+			t.Fatal("Lookup(WorkspaceAccessDenied) = false")
+		}
+		if denied.Family != "workspace.access" || denied.Component != ComponentWorkspace ||
+			denied.Outcome != OutcomeWarning || !denied.NotificationEligible || !denied.GlobalScope {
+			t.Fatalf("WorkspaceAccessDenied metadata = %#v", denied)
+		}
+		granted, ok := Lookup(WorkspaceAccessGranted)
+		if !ok {
+			t.Fatal("Lookup(WorkspaceAccessGranted) = false")
+		}
+		if granted.Family != "workspace.access" || granted.Component != ComponentWorkspace ||
+			granted.Outcome != OutcomeSuccess || granted.NotificationEligible || !granted.GlobalScope {
+			t.Fatalf("WorkspaceAccessGranted metadata = %#v", granted)
+		}
+	})
+
 	t.Run("Should expose canonical role invocation metadata", func(t *testing.T) {
 		t.Parallel()
 

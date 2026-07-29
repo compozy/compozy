@@ -30,6 +30,7 @@ func (s *Session) Info() *Info {
 		ReasoningEffort:      s.ReasoningEffort,
 		Speed:                s.Speed,
 		SpeedResolution:      speedpkg.CloneResolution(s.SpeedResolution),
+		EffectivePermissions: s.EffectivePermissions,
 		WorkspaceID:          s.WorkspaceID,
 		Workspace:            s.Workspace,
 		NetworkParticipation: s.NetworkParticipation,

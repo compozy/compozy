@@ -7,6 +7,9 @@ var mcpAuthRegistryEntries = []Metadata{
 }
 
 var registryEntries = append(
-	append(append([]Metadata{}, baseRegistryEntries...), mcpAuthRegistryEntries...),
-	networkCoordinationRegistryEntries...,
+	append(
+		append(append([]Metadata{}, baseRegistryEntries...), mcpAuthRegistryEntries...),
+		networkCoordinationRegistryEntries...,
+	),
+	workspaceAccessRegistryEntries...,
 )

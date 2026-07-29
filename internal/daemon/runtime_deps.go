@@ -15,6 +15,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
@@ -49,6 +50,7 @@ type RuntimeDeps struct {
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService
+	WorkspaceAccess     workspaceaccess.Policy
 	AgentCatalog        core.AgentCatalog
 	AgentDefinitionSync core.AgentDefinitionSync
 	ModelCatalog        core.ModelCatalogService

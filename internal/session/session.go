@@ -60,6 +60,7 @@ type Info struct {
 	ReasoningEffort      string
 	Speed                speedpkg.Speed
 	SpeedResolution      *speedpkg.Resolution
+	EffectivePermissions string
 	WorkspaceID          string
 	Workspace            string
 	NetworkParticipation participation.Spec
