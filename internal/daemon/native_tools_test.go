@@ -47,6 +47,7 @@ import (
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
@@ -151,7 +152,9 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 			}
 			return &session.Info{
 				ID:                   sessionID,
+				AgentName:            "coder",
 				WorkspaceID:          workspaceID,
+				State:                session.StateActive,
 				NetworkParticipation: daemonTestLiveParticipation(workspaceID, "builders"),
 			}, nil
 		},
@@ -180,6 +183,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		})
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:      nativeNetworkTestSessionManager("workspace-a"),
 			WindowManager: manager,
 			Workspaces:    nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
@@ -326,7 +330,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDDesktopList,
 			Input:  json.RawMessage(`{"workspace":"workspace-b"}`),
 		})
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDDesktopList,
@@ -605,7 +609,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSkillList},
 		)
 		if err != nil {
@@ -615,7 +619,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		searchResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSkillSearch,
 				Input:  json.RawMessage(`{"query":"network"}`),
@@ -628,7 +632,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		viewResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSkillView,
 				Input:  json.RawMessage(`{"name":"compozy","file":"references/memory.md"}`),
@@ -870,6 +874,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			BundleService: func() core.BundleService { return bundleService },
 			Resources:     resourceService,
+			Sessions:      nativeNetworkTestSessionManager("ws-1"),
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -953,7 +959,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if bundleService.activateCalls != 1 {
 			t.Fatalf(
 				"Activate calls = %d, want cross-workspace request rejected before service",
@@ -1090,13 +1096,19 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Resolved workspace id = %q, want ws-1", resolved.WorkspaceID)
 		}
 
-		_, err = adapter.nativeResolvedWorkspace(
+		foreignResolved, err := adapter.nativeResolvedWorkspace(
 			t.Context(),
 			toolspkg.ToolIDNetworkPeers,
 			"ws-2",
 			scope,
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil || foreignResolved.WorkspaceID != "ws-2" {
+			t.Fatalf(
+				"nativeResolvedWorkspace(foreign) = %#v, %v, want registry-seam resolved ws-2",
+				foreignResolved,
+				err,
+			)
+		}
 
 		operatorResolved, err := adapter.nativeResolvedWorkspace(
 			t.Context(),
@@ -1129,7 +1141,6 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		filter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{},
 			scope,
 		)
@@ -1140,17 +1151,17 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Hook filter workspace = %#v, want id ws-1 and a canonical root", filter)
 		}
 
-		_, err = adapter.hookCatalogFilter(
+		foreignFilter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{Workspace: "ws-2"},
 			scope,
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil || foreignFilter.WorkspaceID != "ws-2" {
+			t.Fatalf("hookCatalogFilter(foreign) = %#v, %v, want registry-seam resolved ws-2", foreignFilter, err)
+		}
 
 		operatorFilter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{Workspace: "ws-2"},
 			toolspkg.Scope{Operator: true},
 		)
@@ -1164,7 +1175,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		observer := &nativeObserverStub{}
 		registry := newDaemonNativeRegistry(
 			t,
-			&daemonNativeToolsDeps{Observer: observer},
+			&daemonNativeToolsDeps{
+				Observer:   observer,
+				Workspaces: nativeNetworkTestWorkspaceService(t),
+			},
 			nativeApproveAllPolicyInputs(),
 		)
 		_, err = registry.Call(
@@ -1175,7 +1189,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-2"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		_, err = registry.Call(
 			t.Context(),
 			scope,
@@ -1184,7 +1198,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-2","name":"hook-a"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if observer.catalogCall != 0 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
 		}
@@ -1204,32 +1218,209 @@ func TestDaemonNativeTools(t *testing.T) {
 		var unavailableBinder *nativeWorkspaceInputBinder
 		_, err := unavailableBinder.BindCallInput(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			toolspkg.Scope{},
 			descriptor,
 			json.RawMessage(`{"workspace":"alpha"}`),
 		)
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 
-		binder := newNativeWorkspaceInputBinder(nil)
+		binder := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
+		descriptor.ID = toolspkg.ToolIDMemoryNote
 		_, err = binder.BindCallInput(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
+			toolspkg.Scope{},
 			descriptor,
 			json.RawMessage(`{"scope":"global"}`),
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+
+		for _, test := range []struct {
+			name  string
+			input json.RawMessage
+		}{
+			{name: "Should reject inherited global scope", input: json.RawMessage(`{"scope":"global"}`)},
+			{
+				name:  "Should reject global scope with an explicit home workspace",
+				input: json.RawMessage(`{"scope":"global","workspace":"ws-1"}`),
+			},
+			{
+				name:  "Should reject all scope with an explicit home workspace",
+				input: json.RawMessage(`{"scope":"all","workspace":"ws-1"}`),
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := binder.BindCallInput(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
+					descriptor,
+					test.input,
+				)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			})
+		}
+	})
+
+	t.Run("Should bind and authorize native workspace inputs through the workspace policy", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := toolspkg.Descriptor{
+			ID:      toolspkg.ToolIDWorkspaceDescribe,
+			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
+			InputSchema: json.RawMessage(
+				`{"type":"object","properties":{"workspace":{"type":"string"}}}`,
+			),
+			Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
+		}
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		binder := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			nativeNetworkTestSessionManager("ws-1"),
+			policy,
+			nil,
+		)
+
+		inherited, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(`{}`))
+		if err != nil {
+			t.Fatalf("BindCallInput(inherit) error = %v", err)
+		}
+		if string(inherited) != `{"workspace":"ws-1"}` {
+			t.Fatalf("inherited input = %s, want trusted workspace", inherited)
+		}
+		foreign, err := binder.BindCallInput(
+			t.Context(),
+			scope,
+			descriptor,
+			json.RawMessage(`{"workspace":"ws-2"}`),
+		)
+		if err != nil {
+			t.Fatalf("BindCallInput(foreign) error = %v", err)
+		}
+		call := toolspkg.CallRequest{ToolID: descriptor.ID, SessionID: "sess-1", Input: foreign}
+		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
+			t.Fatalf("AuthorizeCallInput(allow) error = %v", err)
+		}
+		if policy.calls != 1 || policy.last.TargetWorkspaceID != "ws-2" {
+			t.Fatalf("policy calls/request = %d/%#v, want foreign target", policy.calls, policy.last)
+		}
+
+		stableWorkspaces := apitest.StubWorkspaceService{ResolveFn: func(
+			_ context.Context,
+			ref string,
+		) (workspacepkg.ResolvedWorkspace, error) {
+			switch ref {
+			case "ws-home", "home-alias":
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "registry-home"},
+					WorkspaceID: "ws-home",
+				}, nil
+			case "target-alias":
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "registry-target"},
+					WorkspaceID: "ws-target",
+				}, nil
+			default:
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+		}}
+		stableBinder := newNativeWorkspaceInputBinder(stableWorkspaces, nil, nil, nil)
+		stableInput, err := stableBinder.BindCallInput(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-stable", WorkspaceID: "ws-home", AgentName: "coder"},
+			descriptor,
+			json.RawMessage(`{"workspace":"target-alias"}`),
+		)
+		if err != nil || string(stableInput) != `{"workspace":"ws-target"}` {
+			t.Fatalf("stable workspace input = %s, %v, want durable target id", stableInput, err)
+		}
+
+		cache := newWorkspaceAccessConsentCache()
+		requester := selectedPermissionRequester(workspaceAccessAllowSessionID)
+		consentPolicy := &consentAwareNativeWorkspaceAccessPolicy{cache: cache}
+		liveSessions := apitest.StubSessionManager{StatusFn: func(
+			context.Context,
+			string,
+		) (*session.Info, error) {
+			return &session.Info{
+				ID:          "sess-1",
+				AgentName:   "coder",
+				WorkspaceID: "ws-1",
+				State:       session.StateActive,
+			}, nil
+		}}
+		promptingBinder := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			liveSessions,
+			consentPolicy,
+			newWorkspaceAccessPromptBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				cache,
+			),
+		)
+		for attempt := range 2 {
+			if err := promptingBinder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
+				t.Fatalf("AuthorizeCallInput(session consent %d) error = %v", attempt, err)
+			}
+		}
+		if len(requester.requests) != 1 {
+			t.Fatalf("permission requests = %d, want one prompt before session consent reuse", len(requester.requests))
+		}
+
+		denied := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
+		err = denied.AuthorizeCallInput(t.Context(), scope, descriptor, call)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+
+		err = binder.AuthorizeCallInput(t.Context(), toolspkg.Scope{}, descriptor, call)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+
+		statusErr := errors.New("session status unavailable")
+		statusFailure := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return nil, statusErr
+			}},
+			policy,
+			nil,
+		)
+		err = statusFailure.AuthorizeCallInput(
+			t.Context(),
+			scope,
+			descriptor,
+			toolspkg.CallRequest{
+				ToolID:    descriptor.ID,
+				SessionID: "sess-1",
+				Input:     json.RawMessage(`{"workspace":"ws-1"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if !errors.Is(err, statusErr) {
+			t.Fatalf("AuthorizeCallInput(status failure) error = %v, want preserved status error", err)
+		}
+
+		policyErr := errors.New("workspace policy unavailable")
+		failingPolicy := &recordingNativeWorkspaceAccessPolicy{err: policyErr}
+		policyFailure := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			nativeNetworkTestSessionManager("ws-1"),
+			failingPolicy,
+			nil,
+		)
+		err = policyFailure.AuthorizeCallInput(t.Context(), scope, descriptor, call)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if !errors.Is(err, policyErr) {
+			t.Fatalf("AuthorizeCallInput(policy failure) error = %v, want preserved policy error", err)
+		}
 	})
 
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: apitest.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{{ID: "sess-1", WorkspaceID: "ws-1"}}, nil
-				},
-			},
-			Skills: newLoadedNativeSkillRegistry(t),
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -1251,7 +1442,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					scope,
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
-				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			})
 		}
 	})
@@ -1415,7 +1606,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskCreate,
 				Input:  json.RawMessage(`{"scope":"global","title":"root","parent_task_id":"not-allowed"}`),
@@ -1651,7 +1842,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input: json.RawMessage(
@@ -1675,7 +1866,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input:  json.RawMessage(`{"refresh":true}`),
@@ -1690,7 +1881,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		refreshResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsRefresh,
 				Input: json.RawMessage(
@@ -1712,7 +1903,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		statusResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsStatus,
 				Input:  json.RawMessage(`{"provider_id":"codex"}`),
@@ -1728,7 +1919,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		curateResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsCurate,
 				Input: json.RawMessage(
@@ -1753,7 +1944,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input:  json.RawMessage(`{"provider_id":"Bad Provider"}`),
@@ -1767,7 +1958,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input:  json.RawMessage(`{"view":"recent"}`),
@@ -1781,7 +1972,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsRefresh,
 				Input:  json.RawMessage(`{"source_id":"bad source"}`),
@@ -1795,7 +1986,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsStatus,
 				Input:  json.RawMessage(`{"provider_id":"Bad Provider"}`),
@@ -1854,7 +2045,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}, nativeApproveAllPolicyInputs())
 				_, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{ToolID: tc.id},
 				)
 				requireToolCode(t, err, tc.want)
@@ -1887,7 +2078,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsCurate,
 				Input:  json.RawMessage(`{"provider_id":"codex","model_id":"missing"}`),
@@ -1918,7 +2109,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskCreate,
 				Input:  json.RawMessage(`{"scope":"global","title":"root"}`),
@@ -1933,7 +2124,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsRefresh,
 				Input:  json.RawMessage(`{"provider_id":"codex"}`),
@@ -1951,7 +2142,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsCurate,
 				Input:  json.RawMessage(`{"provider_id":"codex","model_id":"gpt-5.6-sol"}`),
@@ -2008,11 +2199,13 @@ func TestDaemonNativeTools(t *testing.T) {
 					switch ref {
 					case "ws-config", loopInputWorkspace:
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: "ws-config", RootDir: loopInputWorkspace},
+							Workspace:   workspacepkg.Workspace{ID: "ws-config", RootDir: loopInputWorkspace},
+							WorkspaceID: "ws-config",
 						}, nil
 					case "ws-guarded", guardedWorkspaceRoot:
 						return workspacepkg.ResolvedWorkspace{
-							Workspace: workspacepkg.Workspace{ID: "ws-guarded", RootDir: guardedWorkspaceRoot},
+							Workspace:   workspacepkg.Workspace{ID: "ws-guarded", RootDir: guardedWorkspaceRoot},
+							WorkspaceID: "ws-guarded",
 						}, nil
 					default:
 						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
@@ -2026,7 +2219,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"defaults.agent","value":"planner"}`),
@@ -2047,7 +2240,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		loopInputPath := "loops.inputs.review-and-fix.auto_commit"
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input: json.RawMessage(fmt.Sprintf(
@@ -2062,7 +2255,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		loopInputResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigGet,
 				Input: json.RawMessage(fmt.Sprintf(
@@ -2078,7 +2271,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, loopInputResult, []byte(`"value":false`))
 		unsetLoopInputResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigUnset,
 				Input: json.RawMessage(fmt.Sprintf(
@@ -2095,7 +2288,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"roles.dream.model","value":"claude-haiku-4-5"}`),
@@ -2113,7 +2306,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		dreamRoleResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigGet,
 				Input:  json.RawMessage(`{"path":"roles.dream.model"}`),
@@ -2129,7 +2322,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  rolesTableInput,
@@ -2148,7 +2341,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		coordinatorEnabledResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigGet,
 				Input:  json.RawMessage(`{"path":"roles.coordinator.enabled"}`),
@@ -2165,7 +2358,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		goalResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"goals.context_nudge_ratio","value":0.0}`),
@@ -2185,7 +2378,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		capacityResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input: json.RawMessage(
@@ -2211,7 +2404,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		marketplaceResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout","value":"3s"}`),
@@ -2250,7 +2443,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 			_, err = registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{ToolID: toolID, Input: encoded},
 			)
 			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonConfigScopeNotAllowed)
@@ -2262,7 +2455,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout","value":"0s"}`),
@@ -2281,7 +2474,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		unsetResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigUnset,
 				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout"}`),
@@ -2298,7 +2491,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigGet,
 				Input:  json.RawMessage(`{"path":"defaults.agent"}`),
@@ -2330,7 +2523,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Run("Should reject "+tc.path, func(t *testing.T) {
 				_, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{
 						ToolID: toolspkg.ToolIDConfigSet,
 						Input: json.RawMessage(
@@ -2378,7 +2571,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"marketplace.catalog.ttl","value":"10m"}`),
@@ -2409,7 +2602,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDConfigSet,
 				Input:  json.RawMessage(`{"path":"defaults.agent","value":"planner"}`),
@@ -2452,6 +2645,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
+			Sessions:  nativeNetworkTestSessionManager("ws-bound"),
 			Workspaces: apitest.StubWorkspaceService{
 				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 					if ref != "ws-bound" {
@@ -2467,7 +2661,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			},
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{WorkspaceID: "ws-bound"}
+		scope := toolspkg.Scope{SessionID: "sess-bound", WorkspaceID: "ws-bound"}
 
 		if _, err := registry.Call(
 			t.Context(),
@@ -2588,7 +2782,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDHooksList},
 		)
 		if err != nil {
@@ -2600,7 +2794,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		infoResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksInfo,
 				Input:  json.RawMessage(`{"name":"config-tool"}`),
@@ -2614,7 +2808,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		eventsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksEvents,
 				Input:  json.RawMessage(`{"family":"tool"}`),
@@ -2627,7 +2821,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		runsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksRuns,
 				Input: json.RawMessage(
@@ -2660,7 +2854,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		_, err = foreignRegistry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksRuns,
 				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-hooks"}`),
@@ -2688,7 +2882,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaces := apitest.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				switch ref {
-				case "ws-a":
+				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{ID: "ws-a", RootDir: workspaceARoot},
 					}, nil
@@ -2719,7 +2913,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		target, resolveErr := compozyconfig.ResolveConfigWriteTarget(
 			homePaths,
 			workspaceBRoot,
@@ -2749,7 +2943,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		createResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksCreate,
 				Input: json.RawMessage(
@@ -2777,7 +2971,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		disableResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksDisable,
 				Input:  json.RawMessage(`{"name":"tool-audit"}`),
@@ -2802,7 +2996,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		enableResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksEnable,
 				Input:  json.RawMessage(`{"name":"tool-audit"}`),
@@ -2827,7 +3021,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		updateResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksUpdate,
 				Input:  json.RawMessage(`{"name":"tool-audit","command":"/usr/bin/env","args":["true"]}`),
@@ -2848,7 +3042,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		deleteResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksDelete,
 				Input:  json.RawMessage(`{"name":"tool-audit"}`),
@@ -2893,7 +3087,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksUpdate,
 				Input:  json.RawMessage(`{"name":"native-session","command":"/bin/echo"}`),
@@ -2903,7 +3097,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksDelete,
 				Input:  json.RawMessage(`{"name":"skill-session"}`),
@@ -2913,7 +3107,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksCreate,
 				Input: json.RawMessage(
@@ -2943,7 +3137,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksCreate,
 				Input:  json.RawMessage(`{"name":"blocked","event":"tool.pre_call","command":"/bin/echo"}`),
@@ -2996,7 +3190,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-actor", WorkspaceID: "ws-1"}
 
@@ -3137,7 +3332,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Tasks: tasks}, nativeApproveAllPolicyInputs())
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
+		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-task-create", WorkspaceID: "ws-1"}
 
 		_, err := registry.Call(
@@ -3206,7 +3404,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			listReviews:          []taskpkg.RunReview{review},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-review-ops", WorkspaceID: "ws-1", AgentName: "planner"}
 
@@ -3288,7 +3487,8 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -3510,7 +3710,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -3625,7 +3826,9 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions:   nativeNetworkTestSessionManager("ws-a"),
+			Tasks:      tasks,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -3636,7 +3839,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-b"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if tasks.claimNextCalls != 0 {
 			t.Fatalf("ClaimNextRun() calls = %d, want 0 for cross-workspace request", tasks.claimNextCalls)
 		}
@@ -3647,7 +3850,8 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{claimErr: taskpkg.ErrWorkspaceActiveRunCapReached}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -4107,12 +4311,13 @@ func TestDaemonNativeTools(t *testing.T) {
 			childErr: fmt.Errorf("%w: child parent task id is required", taskpkg.ErrValidation),
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Sessions: nativeNetworkTestSessionManager("ws-1"),
+			Tasks:    tasks,
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.Scope{SessionID: "sess-child", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskChildCreate,
 				Input: json.RawMessage(
@@ -4192,7 +4397,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskPromoteFromThread,
 				Input: json.RawMessage(
@@ -4277,7 +4482,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkPeers,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network","channel":"default"}`),
@@ -4328,7 +4533,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		statusResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkStatus},
 		)
 		if err != nil {
@@ -4338,7 +4543,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		usageResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkUsage,
 				Input: json.RawMessage(
@@ -4359,7 +4564,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		channelsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkChannels,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network"}`),
@@ -4398,7 +4603,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:  networkService,
-			Sessions: nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Sessions: nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceIdentityID),
 			Workspaces: nativeNetworkTestWorkspaceServiceWithIdentity(
 				t,
 				nativeNetworkTestWorkspaceIdentityID,
@@ -4424,11 +4629,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		if networkService.lastSend.SessionID != "sess-scope" {
 			t.Fatalf("SendRequest.SessionID = %q, want scoped session", networkService.lastSend.SessionID)
 		}
-		if networkService.lastSend.WorkspaceID != nativeNetworkTestWorkspaceID {
+		if networkService.lastSend.WorkspaceID != nativeNetworkTestWorkspaceIdentityID {
 			t.Fatalf(
-				"SendRequest.WorkspaceID = %q, want registry workspace %q",
+				"SendRequest.WorkspaceID = %q, want durable workspace identity %q",
 				networkService.lastSend.WorkspaceID,
-				nativeNetworkTestWorkspaceID,
+				nativeNetworkTestWorkspaceIdentityID,
 			)
 		}
 		if networkService.lastSend.Surface == nil || *networkService.lastSend.Surface != network.SurfaceThread {
@@ -4619,7 +4824,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		threadsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkThreads,
 				Input: json.RawMessage(
@@ -4637,7 +4842,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		threadMessagesResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkThreadMessages,
 				Input: json.RawMessage(
@@ -4655,7 +4860,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		directsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
 				Input: json.RawMessage(
@@ -4697,7 +4902,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		directMessagesResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirectMessages,
 				Input: json.RawMessage(
@@ -4716,7 +4921,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		workResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkWork,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network","work_id":"work_launch"}`),
@@ -4861,7 +5066,11 @@ func TestDaemonNativeTools(t *testing.T) {
 					Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
 					Workspaces:   nativeNetworkTestWorkspaceService(t),
 				}, nativeApproveAllPolicyInputs())
-				_, err := registry.Call(t.Context(), tc.scope, toolspkg.CallRequest{ToolID: tc.id, Input: tc.input})
+				scope := tc.scope
+				if scope == (toolspkg.Scope{}) {
+					scope.Operator = true
+				}
+				_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: tc.id, Input: tc.input})
 				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 			})
 		}
@@ -4927,7 +5136,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
 				Input: json.RawMessage(
@@ -5292,7 +5501,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Run(tc.id.String(), func(t *testing.T) {
 				result, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
 				if err != nil {
@@ -5304,7 +5513,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionList,
 				Input: json.RawMessage(
@@ -5350,14 +5559,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		if _, defaultErr := registryWithoutHealth.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionList},
 		); defaultErr != nil {
 			t.Fatalf("Registry.Call(session_list without page health) error = %v", defaultErr)
 		}
 		_, missingHealthErr := registryWithoutHealth.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionList,
 				Input:  json.RawMessage(`{"include_health":true}`),
@@ -5372,7 +5581,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionStatus,
 				Input:  json.RawMessage(`{"workspace":"ws-foreign-stable","session_id":"sess-1"}`),
@@ -5477,7 +5686,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		healthResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionHealth,
 				Input:  json.RawMessage(`{"workspace":"ws-1","session_id":"sess-heartbeat"}`),
@@ -5490,7 +5699,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		statusResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
 				Input: json.RawMessage(
@@ -5506,7 +5715,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		wakeResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
 				Input: json.RawMessage(
@@ -5536,7 +5745,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
 				Input: json.RawMessage(
@@ -5553,7 +5762,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
 				Input: json.RawMessage(
@@ -5635,7 +5844,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Run(tc.id.String(), func(t *testing.T) {
 				result, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
 				if err != nil {
@@ -5659,9 +5868,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 				switch ref {
-				case "ws-a":
+				case "ws-a", "stable-a":
 					return workspacepkg.Workspace{ID: "ws-a", RootDir: "/workspace/a", Name: "a"}, nil
-				case "ws-b":
+				case "ws-b", "stable-b":
 					return workspacepkg.Workspace{ID: "ws-b", RootDir: "/workspace/b", Name: "b"}, nil
 				default:
 					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
@@ -5672,12 +5881,12 @@ func TestDaemonNativeTools(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, resolveErr
 				}
 				switch ref {
-				case "ws-a":
+				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-a", RootDir: "/workspace/a", Name: "a"},
 						WorkspaceID: "stable-a",
 					}, nil
-				case "ws-b":
+				case "ws-b", "stable-b":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-b", RootDir: "/workspace/b", Name: "b"},
 						WorkspaceID: "stable-b",
@@ -5690,10 +5899,18 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: apitest.StubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) { return nil, nil },
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID:          id,
+						AgentName:   "coder",
+						WorkspaceID: "stable-a",
+						State:       session.StateActive,
+					}, nil
+				},
 			},
 			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
+		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "stable-a", AgentName: "coder"}
 
 		listResult, err := registry.Call(
 			t.Context(),
@@ -5753,12 +5970,12 @@ func TestDaemonNativeTools(t *testing.T) {
 					Input:  json.RawMessage(`{"workspace":"ws-b"}`),
 				},
 			)
-			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		}
 
 		operatorResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true, WorkspaceID: "ws-a"},
+			toolspkg.Scope{Operator: true, WorkspaceID: "stable-a"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDWorkspaceInfo,
 				Input:  json.RawMessage(`{"workspace":"ws-b"}`),
@@ -5801,12 +6018,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaces := apitest.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				switch ref {
-				case "ws-a":
+				case "ws-a", "stable-a":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-a", RootDir: workspaceARoot},
 						WorkspaceID: "stable-a",
 					}, nil
-				case "ws-b":
+				case "ws-b", "stable-b":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-b", RootDir: workspaceBRoot},
 						WorkspaceID: "stable-b",
@@ -5818,9 +6035,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			MemoryStore: memoryStore,
+			Sessions:    nativeNetworkTestSessionManager("stable-a"),
 			Workspaces:  workspaces,
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
+		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "stable-a", AgentName: "coder"}
 
 		for _, tc := range []struct {
 			name   string
@@ -5855,7 +6073,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					scope,
 					toolspkg.CallRequest{ToolID: tc.toolID, Input: tc.input},
 				)
-				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			})
 		}
 
@@ -5928,7 +6146,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
 				Input:  json.RawMessage(`{"scope":"workspace","workspace":"` + stableWorkspaceID + `"}`),
@@ -5942,7 +6160,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		globalListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
 				Input:  json.RawMessage(`{"scope":"global"}`),
@@ -5957,7 +6175,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		combinedListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
 				Input:  json.RawMessage(`{"workspace":"` + stableWorkspaceID + `","sort":"name","limit":1}`),
@@ -5992,7 +6210,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		secondListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryList, Input: secondInput},
 		)
 		if err != nil {
@@ -6019,7 +6237,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		readResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryShow,
 				Input:  json.RawMessage(`{"filename":"global.md","scope":"global"}`),
@@ -6033,7 +6251,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		workspaceReadResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryShow,
 				Input: json.RawMessage(
@@ -6049,7 +6267,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		searchResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemorySearch,
 				Input:  json.RawMessage(`{"query":"workspace memory body","workspace":"` + stableWorkspaceID + `"}`),
@@ -6080,7 +6298,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		proposeResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input: json.RawMessage(
@@ -6096,7 +6314,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		batchResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input: json.RawMessage(
@@ -6131,7 +6349,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		noteResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryNote,
 				Input: json.RawMessage(
@@ -6146,7 +6364,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryShow,
 				Input:  json.RawMessage(`{"filename":"missing.md","scope":"global"}`),
@@ -6157,7 +6375,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input:  json.RawMessage(`{"operation":"merge"}`),
@@ -6168,7 +6386,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input: json.RawMessage(
@@ -6196,7 +6414,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
 				Input:  json.RawMessage(`{"scope":"global","type":"reference","limit":1}`),
@@ -6256,12 +6474,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			MemoryStore: memoryStore,
+			Sessions:    nativeNetworkTestSessionManager(identity.WorkspaceID),
 			Workspaces:  workspaces,
 		}, nativeApproveAllPolicyInputs())
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: identity.WorkspaceID, AgentName: "reviewer-a"},
+			toolspkg.Scope{SessionID: "sess-reviewer-a", WorkspaceID: identity.WorkspaceID, AgentName: "reviewer-a"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
 				Input:  json.RawMessage(`{"agent_tier":"workspace"}`),
@@ -6350,7 +6569,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		healthResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryHealth},
 		)
 		if err != nil {
@@ -6366,7 +6585,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		extractorResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryExtractorStatus},
 		)
 		if err != nil {
@@ -6382,7 +6601,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		providerResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryProviderList,
 				Input:  json.RawMessage(`{"workspace":"ws-1"}`),
@@ -6398,7 +6617,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		ledgerResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemorySessionLedger,
 				Input:  json.RawMessage(`{"workspace":"ws-1","session_id":"sess-memory"}`),
@@ -6440,7 +6659,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		} {
 			_, err := foreignRegistry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 			)
 			if err == nil {
@@ -6695,9 +6914,13 @@ func TestDaemonNativeTools(t *testing.T) {
 				if tc.input != nil {
 					input = tc.input(fixture)
 				}
+				scope := tc.scope
+				if scope == (toolspkg.Scope{}) {
+					scope.Operator = true
+				}
 				result, err := fixture.registry.Call(
 					t.Context(),
-					tc.scope,
+					scope,
 					toolspkg.CallRequest{ToolID: tc.id, Input: input},
 				)
 				if tc.wantErr != "" {
@@ -6803,7 +7026,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			subscribeResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
 					Input: json.RawMessage(
@@ -6829,7 +7052,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			listResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationList,
 					Input: json.RawMessage(
@@ -6851,7 +7074,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			showResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationShow,
 					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
@@ -6864,7 +7087,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			deleteResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTaskNotificationDelete,
 					Input:  json.RawMessage(`{"task_id":"task-1","subscription_id":"sub-native"}`),
@@ -6929,7 +7152,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		subscribeResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskNotificationSubscribe,
 				Input: json.RawMessage(
@@ -7068,7 +7291,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 				_, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
 				requireToolCode(t, err, tc.want)
@@ -7186,12 +7409,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer:   observer,
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		eventsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDListLogs,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network","limit":1}`),
@@ -7205,7 +7429,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		filteredEventsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDListLogs,
 				Input: json.RawMessage(
@@ -7221,7 +7445,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		searchResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveSearch,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network","query":"deploy","limit":10}`),
@@ -7236,7 +7460,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		metricsResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDObserveMetrics},
 		)
 		if err != nil {
@@ -7248,7 +7472,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDListLogs,
 				Input:  json.RawMessage(`{"since":"not-a-date"}`),
@@ -7259,7 +7483,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveSearch,
 				Input:  json.RawMessage(`{"workspace":"ws-native-network","query":""}`),
@@ -7277,7 +7501,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-other"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(
 			t.Context(),
@@ -7287,7 +7511,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-other","query":"deploy"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
 
 	t.Run(
@@ -7344,7 +7568,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			listResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesList},
 			)
 			if err != nil {
@@ -7359,7 +7583,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			statusResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDBridgesStatus,
 					Input:  json.RawMessage(`{"bridge_id":"bridge-1"}`),
@@ -7375,7 +7599,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			aggregateStatusResult, err := registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesStatus},
 			)
 			if err != nil {
@@ -7387,7 +7611,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			_, err = registry.Call(
 				t.Context(),
-				toolspkg.Scope{},
+				toolspkg.Scope{Operator: true},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDBridgesStatus,
 					Input:  json.RawMessage(`{"bridge_id":"missing"}`),
@@ -7471,12 +7695,14 @@ func TestDaemonNativeTools(t *testing.T) {
 					return result, nil
 				},
 			},
-			Observer: observer,
+			Observer:   observer,
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		first, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.Scope{SessionID: "sess-bridge", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDBridgesList,
 				Input:  json.RawMessage(`{"q":"needle","platform":"SLACK","sort":"name","limit":1}`),
@@ -7527,7 +7753,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		second, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.Scope{SessionID: "sess-bridge", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesList, Input: secondInput},
 		)
 		if err != nil {
@@ -7547,14 +7773,47 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.Scope{SessionID: "sess-bridge", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDBridgesList,
 				Input:  json.RawMessage(`{"workspace":"ws-2"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
+}
+
+type recordingNativeWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	err      error
+	calls    int
+	last     workspaceaccess.Request
+}
+
+type consentAwareNativeWorkspaceAccessPolicy struct {
+	cache workspaceaccess.SessionConsentCache
+}
+
+func (p *consentAwareNativeWorkspaceAccessPolicy) Authorize(
+	ctx context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	if consent, ok := p.cache.ConsentFor(ctx, req.Actor.SessionID); ok {
+		return workspaceaccess.Decision{
+			Allowed: consent == workspaceaccess.ConsentAllow,
+			Source:  workspaceaccess.SourceSessionConsent,
+		}, nil
+	}
+	return workspaceaccess.Decision{PromptEligible: true, Source: workspaceaccess.SourceDenied}, nil
+}
+
+func (p *recordingNativeWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, p.err
 }
 
 func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
@@ -8042,11 +8301,21 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					},
 				},
 			}
-			registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
-				Network:    networkService,
-				Sessions:   sessions,
-				Workspaces: workspaces,
-			}, resolver)
+			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+				t,
+				&daemonNativeToolsDeps{
+					Network:    networkService,
+					Sessions:   sessions,
+					Workspaces: workspaces,
+				},
+				resolver,
+				&recordingNativeWorkspaceAccessPolicy{
+					decision: workspaceaccess.Decision{
+						Allowed: true,
+						Source:  workspaceaccess.SourcePermissionMode,
+					},
+				},
+			)
 			scope := toolspkg.Scope{SessionID: "sess-coord"}
 
 			channelsResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
@@ -8246,6 +8515,16 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	resolver toolspkg.PolicyInputResolver,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
+	return newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps, resolver, nil)
+}
+
+func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+	t *testing.T,
+	deps *daemonNativeToolsDeps,
+	resolver toolspkg.PolicyInputResolver,
+	workspaceAccess workspaceaccess.Policy,
+) *toolspkg.RuntimeRegistry {
+	t.Helper()
 
 	if deps == nil {
 		deps = &daemonNativeToolsDeps{}
@@ -8262,10 +8541,12 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	if err != nil {
 		t.Fatalf("builtin.ToolsetCatalog() error = %v", err)
 	}
+	workspaceBinder := newNativeWorkspaceInputBinder(deps.Workspaces, deps.Sessions, workspaceAccess, nil)
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(provider),
 		toolspkg.WithPolicyInputResolver(resolver, toolsets),
-		toolspkg.WithCallInputBinder(newNativeWorkspaceInputBinder(deps.Workspaces)),
+		toolspkg.WithCallInputBinder(workspaceBinder),
+		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(compozyconfig.DefaultToolsMaxResultBytes),
 	)
 	if err != nil {
@@ -8944,12 +9225,12 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 			Sessions: manager,
 		}}
 		scope := toolspkg.Scope{SessionID: "sess-authored", AgentName: "reviewer"}
-		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+		if _, err := native.skillsFor(t.Context(), scope, ""); err != nil {
 			t.Fatalf("skillsFor(authored) error = %v", err)
 		}
 
 		manager.agent.SourcePath = ""
-		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+		if _, err := native.skillsFor(t.Context(), scope, ""); err != nil {
 			t.Fatalf("skillsFor(packaged) error = %v", err)
 		}
 		if got, want := registry.resolvedNames, []string{"reviewer"}; !slices.Equal(got, want) {

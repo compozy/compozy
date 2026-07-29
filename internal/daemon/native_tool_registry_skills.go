@@ -82,7 +82,7 @@ func (n *daemonNativeTools) skillList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skillList, err := n.skillsFor(ctx, scope, req.ToolID, input.WorkspaceID)
+	skillList, err := n.skillsFor(ctx, scope, input.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -102,7 +102,7 @@ func (n *daemonNativeTools) skillSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skillList, err := n.skillsFor(ctx, scope, req.ToolID, input.WorkspaceID)
+	skillList, err := n.skillsFor(ctx, scope, input.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -123,7 +123,7 @@ func (n *daemonNativeTools) skillView(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skill, err := n.resolveSkill(ctx, scope, req.ToolID, input.WorkspaceID, input.Name)
+	skill, err := n.resolveSkill(ctx, scope, input.WorkspaceID, input.Name)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

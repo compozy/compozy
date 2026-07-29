@@ -237,10 +237,7 @@ func nativeBridgeCatalogQuery(
 	if !scope.Operator && trustedWorkspace == "" && requestedWorkspace != "" {
 		return bridgepkg.BridgeCatalogQuery{}, nativeScopeMismatchError(id, nativeWorkspaceInputKey)
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(id, requestedWorkspace, scope)
-	if err != nil {
-		return bridgepkg.BridgeCatalogQuery{}, err
-	}
+	workspaceID := nativeCallerWorkspaceInput(requestedWorkspace, scope)
 	if requestedScope == string(bridgepkg.ScopeGlobal) {
 		if requestedWorkspace != "" {
 			return bridgepkg.BridgeCatalogQuery{}, nativeBridgeCatalogError(

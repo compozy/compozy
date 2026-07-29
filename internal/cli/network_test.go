@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -30,6 +31,69 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			if !strings.Contains(stdout, phrase) {
 				t.Fatalf("network send --help output = %q, want phrase %q", stdout, phrase)
 			}
+		}
+	})
+
+	t.Run("Should send agent Network requests without fetching foreign workspace detail", func(t *testing.T) {
+		t.Parallel()
+
+		credentials := agentidentity.Credentials{SessionID: "sess-agent", AgentName: "coder"}
+		client := &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				t.Fatal("GetWorkspace() called before agent Network authorization")
+				return WorkspaceDetailRecord{}, nil
+			},
+			networkChannelsFn: func(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
+				if workspaceRef != "foreign-alias" {
+					t.Fatalf("NetworkChannels() workspace = %q, want foreign-alias", workspaceRef)
+				}
+				if got := networkAgentCredentialsFromContext(ctx); got != credentials {
+					t.Fatalf("NetworkChannels() credentials = %#v, want %#v", got, credentials)
+				}
+				return []NetworkChannelRecord{}, nil
+			},
+			networkStatusFn: func(ctx context.Context) (NetworkStatusRecord, error) {
+				if got := networkAgentCredentialsFromContext(ctx); got != credentials {
+					t.Fatalf("NetworkStatus() credentials = %#v, want %#v", got, credentials)
+				}
+				return NetworkStatusRecord{}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return credentials.SessionID
+			case agentidentity.EnvAgent:
+				return credentials.AgentName
+			default:
+				return ""
+			}
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"foreign-alias",
+			"channels",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("network channels error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"foreign-alias",
+			"status",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("network status error = %v", err)
 		}
 	})
 

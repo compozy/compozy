@@ -168,7 +168,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "ws-workspace" {
+				t.Fatalf("workspace Get ref = %q, want ws-workspace", ref)
+			}
+			return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+		},
+	}, nil, nil)
 
 	t.Run("Should list sessions", func(t *testing.T) {
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
@@ -239,6 +246,40 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
 		}
+	})
+
+	t.Run("Should return only the minimal session owner projection", func(t *testing.T) {
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/sess-a/owner", nil)
+		if ownerResp.Code != http.StatusOK {
+			t.Fatalf("owner status = %d, want %d; body=%s", ownerResp.Code, http.StatusOK, ownerResp.Body.String())
+		}
+
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(owner fields) error = %v", err)
+		}
+		if len(fields) != 3 || fields["session_id"] == nil || fields["workspace_id"] == nil ||
+			fields["workspace_name"] == nil {
+			t.Fatalf("owner fields = %v, want exactly session_id workspace_id workspace_name", fields)
+		}
+
+		var owner contract.SessionOwner
+		if err := json.Unmarshal(ownerResp.Body.Bytes(), &owner); err != nil {
+			t.Fatalf("json.Unmarshal(owner) error = %v", err)
+		}
+		want := contract.SessionOwner{
+			SessionID:     "sess-a",
+			WorkspaceID:   "ws-workspace",
+			WorkspaceName: "Primary workspace",
+		}
+		if owner != want {
+			t.Fatalf("owner = %#v, want %#v", owner, want)
+		}
+	})
+
+	t.Run("Should return not found for a missing session owner", func(t *testing.T) {
+		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing/owner", nil)
+		assertAPIErrorResponse(t, ownerResp, http.StatusNotFound, "session not found")
 	})
 
 	t.Run("Should return not found for missing sessions", func(t *testing.T) {
@@ -2735,11 +2776,11 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if _, err := os.Stat(globalPath); err != nil {
 			t.Fatalf("os.Stat(global twin) error = %v", err)
 		}
-		if soulPurger.workspaceID != "ws-registry" || soulPurger.name != "coder" ||
+		if soulPurger.workspaceID != "ws-identity" || soulPurger.name != "coder" ||
 			soulPurger.sourcePath != workspacePath {
 			t.Fatalf("soul purge = %#v", soulPurger)
 		}
-		if heartbeatPurger.workspaceID != "ws-registry" || heartbeatPurger.sourcePath != workspacePath {
+		if heartbeatPurger.workspaceID != "ws-identity" || heartbeatPurger.sourcePath != workspacePath {
 			t.Fatalf("heartbeat purge = %#v", heartbeatPurger)
 		}
 		repeat := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
@@ -3044,8 +3085,9 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
-						Agents:    []compozyconfig.AgentDef{source},
+						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						WorkspaceID: "ws-identity",
+						Agents:      []compozyconfig.AgentDef{source},
 					}, nil
 				},
 			},
@@ -3064,8 +3106,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-1" {
-			t.Fatalf("duplicate payload = %#v, want ws-1 workspace origin", payload.Agent)
+		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-identity" {
+			t.Fatalf("duplicate payload = %#v, want stable workspace identity", payload.Agent)
 		}
 		targetPath := filepath.Join(
 			workspaceRoot,
@@ -3098,8 +3140,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		var explicitPayload contract.AgentResponse
 		decodeJSON(t, explicitResp.Body.Bytes(), &explicitPayload)
 		if explicitPayload.Agent.Origin != contract.AgentOriginWorkspace ||
-			explicitPayload.Agent.WorkspaceID != "ws-1" {
-			t.Fatalf("explicit duplicate payload = %#v, want ws-1 workspace origin", explicitPayload.Agent)
+			explicitPayload.Agent.WorkspaceID != "ws-identity" {
+			t.Fatalf("explicit duplicate payload = %#v, want stable workspace identity", explicitPayload.Agent)
 		}
 		explicitTargetPath := filepath.Join(
 			workspaceRoot,
@@ -3374,7 +3416,10 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Workspace: workspacepkg.Workspace{
+							ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
+						},
+						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
 							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
@@ -3455,6 +3500,36 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "ws-1" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
 		}
+
+		catalogResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace="+workspaceRef,
+			nil,
+		)
+		if catalogResp.Code != http.StatusOK {
+			t.Fatalf(
+				"workspace agent catalog status = %d, want %d; body = %s",
+				catalogResp.Code,
+				http.StatusOK,
+				catalogResp.Body.String(),
+			)
+		}
+		var catalog contract.AgentCatalogResponse
+		decodeJSON(t, catalogResp.Body.Bytes(), &catalog)
+		for _, agent := range catalog.Agents {
+			switch agent.Agent.Origin {
+			case contract.AgentOriginWorkspace:
+				if agent.Agent.WorkspaceID != "ws-1" {
+					t.Fatalf("workspace catalog agent = %#v, want durable workspace id ws-1", agent.Agent)
+				}
+			case contract.AgentOriginGlobal:
+				if agent.Agent.WorkspaceID != "" {
+					t.Fatalf("global catalog agent = %#v, want empty workspace id", agent.Agent)
+				}
+			}
+		}
 		onboardingResp := performRequest(
 			t,
 			fixture.Engine,
@@ -3480,8 +3555,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 				missingResp.Body.String(),
 			)
 		}
-		if !strings.Contains(missingResp.Body.String(), "not available in workspace") {
-			t.Fatalf("get missing workspace agent body = %s, want not available message", missingResp.Body.String())
+		if !strings.Contains(missingResp.Body.String(), `not available in workspace \"/workspace\"`) {
+			t.Fatalf("get missing workspace agent body = %s, want canonical workspace root", missingResp.Body.String())
 		}
 	})
 
@@ -3525,7 +3600,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Workspace:   workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
 							{Name: "beta", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},

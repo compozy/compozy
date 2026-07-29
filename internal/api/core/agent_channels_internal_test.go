@@ -621,7 +621,7 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 	})
 }
 
-func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
+func TestAgentTaskClaimCriteria(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should copy session soul provenance into claim criteria", func(t *testing.T) {
@@ -673,6 +673,35 @@ func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
 				criteria.CallerNetworkParticipation,
 				wantParticipation,
 			)
+		}
+	})
+
+	t.Run("Should propagate a foreign workspace to the task authorization seam", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{}
+		caller := agentidentity.Caller{
+			Session: agentidentity.SessionSnapshot{
+				ID:          "sess-agent",
+				AgentName:   "coder",
+				WorkspaceID: "ws-home",
+				State:       session.StateActive,
+			},
+			Actor: taskpkg.ActorContext{
+				Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+			},
+		}
+
+		criteria, err := handlers.agentTaskClaimCriteria(
+			context.Background(),
+			contract.AgentTaskClaimNextRequest{WorkspaceID: "ws-target", LeaseSeconds: 60},
+			caller,
+		)
+		if err != nil {
+			t.Fatalf("agentTaskClaimCriteria() error = %v", err)
+		}
+		if criteria.WorkspaceID != "ws-target" {
+			t.Fatalf("ClaimCriteria.WorkspaceID = %q, want %q", criteria.WorkspaceID, "ws-target")
 		}
 	})
 }

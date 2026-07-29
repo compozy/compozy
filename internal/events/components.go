@@ -21,4 +21,5 @@ const (
 	ComponentTask         = "task"
 	ComponentTools        = "tools"
 	ComponentTranscript   = "transcript"
+	ComponentWorkspace    = "workspace"
 )

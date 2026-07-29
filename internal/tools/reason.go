@@ -92,6 +92,8 @@ const (
 	ReasonGoalEvidenceTooLarge ReasonCode = "goal_evidence_too_large"
 	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
+	// ReasonWorkspaceAccessDenied reports a workspace-axis policy denial.
+	ReasonWorkspaceAccessDenied ReasonCode = "workspace_access_denied"
 	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
 	ReasonMemorySubagentWriteDenied ReasonCode = "memory_subagent_write_denied"
 	// ReasonHookDenied reports hook denial.
@@ -203,6 +205,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonGoalReportConflict:             {},
 	ReasonGoalEvidenceTooLarge:           {},
 	ReasonMemorySubagentWriteDenied:      {},
+	ReasonWorkspaceAccessDenied:          {},
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},
 	ReasonConflictedID:                   {},

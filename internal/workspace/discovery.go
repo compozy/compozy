@@ -86,13 +86,29 @@ func SelectNearestEnclosingRoot(
 
 func pathIsWithinRoot(path string, root string) bool {
 	relative, err := filepath.Rel(root, path)
+	if err == nil && (relative == "." ||
+		(relative != ".." &&
+			!strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
+			!filepath.IsAbs(relative))) {
+		return true
+	}
+
+	rootInfo, err := os.Stat(root)
 	if err != nil {
 		return false
 	}
-	return relative == "." ||
-		(relative != ".." &&
-			!strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
-			!filepath.IsAbs(relative))
+	for current := filepath.Clean(path); ; current = filepath.Dir(current) {
+		currentInfo, statErr := os.Stat(current)
+		if statErr != nil {
+			return false
+		}
+		if os.SameFile(rootInfo, currentInfo) {
+			return true
+		}
+		if parent := filepath.Dir(current); parent == current {
+			return false
+		}
+	}
 }
 
 func pathDepth(path string) int {

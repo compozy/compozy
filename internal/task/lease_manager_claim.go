@@ -14,7 +14,7 @@ func (m *Service) ClaimNextRun(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-	normalized, err := m.normalizeClaimCriteriaForActor(criteria, actor)
+	normalized, err := m.normalizeClaimCriteriaForActor(ctx, criteria, actor)
 	if err != nil {
 		return nil, err
 	}

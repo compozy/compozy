@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type managerInitializeMarker struct {
@@ -336,6 +337,14 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t 
 
 	manager := NewManager(
 		env.registry,
+		WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      "ws-extension-grants",
+				RootDir: fixture.dir,
+				Name:    "extension-grants",
+			},
+			WorkspaceID: "ws-extension-grants",
+		})),
 		WithHealthCheckTimeout(20*time.Millisecond),
 		WithSubprocessSignalGrace(15*time.Millisecond),
 	)

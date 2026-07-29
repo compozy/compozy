@@ -19,6 +19,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type recordingParticipationResolver struct {
@@ -2674,6 +2675,18 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 				Actor:     ActorIdentity{Kind: ActorKindAutomation, Ref: "rule:nightly"},
 				Origin:    Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
 				Authority: FullAccessAuthority(),
+			},
+		},
+		{
+			name: "Should derive workspace automation with its policy home",
+			derive: func() (ActorContext, error) {
+				return DeriveAutomationActorContextForWorkspace("job:nightly", "ws-1", "run:run-1")
+			},
+			want: ActorContext{
+				Actor:     ActorIdentity{Kind: ActorKindAutomation, Ref: "job:nightly"},
+				Origin:    Origin{Kind: OriginKindAutomation, Ref: "run:run-1"},
+				Authority: FullAccessAuthority(),
+				Scope:     CallerScope{WorkspaceID: "ws-1"},
 			},
 		},
 		{
@@ -6993,6 +7006,138 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			t.Fatalf("foreign task title = %q, want unchanged %q", got, foreignTask.Title)
 		}
 	})
+
+	t.Run("Should delegate foreign workspace access to the injected policy", func(t *testing.T) {
+		t.Parallel()
+
+		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		allowedPolicy := &recordingTaskWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		allowed := scopedTaskResourceAuthorizer{workspaceAccess: allowedPolicy}
+		if err := allowed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); err != nil {
+			t.Fatalf("AuthorizeTaskScope(allow) error = %v", err)
+		}
+		wantRequest := workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   "sess-a",
+				WorkspaceID: "ws-a",
+			},
+			TargetWorkspaceID: "ws-b",
+			Seam:              workspaceaccess.SeamTask,
+		}
+		if allowedPolicy.calls != 1 || allowedPolicy.last != wantRequest {
+			t.Fatalf(
+				"policy calls/request = %d/%#v, want 1/%#v",
+				allowedPolicy.calls,
+				allowedPolicy.last,
+				wantRequest,
+			)
+		}
+
+		denied := scopedTaskResourceAuthorizer{workspaceAccess: &recordingTaskWorkspaceAccessPolicy{}}
+		if err := denied.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("AuthorizeTaskScope(deny) error = %v, want ErrPermissionDenied", err)
+		}
+
+		policyErr := errors.New("workspace policy unavailable")
+		failed := scopedTaskResourceAuthorizer{workspaceAccess: &recordingTaskWorkspaceAccessPolicy{err: policyErr}}
+		err := failed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b")
+		if !errors.Is(err, ErrPermissionDenied) || !errors.Is(err, policyErr) {
+			t.Fatalf("AuthorizeTaskScope(policy failure) error = %v, want denial joined with cause", err)
+		}
+	})
+
+	t.Run("Should deny workspace resource reads and mutations from unscoped automation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithWorkspaceAccessPolicy(policy))
+		foreignTask, err := manager.CreateTask(t.Context(), CreateTask{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-b",
+			Title:       "Automation must not cross workspace boundaries",
+		}, validActorContext())
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		automation, err := DeriveAutomationActorContext("rule:nightly", "task.resource.test")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+		if _, err := manager.GetTask(t.Context(), foreignTask.ID, automation); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("GetTask(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		newTitle := "Unauthorized mutation"
+		if _, err := manager.UpdateTask(t.Context(), foreignTask.ID, Patch{Title: &newTitle}, automation); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("UpdateTask(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		if policy.calls != 2 || policy.last.Actor.Kind != workspaceaccess.ActorAutomation ||
+			policy.last.Actor.WorkspaceID != "" || policy.last.TargetWorkspaceID != "ws-b" {
+			t.Fatalf("policy calls/request = %d/%#v, want two unscoped automation denials", policy.calls, policy.last)
+		}
+	})
+
+	t.Run("Should preserve the run not found mask for policy denials", func(t *testing.T) {
+		t.Parallel()
+
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		authorizer := scopedTaskResourceAuthorizer{workspaceAccess: policy}
+		runAuthorizer := taskRunReadAuthorizer{tasks: authorizer}
+		taskRecord := &Task{Scope: ScopeWorkspace, WorkspaceID: "ws-b"}
+		err := runAuthorizer.AuthorizeRunRead(
+			t.Context(),
+			agentSessionActorContextForWorkspace("sess-a", "ws-a"),
+			Run{WorkspaceID: "ws-b"},
+			taskRecord,
+		)
+		if !errors.Is(err, ErrTaskRunNotFound) {
+			t.Fatalf("AuthorizeRunRead() error = %v, want ErrTaskRunNotFound", err)
+		}
+		if policy.calls != 1 {
+			t.Fatalf("policy calls = %d, want 1", policy.calls)
+		}
+	})
+
+	t.Run("Should let operators short circuit before the policy", func(t *testing.T) {
+		t.Parallel()
+
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		authorizer := scopedTaskResourceAuthorizer{workspaceAccess: policy}
+		if err := authorizer.AuthorizeTaskScope(
+			t.Context(),
+			validActorContext(),
+			ScopeWorkspace,
+			"ws-b",
+		); err != nil {
+			t.Fatalf("AuthorizeTaskScope(operator) error = %v", err)
+		}
+		if policy.calls != 0 {
+			t.Fatalf("policy calls = %d, want 0", policy.calls)
+		}
+	})
+}
+
+type recordingTaskWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	err      error
+	calls    int
+	last     workspaceaccess.Request
+}
+
+func (p *recordingTaskWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, p.err
 }
 
 func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {

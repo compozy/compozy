@@ -17,6 +17,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,6 +59,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
@@ -136,6 +138,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
@@ -224,6 +227,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
+		WorkspaceAccess:              cfg.WorkspaceAccess,
 		WindowManager:                cfg.WindowManager,
 		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,

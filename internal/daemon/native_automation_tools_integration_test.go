@@ -34,7 +34,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	jobCreateResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsCreate,
 			Input: json.RawMessage(
@@ -56,7 +56,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"name":"integration-daily-updated"}`, jobID)),
@@ -75,7 +75,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsDisable,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
@@ -94,7 +94,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsEnable,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
@@ -106,7 +106,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	jobRunResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsTrigger,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
@@ -126,7 +126,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	historyResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsHistory,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q,"status":"completed"}`, jobID)),
@@ -139,7 +139,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	runsResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationRunsList,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
@@ -152,7 +152,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	runGetResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationRunsGet,
 			Input:  json.RawMessage(fmt.Sprintf(`{"run_id":%q}`, runID)),
@@ -165,7 +165,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	triggerCreateResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationTriggersCreate,
 			Input: json.RawMessage(
@@ -187,7 +187,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
 			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q,"name":"integration-trigger-updated"}`, triggerID)),
@@ -206,7 +206,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationTriggersDisable,
 			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
@@ -225,7 +225,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	triggerHistoryResult, err := registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationTriggersHistory,
 			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
@@ -238,7 +238,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationTriggersDelete,
 			Input:  json.RawMessage(fmt.Sprintf(`{"trigger_id":%q}`, triggerID)),
@@ -253,7 +253,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	_, err = registry.Call(
 		ctx,
-		toolspkg.Scope{},
+		toolspkg.Scope{Operator: true},
 		toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAutomationJobsDelete,
 			Input:  json.RawMessage(fmt.Sprintf(`{"job_id":%q}`, jobID)),
@@ -279,7 +279,7 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 
 		_, err := registry.Call(
 			ctx,
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(

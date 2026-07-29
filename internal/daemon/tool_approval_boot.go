@@ -29,21 +29,27 @@ func newBootToolApprovalBridge(
 	approvalTokens toolspkg.ApprovalTokenConsumer,
 	approvalGrants toolspkg.ApprovalGrantStore,
 ) *toolApprovalBridge {
-	var sessions func() sessionPermissionRequester
-	if _, ok := state.sessions.(sessionPermissionRequester); ok {
-		sessions = func() sessionPermissionRequester {
-			requester, ok := state.sessions.(sessionPermissionRequester)
-			if !ok {
-				return nil
-			}
-			return requester
-		}
-	}
 	return newToolApprovalBridge(
-		sessions,
+		sessionPermissionRequesterProvider(state),
 		state.cfg.Tools.Policy.ApprovalTimeout(),
 		approvalTokens,
 		approvalGrants,
 		state.logger,
 	)
+}
+
+func sessionPermissionRequesterProvider(state *bootState) func() sessionPermissionRequester {
+	if state == nil {
+		return nil
+	}
+	if _, ok := state.sessions.(sessionPermissionRequester); !ok {
+		return nil
+	}
+	return func() sessionPermissionRequester {
+		requester, ok := state.sessions.(sessionPermissionRequester)
+		if !ok {
+			return nil
+		}
+		return requester
+	}
 }

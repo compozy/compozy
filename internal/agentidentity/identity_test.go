@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
@@ -180,6 +181,106 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveAuthorizesWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+
+	snapshot := SessionSnapshot{
+		ID:          "sess-1",
+		AgentName:   "coder",
+		WorkspaceID: "ws-home",
+		State:       session.StateActive,
+	}
+	lookup := func(context.Context, string) (SessionSnapshot, error) { return snapshot, nil }
+	credentials := Credentials{SessionID: snapshot.ID, AgentName: snapshot.AgentName}
+
+	t.Run("Should preserve the validated home workspace when policy allows", func(t *testing.T) {
+		t.Parallel()
+
+		var received workspaceaccess.Request
+		caller, err := Resolve(t.Context(), ResolveOptions{
+			Credentials:         credentials,
+			Lookup:              lookup,
+			ExpectedWorkspaceID: "ws-target",
+			WorkspaceAccess: workspaceAccessPolicyFunc(func(
+				_ context.Context,
+				req workspaceaccess.Request,
+			) (workspaceaccess.Decision, error) {
+				received = req
+				return workspaceaccess.Decision{Allowed: true}, nil
+			}),
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if caller.Session.WorkspaceID != snapshot.WorkspaceID {
+			t.Fatalf("caller workspace = %q, want home %q", caller.Session.WorkspaceID, snapshot.WorkspaceID)
+		}
+		if received.Actor.Kind != workspaceaccess.ActorAgentSession ||
+			received.Actor.SessionID != snapshot.ID ||
+			received.TargetWorkspaceID != "ws-target" ||
+			received.Seam != workspaceaccess.SeamIdentity {
+			t.Fatalf("Authorize() request = %#v, want validated identity seam", received)
+		}
+	})
+
+	t.Run("Should convert a prompt eligible denial into identity unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Resolve(t.Context(), ResolveOptions{
+			Credentials:         credentials,
+			Lookup:              lookup,
+			ExpectedWorkspaceID: "ws-target",
+			WorkspaceAccess: workspaceAccessPolicyFunc(func(
+				context.Context,
+				workspaceaccess.Request,
+			) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{PromptEligible: true}, nil
+			}),
+		})
+		if !errors.Is(err, ErrIdentityUnauthorized) {
+			t.Fatalf("Resolve() error = %v, want ErrIdentityUnauthorized", err)
+		}
+		if ExitCodeForError(err) != ExitUnauthorized {
+			t.Fatalf("ExitCodeForError() = %d, want %d", ExitCodeForError(err), ExitUnauthorized)
+		}
+		if !strings.Contains(err.Error(), workspaceaccess.DenialHint) {
+			t.Fatalf("Resolve() error = %q, want denial hint", err)
+		}
+	})
+
+	t.Run("Should preserve policy failures while denying workspace access", func(t *testing.T) {
+		t.Parallel()
+
+		policyErr := errors.New("policy store unavailable")
+		_, err := Resolve(t.Context(), ResolveOptions{
+			Credentials:         credentials,
+			Lookup:              lookup,
+			ExpectedWorkspaceID: "ws-target",
+			WorkspaceAccess: workspaceAccessPolicyFunc(func(
+				context.Context,
+				workspaceaccess.Request,
+			) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{}, policyErr
+			}),
+		})
+		if !errors.Is(err, ErrIdentityUnauthorized) || !errors.Is(err, policyErr) {
+			t.Fatalf("Resolve() error = %v, want identity denial joined with policy failure", err)
+		}
+	})
+}
+
+type workspaceAccessPolicyFunc func(
+	context.Context,
+	workspaceaccess.Request,
+) (workspaceaccess.Decision, error)
+
+func (f workspaceAccessPolicyFunc) Authorize(
+	ctx context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	return f(ctx, req)
 }
 
 func TestIdentityErrorDiagnosticItem(t *testing.T) {

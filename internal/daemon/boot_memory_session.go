@@ -31,6 +31,9 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
+	if err := d.bootWorkspaceAccess(state, sessions); err != nil {
+		return err
+	}
 	d.configureMemoryController(state, sessions)
 	if err := d.bootClarifyBridge(state, cleanup); err != nil {
 		return err

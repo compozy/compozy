@@ -11,18 +11,46 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-const nativeWorkspaceInputKey = "workspace"
+const (
+	nativeWorkspaceInputKey           = "workspace"
+	nativeWorkspaceSchemaAllOfKeyword = "allOf"
+	nativeWorkspaceSchemaAnyOfKeyword = "anyOf"
+	nativeWorkspaceSchemaOneOfKeyword = "oneOf"
+)
 
-type nativeWorkspaceInputBinder struct {
-	workspaces core.WorkspaceService
+var nativeWorkspaceCompositeKeywords = [...]string{
+	nativeWorkspaceSchemaAllOfKeyword,
+	nativeWorkspaceSchemaAnyOfKeyword,
+	nativeWorkspaceSchemaOneOfKeyword,
 }
 
-var _ toolspkg.CallInputBinder = (*nativeWorkspaceInputBinder)(nil)
+type nativeWorkspaceInputBinder struct {
+	workspaces      core.WorkspaceService
+	sessions        core.SessionManager
+	workspaceAccess workspaceaccess.Policy
+	prompter        workspaceAccessPrompter
+}
 
-func newNativeWorkspaceInputBinder(workspaces core.WorkspaceService) *nativeWorkspaceInputBinder {
-	return &nativeWorkspaceInputBinder{workspaces: workspaces}
+var (
+	_ toolspkg.CallInputBinder     = (*nativeWorkspaceInputBinder)(nil)
+	_ toolspkg.CallInputAuthorizer = (*nativeWorkspaceInputBinder)(nil)
+)
+
+func newNativeWorkspaceInputBinder(
+	workspaces core.WorkspaceService,
+	sessions core.SessionManager,
+	workspaceAccess workspaceaccess.Policy,
+	prompter workspaceAccessPrompter,
+) *nativeWorkspaceInputBinder {
+	return &nativeWorkspaceInputBinder{
+		workspaces:      workspaces,
+		sessions:        sessions,
+		workspaceAccess: workspaceAccess,
+		prompter:        prompter,
+	}
 }
 
 func (b *nativeWorkspaceInputBinder) BindCallInput(
@@ -44,12 +72,6 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 	}
 	if payload == nil {
 		return nil, nativeWorkspaceObjectInputError(descriptor.ID, nil)
-	}
-	trusted := strings.TrimSpace(scope.WorkspaceID)
-	if trusted != "" &&
-		!scope.Operator &&
-		nativeInputHasGlobalScope(payload) {
-		return nil, nativeScopeMismatchError(descriptor.ID, nativeWorkspaceInputKey)
 	}
 	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor.ID, schema, payload); err != nil {
 		return nil, err
@@ -95,7 +117,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 		}
 		payload[name] = encoded
 	}
-	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+	for _, keyword := range nativeWorkspaceCompositeKeywords {
 		for _, childSchema := range nativeWorkspaceCompositeSchemas(schema[keyword]) {
 			if !nativeWorkspaceSchemaAcceptsWorkspace(childSchema) {
 				continue
@@ -119,13 +141,20 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		return nil
 	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
+	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)
+	if nativeInputHasGlobalScope(payload) {
+		if !hasOperatorAuthority {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+		return nil
+	}
 	if requested == "" {
-		if trusted == "" || nativeInputHasGlobalScope(payload) {
+		if trusted == "" {
 			return nil
 		}
 		return setNativeWorkspaceInput(payload, trusted)
 	}
-	if scope.Operator {
+	if hasOperatorAuthority {
 		return b.resolveNativeWorkspaceInput(ctx, id, payload, requested)
 	}
 	if trusted == "" {
@@ -135,7 +164,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 		return setNativeWorkspaceInput(payload, trusted)
 	}
 	if b == nil || b.workspaces == nil {
-		return nativeScopeMismatchError(id, nativeWorkspaceInputKey)
+		return nativeNetworkInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	requestedWorkspace, err := b.workspaces.Resolve(ctx, requested)
 	if err != nil {
@@ -145,10 +174,10 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	if err != nil {
 		return nativeNetworkInputError(id, err)
 	}
-	if strings.TrimSpace(requestedWorkspace.ID) != strings.TrimSpace(trustedWorkspace.ID) {
-		return nativeScopeMismatchError(id, nativeWorkspaceInputKey)
+	if strings.TrimSpace(requestedWorkspace.WorkspaceID) == strings.TrimSpace(trustedWorkspace.WorkspaceID) {
+		return setNativeWorkspaceInput(payload, trustedWorkspace.WorkspaceID)
 	}
-	return setNativeWorkspaceInput(payload, trustedWorkspace.ID)
+	return setNativeWorkspaceInput(payload, requestedWorkspace.WorkspaceID)
 }
 
 func nativeInputHasGlobalScope(payload map[string]json.RawMessage) bool {
@@ -181,7 +210,7 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	if err != nil {
 		return nativeNetworkInputError(id, err)
 	}
-	return setNativeWorkspaceInput(payload, resolved.ID)
+	return setNativeWorkspaceInput(payload, resolved.WorkspaceID)
 }
 
 func nativeWorkspaceInputSchema(
@@ -201,7 +230,7 @@ func nativeWorkspaceSchemaAcceptsWorkspace(schema map[string]json.RawMessage) bo
 			return true
 		}
 	}
-	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+	for _, keyword := range nativeWorkspaceCompositeKeywords {
 		if slices.ContainsFunc(
 			nativeWorkspaceCompositeSchemas(schema[keyword]),
 			nativeWorkspaceSchemaAcceptsWorkspace,

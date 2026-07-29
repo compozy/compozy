@@ -13,6 +13,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -50,6 +51,7 @@ type handlerConfig struct {
 	settingsUpdate     core.SettingsUpdateController
 	vault              core.VaultService
 	workspaces         core.WorkspaceService
+	workspaceAccess    workspaceaccess.Policy
 	onboarding         core.OnboardingStore
 	agentCatalog       core.AgentCatalog
 	agentSync          core.AgentDefinitionSync
@@ -159,6 +161,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		SettingsUpdate:               cfg.settingsUpdate,
 		Vault:                        cfg.vault,
 		Workspaces:                   cfg.workspaces,
+		WorkspaceAccess:              cfg.workspaceAccess,
 		Onboarding:                   cfg.onboarding,
 		AgentCatalog:                 cfg.agentCatalog,
 		AgentDefinitionSync:          cfg.agentSync,

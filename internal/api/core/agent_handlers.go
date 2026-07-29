@@ -18,7 +18,7 @@ import (
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		entries, workspaceID, cfg, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
+		resolved, err := h.workspaceAgentEntriesWithDiagnostics(
 			c.Request.Context(),
 			workspaceRef,
 		)
@@ -26,12 +26,13 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
 		}
-		for index := range entries {
-			if entries[index].Origin == contract.AgentOriginWorkspace {
-				entries[index].WorkspaceID = workspaceID
-			}
-		}
-		h.respondAgentEntries(c, entries, &cfg, workspaceID, diagnostics)
+		h.respondAgentEntries(
+			c,
+			resolved.Entries,
+			&resolved.Config,
+			resolved.WorkspaceID,
+			resolved.Diagnostics,
+		)
 		return
 	}
 

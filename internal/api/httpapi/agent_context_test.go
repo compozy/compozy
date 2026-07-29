@@ -9,7 +9,11 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestAgentContextHTTPIdentity(t *testing.T) {
@@ -162,6 +166,161 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 		decodeJSONResponse(t, recorder, &response)
 		if !strings.Contains(response.Error, "agent session identity is not known to the daemon") {
 			t.Fatalf("error body = %#v, want stale identity guidance", response)
+		}
+	})
+}
+
+func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map cross-workspace HTTP identity permissions", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			sourceWorkspaceID = "ws-source"
+			targetWorkspaceID = "ws-target"
+		)
+		manager := stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-approve-reads" && id != "sess-approve-all" {
+					return nil, session.ErrSessionNotFound
+				}
+				return &session.Info{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: sourceWorkspaceID,
+					Workspace:   "/workspace/source",
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		created := 0
+		tasks := &stubTaskManager{
+			CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+				created++
+				if spec.WorkspaceID != targetWorkspaceID || actor.Actor.Ref == "" {
+					t.Fatalf("CreateTask() spec=%#v actor=%#v, want foreign workspace agent actor", spec, actor)
+				}
+				return &taskpkg.Task{
+					ID:          "task-cross-workspace",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: targetWorkspaceID,
+					Title:       spec.Title,
+					Status:      taskpkg.TaskStatusPending,
+					CreatedBy:   actor.Actor,
+					Origin:      actor.Origin,
+				}, nil
+			},
+		}
+		workspaces := stubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "target" && ref != targetWorkspaceID {
+					t.Fatalf("Get() ref = %q, want target or %q", ref, targetWorkspaceID)
+				}
+				return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != targetWorkspaceID {
+					t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
+					WorkspaceID: targetWorkspaceID,
+				}, nil
+			},
+		}
+		policyRequests := make([]workspaceaccess.Request, 0, 3)
+		policy := apitestutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				policyRequests = append(policyRequests, req)
+				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
+					req.Actor.WorkspaceID != sourceWorkspaceID ||
+					req.TargetWorkspaceID != targetWorkspaceID {
+					t.Fatalf("Authorize() request = %#v, want HTTP identity mapping", req)
+				}
+				return workspaceaccess.Decision{
+					Allowed: req.Actor.SessionID == "sess-approve-all",
+					Source:  workspaceaccess.SourcePermissionMode,
+				}, nil
+			},
+		}
+		handlers := newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+			t,
+			manager,
+			stubObserver{},
+			nil,
+			tasks,
+			nil,
+			workspaces,
+			newTestHomePaths(t),
+		)
+		handlers.MaskInternalErrors = false
+		handlers.WorkspaceAccess = policy
+		engine := newTestRouter(t, handlers)
+		body := []byte(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`)
+
+		denied := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
+			agentidentity.HeaderSessionID: "sess-approve-reads",
+			agentidentity.HeaderAgent:     "coder",
+		})
+		if denied.Code != http.StatusForbidden {
+			t.Fatalf(
+				"approve-reads status = %d, want %d; body=%s",
+				denied.Code,
+				http.StatusForbidden,
+				denied.Body.String(),
+			)
+		}
+		if !strings.Contains(denied.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf("approve-reads body = %s, want denial hint", denied.Body.String())
+		}
+		if created != 0 {
+			t.Fatalf("CreateTask() calls after deny = %d, want 0", created)
+		}
+		if len(policyRequests) != 1 || policyRequests[0].Seam != workspaceaccess.SeamIdentity {
+			t.Fatalf("task policy requests = %#v, want identity seam", policyRequests)
+		}
+
+		coordinationDenied := performRequestWithHeaders(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/workspaces/"+targetWorkspaceID+"/network-coordination",
+			nil,
+			map[string]string{
+				agentidentity.HeaderSessionID: "sess-approve-reads",
+				agentidentity.HeaderAgent:     "coder",
+			},
+		)
+		if coordinationDenied.Code != http.StatusForbidden {
+			t.Fatalf(
+				"coordination status = %d, want %d; body=%s",
+				coordinationDenied.Code,
+				http.StatusForbidden,
+				coordinationDenied.Body.String(),
+			)
+		}
+		if !strings.Contains(coordinationDenied.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf("coordination body = %s, want denial hint", coordinationDenied.Body.String())
+		}
+		if len(policyRequests) != 2 || policyRequests[1].Seam != workspaceaccess.SeamCoordination {
+			t.Fatalf("coordination policy requests = %#v, want coordination seam", policyRequests)
+		}
+
+		allowed := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
+			agentidentity.HeaderSessionID: "sess-approve-all",
+			agentidentity.HeaderAgent:     "coder",
+		})
+		if allowed.Code != http.StatusCreated {
+			t.Fatalf(
+				"approve-all status = %d, want %d; body=%s",
+				allowed.Code,
+				http.StatusCreated,
+				allowed.Body.String(),
+			)
+		}
+		if created != 1 || len(policyRequests) != 3 {
+			t.Fatalf("created=%d policy_requests=%d, want 1 and 3", created, len(policyRequests))
 		}
 	})
 }

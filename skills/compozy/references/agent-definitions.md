@@ -41,7 +41,7 @@ The prompt body is required. Compozy rejects an agent definition with no prompt.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as compozy\_\_catalog.
 - deny_tools narrows grants.
-- permissions must be one of deny-all, approve-reads, or approve-all.
+- permissions must be one of deny-all, approve-reads, or approve-all. It sets both the static tool policy and the cross-workspace boundary for sessions of this agent: approve-all crosses workspaces without asking, approve-reads prompts the operator at the native-tool seam and denies at every other seam, and deny-all never crosses and never prompts. The two axes are coupled; there is no permissive-tools-with-isolated-workspace setting. Choose deny-all for an agent that must stay inside its own workspace, and see references/native-tools.md (Workspace boundary) for denial and prompt semantics.
 - category_path is display-only hierarchy and must be an array.
 - mcp_servers declares per-agent MCP servers.
 

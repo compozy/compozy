@@ -18,6 +18,9 @@ func (d *Daemon) initializeHookObservers(
 	if state.clarify != nil {
 		state.lifecycleObservers.Add(state.clarify)
 	}
+	if state.accessConsent != nil {
+		state.lifecycleObservers.Add(state.accessConsent)
+	}
 	state.hookTelemetrySinks = newHookTelemetryFanout()
 	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
 		state.hookTelemetrySinks.Add(sink)

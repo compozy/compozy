@@ -54,6 +54,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gofrs/flock"
 	"go.uber.org/goleak"
 )
@@ -755,8 +756,9 @@ func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testin
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 		base := &fakeSessionManager{}
 		return nonBindableHarnessSessionManager{
-			SessionManager:    base,
-			syntheticPrompter: base,
+			SessionManager:        base,
+			syntheticPrompter:     base,
+			workspaceAccessBinder: base,
 		}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -777,7 +779,11 @@ func TestBootRejectsSessionManagersMissingWorkspaceRemovalPreparation(t *testing
 		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
 	}
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return sessionManagerWithoutWorkspaceRemoval{SessionManager: &fakeSessionManager{}}, nil
+		base := &fakeSessionManager{}
+		return sessionManagerWithoutWorkspaceRemoval{
+			SessionManager:        base,
+			workspaceAccessBinder: base,
+		}, nil
 	}
 
 	err := d.boot(testutil.Context(t))
@@ -5325,17 +5331,25 @@ type fakeSessionManager struct {
 	shutdownCalls            int
 	shutdownErr              error
 	compactionHandler        session.CompactionHandler
+	workspaceAccessPolicy    workspaceaccess.Policy
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
+var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
 
 func (f *fakeSessionManager) SetCompactionHandler(handler session.CompactionHandler) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.compactionHandler = handler
+}
+
+func (f *fakeSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.workspaceAccessPolicy = policy
 }
 
 func (f *fakeSessionManager) PrepareWorkspaceRemoval(
@@ -6184,7 +6198,12 @@ type autoTitleApplySurface interface {
 
 type nonBindableHarnessSessionManager struct {
 	SessionManager
-	syntheticPrompter syntheticPrompter
+	syntheticPrompter     syntheticPrompter
+	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m nonBindableHarnessSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
+	m.workspaceAccessBinder.SetWorkspaceAccessPolicy(policy)
 }
 
 func (m nonBindableHarnessSessionManager) PublishClarifyEvent(
@@ -6200,6 +6219,11 @@ func (m nonBindableHarnessSessionManager) PublishClarifyEvent(
 
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
+	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m sessionManagerWithoutWorkspaceRemoval) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
+	m.workspaceAccessBinder.SetWorkspaceAccessPolicy(policy)
 }
 
 func (m sessionManagerWithoutWorkspaceRemoval) PublishClarifyEvent(

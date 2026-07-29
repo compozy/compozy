@@ -15,14 +15,10 @@ import (
 
 func (n *daemonNativeTools) hookCatalogFilter(
 	ctx context.Context,
-	id toolspkg.ToolID,
 	input hooksListInput,
 	scope toolspkg.Scope,
 ) (hookspkg.CatalogFilter, error) {
-	workspaceRef, err := nativeCallerWorkspaceInput(id, input.Workspace, scope)
-	if err != nil {
-		return hookspkg.CatalogFilter{}, err
-	}
+	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
 	filter := hookspkg.CatalogFilter{
 		AgentName: strings.TrimSpace(input.Agent),
 	}

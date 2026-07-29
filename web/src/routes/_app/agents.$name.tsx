@@ -1,15 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { validateAgentDetailSearch } from "@/systems/agent";
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadAgentDetailRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/agents/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: params.name, params: { name: params.name }, to: "/agents/$name" } },
   }),
-  validateSearch: validateAgentDetailSearch,
-  loader: ({ context, params }) => preloadAgentDetailRoute(context.queryClient, params.name),
-  component: createOsRouteSync("agents"),
+  component: AgentRouteLayout,
 });
+
+/**
+ * Structural layout for the agent subtree (ADR-008): it owns the shared breadcrumb and the outlet,
+ * nothing else. Agent-detail search, preload, and OS synchronization belong to the index leaf, and
+ * descendants own their own search — an ancestor validator here would normalize child-owned keys
+ * such as the session confirmation state away before their leaf could read them.
+ */
+function AgentRouteLayout() {
+  return <Outlet />;
+}

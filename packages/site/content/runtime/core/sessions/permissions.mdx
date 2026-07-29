@@ -20,11 +20,14 @@ still auto-rejects at the execution boundary.
 
 Compozy supports three static modes:
 
-| Mode            | Static behavior                                                                       |
-| --------------- | ------------------------------------------------------------------------------------- |
-| `deny-all`      | Compozy auto-allows none of the built-in file or terminal operations.                 |
-| `approve-reads` | Compozy auto-allows `fs/read_text_file` only.                                         |
-| `approve-all`   | Compozy auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. |
+| Mode            | Static behavior                                                                       | Cross-workspace requests                                       |
+| --------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `deny-all`      | Compozy auto-allows none of the built-in file or terminal operations.                 | Denied everywhere, with no prompt.                             |
+| `approve-reads` | Compozy auto-allows `fs/read_text_file` only.                                         | Asks at the native-tool boundary; every other boundary denies. |
+| `approve-all`   | Compozy auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. | Allowed without asking.                                        |
+
+The same mode decides both columns. [Cross-workspace access](#cross-workspace-access) explains what
+that means for a session that asks for another workspace.
 
 ### Defaults and overrides
 
@@ -66,6 +69,81 @@ Compozy resolves paths carefully:
 - missing paths are resolved through the first existing ancestor
 
 If the final path escapes the workspace root, Compozy rejects it with a path-outside-workspace error.
+
+## Cross-workspace access
+
+A session belongs to one workspace. When an agent asks for a different one — a native tool call that
+names another `workspace`, an agent identity lookup, a task claim, a spawn, or a workspace
+coordination command — the daemon sends that request through a single policy, and the session's own
+permission mode decides it:
+
+| Session mode    | Cross-workspace outcome                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `approve-all`   | Allowed. The session crosses without being asked.                                            |
+| `approve-reads` | Asks at the native-tool boundary when the session is running; every other boundary denies.   |
+| `deny-all`      | Denied at every boundary, including the native-tool one. Compozy never prompts for crossing. |
+
+Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
+network peers, and the daemon itself keep the behavior they have today; a permissive mode never
+widens them.
+
+`deny-all` reads differently on each axis, and that is deliberate. For tool risk it means "auto-allow
+nothing, ask instead". For the workspace boundary it means "never cross, never ask". `deny-all` is
+the lockdown setting for a session that must stay inside its own workspace.
+
+The trade-off is that one mode now governs both axes. An `approve-all` session is open on tools and
+open across workspaces; there is no separate setting for permissive tools with an isolated
+workspace. The built-in default is `approve-all`, so set `[permissions] mode` — or the agent's
+`permissions` field — to `approve-reads` or `deny-all` when a session should stay in its workspace.
+
+### Denials
+
+A denied request keeps the error shape it has today and adds one hint:
+
+```text
+cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
+```
+
+Native tool denials carry the `workspace_access_denied` reason code alongside that message.
+
+### The prompt in `approve-reads`
+
+In `approve-reads`, a cross-workspace native tool call from a running session becomes a pending
+permission request instead of an immediate denial. Compozy computes the option set:
+
+| Option ID        | Label                   | Effect                                                                           |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `allow_once`     | Allow once              | Allows this request only. The next crossing asks again.                          |
+| `allow_session`  | Allow for this session  | Allows this request and every later crossing by that session, at every boundary. |
+| `reject_once`    | Reject once             | Denies this request only. The next crossing asks again.                          |
+| `reject_session` | Reject for this session | Denies this request and every later crossing by that session, at every boundary. |
+
+Answer it like any other pending permission — the approvals bell in Web, `compozy session approve`,
+or the approve route. The `allow-once`, `allow-always`, `reject-once`, and `reject-always` decisions
+map onto the four options above in that order. The wait is bounded by
+`[tools.policy] approval_timeout_seconds`; a timeout, a transport failure, or an answer outside the
+option set denies the request and stores no session answer.
+
+Crossings at every other boundary are denied outright in `approve-reads` — they never raise a
+prompt. Once a session has answered `allow_session`, those boundaries start allowing.
+
+### Session answers do not outlive the session
+
+`allow_session` and `reject_session` are held in daemon memory, keyed by session ID. They apply to
+every boundary for the rest of that session and disappear when the session stops or the daemon
+restarts. Nothing is written to disk, and there is no list or revoke surface: stopping the session is
+how you clear the answer. Persisted audit events show how later policy evaluations were decided.
+
+### Audit
+
+Each policy evaluation attempts a best-effort audit append — `workspace.access_granted` for an allow
+or `workspace.access_denied` for a deny, including a prompt-eligible deny — scoped to the actor's own
+workspace. The payload carries the target workspace, boundary, decision source, and resolved mode.
+An audit write failure is logged and does not change the access decision. Read persisted events with
+`compozy logs --type <event-type>` or `GET /api/logs`.
+
+See [Workspace Resolver](/runtime/core/workspaces/resolver#isolation-and-cross-workspace-access) for
+what workspace isolation covers today and what it does not.
 
 ## Network-originated turn restrictions
 
@@ -190,7 +268,9 @@ Interactive approval is exposed differently across Compozy transports today:
 | CLI       | implemented at `compozy session approve <id>`                                    |
 
 That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
-surface today.
+surface today. [Cross-workspace prompts](#the-prompt-in-approve-reads) arrive through that same
+surface. They add no route, command, or Settings section of their own, and a session-scoped answer
+has no management surface at all.
 
 ## Clarification questions are not approvals
 

@@ -25,6 +25,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
+import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
 import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
@@ -52,6 +53,7 @@ import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/sk
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
+import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
@@ -145,6 +147,11 @@ const AppVaultRoute = AppVaultRouteImport.update({
   id: '/vault',
   path: '/vault',
   getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAgentsRoute,
 } as any)
 const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
   id: '/$name',
@@ -283,6 +290,11 @@ const AppTriggersTriggerIdRoute = AppTriggersTriggerIdRouteImport.update({
   path: '/$triggerId',
   getParentRoute: () => AppTriggersRoute,
 } as any)
+const AppAgentsNameIndexRoute = AppAgentsNameIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAgentsNameRoute,
+} as any)
 const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -402,6 +414,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
+  '/agents/': typeof AppAgentsIndexRoute
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
@@ -410,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/loops/$name/run': typeof AppLoopsNameRunRoute
   '/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/agents/$name/': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/marketplace/bundles/activations/$id': typeof AppMarketplaceBundlesActivationsIdRoute
   '/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -421,7 +435,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
-  '/agents': typeof AppAgentsRouteWithChildren
   '/bridges': typeof AppBridgesRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/knowledge': typeof AppKnowledgeRoute
@@ -433,7 +446,6 @@ export interface FileRoutesByTo {
   '/triggers': typeof AppTriggersRouteWithChildren
   '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
-  '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/bridges/$id': typeof AppBridgesIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
@@ -458,6 +470,7 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
+  '/agents': typeof AppAgentsIndexRoute
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
@@ -466,6 +479,7 @@ export interface FileRoutesByTo {
   '/loops/$name/run': typeof AppLoopsNameRunRoute
   '/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/agents/$name': typeof AppAgentsNameIndexRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/marketplace/bundles/activations/$id': typeof AppMarketplaceBundlesActivationsIdRoute
   '/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -518,6 +532,7 @@ export interface FileRoutesById {
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
+  '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
@@ -526,6 +541,7 @@ export interface FileRoutesById {
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
   '/_app/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
+  '/_app/agents/$name/': typeof AppAgentsNameIndexRoute
   '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/_app/marketplace/bundles/activations/$id': typeof AppMarketplaceBundlesActivationsIdRoute
   '/_app/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -578,6 +594,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/triggers/$triggerId'
+    | '/agents/'
     | '/marketplace/'
     | '/settings/'
     | '/agents/$name/settings'
@@ -586,6 +603,7 @@ export interface FileRouteTypes {
     | '/loops/$name/run'
     | '/marketplace/$kind/$entryId'
     | '/tasks/$id/edit'
+    | '/agents/$name/'
     | '/agents/$name/sessions/$id'
     | '/marketplace/bundles/activations/$id'
     | '/network/$workspaceId/$channel/activity'
@@ -597,7 +615,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
-    | '/agents'
     | '/bridges'
     | '/jobs'
     | '/knowledge'
@@ -609,7 +626,6 @@ export interface FileRouteTypes {
     | '/triggers'
     | '/vault'
     | '/'
-    | '/agents/$name'
     | '/bridges/$id'
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
@@ -634,6 +650,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/triggers/$triggerId'
+    | '/agents'
     | '/marketplace'
     | '/settings'
     | '/agents/$name/settings'
@@ -642,6 +659,7 @@ export interface FileRouteTypes {
     | '/loops/$name/run'
     | '/marketplace/$kind/$entryId'
     | '/tasks/$id/edit'
+    | '/agents/$name'
     | '/agents/$name/sessions/$id'
     | '/marketplace/bundles/activations/$id'
     | '/network/$workspaceId/$channel/activity'
@@ -693,6 +711,7 @@ export interface FileRouteTypes {
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/triggers/$triggerId'
+    | '/_app/agents/'
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/agents/$name/settings'
@@ -701,6 +720,7 @@ export interface FileRouteTypes {
     | '/_app/loops/$name/run'
     | '/_app/marketplace/$kind/$entryId'
     | '/_app/tasks/$id/edit'
+    | '/_app/agents/$name/'
     | '/_app/agents/$name/sessions/$id'
     | '/_app/marketplace/bundles/activations/$id'
     | '/_app/network/$workspaceId/$channel/activity'
@@ -829,6 +849,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/vault'
       preLoaderRoute: typeof AppVaultRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/agents/': {
+      id: '/_app/agents/'
+      path: '/'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AppAgentsIndexRouteImport
+      parentRoute: typeof AppAgentsRoute
     }
     '/_app/agents/$name': {
       id: '/_app/agents/$name'
@@ -1019,6 +1046,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTriggersTriggerIdRouteImport
       parentRoute: typeof AppTriggersRoute
     }
+    '/_app/agents/$name/': {
+      id: '/_app/agents/$name/'
+      path: '/'
+      fullPath: '/agents/$name/'
+      preLoaderRoute: typeof AppAgentsNameIndexRouteImport
+      parentRoute: typeof AppAgentsNameRoute
+    }
     '/_app/agents/$name/settings': {
       id: '/_app/agents/$name/settings'
       path: '/settings'
@@ -1122,11 +1156,13 @@ declare module '@tanstack/react-router' {
 
 interface AppAgentsNameRouteChildren {
   AppAgentsNameSettingsRoute: typeof AppAgentsNameSettingsRoute
+  AppAgentsNameIndexRoute: typeof AppAgentsNameIndexRoute
   AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
 }
 
 const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
   AppAgentsNameSettingsRoute: AppAgentsNameSettingsRoute,
+  AppAgentsNameIndexRoute: AppAgentsNameIndexRoute,
   AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
 }
 
@@ -1136,10 +1172,12 @@ const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
 
 interface AppAgentsRouteChildren {
   AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
+  AppAgentsIndexRoute: typeof AppAgentsIndexRoute
 }
 
 const AppAgentsRouteChildren: AppAgentsRouteChildren = {
   AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
+  AppAgentsIndexRoute: AppAgentsIndexRoute,
 }
 
 const AppAgentsRouteWithChildren = AppAgentsRoute._addFileChildren(

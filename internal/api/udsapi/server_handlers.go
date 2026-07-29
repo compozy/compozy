@@ -55,6 +55,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SettingsUpdate:               cfg.settingsUpdate,
 		Vault:                        cfg.vault,
 		Workspaces:                   cfg.workspaces,
+		WorkspaceAccess:              cfg.workspaceAccess,
 		Onboarding:                   cfg.onboarding,
 		AgentCatalog:                 cfg.agentCatalog,
 		AgentDefinitionSync:          cfg.agentSync,

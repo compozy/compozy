@@ -185,6 +185,10 @@ func Boundaries() error {
 		{"internal/store/workspacedb", "internal/api/httpapi"},
 		{"internal/store/workspacedb", "internal/api/udsapi"},
 		{"internal/store/workspacedb", "internal/cli"},
+		{"internal/workspaceaccess", "internal/daemon"},
+		{"internal/workspaceaccess", "internal/api/httpapi"},
+		{"internal/workspaceaccess", "internal/api/udsapi"},
+		{"internal/workspaceaccess", "internal/cli"},
 	}
 
 	violations := 0
@@ -256,6 +260,7 @@ func Boundaries() error {
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
 		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
+		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{

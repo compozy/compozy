@@ -41,6 +41,12 @@ type RoutingManager = {
   zoomWindow(windowId: string): WindowManagerCommandOutcome;
 };
 
+interface RouteReconciliation {
+  token: number;
+  route: OsWindowRoute;
+  inFlight: boolean;
+}
+
 export class RoutingCoordinator {
   private readonly manager: RoutingManager;
   private readonly router: OsRouterPort;
@@ -48,6 +54,9 @@ export class RoutingCoordinator {
   private cycle: "boot" | "workspace-switch" = "boot";
   private initialIntent: OsWindowRoute | null = null;
   private currentRoute: OsWindowRoute | null = null;
+  private heldRoute: OsWindowRoute | null = null;
+  private routeReconciliation: RouteReconciliation | null = null;
+  private nextReconciliationToken = 0;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
     this.manager = manager;
@@ -66,7 +75,7 @@ export class RoutingCoordinator {
       this.initialIntent = route;
       return;
     }
-    this.reconcile(route);
+    this.queueRouteReconciliation(route);
   }
 
   /**
@@ -82,17 +91,21 @@ export class RoutingCoordinator {
     this.phase = "ready";
     const intent = this.initialIntent;
     this.initialIntent = null;
+    if (this.heldRoute) {
+      this.cycle = "boot";
+      return;
+    }
     if (this.cycle === "workspace-switch") {
       this.cycle = "boot";
       if (intent && intent.pathname !== "/") {
-        this.reconcile(intent);
+        this.queueRouteReconciliation(intent);
         return;
       }
       this.navigateToFocusedOrDesktop();
       return;
     }
     if (intent && intent.pathname !== "/") {
-      this.reconcile(intent);
+      this.queueRouteReconciliation(intent);
       return;
     }
     const state = this.manager.getState();
@@ -107,7 +120,11 @@ export class RoutingCoordinator {
    * not manufacture browser history.
    */
   reportAuthoritativeState(): void {
-    if (this.phase !== "ready") return;
+    if (this.phase !== "ready" || this.heldRoute) return;
+    if (this.routeReconciliation !== null) {
+      if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
+      return;
+    }
     const state = this.manager.getState();
     if (state.client === null) return;
     const focused = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -115,6 +132,23 @@ export class RoutingCoordinator {
     const route = focused?.route ?? { pathname: "/", search: {} };
     if (sameOsWindowRoute(this.currentRoute, route)) return;
     this.replaceRoute(route);
+  }
+
+  /**
+   * A routed decision surface owns a URL that deliberately opens no window — today the
+   * cross-workspace deep-link confirmation (ADR-004). Hydration and authoritative focus frames
+   * would otherwise true the URL up to the focused window and dismiss the decision before the
+   * operator answers it, so the hold suspends both until the surface resolves.
+   */
+  holdRoute(route: OsWindowRoute): void {
+    this.invalidateRouteReconciliation();
+    this.heldRoute = route;
+    this.currentRoute = route;
+    this.initialIntent = null;
+  }
+
+  releaseRouteHold(): void {
+    this.heldRoute = null;
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
@@ -192,6 +226,7 @@ export class RoutingCoordinator {
    */
   beginWorkspaceSwitch(): void {
     if (this.phase === "hydrating" && this.cycle === "workspace-switch") return;
+    this.invalidateRouteReconciliation();
     this.phase = "hydrating";
     this.cycle = "workspace-switch";
   }
@@ -217,22 +252,47 @@ export class RoutingCoordinator {
    * The desktop URL (`/`) opens nothing — it focuses an existing dashboard
    * window or leaves the desktop as-is (first run stays empty, US-001.EC-1).
    */
-  private reconcile(route: OsWindowRoute): void {
+  private queueRouteReconciliation(route: OsWindowRoute): void {
+    const current = this.routeReconciliation;
+    if (current && sameOsWindowRoute(current.route, route)) {
+      if (!current.inFlight) this.reconcilePendingRoute();
+      return;
+    }
+    this.nextReconciliationToken += 1;
+    this.routeReconciliation = {
+      token: this.nextReconciliationToken,
+      route,
+      inFlight: false,
+    };
+    this.reconcilePendingRoute();
+  }
+
+  private reconcilePendingRoute(): void {
+    const pending = this.routeReconciliation;
+    if (pending === null || pending.inFlight || this.phase !== "ready" || this.heldRoute) return;
+    const route = pending.route;
     const resolved = resolveAppForPath(route.pathname);
-    if (!resolved) return;
+    if (!resolved) {
+      this.routeReconciliation = null;
+      return;
+    }
     const state = this.manager.getState();
     const { app, instanceKey } = resolved;
     if (route.pathname === "/") {
       const existing = state.windows[osWindowId(app.id)];
-      if (!existing) return;
+      if (!existing) {
+        this.routeReconciliation = null;
+        return;
+      }
       if (
         state.focusedId === existing.id &&
         !existing.minimized &&
         sameOsWindowRoute(existing.route, route)
       ) {
+        this.routeReconciliation = null;
         return;
       }
-      this.manager.openOrFocus({ app: app.id, route });
+      this.startRouteReconciliation(pending, this.manager.openOrFocus({ app: app.id, route }));
       return;
     }
     const existingId = osWindowId(app.id, instanceKey);
@@ -243,12 +303,39 @@ export class RoutingCoordinator {
       !existing.minimized &&
       sameOsWindowRoute(existing.route, route)
     ) {
+      this.routeReconciliation = null;
       return;
     }
-    this.manager.openOrFocus({
-      app: app.id,
-      instanceKey: instanceKey ?? undefined,
-      route,
+    this.startRouteReconciliation(
+      pending,
+      this.manager.openOrFocus({
+        app: app.id,
+        instanceKey: instanceKey ?? undefined,
+        route,
+      })
+    );
+  }
+
+  private startRouteReconciliation(
+    pending: RouteReconciliation,
+    outcome: WindowManagerOpenOutcome
+  ): void {
+    if (!outcome.accepted) {
+      if (this.routeReconciliation?.token !== pending.token) return;
+      this.routeReconciliation = null;
+      this.reportAuthoritativeState();
+      return;
+    }
+    this.routeReconciliation = { ...pending, inFlight: true };
+    void outcome.completion.then(() => {
+      if (this.routeReconciliation?.token !== pending.token) return;
+      this.routeReconciliation = null;
+      this.reportAuthoritativeState();
     });
+  }
+
+  private invalidateRouteReconciliation(): void {
+    this.nextReconciliationToken += 1;
+    this.routeReconciliation = null;
   }
 }

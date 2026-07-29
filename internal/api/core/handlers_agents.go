@@ -15,6 +15,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type workspaceAgentEntries struct {
+	Entries       []AgentCatalogEntry
+	WorkspaceID   string
+	WorkspaceRoot string
+	Config        compozyconfig.Config
+	Diagnostics   []workspacepkg.AgentDiagnostic
+}
+
 func (h *BaseHandlers) createAgentDraftAndPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
@@ -46,24 +54,32 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	ctx context.Context,
 	workspaceRef string,
-) ([]AgentCatalogEntry, string, compozyconfig.Config, []workspacepkg.AgentDiagnostic, error) {
+) (workspaceAgentEntries, error) {
 	if h.Workspaces == nil {
-		return nil, "", compozyconfig.Config{}, nil,
+		return workspaceAgentEntries{},
 			fmt.Errorf("api: %w", workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {
-		return nil, "", compozyconfig.Config{}, nil, err
+		return workspaceAgentEntries{}, err
 	}
 	entries, err := h.workspaceDetailAgentEntries(ctx, &resolved)
 	if err != nil {
-		return nil, "", compozyconfig.Config{}, nil, err
+		return workspaceAgentEntries{}, err
 	}
-	return entries,
-		strings.TrimSpace(resolved.ID),
-		resolved.Config,
-		publicAgentDiagnostics(resolved.AgentDiagnostics),
-		nil
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	for index := range entries {
+		if entries[index].Origin == contract.AgentOriginWorkspace {
+			entries[index].WorkspaceID = workspaceID
+		}
+	}
+	return workspaceAgentEntries{
+		Entries:       entries,
+		WorkspaceID:   workspaceID,
+		WorkspaceRoot: strings.TrimSpace(resolved.RootDir),
+		Config:        resolved.Config,
+		Diagnostics:   publicAgentDiagnostics(resolved.AgentDiagnostics),
+	}, nil
 }
 
 func publicAgentDiagnostics(diagnostics []workspacepkg.AgentDiagnostic) []workspacepkg.AgentDiagnostic {
@@ -88,22 +104,20 @@ func (h *BaseHandlers) workspaceAgentDef(
 			fmt.Errorf("api: agent name is required: %w", os.ErrNotExist)
 	}
 
-	entries, workspaceID, cfg, _, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
+	resolved, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
 	if err != nil {
 		return AgentCatalogEntry{}, compozyconfig.Config{}, err
 	}
-	for _, entry := range entries {
+	for _, entry := range resolved.Entries {
 		if strings.TrimSpace(entry.Def.Name) == trimmedName {
-			if entry.Origin == contract.AgentOriginWorkspace {
-				entry.WorkspaceID = workspaceID
-			}
-			return entry, cfg, nil
+			return entry, resolved.Config, nil
 		}
 	}
+	workspaceLabel := workspaceDisplay(resolved.WorkspaceRoot, workspaceRef)
 	return AgentCatalogEntry{}, compozyconfig.Config{}, fmt.Errorf(
 		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
-		workspaceID,
+		workspaceLabel,
 		workspacepkg.ErrAgentNotAvailable,
 	)
 }

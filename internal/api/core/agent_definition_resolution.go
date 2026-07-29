@@ -56,10 +56,11 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			if compozyconfig.NormalizeAgentName(agent.Name) != target {
 				continue
 			}
-			entry := h.agentCatalogEntryFromDef(agent, resolved.ID)
+			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+			entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 			return resolvedAgentDefinition{
 				Entry:              entry,
-				OperationWorkspace: strings.TrimSpace(resolved.ID),
+				OperationWorkspace: workspaceID,
 				WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
 				Config:             resolved.Config,
 			}, nil
@@ -67,7 +68,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		return resolvedAgentDefinition{}, fmt.Errorf(
 			"api: agent %q is not available in workspace %q: %w",
 			target,
-			strings.TrimSpace(resolved.ID),
+			canonicalWorkspaceDisplay(&resolved, workspaceRef),
 			workspacepkg.ErrAgentNotAvailable,
 		)
 	}
@@ -91,6 +92,20 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		Entry:  h.agentCatalogEntryFromDef(agent, ""),
 		Config: h.Config,
 	}, nil
+}
+
+func canonicalWorkspaceDisplay(resolved *workspacepkg.ResolvedWorkspace, fallback string) string {
+	if resolved != nil {
+		return workspaceDisplay(resolved.RootDir, fallback)
+	}
+	return workspaceDisplay("", fallback)
+}
+
+func workspaceDisplay(root string, fallback string) string {
+	if root = strings.TrimSpace(root); root != "" {
+		return root
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func (h *BaseHandlers) duplicateAgentTarget(
@@ -155,7 +170,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 				targetName,
 			),
 			Origin:      contract.AgentOriginWorkspace,
-			WorkspaceID: strings.TrimSpace(resolved.ID),
+			WorkspaceID: strings.TrimSpace(resolved.WorkspaceID),
 			Config:      resolved.Config,
 		}, nil
 	default:

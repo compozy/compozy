@@ -324,6 +324,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/sessions", handlers.ListSessions)
 	engine.GET("/sessions/catalog-stream", handlers.StreamSessionCatalog)
 	engine.GET("/sessions/:session_id", handlers.GetSessionByID)
+	engine.GET("/sessions/:session_id/owner", handlers.GetSessionOwner)
 	engine.POST("/sessions", handlers.CreateSession)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id", handlers.GetSession)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id", handlers.DeleteSession)

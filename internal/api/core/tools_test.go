@@ -296,6 +296,33 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should sanitize cross workspace denial details", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "provider-token=workspace-secret"
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			toolspkg.ToolIDWorkspaceInfo,
+			"workspace info denied: "+secret,
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonWorkspaceAccessDenied,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+		if status != http.StatusForbidden ||
+			payload.Error.Message != "tool invocation denied" ||
+			!slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
+			t.Fatalf("workspace denial payload = %#v, want canonical message and reason", payload.Error)
+		}
+		encoded, encodeErr := json.Marshal(payload)
+		if encodeErr != nil {
+			t.Fatalf("json.Marshal() error = %v", encodeErr)
+		}
+		if strings.Contains(string(encoded), secret) {
+			t.Fatalf("workspace denial leaked internal detail: %s", encoded)
+		}
+	})
+
 	t.Run("Should return HTTP 422 for reserved agent names", func(t *testing.T) {
 		t.Parallel()
 

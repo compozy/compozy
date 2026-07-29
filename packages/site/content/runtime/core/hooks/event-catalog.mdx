@@ -173,7 +173,7 @@ The raw bearer lease token never appears in these hook payloads.
 
 `SpawnCreatePatch` may deny the spawn or narrow the child request by replacing `agent_name`,
 `spawn_role`, `ttl_seconds`, or `child_permissions`. The runtime still rejects permission widening,
-coordinator-role spawn, cross-workspace spawn, and invalid TTL/depth/child caps.
+coordinator-role spawn, unauthorized cross-workspace spawn, and invalid TTL/depth/child caps.
 
 ## Agent Process Events
 

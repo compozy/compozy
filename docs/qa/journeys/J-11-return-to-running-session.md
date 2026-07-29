@@ -86,6 +86,7 @@ design_reference:
     - "A transient transcript 5xx surfaces a retryable error pane that self-heals — never a silent permanent blank (task 02)."
     - "A cold stream starts with a bounded snapshot; a warm reconnect carries `after_sequence`, `epoch`, and `generation`, and only an explicit `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset` snapshot may replace the cached tail (task 17)."
     - "Workspace switch away from an open session redirects WITH a notice naming the session + owning workspace (task 13)."
+    - "Returning by permalink to a session whose workspace is no longer active resolves the owner and asks before switching — never a silent switch and never a not-found (owned by J-open-foreign-session)."
 
 e2e_backbone:
   runtime:

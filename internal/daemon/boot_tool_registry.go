@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -27,17 +28,11 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return err
 	}
+	workspaceBinder := nativeWorkspaceAccessBinderForBoot(state)
 	var registry *toolspkg.RuntimeRegistry
-	var mcpAuth toolspkg.MCPAuthStatusProvider
-	deps := d.nativeToolsDeps(state, func() toolspkg.Registry {
-		return registry
-	})
-	deps.MCPAuth = func() toolspkg.MCPAuthStatusProvider {
-		return mcpAuth
-	}
-	provider, err := newDaemonNativeProvider(&deps)
+	providers, err := d.bootToolProviders(state, func() toolspkg.Registry { return registry })
 	if err != nil {
-		return fmt.Errorf("daemon: create native tool provider: %w", err)
+		return err
 	}
 	toolsets, err := builtintools.ToolsetCatalog()
 	if err != nil {
@@ -47,27 +42,24 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return fmt.Errorf("daemon: build native tool policy resolver: %w", err)
 	}
-	providers := []toolspkg.Provider{provider}
-	extensionProvider, err := newDaemonExtensionToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create extension tool provider: %w", err)
-	}
-	if extensionProvider != nil {
-		providers = append(providers, extensionProvider)
-	}
-	mcpProvider, mcpAuthProvider, err := d.newDaemonMCPToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create mcp tool provider: %w", err)
-	}
-	mcpAuth = mcpAuthProvider
-	if mcpProvider != nil {
-		providers = append(providers, mcpProvider)
-	}
 	registryOptions := []toolspkg.RegistryOption{
 		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
 		toolspkg.WithApprovalBridge(approvalBridge),
-		toolspkg.WithCallInputBinder(newNativeWorkspaceInputBinder(state.workspaceResolver)),
+		toolspkg.WithWorkspaceAccessPolicy(state.accessPolicy),
+		toolspkg.WithWorkspaceIDResolver(func(ctx context.Context, ref string) (string, error) {
+			resolved, resolveErr := state.workspaceResolver.Resolve(ctx, ref)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+			if workspaceID == "" {
+				return "", errors.New("daemon: resolved tool workspace id is required")
+			}
+			return workspaceID, nil
+		}),
+		toolspkg.WithCallInputBinder(workspaceBinder),
+		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 		toolspkg.WithResultProcessor(toolspkg.NewResultProcessor(
 			state.cfg.Tools.DefaultMaxResultBytes,

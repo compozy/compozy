@@ -1,7 +1,7 @@
 package task
 
 func newService(options managerOptions) *Service {
-	taskAuthorizer := scopedTaskResourceAuthorizer{}
+	taskAuthorizer := scopedTaskResourceAuthorizer{workspaceAccess: options.workspaceAccess}
 	service := &Service{
 		store:                 options.store,
 		sessions:              options.sessions,
@@ -27,6 +27,7 @@ func newService(options managerOptions) *Service {
 		blockRecurrenceLimit:  options.blockRecurrenceLimit,
 		workspaceActiveRunCap: options.workspaceActiveRunCap,
 		workAdmission:         options.workAdmission,
+		workspaceAccess:       options.workspaceAccess,
 		forceRateLimiter:      newForceRunRateLimiter(),
 		wakeEventIDs:          make(map[string]struct{}),
 		wakeEventOrder:        make([]string, 0, wakeEventCacheMaxEntries),

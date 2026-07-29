@@ -11,6 +11,7 @@ flowchart TD
     P1 --> T[Tail-first paint ≤2 round trips warm daemon]
     T --> SCR[Scroll up: older page loads gap-free on demand via before_sequence]
     E2 -->|unknown id| NF[404 surface — clear not-found state, no infinite spinner]
+    E2 -->|id owned by another workspace| FW[Owner projection + confirmation — owned by J-open-foreign-session, not a not-found]
     P1 -.->|navigates away pre-paint| AB[Abandon: return — warm cache, no double spinner]
     AB -.-> L
     SCR --> TE[True end: first message fast, full history reachable, no spinner→spinner flash, no unbounded fetch]
@@ -64,6 +65,7 @@ design_reference:
     - "A deep link resolves in a single spinner phase — no double flash (task 10)."
     - "No unbounded full-history fetch on open; long sessions paint tail-first and page older history on demand (task 14/15)."
     - "Warm remount renders cached rows immediately within the documented cache window (task 06 — session detail/transcript cache is not evicted by the old 5-minute default)."
+    - "Only a genuinely unknown id shows not-found: a session owned by another workspace resolves its owner and asks (J-open-foreign-session), so a foreign link must never be mistaken for a dead one."
 
 e2e_backbone:
   runtime:

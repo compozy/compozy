@@ -9,20 +9,74 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestUnixSocketClientNetworkMethods(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should call network routes through the unix socket client", func(t *testing.T) {
+	t.Run("Should forward agent identity on coordination requests", func(t *testing.T) {
 		t.Parallel()
 
-		directID := "direct_99401d24bee62651d189e5a561785466"
+		credentials := agentidentity.Credentials{SessionID: "sess-deny", AgentName: "qa-deny-all"}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					assertAgentRequestHeaders(t, req, credentials)
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"coordination":{"workspace_id":"ws-target","scope":"workspace","enabled":false,"revision":0,"invitation":{"scope":"workspace","dismissed":false},"eligibility":{"eligible":false,"reason":"run_required","coordinator":false,"worker_count":0}}}`,
+					), nil
+				}),
+			},
+		}
+
+		_, err := client.GetNetworkCoordination(
+			context.Background(),
+			"ws-target",
+			NetworkCoordinationRef{Scope: "workspace"},
+			credentials,
+		)
+		if err != nil {
+			t.Fatalf("GetNetworkCoordination() error = %v", err)
+		}
+		enabled := true
+		revision := int64(0)
+		if _, err := client.PutNetworkCoordination(
+			context.Background(),
+			"ws-target",
+			PutNetworkCoordinationRequest{Scope: "workspace", Enabled: &enabled, ExpectedRevision: &revision},
+			credentials,
+		); err != nil {
+			t.Fatalf("PutNetworkCoordination() error = %v", err)
+		}
+		dismissed := true
+		if _, err := client.PutNetworkCoordinationInvitation(
+			context.Background(),
+			"ws-target",
+			PutNetworkCoordinationInvitationRequest{
+				Scope: "workspace", Dismissed: &dismissed, ExpectedRevision: &revision,
+			},
+			credentials,
+		); err != nil {
+			t.Fatalf("PutNetworkCoordinationInvitation() error = %v", err)
+		}
+	})
+
+	t.Run("Should call network routes through the unix socket client", func(t *testing.T) {
+		t.Parallel()
+
+		directID := "direct_99401d24bee62651d189e5a561785466"
+		credentials := agentidentity.Credentials{SessionID: "sess-a", AgentName: "coder"}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if strings.HasPrefix(req.URL.Path, "/api/workspaces/") {
+						assertAgentRequestHeaders(t, req, credentials)
+					}
 					switch {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/network/status":
 						return newHTTPResponse(
@@ -217,7 +271,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := withNetworkAgentCredentials(context.Background(), credentials)
 
 		status, err := client.NetworkStatus(ctx)
 		if err != nil || status.MessagesDelivered != 3 || len(status.KindMetrics) != 1 {

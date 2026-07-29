@@ -50,7 +50,7 @@ func TestResolveAgentCallerFromEnv(t *testing.T) {
 					},
 				}
 
-				caller, err := resolveAgentCallerFromEnv(context.Background(), deps, client, "ws-1", "agent.cli.test")
+				caller, err := resolveAgentCallerFromEnv(context.Background(), deps, client, "agent.cli.test")
 				if err != nil {
 					t.Fatalf("resolveAgentCallerFromEnv() error = %v", err)
 				}
@@ -73,7 +73,7 @@ func TestResolveAgentCallerFromEnv(t *testing.T) {
 					},
 				}
 
-				_, err := resolveAgentCallerFromEnv(context.Background(), deps, client, "", "agent.cli.test")
+				_, err := resolveAgentCallerFromEnv(context.Background(), deps, client, "agent.cli.test")
 				if !errors.Is(err, agentidentity.ErrIdentityRequired) {
 					t.Fatalf("resolveAgentCallerFromEnv() error = %v, want ErrIdentityRequired", err)
 				}

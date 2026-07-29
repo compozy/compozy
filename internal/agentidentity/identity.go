@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -29,6 +30,7 @@ type ResolveOptions struct {
 	Credentials         Credentials
 	Lookup              SessionLookup
 	ExpectedWorkspaceID string
+	WorkspaceAccess     workspaceaccess.Policy
 	OriginKind          taskpkg.OriginKind
 	OriginRef           string
 }
@@ -50,7 +52,16 @@ func Resolve(ctx context.Context, opts ResolveOptions) (Caller, error) {
 	if err != nil {
 		return Caller{}, err
 	}
-	if err := ValidateWorkspaceAccess(snapshot.WorkspaceID, opts.ExpectedWorkspaceID); err != nil {
+	if err := ValidateWorkspaceAccess(ctx, opts.WorkspaceAccess, workspaceaccess.Request{
+		Actor: workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorAgentSession,
+			SessionID:   snapshot.ID,
+			WorkspaceID: snapshot.WorkspaceID,
+			AgentName:   snapshot.AgentName,
+		},
+		TargetWorkspaceID: opts.ExpectedWorkspaceID,
+		Seam:              workspaceaccess.SeamIdentity,
+	}); err != nil {
 		return Caller{}, err
 	}
 	actor, err := deriveActorContext(snapshot.ID, snapshot.WorkspaceID, opts.OriginKind, opts.OriginRef)
@@ -147,19 +158,33 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 	return snapshot, nil
 }
 
-// ValidateWorkspaceAccess ensures a validated session workspace matches the requested workspace.
-func ValidateWorkspaceAccess(sessionWorkspaceID string, expectedWorkspaceID string) error {
-	sessionWorkspaceID = strings.TrimSpace(sessionWorkspaceID)
-	expectedWorkspaceID = strings.TrimSpace(expectedWorkspaceID)
-	if expectedWorkspaceID == "" || sessionWorkspaceID == expectedWorkspaceID {
+// ValidateWorkspaceAccess authorizes a canonical workspace request for a validated actor.
+func ValidateWorkspaceAccess(
+	ctx context.Context,
+	policy workspaceaccess.Policy,
+	req workspaceaccess.Request,
+) error {
+	actorWorkspaceID := strings.TrimSpace(req.Actor.WorkspaceID)
+	targetWorkspaceID := strings.TrimSpace(req.TargetWorkspaceID)
+	if targetWorkspaceID == "" || actorWorkspaceID == targetWorkspaceID {
 		return nil
 	}
-	return identityError(
+	denied := identityError(
 		ErrIdentityUnauthorized,
 		"identity_unauthorized",
 		"agent session does not belong to the requested workspace",
-		"use the session workspace or start a session in the requested workspace",
+		workspaceaccess.DenialHint,
 	)
+	if policy != nil {
+		decision, err := policy.Authorize(ctx, req)
+		if err != nil {
+			return errors.Join(denied, err)
+		}
+		if decision.Allowed {
+			return nil
+		}
+	}
+	return denied
 }
 
 func deriveActorContext(

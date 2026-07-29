@@ -157,7 +157,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		jobListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsList,
 				Input:  json.RawMessage(`{"scope":"global","source":"package","enabled":false,"q":"review","limit":3}`),
@@ -179,7 +179,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		jobGetResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsGet,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -192,7 +192,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		jobCreateResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(
@@ -207,7 +207,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 				Input:  json.RawMessage(`{"job_id":"job-1","name":"daily-updated"}`),
@@ -222,7 +222,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsDisable,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -237,7 +237,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsEnable,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -252,7 +252,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsTrigger,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -267,7 +267,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsHistory,
 				Input: json.RawMessage(
@@ -287,7 +287,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsDelete,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -302,7 +302,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		triggerListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersList,
 				Input: json.RawMessage(`{
@@ -332,7 +332,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		triggerGetResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersGet,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1"}`),
@@ -345,7 +345,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		triggerCreateResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersCreate,
 				Input: json.RawMessage(
@@ -360,7 +360,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1","name":"on-session-updated"}`),
@@ -379,7 +379,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersEnable,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1"}`),
@@ -394,7 +394,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersDisable,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1"}`),
@@ -409,7 +409,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersHistory,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1","limit":1}`),
@@ -424,7 +424,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersDelete,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-1"}`),
@@ -439,7 +439,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		runsListResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationRunsList,
 				Input:  json.RawMessage(`{"job_id":"job-1","limit":5}`),
@@ -455,7 +455,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		runGetResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationRunsGet,
 				Input:  json.RawMessage(`{"run_id":"run-1"}`),
@@ -561,6 +561,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					return automationpkg.ManagerStatus{}, nil
 				},
 			},
+			Sessions: nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
 
@@ -575,7 +576,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					),
 				},
 			)
-			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			if createCalls != 0 {
 				t.Fatalf("CreateJob calls = %d, want 0 for workspace-bound global automation", createCalls)
 			}
@@ -824,7 +825,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsList,
 				Input:  json.RawMessage(`{"workspace":"workspace-1"}`),
@@ -838,7 +839,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		acceptResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsAccept,
 				Input:  json.RawMessage(`{"workspace":"workspace-1","suggestion_id":"suggestion-1"}`),
@@ -852,7 +853,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		dismissResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationSuggestionsDismiss,
 				Input:  json.RawMessage(`{"workspace":"workspace-1","suggestion_id":"suggestion-1"}`),
@@ -911,7 +912,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(
@@ -926,7 +927,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersCreate,
 				Input: json.RawMessage(
@@ -941,7 +942,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-config","webhook_secret":"raw-secret"}`),
@@ -954,7 +955,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsDelete,
 				Input:  json.RawMessage(`{"job_id":"job-config"}`),
@@ -967,7 +968,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersDelete,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-config"}`),
@@ -1028,7 +1029,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 				Input:  json.RawMessage(`{"job_id":"job-config","enabled":false}`),
@@ -1043,7 +1044,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-config","enabled":false}`),
@@ -1062,7 +1063,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 				Input:  json.RawMessage(`{"job_id":"job-config","name":"blocked"}`),
@@ -1077,7 +1078,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		configTrigger.Source = automationpkg.JobSourcePackage
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 				Input:  json.RawMessage(`{"job_id":"job-config","enabled":true}`),
@@ -1092,7 +1093,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
 				Input:  json.RawMessage(`{"trigger_id":"trigger-config","enabled":true}`),
@@ -1140,7 +1141,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{},
+					toolspkg.Scope{Operator: true},
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
 				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -1186,14 +1187,14 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationJobsList},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing)
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsList,
 				Input:  json.RawMessage(`{"cursor":"not-a-cursor","limit":1}`),
@@ -1203,7 +1204,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(
@@ -1215,7 +1216,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersCreate,
 				Input: json.RawMessage(
@@ -1227,7 +1228,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
 				Input:  json.RawMessage(`{"job_id":"job-1","name":"blocked"}`),
@@ -1237,7 +1238,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsTrigger,
 				Input:  json.RawMessage(`{"job_id":"job-1"}`),
@@ -1247,7 +1248,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationRunsGet,
 				Input:  json.RawMessage(`{"run_id":"missing"}`),
@@ -1257,14 +1258,14 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationRunsList},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing)
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationRunsList,
 				Input:  json.RawMessage(`{"since":"not-a-date"}`),
@@ -1294,7 +1295,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(

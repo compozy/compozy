@@ -15,7 +15,7 @@ caps, workspace inheritance, permission narrowing, and cleanup.
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
 | Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
 | Child cap               | The MVP default max children per parent is `5`.                                                                               |
-| Workspace inheritance   | Children inherit the parent workspace. Cross-workspace spawn is rejected in the MVP.                                          |
+| Workspace target        | Children inherit the parent workspace. `--workspace` may target another workspace when the policy allows.                     |
 | Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.                          |
 | Permission subset       | Child tools, skills, MCP servers, workspace paths, network channels, and sandbox profiles must be a subset of the parent set. |
 | Unknown atoms           | Unknown child permission atoms count as widening and reject the spawn.                                                        |
@@ -55,8 +55,60 @@ Permission flags are repeatable:
 participation, create Network state, or make the child inherit its parent's participation. A spawned
 execution remains Local unless it submits a separate, authorized Network participation request.
 
+`--workspace-path` narrows the workspace-path permission atoms a child may use. It is a permission
+grant checked against the parent set, not a placement flag — it does not choose which workspace the
+child runs in. Use `--workspace` for that.
+
 The response includes the child session, lineage, and safe permission projection. It does not create
 or claim task work by itself.
+
+## Cross-workspace spawn
+
+`--workspace` overrides the workspace the child runs in. It takes a workspace id, a workspace name,
+or an absolute path to a registered workspace root; a path inside a registered root resolves to that
+workspace. Omit the flag and the child inherits the parent workspace.
+
+```bash
+compozy spawn --agent reviewer --ttl-seconds 1800 --workspace ws_4f2c9a1b7d3e5086
+compozy spawn --agent reviewer --ttl-seconds 1800 --workspace billing-api
+compozy spawn --agent reviewer --ttl-seconds 1800 --workspace /Users/dev/code/billing-api
+```
+
+The daemon resolves the reference to a canonical workspace id before anything else. A reference that
+does not resolve to a registered workspace is denied — spawn never registers a new workspace. When
+the resolved target equals the parent workspace, nothing changes. When it differs, the request goes
+through the workspace-access policy on the `spawn` seam, and the parent session's effective
+permission mode decides:
+
+| Parent permission mode | Cross-workspace spawn                                                       |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `approve-all`          | Allowed.                                                                    |
+| `approve-reads`        | Denied, unless the session already recorded a cross-workspace allow answer. |
+| `deny-all`             | Denied.                                                                     |
+
+**The spawn seam never prompts.** A denial the policy marks prompt-eligible is still returned as an
+error here — no approval request reaches the operator. The consent an `approve-reads` session can
+reuse is captured elsewhere: the tool seam does prompt, and an allow answer there is cached for the
+rest of that session's lifetime. Absent such an answer — or with a recorded reject answer —
+`approve-reads` denies. `deny-all` denies regardless of any recorded answer.
+
+The daemon rejects a denied request with `403 Forbidden` and a message naming the target workspace,
+the parent workspace, and the operator fix — set the agent's `permissions.mode` to `approve-all`, or
+approve the prompt when one is asked.
+
+Workspace access is re-checked after `spawn.pre_create` hook patches. Hooks cannot move a child into
+a workspace the policy denies.
+
+What crossing does and does not change:
+
+- **The child's home is the target workspace.** Its agent process starts with that workspace's root
+  as `cwd` and that workspace's additional roots, not the parent's.
+- **Permissions do not widen.** Child tools, skills, MCP servers, workspace paths, network channels,
+  and sandbox profiles are still subset-checked against the parent, in the target workspace as in
+  the parent's.
+- **Every decision is audited.** Allow and deny both append a `workspace.access_granted` or
+  `workspace.access_denied` event carrying the `spawn` seam, the decision source, and the effective
+  permission mode.
 
 ## Cleanup and active leases
 

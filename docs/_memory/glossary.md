@@ -66,6 +66,20 @@ Do not call this product feature an `environment`. Reserve `environment`, `env`,
 
 ---
 
+### Cross-workspace access
+
+An agent session reaching a [workspace](#workspace) other than its own. It is a **boundary anchored on the session's effective `PermissionMode`**, evaluated by `internal/workspaceaccess` at the agent-identity, task, native-tool, spawn, and workspace-coordination seams: `approve-all` allows, `deny-all` denies with no prompt, `approve-reads` prompts at the native-tool seam and denies at every other seam.
+
+**Not a grant, toggle, capability level, or trust list.** No `[workspace_access]` config section, grants table, CLI verb, native toolset, or Settings surface exists — ADR-007 removed them from the design and none was implemented. Do not reintroduce that vocabulary.
+
+Prompt answers `allow_session`/`reject_session` are **session consent**: in-memory, session-scoped, applied at every seam, cleared when the session stops, with no management surface. Policy evaluations use the best-effort audit event types `workspace.access_granted` / `workspace.access_denied`.
+
+`deny-all` is deliberately asymmetric: "ask for everything" on the tool-risk axis, "never cross" on the workspace axis.
+
+Operator access is not cross-workspace access — operators are not governed by this policy, and the web deep-link workspace switch is operator UX, not an agent path.
+
+---
+
 ### AGENT.md (frontmatter format)
 
 Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the Compozy agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.

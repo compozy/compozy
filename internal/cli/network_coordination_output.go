@@ -2,6 +2,8 @@ package cli
 
 import "strconv"
 
+const networkCoordinatorKey = "coordinator"
+
 func sessionResolvedChannel(info SessionRecord) string {
 	if info.ResolvedNetworkParticipation == nil {
 		return ""
@@ -49,7 +51,11 @@ func coordinationOutputBundle(payload NetworkCoordinationRecord) outputBundle {
 				"revision",
 				automationUpdatedAtKey,
 				"updated_by",
-				"invitation_eligible", "eligibility_reason", "coordinator_run_id", "coordinator", "worker_count",
+				"invitation_eligible",
+				"eligibility_reason",
+				"coordinator_run_id",
+				networkCoordinatorKey,
+				"worker_count",
 				"invitation_scope", "invitation_task_id", "invitation_dismissed", "invitation_dismissed_at",
 				"invitation_dismissed_by",
 			}

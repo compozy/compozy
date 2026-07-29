@@ -24,9 +24,28 @@ import (
 
 // RunInDir executes one CLI command against the isolated daemon runtime using the provided working directory.
 func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string) (string, string, error) {
+	return c.runInDir(ctx, workdir, nil, args...)
+}
+
+// RunInDirWithEnv executes one CLI command with scoped environment overrides.
+func (c *CLIClient) RunInDirWithEnv(
+	ctx context.Context,
+	workdir string,
+	overrides map[string]string,
+	args ...string,
+) (string, string, error) {
+	return c.runInDir(ctx, workdir, overrides, args...)
+}
+
+func (c *CLIClient) runInDir(
+	ctx context.Context,
+	workdir string,
+	overrides map[string]string,
+	args ...string,
+) (string, string, error) {
 	// #nosec G204 -- test helper intentionally shells out to the current compozy test binary.
 	cmd := execabs.CommandContext(ctx, c.binaryPath, args...)
-	cmd.Env = append([]string(nil), c.env...)
+	cmd.Env = cliEnvWithOverrides(c.env, overrides)
 	trimmedDir := strings.TrimSpace(workdir)
 	switch {
 	case trimmedDir == "":
@@ -44,6 +63,26 @@ func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string
 
 	err := cmd.Run()
 	return stdout.String(), stderr.String(), err
+}
+
+func cliEnvWithOverrides(base []string, overrides map[string]string) []string {
+	if len(overrides) == 0 {
+		return append([]string(nil), base...)
+	}
+	env := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		name, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, overridden := overrides[name]; overridden {
+				continue
+			}
+		}
+		env = append(env, entry)
+	}
+	for name, value := range overrides {
+		env = append(env, name+"="+value)
+	}
+	return env
 }
 
 // RunJSON executes one CLI command and decodes its JSON stdout.

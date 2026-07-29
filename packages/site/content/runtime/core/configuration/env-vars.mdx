@@ -193,10 +193,10 @@ COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH
 These names are common guesses or appear in older task notes, but current Compozy code does not read
 them as runtime configuration variables.
 
-| Variable               | Status                            | Use instead                                                                                                  |
-| ---------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `COMPOZY_CONFIG`       | Not read.                         | Put global config at `$COMPOZY_HOME/config.toml` and workspace config at `<workspace>/.compozy/config.toml`. |
-| `COMPOZY_LOG_LEVEL`    | Not read.                         | Set `[log].level` in `config.toml`.                                                                          |
+| Variable               | Status                              | Use instead                                                                                                  |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `COMPOZY_CONFIG`       | Not read.                           | Put global config at `$COMPOZY_HOME/config.toml` and workspace config at `<workspace>/.compozy/config.toml`. |
+| `COMPOZY_LOG_LEVEL`    | Not read.                           | Set `[log].level` in `config.toml`.                                                                          |
 | `VITE_COMPOZY_API_URL` | Not read by CompozyOS runtime code. | It is listed as a Turbo build cache input, not a daemon config variable.                                     |
 
 ## Related Pages

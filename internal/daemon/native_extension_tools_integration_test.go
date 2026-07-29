@@ -21,7 +21,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
@@ -34,7 +34,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		source.latestVersion = "2.0.0"
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
 				Input:  json.RawMessage("{\"name\":\"tool-ext\",\"allow_unverified\":true}"),
@@ -52,7 +52,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsDisable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -70,7 +70,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsEnable,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),
@@ -80,7 +80,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		}
 		if _, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsRemove,
 				Input:  json.RawMessage(`{"name":"tool-ext"}`),

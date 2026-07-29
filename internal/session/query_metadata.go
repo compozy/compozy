@@ -122,6 +122,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		ReasoningEffort:      strings.TrimSpace(meta.ReasoningEffort),
 		Speed:                requestedSpeed,
 		SpeedResolution:      speedpkg.CloneResolution(meta.SpeedResolution),
+		EffectivePermissions: strings.TrimSpace(meta.EffectivePermissions),
 		WorkspaceID:          meta.WorkspaceID,
 		NetworkParticipation: meta.NetworkSpecSnapshot(),
 		NetworkOwnerKey:      meta.NetworkOwnerKeySnapshot(),

@@ -49,6 +49,10 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
 			t.Fatalf("create start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
 		}
+		createdPermissions := created.Info().EffectivePermissions
+		if got, want := createdPermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
+			t.Fatalf("created info effective permissions = %q, want %q", got, want)
+		}
 		createdMeta := readMeta(t, created.MetaPath())
 		if got, want := createdMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("created metadata effective permissions = %q, want %q", got, want)
@@ -56,6 +60,13 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
+		}
+		stopped, err := h.manager.Status(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Status(stopped) error = %v", err)
+		}
+		if got, want := stopped.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
+			t.Fatalf("stopped info effective permissions = %q, want %q", got, want)
 		}
 		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
 		if err != nil {
@@ -69,6 +80,10 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 
 		if got := h.driver.startCalls[1].Permissions; got != compozyconfig.PermissionModeApproveAll {
 			t.Fatalf("resume start permissions = %q, want persisted %q", got, compozyconfig.PermissionModeApproveAll)
+		}
+		resumedPermissions := resumed.Info().EffectivePermissions
+		if got, want := resumedPermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
+			t.Fatalf("resumed info effective permissions = %q, want %q", got, want)
 		}
 		resumedMeta := readMeta(t, resumed.MetaPath())
 		if got, want := resumedMeta.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {

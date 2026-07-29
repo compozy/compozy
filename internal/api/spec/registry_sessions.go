@@ -6,6 +6,7 @@ func registrySessionOperations() []OperationSpec {
 	return []OperationSpec{
 		createSessionOperationSpec(),
 		getSessionByIDOperationSpec(),
+		getSessionOwnerOperationSpec(),
 		getSessionOperationSpec(),
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
@@ -37,6 +38,24 @@ func createSessionOperationSpec() OperationSpec {
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Session creation conflict", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+func getSessionOwnerOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/sessions/{session_id}/owner",
+		OperationID: "getSessionOwner",
+		Summary:     "Get a session workspace owner projection",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionOwner{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

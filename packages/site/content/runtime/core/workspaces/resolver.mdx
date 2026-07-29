@@ -279,6 +279,44 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 | Workspace still has sessions     | `workspace has sessions`; HTTP status `409` when unregistering. No registration, session, or credential data is deleted. |
 | Invalid config or agent file     | Resolution fails and the registration is not kept on a new add/auto-register.                                            |
 
+## Isolation And Cross-Workspace Access
+
+A resolved workspace is also the home scope an agent session works in. Sessions, tasks, spawned
+children, native tool calls, and workspace coordination commands use that workspace unless a request
+explicitly names another registered workspace. The daemon sends that crossing through one policy.
+
+The session's permission mode is what that policy reads. `approve-all` crosses without asking,
+`deny-all` never crosses and never prompts, and `approve-reads` asks at the native-tool boundary
+while denying at every other one. A denial names `permissions.mode` in its hint, so an agent can tell
+you exactly what to change. [Permissions](/runtime/core/sessions/permissions#cross-workspace-access)
+documents the full mapping, the prompt options, and the session-scoped answers.
+
+Your own access is unchanged. Operator commands, global reads such as `GET /api/sessions`, and the
+workspace catalog reach every registered workspace. In Web, a session deep link that belongs to
+another workspace asks before it moves you: Compozy resolves only the owning workspace's id and name,
+shows a confirmation, and switches the active workspace and its windows only when you confirm.
+Cancelling keeps you where you are, and a link to a session that exists nowhere still resolves to the
+not-found state.
+
+### What This Boundary Covers Today
+
+Compozy is in beta, and this boundary is honest about its limits. It constrains agent requests at the
+runtime boundaries listed above and attempts a best-effort audit append for every policy evaluation.
+It is not a sandbox around the agent process.
+
+These gaps are known and accepted for the beta:
+
+- An agent with shell access can edit config files on disk, including a `permissions` mode. That
+  exposure covers the whole permission setting and is not specific to workspaces; the event history
+  is what makes it visible.
+- A session-scoped answer to a cross-workspace prompt cannot be listed or revoked while the session
+  runs. Stopping the session clears it.
+- Global operator reads — the session catalog, the workspace catalog, and the session owner lookup
+  the deep-link confirmation uses — stay open on the local loopback interface, as they are today.
+
+Set `deny-all` for sessions that must never leave their workspace, and use the event history to see
+what actually crossed.
+
 ## Related Pages
 
 - [Config Overlays](/runtime/core/workspaces/config-overlays) explains the workspace TOML and MCP merge rules.
@@ -286,3 +324,4 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 - [Agent Definitions](/runtime/core/agents/definitions) documents the current `AGENT.md` parser.
 - [Skills Overview](/runtime/core/skills) explains skill precedence after workspace resolution.
 - [Memory Scopes](/runtime/core/memory/scopes) explains how `workspace_id` keys workspace and agent-workspace memory.
+- [Permissions](/runtime/core/sessions/permissions#cross-workspace-access) documents the permission modes that decide cross-workspace requests.

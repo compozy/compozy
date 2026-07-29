@@ -1,0 +1,44 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "hosted-deny",
+            "provider": "claude",
+            "permissions": "deny-all",
+            "prompt": "You are a deny-all hosted native test agent.",
+            "turns": [
+                {
+                    "name": "unused",
+                    "match": { "turn_source": "user", "user_text": "noop" },
+                    "steps": [{ "kind": "assistant", "chunks": ["noop"] }]
+                }
+            ]
+        },
+        {
+            "name": "hosted-reads",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You are an approve-reads hosted native test agent.",
+            "turns": [
+                {
+                    "name": "unused",
+                    "match": { "turn_source": "user", "user_text": "noop" },
+                    "steps": [{ "kind": "assistant", "chunks": ["noop"] }]
+                }
+            ]
+        },
+        {
+            "name": "hosted-all",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are an approve-all hosted native test agent.",
+            "turns": [
+                {
+                    "name": "unused",
+                    "match": { "turn_source": "user", "user_text": "noop" },
+                    "steps": [{ "kind": "assistant", "chunks": ["noop"] }]
+                }
+            ]
+        }
+    ]
+}

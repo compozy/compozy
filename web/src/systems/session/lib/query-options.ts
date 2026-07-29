@@ -13,6 +13,7 @@ import {
   fetchSessions,
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
+import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState } from "../types";
@@ -29,9 +30,34 @@ import {
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
+export const SESSION_OWNER_STALE_TIME_MS = 30_000;
 const SESSION_TRANSCRIPT_STALE_TIME_MS = 10_000;
 const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
 const TOOL_ARTIFACT_PAGE_BYTES = 64 * 1_024;
+
+/**
+ * The only workspace-agnostic session key. Owner projections select a workspace but never carry
+ * rendered session data, so they remain separate from the workspace-prefixed `sessionKeys`.
+ */
+export const sessionOwnerKeys = {
+  all: ["session-owner"] as const,
+  detail: (sessionId: string) => [...sessionOwnerKeys.all, sessionId] as const,
+};
+
+export interface SessionOwnerDialogState {
+  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export function sessionOwnerOptions(sessionId: string) {
+  return queryOptions({
+    queryKey: sessionOwnerKeys.detail(sessionId),
+    queryFn: ({ signal }) => fetchSessionOwner(sessionId, signal),
+    staleTime: SESSION_OWNER_STALE_TIME_MS,
+    enabled: !!sessionId,
+  });
+}
 
 /**
  * Session detail + transcript are the hot return path for `/agents/:name/sessions/:id`.

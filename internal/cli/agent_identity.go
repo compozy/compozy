@@ -26,7 +26,6 @@ func resolveAgentCallerFromEnv(
 	ctx context.Context,
 	deps commandDeps,
 	client agentSessionClient,
-	expectedWorkspaceID string,
 	originRef string,
 ) (agentidentity.Caller, error) {
 	if client == nil {
@@ -37,11 +36,10 @@ func resolveAgentCallerFromEnv(
 		})
 	}
 	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
-		Credentials:         agentCredentialsFromEnv(deps),
-		Lookup:              agentSessionLookup(client),
-		ExpectedWorkspaceID: strings.TrimSpace(expectedWorkspaceID),
-		OriginKind:          taskpkg.OriginKindCLI,
-		OriginRef:           originRef,
+		Credentials: agentCredentialsFromEnv(deps),
+		Lookup:      agentSessionLookup(client),
+		OriginKind:  taskpkg.OriginKindCLI,
+		OriginRef:   originRef,
 	})
 }
 

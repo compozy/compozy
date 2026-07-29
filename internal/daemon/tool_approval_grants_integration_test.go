@@ -246,7 +246,10 @@ func approvalGrantHostedClient(
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(%q) error = %v", agentName, err)
 	}
-	client := startHostedMCPClient(t, requireHostedMCPStdioServer(t, diagnostics))
+	client := startHostedMCPClient(
+		t,
+		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
+	)
 	var init sdkmcp.InitializeRequest
 	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
 	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-tool-approval-e2e", Version: "1.0.0"}

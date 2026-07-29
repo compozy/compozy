@@ -182,9 +182,9 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 			Workspaces: workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 				switch ref {
 				case "/workspace/subdir":
-					return workspacepkg.Workspace{ID: "registration-1", RootDir: "/workspace"}, nil
+					return workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace"}, nil
 				case "/foreign/subdir":
-					return workspacepkg.Workspace{ID: "registration-2", RootDir: "/foreign"}, nil
+					return workspacepkg.Workspace{ID: "ws-2", RootDir: "/foreign"}, nil
 				default:
 					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
@@ -195,13 +195,13 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 				switch ref {
 				case "/workspace/subdir":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "registration-1", RootDir: "/workspace"},
-						WorkspaceID: "ws-1",
+						Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace"},
+						WorkspaceID: "01J10000000000000000000000",
 					}, nil
 				case "/foreign/subdir":
 					return workspacepkg.ResolvedWorkspace{
-						Workspace:   workspacepkg.Workspace{ID: "registration-2", RootDir: "/foreign"},
-						WorkspaceID: "ws-2",
+						Workspace:   workspacepkg.Workspace{ID: "ws-2", RootDir: "/foreign"},
+						WorkspaceID: "01J10000000000000000000001",
 					}, nil
 				default:
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound

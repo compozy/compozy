@@ -175,6 +175,8 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			"gpt-test",
 			"--name",
 			"child",
+			"--workspace",
+			"ws-target",
 			"--prompt-overlay",
 			"focus",
 			"--role",
@@ -205,6 +207,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.Provider != "codex" ||
 			gotRequest.Model != "gpt-test" ||
 			gotRequest.Name != "child" ||
+			gotRequest.Workspace != "ws-target" ||
 			gotRequest.PromptOverlay != "focus" ||
 			gotRequest.SpawnRole != "worker" ||
 			gotRequest.TTLSeconds != 120 ||

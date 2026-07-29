@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
@@ -322,7 +323,30 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolErrorMessage(errors.New("plain")); got != "plain" {
 			t.Fatalf("hostedToolErrorMessage(plain) = %q, want plain", got)
 		}
+		transportErr := hostedToolResponseError{response: contract.ToolErrorResponse{
+			Error: contract.ToolErrorPayload{
+				Code:        tools.ErrorCodeDenied,
+				Message:     "workspace denied: operator hint",
+				ReasonCodes: []tools.ReasonCode{tools.ReasonWorkspaceAccessDenied},
+			},
+		}}
+		want := "workspace_access_denied: workspace denied: operator hint"
+		if got := hostedToolErrorMessage(transportErr); got != want {
+			t.Fatalf("hostedToolErrorMessage(transport) = %q, want reason and public message", got)
+		}
 	})
+}
+
+type hostedToolResponseError struct {
+	response contract.ToolErrorResponse
+}
+
+func (e hostedToolResponseError) Error() string {
+	return "transport tool error"
+}
+
+func (e hostedToolResponseError) Response() contract.ToolErrorResponse {
+	return e.response
 }
 
 func sdkToolNames(tools []sdkmcp.Tool) []string {

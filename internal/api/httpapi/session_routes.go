@@ -7,6 +7,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions.GET("", handlers.ListSessions)
 	sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 	sessions.GET("/:session_id", handlers.GetSessionByID)
+	sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
 	sessions.POST("", handlers.CreateSession)
 
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")

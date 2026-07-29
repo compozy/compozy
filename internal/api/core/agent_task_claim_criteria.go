@@ -27,14 +27,6 @@ func (h *BaseHandlers) agentTaskClaimCriteria(
 			taskpkg.ErrPermissionDenied,
 		)
 	}
-	if callerWorkspaceID != "" && workspaceID != callerWorkspaceID {
-		return taskpkg.ClaimCriteria{}, fmt.Errorf(
-			"%w: agent session %q cannot claim workspace %q",
-			taskpkg.ErrPermissionDenied,
-			caller.Session.ID,
-			workspaceID,
-		)
-	}
 
 	leaseDuration, err := agentTaskLeaseDuration(req.LeaseSeconds)
 	if err != nil {

@@ -34,7 +34,7 @@ const (
 	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
-	startupToolsSectionBudget     = 32_000
+	startupToolsSectionBudget     = 36_000
 	startupNetworkSectionBudget   = 512
 )
 

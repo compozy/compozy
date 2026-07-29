@@ -271,6 +271,16 @@ type CallInputBinder interface {
 	) (json.RawMessage, error)
 }
 
+// CallInputAuthorizer authorizes the final bound input after hooks and schema validation.
+type CallInputAuthorizer interface {
+	AuthorizeCallInput(
+		ctx context.Context,
+		scope Scope,
+		descriptor Descriptor,
+		call CallRequest,
+	) error
+}
+
 // Scope identifies the caller context used for projections and dispatch.
 type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`

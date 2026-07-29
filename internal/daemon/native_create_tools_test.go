@@ -40,7 +40,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 	}, nativeApproveAllPolicyInputs())
 
 	t.Run("Should register a channel with purpose through the network store", func(t *testing.T) {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
 				`{"workspace":"ws-native-network","channel":"design","purpose":"UI reviews"}`,
@@ -77,8 +77,13 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 					if err := ctx.Err(); err != nil {
 						return workspacepkg.ResolvedWorkspace{}, err
 					}
-					if ref != registryWorkspaceID {
-						t.Fatalf("Resolve() ref = %q, want %q", ref, registryWorkspaceID)
+					if ref != registryWorkspaceID && ref != identityWorkspaceID {
+						t.Fatalf(
+							"Resolve() ref = %q, want registry %q or identity %q",
+							ref,
+							registryWorkspaceID,
+							identityWorkspaceID,
+						)
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
@@ -93,7 +98,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 			Sessions: nativeNetworkTestSessionManager(registryWorkspaceID),
 		}, nativeApproveAllPolicyInputs())
 
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
 				"{\"workspace\":\"ws-native-network\",\"channel\":\"general\",\"purpose\":\"Announcements\"}",
@@ -144,8 +149,13 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 					if err := ctx.Err(); err != nil {
 						return workspacepkg.ResolvedWorkspace{}, err
 					}
-					if ref != registryWorkspaceID {
-						t.Fatalf("Resolve() ref = %q, want %q", ref, registryWorkspaceID)
+					if ref != registryWorkspaceID && ref != identityWorkspaceID {
+						t.Fatalf(
+							"Resolve() ref = %q, want registry %q or identity %q",
+							ref,
+							registryWorkspaceID,
+							identityWorkspaceID,
+						)
 					}
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspace,
@@ -156,7 +166,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 			Sessions: nativeNetworkTestSessionManager(registryWorkspaceID),
 		}, nativeApproveAllPolicyInputs())
 
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
 				"{\"workspace\":\"ws-native-network\",\"channel\":\"durable\",\"purpose\":\"Durable coordination\"}",
@@ -179,7 +189,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 	})
 
 	t.Run("Should reject an invalid channel name", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
 				`{"workspace":"ws-native-network","channel":"Bad Name","purpose":"x"}`,
@@ -189,7 +199,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 	})
 
 	t.Run("Should require a purpose", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelCreate,
 			Input: json.RawMessage(
 				`{"workspace":"ws-native-network","channel":"general","purpose":"   "}`,
@@ -245,7 +255,7 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 	t.Run("Should return the public snake case channel payload", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDNetworkChannelUpdate,
 			Input: json.RawMessage(
 				`{"workspace":"ws-native-network","channel":"design","purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
@@ -278,7 +288,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		workspaces := apitest.StubWorkspaceService{
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				switch ref {
-				case "target-alias", "ws-target":
+				case "target-alias", "ws-target", "identity-target":
 					return workspacepkg.ResolvedWorkspace{
 						Workspace: workspacepkg.Workspace{
 							ID:      "ws-target",
@@ -313,7 +323,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(agent_create target workspace) error = %v", err)
 		}
-		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"ws-target"`))
+		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"identity-target"`))
 		requireNativeStructuredExcludes(t, result, []byte(`"workspace_id":"ws-scope"`))
 	})
 
@@ -325,7 +335,7 @@ func TestNativeAgentCreate(t *testing.T) {
 			HomePaths:  homePaths,
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				`{"scope":"global","name":"missing-sync","provider":"claude","prompt":"No write."}`,
@@ -358,7 +368,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		publisher = agentSkillPublisherFunc(func(context.Context) error { return nil })
 
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				`{"scope":"global","name":"late-publisher","provider":"claude","prompt":"Late publisher."}`,
@@ -394,14 +404,14 @@ func TestNativeAgentCreate(t *testing.T) {
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input:  json.RawMessage(`{"scope":"global","name":"retryable","provider":"claude","prompt":"Retry."}`),
 		}
-		if _, err := registry.Call(t.Context(), toolspkg.Scope{}, request); !errors.Is(err, syncErr) {
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, request); !errors.Is(err, syncErr) {
 			t.Fatalf("first Registry.Call(agent_create) error = %v, want sync failure", err)
 		}
 		path := filepath.Join(homePaths.AgentsDir, "retryable", compozyconfig.AgentDefinitionFileName)
 		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("os.Stat(rolled back agent) error = %v, want os.ErrNotExist", statErr)
 		}
-		if _, err := registry.Call(t.Context(), toolspkg.Scope{}, request); err != nil {
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, request); err != nil {
 			t.Fatalf("second Registry.Call(agent_create) error = %v", err)
 		}
 		if syncCalls != 3 {
@@ -424,7 +434,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	}, nativeApproveAllPolicyInputs())
 
 	t.Run("Should author one global AGENT.md", func(t *testing.T) {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","prompt":"You scout the codebase."}`,
@@ -448,7 +458,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	t.Run("Should conflict when the agent already exists", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				`{"scope":"global","name":"scout","provider":"claude","prompt":"Duplicate."}`,
@@ -458,7 +468,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	t.Run("Should reject a reserved agent name through the shared authoring path", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				`{"scope":"global","name":"coordinator","provider":"claude","prompt":"Reserved."}`,
@@ -479,7 +489,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	t.Run("Should inherit the configured runtime when the request omits overrides", func(t *testing.T) {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input:  json.RawMessage(`{"scope":"global","name":"inherited","prompt":"Use project defaults."}`),
 		})
@@ -510,7 +520,7 @@ func TestNativeAgentCreate(t *testing.T) {
 	})
 
 	t.Run("Should allow onboarding as an ordinary agent name", func(t *testing.T) {
-		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
 				"{\"scope\":\"global\",\"name\":\"onboarding\",\"provider\":\"claude\",\"prompt\":\"Operator-authored.\"}",
@@ -572,7 +582,7 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 		}},
 	}, nativeApproveAllPolicyInputs())
 
-	result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+	result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDWorkspaceDescribe,
 		Input:  json.RawMessage("{\"workspace\":\"ws-native-network\"}"),
 	})

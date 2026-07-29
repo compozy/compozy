@@ -76,7 +76,7 @@ func requireAgentCommandIdentity(
 	client DaemonClient,
 	originRef string,
 ) (agentidentity.Credentials, error) {
-	if _, err := resolveAgentCallerFromEnv(ctx, deps, client, "", originRef); err != nil {
+	if _, err := resolveAgentCallerFromEnv(ctx, deps, client, originRef); err != nil {
 		return agentidentity.Credentials{}, err
 	}
 	return agentCredentialsFromEnv(deps), nil

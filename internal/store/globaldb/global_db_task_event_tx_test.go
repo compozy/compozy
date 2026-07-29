@@ -960,7 +960,7 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 			TaskID:      taskRecord.ID,
 			RunID:       run.ID,
 		}
-		commands := workspacepkg.NewCoordinationService(globalDB)
+		commands := workspacepkg.NewCoordinationService(globalDB, nil)
 		view, err := commands.Set(ctx, workspacepkg.SetCoordination{
 			Ref: ref, Enabled: true, ExpectedRevision: 0,
 		}, operatorActorContextForTest("operator:coordination"))
@@ -1025,7 +1025,7 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		commands := workspacepkg.NewCoordinationService(globalDB)
+		commands := workspacepkg.NewCoordinationService(globalDB, nil)
 		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
 			Ref: workspacepkg.CoordinationRef{
 				WorkspaceID: otherWorkspaceID,
@@ -1064,7 +1064,7 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 			ScopeKind:   workspacepkg.InvitationScopeTask,
 			TaskID:      taskRecord.ID,
 		}
-		commands := workspacepkg.NewCoordinationService(globalDB)
+		commands := workspacepkg.NewCoordinationService(globalDB, nil)
 		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
 			Ref: ref, Enabled: true, ExpectedRevision: 0,
 		}, operatorActorContextForTest("operator:rollback"))

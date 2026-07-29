@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type recordingHookRunner struct {
@@ -91,6 +93,21 @@ type approvalBridgeCall struct {
 
 type recordingCallInputBinder struct {
 	bind func(context.Context, Scope, Descriptor, json.RawMessage) (json.RawMessage, error)
+}
+
+type recordingDispatchWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	calls    int
+	last     workspaceaccess.Request
+}
+
+func (p *recordingDispatchWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, nil
 }
 
 var _ CallInputBinder = (*recordingCallInputBinder)(nil)
@@ -659,6 +676,95 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		requireToolReason(t, err, ReasonScopeMismatch)
 		if called {
 			t.Fatal("provider handle was called for spoofed request scope")
+		}
+	})
+
+	t.Run("Should authorize workspace envelope conflicts without prompting", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		calledWorkspaceID := ""
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				called = true
+				calledWorkspaceID = req.WorkspaceID
+				return ToolResult{}, nil
+			},
+		})
+		policy := &recordingDispatchWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		resolverCalls := 0
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithWorkspaceAccessPolicy(policy),
+			WithWorkspaceIDResolver(func(_ context.Context, ref string) (string, error) {
+				resolverCalls++
+				if ref != "target-alias" && ref != "ws_0000000000000001" {
+					t.Fatalf("workspace resolver ref = %q, want alias or canonical target", ref)
+				}
+				return "ws_0000000000000001", nil
+			}),
+		)
+		_, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			CallRequest{
+				ToolID:      descriptor.ID,
+				WorkspaceID: "target-alias",
+				Input:       json.RawMessage(`{"query":"x"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v", err)
+		}
+		wantPolicyRequest := workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
+			TargetWorkspaceID: "ws_0000000000000001",
+			Seam:              workspaceaccess.SeamTool,
+		}
+		if !called || calledWorkspaceID != "ws_0000000000000001" || resolverCalls != 1 || policy.calls != 1 ||
+			policy.last != wantPolicyRequest {
+			t.Fatalf(
+				"called/workspace/resolver/policy/request = %v/%q/%d/%d/%#v, want canonical authorization %#v",
+				called,
+				calledWorkspaceID,
+				resolverCalls,
+				policy.calls,
+				policy.last,
+				wantPolicyRequest,
+			)
+		}
+
+		called = false
+		policy.decision = workspaceaccess.Decision{PromptEligible: true}
+		_, err = registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			CallRequest{
+				ToolID:      descriptor.ID,
+				WorkspaceID: "ws_0000000000000001",
+				Input:       json.RawMessage(`{"query":"x"}`),
+			},
+		)
+		requireToolReason(t, err, ReasonWorkspaceAccessDenied)
+		if called {
+			t.Fatal("provider handle was called after workspace policy denial")
+		}
+		if policy.calls != 2 || policy.last != wantPolicyRequest {
+			t.Fatalf(
+				"policy calls/request after denial = %d/%#v, want 2/%#v",
+				policy.calls,
+				policy.last,
+				wantPolicyRequest,
+			)
 		}
 	})
 

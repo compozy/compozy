@@ -24,16 +24,12 @@ import (
 func (n *daemonNativeTools) skillsFor(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
 	workspaceID string,
 ) ([]*skills.Skill, error) {
 	if n.deps.Skills == nil {
 		return nil, errors.New("daemon: skills registry is required")
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
-	if err != nil {
-		return nil, err
-	}
+	workspaceID = nativeCallerWorkspaceInput(workspaceID, scope)
 	agentName := strings.TrimSpace(scope.AgentName)
 	agentDef, hasSessionAgent, err := n.sessionAgentDefinition(scope.SessionID)
 	if err != nil {
@@ -104,16 +100,12 @@ func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (compozycon
 func (n *daemonNativeTools) resolveSkill(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
 	workspaceID string,
 	name string,
 ) (*skills.Skill, error) {
 	trimmedName := strings.TrimSpace(name)
-	workspaceID, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
-	if err != nil {
-		return nil, err
-	}
-	skillList, err := n.skillsFor(ctx, scope, id, workspaceID)
+	workspaceID = nativeCallerWorkspaceInput(workspaceID, scope)
+	skillList, err := n.skillsFor(ctx, scope, workspaceID)
 	if err != nil {
 		return nil, err
 	}

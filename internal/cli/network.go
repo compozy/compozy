@@ -91,7 +91,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 		Short: "Operate the daemon-owned network runtime",
 	}
 
-	cmd.AddCommand(newNetworkStatusCommand(deps))
+	cmd.AddCommand(newNetworkStatusCommand(deps, &workspaceRef))
 	cmd.PersistentFlags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.AddCommand(newNetworkPeersCommand(deps, &workspaceRef))
@@ -125,20 +125,61 @@ func resolveNetworkWorkspaceRef(
 	client DaemonClient,
 	workspaceRef *string,
 ) (string, error) {
+	credentials := agentCredentialsFromEnv(deps)
+	cmd.SetContext(withNetworkAgentCredentials(cmd.Context(), credentials))
 	raw := ""
 	if workspaceRef != nil {
 		raw = strings.TrimSpace(*workspaceRef)
 	}
-	return resolveCLIWorkspaceRouteRef(cmd, deps, client, raw)
+	if credentials.SessionID != "" || credentials.AgentName != "" {
+		return resolveAgentNetworkWorkspaceRef(cmd, deps, client, raw)
+	}
+	resolved, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, raw)
+	if err != nil {
+		return "", err
+	}
+	return resolved, nil
 }
 
-func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
+func resolveAgentNetworkWorkspaceRef(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	flagRef string,
+) (string, error) {
+	if commandWorkspaceFlagIsBlank(cmd, flagRef) {
+		return "", errWorkspaceReferenceRequired
+	}
+	for _, ref := range []string{flagRef, deps.getenv(workspaceEnvName)} {
+		if trimmed := strings.TrimSpace(ref); trimmed != "" {
+			return trimmed, nil
+		}
+	}
+	originRef := "network.workspace.resolve"
+	if cmd != nil {
+		originRef = cmd.CommandPath()
+	}
+	caller, err := resolveAgentCallerFromEnv(cmd.Context(), deps, client, originRef)
+	if err != nil {
+		return "", err
+	}
+	workspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
+	if workspaceID == "" {
+		return "", errors.New("cli: agent session workspace id is required")
+	}
+	return workspaceID, nil
+}
+
+func newNetworkStatusCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   networkStatusKey,
 		Short: "Show Network availability, Live participation, and runtime metrics",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
+				return err
+			}
+			if _, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef); err != nil {
 				return err
 			}
 

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
@@ -101,6 +103,195 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
+	})
+}
+
+func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {
+	t.Parallel()
+
+	descriptor := toolApprovalTestView().Descriptor
+	call := toolApprovalTestCall(descriptor.ID, "ws-a")
+	scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-a", AgentName: "codex"}
+
+	t.Run("Should allow once without caching and prompt again", func(t *testing.T) {
+		t.Parallel()
+
+		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
+		cache := newWorkspaceAccessConsentCache()
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			cache,
+		)
+		for attempt := range 2 {
+			allowed, err := bridge.RequestWorkspaceAccess(
+				t.Context(),
+				scope,
+				call,
+				descriptor,
+				"ws-b",
+			)
+			if err != nil || !allowed {
+				t.Fatalf("RequestWorkspaceAccess(%d) = %v, %v, want allowed", attempt, allowed, err)
+			}
+		}
+		if _, ok := cache.ConsentFor(t.Context(), "sess-1"); ok {
+			t.Fatal("allow_once wrote session consent")
+		}
+		if len(requester.requests) != 2 {
+			t.Fatalf("permission requests = %d, want 2", len(requester.requests))
+		}
+	})
+
+	for _, test := range []struct {
+		name        string
+		option      acpsdk.PermissionOptionId
+		wantAllowed bool
+		wantConsent workspaceaccess.Consent
+	}{
+		{name: "Should cache allow_session", option: workspaceAccessAllowSessionID, wantAllowed: true, wantConsent: workspaceaccess.ConsentAllow},
+		{name: "Should cache reject_session", option: workspaceAccessRejectSessionID, wantConsent: workspaceaccess.ConsentReject},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			requester := selectedPermissionRequester(test.option)
+			cache := newWorkspaceAccessConsentCache()
+			bridge := newWorkspaceAccessPromptBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				cache,
+			)
+			allowed, err := bridge.RequestWorkspaceAccess(
+				t.Context(),
+				scope,
+				call,
+				descriptor,
+				"ws-b",
+			)
+			if err != nil {
+				t.Fatalf("RequestWorkspaceAccess() error = %v", err)
+			}
+			if allowed != test.wantAllowed {
+				t.Fatalf("allowed = %v, want %v", allowed, test.wantAllowed)
+			}
+			consent, ok := cache.ConsentFor(t.Context(), "sess-1")
+			if !ok || consent != test.wantConsent {
+				t.Fatalf("consent = %q, %v, want %q", consent, ok, test.wantConsent)
+			}
+			request := requester.lastRequest(t)
+			if request.ToolCall.Kind != nil {
+				t.Fatalf(
+					"workspace permission tool kind = %q, want nil to force the interactive path",
+					*request.ToolCall.Kind,
+				)
+			}
+			gotIDs := make([]acpsdk.PermissionOptionId, 0, len(request.Options))
+			for _, option := range request.Options {
+				gotIDs = append(gotIDs, option.OptionId)
+			}
+			wantIDs := []acpsdk.PermissionOptionId{
+				workspaceAccessAllowOnceID,
+				workspaceAccessAllowSessionID,
+				workspaceAccessRejectOnceID,
+				workspaceAccessRejectSessionID,
+			}
+			if !slices.Equal(gotIDs, wantIDs) {
+				t.Fatalf("permission option ids = %#v, want %#v", gotIDs, wantIDs)
+			}
+		})
+	}
+}
+
+func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
+	t.Parallel()
+
+	descriptor := toolApprovalTestView().Descriptor
+	call := toolApprovalTestCall(descriptor.ID, "ws-a")
+	scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-a"}
+
+	t.Run("Should survive originating request cancellation within its own deadline", func(t *testing.T) {
+		t.Parallel()
+
+		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			newWorkspaceAccessConsentCache(),
+		)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		allowed, err := bridge.RequestWorkspaceAccess(ctx, scope, call, descriptor, "ws-b")
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess(canceled origin) = %v, %v, want allowed", allowed, err)
+		}
+	})
+
+	t.Run("Should deny timeout and unknown answers without caching", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name      string
+			requester *recordingPermissionRequester
+			timeout   time.Duration
+			wantError string
+		}{
+			{
+				name: "Should report a timeout",
+				requester: &recordingPermissionRequester{fn: func(
+					ctx context.Context,
+					_ string,
+					_ acp.RequestPermissionRequest,
+				) (acp.RequestPermissionResponse, error) {
+					<-ctx.Done()
+					return acp.RequestPermissionResponse{}, ctx.Err()
+				}},
+				timeout:   time.Nanosecond,
+				wantError: "workspace access prompt timed out",
+			},
+			{
+				name:      "Should reject an unknown answer",
+				requester: selectedPermissionRequester("unknown"),
+				timeout:   time.Second,
+				wantError: "selected an unknown option",
+			},
+			{
+				name: "Should preserve a malformed ACP outcome",
+				requester: &recordingPermissionRequester{response: acp.RequestPermissionResponse{
+					Outcome: acpsdk.RequestPermissionOutcome{},
+				}},
+				timeout:   time.Second,
+				wantError: "must have exactly one variant set",
+			},
+		}
+		for _, test := range cases {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cache := newWorkspaceAccessConsentCache()
+				bridge := newWorkspaceAccessPromptBridge(
+					func() sessionPermissionRequester { return test.requester },
+					test.timeout,
+					cache,
+				)
+				allowed, err := bridge.RequestWorkspaceAccess(
+					t.Context(),
+					scope,
+					call,
+					descriptor,
+					"ws-b",
+				)
+				if err == nil || allowed {
+					t.Fatalf("RequestWorkspaceAccess() = %v, %v, want denial error", allowed, err)
+				}
+				if !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("RequestWorkspaceAccess() error = %v, want %q", err, test.wantError)
+				}
+				if _, ok := cache.ConsentFor(t.Context(), "sess-1"); ok {
+					t.Fatal("failed prompt wrote session consent")
+				}
+			})
+		}
 	})
 }
 

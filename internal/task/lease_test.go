@@ -11,6 +11,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
@@ -25,6 +26,34 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 		}
 		if !strings.HasPrefix(rawToken, "compozy_claim_") {
 			t.Fatalf("NewClaimToken() = %q, want compozy_claim_ prefix", rawToken)
+		}
+	})
+
+	t.Run("Should preserve an authorized foreign workspace during claim normalization", func(t *testing.T) {
+		t.Parallel()
+
+		policy := &recordingTaskWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		service := &Service{
+			now:             func() time.Time { return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC) },
+			workspaceAccess: policy,
+		}
+		normalized, err := service.normalizeClaimCriteriaForActor(
+			t.Context(),
+			ClaimCriteria{
+				WorkspaceID:      "ws-b",
+				ClaimerSessionID: "sess-a",
+				LeaseDuration:    time.Minute,
+			},
+			agentActorContextForTest("sess-a", "ws-a"),
+		)
+		if err != nil {
+			t.Fatalf("normalizeClaimCriteriaForActor() error = %v", err)
+		}
+		if normalized.Scope != ScopeWorkspace || normalized.WorkspaceID != "ws-b" {
+			t.Fatalf("normalized criteria = %#v, want foreign workspace scope", normalized)
+		}
+		if policy.calls != 1 {
+			t.Fatalf("policy calls = %d, want 1", policy.calls)
 		}
 	})
 

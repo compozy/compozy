@@ -1052,6 +1052,29 @@ export function sessionClarifySelectors(
   };
 }
 
+/** Routed confirmation shown when a session deep link belongs to another workspace (ADR-004). */
+export const sessionWorkspaceSwitchTestIds = {
+  dialog: "session-workspace-switch-dialog",
+  confirm: "session-workspace-switch-confirm",
+  cancel: "session-workspace-switch-cancel",
+} as const;
+
+export interface SessionWorkspaceSwitchSelectors {
+  dialog: Locator;
+  confirm: Locator;
+  cancel: Locator;
+}
+
+export function sessionWorkspaceSwitchSelectors(
+  page: Pick<Page, "getByTestId">
+): SessionWorkspaceSwitchSelectors {
+  return {
+    dialog: page.getByTestId(sessionWorkspaceSwitchTestIds.dialog),
+    confirm: page.getByTestId(sessionWorkspaceSwitchTestIds.confirm),
+    cancel: page.getByTestId(sessionWorkspaceSwitchTestIds.cancel),
+  };
+}
+
 export function networkOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): NetworkOperatorSelectors {
