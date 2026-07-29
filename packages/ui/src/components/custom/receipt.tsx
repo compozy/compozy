@@ -32,8 +32,8 @@ function Receipt({ tone = "neutral", icon, children, className, ...props }: Rece
       data-slot="receipt"
       data-tone={tone}
       className={cn(
-        "flex min-h-[22px] min-w-0 items-center gap-[7px] px-1 py-0.5",
-        "text-[12px] text-subtle",
+        "flex min-h-transcript-row min-w-0 items-center gap-transcript-inline-gap px-1 py-0.5",
+        "text-transcript-body text-subtle",
         className
       )}
       {...props}
@@ -52,7 +52,7 @@ function Receipt({ tone = "neutral", icon, children, className, ...props }: Rece
         className={cn(
           "min-w-0 truncate",
           "[&_b]:font-medium [&_b]:text-muted [&_strong]:font-medium [&_strong]:text-muted",
-          "[&_code]:font-mono [&_code]:text-[11px] [&_code]:text-muted"
+          "[&_code]:font-mono [&_code]:text-transcript-caption [&_code]:text-muted"
         )}
       >
         {children}

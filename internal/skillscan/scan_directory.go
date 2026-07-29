@@ -114,11 +114,7 @@ func (s *directoryScanner) visit(candidate string, entry fs.DirEntry, walkErr er
 		slog.Warn("skillscan: skipping non-regular definition", "path", candidate)
 		return nil
 	}
-	snapshot, err := filesnap.FromPath(candidate)
-	if err != nil {
-		slog.Warn("skillscan: skipping unreadable definition", "path", candidate, "error", err)
-		return nil
-	}
+	snapshot := filesnap.Snapshot{ModTime: info.ModTime(), Size: info.Size()}
 	s.result.Paths = append(s.result.Paths, candidate)
 	s.result.Snapshots[candidate] = snapshot
 	if len(s.result.Paths) >= MaxCandidates {

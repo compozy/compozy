@@ -101,6 +101,10 @@ function previewFor(
   return summary;
 }
 
+function diffStatLabel(additions: number, deletions: number): string {
+  return `${additions} ${additions === 1 ? "addition" : "additions"}, ${deletions} ${deletions === 1 ? "deletion" : "deletions"}`;
+}
+
 /**
  * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
  * calm 24px line whose status lives in the trailing glyph. Failed rows stay
@@ -153,6 +157,7 @@ export function SessionToolCallRow({
         errorMessage={errorMessage}
         actions={copyAction}
         defaultExpanded={defaultExpanded}
+        statLabel={diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined}
         stat={
           diffStat ? (
             <>

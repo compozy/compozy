@@ -23,6 +23,8 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
   errorMessage?: React.ReactNode;
   /** Per-file diff stat (+a −d) rendered between the text and the trailing glyphs. */
   stat?: React.ReactNode;
+  /** Accessible description for `stat`, for example "28 additions, 104 deletions". */
+  statLabel?: string;
   /** Trailing affordances rendered beside chevron/status (e.g. copy). */
   actions?: React.ReactNode;
   expanded?: boolean;
@@ -91,6 +93,7 @@ function ToolCallRowInner({
   icon,
   errorMessage,
   stat,
+  statLabel,
   actions,
   expanded,
   defaultExpanded = false,
@@ -101,9 +104,11 @@ function ToolCallRowInner({
 }: ToolCallRowProps) {
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded);
   const toolNameId = React.useId();
+  const statDescriptionId = React.useId();
   const triggerDescriptionId = React.useId();
   const isExpanded = expanded ?? localExpanded;
   const expandable = Boolean(errorMessage) || React.Children.toArray(children).length > 0;
+  const accessibleStatLabel = stat ? statLabel : undefined;
   const iconContent = renderToolCallIcon(icon);
 
   const setExpanded = (next: boolean) => {
@@ -150,7 +155,7 @@ function ToolCallRowInner({
       {stat ? (
         <span
           data-slot="tool-call-row-stat"
-          className="flex shrink-0 items-center gap-[5px] font-mono text-[11px] tabular-nums"
+          className="flex shrink-0 items-center gap-1 font-mono text-transcript-caption tabular-nums"
         >
           {stat}
         </span>
@@ -202,13 +207,18 @@ function ToolCallRowInner({
             type="button"
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
-            aria-labelledby={`${toolNameId} ${triggerDescriptionId}`}
+            aria-labelledby={`${toolNameId}${accessibleStatLabel ? ` ${statDescriptionId}` : ""} ${triggerDescriptionId}`}
             className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
             onClick={toggle}
           />
           <span id={triggerDescriptionId} className="sr-only">
             Toggle tool call ({status})
           </span>
+          {accessibleStatLabel ? (
+            <span id={statDescriptionId} className="sr-only">
+              {accessibleStatLabel}
+            </span>
+          ) : null}
           {rowContent}
         </div>
       ) : (

@@ -148,7 +148,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    expect(indicator).not.toHaveClass("text-success", "text-danger");
+    expect(indicator).not.toHaveClass("text-success");
+    expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
@@ -159,9 +160,29 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("success");
     expect(indicator?.getAttribute("aria-label")).toBe("Done");
-    expect(indicator).not.toHaveClass("text-success", "text-danger");
+    expect(indicator).not.toHaveClass("text-success");
+    expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("img", { name: "Done" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Read file");
+  });
+
+  it("Should expose a successful file diff through the expandable trigger description", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Edit",
+          toolInput: {
+            file_path: "/src/main.ts",
+            old_string: "before",
+            new_string: "after",
+          },
+          toolResult: { content: "updated" },
+        })}
+      />
+    );
+
+    expect(document.querySelector('[data-slot="tool-call-row-stat"]')).toHaveTextContent("+1−1");
+    expect(screen.getByRole("button", { name: /1 addition, 1 deletion/ })).toBeInTheDocument();
   });
 
   it("Should render the empty row state (Minus, faint tone) for empty output mid-stream", () => {

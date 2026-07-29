@@ -94,13 +94,16 @@ describe("ToolCallRow", () => {
         toolName="Edited"
         preview="src/session.tsx"
         status="success"
+        statLabel="28 additions, 104 deletions"
         stat={
           <>
             <b>+28</b>
             <i>−104</i>
           </>
         }
-      />
+      >
+        <ToolCallRow.Output source="updated" format="code" />
+      </ToolCallRow>
     );
     const preview = container.querySelector('[data-slot="tool-call-row-preview"]');
     const stat = container.querySelector('[data-slot="tool-call-row-stat"]');
@@ -111,6 +114,9 @@ describe("ToolCallRow", () => {
     expect(stat?.textContent).toBe("+28−104");
     expect(preview?.compareDocumentPosition(stat as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(stat?.compareDocumentPosition(status as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      "Edited 28 additions, 104 deletions Toggle tool call (success)"
+    );
   });
 
   it("Should set role/tabIndex and the expand chevron only when an expandable body exists", () => {

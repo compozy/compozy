@@ -56,6 +56,26 @@ export const Done: Story = {
   },
 };
 
+export const DiffStat: Story = {
+  args: {
+    toolName: "Edit",
+    preview: "src/session.tsx",
+    status: "success",
+    statLabel: "28 additions, 104 deletions",
+    stat: (
+      <>
+        <span className="font-medium text-success">+28</span>
+        <span className="font-medium text-danger">−104</span>
+      </>
+    ),
+  },
+  render: args => (
+    <ToolCallRow {...args}>
+      <ToolCallRow.Output source="updated" format="code" />
+    </ToolCallRow>
+  ),
+};
+
 export const FailureWithError: Story = {
   args: {
     toolName: "Read",
