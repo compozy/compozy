@@ -64,6 +64,30 @@ func (n *daemonNativeTools) extensionToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDExtensionsInit: {
+			call:         n.extensionInit,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsBuild: {
+			call:         n.extensionBuild,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsValidate: {
+			call:         n.extensionValidate,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsDev: {
+			call:         n.extensionDev,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsReload: {
+			call:         n.extensionReload,
+			availability: availability,
+		},
+		toolspkg.ToolIDExtensionsLogs: {
+			call:         n.extensionLogs,
+			availability: availability,
+		},
 		toolspkg.ToolIDExtensionsList: {
 			call:         n.extensionList,
 			availability: availability,

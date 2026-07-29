@@ -647,6 +647,32 @@
     ]
   },
   {
+    "tool_id": "compozy__extensions_build",
+    "native_name": "extensions_build",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4aaf3c8a3c5a4c246dc35b72ec632b4c100cb90a7d363a32858632e369b43878",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_dev",
+    "native_name": "extensions_dev",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c273507715573476c6211fb9e13174e91ed2f3ab5310afc094fb72e61da7cea1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__extensions_disable",
     "native_name": "extensions_disable",
     "toolsets": [
@@ -686,6 +712,19 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__extensions_init",
+    "native_name": "extensions_init",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7d0ae615dcb6951a139e8f101946e43217d6a899ccf51103a731925fe7c06b9d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__extensions_install",
     "native_name": "extensions_install",
     "toolsets": [
@@ -712,6 +751,32 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__extensions_logs",
+    "native_name": "extensions_logs",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b2f96297b65dbda6a71c78a55cf3a6f6c337a6851f57f4023ccfacc52ede9611",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_reload",
+    "native_name": "extensions_reload",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "33310806415f57c89755c07da94caabac88352a797fd852ca5f807e8c8682b2a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__extensions_remove",
     "native_name": "extensions_remove",
     "toolsets": [
@@ -735,6 +800,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "b403d09c19656b86c0aa7b4923ae3a3e5b3751362135c30f5ccc3f616c7d0da7",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_validate",
+    "native_name": "extensions_validate",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fe84c056d57a34dde9e7f1e1aacf5ee9cf724dc231ec24f8acfc29b8cabce3dc",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

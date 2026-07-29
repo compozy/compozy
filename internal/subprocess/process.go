@@ -55,6 +55,11 @@ type LaunchConfig struct {
 
 	Logger *slog.Logger
 
+	// StderrSink receives stderr only after StderrTransform has scrubbed it.
+	StderrSink io.Writer
+	// StderrTransform scrubs complete stderr records before diagnostic capture or forwarding.
+	StderrTransform func(string) string
+
 	// DisableTransport leaves stdout unread so callers like ACP can attach their own protocol layer.
 	DisableTransport bool
 
@@ -78,11 +83,12 @@ type LaunchConfig struct {
 
 // Process manages one subprocess and its optional JSON-RPC transport.
 type Process struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	stderr *boundedBuffer
-	logger *slog.Logger
+	cmd            *exec.Cmd
+	stdin          io.WriteCloser
+	stdout         io.ReadCloser
+	stderr         *boundedBuffer
+	stderrPipeline *stderrPipeline
+	logger         *slog.Logger
 
 	transport *transport
 
@@ -133,7 +139,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 	}
 
 	runtime := resolveLaunchRuntime(cfg)
-	cmd, stdin, stdout, stderr, err := startManagedCommand(cfg)
+	cmd, stdin, stdout, stderr, stderrPipeline, err := startManagedCommand(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +149,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		stdin:           stdin,
 		stdout:          stdout,
 		stderr:          stderr,
+		stderrPipeline:  stderrPipeline,
 		logger:          runtime.logger,
 		lifecycleCtx:    lifecycleCtx,
 		cancelLifecycle: cancelLifecycle,
@@ -231,10 +238,12 @@ func resolveLaunchRuntime(cfg LaunchConfig) launchRuntimeConfig {
 	}
 }
 
-func startManagedCommand(cfg LaunchConfig) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *boundedBuffer, error) {
+func startManagedCommand(
+	cfg LaunchConfig,
+) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *boundedBuffer, *stderrPipeline, error) {
 	commandPath, commandArgs, err := resolvedCommand(cfg.Command, cfg.Args)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	cmd := &exec.Cmd{
@@ -251,27 +260,28 @@ func startManagedCommand(cfg LaunchConfig) (*exec.Cmd, io.WriteCloser, io.ReadCl
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("subprocess: open stdin pipe: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdin pipe: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("subprocess: open stdout pipe: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: open stdout pipe: %w", err)
 	}
 
 	stderr := &boundedBuffer{limit: 128 * 1024}
-	cmd.Stderr = stderr
+	stderrPipeline := newStderrPipeline(stderr, cfg.StderrSink, cfg.StderrTransform)
+	cmd.Stderr = stderrPipeline
 	if err := cmd.Start(); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
 	}
 	if err := registerManagedCommand(cmd); err != nil {
 		cleanupErr := cleanupStartedManagedCommand(cmd)
-		return nil, nil, nil, nil, errors.Join(
+		return nil, nil, nil, nil, nil, errors.Join(
 			fmt.Errorf("subprocess: register process tree for %q: %w", cfg.Command, err),
 			cleanupErr,
 		)
 	}
 
-	return cmd, stdin, stdout, stderr, nil
+	return cmd, stdin, stdout, stderr, stderrPipeline, nil
 }
 
 func cleanupStartedManagedCommand(cmd *exec.Cmd) error {

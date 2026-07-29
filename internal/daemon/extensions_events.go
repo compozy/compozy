@@ -32,6 +32,8 @@ type extensionLifecycleEventPayload struct {
 	RegistryTier     string                    `json:"registry_tier,omitempty"`
 	AllowUnverified  bool                      `json:"allow_unverified"`
 	Warnings         []contract.DiagnosticItem `json:"warnings,omitempty"`
+	WorkspaceID      string                    `json:"workspace_id,omitempty"`
+	GenerationHash   string                    `json:"generation_hash,omitempty"`
 }
 
 type extensionDigestVerificationPayload struct {
@@ -51,7 +53,13 @@ func (s *daemonExtensionService) recordExtensionEvent(
 	actor taskpkg.ActorContext,
 	item contract.ExtensionPayload,
 ) error {
-	payload := extensionLifecycleEventPayload{Name: item.Name, Version: item.Version, Status: item.State}
+	payload := extensionLifecycleEventPayload{
+		Name:           item.Name,
+		Version:        item.Version,
+		Status:         item.State,
+		WorkspaceID:    item.WorkspaceID,
+		GenerationHash: item.GenerationHash,
+	}
 	if item.Provenance != nil {
 		payload.Slug = item.Provenance.Slug
 		payload.InstalledFrom = item.Provenance.InstalledFrom
@@ -198,6 +206,12 @@ func extensionLifecycleEventSummary(eventType string, payload extensionLifecycle
 		return fmt.Sprintf("extension %s enabled", name)
 	case eventspkg.ExtensionDisabled:
 		return fmt.Sprintf("extension %s disabled", name)
+	case eventspkg.ExtensionDevLinked:
+		return fmt.Sprintf("extension %s linked for development", name)
+	case eventspkg.ExtensionDevUnlinked:
+		return fmt.Sprintf("extension %s unlinked from development", name)
+	case eventspkg.ExtensionReloaded:
+		return fmt.Sprintf("extension %s reloaded", name)
 	default:
 		return strings.TrimSpace(eventType)
 	}

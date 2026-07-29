@@ -339,6 +339,11 @@ type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
 }
 
+// ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.
+type ExtensionLogsResponse struct {
+	Logs []ExtensionLogPayload `json:"logs"`
+}
+
 // ExtensionProvenanceResponse wraps one installed extension provenance record.
 type ExtensionProvenanceResponse struct {
 	Provenance ExtensionProvenancePayload `json:"provenance"`

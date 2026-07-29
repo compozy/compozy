@@ -446,6 +446,96 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	}
 }
 
+func TestExtensionDevBindsResolvedCurrentWorkspace(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "cli-dev-extension")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(sourceDir) error = %v", err)
+	}
+	writeExtensionManifest(t, filepath.Join(sourceDir, "go.mod"), "module example.com/cli-dev-extension\n\ngo 1.26.4\n")
+	writeExtensionManifest(t, filepath.Join(sourceDir, "main.go"), `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "__describe" {
+		fmt.Print(`+"`"+`{"name":"cli-dev","version":"0.1.0","description":"CLI dev fixture","provides":[],"permissions":[],"subprocess":{"command":"./bin"},"sdk":{"name":"go","version":"0.1.0","protocol_version":"1","min_compozy_version":"0.3.0-beta.1"}}`+"`"+`)
+	}
+}
+`)
+
+	var capturedWorkspace string
+	var capturedRequest DevLinkExtensionRequest
+	client := &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			if ref != "workspace-alias" {
+				t.Fatalf("GetWorkspace() ref = %q, want workspace-alias", ref)
+			}
+			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+				ID:      "workspace-stable",
+				Name:    "workspace-alias",
+				RootDir: filepath.Dir(sourceDir),
+			}}, nil
+		},
+		devExtensionFn: func(
+			_ context.Context,
+			workspaceRef string,
+			request DevLinkExtensionRequest,
+		) (ExtensionRecord, error) {
+			capturedWorkspace = workspaceRef
+			capturedRequest = request
+			return ExtensionRecord{
+				Name:          "cli-dev",
+				WorkspaceID:   workspaceRef,
+				Version:       "0.1.0",
+				Dev:           true,
+				DaemonRunning: true,
+			}, nil
+		},
+	}
+	deps, _ := newExtensionLocalDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(int) bool { return true }
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"dev",
+		sourceDir,
+		"--workspace",
+		"workspace-alias",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("extension dev error = %v", err)
+	}
+	if capturedWorkspace != "workspace-stable" {
+		t.Fatalf("DevExtension() workspace = %q, want stable resolved ID", capturedWorkspace)
+	}
+	wantOrigin, err := filepath.Abs(sourceDir)
+	if err != nil {
+		t.Fatalf("filepath.Abs(sourceDir) error = %v", err)
+	}
+	if capturedRequest.OriginPath != wantOrigin || len(capturedRequest.GenerationHash) != 64 {
+		t.Fatalf("DevExtension() request = %#v, want canonical origin and content hash", capturedRequest)
+	}
+	var output ExtensionRecord
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("json.Unmarshal(extension dev) error = %v", err)
+	}
+	if output.WorkspaceID != "workspace-stable" || !output.Dev {
+		t.Fatalf("extension dev output = %#v", output)
+	}
+}
+
 func TestExtensionBundleAndHelpers(t *testing.T) {
 	t.Parallel()
 

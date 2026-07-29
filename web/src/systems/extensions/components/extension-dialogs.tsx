@@ -130,8 +130,7 @@ export function RemoveExtensionDialog({
     !dependencyLoading && dependencyError === null && activeBundles !== undefined;
   const blocked = !extension || !dependenciesReady || blockers.length > 0;
   const capabilityCount = extension?.capabilities?.length ?? 0;
-  const actionCount = extension?.actions?.length ?? 0;
-  const permissions = extension?.provenance?.permissions ?? [];
+  const permissions = extension?.permissions ?? [];
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
@@ -149,7 +148,7 @@ export function RemoveExtensionDialog({
         <div className="space-y-1">
           <p>
             This deletes local extension files known to provenance and unregisters {capabilityCount}
-            capabilities and {actionCount} actions.
+            capabilities.
           </p>
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.

@@ -47,24 +47,27 @@ export function ExtensionsSettingsPage() {
         </div>
       </div>
     );
-  const registry = page.draft.marketplace.registry?.trim();
+  const enabledSources: string[] = [];
+  if (page.draft.sources.github.enabled) enabledSources.push("github");
+  if (page.draft.sources.git.enabled) enabledSources.push("git");
   return (
     <SettingsPageFrame
       description="What extensions are allowed to run on this daemon, and from where."
       meta={[
         {
-          key: "source",
+          key: "sources",
           content: (
             <span>
-              Source <span className="font-medium text-muted">{registry || "unset"}</span>
+              Sources{" "}
+              <span className="font-medium text-muted">
+                {enabledSources.length ? enabledSources.join(", ") : "none"}
+              </span>
             </span>
           ),
         },
         {
           key: "unverified",
-          content: page.draft.marketplace.allow_unverified
-            ? "Unverified allowed"
-            : "Unverified blocked",
+          content: page.draft.trust.allow_unverified ? "Unverified allowed" : "Unverified blocked",
         },
       ]}
       restart={page.restart}

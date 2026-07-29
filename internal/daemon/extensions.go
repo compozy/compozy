@@ -331,6 +331,10 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 
 	reloadErr := s.runtime.Reload(ctx)
+	return errors.Join(reloadErr, s.syncExtensionConsumers(ctx))
+}
+
+func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
 	var syncErr error
 	if s.agentSkill != nil {
 		syncErr = errors.Join(syncErr, s.agentSkill.Sync(ctx))
@@ -347,7 +351,7 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	if s.loops != nil {
 		syncErr = errors.Join(syncErr, s.loops.Sync(ctx))
 	}
-	return errors.Join(reloadErr, syncErr)
+	return syncErr
 }
 
 func (s *daemonExtensionService) lookup(ctx context.Context, name string) (*extensionpkg.Extension, error) {

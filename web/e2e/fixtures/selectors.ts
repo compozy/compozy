@@ -616,10 +616,10 @@ export const settingsHooksTestIds = {
 
 export const settingsExtensionsTestIds = {
   allowUnverified: "settings-page-extensions-policy-allow-unverified-input",
+  gitEnabled: "settings-page-extensions-policy-git-enabled-input",
+  githubBaseURLInput: "settings-page-extensions-policy-github-base-url-input",
+  githubEnabled: "settings-page-extensions-policy-github-enabled-input",
   page: "settings-page-extensions",
-  policyBaseURLInput: "settings-page-extensions-policy-base-url-input",
-  policyControls: "settings-page-extensions-policy-controls",
-  policyRegistryInput: "settings-page-extensions-policy-registry-input",
   save: "settings-page-extensions-save",
   restartNotice: "settings-page-extensions-restart-notice",
 } as const;
@@ -730,10 +730,10 @@ interface SettingsHooksSelectors {
 
 interface SettingsExtensionsSelectors {
   allowUnverified: Locator;
+  gitEnabled: Locator;
+  githubBaseURLInput: Locator;
+  githubEnabled: Locator;
   page: Locator;
-  policyBaseURLInput: Locator;
-  policyControls: Locator;
-  policyRegistryInput: Locator;
   save: Locator;
   restartNotice: Locator;
 }
@@ -1513,10 +1513,10 @@ export function settingsOperatorSelectors(
     },
     extensions: {
       allowUnverified: page.getByTestId(settingsExtensionsTestIds.allowUnverified),
+      gitEnabled: page.getByTestId(settingsExtensionsTestIds.gitEnabled),
+      githubBaseURLInput: page.getByTestId(settingsExtensionsTestIds.githubBaseURLInput),
+      githubEnabled: page.getByTestId(settingsExtensionsTestIds.githubEnabled),
       page: page.getByTestId(settingsExtensionsTestIds.page),
-      policyControls: page.getByTestId(settingsExtensionsTestIds.policyControls),
-      policyRegistryInput: page.getByTestId(settingsExtensionsTestIds.policyRegistryInput),
-      policyBaseURLInput: page.getByTestId(settingsExtensionsTestIds.policyBaseURLInput),
       save: page.getByTestId(settingsExtensionsTestIds.save),
       restartNotice: page.getByTestId(settingsExtensionsTestIds.restartNotice),
     },

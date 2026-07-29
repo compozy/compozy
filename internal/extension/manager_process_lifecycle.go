@@ -60,10 +60,14 @@ func (m *Manager) healthPollInterval(healthInterval time.Duration) time.Duration
 }
 
 func (m *Manager) shutdownDeadlineForProcess(name string, generation int64) time.Duration {
+	return m.shutdownDeadlineForInstance(GlobalInstanceKey(name), generation)
+}
+
+func (m *Manager) shutdownDeadlineForInstance(key InstanceKey, generation int64) time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	ext := m.extensions[name]
+	ext := m.instanceLocked(key)
 	if ext == nil || ext.generation != generation || ext.runtime.ShutdownTimeoutMS <= 0 {
 		return m.defaultShutdownTimeout
 	}

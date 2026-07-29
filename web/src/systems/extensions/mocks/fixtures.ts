@@ -42,9 +42,8 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
-    actions: ["export-spans", "flush-telemetry"],
     bundles: [],
-    capabilities: ["telemetry.export", "sessions.observe"],
+    capabilities: ["loop.watch_source", "tool.provider"],
     daemon_running: true,
     diagnostics: [],
     enabled: true,
@@ -52,6 +51,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     health_message: "Collector connection healthy",
     missing_env: [],
     name: "otel-bridge",
+    permissions: ["observe/health", "sessions/events", "sessions/list"],
     pid: 4812,
     provenance: extensionProvenanceFixtures["otel-bridge"],
     requires_env: ["OTEL_EXPORTER_OTLP_ENDPOINT"],
@@ -69,7 +69,6 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "0.5.2",
   },
   {
-    actions: ["post-run-summary"],
     bundles: [
       {
         description: "Incident response capabilities and delivery channels.",
@@ -77,7 +76,7 @@ export const extensionFixtures: ExtensionEntry[] = [
         profiles: ["production"],
       },
     ],
-    capabilities: ["notifications.send"],
+    capabilities: ["tool.provider"],
     daemon_running: false,
     diagnostics: [
       {
@@ -97,6 +96,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     last_error: "SLACK_BOT_TOKEN is not configured",
     missing_env: ["SLACK_BOT_TOKEN"],
     name: "slack-notify",
+    permissions: ["network/send", "sessions/list"],
     provenance: extensionProvenanceFixtures["slack-notify"],
     requires_env: ["SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"],
     source: "marketplace",

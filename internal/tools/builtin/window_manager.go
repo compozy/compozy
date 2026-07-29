@@ -204,7 +204,12 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "Validate a raw declarative layout and return stable diagnostics without writing.",
 		inputSchema: windowManagerLayoutValidateInputSchema, outputSchema: windowManagerReadOutputSchema,
 		risk: toolspkg.RiskRead, readOnly: true, capability: windowManagerReadCapability,
-		tags: []string{windowManagerTag, windowManagerLayoutTag, "validate", descriptorKeywordDiagnostics},
+		tags: []string{
+			windowManagerTag,
+			windowManagerLayoutTag,
+			descriptorKeywordValidate,
+			descriptorKeywordDiagnostics,
+		},
 	},
 	{
 		id: toolspkg.ToolIDLayoutApply, nativeName: "layout_apply", title: "Layout Apply",

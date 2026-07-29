@@ -500,7 +500,7 @@ test.describe("Marketplace acquisition", () => {
     await runBrowserRuntimeCLIJSON<unknown>(runtime, [
       "config",
       "set",
-      "extensions.marketplace.allow_unverified",
+      "extensions.trust.allow_unverified",
       String(enabled),
     ]);
   }

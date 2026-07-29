@@ -362,6 +362,9 @@ var baseRegistryEntries = []Metadata{
 	global(success(ExtensionEnabled, "extension", ComponentExtension)),
 	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
 	global(info(ExtensionDigestVerify, "extension.digest", ComponentExtension)),
+	global(success(ExtensionDevLinked, "extension.dev", ComponentExtension)),
+	global(warning(ExtensionDevUnlinked, "extension.dev", ComponentExtension)),
+	global(success(ExtensionReloaded, "extension", ComponentExtension)),
 	global(warning(DeadEntityMarked, "reliability.dead_entity", ComponentReliability)),
 	global(success(DeadEntityCleared, "reliability.dead_entity", ComponentReliability)),
 

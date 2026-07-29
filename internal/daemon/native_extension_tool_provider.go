@@ -45,7 +45,11 @@ func (p *daemonExtensionToolProvider) List(
 	ctx context.Context,
 	scope toolspkg.Scope,
 ) ([]toolspkg.Descriptor, error) {
-	return p.inner.List(ctx, scope)
+	canonical, err := p.canonicalWorkspaceScope(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	return p.inner.List(ctx, canonical)
 }
 
 func (p *daemonExtensionToolProvider) Resolve(
@@ -53,7 +57,11 @@ func (p *daemonExtensionToolProvider) Resolve(
 	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 ) (toolspkg.Handle, bool, error) {
-	handle, ok, err := p.inner.Resolve(ctx, scope, id)
+	canonical, err := p.canonicalWorkspaceScope(ctx, scope)
+	if err != nil {
+		return nil, false, err
+	}
+	handle, ok, err := p.inner.Resolve(ctx, canonical, id)
 	if err != nil || !ok || handle == nil {
 		return handle, ok, err
 	}
@@ -61,6 +69,40 @@ func (p *daemonExtensionToolProvider) Resolve(
 		inner:             handle,
 		workspaceResolver: p.workspaceResolver,
 	}, true, nil
+}
+
+func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (toolspkg.Scope, error) {
+	workspaceRef := strings.TrimSpace(scope.WorkspaceID)
+	if workspaceRef == "" {
+		return scope, nil
+	}
+	if p.workspaceResolver == nil {
+		return toolspkg.Scope{}, fmt.Errorf(
+			"daemon: extension tool workspace %q cannot be resolved: %w",
+			workspaceRef,
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := p.workspaceResolver.Resolve(ctx, workspaceRef)
+	if err != nil {
+		return toolspkg.Scope{}, fmt.Errorf(
+			"daemon: resolve extension tool workspace %q: %w",
+			workspaceRef,
+			err,
+		)
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		return toolspkg.Scope{}, fmt.Errorf(
+			"daemon: resolved extension tool workspace %q has no stable identity",
+			workspaceRef,
+		)
+	}
+	scope.WorkspaceID = workspaceID
+	return scope, nil
 }
 
 type daemonExtensionToolHandle struct {
@@ -102,7 +144,10 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	case devCycleWriteReviewArtifactsToolID, devCycleFinalizeReviewRoundToolID:
 		return h.attachTrustedWorkspace(ctx, req)
 	default:
-		return req, nil
+		if strings.TrimSpace(req.WorkspaceID) == "" {
+			return req, nil
+		}
+		return h.attachTrustedWorkspace(ctx, req)
 	}
 }
 

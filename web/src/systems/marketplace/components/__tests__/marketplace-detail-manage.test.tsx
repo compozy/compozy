@@ -204,8 +204,8 @@ vi.mock("@/systems/extensions", () => ({
                 },
               ],
               enabled: true,
-              actions: ["incident.open"],
-              capabilities: ["notifications.send"],
+              capabilities: ["tool.provider"],
+              permissions: ["network/send"],
               daemon_running: true,
               missing_env: ["PAGER_TOKEN"],
               name: "ops-extension",
@@ -291,8 +291,8 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("PAGER_TOKEN")).toBeInTheDocument();
     expect(screen.getByText("missing")).toBeInTheDocument();
     expect(screen.getByText("Runtime handshake passed.")).toBeInTheDocument();
-    expect(screen.getByText("notifications.send")).toBeInTheDocument();
-    expect(screen.getByText("incident.open")).toBeInTheDocument();
+    expect(screen.getByText("tool.provider")).toBeInTheDocument();
+    expect(screen.getByText("network/send")).toBeInTheDocument();
     expect(screen.getByText("Runtime handshake is healthy.")).toBeInTheDocument();
     expect(screen.getByText("4242")).toBeInTheDocument();
     expect(screen.getByText("1h 1m")).toBeInTheDocument();

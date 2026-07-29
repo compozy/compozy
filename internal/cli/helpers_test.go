@@ -97,6 +97,11 @@ type stubClient struct {
 	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
 	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
+	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
+	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
+	extensionLogsFn              func(context.Context, string, string, int64) ([]ExtensionLogRecord, error)
+	streamExtensionLogsFn        func(context.Context, string, string, int64, SSEHandler) error
+	removeDevExtensionFn         func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
 	listBundleCatalogFn          func(context.Context) ([]BundleCatalogRecord, error)
 	previewBundleActivationFn    func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
 	activateBundleFn             func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
@@ -1083,6 +1088,65 @@ func (s *stubClient) ExtensionProvenance(ctx context.Context, name string) (Exte
 		return s.extensionProvenanceFn(ctx, name)
 	}
 	return ExtensionProvenanceRecord{}, errors.New("unexpected ExtensionProvenance call")
+}
+
+func (s *stubClient) DevExtension(
+	ctx context.Context,
+	workspaceRef string,
+	request DevLinkExtensionRequest,
+) (ExtensionRecord, error) {
+	if s.devExtensionFn != nil {
+		return s.devExtensionFn(ctx, workspaceRef, request)
+	}
+	return ExtensionRecord{}, errors.New("unexpected DevExtension call")
+}
+
+func (s *stubClient) ReloadDevExtension(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+	request ReloadExtensionRequest,
+) (ExtensionRecord, error) {
+	if s.reloadDevExtensionFn != nil {
+		return s.reloadDevExtensionFn(ctx, workspaceRef, name, request)
+	}
+	return ExtensionRecord{}, errors.New("unexpected ReloadDevExtension call")
+}
+
+func (s *stubClient) ExtensionLogs(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+	after int64,
+) ([]ExtensionLogRecord, error) {
+	if s.extensionLogsFn != nil {
+		return s.extensionLogsFn(ctx, workspaceRef, name, after)
+	}
+	return nil, errors.New("unexpected ExtensionLogs call")
+}
+
+func (s *stubClient) StreamExtensionLogs(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+	after int64,
+	handler SSEHandler,
+) error {
+	if s.streamExtensionLogsFn != nil {
+		return s.streamExtensionLogsFn(ctx, workspaceRef, name, after, handler)
+	}
+	return errors.New("unexpected StreamExtensionLogs call")
+}
+
+func (s *stubClient) RemoveDevExtension(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+) (ManagedExtensionRemoveRecord, error) {
+	if s.removeDevExtensionFn != nil {
+		return s.removeDevExtensionFn(ctx, workspaceRef, name)
+	}
+	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemoveDevExtension call")
 }
 
 func (s *stubClient) ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error) {

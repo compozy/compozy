@@ -75,7 +75,7 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.extensionsAllowUnverified === undefined
       ? []
       : [
-          "[extensions.marketplace]",
+          "[extensions.trust]",
           `allow_unverified = ${input.extensionsAllowUnverified ? "true" : "false"}`,
           "",
         ]),

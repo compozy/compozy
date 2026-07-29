@@ -7,4 +7,7 @@ const (
 	ExtensionEnabled      = "extension.enabled"
 	ExtensionDisabled     = "extension.disabled"
 	ExtensionDigestVerify = "extension.digest.verify"
+	ExtensionDevLinked    = "extension.dev.linked"
+	ExtensionDevUnlinked  = "extension.dev.unlinked"
+	ExtensionReloaded     = "extension.reloaded"
 )

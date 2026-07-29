@@ -133,6 +133,7 @@ const (
 // ExtensionStatus captures the runtime state exposed to health/observer code.
 type ExtensionStatus struct {
 	Name                string
+	WorkspaceID         string
 	Version             string
 	Source              ExtensionSource
 	Enabled             bool
@@ -148,6 +149,9 @@ type ExtensionStatus struct {
 	ConsecutiveFailures int
 	RestartBackoff      time.Duration
 	LastError           string
+	FailureCode         string
+	GenerationHash      string
+	LastGoodGeneration  string
 	LastStartedAt       time.Time
 	LastExitedAt        time.Time
 }
@@ -168,9 +172,12 @@ type Extension struct {
 	GrantedResourceScopes []resources.ResourceScopeKind
 	InitializeResult      *subprocess.InitializeResponse
 	Status                ExtensionStatus
+	DevLink               *DevLink
+	OverridesPublished    bool
 }
 
 type managedExtension struct {
+	key                   InstanceKey
 	info                  ExtensionInfo
 	rootDir               string
 	manifest              *Manifest
@@ -188,6 +195,8 @@ type managedExtension struct {
 	runtime               subprocess.InitializeRuntime
 	healthInterval        time.Duration
 	generation            int64
+	generationHash        string
+	lastGoodGeneration    string
 	sessionNonce          string
 	redactionCleanups     []func()
 
@@ -198,8 +207,12 @@ type managedExtension struct {
 	consecutiveFailures int
 	restartBackoff      time.Duration
 	lastError           string
+	failureCode         string
 	lastStartedAt       time.Time
 	lastExitedAt        time.Time
+	logRing             *ExtensionLogRing
+	deferSupervision    bool
+	supervisionStopped  bool
 }
 
 type launchedRuntime struct {
@@ -253,7 +266,10 @@ type Manager struct {
 	started      bool
 	stopping     bool
 
-	extensions map[string]*managedExtension
+	extensions      map[string]*managedExtension
+	devExtensions   map[InstanceKey]*managedExtension
+	devCoordinators map[InstanceKey]*sync.Mutex
+	devLogs         map[InstanceKey]*ExtensionLogRing
 }
 
 // NewManager constructs an extension manager with sensible defaults.
@@ -291,6 +307,9 @@ func newManagerDefaults(registry *Registry) *Manager {
 		healthPollCeiling:         defaultHealthPollCeiling,
 		subprocessSignalGrace:     defaultSubprocessSignalGrace,
 		extensions:                make(map[string]*managedExtension),
+		devExtensions:             make(map[InstanceKey]*managedExtension),
+		devCoordinators:           make(map[InstanceKey]*sync.Mutex),
+		devLogs:                   make(map[InstanceKey]*ExtensionLogRing),
 	}
 	manager.launch = func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {
 		return subprocess.Launch(ctx, cfg)

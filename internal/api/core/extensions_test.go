@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -144,6 +146,12 @@ type extensionServiceStub struct {
 	listFn             func(context.Context) ([]contract.ExtensionPayload, error)
 	installFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	marketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
+	devFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	reloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	logsFn             func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
+	listScopedFn       func(context.Context, taskpkg.ActorContext) ([]contract.ExtensionPayload, error)
+	statusScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	removeScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
 }
 
 func (s extensionServiceStub) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -205,6 +213,293 @@ func (s extensionServiceStub) MarketplaceTrust(
 		return s.marketplaceTrustFn(ctx, evidence)
 	}
 	return extensionpkg.MarketplaceEntryTrustReport(evidence, false)
+}
+
+func (s extensionServiceStub) Dev(
+	ctx context.Context,
+	req contract.DevLinkExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	if s.devFn != nil {
+		return s.devFn(ctx, req, actor)
+	}
+	return contract.ExtensionPayload{}, nil
+}
+
+func (s extensionServiceStub) ReloadDev(
+	ctx context.Context,
+	name string,
+	req contract.ReloadExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	if s.reloadDevFn != nil {
+		return s.reloadDevFn(ctx, name, req, actor)
+	}
+	return contract.ExtensionPayload{}, nil
+}
+
+func (s extensionServiceStub) ExtensionLogs(
+	ctx context.Context,
+	name string,
+	after int64,
+	actor taskpkg.ActorContext,
+) ([]contract.ExtensionLogPayload, error) {
+	if s.logsFn != nil {
+		return s.logsFn(ctx, name, after, actor)
+	}
+	return []contract.ExtensionLogPayload{}, nil
+}
+
+func (s extensionServiceStub) ListScoped(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+) ([]contract.ExtensionPayload, error) {
+	if s.listScopedFn != nil {
+		return s.listScopedFn(ctx, actor)
+	}
+	return s.List(ctx)
+}
+
+func (s extensionServiceStub) StatusScoped(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	if s.statusScopedFn != nil {
+		return s.statusScopedFn(ctx, name, actor)
+	}
+	return s.Status(ctx, name)
+}
+
+func (s extensionServiceStub) RemoveScoped(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ManagedExtensionRemovePayload, error) {
+	if s.removeScopedFn != nil {
+		return s.removeScopedFn(ctx, name, actor)
+	}
+	return s.Remove(ctx, name, actor)
+}
+
+func TestExtensionStatusCodeMapsDevelopmentErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "Should map a missing development origin to conflict", err: extensionpkg.ErrExtensionDevOriginMissing, want: http.StatusConflict},
+		{name: "Should map a missing development link to conflict", err: extensionpkg.ErrExtensionNotDevLinked, want: http.StatusConflict},
+		{name: "Should map an invalid generation to bad request", err: extensionpkg.ErrExtensionGenerationInvalid, want: http.StatusBadRequest},
+		{name: "Should map cross-workspace access to forbidden", err: extensionpkg.ErrExtensionWorkspaceDenied, want: http.StatusForbidden},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			if got := core.ExtensionStatusCode(fmt.Errorf("wrapped: %w", testCase.err)); got != testCase.want {
+				t.Fatalf("ExtensionStatusCode() = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	trustedActor, err := taskpkg.DeriveAgentSessionActorContext("session-a", "workspace-a")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		configure  func(*extensionServiceStub, func(taskpkg.ActorContext))
+		wantStatus int
+	}{
+		{
+			name:       "Should ignore a forged workspace in the dev body",
+			method:     http.MethodPost,
+			path:       "/extensions/dev",
+			body:       []byte(`{"origin_path":"/workspace/a/ext","generation_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","workspace_id":"workspace-b"}`),
+			wantStatus: http.StatusCreated,
+			configure: func(service *extensionServiceStub, record func(taskpkg.ActorContext)) {
+				service.devFn = func(
+					_ context.Context,
+					_ contract.DevLinkExtensionRequest,
+					actor taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					record(actor)
+					return contract.ExtensionPayload{Name: "bound"}, nil
+				}
+			},
+		},
+		{
+			name:       "Should ignore a forged workspace in the reload body",
+			method:     http.MethodPost,
+			path:       "/extensions/bound/reload",
+			body:       []byte(`{"generation_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","workspace_id":"workspace-b"}`),
+			wantStatus: http.StatusOK,
+			configure: func(service *extensionServiceStub, record func(taskpkg.ActorContext)) {
+				service.reloadDevFn = func(
+					_ context.Context,
+					_ string,
+					_ contract.ReloadExtensionRequest,
+					actor taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					record(actor)
+					return contract.ExtensionPayload{Name: "bound"}, nil
+				}
+			},
+		},
+		{
+			name:       "Should ignore a forged workspace query for agent logs",
+			method:     http.MethodGet,
+			path:       "/extensions/bound/logs?workspace=workspace-b",
+			wantStatus: http.StatusOK,
+			configure: func(service *extensionServiceStub, record func(taskpkg.ActorContext)) {
+				service.logsFn = func(
+					_ context.Context,
+					_ string,
+					_ int64,
+					actor taskpkg.ActorContext,
+				) ([]contract.ExtensionLogPayload, error) {
+					record(actor)
+					return []contract.ExtensionLogPayload{}, nil
+				}
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var recorded taskpkg.ActorContext
+			service := extensionServiceStub{}
+			testCase.configure(&service, func(actor taskpkg.ActorContext) { recorded = actor })
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName: "http",
+				Extensions:    service,
+				TaskActorContextResolver: func(_ *gin.Context, _ string) (taskpkg.ActorContext, error) {
+					return trustedActor, nil
+				},
+			})
+			engine := gin.New()
+			engine.POST("/extensions/dev", handlers.DevExtension)
+			engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
+			engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
+
+			response := performRequest(t, engine, testCase.method, testCase.path, testCase.body)
+			if response.Code != testCase.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.wantStatus, response.Body.String())
+			}
+			if recorded.Scope.WorkspaceID != "workspace-a" || recorded.Scope.Operator {
+				t.Fatalf("recorded actor scope = %#v, want trusted agent workspace A", recorded.Scope)
+			}
+		})
+	}
+}
+
+func TestDevelopmentExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
+	t.Parallel()
+
+	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+		"operator",
+		"workspace-a",
+		taskpkg.OriginKindCLI,
+		"extension parity",
+	)
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
+	}
+	service := extensionServiceStub{
+		devFn: func(
+			_ context.Context,
+			req contract.DevLinkExtensionRequest,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{
+				Name: "parity", WorkspaceID: actor.Scope.WorkspaceID,
+				OriginPath: req.OriginPath, GenerationHash: req.GenerationHash, Dev: true,
+			}, nil
+		},
+		reloadDevFn: func(
+			_ context.Context,
+			name string,
+			req contract.ReloadExtensionRequest,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{
+				Name: name, WorkspaceID: actor.Scope.WorkspaceID,
+				GenerationHash: req.GenerationHash, Dev: true,
+			}, nil
+		},
+		logsFn: func(
+			_ context.Context,
+			_ string,
+			_ int64,
+			_ taskpkg.ActorContext,
+		) ([]contract.ExtensionLogPayload, error) {
+			return []contract.ExtensionLogPayload{{
+				Sequence:  1,
+				Timestamp: time.Date(2026, 7, 28, 13, 0, 0, 0, time.UTC),
+				Message:   "ready",
+			}}, nil
+		},
+	}
+	for _, request := range []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{
+			method: http.MethodPost,
+			path:   "/extensions/dev",
+			body: []byte(
+				`{"origin_path":"/workspace/a/parity","generation_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
+			),
+		},
+		{
+			method: http.MethodPost,
+			path:   "/extensions/parity/reload",
+			body: []byte(
+				`{"generation_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}`,
+			),
+		},
+		{method: http.MethodGet, path: "/extensions/parity/logs"},
+	} {
+		t.Run("Should return identical payloads for "+request.method+" "+request.path, func(t *testing.T) {
+			t.Parallel()
+
+			responses := make(map[string]struct {
+				status int
+				body   string
+			})
+			for _, transport := range []string{"http", "uds"} {
+				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+					TransportName: transport,
+					Extensions:    service,
+					TaskActorContextResolver: func(_ *gin.Context, _ string) (taskpkg.ActorContext, error) {
+						return actor, nil
+					},
+				})
+				engine := gin.New()
+				engine.POST("/extensions/dev", handlers.DevExtension)
+				engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
+				engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
+				response := performRequest(t, engine, request.method, request.path, request.body)
+				responses[transport] = struct {
+					status int
+					body   string
+				}{status: response.Code, body: response.Body.String()}
+			}
+			if !reflect.DeepEqual(responses["http"], responses["uds"]) {
+				t.Fatalf("transport responses differ: %#v", responses)
+			}
+		})
+	}
 }
 
 func TestListExtensionsErrorResponses(t *testing.T) {

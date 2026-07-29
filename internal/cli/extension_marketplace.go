@@ -115,18 +115,6 @@ func installMarketplaceExtension(
 	return item, nil
 }
 
-func removeInstalledExtension(
-	ctx context.Context,
-	deps commandDeps,
-	name string,
-) (extensionRemoveItem, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
-	if err != nil {
-		return extensionRemoveItem{}, err
-	}
-	return client.RemoveExtension(ctx, name)
-}
-
 func updateMarketplaceExtensions(
 	ctx context.Context,
 	deps commandDeps,

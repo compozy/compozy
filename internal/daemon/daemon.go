@@ -170,6 +170,15 @@ type extensionRuntime interface {
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
 }
 
+type extensionDevRuntime interface {
+	GetForInstance(extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
+	ListForWorkspace(string) []extensionpkg.ExtensionInfo
+	LinkDevelopmentFromOrigin(context.Context, string, string, string) (*extensionpkg.Extension, error)
+	ReloadExtension(context.Context, extensionpkg.InstanceKey, string) (*extensionpkg.Extension, error)
+	UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error
+	Logs(extensionpkg.InstanceKey, int64) ([]extensionpkg.ExtensionLogEntry, error)
+}
+
 type extensionManagerDeps struct {
 	Registry               *extensionpkg.Registry
 	Extensions             compozyconfig.ExtensionsConfig

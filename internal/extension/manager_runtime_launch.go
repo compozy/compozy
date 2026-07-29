@@ -13,6 +13,7 @@ import (
 
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/resources"
 
 	"github.com/compozy/compozy/internal/subprocess"
@@ -124,7 +125,7 @@ func (m *Manager) registerRuntimeHostMethods(
 	for method, handler := range m.hostMethods {
 		if err := process.HandleMethod(
 			method,
-			m.wrapHostHandler(ext.info.Name, method, runtime.Bridge, resourceSession, handler),
+			m.wrapHostHandler(ext.instanceKey(), method, runtime.Bridge, resourceSession, handler),
 		); err != nil {
 			return fmt.Errorf("register host method %q: %w", method, err)
 		}
@@ -220,18 +221,23 @@ func (m *Manager) launchConfigFor(
 	}
 
 	launchCfg := subprocess.LaunchConfig{
-		Command:         command,
-		Args:            args,
-		Dir:             ext.rootDir,
-		Env:             env,
-		Logger:          m.logger,
+		Command: command,
+		Args:    args,
+		Dir:     ext.rootDir,
+		Env:     env,
+		Logger:  m.logger,
+		StderrSink: extensionLogWriter{
+			ring:           ext.logRing,
+			generationHash: ext.generationHash,
+		},
+		StderrTransform: diagnostics.Redact,
 		ShutdownTimeout: shutdownTimeout,
 		PostSignalGrace: m.subprocessSignalGrace,
 		ProcessRegistry: m.processRegistry,
 		ProcessRecord: toolruntime.RegisterConfig{
 			Source: toolruntime.ProcessSourceExtension,
 			Owner: toolruntime.ProcessOwner{
-				ExtensionName: ext.info.Name,
+				ExtensionName: ext.instanceKey().runtimeID(),
 			},
 		},
 	}
@@ -239,18 +245,19 @@ func (m *Manager) launchConfigFor(
 }
 
 func (m *Manager) wrapHostHandler(
-	extName string,
+	instance any,
 	method string,
 	bridgeRuntime *subprocess.InitializeBridgeRuntime,
 	resourceSession *hostAPIResourceSession,
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
+	key := instanceKeyFromAny(instance)
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
-		if err := m.capChecker.CheckHostAPI(extName, method); err != nil {
+		if err := m.capChecker.CheckHostAPI(key.runtimeID(), method); err != nil {
 			return nil, rpcCapabilityDenied(err)
 		}
 
-		hostCtx := withHostAPIExtensionName(ctx, extName)
+		hostCtx := withHostAPIExtensionName(ctx, key.Name)
 		if bridgeRuntime != nil {
 			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
 		}
@@ -282,9 +289,9 @@ func (m *Manager) newHostAPIResourceSession(
 	return &hostAPIResourceSession{
 		Actor: resources.MutationActor{
 			Kind:         resources.MutationActorKindExtension,
-			ID:           ext.info.Name,
+			ID:           ext.instanceKey().runtimeID(),
 			SessionNonce: sessionNonce,
-			Source:       extensionResourceSource(ext.info.Name),
+			Source:       extensionResourceSource(ext.instanceKey()),
 			MaxScope:     maxScope,
 			GrantedKinds: append(
 				[]resources.ResourceKind(nil),
@@ -302,6 +309,13 @@ func (m *Manager) extensionWorkspaceScope(
 	ctx context.Context,
 	ext *managedExtension,
 ) (resources.ResourceScope, error) {
+	key := ext.instanceKey()
+	if !key.IsGlobal() {
+		return resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   key.WorkspaceID,
+		}, nil
+	}
 	switch ext.info.Source {
 	case SourceBundled, SourceUser, SourceMarketplace:
 		// Marketplace artifacts are installed once under the daemon home, not
@@ -373,10 +387,17 @@ func extensionManagerResourceActor() resources.MutationActor {
 	}
 }
 
-func extensionResourceSource(extensionName string) resources.ResourceSource {
+func extensionResourceSource(instance any) resources.ResourceSource {
+	var key InstanceKey
+	switch value := instance.(type) {
+	case InstanceKey:
+		key = value.Normalize()
+	case string:
+		key = GlobalInstanceKey(value)
+	}
 	return resources.ResourceSource{
 		Kind: resources.ResourceSourceKind(managerExtensionKey),
-		ID:   extensionName,
+		ID:   key.runtimeID(),
 	}
 }
 

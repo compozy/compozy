@@ -44,28 +44,38 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	if len(ext.Status.MissingEnv) > 0 {
 		missingEnv = append([]string(nil), ext.Status.MissingEnv...)
 	}
+	originPath := ""
+	if ext.DevLink != nil {
+		originPath = ext.DevLink.OriginPath
+	}
 
 	return contract.ExtensionPayload{
-		Name:          ext.Info.Name,
-		Version:       ext.Info.Version,
-		Type:          extensionType(ext.Manifest, ext.Info),
-		Source:        ext.Info.Source.String(),
-		Enabled:       ext.Info.Enabled,
-		State:         extensionState(ext.Info, ext.Status, daemonRunning),
-		Capabilities:  append([]string(nil), ext.Info.Capabilities.Provides...),
-		Permissions:   append([]string(nil), ext.Info.Permissions.Requires...),
-		RequiresEnv:   requiresEnv,
-		MissingEnv:    missingEnv,
-		PID:           ext.Status.PID,
-		UptimeSeconds: uptimeSeconds,
-		Health:        extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
-		HealthMessage: ext.Status.HealthMessage,
-		LastError:     ext.Status.LastError,
-		DaemonRunning: daemonRunning,
-		Bundles:       bundleSummaryPayloads(ext.Bundles),
-		Provenance:    extensionProvenancePayload(ext.Info.Provenance),
-		Trust:         extensionTrustPayload(ext.Info.Provenance),
-		Diagnostics:   append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
+		Name:               ext.Info.Name,
+		WorkspaceID:        ext.Status.WorkspaceID,
+		Version:            ext.Info.Version,
+		Type:               extensionType(ext.Manifest, ext.Info),
+		Source:             ext.Info.Source.String(),
+		Enabled:            ext.Info.Enabled,
+		State:              extensionState(ext.Info, ext.Status, daemonRunning),
+		Capabilities:       append([]string(nil), ext.Info.Capabilities.Provides...),
+		Permissions:        append([]string(nil), ext.Info.Permissions.Requires...),
+		RequiresEnv:        requiresEnv,
+		MissingEnv:         missingEnv,
+		PID:                ext.Status.PID,
+		UptimeSeconds:      uptimeSeconds,
+		Health:             extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
+		HealthMessage:      ext.Status.HealthMessage,
+		LastError:          ext.Status.LastError,
+		FailureCode:        ext.Status.FailureCode,
+		GenerationHash:     ext.Status.GenerationHash,
+		Dev:                ext.DevLink != nil || ext.Status.WorkspaceID != "",
+		OverridesPublished: ext.OverridesPublished,
+		OriginPath:         originPath,
+		DaemonRunning:      daemonRunning,
+		Bundles:            bundleSummaryPayloads(ext.Bundles),
+		Provenance:         extensionProvenancePayload(ext.Info.Provenance),
+		Trust:              extensionTrustPayload(ext.Info.Provenance),
+		Diagnostics:        append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
 	}
 }
 

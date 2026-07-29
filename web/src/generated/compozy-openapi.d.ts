@@ -1095,6 +1095,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/dev": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Link an immutable extension generation to the resolved workspace */
+    post: operations["devExtension"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}": {
     parameters: {
       query?: never;
@@ -1148,6 +1165,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/{name}/logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read or follow redacted extension logs */
+    get: operations["getExtensionLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}/provenance": {
     parameters: {
       query?: never;
@@ -1159,6 +1193,23 @@ export interface paths {
     get: operations["getExtensionProvenance"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/extensions/{name}/reload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reload a workspace extension from an immutable generation */
+    post: operations["reloadDevExtension"];
     delete?: never;
     options?: never;
     head?: never;
@@ -30173,6 +30224,7 @@ export interface operations {
               }[];
               capabilities?: string[];
               daemon_running: boolean;
+              dev?: boolean;
               diagnostics?: {
                 category: string;
                 code: string;
@@ -30188,6 +30240,8 @@ export interface operations {
                 title: string;
               }[];
               enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
               health?: string;
               health_message?: string;
               last_error?: string;
@@ -30235,6 +30289,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
               provenance?: {
@@ -30313,6 +30369,7 @@ export interface operations {
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
+              workspace_id?: string;
             }[];
           };
         };
@@ -30406,6 +30463,7 @@ export interface operations {
               }[];
               capabilities?: string[];
               daemon_running: boolean;
+              dev?: boolean;
               diagnostics?: {
                 category: string;
                 code: string;
@@ -30421,6 +30479,8 @@ export interface operations {
                 title: string;
               }[];
               enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
               health?: string;
               health_message?: string;
               last_error?: string;
@@ -30468,6 +30528,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
               provenance?: {
@@ -30546,6 +30608,7 @@ export interface operations {
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
+              workspace_id?: string;
             };
           };
         };
@@ -30677,20 +30740,28 @@ export interface operations {
       };
     };
   };
-  getExtension: {
+  devExtension: {
     parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Extension name */
-        name: string;
+      query?: {
+        /** @description Operator workspace reference; agent callers use trusted session scope */
+        workspace?: string;
       };
+      header?: never;
+      path?: never;
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          generation_hash: string;
+          origin_path: string;
+        };
+      };
+    };
     responses: {
-      /** @description OK */
-      200: {
+      /** @description Created */
+      201: {
         headers: {
           [name: string]: unknown;
         };
@@ -30704,6 +30775,7 @@ export interface operations {
               }[];
               capabilities?: string[];
               daemon_running: boolean;
+              dev?: boolean;
               diagnostics?: {
                 category: string;
                 code: string;
@@ -30719,6 +30791,8 @@ export interface operations {
                 title: string;
               }[];
               enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
               health?: string;
               health_message?: string;
               last_error?: string;
@@ -30766,6 +30840,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
               provenance?: {
@@ -30844,6 +30920,261 @@ export interface operations {
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid dev generation */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getExtension: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            extension: {
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
+              capabilities?: string[];
+              daemon_running: boolean;
+              dev?: boolean;
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
+              health?: string;
+              health_message?: string;
+              last_error?: string;
+              marketplace?: {
+                author?: string;
+                description: string;
+                downloads?: number | null;
+                entry_id: string;
+                install_slug?: string;
+                installed: boolean;
+                installed_name?: string;
+                installed_version?: string;
+                kind: string;
+                manage_path?: string;
+                name: string;
+                /** Format: date-time */
+                published_at?: string | null;
+                source: string;
+                tier?: string;
+                transport?: string;
+                trust?: {
+                  allow_unverified: boolean;
+                  checksum_verified: boolean;
+                  decision: string;
+                  registry_tier: string;
+                  warnings?: {
+                    category: string;
+                    code: string;
+                    data_freshness: string;
+                    doc_url?: string;
+                    evidence?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    message: string;
+                    severity: string;
+                    suggested_command?: string;
+                    title: string;
+                  }[];
+                } | null;
+                update_available: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+                version?: string;
+              } | null;
+              missing_env?: string[];
+              name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
+              permissions?: string[];
+              pid?: number;
+              provenance?: {
+                allow_unverified: boolean;
+                archive_digest_sha256?: string;
+                catalog_entry_id?: string;
+                checksum_sha256: string;
+                checksum_verified: boolean;
+                /** Format: date-time */
+                installed_at: string;
+                installed_by: string;
+                installed_from: string;
+                permissions?: string[];
+                registry_tier: string;
+                slug?: string;
+                source_url?: string;
+                trust?: {
+                  allow_unverified: boolean;
+                  checksum_verified: boolean;
+                  decision: string;
+                  registry_tier: string;
+                  warnings?: {
+                    category: string;
+                    code: string;
+                    data_freshness: string;
+                    doc_url?: string;
+                    evidence?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    message: string;
+                    severity: string;
+                    suggested_command?: string;
+                    title: string;
+                  }[];
+                } | null;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              requires_env?: string[];
+              source: string;
+              state: string;
+              trust?: {
+                allow_unverified: boolean;
+                checksum_verified: boolean;
+                decision: string;
+                registry_tier: string;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              type: string;
+              /** Format: int64 */
+              uptime_seconds?: number;
+              version: string;
+              workspace_id?: string;
             };
           };
         };
@@ -31326,6 +31657,7 @@ export interface operations {
               }[];
               capabilities?: string[];
               daemon_running: boolean;
+              dev?: boolean;
               diagnostics?: {
                 category: string;
                 code: string;
@@ -31341,6 +31673,8 @@ export interface operations {
                 title: string;
               }[];
               enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
               health?: string;
               health_message?: string;
               last_error?: string;
@@ -31388,6 +31722,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
               provenance?: {
@@ -31466,6 +31802,7 @@ export interface operations {
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
+              workspace_id?: string;
             };
           };
         };
@@ -31599,6 +31936,7 @@ export interface operations {
               }[];
               capabilities?: string[];
               daemon_running: boolean;
+              dev?: boolean;
               diagnostics?: {
                 category: string;
                 code: string;
@@ -31614,6 +31952,8 @@ export interface operations {
                 title: string;
               }[];
               enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
               health?: string;
               health_message?: string;
               last_error?: string;
@@ -31661,6 +32001,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
               permissions?: string[];
               pid?: number;
               provenance?: {
@@ -31739,6 +32081,7 @@ export interface operations {
               /** Format: int64 */
               uptime_seconds?: number;
               version: string;
+              workspace_id?: string;
             };
           };
         };
@@ -31795,6 +32138,120 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getExtensionLogs: {
+    parameters: {
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Stream new entries as extension_log SSE events */
+        follow?: string;
+        /** @description Return entries after this monotonic sequence */
+        after?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            logs: {
+              generation_hash?: string;
+              message: string;
+              /** Format: int64 */
+              sequence: number;
+              /** Format: date-time */
+              timestamp: string;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -31943,6 +32400,295 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  reloadDevExtension: {
+    parameters: {
+      query?: {
+        /** @description Operator workspace reference; agent callers use trusted session scope */
+        workspace?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          generation_hash: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            extension: {
+              bundles?: {
+                description?: string;
+                name: string;
+                profiles?: string[];
+              }[];
+              capabilities?: string[];
+              daemon_running: boolean;
+              dev?: boolean;
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              enabled: boolean;
+              failure_code?: string;
+              generation_hash?: string;
+              health?: string;
+              health_message?: string;
+              last_error?: string;
+              marketplace?: {
+                author?: string;
+                description: string;
+                downloads?: number | null;
+                entry_id: string;
+                install_slug?: string;
+                installed: boolean;
+                installed_name?: string;
+                installed_version?: string;
+                kind: string;
+                manage_path?: string;
+                name: string;
+                /** Format: date-time */
+                published_at?: string | null;
+                source: string;
+                tier?: string;
+                transport?: string;
+                trust?: {
+                  allow_unverified: boolean;
+                  checksum_verified: boolean;
+                  decision: string;
+                  registry_tier: string;
+                  warnings?: {
+                    category: string;
+                    code: string;
+                    data_freshness: string;
+                    doc_url?: string;
+                    evidence?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    message: string;
+                    severity: string;
+                    suggested_command?: string;
+                    title: string;
+                  }[];
+                } | null;
+                update_available: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+                version?: string;
+              } | null;
+              missing_env?: string[];
+              name: string;
+              origin_path?: string;
+              overrides_published?: boolean;
+              permissions?: string[];
+              pid?: number;
+              provenance?: {
+                allow_unverified: boolean;
+                archive_digest_sha256?: string;
+                catalog_entry_id?: string;
+                checksum_sha256: string;
+                checksum_verified: boolean;
+                /** Format: date-time */
+                installed_at: string;
+                installed_by: string;
+                installed_from: string;
+                permissions?: string[];
+                registry_tier: string;
+                slug?: string;
+                source_url?: string;
+                trust?: {
+                  allow_unverified: boolean;
+                  checksum_verified: boolean;
+                  decision: string;
+                  registry_tier: string;
+                  warnings?: {
+                    category: string;
+                    code: string;
+                    data_freshness: string;
+                    doc_url?: string;
+                    evidence?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    message: string;
+                    severity: string;
+                    suggested_command?: string;
+                    title: string;
+                  }[];
+                } | null;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              requires_env?: string[];
+              source: string;
+              state: string;
+              trust?: {
+                allow_unverified: boolean;
+                checksum_verified: boolean;
+                decision: string;
+                registry_tier: string;
+                warnings?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                }[];
+              } | null;
+              type: string;
+              /** Format: int64 */
+              uptime_seconds?: number;
+              version: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid generation */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension is not dev linked */
+      409: {
         headers: {
           [name: string]: unknown;
         };

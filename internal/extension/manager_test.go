@@ -2200,11 +2200,15 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				"error": "handler failed",
 			})
 		}
+		prefix := "search"
+		if h.scenario == "tool_call_generation_marker" {
+			prefix = "generation:" + h.marker
+		}
 		return h.sendResult(req.ID, toolspkg.ExtensionToolCallResponse{
 			Result: toolspkg.ToolResult{
 				Content: []toolspkg.ToolContent{{
 					Type: "text",
-					Text: fmt.Sprintf("search:%s", strings.TrimSpace(string(params.Input))),
+					Text: fmt.Sprintf("%s:%s", prefix, strings.TrimSpace(string(params.Input))),
 				}},
 			},
 		})
@@ -2212,7 +2216,7 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if h.scenario == "shutdown_hang" {
 			select {}
 		}
-		if h.marker != "" {
+		if h.marker != "" && h.scenario != "tool_call_generation_marker" {
 			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
 				return err
 			}

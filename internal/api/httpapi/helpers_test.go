@@ -62,6 +62,9 @@ type stubExtensionService struct {
 	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
 	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+	DevFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	ReloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	ExtensionLogsFn    func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -152,6 +155,41 @@ func (s stubExtensionService) Provenance(
 		return contract.ExtensionProvenancePayload{}, nil
 	}
 	return s.ProvenanceFn(ctx, name)
+}
+
+func (s stubExtensionService) Dev(
+	ctx context.Context,
+	req contract.DevLinkExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	if s.DevFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.DevFn(ctx, req, actor)
+}
+
+func (s stubExtensionService) ReloadDev(
+	ctx context.Context,
+	name string,
+	req contract.ReloadExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	if s.ReloadDevFn == nil {
+		return contract.ExtensionPayload{}, nil
+	}
+	return s.ReloadDevFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) ExtensionLogs(
+	ctx context.Context,
+	name string,
+	after int64,
+	actor taskpkg.ActorContext,
+) ([]contract.ExtensionLogPayload, error) {
+	if s.ExtensionLogsFn == nil {
+		return []contract.ExtensionLogPayload{}, nil
+	}
+	return s.ExtensionLogsFn(ctx, name, after, actor)
 }
 
 type stubSettingsService struct {

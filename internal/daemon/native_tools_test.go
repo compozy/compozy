@@ -7969,6 +7969,63 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should trust only development extensions linked to the resolved workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		deps, extensionRegistry, _, _ := newNativeExtensionToolDeps(t)
+		cfg := testConfig(t, deps.HomePaths)
+		const (
+			workspaceRegistration = "workspace-registration"
+			workspaceIdentity     = "01KYPDEVWORKSPACEIDENTITY01"
+			foreignIdentity       = "01KYPFOREIGNIDENTITY00001"
+		)
+		for _, link := range []extensionpkg.DevLinkRequest{
+			{
+				Name: "workspace-tool", WorkspaceID: workspaceIdentity,
+				OriginPath: t.TempDir(), GenerationHash: strings.Repeat("a", 64),
+			},
+			{
+				Name: "foreign-tool", WorkspaceID: foreignIdentity,
+				OriginPath: t.TempDir(), GenerationHash: strings.Repeat("b", 64),
+			},
+		} {
+			if _, err := extensionRegistry.LinkDev(link); err != nil {
+				t.Fatalf("LinkDev(%s) error = %v", link.Name, err)
+			}
+		}
+		workspaceRoot := t.TempDir()
+		workspaceResolver := &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: workspaceRegistration, RootDir: workspaceRoot},
+				WorkspaceID: workspaceIdentity,
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			WorkspaceResolver: workspaceResolver,
+			ExtensionRegistry: extensionRegistry,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		inputs, err := resolver.Resolve(ctx, toolspkg.Scope{WorkspaceID: workspaceRegistration})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		workspaceGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: "workspace-tool"}
+		foreignGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: "foreign-tool"}
+		if !sourceGrantExists(inputs.TrustedSources, workspaceGrant) ||
+			!sourceGrantExists(inputs.AllowSources, workspaceGrant) {
+			t.Fatalf("workspace policy inputs = %#v, want trusted and allowed grant %#v", inputs, workspaceGrant)
+		}
+		if sourceGrantExists(inputs.TrustedSources, foreignGrant) ||
+			sourceGrantExists(inputs.AllowSources, foreignGrant) {
+			t.Fatalf("workspace policy inputs = %#v, want no foreign grant %#v", inputs, foreignGrant)
+		}
+	})
+
 	t.Run("Should allow enabled bundled extension tools while enforcing permission ceiling", func(t *testing.T) {
 		t.Parallel()
 

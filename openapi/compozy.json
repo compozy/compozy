@@ -72571,6 +72571,9 @@
                           "daemon_running": {
                             "type": "boolean"
                           },
+                          "dev": {
+                            "type": "boolean"
+                          },
                           "diagnostics": {
                             "items": {
                               "properties": {
@@ -72621,6 +72624,12 @@
                           },
                           "enabled": {
                             "type": "boolean"
+                          },
+                          "failure_code": {
+                            "type": "string"
+                          },
+                          "generation_hash": {
+                            "type": "string"
                           },
                           "health": {
                             "type": "string"
@@ -72785,6 +72794,12 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "origin_path": {
+                            "type": "string"
+                          },
+                          "overrides_published": {
+                            "type": "boolean"
                           },
                           "permissions": {
                             "items": {
@@ -73063,6 +73078,9 @@
                           },
                           "version": {
                             "type": "string"
+                          },
+                          "workspace_id": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -73302,6 +73320,9 @@
                         "daemon_running": {
                           "type": "boolean"
                         },
+                        "dev": {
+                          "type": "boolean"
+                        },
                         "diagnostics": {
                           "items": {
                             "properties": {
@@ -73352,6 +73373,12 @@
                         },
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
                         },
                         "health": {
                           "type": "string"
@@ -73516,6 +73543,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
                         },
                         "permissions": {
                           "items": {
@@ -73793,6 +73826,9 @@
                           "type": "integer"
                         },
                         "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
                           "type": "string"
                         }
                       },
@@ -74139,6 +74175,818 @@
           }
         },
         "summary": "Install a local or marketplace extension",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/dev": {
+      "post": {
+        "operationId": "devExtension",
+        "parameters": [
+          {
+            "description": "Operator workspace reference; agent callers use trusted session scope",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "generation_hash": {
+                    "type": "string"
+                  },
+                  "origin_path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "generation_hash",
+                  "origin_path"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "extension": {
+                      "properties": {
+                        "bundles": {
+                          "items": {
+                            "properties": {
+                              "description": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "profiles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "capabilities": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "daemon_running": {
+                          "type": "boolean"
+                        },
+                        "dev": {
+                          "type": "boolean"
+                        },
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
+                        },
+                        "health": {
+                          "type": "string"
+                        },
+                        "health_message": {
+                          "type": "string"
+                        },
+                        "last_error": {
+                          "type": "string"
+                        },
+                        "marketplace": {
+                          "nullable": true,
+                          "properties": {
+                            "author": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "downloads": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "install_slug": {
+                              "type": "string"
+                            },
+                            "installed": {
+                              "type": "boolean"
+                            },
+                            "installed_name": {
+                              "type": "string"
+                            },
+                            "installed_version": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "manage_path": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "published_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "tier": {
+                              "type": "string"
+                            },
+                            "transport": {
+                              "type": "string"
+                            },
+                            "trust": {
+                              "nullable": true,
+                              "properties": {
+                                "allow_unverified": {
+                                  "type": "boolean"
+                                },
+                                "checksum_verified": {
+                                  "type": "boolean"
+                                },
+                                "decision": {
+                                  "type": "string"
+                                },
+                                "registry_tier": {
+                                  "type": "string"
+                                },
+                                "warnings": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "data_freshness": {
+                                        "type": "string"
+                                      },
+                                      "doc_url": {
+                                        "type": "string"
+                                      },
+                                      "evidence": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "severity": {
+                                        "type": "string"
+                                      },
+                                      "suggested_command": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "category",
+                                      "code",
+                                      "data_freshness",
+                                      "id",
+                                      "message",
+                                      "severity",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "allow_unverified",
+                                "checksum_verified",
+                                "decision",
+                                "registry_tier"
+                              ],
+                              "type": "object"
+                            },
+                            "update_available": {
+                              "type": "boolean"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "version": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "description",
+                            "entry_id",
+                            "installed",
+                            "kind",
+                            "name",
+                            "source",
+                            "update_available"
+                          ],
+                          "type": "object"
+                        },
+                        "missing_env": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "pid": {
+                          "type": "integer"
+                        },
+                        "provenance": {
+                          "nullable": true,
+                          "properties": {
+                            "allow_unverified": {
+                              "type": "boolean"
+                            },
+                            "archive_digest_sha256": {
+                              "type": "string"
+                            },
+                            "catalog_entry_id": {
+                              "type": "string"
+                            },
+                            "checksum_sha256": {
+                              "type": "string"
+                            },
+                            "checksum_verified": {
+                              "type": "boolean"
+                            },
+                            "installed_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "installed_by": {
+                              "type": "string"
+                            },
+                            "installed_from": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "registry_tier": {
+                              "type": "string"
+                            },
+                            "slug": {
+                              "type": "string"
+                            },
+                            "source_url": {
+                              "type": "string"
+                            },
+                            "trust": {
+                              "nullable": true,
+                              "properties": {
+                                "allow_unverified": {
+                                  "type": "boolean"
+                                },
+                                "checksum_verified": {
+                                  "type": "boolean"
+                                },
+                                "decision": {
+                                  "type": "string"
+                                },
+                                "registry_tier": {
+                                  "type": "string"
+                                },
+                                "warnings": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "data_freshness": {
+                                        "type": "string"
+                                      },
+                                      "doc_url": {
+                                        "type": "string"
+                                      },
+                                      "evidence": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "severity": {
+                                        "type": "string"
+                                      },
+                                      "suggested_command": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "category",
+                                      "code",
+                                      "data_freshness",
+                                      "id",
+                                      "message",
+                                      "severity",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "allow_unverified",
+                                "checksum_verified",
+                                "decision",
+                                "registry_tier"
+                              ],
+                              "type": "object"
+                            },
+                            "warnings": {
+                              "items": {
+                                "properties": {
+                                  "category": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "data_freshness": {
+                                    "type": "string"
+                                  },
+                                  "doc_url": {
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "suggested_command": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "category",
+                                  "code",
+                                  "data_freshness",
+                                  "id",
+                                  "message",
+                                  "severity",
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "allow_unverified",
+                            "checksum_sha256",
+                            "checksum_verified",
+                            "installed_at",
+                            "installed_by",
+                            "installed_from",
+                            "registry_tier"
+                          ],
+                          "type": "object"
+                        },
+                        "requires_env": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "trust": {
+                          "nullable": true,
+                          "properties": {
+                            "allow_unverified": {
+                              "type": "boolean"
+                            },
+                            "checksum_verified": {
+                              "type": "boolean"
+                            },
+                            "decision": {
+                              "type": "string"
+                            },
+                            "registry_tier": {
+                              "type": "string"
+                            },
+                            "warnings": {
+                              "items": {
+                                "properties": {
+                                  "category": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "data_freshness": {
+                                    "type": "string"
+                                  },
+                                  "doc_url": {
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "suggested_command": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "category",
+                                  "code",
+                                  "data_freshness",
+                                  "id",
+                                  "message",
+                                  "severity",
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "allow_unverified",
+                            "checksum_verified",
+                            "decision",
+                            "registry_tier"
+                          ],
+                          "type": "object"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "uptime_seconds": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "daemon_running",
+                        "enabled",
+                        "name",
+                        "source",
+                        "state",
+                        "type",
+                        "version"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "extension"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid dev generation"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Extension service is not configured"
+          }
+        },
+        "summary": "Link an immutable extension generation to the resolved workspace",
         "tags": [
           "extensions"
         ],
@@ -74628,6 +75476,9 @@
                         "daemon_running": {
                           "type": "boolean"
                         },
+                        "dev": {
+                          "type": "boolean"
+                        },
                         "diagnostics": {
                           "items": {
                             "properties": {
@@ -74678,6 +75529,12 @@
                         },
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
                         },
                         "health": {
                           "type": "string"
@@ -74842,6 +75699,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
                         },
                         "permissions": {
                           "items": {
@@ -75119,6 +75982,9 @@
                           "type": "integer"
                         },
                         "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
                           "type": "string"
                         }
                       },
@@ -75926,6 +76792,9 @@
                         "daemon_running": {
                           "type": "boolean"
                         },
+                        "dev": {
+                          "type": "boolean"
+                        },
                         "diagnostics": {
                           "items": {
                             "properties": {
@@ -75976,6 +76845,12 @@
                         },
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
                         },
                         "health": {
                           "type": "string"
@@ -76140,6 +77015,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
                         },
                         "permissions": {
                           "items": {
@@ -76417,6 +77298,9 @@
                           "type": "integer"
                         },
                         "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
                           "type": "string"
                         }
                       },
@@ -76762,6 +77646,9 @@
                         "daemon_running": {
                           "type": "boolean"
                         },
+                        "dev": {
+                          "type": "boolean"
+                        },
                         "diagnostics": {
                           "items": {
                             "properties": {
@@ -76812,6 +77699,12 @@
                         },
                         "enabled": {
                           "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
                         },
                         "health": {
                           "type": "string"
@@ -76976,6 +77869,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
                         },
                         "permissions": {
                           "items": {
@@ -77253,6 +78152,9 @@
                           "type": "integer"
                         },
                         "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
                           "type": "string"
                         }
                       },
@@ -77535,6 +78437,290 @@
           }
         },
         "summary": "Enable an installed extension",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/{name}/logs": {
+      "get": {
+        "operationId": "getExtensionLogs",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stream new entries as extension_log SSE events",
+            "in": "query",
+            "name": "follow",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return entries after this monotonic sequence",
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "logs": {
+                      "items": {
+                        "properties": {
+                          "generation_hash": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sequence": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "timestamp": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "message",
+                          "sequence",
+                          "timestamp"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "logs"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Extension not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Extension service is not configured"
+          }
+        },
+        "summary": "Read or follow redacted extension logs",
         "tags": [
           "extensions"
         ],
@@ -77942,6 +79128,887 @@
           }
         },
         "summary": "Get extension provenance and trust evidence",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/{name}/reload": {
+      "post": {
+        "operationId": "reloadDevExtension",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; agent callers use trusted session scope",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "generation_hash": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "generation_hash"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "extension": {
+                      "properties": {
+                        "bundles": {
+                          "items": {
+                            "properties": {
+                              "description": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "profiles": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "capabilities": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "daemon_running": {
+                          "type": "boolean"
+                        },
+                        "dev": {
+                          "type": "boolean"
+                        },
+                        "diagnostics": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "failure_code": {
+                          "type": "string"
+                        },
+                        "generation_hash": {
+                          "type": "string"
+                        },
+                        "health": {
+                          "type": "string"
+                        },
+                        "health_message": {
+                          "type": "string"
+                        },
+                        "last_error": {
+                          "type": "string"
+                        },
+                        "marketplace": {
+                          "nullable": true,
+                          "properties": {
+                            "author": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "downloads": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "entry_id": {
+                              "type": "string"
+                            },
+                            "install_slug": {
+                              "type": "string"
+                            },
+                            "installed": {
+                              "type": "boolean"
+                            },
+                            "installed_name": {
+                              "type": "string"
+                            },
+                            "installed_version": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "manage_path": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "published_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "tier": {
+                              "type": "string"
+                            },
+                            "transport": {
+                              "type": "string"
+                            },
+                            "trust": {
+                              "nullable": true,
+                              "properties": {
+                                "allow_unverified": {
+                                  "type": "boolean"
+                                },
+                                "checksum_verified": {
+                                  "type": "boolean"
+                                },
+                                "decision": {
+                                  "type": "string"
+                                },
+                                "registry_tier": {
+                                  "type": "string"
+                                },
+                                "warnings": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "data_freshness": {
+                                        "type": "string"
+                                      },
+                                      "doc_url": {
+                                        "type": "string"
+                                      },
+                                      "evidence": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "severity": {
+                                        "type": "string"
+                                      },
+                                      "suggested_command": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "category",
+                                      "code",
+                                      "data_freshness",
+                                      "id",
+                                      "message",
+                                      "severity",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "allow_unverified",
+                                "checksum_verified",
+                                "decision",
+                                "registry_tier"
+                              ],
+                              "type": "object"
+                            },
+                            "update_available": {
+                              "type": "boolean"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "version": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "description",
+                            "entry_id",
+                            "installed",
+                            "kind",
+                            "name",
+                            "source",
+                            "update_available"
+                          ],
+                          "type": "object"
+                        },
+                        "missing_env": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "origin_path": {
+                          "type": "string"
+                        },
+                        "overrides_published": {
+                          "type": "boolean"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "pid": {
+                          "type": "integer"
+                        },
+                        "provenance": {
+                          "nullable": true,
+                          "properties": {
+                            "allow_unverified": {
+                              "type": "boolean"
+                            },
+                            "archive_digest_sha256": {
+                              "type": "string"
+                            },
+                            "catalog_entry_id": {
+                              "type": "string"
+                            },
+                            "checksum_sha256": {
+                              "type": "string"
+                            },
+                            "checksum_verified": {
+                              "type": "boolean"
+                            },
+                            "installed_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "installed_by": {
+                              "type": "string"
+                            },
+                            "installed_from": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "registry_tier": {
+                              "type": "string"
+                            },
+                            "slug": {
+                              "type": "string"
+                            },
+                            "source_url": {
+                              "type": "string"
+                            },
+                            "trust": {
+                              "nullable": true,
+                              "properties": {
+                                "allow_unverified": {
+                                  "type": "boolean"
+                                },
+                                "checksum_verified": {
+                                  "type": "boolean"
+                                },
+                                "decision": {
+                                  "type": "string"
+                                },
+                                "registry_tier": {
+                                  "type": "string"
+                                },
+                                "warnings": {
+                                  "items": {
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "data_freshness": {
+                                        "type": "string"
+                                      },
+                                      "doc_url": {
+                                        "type": "string"
+                                      },
+                                      "evidence": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "severity": {
+                                        "type": "string"
+                                      },
+                                      "suggested_command": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "category",
+                                      "code",
+                                      "data_freshness",
+                                      "id",
+                                      "message",
+                                      "severity",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "allow_unverified",
+                                "checksum_verified",
+                                "decision",
+                                "registry_tier"
+                              ],
+                              "type": "object"
+                            },
+                            "warnings": {
+                              "items": {
+                                "properties": {
+                                  "category": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "data_freshness": {
+                                    "type": "string"
+                                  },
+                                  "doc_url": {
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "suggested_command": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "category",
+                                  "code",
+                                  "data_freshness",
+                                  "id",
+                                  "message",
+                                  "severity",
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "allow_unverified",
+                            "checksum_sha256",
+                            "checksum_verified",
+                            "installed_at",
+                            "installed_by",
+                            "installed_from",
+                            "registry_tier"
+                          ],
+                          "type": "object"
+                        },
+                        "requires_env": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "trust": {
+                          "nullable": true,
+                          "properties": {
+                            "allow_unverified": {
+                              "type": "boolean"
+                            },
+                            "checksum_verified": {
+                              "type": "boolean"
+                            },
+                            "decision": {
+                              "type": "string"
+                            },
+                            "registry_tier": {
+                              "type": "string"
+                            },
+                            "warnings": {
+                              "items": {
+                                "properties": {
+                                  "category": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "data_freshness": {
+                                    "type": "string"
+                                  },
+                                  "doc_url": {
+                                    "type": "string"
+                                  },
+                                  "evidence": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "message": {
+                                    "type": "string"
+                                  },
+                                  "severity": {
+                                    "type": "string"
+                                  },
+                                  "suggested_command": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "category",
+                                  "code",
+                                  "data_freshness",
+                                  "id",
+                                  "message",
+                                  "severity",
+                                  "title"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "allow_unverified",
+                            "checksum_verified",
+                            "decision",
+                            "registry_tier"
+                          ],
+                          "type": "object"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "uptime_seconds": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "daemon_running",
+                        "enabled",
+                        "name",
+                        "source",
+                        "state",
+                        "type",
+                        "version"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "extension"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid generation"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Extension is not dev linked"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Extension service is not configured"
+          }
+        },
+        "summary": "Reload a workspace extension from an immutable generation",
         "tags": [
           "extensions"
         ],

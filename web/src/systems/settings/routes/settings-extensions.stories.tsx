@@ -18,7 +18,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Marketplace registry and verification policy on the dedicated Extensions settings route.",
+          "Extension install sources and trust policy on the dedicated Extensions settings route.",
       },
     },
   },

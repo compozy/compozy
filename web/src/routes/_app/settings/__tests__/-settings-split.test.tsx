@@ -33,19 +33,24 @@ function PolicyHarness() {
 }
 
 describe("Settings route split", () => {
-  it("Should render exactly the three supported extension marketplace policy fields", () => {
+  it("Should render exactly the four supported extension source and trust policy fields", () => {
     render(<PolicyHarness />);
 
-    expect(screen.getByTestId("settings-page-extensions-policy-registry")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-extensions-policy-base-url")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-extensions-policy-github-enabled")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-extensions-policy-github-base-url")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-extensions-policy-git-enabled")).toBeInTheDocument();
     expect(
       screen.getByTestId("settings-page-extensions-policy-allow-unverified")
     ).toBeInTheDocument();
     const controls = [...screen.getAllByRole("textbox"), ...screen.getAllByRole("switch")];
-    expect(screen.getAllByRole("textbox")).toHaveLength(2);
-    expect(screen.getAllByRole("switch")).toHaveLength(1);
-    expect(controls).toHaveLength(3);
-    expect(screen.queryByText(/allowed kinds|max scope|rate limit/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getAllByRole("switch")).toHaveLength(3);
+    expect(controls).toHaveLength(4);
+    expect(screen.queryByText(/allowed kinds|max scope|rate limit|watch interval/i)).toBeNull();
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 

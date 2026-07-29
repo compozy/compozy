@@ -11,12 +11,86 @@ const (
 )
 
 const (
-	extensionsCatalogKey  = "catalog"
-	extensionsMutationKey = "mutation"
-	extensionsStatusKey   = "status"
+	extensionsAuthoringKey   = "authoring"
+	extensionsCatalogKey     = "catalog"
+	extensionsDevelopmentKey = "development"
+	extensionsMutationKey    = "mutation"
+	extensionsStatusKey      = "status"
 )
 
 var extensionTools = []toolspkg.Descriptor{
+	nativeExtensionDescriptor(
+		toolspkg.ToolIDExtensionsInit,
+		"extensions_init",
+		"Extensions Init",
+		"Create an extension project from an embedded SDK template.",
+		extensionInitInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{extensionsExtensionsKey, extensionsAuthoringKey, "init"},
+		[]string{"create extension project", "scaffold extension"},
+	),
+	nativeInteractiveExtensionDescriptor(
+		toolspkg.ToolIDExtensionsBuild,
+		"extensions_build",
+		"Extensions Build",
+		"Build source into an immutable content-hash extension generation.",
+		extensionBuildInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{extensionsExtensionsKey, extensionsAuthoringKey, "build"},
+		[]string{"build extension", "compile extension"},
+	),
+	nativeExtensionDescriptor(
+		toolspkg.ToolIDExtensionsValidate,
+		"extensions_validate",
+		"Extensions Validate",
+		"Validate an extension bundle without executing extension code.",
+		extensionValidateInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsAuthoringKey, descriptorKeywordValidate},
+		[]string{"validate extension", "check extension bundle"},
+	),
+	nativeInteractiveExtensionDescriptor(
+		toolspkg.ToolIDExtensionsDev,
+		"extensions_dev",
+		"Extensions Dev",
+		"Link an immutable extension generation to the trusted workspace.",
+		extensionDevInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, extensionsMutationKey},
+		[]string{"link development extension", "dev extension"},
+	),
+	nativeInteractiveExtensionDescriptor(
+		toolspkg.ToolIDExtensionsReload,
+		"extensions_reload",
+		"Extensions Reload",
+		"Atomically reload a dev-linked extension from an immutable generation.",
+		extensionReloadInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, "reload"},
+		[]string{"reload extension", "restart dev extension"},
+	),
+	nativeExtensionDescriptor(
+		toolspkg.ToolIDExtensionsLogs,
+		"extensions_logs",
+		"Extensions Logs",
+		"Read retained redacted stderr for the trusted extension instance.",
+		extensionLogsInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, "logs"},
+		[]string{"extension logs", "extension stderr"},
+	),
 	nativeExtensionDescriptor(
 		toolspkg.ToolIDExtensionsList,
 		"extensions_list",
@@ -103,6 +177,34 @@ var extensionTools = []toolspkg.Descriptor{
 	),
 }
 
+func nativeInteractiveExtensionDescriptor(
+	id toolspkg.ToolID,
+	nativeName string,
+	title string,
+	description string,
+	inputSchema string,
+	risk toolspkg.RiskClass,
+	readOnly bool,
+	destructive bool,
+	tags []string,
+	searchHints []string,
+) toolspkg.Descriptor {
+	descriptor := nativeExtensionDescriptor(
+		id,
+		nativeName,
+		title,
+		description,
+		inputSchema,
+		risk,
+		readOnly,
+		destructive,
+		tags,
+		searchHints,
+	)
+	descriptor.RequiresInteraction = true
+	return descriptor
+}
+
 func extensionDescriptors() []toolspkg.Descriptor {
 	return extensionTools
 }
@@ -167,6 +269,66 @@ const extensionUpdateInputSchema = `{
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
 		"allow_unverified":{"type":"boolean"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionInitInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"name":{"type":"string","minLength":1},
+		"template":{"type":"string"},
+		"directory":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionBuildInputSchema = `{
+	"type":"object",
+	"required":["source_dir"],
+	"properties":{
+		"source_dir":{"type":"string","minLength":1},
+		"output_dir":{"type":"string"},
+		"build_command":{"type":"array","items":{"type":"string"}},
+		"timeout_ms":{"type":"integer","minimum":1}
+	},
+	"additionalProperties":false
+}`
+
+const extensionValidateInputSchema = `{
+	"type":"object",
+	"required":["path"],
+	"properties":{"path":{"type":"string","minLength":1}},
+	"additionalProperties":false
+}`
+
+const extensionDevInputSchema = `{
+	"type":"object",
+	"required":["origin_path","generation_hash"],
+	"properties":{
+		"origin_path":{"type":"string","minLength":1},
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionReloadInputSchema = `{
+	"type":"object",
+	"required":["name","generation_hash"],
+	"properties":{
+		"name":{"type":"string","minLength":1},
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionLogsInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"name":{"type":"string","minLength":1},
+		"after":{"type":"integer","minimum":0}
 	},
 	"additionalProperties":false
 }`

@@ -402,10 +402,8 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await expect(settingsUI.extensions.page).toBeVisible();
     await expect(settingsUI.hooks.hooksList).toHaveCount(0);
 
-    await settingsUI.extensions.policyRegistryInput.fill("github");
-    await settingsUI.extensions.policyBaseURLInput.fill(
-      "https://extensions.example/browser-updated"
-    );
+    await expect(settingsUI.extensions.githubEnabled).toBeChecked();
+    await settingsUI.extensions.githubBaseURLInput.fill("https://github.example/api/v3");
     await expect(settingsUI.extensions.save).toBeEnabled();
     await settingsUI.extensions.save.click();
 

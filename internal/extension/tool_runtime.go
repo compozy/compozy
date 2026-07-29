@@ -21,9 +21,17 @@ func (m *Manager) ProvideTools(
 	ctx context.Context,
 	extensionName string,
 ) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
-	process, name, err := m.extensionServiceProcess(
+	return m.ProvideToolsForInstance(ctx, GlobalInstanceKey(extensionName))
+}
+
+// ProvideToolsForInstance resolves the runtime bound to one trusted workspace instance.
+func (m *Manager) ProvideToolsForInstance(
+	ctx context.Context,
+	key InstanceKey,
+) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	process, name, err := m.extensionServiceProcessForInstance(
 		ctx,
-		extensionName,
+		key,
 		extensionprotocol.ExtensionServiceMethodProvideTools,
 	)
 	if err != nil {
@@ -49,6 +57,15 @@ func (m *Manager) CallTool(
 	extensionName string,
 	req toolspkg.ExtensionToolCallRequest,
 ) (toolspkg.ToolResult, error) {
+	return m.CallToolForInstance(ctx, GlobalInstanceKey(extensionName), req)
+}
+
+// CallToolForInstance invokes the effective runtime bound to one trusted workspace.
+func (m *Manager) CallToolForInstance(
+	ctx context.Context,
+	key InstanceKey,
+	req toolspkg.ExtensionToolCallRequest,
+) (toolspkg.ToolResult, error) {
 	if err := req.ToolID.Validate(); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -60,9 +77,9 @@ func (m *Manager) CallTool(
 		)
 	}
 
-	process, name, err := m.extensionServiceProcess(
+	process, name, err := m.extensionServiceProcessForInstance(
 		ctx,
-		extensionName,
+		key,
 		extensionprotocol.ExtensionServiceMethodToolsCall,
 	)
 	if err != nil {
@@ -143,6 +160,14 @@ func (m *Manager) extensionServiceProcess(
 	extensionName string,
 	method extensionprotocol.ExtensionServiceMethod,
 ) (processHandle, string, error) {
+	return m.extensionServiceProcessForInstance(ctx, GlobalInstanceKey(extensionName), method)
+}
+
+func (m *Manager) extensionServiceProcessForInstance(
+	ctx context.Context,
+	key InstanceKey,
+	method extensionprotocol.ExtensionServiceMethod,
+) (processHandle, string, error) {
 	if ctx == nil {
 		return nil, "", ErrContextRequired
 	}
@@ -152,17 +177,21 @@ func (m *Manager) extensionServiceProcess(
 	if m == nil {
 		return nil, "", ErrManagerRequired
 	}
-	name := strings.TrimSpace(extensionName)
-	if name == "" {
-		return nil, "", errors.New("extension: extension name is required")
+	key = key.Normalize()
+	if err := key.Validate(); err != nil {
+		return nil, "", err
 	}
+	name := key.Name
 	methodName := string(method)
 	if strings.TrimSpace(methodName) == "" {
 		return nil, "", errors.New("extension: service method is required")
 	}
 
 	m.mu.RLock()
-	ext := m.extensions[name]
+	ext := m.instanceLocked(key)
+	if ext == nil && !key.IsGlobal() {
+		ext = m.extensions[name]
+	}
 	if ext == nil || ext.process == nil || !ext.active {
 		m.mu.RUnlock()
 		return nil, name, fmt.Errorf("extension: extension %q is not active: %w", name, toolspkg.ErrToolUnavailable)

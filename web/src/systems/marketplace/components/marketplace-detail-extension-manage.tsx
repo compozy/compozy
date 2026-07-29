@@ -101,7 +101,7 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
         </div>
       </Section>
       <ExtensionTokenBlock label="Capabilities" values={extension.capabilities ?? []} />
-      <ExtensionTokenBlock label="Actions" values={extension.actions ?? []} />
+      <ExtensionTokenBlock label="Permissions" values={extension.permissions ?? []} />
       <ExtensionDetailBlock label="Environment">
         <ExtensionEnvironmentState
           missing={extension.missing_env ?? []}

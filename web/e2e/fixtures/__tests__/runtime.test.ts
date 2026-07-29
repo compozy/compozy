@@ -172,7 +172,7 @@ describe("runtime helpers", () => {
         port: 4321,
         socketPath: "/tmp/compozy.sock",
       })
-    ).toContain("[extensions.marketplace]\nallow_unverified = true\n");
+    ).toContain("[extensions.trust]\nallow_unverified = true\n");
   });
 
   it("renders a seeded skill marketplace base URL for launch-mode browser E2E", () => {

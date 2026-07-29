@@ -46,6 +46,9 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	m.started = true
 	m.stopping = false
 	m.extensions = make(map[string]*managedExtension)
+	m.devExtensions = make(map[InstanceKey]*managedExtension)
+	m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
+	m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
 	m.mu.Unlock()
 
 	infos, err := m.registry.List()
@@ -56,15 +59,21 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		m.lifecycleCtx = nil
 		m.cancel = nil
 		m.extensions = make(map[string]*managedExtension)
+		m.devExtensions = make(map[InstanceKey]*managedExtension)
+		m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
+		m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
 		m.mu.Unlock()
 		return fmt.Errorf("extension: list registry entries: %w", err)
 	}
 
 	var errs []error
 	for _, info := range infos {
+		key := GlobalInstanceKey(info.Name)
 		ext := &managedExtension{
-			info:  info,
-			phase: ExtensionPhaseDiscover,
+			key:     key,
+			info:    info,
+			phase:   ExtensionPhaseDiscover,
+			logRing: m.logRingFor(key),
 		}
 		m.mu.Lock()
 		m.extensions[info.Name] = ext
@@ -77,6 +86,15 @@ func (m *Manager) startLocked(ctx context.Context) error {
 
 		if err := m.startOne(ctx, ext); err != nil {
 			errs = append(errs, err)
+		}
+	}
+
+	links, err := m.registry.ListDevLinks()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("extension: list development links: %w", err))
+	} else {
+		for i := range links {
+			m.startDevLinkOnBoot(ctx, links[i])
 		}
 	}
 
@@ -110,13 +128,18 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 		names = append(names, name)
 	}
 	slices.Sort(names)
+	devKeys := make([]InstanceKey, 0, len(m.devExtensions))
+	for key := range m.devExtensions {
+		devKeys = append(devKeys, key)
+	}
+	slices.SortFunc(devKeys, compareInstanceKeys)
 	m.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
 	}
 
-	errCh := make(chan error, len(names))
+	errCh := make(chan error, len(names)+len(devKeys))
 	var stopWG sync.WaitGroup
 	for _, name := range names {
 		ext, ok := m.lookupManaged(name)
@@ -128,6 +151,19 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 		go func(item *managedExtension) {
 			defer stopWG.Done()
 
+			if err := m.stopManagedExtension(ctx, item); err != nil {
+				errCh <- err
+			}
+		}(ext)
+	}
+	for _, key := range devKeys {
+		ext, ok := m.lookupInstance(key)
+		if !ok {
+			continue
+		}
+		stopWG.Add(1)
+		go func(item *managedExtension) {
+			defer stopWG.Done()
 			if err := m.stopManagedExtension(ctx, item); err != nil {
 				errCh <- err
 			}

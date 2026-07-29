@@ -56,6 +56,9 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionInitCommand())
 	cmd.AddCommand(newExtensionBuildCommand(deps))
 	cmd.AddCommand(newExtensionValidateCommand(deps))
+	cmd.AddCommand(newExtensionDevCommand(deps))
+	cmd.AddCommand(newExtensionReloadCommand(deps))
+	cmd.AddCommand(newExtensionLogsCommand(deps))
 	cmd.AddCommand(newExtensionListCommand(deps))
 	cmd.AddCommand(newExtensionInstallCommand(deps))
 	cmd.AddCommand(newExtensionRemoveCommand(deps))
@@ -162,18 +165,39 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var workspaceRef string
+	var global bool
+	command := &cobra.Command{
 		Use:   "remove <name>",
 		Short: "Remove an installed extension from disk and the registry",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := removeInstalledExtension(cmd.Context(), deps, args[0])
+			baseClient, err := requireExtensionDaemonClient(cmd.Context(), deps)
+			if err != nil {
+				return err
+			}
+			client, supportsDev := baseClient.(extensionDevClient)
+			if global || !supportsDev {
+				item, removeErr := baseClient.RemoveExtension(cmd.Context(), args[0])
+				if removeErr != nil {
+					return removeErr
+				}
+				return writeCommandOutput(cmd, extensionRemoveBundle(item))
+			}
+			workspace, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			item, err := client.RemoveDevExtension(cmd.Context(), workspace, args[0])
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, extensionRemoveBundle(item))
 		},
 	}
+	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	command.Flags().BoolVar(&global, "global", false, "Remove the published global installation")
+	return command
 }
 
 func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {

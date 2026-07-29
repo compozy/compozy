@@ -81,7 +81,7 @@ describe("RemoveExtensionDialog", () => {
     expect(screen.getByTestId("remove-extension-confirm")).toBeDisabled();
   });
 
-  it("Should show provenance permissions and keep removal blocked by an active bundle", async () => {
+  it("Should show declared permissions and keep removal blocked by an active bundle", async () => {
     const user = userEvent.setup();
     render(
       <RemoveExtensionDialog
@@ -96,7 +96,7 @@ describe("RemoveExtensionDialog", () => {
     );
 
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Revoked permissions: sessions.read, network.egress"
+      "Revoked permissions: network/send, sessions/list"
     );
     expect(screen.getByRole("note")).toHaveTextContent(
       "The daemon returns 409 while an active bundle depends on this extension"

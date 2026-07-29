@@ -218,7 +218,16 @@ func TestExtensionRemoveCommandUsesDaemonClient(t *testing.T) {
 	})
 	markExtensionDaemonRunning(&deps)
 
-	stdout, _, err := executeRootCommand(t, deps, "extension", "remove", "remove-ext", "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"remove",
+		"remove-ext",
+		"--global",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension remove error = %v", err)
 	}

@@ -54,7 +54,17 @@ func (h *BaseHandlers) ListExtensions(c *gin.Context) {
 		return
 	}
 
-	items, err := service.List(c.Request.Context())
+	var items []contract.ExtensionPayload
+	var err error
+	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope && hasExtensionScopeRequest(c) {
+		actor, actorOK := h.extensionScopedActorContext(c, "list", false)
+		if !actorOK {
+			return
+		}
+		items, err = scoped.ListScoped(c.Request.Context(), actor)
+	} else {
+		items, err = service.List(c.Request.Context())
+	}
 	if err != nil {
 		h.respondExtensionError(c, http.StatusInternalServerError, err)
 		return
@@ -139,7 +149,17 @@ func (h *BaseHandlers) RemoveExtension(c *gin.Context) {
 		return
 	}
 
-	item, err := service.Remove(c.Request.Context(), name, actor)
+	var item contract.ManagedExtensionRemovePayload
+	var err error
+	if scoped, supportsScope := service.(ExtensionScopedRemoveService); supportsScope && hasExtensionScopeRequest(c) {
+		actor, actorOK := h.extensionScopedActorContext(c, extensionActionRemove, false)
+		if !actorOK {
+			return
+		}
+		item, err = scoped.RemoveScoped(c.Request.Context(), name, actor)
+	} else {
+		item, err = service.Remove(c.Request.Context(), name, actor)
+	}
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
@@ -164,12 +184,27 @@ func (h *BaseHandlers) ExtensionStatus(c *gin.Context) {
 		return
 	}
 
-	item, err := service.Status(c.Request.Context(), name)
+	var item contract.ExtensionPayload
+	var err error
+	if scoped, supportsScope := service.(ExtensionScopedReadService); supportsScope && hasExtensionScopeRequest(c) {
+		actor, actorOK := h.extensionScopedActorContext(c, "status", false)
+		if !actorOK {
+			return
+		}
+		item, err = scoped.StatusScoped(c.Request.Context(), name, actor)
+	} else {
+		item, err = service.Status(c.Request.Context(), name)
+	}
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionResponse{Extension: item})
+}
+
+func hasExtensionScopeRequest(c *gin.Context) bool {
+	return hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) ||
+		strings.TrimSpace(c.Query("workspace")) != ""
 }
 
 // ExtensionProvenance returns one installed extension's persisted trust report.
@@ -211,6 +246,14 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
 		return http.StatusConflict
+	case errors.Is(err, extensionpkg.ErrExtensionNotDevLinked):
+		return http.StatusConflict
+	case errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing):
+		return http.StatusConflict
+	case errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid):
+		return http.StatusBadRequest
+	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
+		return http.StatusForbidden
 	case errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, os.ErrNotExist):

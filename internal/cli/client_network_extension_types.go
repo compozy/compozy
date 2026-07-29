@@ -80,6 +80,15 @@ type UpdateExtensionRequest = contract.UpdateExtensionRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
+// DevLinkExtensionRequest links an immutable generation to the resolved workspace.
+type DevLinkExtensionRequest = contract.DevLinkExtensionRequest
+
+// ReloadExtensionRequest swaps a dev-linked extension generation.
+type ReloadExtensionRequest = contract.ReloadExtensionRequest
+
+// ExtensionLogRecord is one redacted extension stderr record.
+type ExtensionLogRecord = contract.ExtensionLogPayload
+
 // ExtensionProvenanceRecord is one installed extension provenance payload.
 type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
 
