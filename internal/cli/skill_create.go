@@ -72,6 +72,9 @@ func createWorkspaceSkill(
 	if _, err := skillmarketplace.PathInsideRoot(skillsRoot, skillDir); err != nil {
 		return "", "", fmt.Errorf("cli: validate skill directory %q before commit: %w", skillDir, err)
 	}
+	if err := os.Chmod(stagingDir, 0o755); err != nil {
+		return "", "", fmt.Errorf("cli: set skill staging directory mode %q: %w", stagingDir, err)
+	}
 	if err := os.Rename(stagingDir, skillDir); err != nil {
 		return "", "", fmt.Errorf("cli: commit skill directory %q: %w", skillDir, err)
 	}

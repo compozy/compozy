@@ -63,6 +63,28 @@ func TestScanDirectory(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop traversing after the filesystem entry limit", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		first := writeDefinition(t, root, filepath.Join("aaaa-skill", SkillFileName))
+		for index := range MaxEntries + 5 {
+			junkPath := filepath.Join(root, fmt.Sprintf("junk-%05d.txt", index))
+			if err := os.WriteFile(junkPath, []byte("junk"), 0o644); err != nil {
+				t.Fatalf("WriteFile(%q) error = %v", junkPath, err)
+			}
+		}
+		writeDefinition(t, root, filepath.Join("zzzz-skill", SkillFileName))
+
+		result, err := ScanDirectory(root)
+		if err != nil {
+			t.Fatalf("ScanDirectory() error = %v", err)
+		}
+		if !reflect.DeepEqual(result.Paths, []string{first}) {
+			t.Fatalf("ScanDirectory().Paths = %#v, want only definition before traversal limit", result.Paths)
+		}
+	})
+
 	t.Run("Should return empty results for a missing root", func(t *testing.T) {
 		t.Parallel()
 
@@ -173,6 +195,25 @@ func TestScanFS(t *testing.T) {
 		}
 		if last, want := path.Base(path.Dir(got[len(got)-1])), "skill-299"; last != want {
 			t.Fatalf("last filesystem definition = %q, want %q", last, want)
+		}
+	})
+
+	t.Run("Should stop filesystem traversal after the entry limit", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := make(fstest.MapFS, MaxEntries+7)
+		fsys["aaaa-skill/SKILL.md"] = &fstest.MapFile{Data: []byte("definition")}
+		for index := range MaxEntries + 5 {
+			fsys[fmt.Sprintf("junk-%05d.txt", index)] = &fstest.MapFile{Data: []byte("junk")}
+		}
+		fsys["zzzz-skill/SKILL.md"] = &fstest.MapFile{Data: []byte("definition")}
+
+		got, err := ScanFS(fsys, ".")
+		if err != nil {
+			t.Fatalf("ScanFS() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, []string{"aaaa-skill/SKILL.md"}) {
+			t.Fatalf("ScanFS() = %#v, want only definition before traversal limit", got)
 		}
 	})
 

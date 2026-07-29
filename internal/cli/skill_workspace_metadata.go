@@ -48,13 +48,15 @@ func normalizeSkillGroup(group string) (string, error) {
 	}
 
 	segments := strings.Split(trimmed, "/")
-	for _, segment := range segments {
+	for index, segment := range segments {
 		if segment == "" {
 			return "", errors.New("skill group must not contain empty segments")
 		}
-		if _, err := normalizeSkillName(segment); err != nil {
+		normalized, err := normalizeSkillName(segment)
+		if err != nil {
 			return "", fmt.Errorf("skill group segment %q: %w", segment, err)
 		}
+		segments[index] = normalized
 	}
 	return strings.Join(segments, "/"), nil
 }

@@ -2418,47 +2418,79 @@ func TestWorkspaceLoadFromResolvedWrapsWorkspaceSourceErrors(t *testing.T) {
 func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecedence(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	workspace := filepath.Join(root, "workspace")
-	additional := filepath.Join(root, "additional")
-	workspaceSkillPath := writeSkillFile(
-		t,
-		filepath.Join(workspace, ".compozy", "skills"),
-		filepath.Join("marketing", "shared", skillFileName),
-		skillWithDescription("shared", "Workspace override"),
-	)
-	additionalSkillPath := writeSkillFile(
-		t,
-		filepath.Join(additional, ".compozy", "skills"),
-		filepath.Join("quality", "shared", skillFileName),
-		skillWithDescription("shared", "Additional override"),
-	)
+	t.Run("Should preserve every duplicate in shadow diagnostics", func(t *testing.T) {
+		t.Parallel()
 
-	registry := newTestRegistry(t, RegistryConfig{})
-	load, err := registry.workspaceLoadFromResolved(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{
-			RootDir:        workspace,
-			AdditionalDirs: []string{additional},
-		},
+		root := t.TempDir()
+		workspace := filepath.Join(root, "workspace")
+		additional := filepath.Join(root, "additional")
+		workspaceSkillPath := writeSkillFile(
+			t,
+			filepath.Join(workspace, ".compozy", "skills"),
+			filepath.Join("marketing", "shared", skillFileName),
+			skillWithDescription("shared", "Workspace override"),
+		)
+		additionalSkillPath := writeSkillFile(
+			t,
+			filepath.Join(additional, ".compozy", "skills"),
+			filepath.Join("quality", "shared", skillFileName),
+			skillWithDescription("shared", "Additional override"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{})
+		resolved := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				RootDir:        workspace,
+				AdditionalDirs: []string{additional},
+			},
+			Skills: []workspacepkg.SkillPath{{
+				Name:   "shared",
+				Dir:    filepath.Dir(workspaceSkillPath),
+				Source: "workspace",
+			}},
+		}
+		load, err := registry.workspaceLoadFromResolved(context.Background(), resolved)
+		if err != nil {
+			t.Fatalf("workspaceLoadFromResolved() error = %v", err)
+		}
+		if got, want := len(load.paths), 2; got != want {
+			t.Fatalf("len(load.paths) = %d, want %d", got, want)
+		}
+		if got, want := load.paths[0].filePath, additionalSkillPath; got != want {
+			t.Fatalf("load.paths[0].filePath = %q, want %q", got, want)
+		}
+		if got, want := load.paths[0].source, SourceAdditional; got != want {
+			t.Fatalf("load.paths[0].source = %v, want %v", got, want)
+		}
+		if got, want := load.paths[1].filePath, workspaceSkillPath; got != want {
+			t.Fatalf("load.paths[1].filePath = %q, want %q", got, want)
+		}
+		if got, want := load.paths[1].source, SourceWorkspace; got != want {
+			t.Fatalf("load.paths[1].source = %v, want %v", got, want)
+		}
+
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		resolvedSkills, err := registry.ForWorkspace(context.Background(), resolved)
+		if err != nil {
+			t.Fatalf("ForWorkspace() error = %v", err)
+		}
+		shared := findSkill(t, resolvedSkills, "shared")
+		shadows, ok := ShadowsForSkill(shared, time.Date(2026, 7, 29, 0, 0, 0, 0, time.UTC))
+		if !ok {
+			t.Fatal("ShadowsForSkill(shared) ok = false, want true")
+		}
+		if got, want := shadows.Winner.Path, workspaceSkillPath; got != want {
+			t.Fatalf("ShadowsForSkill(shared).Winner.Path = %q, want %q", got, want)
+		}
+		if got, want := len(shadows.Shadows), 2; got != want {
+			t.Fatalf("len(ShadowsForSkill(shared).Shadows) = %d, want %d", got, want)
+		}
+		if got, want := shadows.Shadows[1].Path, additionalSkillPath; got != want {
+			t.Fatalf("ShadowsForSkill(shared).Shadows[1].Path = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("workspaceLoadFromResolved() error = %v", err)
-	}
-	if got, want := len(load.paths), 2; got != want {
-		t.Fatalf("len(load.paths) = %d, want %d", got, want)
-	}
-	if got, want := load.paths[0].filePath, additionalSkillPath; got != want {
-		t.Fatalf("load.paths[0].filePath = %q, want %q", got, want)
-	}
-	if got, want := load.paths[0].source, SourceAdditional; got != want {
-		t.Fatalf("load.paths[0].source = %v, want %v", got, want)
-	}
-	if got, want := load.paths[1].filePath, workspaceSkillPath; got != want {
-		t.Fatalf("load.paths[1].filePath = %q, want %q", got, want)
-	}
-	if got, want := load.paths[1].source, SourceWorkspace; got != want {
-		t.Fatalf("load.paths[1].source = %v, want %v", got, want)
-	}
 }
 
 func newTestRegistry(t *testing.T, cfg RegistryConfig, opts ...Option) *Registry {

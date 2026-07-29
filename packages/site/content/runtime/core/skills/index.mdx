@@ -285,7 +285,7 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 | Agent-local skill edit        | Agent-local resolution is rechecked when the winning `AGENT.md` or its `skills/` tree changes. Invalid agent-local state is fail-closed for that agent. |
 | Missing global directory      | Treated as empty.                                                                                                                                       |
 | Scan depth                    | No fixed depth. Compozy discovers eligible `SKILL.md` files at arbitrary nesting under each scanned directory.                                          |
-| Scan limit                    | Each scanned directory is capped at 300 `SKILL.md` candidates.                                                                                          |
+| Scan limit                    | Each scan root stops after 20,000 filesystem entries or 300 `SKILL.md` candidates, whichever comes first.                                               |
 | Critical verification finding | The skill is blocked from loading.                                                                                                                      |
 | Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |
 

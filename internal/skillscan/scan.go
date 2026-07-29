@@ -21,9 +21,14 @@ const (
 	SkillFileName = "SKILL.md"
 	// MaxCandidates bounds the number of definitions discovered from one root.
 	MaxCandidates = 300
+	// MaxEntries bounds the number of filesystem entries visited under one root.
+	MaxEntries = 20_000
 )
 
-var errCandidateLimitReached = errors.New("skillscan: candidate limit reached")
+var (
+	errCandidateLimitReached = errors.New("skillscan: candidate limit reached")
+	errEntryLimitReached     = errors.New("skillscan: entry limit reached")
+)
 
 // DirectoryResult is the filesystem discovery result for one root.
 type DirectoryResult struct {
@@ -53,12 +58,22 @@ func ScanDirectory(root string) (DirectoryResult, error) {
 	if !info.IsDir() {
 		return DirectoryResult{}, fmt.Errorf("skillscan: root %q is not a directory", absRoot)
 	}
+	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+	if err != nil {
+		return DirectoryResult{}, fmt.Errorf("skillscan: resolve root %q: %w", absRoot, err)
+	}
 
 	result := DirectoryResult{
 		Paths:     make([]string, 0, MaxCandidates),
 		Snapshots: make(map[string]filesnap.Snapshot, MaxCandidates),
 	}
+	visitedEntries := 0
 	walkErr := filepath.WalkDir(absRoot, func(candidate string, entry fs.DirEntry, walkErr error) error {
+		if visitedEntries >= MaxEntries {
+			slog.Warn("skillscan: entry limit reached", "root", absRoot, "limit", MaxEntries)
+			return errEntryLimitReached
+		}
+		visitedEntries++
 		if walkErr != nil {
 			slog.Warn("skillscan: skipping unreadable path", "path", candidate, "error", walkErr)
 			if entry != nil && entry.IsDir() {
@@ -75,7 +90,7 @@ func ScanDirectory(root string) (DirectoryResult, error) {
 		if entry.Name() != SkillFileName {
 			return nil
 		}
-		if err := pathWithinRoot(absRoot, candidate); err != nil {
+		if err := pathWithinRoot(resolvedRoot, candidate); err != nil {
 			slog.Warn("skillscan: skipping definition outside root", "path", candidate, "error", err)
 			return nil
 		}
@@ -101,7 +116,9 @@ func ScanDirectory(root string) (DirectoryResult, error) {
 		}
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, errCandidateLimitReached) {
+	if walkErr != nil &&
+		!errors.Is(walkErr, errCandidateLimitReached) &&
+		!errors.Is(walkErr, errEntryLimitReached) {
 		return DirectoryResult{}, fmt.Errorf("skillscan: walk root %q: %w", absRoot, walkErr)
 	}
 	slices.Sort(result.Paths)
@@ -133,7 +150,13 @@ func ScanFS(fsys fs.FS, root string) ([]string, error) {
 	}
 
 	paths := make([]string, 0, MaxCandidates)
+	visitedEntries := 0
 	walkErr := fs.WalkDir(fsys, cleanRoot, func(candidate string, entry fs.DirEntry, walkErr error) error {
+		if visitedEntries >= MaxEntries {
+			slog.Warn("skillscan: entry limit reached", "root", cleanRoot, "limit", MaxEntries)
+			return errEntryLimitReached
+		}
+		visitedEntries++
 		if walkErr != nil {
 			slog.Warn("skillscan: skipping unreadable filesystem path", "path", candidate, "error", walkErr)
 			if entry != nil && entry.IsDir() {
@@ -166,7 +189,9 @@ func ScanFS(fsys fs.FS, root string) ([]string, error) {
 		}
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, errCandidateLimitReached) {
+	if walkErr != nil &&
+		!errors.Is(walkErr, errCandidateLimitReached) &&
+		!errors.Is(walkErr, errEntryLimitReached) {
 		return nil, fmt.Errorf("skillscan: walk filesystem root %q: %w", cleanRoot, walkErr)
 	}
 	slices.Sort(paths)
@@ -181,11 +206,7 @@ func shouldSkipDirectory(name string) bool {
 	return name == ".git" || name == "node_modules" || (name != compozyconfig.DirName && strings.HasPrefix(name, "."))
 }
 
-func pathWithinRoot(root string, candidate string) error {
-	resolvedRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return fmt.Errorf("resolve root %q: %w", root, err)
-	}
+func pathWithinRoot(resolvedRoot string, candidate string) error {
 	resolvedCandidate, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		return fmt.Errorf("resolve definition %q: %w", candidate, err)

@@ -675,6 +675,9 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 		if !os.SameFile(createdDirInfo, expectedDirInfo) {
 			t.Fatalf("created skill dir = %q, want same file as %q", createdSkill.Dir, filepath.Dir(skillPath))
 		}
+		if got, want := createdDirInfo.Mode().Perm(), os.FileMode(0o755); got != want {
+			t.Fatalf("created skill dir mode = %o, want %o", got, want)
+		}
 
 		record := SkillRecord{
 			Name:        createdSkill.Meta.Name,
@@ -805,6 +808,46 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 		if where.Name != "plan-review" || where.Winner.Tier != "workspace" ||
 			!os.SameFile(winnerInfo, expectedSkillInfo) || !where.Winner.ResolvedToWinner {
 			t.Fatalf("skill where created group = %#v, want workspace winner at %q", where, skillPath)
+		}
+	})
+
+	t.Run("Should normalize whitespace around group segments", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		stdout, _, err := executeRootCommand(
+			t,
+			skillWorkspaceDeps(t, &env),
+			"skill",
+			"create",
+			"launch-brief",
+			"--group",
+			" marketing / campaigns ",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill create normalized group error = %v", err)
+		}
+
+		var payload skillCreateItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill create normalized group) error = %v; stdout=%s", err, stdout)
+		}
+		if got, want := payload.Group, "marketing/campaigns"; got != want {
+			t.Fatalf("skill create group = %q, want %q", got, want)
+		}
+		skillPath := filepath.Join(
+			env.workspace,
+			compozyconfig.DirName,
+			compozyconfig.SkillsDirName,
+			"marketing",
+			"campaigns",
+			"launch-brief",
+			skillMarkdownFileName,
+		)
+		if _, err := os.Stat(skillPath); err != nil {
+			t.Fatalf("Stat(normalized skill path %q) error = %v", skillPath, err)
 		}
 	})
 }
