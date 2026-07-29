@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+type Request struct {
+	Mode            *Mode            `json:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+}
+
+type ResourceGetParams struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+}
+
+type ResourceKind string
+
+type ResourceOwner struct {
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
 type ResourceOwnerKind string
 
 type ResourceRecord struct {
@@ -131,28 +150,4 @@ type SandboxExecResult struct {
 	ExitCode int    `json:"exit_code"`
 	Stdout   string `json:"stdout,omitempty"`
 	Stderr   string `json:"stderr,omitempty"`
-}
-
-type SandboxInfoParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SandboxInfoResult struct {
-	SandboxID     string    `json:"sandbox_id"`
-	Backend       string    `json:"backend"`
-	Profile       string    `json:"profile"`
-	InstanceID    string    `json:"instance_id"`
-	RuntimeRoot   string    `json:"runtime_root"`
-	SyncState     string    `json:"sync_state"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastSyncError string    `json:"last_sync_error"`
-}
-
-type SandboxListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
-
-type SandboxListResult struct {
-	Sandboxes []SandboxSummary `json:"sandboxes"`
 }

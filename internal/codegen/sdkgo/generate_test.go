@@ -48,6 +48,8 @@ func TestGenerate(t *testing.T) {
 		}
 		for _, symbol := range [][]byte{
 			[]byte("type DescribePayload struct"),
+			[]byte("IssueSeverityError"),
+			[]byte("IssueSeverityWarning"),
 			[]byte("Tools            []ExtensionToolRuntimeDescriptor"),
 			[]byte("CommandGroups    []ExtensionCommandGroupSpec"),
 			[]byte("type ProvideConformanceFixture struct"),

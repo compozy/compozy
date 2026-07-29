@@ -1189,6 +1189,11 @@ export interface CompactionMatcher {
   compaction_strategy?: string;
 }
 
+export interface ConsentArea {
+  area: string;
+  access: string;
+}
+
 export interface ContextBlock {
   kind?: string;
   text?: string;
@@ -1570,8 +1575,11 @@ export type RiskClass = string;
 export interface ExtensionToolRuntimeDescriptor {
   id: ToolID;
   handler: string;
+  description?: string;
   friendly_verb?: string;
   preview?: string;
+  input_schema?: JSONValue;
+  output_schema?: JSONValue;
   input_schema_digest: string;
   output_schema_digest?: string;
   read_only: boolean;
@@ -1683,6 +1691,15 @@ export interface EventRecordPayload {
   content?: JSONValue;
 }
 
+export interface ExtensionManifestSummary {
+  name: string;
+  version: string;
+  description?: string;
+  min_compozy_version: string;
+  provides: string[];
+  permissions: string[];
+}
+
 export interface ExtensionProvideToolsResponse {
   tools: ExtensionToolRuntimeDescriptor[];
 }
@@ -1731,6 +1748,23 @@ export interface ToolResult {
 
 export interface ExtensionToolCallResponse {
   result: ToolResult;
+}
+
+export type IssueSeverity = "error" | "warning";
+
+export interface ValidationIssue {
+  path: string;
+  line?: number;
+  column?: number;
+  field?: string;
+  message: string;
+  severity: IssueSeverity;
+}
+
+export interface ExtensionValidatePayload {
+  manifest?: ExtensionManifestSummary;
+  issues: ValidationIssue[];
+  consent_areas: ConsentArea[];
 }
 
 export interface HeartbeatDeleteRequest {

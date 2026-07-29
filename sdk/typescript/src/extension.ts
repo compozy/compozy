@@ -39,6 +39,7 @@ import {
 import {
   canonicalExtensionToolID,
   ensureSubset,
+  implementedExtensionMethods,
   normalizeHostMethodList,
   normalizeSchema,
   normalizeStringList,
@@ -46,11 +47,18 @@ import {
   parseShutdownRequest,
   parseToolCallRequest,
   toolExecutionError,
+  transportMethods,
 } from "./extension-runtime.js";
 import { SDK_NAME, SDK_VERSION } from "./extension-contract.js";
 import { makeExtensionContext, writeExtensionError } from "./extension-context.js";
 import { makeExtensionToolContext } from "./extension-tool-context.js";
 import { parseInitializeRequest, validateProtocolVersion } from "./extension-initialize.js";
+import {
+  buildExtensionDescribePayload,
+  cloneExtensionToolDescriptors,
+  defaultExtensionDescribeProcess,
+  runExtensionDescribeMode,
+} from "./extension-describe.js";
 import type {
   ExtensionContext,
   ExtensionHandler,
@@ -66,6 +74,7 @@ export class Extension {
   private transport: TransportLike;
   private readonly stderr: NodeJS.WritableStream;
   private readonly sdkVersion: string;
+  private readonly describeProcess: NonNullable<ExtensionOptions["describeProcess"]>;
   private readonly handlers = new Map<string, ExtensionHandler>();
   private readonly toolHandlers = new Map<string, RegisteredTool>();
   private readonly watchSources = new ExtensionWatchSources({
@@ -91,6 +100,7 @@ export class Extension {
     this.transport = options.transport ?? new StdioTransport();
     this.stderr = options.stderr ?? process.stderr;
     this.sdkVersion = options.sdkVersion ?? SDK_VERSION;
+    this.describeProcess = options.describeProcess ?? defaultExtensionDescribeProcess();
     this.host = new HostAPI(
       {
         call: async <TResult>(method: string, params?: unknown): Promise<TResult> =>
@@ -154,6 +164,11 @@ export class Extension {
     const descriptor: ExtensionToolRuntimeDescriptor = {
       id: options.id ?? canonicalExtensionToolID(this.definition.name, cleanHandler),
       handler: cleanHandler,
+      ...(options.description?.trim() ? { description: options.description.trim() } : {}),
+      ...(options.friendlyVerb?.trim() ? { friendly_verb: options.friendlyVerb.trim() } : {}),
+      ...(options.preview?.trim() ? { preview: options.preview.trim() } : {}),
+      input_schema: inputSchema,
+      ...(outputSchema ? { output_schema: outputSchema } : {}),
       input_schema_digest: schemaDigest(inputSchema),
       ...(outputSchema ? { output_schema_digest: schemaDigest(outputSchema) } : {}),
       read_only: Boolean(options.readOnly),
@@ -190,6 +205,9 @@ export class Extension {
   }
 
   public async start(): Promise<HostAPI> {
+    if (runExtensionDescribeMode(this.describeProcess, () => this.describe())) {
+      return this.host;
+    }
     if (this.startPromise) {
       return await this.startPromise;
     }
@@ -211,18 +229,11 @@ export class Extension {
   }
 
   public getImplementedMethods(): string[] {
-    const methods = new Set<string>(["health_check", "shutdown"]);
-    for (const method of this.handlers.keys()) {
-      methods.add(method);
-    }
-    if (this.toolHandlers.size > 0) {
-      methods.add(PROVIDE_TOOLS_METHOD);
-      methods.add(TOOLS_CALL_METHOD);
-    }
-    for (const method of this.watchSources.implementedMethods()) {
-      methods.add(method);
-    }
-    return Array.from(methods).sort();
+    return implementedExtensionMethods(
+      this.handlers.keys(),
+      this.toolHandlers.size > 0,
+      this.watchSources.implementedMethods()
+    );
   }
 
   public getSupportedHookEvents(): HookEvent[] {
@@ -230,22 +241,21 @@ export class Extension {
   }
 
   public getToolDescriptors(): ExtensionToolRuntimeDescriptor[] {
-    return [...this.toolHandlers.values()].map(tool => ({
-      ...tool.descriptor,
-      capabilities: [...(tool.descriptor.capabilities ?? [])],
-    }));
+    return cloneExtensionToolDescriptors(this.toolHandlers.values());
+  }
+
+  public describe() {
+    return buildExtensionDescribePayload({
+      definition: this.definition,
+      tools: this.getToolDescriptors(),
+      watchSourceKinds: this.watchSources.kinds(),
+      sdkVersion: this.sdkVersion,
+    });
   }
 
   private bindTransportHandlers(): void {
-    this.bindMethod("initialize");
-    this.bindMethod("health_check");
-    this.bindMethod("shutdown");
-    for (const method of this.handlers.keys()) {
+    for (const method of transportMethods(this.handlers.keys(), this.toolHandlers.size > 0)) {
       this.bindMethod(method);
-    }
-    if (this.toolHandlers.size > 0) {
-      this.bindMethod(PROVIDE_TOOLS_METHOD);
-      this.bindMethod(TOOLS_CALL_METHOD);
     }
     this.watchSources.bindMethods();
   }
@@ -479,6 +489,7 @@ export class Extension {
 
 export type {
   ExtensionContext,
+  ExtensionDescribeProcess,
   ExtensionHandler,
   ExtensionOptions,
   ExtensionSession,

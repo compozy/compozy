@@ -7,7 +7,6 @@
         "packages/site",
         "web",
         "sdk/typescript",
-        "sdk/create-extension",
         "sdk/examples/prompt-enhancer"
     ],
     "scripts": {

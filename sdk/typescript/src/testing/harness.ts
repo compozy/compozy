@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { MethodNotFoundError } from "../errors.js";
 import { Extension } from "../extension.js";
+import type { ExtensionDescribeProcess } from "../extension-contract.js";
 import type {
   ExtensionDefinition,
   HostAPIMethod,
@@ -61,6 +62,8 @@ export class TestHarness {
   private extension: Extension | undefined;
   private initializeRequest: InitializeRequest | undefined;
   private initializeResponse: InitializeResponse | undefined;
+  private describeStdout = "";
+  private describeExitCode: number | undefined;
 
   public constructor(options: { stderr?: NodeJS.WritableStream } = {}) {
     this.stderr = options.stderr ?? process.stderr;
@@ -128,6 +131,29 @@ export class TestHarness {
       throw new Error("host transport is not initialized");
     }
     return this.hostTransport;
+  }
+
+  public captureDescribeProcess(
+    argv: readonly string[] = ["extension", "__describe"]
+  ): ExtensionDescribeProcess {
+    this.describeStdout = "";
+    this.describeExitCode = undefined;
+    return {
+      argv,
+      stdout: {
+        write: ((chunk: string | Uint8Array) => {
+          this.describeStdout += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
+          return true;
+        }) as NodeJS.WritableStream["write"],
+      },
+      setExitCode: code => {
+        this.describeExitCode = code;
+      },
+    };
+  }
+
+  public getDescribeResult(): { stdout: string; exitCode: number | undefined } {
+    return { stdout: this.describeStdout, exitCode: this.describeExitCode };
   }
 
   private bindMockedHostHandler(

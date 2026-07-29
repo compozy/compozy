@@ -5578,6 +5578,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ConsentArea: {
+      access: string;
+      area: string;
+    };
+    ExtensionManifestSummary: {
+      description?: string;
+      min_compozy_version: string;
+      name: string;
+      permissions: string[];
+      provides: string[];
+      version: string;
+    };
+    ExtensionValidatePayload: {
+      consent_areas: {
+        access: string;
+        area: string;
+      }[];
+      issues: {
+        column?: number;
+        field?: string;
+        line?: number;
+        message: string;
+        path: string;
+        /** @enum {string} */
+        severity: "error" | "warning";
+      }[];
+      manifest?: {
+        description?: string;
+        min_compozy_version: string;
+        name: string;
+        permissions: string[];
+        provides: string[];
+        version: string;
+      } | null;
+    };
+    /** @enum {string} */
+    IssueSeverity: "error" | "warning";
     LoopGraph: {
       edges: ({
         from: string;
@@ -5674,6 +5711,15 @@ export interface components {
       } & {
         [key: string]: unknown;
       })[];
+    };
+    ValidationIssue: {
+      column?: number;
+      field?: string;
+      line?: number;
+      message: string;
+      path: string;
+      /** @enum {string} */
+      severity: "error" | "warning";
     };
     WindowManagerArrangeLayoutPayload: {
       /** @enum {string} */

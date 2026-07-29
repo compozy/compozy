@@ -7,6 +7,7 @@ import type {
   HookPatchByEvent,
   HookPayloadByEvent,
   HostAPIMethod,
+  DescribeSubprocess,
   RiskClass,
   SourceKind,
   ToolID,
@@ -112,8 +113,10 @@ export interface ExtensionManifest {
 
 export interface ExtensionDefinition extends Pick<
   ExtensionManifest,
-  "name" | "version" | "description" | "min_compozy_version" | "capabilities" | "permissions"
+  "name" | "version" | "description" | "capabilities" | "permissions"
 > {
+  requires_env?: string[];
+  subprocess?: DescribeSubprocess;
   supported_hook_events?: HookEvent[];
 }
 

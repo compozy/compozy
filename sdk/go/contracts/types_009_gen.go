@@ -4,6 +4,28 @@ package contracts
 
 import "time"
 
+type HeartbeatPutRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatRevisionOperation string
+
+type HeartbeatRevisionPayload struct {
+	ID             string                     `json:"id"`
+	AgentName      string                     `json:"agent_name"`
+	SourcePath     string                     `json:"source_path"`
+	Operation      HeartbeatRevisionOperation `json:"operation"`
+	PreviousDigest string                     `json:"previous_digest,omitempty"`
+	NewDigest      string                     `json:"new_digest,omitempty"`
+	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
+	Actor          HeartbeatActorPayload      `json:"actor"`
+	CreatedAt      time.Time                  `json:"created_at"`
+}
+
 type HeartbeatRollbackRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
@@ -170,23 +192,3 @@ type HookRunOutcome string
 type HookSkillSource string
 
 type HookSource uint8
-
-type InboundAction struct {
-	ActionID  string `json:"action_id"`
-	MessageID string `json:"message_id,omitempty"`
-	Value     string `json:"value,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
-}
-
-type InboundCommand struct {
-	Command   string `json:"command"`
-	Text      string `json:"text,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
-}
-
-type InboundEdit struct {
-	MessageID         string               `json:"message_id"`
-	NewText           string               `json:"new_text"`
-	OriginalTimestamp time.Time            `json:"original_timestamp"`
-	Operation         InboundEditOperation `json:"operation"`
-}

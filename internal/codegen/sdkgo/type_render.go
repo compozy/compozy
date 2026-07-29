@@ -18,7 +18,21 @@ func (g *typeGenerator) renderDeclaration(name string, value reflect.Type) (*jen
 	if err != nil {
 		return nil, fmt.Errorf("render generated Go type %s: %w", name, err)
 	}
-	return jen.Type().Id(name).Add(underlying), nil
+	declaration := jen.Type().Id(name).Add(underlying)
+	values, isEnum := generatedEnumValues[value]
+	if !isEnum {
+		return declaration, nil
+	}
+	if err := assertUniqueIdentifiers(values); err != nil {
+		return nil, fmt.Errorf("render generated Go enum %s: %w", name, err)
+	}
+	constants := make([]jen.Code, 0, len(values))
+	for _, enumValue := range values {
+		constants = append(constants,
+			jen.Id(name+exportIdentifier(enumValue)).Id(name).Op("=").Lit(enumValue),
+		)
+	}
+	return declaration.Line().Const().Defs(constants...), nil
 }
 
 func (g *typeGenerator) goUnderlyingType(value reflect.Type) (*jen.Statement, error) {

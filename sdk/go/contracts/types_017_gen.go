@@ -4,6 +4,30 @@ package contracts
 
 import "time"
 
+type SandboxInfoParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type SandboxInfoResult struct {
+	SandboxID     string    `json:"sandbox_id"`
+	Backend       string    `json:"backend"`
+	Profile       string    `json:"profile"`
+	InstanceID    string    `json:"instance_id"`
+	RuntimeRoot   string    `json:"runtime_root"`
+	SyncState     string    `json:"sync_state"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastSyncError string    `json:"last_sync_error"`
+}
+
+type SandboxListParams struct {
+	Workspace string `json:"workspace,omitempty"`
+}
+
+type SandboxListResult struct {
+	Sandboxes []SandboxSummary `json:"sandboxes"`
+}
+
 type SandboxObservationPatch struct{}
 
 type SandboxPreparePatch struct {
@@ -239,38 +263,4 @@ type SessionCreatePatch struct {
 	AgentName   *string `json:"agent_name,omitempty"`
 	WorkspaceID *string `json:"workspace_id,omitempty"`
 	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionCreateResult struct {
-	SessionID string `json:"session_id"`
-	Provider  string `json:"provider"`
-}
-
-type SessionEvent struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
-}
-
-type SessionEventsParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	SessionID   string    `json:"session_id"`
-	Type        string    `json:"type,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	TurnID      string    `json:"turn_id,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
-	Offset      int64     `json:"offset,omitempty"`
-	Since       time.Time `json:"since,omitzero"`
-}
-
-type SessionFailureHealth struct {
-	SessionID       string      `json:"session_id"`
-	AgentName       string      `json:"agent_name,omitempty"`
-	Provider        string      `json:"provider,omitempty"`
-	WorkspaceID     string      `json:"workspace_id,omitempty"`
-	State           string      `json:"state,omitempty"`
-	FailureKind     FailureKind `json:"failure_kind"`
-	Summary         string      `json:"summary,omitempty"`
-	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
 }

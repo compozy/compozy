@@ -2547,6 +2547,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
 		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
+		{name: "IssueSeverity", typ: contract.IssueSeverityError},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
@@ -2570,6 +2571,29 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtensionAuthoringComponentSchemas(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose closed validation contracts", func(t *testing.T) {
+		t.Parallel()
+
+		document, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		severity := document.Components.Schemas["IssueSeverity"]
+		if severity == nil || severity.Value == nil {
+			t.Fatal("IssueSeverity component is missing")
+		}
+		if got, want := severity.Value.Enum, []any{"error", "warning"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("IssueSeverity enum = %v, want %v", got, want)
+		}
+		if payload := document.Components.Schemas["ExtensionValidatePayload"]; payload == nil || payload.Value == nil {
+			t.Fatal("ExtensionValidatePayload component is missing")
+		}
+	})
 }
 
 func TestParticipationSchemaCustomizerRepresentsRuntimeVariants(t *testing.T) {

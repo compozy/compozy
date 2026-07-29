@@ -112,6 +112,11 @@ type CompactionMatcher struct {
 	Strategy string `json:"compaction_strategy,omitempty"`
 }
 
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
+}
+
 type ContextBlock struct {
 	Kind     string            `json:"kind,omitempty"`
 	Text     string            `json:"text,omitempty"`
@@ -138,12 +143,4 @@ type ContextCompactPayload struct {
 	Strategy       string         `json:"strategy,omitempty"`
 	Summary        string         `json:"summary,omitempty"`
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextCompactionPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }

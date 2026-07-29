@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -118,6 +119,63 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 		if err := extension.Tool("search", options, rawOKHandler); err != nil {
 			t.Fatalf("Tool() raw schema registration error = %v", err)
+		}
+	})
+
+	t.Run("Should Project Typed Registration Into Describe Payload", func(t *testing.T) {
+		t.Parallel()
+
+		type searchInput struct {
+			Query string `json:"query"`
+		}
+		inputSchema := json.RawMessage(`{
+  "type": "object",
+  "required": ["query"],
+  "properties": {"query": {"type": "string"}}
+}`)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{
+				Name:       "describe-fixture",
+				Version:    "0.1.0",
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			},
+			compozysdk.WithStderr(io.Discard),
+		)
+		if err := compozysdk.Tool[searchInput](
+			extension,
+			"search",
+			compozysdk.ToolOptions{
+				Description: "Search extension data",
+				ReadOnly:    true,
+				InputSchema: inputSchema,
+			},
+			func(context.Context, compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+				return compozysdk.EmptyResult(), nil
+			},
+		); err != nil {
+			t.Fatalf("Tool() error = %v", err)
+		}
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		if len(payload.Tools) != 1 {
+			t.Fatalf("len(Describe().Tools) = %d, want 1", len(payload.Tools))
+		}
+		digest, err := compozysdk.SchemaDigest(inputSchema)
+		if err != nil {
+			t.Fatalf("SchemaDigest() error = %v", err)
+		}
+		tool := payload.Tools[0]
+		if tool.Handler != "search" || tool.Description != "Search extension data" {
+			t.Fatalf("Describe().Tools[0] = %#v, want registered metadata", tool)
+		}
+		if tool.InputSchemaDigest != digest {
+			t.Fatalf("InputSchemaDigest = %q, want %q", tool.InputSchemaDigest, digest)
+		}
+		if !jsonEqual(tool.InputSchema, inputSchema) {
+			t.Fatalf("InputSchema = %s, want %s", tool.InputSchema, inputSchema)
 		}
 	})
 
@@ -566,6 +624,15 @@ func validToolOptions() compozysdk.ToolOptions {
 
 func rawOKHandler(context.Context, compozysdk.ToolRequest[json.RawMessage]) (compozysdk.ToolResult, error) {
 	return compozysdk.EmptyResult(), nil
+}
+
+func jsonEqual(left, right []byte) bool {
+	var leftValue any
+	var rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func readDigestFixtures(t *testing.T) []digestFixture {

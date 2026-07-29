@@ -335,6 +335,13 @@ describe("Extension", () => {
         {
           id: "ext__linear__search",
           handler: "search",
+          input_schema: {
+            required: ["query"],
+            type: "object",
+            properties: {
+              query: { type: "string" },
+            },
+          },
           input_schema_digest: "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01",
           read_only: true,
           risk: "read",
@@ -364,6 +371,72 @@ describe("Extension", () => {
       invocation_id: "invocation-1",
       question: "Deploy?",
       choices: ["yes", "no"],
+    });
+  });
+
+  it("prints a deterministic describe payload and exits without transport startup", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension(
+      {
+        name: "describe-fixture",
+        version: "0.1.0",
+        description: "Describe fixture",
+        subprocess: { command: "node", args: ["index.js"] },
+        permissions: { requires: ["sessions/list"] },
+        supported_hook_events: ["prompt.post_assemble"],
+      },
+      { describeProcess: harness.captureDescribeProcess() }
+    );
+    extension.tool<{ query: string }>(
+      "search",
+      {
+        description: "Search extension data",
+        readOnly: true,
+        inputSchema: {
+          type: "object",
+          required: ["query"],
+          properties: { query: { type: "string" } },
+        },
+      },
+      async () => ({ content: [], truncated: false, bytes: 0, duration_ms: 0 })
+    );
+    extension.watchSource("reviews", {}, async () => ({ ready: false }));
+
+    await expect(extension.start()).resolves.toBeDefined();
+    const result = harness.getDescribeResult();
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      name: "describe-fixture",
+      version: "0.1.0",
+      description: "Describe fixture",
+      provides: ["loop.watch_source", "tool.provider"],
+      permissions: ["sessions/list"],
+      subprocess: { command: "node", args: ["index.js"] },
+      tools: [
+        {
+          id: "ext__describe_fixture__search",
+          handler: "search",
+          description: "Search extension data",
+          input_schema: {
+            type: "object",
+            required: ["query"],
+            properties: { query: { type: "string" } },
+          },
+          input_schema_digest: schemaDigest({
+            type: "object",
+            required: ["query"],
+            properties: { query: { type: "string" } },
+          }),
+        },
+      ],
+      hook_events: ["prompt.post_assemble"],
+      watch_source_kinds: ["reviews"],
+      sdk: {
+        name: "@compozy/extension-sdk",
+        protocol_version: "1",
+        min_compozy_version: "0.3.0-beta.1",
+      },
     });
   });
 

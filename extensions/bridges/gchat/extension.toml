@@ -2,7 +2,7 @@
 name = "gchat"
 version = "0.1.0"
 description = "Production Google Chat bridge provider built on internal/bridgesdk"
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.1"
 
 [capabilities]
 provides = ["bridge.adapter"]

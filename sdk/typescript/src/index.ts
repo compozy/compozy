@@ -27,6 +27,7 @@ export type { ToolExecutionData } from "./errors.js";
 export { canonicalJSON, schemaDigest } from "./schema-digest.js";
 export type {
   ExtensionContext,
+  ExtensionDescribeProcess,
   ExtensionHandler,
   ExtensionOptions,
   ExtensionSession,

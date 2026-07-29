@@ -268,6 +268,9 @@ func Document() (*openapi3.T, error) {
 			{Name: specWorkspacesKey},
 		},
 	}
+	if err := registerExtensionAuthoringComponentSchemas(doc.Components.Schemas); err != nil {
+		return nil, fmt.Errorf("register extension authoring component schemas: %w", err)
+	}
 	if err := registerWindowManagerComponentSchemas(doc.Components.Schemas); err != nil {
 		return nil, fmt.Errorf("register window-manager component schemas: %w", err)
 	}

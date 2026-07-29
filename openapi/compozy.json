@@ -1,6 +1,163 @@
 {
   "components": {
     "schemas": {
+      "ConsentArea": {
+        "properties": {
+          "access": {
+            "type": "string"
+          },
+          "area": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access",
+          "area"
+        ],
+        "type": "object"
+      },
+      "ExtensionManifestSummary": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "min_compozy_version": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provides": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "min_compozy_version",
+          "name",
+          "permissions",
+          "provides",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ExtensionValidatePayload": {
+        "properties": {
+          "consent_areas": {
+            "items": {
+              "properties": {
+                "access": {
+                  "type": "string"
+                },
+                "area": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "access",
+                "area"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "issues": {
+            "items": {
+              "properties": {
+                "column": {
+                  "type": "integer"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "severity": {
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message",
+                "path",
+                "severity"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "manifest": {
+            "nullable": true,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "min_compozy_version": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "permissions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "provides": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "min_compozy_version",
+              "name",
+              "permissions",
+              "provides",
+              "version"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "consent_areas",
+          "issues"
+        ],
+        "type": "object"
+      },
+      "IssueSeverity": {
+        "enum": [
+          "error",
+          "warning"
+        ],
+        "type": "string"
+      },
       "LoopGraph": {
         "additionalProperties": false,
         "properties": {
@@ -209,6 +366,38 @@
         "required": [
           "edges",
           "nodes"
+        ],
+        "type": "object"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "column": {
+            "type": "integer"
+          },
+          "field": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "path",
+          "severity"
         ],
         "type": "object"
       },

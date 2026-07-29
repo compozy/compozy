@@ -543,6 +543,7 @@ jobs:
             echo "::error::@compozy/extension-sdk must ship under the MIT license"
             exit 1
           fi
+          go run ./cmd/compozy-manifest-check --version "${{ needs.release-plan.outputs.release_version }}"
           scripts/publish-extension-sdk.sh --dry-run "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
 
       - name: Create and push annotated release tag

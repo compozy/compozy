@@ -4,6 +4,14 @@ package contracts
 
 import "time"
 
+type ContextCompactionPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Reason        *string        `json:"reason,omitempty"`
+	Strategy      *string        `json:"strategy,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type ContextPostCompactPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -259,5 +267,3 @@ type DeliveryAck struct {
 	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
 	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
 }
-
-type DeliveryAckOutcome string

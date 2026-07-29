@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type ExtensionManifestSummary struct {
+	Name              string   `json:"name"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description,omitempty"`
+	MinCompozyVersion string   `json:"min_compozy_version"`
+	Provides          []string `json:"provides"`
+	Permissions       []string `json:"permissions"`
+}
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
 type ExtensionToolCallRequest struct {
 	ToolID           ToolID                       `json:"tool_id"`
 	Handler          string                       `json:"handler"`
@@ -21,20 +34,29 @@ type ExtensionToolCallResponse struct {
 }
 
 type ExtensionToolRuntimeDescriptor struct {
-	ID                 ToolID    `json:"id"`
-	Handler            string    `json:"handler"`
-	FriendlyVerb       string    `json:"friendly_verb,omitempty"`
-	Preview            string    `json:"preview,omitempty"`
-	InputSchemaDigest  string    `json:"input_schema_digest"`
-	OutputSchemaDigest string    `json:"output_schema_digest,omitempty"`
-	ReadOnly           bool      `json:"read_only"`
-	Risk               RiskClass `json:"risk"`
-	Capabilities       []string  `json:"capabilities,omitempty"`
+	ID                 ToolID          `json:"id"`
+	Handler            string          `json:"handler"`
+	Description        string          `json:"description,omitempty"`
+	FriendlyVerb       string          `json:"friendly_verb,omitempty"`
+	Preview            string          `json:"preview,omitempty"`
+	InputSchema        json.RawMessage `json:"input_schema,omitempty"`
+	OutputSchema       json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest  string          `json:"input_schema_digest"`
+	OutputSchemaDigest string          `json:"output_schema_digest,omitempty"`
+	ReadOnly           bool            `json:"read_only"`
+	Risk               RiskClass       `json:"risk"`
+	Capabilities       []string        `json:"capabilities,omitempty"`
 }
 
 type ExtensionToolWorkspaceScope struct {
 	ID   string `json:"id"`
 	Root string `json:"root"`
+}
+
+type ExtensionValidatePayload struct {
+	Manifest     *ExtensionManifestSummary `json:"manifest,omitempty"`
+	Issues       []ValidationIssue         `json:"issues"`
+	ConsentAreas []ConsentArea             `json:"consent_areas"`
 }
 
 type FailureHealth struct {
@@ -162,26 +184,4 @@ type HeartbeatPromptContributionPayload struct {
 	MaxBodyBytes     int64                              `json:"max_body_bytes"`
 	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 	Context          HeartbeatContextProjectionPayload  `json:"context"`
-}
-
-type HeartbeatPutRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatRevisionOperation string
-
-type HeartbeatRevisionPayload struct {
-	ID             string                     `json:"id"`
-	AgentName      string                     `json:"agent_name"`
-	SourcePath     string                     `json:"source_path"`
-	Operation      HeartbeatRevisionOperation `json:"operation"`
-	PreviousDigest string                     `json:"previous_digest,omitempty"`
-	NewDigest      string                     `json:"new_digest,omitempty"`
-	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
-	Actor          HeartbeatActorPayload      `json:"actor"`
-	CreatedAt      time.Time                  `json:"created_at"`
 }

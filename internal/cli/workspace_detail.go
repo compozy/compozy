@@ -33,7 +33,7 @@ func renderWorkspaceDetailHuman(detail WorkspaceDetailRecord) (string, error) {
 		),
 		renderHumanTable(
 			"Skills",
-			[]string{workspaceNameValue, workspaceSourceValue, "Directory"},
+			[]string{workspaceNameValue, workspaceSourceValue, cliDirectoryValue},
 			workspaceSkillRows(detail.Skills, true),
 		),
 	), nil

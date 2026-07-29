@@ -7,13 +7,7 @@ import ts from "typescript";
 const repoRoot = process.cwd();
 const writeMode = process.argv.includes("--write");
 
-const workspaceRoots = [
-  "web",
-  "packages/ui",
-  "packages/site",
-  "sdk/typescript",
-  "sdk/create-extension",
-];
+const workspaceRoots = ["web", "packages/ui", "packages/site", "sdk/typescript"];
 
 const ignoredDirNames = new Set([
   ".git",

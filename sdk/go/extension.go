@@ -216,5 +216,8 @@ func (e *Extension) Run(ctx context.Context) error {
 	if err := e.definition.validate(); err != nil {
 		return err
 	}
+	if describeModeRequested(os.Args) {
+		return e.writeDescribe(os.Stdout)
+	}
 	return e.transport.Run(ctx)
 }

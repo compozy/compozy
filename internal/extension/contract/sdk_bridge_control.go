@@ -19,7 +19,7 @@ var sdkBridgeControlTypes = []NamedType{
 
 // SDKRootTypes returns a defensive copy of every canonical generated SDK contract root.
 func SDKRootTypes() []NamedType {
-	types := make([]NamedType, 0, len(sdkRootTypes)+len(sdkBridgeControlTypes)+6)
+	types := make([]NamedType, 0, len(sdkRootTypes)+len(sdkBridgeControlTypes)+11)
 	types = append(types, sdkRootTypes...)
 	types = append(types, sdkBridgeControlTypes...)
 	return append(types,
@@ -29,5 +29,10 @@ func SDKRootTypes() []NamedType {
 		NamedType{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
 		NamedType{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
 		NamedType{Name: "ExtensionCommandGroupSpec", Value: ExtensionCommandGroupSpec{}},
+		NamedType{Name: "IssueSeverity", Value: IssueSeverity("")},
+		NamedType{Name: "ValidationIssue", Value: ValidationIssue{}},
+		NamedType{Name: "ConsentArea", Value: ConsentArea{}},
+		NamedType{Name: "ExtensionManifestSummary", Value: ExtensionManifestSummary{}},
+		NamedType{Name: "ExtensionValidatePayload", Value: ExtensionValidatePayload{}},
 	)
 }

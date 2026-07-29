@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type DeliveryAckOutcome string
+
 type DeliveryErrorDetail struct {
 	Message string `json:"message"`
 }
@@ -190,8 +192,4 @@ type EventRecordPayload struct {
 type ExtensionCommandGroupSpec struct {
 	Path    string `json:"path"`
 	Summary string `json:"summary"`
-}
-
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
 }

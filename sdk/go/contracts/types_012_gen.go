@@ -7,6 +7,68 @@ import (
 	"time"
 )
 
+type MessageEndPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
+type MessageEndPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+}
+
+type MessagePatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	Role       *string `json:"role,omitempty"`
+	DeltaType  *string `json:"delta_type,omitempty"`
+	Text       *string `json:"text,omitempty"`
+}
+
+type MessagePayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+}
+
 type MessageSender struct {
 	ID          string `json:"id,omitempty"`
 	Username    string `json:"username,omitempty"`
@@ -207,32 +269,3 @@ type NetworkConversationRef struct {
 }
 
 type NetworkConversationSurface string
-
-type NetworkCoordinationCostPayload struct {
-	DeliveredCount        int64 `json:"delivered_count,omitempty"`
-	PromptSizeBytes       int64 `json:"prompt_size_bytes,omitempty"`
-	EstimatedPromptTokens int64 `json:"estimated_prompt_tokens,omitempty"`
-}
-
-type NetworkDirectMessagesParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	DirectID    string `json:"direct_id"`
-	Before      string `json:"before,omitempty"`
-	After       string `json:"after,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-type NetworkDirectResolveParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	SessionID   string `json:"session_id"`
-	PeerID      string `json:"peer_id"`
-}
-
-type NetworkDirectRoomMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-	Page     CursorPagePayload                   `json:"page"`
-}

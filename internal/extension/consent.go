@@ -9,10 +9,7 @@ import (
 )
 
 // ConsentArea is one operator-facing permission summary derived from Host API methods.
-type ConsentArea struct {
-	Area   string `json:"area"`
-	Access string `json:"access"`
-}
+type ConsentArea = extensioncontract.ConsentArea
 
 // DeriveConsentAreas derives a deterministic consent summary from the closed permission set.
 func DeriveConsentAreas(methods []string) ([]ConsentArea, error) {

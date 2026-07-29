@@ -11,10 +11,28 @@ import (
 
 const (
 	manifestMustBeASemanticVersionValue = "must be a semantic version"
+	manifestArgsKey                     = "args"
+	manifestBackendKey                  = "backend"
+	manifestCommandKey                  = "command"
+	manifestDescriptionKey              = "description"
+	manifestEnvKey                      = "env"
+	manifestEventKey                    = "event"
+	manifestExecutorKey                 = "executor"
+	manifestExtensionKey                = "extension"
+	manifestHandlerKey                  = "handler"
+	manifestInputSchemaKey              = "input_schema"
+	manifestKindKey                     = "kind"
 	manifestMinCompozyVersionKey        = "min_compozy_version"
+	manifestModeKey                     = "mode"
 	manifestNameKey                     = "name"
 	manifestNullKey                     = "null"
+	manifestOutputSchemaKey             = "output_schema"
+	manifestReadOnlyKey                 = "read_only"
 	manifestResourcesPublishPath        = "resources.publish"
+	manifestRiskKey                     = "risk"
+	manifestSubprocessKey               = "subprocess"
+	manifestVersionKey                  = "version"
+	manifestVisibilityKey               = "visibility"
 )
 
 const (

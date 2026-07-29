@@ -53,6 +53,9 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newExtensionSearchCommand(deps))
+	cmd.AddCommand(newExtensionInitCommand())
+	cmd.AddCommand(newExtensionBuildCommand(deps))
+	cmd.AddCommand(newExtensionValidateCommand(deps))
 	cmd.AddCommand(newExtensionListCommand(deps))
 	cmd.AddCommand(newExtensionInstallCommand(deps))
 	cmd.AddCommand(newExtensionRemoveCommand(deps))

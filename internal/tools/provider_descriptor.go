@@ -10,15 +10,18 @@ import (
 
 // ExtensionToolRuntimeDescriptor is the runtime reconciliation proof for an extension tool.
 type ExtensionToolRuntimeDescriptor struct {
-	ID                 ToolID    `json:"id"`
-	Handler            string    `json:"handler"`
-	FriendlyVerb       string    `json:"friendly_verb,omitempty"`
-	Preview            string    `json:"preview,omitempty"`
-	InputSchemaDigest  string    `json:"input_schema_digest"`
-	OutputSchemaDigest string    `json:"output_schema_digest,omitempty"`
-	ReadOnly           bool      `json:"read_only"`
-	Risk               RiskClass `json:"risk"`
-	Capabilities       []string  `json:"capabilities,omitempty"`
+	ID                 ToolID          `json:"id"`
+	Handler            string          `json:"handler"`
+	Description        string          `json:"description,omitempty"`
+	FriendlyVerb       string          `json:"friendly_verb,omitempty"`
+	Preview            string          `json:"preview,omitempty"`
+	InputSchema        json.RawMessage `json:"input_schema,omitempty"`
+	OutputSchema       json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest  string          `json:"input_schema_digest"`
+	OutputSchemaDigest string          `json:"output_schema_digest,omitempty"`
+	ReadOnly           bool            `json:"read_only"`
+	Risk               RiskClass       `json:"risk"`
+	Capabilities       []string        `json:"capabilities,omitempty"`
 }
 
 // Validate checks runtime reconciliation metadata for an extension tool.
