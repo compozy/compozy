@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -17,17 +18,33 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 		t.Parallel()
 
 		updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+		wantCredentials := agentidentity.Credentials{SessionID: "sess-a", AgentName: "coordinator"}
 		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if id != wantCredentials.SessionID {
+					t.Fatalf("GetSession() id = %q, want %q", id, wantCredentials.SessionID)
+				}
+				return SessionRecord{
+					ID:          id,
+					AgentName:   wantCredentials.AgentName,
+					WorkspaceID: "ws-home",
+					State:       "active",
+				}, nil
+			},
 			getNetworkCoordinationFn: func(
 				_ context.Context,
 				workspaceRef string,
 				ref NetworkCoordinationRef,
+				credentials agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				if workspaceRef != "ws-alpha" {
 					t.Fatalf("workspace = %q, want ws-alpha", workspaceRef)
 				}
 				if ref != (NetworkCoordinationRef{Scope: "workspace"}) {
 					t.Fatalf("ref = %#v, want explicit workspace scope", ref)
+				}
+				if credentials != wantCredentials {
+					t.Fatalf("credentials = %#v, want %#v", credentials, wantCredentials)
 				}
 				return NetworkCoordinationRecord{
 					WorkspaceID: "ws-alpha",
@@ -39,6 +56,16 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				}, nil
 			},
 		})
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return wantCredentials.SessionID
+			case agentidentity.EnvAgent:
+				return wantCredentials.AgentName
+			default:
+				return ""
+			}
+		}
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -73,6 +100,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				_ context.Context,
 				workspaceRef string,
 				ref NetworkCoordinationRef,
+				_ agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				if workspaceRef != "ws-alpha" || ref.Scope != "task" ||
 					ref.TaskID != "task-1" || ref.RunID != "run-1" {
@@ -84,6 +112,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				request PutNetworkCoordinationRequest,
+				_ agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				captured = request
 				updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
@@ -132,6 +161,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				ref NetworkCoordinationRef,
+				_ agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				if ref.TaskID != "task-2" || ref.RunID != "run-2" || ref.Scope != "task" {
 					t.Fatalf("ref = %#v, want authoritative task invitation scope", ref)
@@ -142,6 +172,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				request PutNetworkCoordinationInvitationRequest,
+				_ agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				captured = request
 				return NetworkCoordinationRecord{Revision: 8}, nil
@@ -180,6 +211,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				context.Context,
 				string,
 				NetworkCoordinationRef,
+				agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				return NetworkCoordinationRecord{
 					WorkspaceID: "ws-alpha",
@@ -192,6 +224,7 @@ func TestNetworkPublicSurfaceCommands(t *testing.T) {
 				_ context.Context,
 				_ string,
 				request PutNetworkCoordinationRequest,
+				_ agentidentity.Credentials,
 			) (NetworkCoordinationRecord, error) {
 				return NetworkCoordinationRecord{
 					WorkspaceID: "ws-alpha",

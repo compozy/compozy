@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -16,16 +17,19 @@ type NetworkCoordinationClient interface {
 		ctx context.Context,
 		workspaceRef string,
 		ref NetworkCoordinationRef,
+		credentials agentidentity.Credentials,
 	) (NetworkCoordinationRecord, error)
 	PutNetworkCoordination(
 		ctx context.Context,
 		workspaceRef string,
 		request PutNetworkCoordinationRequest,
+		credentials agentidentity.Credentials,
 	) (NetworkCoordinationRecord, error)
 	PutNetworkCoordinationInvitation(
 		ctx context.Context,
 		workspaceRef string,
 		request PutNetworkCoordinationInvitationRequest,
+		credentials agentidentity.Credentials,
 	) (NetworkCoordinationRecord, error)
 	GetNetworkUsage(
 		ctx context.Context,
@@ -67,6 +71,7 @@ func (c *unixSocketClient) GetNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	ref NetworkCoordinationRef,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	path, err := networkCoordinationPath(workspaceRef)
 	if err != nil {
@@ -81,7 +86,7 @@ func (c *unixSocketClient) GetNetworkCoordination(
 		values.Set("run_id", trimmed)
 	}
 	var response contract.NetworkCoordinationResponse
-	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+	if err := c.doAgentJSON(ctx, http.MethodGet, path, values, nil, credentials, &response); err != nil {
 		return NetworkCoordinationRecord{}, err
 	}
 	return response.Coordination, nil
@@ -91,13 +96,14 @@ func (c *unixSocketClient) PutNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationRequest,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	path, err := networkCoordinationPath(workspaceRef)
 	if err != nil {
 		return NetworkCoordinationRecord{}, err
 	}
 	var response contract.NetworkCoordinationResponse
-	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+	if err := c.doAgentJSON(ctx, http.MethodPut, path, nil, request, credentials, &response); err != nil {
 		return NetworkCoordinationRecord{}, err
 	}
 	return response.Coordination, nil
@@ -107,13 +113,22 @@ func (c *unixSocketClient) PutNetworkCoordinationInvitation(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationInvitationRequest,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	path, err := networkCoordinationPath(workspaceRef)
 	if err != nil {
 		return NetworkCoordinationRecord{}, err
 	}
 	var response contract.NetworkCoordinationResponse
-	if err := c.doJSON(ctx, http.MethodPut, path+"/invitation", nil, request, &response); err != nil {
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodPut,
+		path+"/invitation",
+		nil,
+		request,
+		credentials,
+		&response,
+	); err != nil {
 		return NetworkCoordinationRecord{}, err
 	}
 	return response.Coordination, nil

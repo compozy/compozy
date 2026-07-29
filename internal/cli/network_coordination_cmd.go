@@ -49,7 +49,12 @@ func newNetworkCoordinationStatusCommand(deps commandDeps, workspaceRef *string)
 			if err != nil {
 				return err
 			}
-			payload, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
+			payload, err := client.GetNetworkCoordination(
+				cmd.Context(),
+				workspaceID,
+				ref,
+				agentCredentialsFromEnv(deps),
+			)
 			if err != nil {
 				return err
 			}
@@ -106,7 +111,8 @@ func newNetworkCoordinationToggleCommand(
 			if err != nil {
 				return err
 			}
-			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
+			credentials := agentCredentialsFromEnv(deps)
+			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref, credentials)
 			if err != nil {
 				return err
 			}
@@ -120,6 +126,7 @@ func newNetworkCoordinationToggleCommand(
 					Enabled:          &enabled,
 					ExpectedRevision: &current.Revision,
 				},
+				credentials,
 			)
 			if err != nil {
 				return err
@@ -187,7 +194,8 @@ func newNetworkInvitationMutationCommand(
 			if err != nil {
 				return err
 			}
-			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
+			credentials := agentCredentialsFromEnv(deps)
+			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref, credentials)
 			if err != nil {
 				return err
 			}
@@ -201,6 +209,7 @@ func newNetworkInvitationMutationCommand(
 					Dismissed:        &dismissed,
 					ExpectedRevision: &current.Revision,
 				},
+				credentials,
 			)
 			if err != nil {
 				return err

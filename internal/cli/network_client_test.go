@@ -9,11 +9,40 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestUnixSocketClientNetworkMethods(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should forward agent identity on coordination requests", func(t *testing.T) {
+		t.Parallel()
+
+		credentials := agentidentity.Credentials{SessionID: "sess-deny", AgentName: "qa-deny-all"}
+		client := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					assertAgentRequestHeaders(t, req, credentials)
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"coordination":{"workspace_id":"ws-target","scope":"workspace","enabled":false,"revision":0,"invitation":{"scope":"workspace","dismissed":false},"eligibility":{"eligible":false,"reason":"run_required","coordinator":false,"worker_count":0}}}`,
+					), nil
+				}),
+			},
+		}
+
+		_, err := client.GetNetworkCoordination(
+			context.Background(),
+			"ws-target",
+			NetworkCoordinationRef{Scope: "workspace"},
+			credentials,
+		)
+		if err != nil {
+			t.Fatalf("GetNetworkCoordination() error = %v", err)
+		}
+	})
 
 	t.Run("Should call network routes through the unix socket client", func(t *testing.T) {
 		t.Parallel()

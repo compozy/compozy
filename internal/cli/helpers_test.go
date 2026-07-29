@@ -49,12 +49,13 @@ type stubClient struct {
 	putVaultSecretFn                   func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
 	deleteVaultSecretFn                func(context.Context, string) error
 	networkStatusFn                    func(context.Context) (NetworkStatusRecord, error)
-	getNetworkCoordinationFn           func(context.Context, string, NetworkCoordinationRef) (NetworkCoordinationRecord, error)
-	putNetworkCoordinationFn           func(context.Context, string, PutNetworkCoordinationRequest) (NetworkCoordinationRecord, error)
+	getNetworkCoordinationFn           func(context.Context, string, NetworkCoordinationRef, agentidentity.Credentials) (NetworkCoordinationRecord, error)
+	putNetworkCoordinationFn           func(context.Context, string, PutNetworkCoordinationRequest, agentidentity.Credentials) (NetworkCoordinationRecord, error)
 	putNetworkCoordinationInvitationFn func(
 		context.Context,
 		string,
 		PutNetworkCoordinationInvitationRequest,
+		agentidentity.Credentials,
 	) (NetworkCoordinationRecord, error)
 	getNetworkUsageFn           func(context.Context, string, NetworkUsageQuery) (NetworkUsageRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
@@ -684,9 +685,10 @@ func (s *stubClient) GetNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	ref NetworkCoordinationRef,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	if s.getNetworkCoordinationFn != nil {
-		return s.getNetworkCoordinationFn(ctx, workspaceRef, ref)
+		return s.getNetworkCoordinationFn(ctx, workspaceRef, ref, credentials)
 	}
 	return NetworkCoordinationRecord{}, errors.New("unexpected GetNetworkCoordination call")
 }
@@ -695,9 +697,10 @@ func (s *stubClient) PutNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationRequest,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	if s.putNetworkCoordinationFn != nil {
-		return s.putNetworkCoordinationFn(ctx, workspaceRef, request)
+		return s.putNetworkCoordinationFn(ctx, workspaceRef, request, credentials)
 	}
 	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordination call")
 }
@@ -706,9 +709,10 @@ func (s *stubClient) PutNetworkCoordinationInvitation(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationInvitationRequest,
+	credentials agentidentity.Credentials,
 ) (NetworkCoordinationRecord, error) {
 	if s.putNetworkCoordinationInvitationFn != nil {
-		return s.putNetworkCoordinationInvitationFn(ctx, workspaceRef, request)
+		return s.putNetworkCoordinationInvitationFn(ctx, workspaceRef, request, credentials)
 	}
 	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordinationInvitation call")
 }
