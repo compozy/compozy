@@ -3,7 +3,7 @@ id: ET-extension-publish-install-round-trip
 area: ET
 title: Publish and consume an extension release without a catalog gatekeeper
 persona: Ada
-journey: J-extension-policy-admin
+journey: J-extension-distribution
 expected: `compozy extension publish` uploads one deterministic archive and its matching SHA-256 sidecar to the selected GitHub release, after which a second isolated Compozy home can install, invoke, update to a behavior-changing release, and remove the extension without any Compozy catalog submission.
 entry_points: `compozy extension publish`; `compozy extension install github:owner/repo`; `compozy extension update`; `compozy extension remove`; `compozy__extensions_publish`
 qa_status: untested

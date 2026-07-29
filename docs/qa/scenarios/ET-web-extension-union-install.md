@@ -3,7 +3,7 @@ id: ET-web-extension-union-install
 area: ET
 title: Install an extension from the source union in the web
 persona: Bruno
-journey: J-marketplace-acquisition
+journey: J-extension-distribution
 expected: The Extensions-only "Install extension" entry point submits the generated `InstallExtensionRequest` union shape (`{source, ref, version?, asset?, allow_unverified?}`) for local_path, github, and git; per-source ref grammar is validated inline before the request; unverified archives route through the daemon's explicit consent dialog (including the daemon's own 422 reason); daemon validation errors are surfaced verbatim; and the curated one-click card install stays unchanged.
 entry_points: /marketplace/extensions (Install extension); `POST /api/extensions`
 qa_status: untested

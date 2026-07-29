@@ -3,9 +3,9 @@ id: ET-extension-agent-guided-authoring
 area: ET
 title: Build a Compozy extension from the official skill without operator hand-holding
 persona: Ada
-journey:
-expected: An agent session that activates the bundled `compozy` skill and reads `references/extension-authoring.md` produces a working extension end to end through native tools and structured output only, with no shell-out, no hand-written manifest, and no invented permission or provide value.
-entry_points: bundled skills/compozy/SKILL.md router row for writing extension code; skills/compozy/references/extension-authoring.md; `compozy__extensions_init|build|validate|dev|reload|logs|publish`; `compozy__tool_invoke`
+journey: J-extension-agent-authoring
+expected: An agent session that activates the bundled `compozy` skill and reads `references/extension-authoring.md` completes scaffold, build, validate, dev, reload, logs, publish, search, provenance, install, invoke, update, and remove through native tools and structured output only, with no shell-out, hand-written manifest, invented permission/provide value, or credential in a tool transcript.
+entry_points: bundled skills/compozy/SKILL.md router row for writing extension code; skills/compozy/references/extension-authoring.md; `compozy__extensions_init`; `compozy__extensions_build`; `compozy__extensions_validate`; `compozy__extensions_dev`; `compozy__extensions_reload`; `compozy__extensions_logs`; `compozy__extensions_search`; `compozy__extensions_provenance`; `compozy__extensions_publish`; `compozy__extensions_install|update|remove`; `compozy__tool_invoke`
 qa_status: untested
 bug_ids:
 fix_status:

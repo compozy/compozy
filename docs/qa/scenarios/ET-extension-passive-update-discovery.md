@@ -3,7 +3,7 @@ id: ET-extension-passive-update-discovery
 area: ET
 title: Discover extension updates without flags
 persona: Ada
-journey: J-agent-marketplace-parity
+journey: J-extension-distribution
 expected: Installed extensions advertise a newer remote version in list and search human output and structured fields without an update-check flag, while a degraded discovery source never blocks local inventory.
 entry_points: compozy extension list; compozy extension search; GET /api/extensions; GET /api/extensions/search
 qa_status: untested

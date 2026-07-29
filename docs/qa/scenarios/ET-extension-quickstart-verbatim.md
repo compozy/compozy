@@ -2,8 +2,8 @@
 id: ET-extension-quickstart-verbatim
 area: ET
 title: Reach a working extension by following the published quickstart verbatim
-persona: Bruno
-journey:
+persona: Lea
+journey: J-extension-newcomer-first-success
 expected: A newcomer on a release-stamped binary who types only the commands printed in the published quickstart ends with an installed, invocable extension, having spent at most four actions and ten concepts, with no trust prompt and no undocumented step.
 entry_points: https://compozy.com/runtime/guides/build-your-first-extension; `compozy extension init <name> --template tool-provider-go`; `compozy extension dev <dir>`; `compozy tool invoke ext__<name>__search --workspace . --input '{...}'`
 qa_status: untested

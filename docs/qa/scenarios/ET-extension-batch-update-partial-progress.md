@@ -3,7 +3,7 @@ id: ET-extension-batch-update-partial-progress
 area: ET
 title: Preserve per-extension progress when a batch update partially fails
 persona: Bruno
-journey: J-extension-policy-admin
+journey: J-extension-distribution
 expected: One `extension update --all` request updates every eligible extension it can, returns ordered structured outcomes for both successes and failures, and preserves completed updates when another source is unavailable or one artifact fails verification.
 entry_points: `compozy extension update --all`; `POST /api/extensions/update`; `compozy__extensions_update`
 qa_status: untested

@@ -3,7 +3,7 @@ id: ET-web-extension-logs-panel
 area: ET
 title: Follow redacted extension logs from the web detail
 persona: Bruno
-journey: J-marketplace-acquisition
+journey: J-extension-dev-lifecycle
 expected: The extension detail logs panel reads `GET /api/extensions/{name}/logs` for the selected `(name, workspace)` instance, follows it over SSE using only the named `extension_log` event, keeps sequences monotonic without duplicates across a reconnect, retains rendered lines while reconnecting or paused, exposes an operator-controlled Follow switch, announces connection status without announcing individual lines, and closes the EventSource when the panel unmounts or the instance changes.
 entry_points: /marketplace/extension/$entryId (Logs panel); `GET /api/extensions/{name}/logs?workspace=&follow=1&after=`
 qa_status: untested

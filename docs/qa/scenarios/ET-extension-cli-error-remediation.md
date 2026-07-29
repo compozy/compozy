@@ -3,7 +3,7 @@ id: ET-extension-cli-error-remediation
 area: ET
 title: Recover from actionable extension CLI failures
 persona: Ada
-journey: J-agent-marketplace-parity
+journey: J-extension-distribution
 expected: Policy-blocked install and daemon-unavailable failures print human remediation and a `try:` command identical to the diagnostic carried by JSON output.
 entry_points: compozy extension install; compozy status; -o json
 qa_status: untested

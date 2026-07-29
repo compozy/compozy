@@ -6,7 +6,7 @@ gaining a second execution path around tool policy.
 
 ```mermaid
 flowchart TD
-    A[Entry: compozy extension commands or GET /api/extensions/commands] --> B[Read active leaves and presentation groups]
+    A[Entry: manifest command metadata, compozy extension commands, or GET /api/extensions/commands] --> B[Read active leaves and presentation groups]
     B --> C{Choose a path}
     C -->|leaf| D[Read projected flags and approval metadata]
     C -->|group| G[Group error lists its leaves; no tool invocation]
@@ -33,6 +33,8 @@ journey:
   value_statement: "I can use an extension's task-focused CLI without learning its tool id, while every existing tool policy still applies."
   personas: [Bruno, Ada]
   entry_points:
+    - url: generated extension.toml resources.command_groups and resources.tools.command metadata
+      origin: direct
     - url: "compozy extension commands"
       origin: direct
     - url: "compozy extension exec <extension> --cmd <path>"
@@ -41,8 +43,8 @@ journey:
       origin: direct
   actions:
     - step: 1
-      verb: Discover the active command tree
-      expected_observable: Human output presents groups and leaves; structured output returns the same workspace-filtered flat descriptors with projected flags and approval metadata
+      verb: Build and discover the active command tree
+      expected_observable: Invalid paths, groups, reserved flags, or schema projections fail the build; valid human output presents groups and leaves while structured output returns the same workspace-filtered descriptors with projected flags and approval metadata
     - step: 2
       verb: Select a leaf and supply projected flags or raw JSON
       expected_observable: Typed projected flags create the declared top-level input fields, while --input validates the complete document and cannot be mixed with projected flags
@@ -74,5 +76,7 @@ journey:
 - Edge/error/empty checks: group selection, mixed input forms, approval refusal, and backend
   unavailability are explicit branches.
 - Cross-cutting checks: HTTP/UDS parity and workspace scope ride the discovery and approval scenarios.
+- Safety Invariants 16-17 and ADR-008 are the explicit regression owners: presentation metadata never
+  becomes execution authority, and malformed command trees fail at build and manifest load.
 - Deliberate skip: responsive/mobile coverage is not applicable to this CLI/API-only surface; Task 06
   deliberately adds no Web UI.
