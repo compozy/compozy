@@ -51,11 +51,11 @@ func (s *daemonExtensionService) installLocalExtension(
 		cfg.Trust.AllowUnverified,
 		req.AllowUnverified,
 	); err != nil {
-		return "", err
+		return manifest.Name, err
 	}
 	checksum, err := extensionpkg.ComputeDirectoryChecksum(req.Ref)
 	if err != nil {
-		return "", err
+		return manifest.Name, err
 	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
@@ -67,7 +67,7 @@ func (s *daemonExtensionService) installLocalExtension(
 		checksum,
 		extensionpkg.WithInstallProvenance(provenance),
 	); err != nil {
-		return "", err
+		return manifest.Name, err
 	}
 	return manifest.Name, nil
 }

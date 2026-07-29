@@ -50,34 +50,44 @@ func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (item contract.ExtensionPayload, err error) {
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	event := extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
+	}
+	defer func() {
+		if err == nil {
+			event.Type = eventspkg.ExtensionInstallCompleted
+			event.ExtensionName = item.Name
+			event.DigestMatched = item.DigestMatched
+		}
+		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
+	}()
 	installedBy := extensionInstalledBy(actor)
 	name, err := s.installExtensionSource(ctx, req, actor, installedBy)
+	if strings.TrimSpace(name) != "" {
+		event.ExtensionName = name
+	}
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.reload(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, name, err)
 	}
-	return s.completeExtensionInstall(ctx, actor, name)
+	return s.completeExtensionInstall(ctx, name)
 }
 
 func (s *daemonExtensionService) completeExtensionInstall(
 	ctx context.Context,
-	actor taskpkg.ActorContext,
 	name string,
 ) (contract.ExtensionPayload, error) {
 	item, err := s.Status(ctx, name)
 	if err != nil {
-		return contract.ExtensionPayload{}, err
-	}
-	if err := s.recordExtensionEvent(ctx, eventspkg.ExtensionInstalled, actor, item); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	return item, nil

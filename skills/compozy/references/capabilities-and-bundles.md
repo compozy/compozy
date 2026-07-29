@@ -194,8 +194,8 @@ A dev link is a side-table overlay, not an install. It never mutates or displace
 and only `dev` creates one. When both exist, reads report `overrides_published: true` beside `dev`,
 `origin_path`, `generation_hash`, and `workspace_id`. `compozy extension remove <name>` inside a
 workspace unlinks only that overlay and restores the published installation; `--global` removes the
-published installation itself. Lifecycle events are `extension.dev.linked`, `extension.reloaded`, and
-`extension.dev.unlinked`.
+published installation itself. Dev emits `extension.dev.{linked,unlinked}` and
+`extension.reload.{completed,failed}`.
 
 A dev-linked extension is a trusted tool-policy source in the workspace that linked it, so its tools
 need no catalog entry, archive digest, or `--allow-unverified` ceremony. Content-hash re-verification

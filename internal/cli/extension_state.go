@@ -73,7 +73,7 @@ func requireExtensionDaemonClient(ctx context.Context, deps commandDeps) (Daemon
 		return nil, err
 	}
 	if !running {
-		return nil, errors.New("cli: extension marketplace operations require a running daemon")
+		return nil, errors.New("cli: extension operations require a running daemon")
 	}
 	return client, nil
 }

@@ -28,6 +28,7 @@ const (
 	extensionTrustInstalledByOperator = "operator"
 	extensionTrustEvidenceSourceKey   = "source"
 	extensionTrustEvidenceVersionKey  = "version"
+	extensionRegistrySourceGit        = "git"
 )
 
 var ErrExtensionChecksumUnverified = errors.New("extension: checksum is unverified")
@@ -283,7 +284,7 @@ func installedFromForRegistrySource(source string) string {
 	switch strings.ToLower(strings.TrimSpace(source)) {
 	case ExtensionInstalledFromGitHub:
 		return ExtensionInstalledFromGitHub
-	case "git":
+	case extensionRegistrySourceGit:
 		return ExtensionInstalledFromGitURL
 	default:
 		return ExtensionInstalledFromMarketplace

@@ -81,7 +81,9 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 		}
 		var payload struct {
 			Extensions []struct {
-				Marketplace *contract.MarketplaceListingPayload `json:"marketplace"`
+				Marketplace     *contract.MarketplaceListingPayload `json:"marketplace"`
+				UpdateAvailable bool                                `json:"update_available"`
+				RemoteVersion   string                              `json:"remote_version"`
 			} `json:"extensions"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
@@ -100,6 +102,9 @@ func TestListExtensionsJoinsMarketplaceByExactCatalogEntryID(t *testing.T) {
 		if listing.EntryID != entry.EntryID || listing.Description != entry.Description ||
 			!listing.Installed || listing.InstalledVersion != "1.0.0" || !listing.UpdateAvailable {
 			t.Fatalf("marketplace listing = %#v, want exact installed update projection", listing)
+		}
+		if !payload.Extensions[0].UpdateAvailable || payload.Extensions[0].RemoteVersion != entry.Version {
+			t.Fatalf("extension update projection = %#v, want update to %q", payload.Extensions[0], entry.Version)
 		}
 	})
 

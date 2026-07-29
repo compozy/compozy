@@ -35,14 +35,15 @@ const (
 )
 
 const (
-	defaultProtocolVersion         = "1"
-	defaultHealthCheckInterval     = 30 * time.Second
-	defaultHealthCheckTimeout      = 5 * time.Second
-	defaultInitializeTimeout       = 5 * time.Second
-	defaultHookTimeout             = 5 * time.Second
-	defaultShutdownTimeout         = 10 * time.Second
-	defaultRestartBackoffMax       = 60 * time.Second
-	defaultRestartFailureThreshold = 5
+	defaultProtocolVersion     = "1"
+	defaultHealthCheckInterval = 30 * time.Second
+	defaultHealthCheckTimeout  = 5 * time.Second
+	defaultInitializeTimeout   = 5 * time.Second
+	defaultHookTimeout         = 5 * time.Second
+	defaultShutdownTimeout     = 10 * time.Second
+	defaultRestartBackoffMax   = 60 * time.Second
+	// DefaultRestartFailureThreshold is the production crash-loop cutoff shared by status and doctor projections.
+	DefaultRestartFailureThreshold = 5
 	defaultHealthPollFloor         = 50 * time.Millisecond
 	defaultHealthPollCeiling       = time.Second
 	defaultSubprocessSignalGrace   = 10 * time.Second
@@ -236,6 +237,7 @@ type Manager struct {
 	capChecker            *CapabilityChecker
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
+	lifecycleEventSink    LifecycleEventSink
 	sourceSessions        resources.SourceSessionManager
 	workspaceResolver     workspacepkg.RuntimeResolver
 	processRegistry       *toolruntime.Registry
@@ -302,7 +304,7 @@ func newManagerDefaults(registry *Registry) *Manager {
 		defaultHookTimeout:        defaultHookTimeout,
 		defaultShutdownTimeout:    defaultShutdownTimeout,
 		restartBackoffMax:         defaultRestartBackoffMax,
-		restartFailureThreshold:   defaultRestartFailureThreshold,
+		restartFailureThreshold:   DefaultRestartFailureThreshold,
 		healthPollFloor:           defaultHealthPollFloor,
 		healthPollCeiling:         defaultHealthPollCeiling,
 		subprocessSignalGrace:     defaultSubprocessSignalGrace,
@@ -363,7 +365,7 @@ func normalizeManagerDefaults(manager *Manager) {
 		manager.restartBackoffMax = defaultRestartBackoffMax
 	}
 	if manager.restartFailureThreshold <= 0 {
-		manager.restartFailureThreshold = defaultRestartFailureThreshold
+		manager.restartFailureThreshold = DefaultRestartFailureThreshold
 	}
 	if manager.healthPollFloor <= 0 {
 		manager.healthPollFloor = defaultHealthPollFloor

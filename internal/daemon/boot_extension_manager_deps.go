@@ -46,15 +46,19 @@ func (d *Daemon) extensionManagerDeps(
 			}
 			return state.resourceReconcile.Trigger(ctx, kind, reason)
 		},
-		SoulAuthoring:     state.deps.SoulAuthoring,
-		SoulRefresher:     state.deps.SoulRefresher,
-		HeartbeatAuthor:   state.deps.HeartbeatAuthor,
-		HeartbeatStatus:   state.deps.HeartbeatStatus,
-		HeartbeatWake:     state.deps.HeartbeatWake,
-		SessionHealth:     state.deps.SessionHealth,
-		WakeEvents:        state.deps.WakeEvents,
-		ProcessRegistry:   state.processRegistry,
-		SecretResolver:    state.providerVault,
+		SoulAuthoring:   state.deps.SoulAuthoring,
+		SoulRefresher:   state.deps.SoulRefresher,
+		HeartbeatAuthor: state.deps.HeartbeatAuthor,
+		HeartbeatStatus: state.deps.HeartbeatStatus,
+		HeartbeatWake:   state.deps.HeartbeatWake,
+		SessionHealth:   state.deps.SessionHealth,
+		WakeEvents:      state.deps.WakeEvents,
+		ProcessRegistry: state.processRegistry,
+		SecretResolver:  state.providerVault,
+		LifecycleEvents: extensionLifecycleEventStoreSink{
+			writer: extensionEventSummaryStore(state.registry),
+			now:    d.now,
+		},
 		CompozyExecutable: d.executable,
 	}
 }

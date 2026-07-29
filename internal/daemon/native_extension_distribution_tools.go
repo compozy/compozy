@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -90,6 +91,26 @@ func (n *daemonNativeTools) extensionPublish(
 			return toolspkg.ToolResult{}, err
 		}
 	}
+	manifest, err := extensionpkg.LoadManifest(strings.TrimSpace(input.GenerationDir))
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
+	}
+	actor, err := nativeExtensionActorContext(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
+	}
+	event := extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionPublishFailed, ExtensionName: manifest.Name,
+	}
+	defer func() {
+		if err == nil {
+			event.Type = eventspkg.ExtensionPublishCompleted
+		}
+		service := n.extensionService()
+		if service != nil {
+			err = errors.Join(err, service.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
+		}
+	}()
 	token, err := n.resolveExtensionPublishCredential(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)

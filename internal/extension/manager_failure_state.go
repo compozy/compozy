@@ -9,6 +9,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
@@ -118,6 +119,12 @@ func (m *Manager) recordOwnedInstanceFailure(
 	m.mu.Unlock()
 	runExtensionRedactionCleanups(cleanups)
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
+	if eventErr := recordExtensionLifecycleEvent(m.lifecycleContext(), m.lifecycleEventSink, LifecycleEvent{
+		Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: key.Name,
+		WorkspaceID: key.WorkspaceID,
+	}); eventErr != nil {
+		m.logger.Error("extension: record crash-loop backoff event", managerExtensionKey, name, "error", eventErr)
+	}
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",

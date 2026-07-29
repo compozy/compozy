@@ -26,6 +26,11 @@ const (
 	extensionHealthKey         = "health"
 	extensionListKey           = "list"
 	extensionSearchQueryValue  = "search <query>"
+	extensionUpdateValue       = "Update"
+	extensionUpdateAvailable   = "available"
+	extensionRuntimeUnknown    = "unknown"
+	extensionDevVerb           = "dev"
+	extensionReloadVerb        = "reload"
 	cliUseEnableName           = "enable <name>"
 	cliUseDisableName          = "disable <name>"
 )
@@ -134,7 +139,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionBundle(item))
+			return writeCommandOutput(cmd, extensionSuccessBundle(installCommandKey, item))
 		},
 	}
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")

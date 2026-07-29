@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"sort"
@@ -2140,6 +2141,14 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		installed.Provenance.ChecksumVerified || !installed.Provenance.AllowUnverified {
 		t.Fatalf("installed provenance = %#v, want consented local-path provenance", installed.Provenance)
 	}
+	_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+		Source:          contract.InstallExtensionSourceLocalPath,
+		Ref:             fixtureDir,
+		AllowUnverified: true,
+	}, actor)
+	if !errors.Is(err, extensionpkg.ErrExtensionExists) {
+		t.Fatalf("service.Install(duplicate) error = %v, want ErrExtensionExists", err)
+	}
 	listed, err := service.List(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("service.List() error = %v", err)
@@ -2209,26 +2218,47 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("ListEventSummaries(extension) error = %v", err)
 	}
 	wantCounts := map[string]int{
-		eventspkg.ExtensionInstalled: 1,
-		eventspkg.ExtensionEnabled:   1,
-		eventspkg.ExtensionDisabled:  2,
+		eventspkg.ExtensionInstallCompleted: 1,
+		eventspkg.ExtensionInstallFailed:    1,
+		eventspkg.ExtensionEnabled:          1,
+		eventspkg.ExtensionDisabled:         2,
 	}
 	gotCounts := make(map[string]int, len(wantCounts))
 	var installContent []byte
+	var failedInstallContent []byte
 	for i, summary := range summaries {
 		gotCounts[summary.Type]++
 		if summary.ActorKind != string(taskpkg.ActorKindHuman) || summary.ActorID != "user-1" {
 			t.Fatalf("summary[%d] actor = %s/%s, want human/user-1", i, summary.ActorKind, summary.ActorID)
 		}
-		if summary.Type == eventspkg.ExtensionInstalled {
+		if summary.Type == eventspkg.ExtensionInstallCompleted {
 			installContent = summary.Content
 		}
+		if summary.Type == eventspkg.ExtensionInstallFailed {
+			failedInstallContent = summary.Content
+		}
 	}
-	if len(summaries) != 4 || !maps.Equal(gotCounts, wantCounts) {
+	if len(summaries) != 5 || !maps.Equal(gotCounts, wantCounts) {
 		t.Fatalf("extension event type counts = %#v from summaries=%#v, want %#v", gotCounts, summaries, wantCounts)
 	}
-	if !bytes.Contains(installContent, []byte("\"allow_unverified\":true")) {
-		t.Fatalf("install event content = %s, want allow_unverified=true", string(installContent))
+	var installFields map[string]any
+	if err := json.Unmarshal(installContent, &installFields); err != nil {
+		t.Fatalf("json.Unmarshal(install event) error = %v", err)
+	}
+	wantInstallFields := map[string]any{
+		"extension_name": "service-ext",
+		"source_kind":    "local_path",
+		"digest_matched": false,
+	}
+	if !reflect.DeepEqual(installFields, wantInstallFields) {
+		t.Fatalf("install event content = %#v, want %#v", installFields, wantInstallFields)
+	}
+	var failedInstallFields map[string]any
+	if err := json.Unmarshal(failedInstallContent, &failedInstallFields); err != nil {
+		t.Fatalf("json.Unmarshal(failed install event) error = %v", err)
+	}
+	if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
+		t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 	}
 }
 
@@ -2466,43 +2496,62 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 			CurrentVersion: "1.0.0", LatestVersion: "2.0.0", Path: "/extensions/b-good",
 			Status: extensionpkg.MarketplaceUpdateStatusUpdated,
 		},
+		{
+			Name: "c-failed", Slug: "acme/c-failed", Registry: "github",
+			CurrentVersion: "1.0.0", LatestVersion: "2.0.0", Path: "/extensions/c-failed",
+			Status: extensionpkg.MarketplaceUpdateStatusFailed,
+		},
 	}
 
 	payloads, err := service.finalizeMarketplaceUpdateBatch(t.Context(), actor, items, cause)
 	if !errors.Is(err, cause) {
 		t.Fatalf("finalizeMarketplaceUpdateBatch() error = %v, want original batch failure", err)
 	}
-	if len(payloads) != 2 {
-		t.Fatalf("finalizeMarketplaceUpdateBatch() payloads = %#v, want two committed updates", payloads)
+	if len(payloads) != 3 {
+		t.Fatalf("finalizeMarketplaceUpdateBatch() payloads = %#v, want two updates and one failure", payloads)
 	}
 	if len(payloads[0].Warnings) != 1 ||
 		payloads[0].Warnings[0].Code != diagnosticcontract.CodeExtensionUpdateCleanupFailed {
 		t.Fatalf("finalizeMarketplaceUpdateBatch() warnings = %#v, want cleanup warning", payloads[0].Warnings)
 	}
 	summaries, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
-		Type: eventspkg.ExtensionUpdated,
+		Type: eventspkg.ExtensionUpdateCompleted,
 	})
 	if err != nil {
-		t.Fatalf("ListEventSummaries(extension.updated) error = %v", err)
+		t.Fatalf("ListEventSummaries(extension.update.completed) error = %v", err)
 	}
 	if len(summaries) != 2 {
-		t.Fatalf("extension.updated summaries = %#v, want two", summaries)
+		t.Fatalf("extension.update.completed summaries = %#v, want two", summaries)
 	}
-	if !bytes.Contains(summaries[0].Content, []byte(diagnosticcontract.CodeExtensionUpdateCleanupFailed)) &&
-		!bytes.Contains(summaries[1].Content, []byte(diagnosticcontract.CodeExtensionUpdateCleanupFailed)) {
-		t.Fatalf("extension.updated summaries = %#v, want cleanup warning", summaries)
+	for _, summary := range summaries {
+		var fields map[string]any
+		if err := json.Unmarshal(summary.Content, &fields); err != nil {
+			t.Fatalf("json.Unmarshal(update event) error = %v", err)
+		}
+		if len(fields) != 2 || fields["source_kind"] != "github" {
+			t.Fatalf("update event fields = %#v, want exact name/source keys", fields)
+		}
 	}
 	for _, name := range []string{"a-good", "b-good"} {
 		found := false
 		for _, summary := range summaries {
-			if bytes.Contains(summary.Content, []byte(`"name":"`+name+`"`)) {
+			if bytes.Contains(summary.Content, []byte(`"extension_name":"`+name+`"`)) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("extension.updated summaries = %#v, want event for %s", summaries, name)
+			t.Fatalf("extension.update.completed summaries = %#v, want event for %s", summaries, name)
 		}
+	}
+	failed, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+		Type: eventspkg.ExtensionUpdateFailed,
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(extension.update.failed) error = %v", err)
+	}
+	if len(failed) != 1 || !bytes.Contains(failed[0].Content, []byte(`"extension_name":"c-failed"`)) {
+		t.Fatalf("extension.update.failed summaries = %#v, want c-failed", failed)
 	}
 
 	writeErr := errors.New("event store failed")

@@ -212,6 +212,7 @@ type extensionManagerDeps struct {
 	WakeEvents             core.HeartbeatWakeEventReader
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
+	LifecycleEvents        extensionpkg.LifecycleEventSink
 	CompozyExecutable      func() (string, error)
 }
 

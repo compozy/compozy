@@ -212,6 +212,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 			"Extensions",
 			"Name",
 			"Version",
+			"Update",
 			"Type",
 			"State",
 			"Capabilities",
@@ -243,7 +244,10 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extension list toon error = %v", err)
 		}
-		if !strings.Contains(stdout, "extensions[1]{name,version,type,state,source,missing_env,capabilities}:") {
+		if !strings.Contains(
+			stdout,
+			"extensions[1]{name,version,update,type,state,source,missing_env,capabilities}:",
+		) {
 			t.Fatalf("toon output = %q, want extensions TOON table", stdout)
 		}
 	})
@@ -575,7 +579,8 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	if !strings.Contains(
 		toon,
 		"extension{name,version,type,source,enabled,state,daemon_running,"+
-			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env}:",
+			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env,"+
+			"consecutive_failures,restart_backoff_ms,summary}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}

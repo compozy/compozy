@@ -59,7 +59,13 @@ func parseExtensionInstallPlan(
 		return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
 	default:
 		if err := validateGitHubExtensionRef(trimmed); err != nil {
-			return extensionInstallPlan{}, fmt.Errorf("cli: unsupported extension install source %q: %w", trimmed, err)
+			path, pathErr := resolveExtensionInstallPath(trimmed)
+			if pathErr != nil {
+				return extensionInstallPlan{}, pathErr
+			}
+			request.Source = contract.InstallExtensionSourceLocalPath
+			request.Ref = path
+			return extensionInstallPlan{Attempts: []contract.InstallExtensionRequest{request}}, nil
 		}
 		request.Ref = trimmed
 		request.Source = contract.InstallExtensionSourceCurated

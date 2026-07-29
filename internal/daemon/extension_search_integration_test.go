@@ -69,6 +69,62 @@ func (s *extensionSearchSourceStub) Close() error {
 func TestExtensionSearchUnion(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should project an installed update without discovery flags", func(t *testing.T) {
+		t.Parallel()
+
+		_, registry, _, _ := newNativeExtensionToolDeps(t)
+		fixtureDir := writeNativeLocalExtensionFixture(t, "installed-a", "1.0.0")
+		manifest, err := extensionpkg.LoadManifest(fixtureDir)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(fixtureDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := registry.Install(
+			manifest,
+			fixtureDir,
+			checksum,
+			extensionpkg.WithInstallSource(extensionpkg.SourceMarketplace),
+			extensionpkg.WithInstallRegistryMetadata("acme/a", "curated", "1.0.0"),
+		); err != nil {
+			t.Fatalf("Registry.Install() error = %v", err)
+		}
+
+		entry := curatedSearchEntry("curated-a", "acme/a", "A bridge")
+		entry.Version = "2.0.0"
+		catalog := extensionSearchCatalogStub{browseFn: func(
+			context.Context,
+			marketplacepkg.Kind,
+			string,
+			int,
+			int,
+		) (marketplacepkg.BrowseResult, error) {
+			return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}}, nil
+		}}
+		github := &extensionSearchSourceStub{searchFn: func(
+			context.Context,
+			string,
+			registrypkg.SearchOpts,
+		) ([]registrypkg.Listing, error) {
+			return nil, nil
+		}}
+		service := newExtensionSearchTestService(catalog, github)
+		service.registry = registry
+
+		result, err := service.Search(t.Context(), contract.ExtensionSearchRequest{
+			Query: "bridge", Sources: []string{"curated"}, Limit: 20,
+		})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(result.Items) != 1 || !result.Items[0].Installed ||
+			result.Items[0].InstalledVersion != "1.0.0" || !result.Items[0].UpdateAvailable {
+			t.Fatalf("Search() = %#v, want installed 1.0.0 update to 2.0.0", result)
+		}
+	})
+
 	t.Run("Should merge source-tagged results and preserve a stable cached cursor", func(t *testing.T) {
 		t.Parallel()
 

@@ -89,6 +89,7 @@ func (s *daemonExtensionService) Search(
 	}
 	end := min(offset+limit, len(snapshot.items))
 	items := append([]contract.ExtensionSearchItem(nil), snapshot.items[offset:end]...)
+	s.enrichExtensionSearchUpdates(items)
 	nextCursor, err := encodeExtensionSearchCursor(fingerprint, snapshot.fence, end, end < len(snapshot.items))
 	if err != nil {
 		return contract.ExtensionSearchResponse{}, err
@@ -96,6 +97,46 @@ func (s *daemonExtensionService) Search(
 	return contract.ExtensionSearchResponse{
 		Items: items, NextCursor: nextCursor, SourcesDegraded: append([]string(nil), snapshot.degraded...),
 	}, nil
+}
+
+func (s *daemonExtensionService) enrichExtensionSearchUpdates(items []contract.ExtensionSearchItem) {
+	if s == nil || s.registry == nil || len(items) == 0 {
+		return
+	}
+	installed, err := s.registry.List()
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("daemon: extension search installed-state enrichment failed", "error", err)
+		}
+		return
+	}
+	bySlug := make(map[string]extensionpkg.ExtensionInfo, len(installed))
+	for _, info := range installed {
+		slug := strings.TrimSpace(dereferenceDaemonExtensionString(info.RegistrySlug))
+		if slug != "" {
+			bySlug[slug] = info
+		}
+	}
+	for index := range items {
+		info, ok := bySlug[strings.TrimSpace(items[index].Slug)]
+		if !ok {
+			continue
+		}
+		currentVersion := strings.TrimSpace(dereferenceDaemonExtensionString(info.RemoteVersion))
+		if currentVersion == "" {
+			currentVersion = strings.TrimSpace(info.Version)
+		}
+		items[index].Installed = true
+		items[index].InstalledVersion = currentVersion
+		items[index].UpdateAvailable = registrypkg.VersionIsNewer(currentVersion, items[index].Version)
+	}
+}
+
+func dereferenceDaemonExtensionString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func normalizeExtensionSearchRequest(

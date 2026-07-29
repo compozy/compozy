@@ -112,6 +112,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 			extensionMarketplaceDescriptionValue,
 			"Author",
 			versionValue,
+			extensionUpdateValue,
 			"Downloads",
 			authoredContextSourceValue,
 			extensionMarketplaceTierValue,
@@ -124,6 +125,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 			extensionMarketplaceDescriptionKey,
 			"author",
 			versionKey,
+			"update_available",
 			"downloads",
 			automationSourceKey,
 			"tier",
@@ -136,6 +138,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 				stringOrDash(item.Description),
 				stringOrDash(item.Author),
 				stringOrDash(item.Version),
+				stringOrDash(extensionUpdateLabel(item.UpdateAvailable, item.Version)),
 				strconv.Itoa(item.Downloads),
 				stringOrDash(item.Source),
 				stringOrDash(item.Tier),
@@ -149,6 +152,7 @@ func extensionSearchBundle(response ExtensionSearchRecord) outputBundle {
 				item.Description,
 				item.Author,
 				item.Version,
+				extensionUpdateLabel(item.UpdateAvailable, item.Version),
 				strconv.Itoa(item.Downloads),
 				item.Source,
 				item.Tier,
@@ -209,6 +213,9 @@ func extensionSearchPageToon(page extensionSearchPageRecord) string {
 func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 	return outputBundle{
 		jsonValue: item,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, item)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("Extension Remove", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},

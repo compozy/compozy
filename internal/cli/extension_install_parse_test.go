@@ -88,6 +88,19 @@ func TestParseExtensionInstallPlan(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name a missing bare local path instead of attempting repository lookup", func(t *testing.T) {
+		t.Parallel()
+
+		missing := "missing-extension-dir"
+		_, err := parseExtensionInstallPlan(missing, "", "", true)
+		if err == nil {
+			t.Fatal("parseExtensionInstallPlan() error = nil, want missing path error")
+		}
+		if !strings.Contains(err.Error(), missing) || !strings.Contains(err.Error(), "does not exist") {
+			t.Fatalf("parseExtensionInstallPlan() error = %q, want path-specific diagnostic", err)
+		}
+	})
+
 	t.Run("Should parse an explicit git URL with a ref", func(t *testing.T) {
 		t.Parallel()
 

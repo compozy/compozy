@@ -40,6 +40,13 @@ func WithBridgeTelemetrySink(sink BridgeTelemetrySink) Option {
 	}
 }
 
+// WithLifecycleEventSink injects the append-only lifecycle observer used by manager-owned call sites.
+func WithLifecycleEventSink(sink LifecycleEventSink) Option {
+	return func(manager *Manager) {
+		manager.lifecycleEventSink = sink
+	}
+}
+
 // WithSourceSessionManager injects the resource source-session manager used to
 // activate extension nonces for snapshot publication.
 func WithSourceSessionManager(manager resources.SourceSessionManager) Option {

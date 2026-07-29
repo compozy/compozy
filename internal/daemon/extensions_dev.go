@@ -43,7 +43,10 @@ func (s *daemonExtensionService) Dev(
 		return contract.ExtensionPayload{}, err
 	}
 	item := s.payloadFromExtension(ext)
-	if err := s.recordExtensionEvent(ctx, eventspkg.ExtensionDevLinked, actor, item); err != nil {
+	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
+		WorkspaceID: item.WorkspaceID, BundleGeneration: item.GenerationHash,
+	}); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	return item, nil
@@ -54,13 +57,24 @@ func (s *daemonExtensionService) ReloadDev(
 	name string,
 	req contract.ReloadExtensionRequest,
 	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (item contract.ExtensionPayload, err error) {
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	event := extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionReloadFailed, ExtensionName: name,
+		WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID), BundleGeneration: req.GenerationHash,
+	}
+	defer func() {
+		if err == nil {
+			event.Type = eventspkg.ExtensionReloadCompleted
+			event.BundleGeneration = item.GenerationHash
+		}
+		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
+	}()
 	workspaceID, err := developmentWorkspaceID(actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
@@ -80,10 +94,7 @@ func (s *daemonExtensionService) ReloadDev(
 	if err := s.syncExtensionConsumers(ctx); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	item := s.payloadFromExtension(ext)
-	if err := s.recordExtensionEvent(ctx, eventspkg.ExtensionReloaded, actor, item); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
+	item = s.payloadFromExtension(ext)
 	return item, nil
 }
 
@@ -221,8 +232,10 @@ func (s *daemonExtensionService) RemoveScoped(
 		return s.Remove(ctx, name, actor)
 	}
 	path := ""
+	generation := ""
 	if ext.DevLink != nil {
 		path = ext.DevLink.OriginPath
+		generation = ext.DevLink.BundleGeneration
 	}
 	if err := runtime.UnlinkDevelopment(ctx, key); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
@@ -231,12 +244,10 @@ func (s *daemonExtensionService) RemoveScoped(
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	item := contract.ManagedExtensionRemovePayload{Name: name, Path: path, Status: "removed"}
-	if err := s.recordExtensionLifecycleEvent(
-		ctx,
-		eventspkg.ExtensionDevUnlinked,
-		actor,
-		extensionLifecycleEventPayload{Name: name, WorkspaceID: workspaceID, Status: item.Status},
-	); err != nil {
+	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
+		WorkspaceID: workspaceID, BundleGeneration: generation,
+	}); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	return item, nil

@@ -200,6 +200,17 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			t.Fatalf("Registry.Call(extensions_reload) error = %v", err)
 		}
 		requireNativeStructuredContains(t, reloadResult, []byte(secondBuild.GenerationHash))
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID:      toolspkg.ToolIDExtensionsReload,
+			WorkspaceID: workspaceID,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"name":"native-dev","generation_hash":%q}`,
+				strings.Repeat("0", 64),
+			)),
+		})
+		if err == nil {
+			t.Fatal("Registry.Call(extensions_reload missing generation) error = nil, want failure")
+		}
 
 		searchResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsSearch,
@@ -235,6 +246,17 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			t.Fatal("extensions_publish result contains the bound credential")
 		}
 		publishCapture.requireComplete(t, publishCredential)
+		deps.ExtensionSecrets = nativeExtensionSecretResolver{values: map[string]string{}}
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsPublish,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"generation_dir":%q,"repository":"acme/native-dev","tag_name":"v0.2.1"}`,
+				secondBuild.GenerationDir,
+			)),
+		})
+		if err == nil {
+			t.Fatal("Registry.Call(extensions_publish without credential) error = nil, want failure")
+		}
 
 		logsResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsLogs,
@@ -275,7 +297,16 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
 
-		assertNativeExtensionDevEvents(t, deps.ExtensionEvents, workspaceID)
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID:      toolspkg.ToolIDExtensionsRemove,
+			WorkspaceID: workspaceID,
+			Input:       json.RawMessage(`{"name":"native-dev"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_remove dev) error = %v", err)
+		}
+
+		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceID)
 		assertNativeExtensionAuthoringRisk(t)
 	})
 }
@@ -377,13 +408,18 @@ requires = []
 	}
 }
 
-func assertNativeExtensionDevEvents(
+func assertNativeExtensionLifecycleEvents(
 	t *testing.T,
 	storeReader store.EventSummaryStore,
 	workspaceID string,
 ) {
 	t.Helper()
-	for _, eventType := range []string{eventspkg.ExtensionDevLinked, eventspkg.ExtensionReloaded} {
+	for _, eventType := range []string{
+		eventspkg.ExtensionDevLinked,
+		eventspkg.ExtensionDevUnlinked,
+		eventspkg.ExtensionReloadCompleted,
+		eventspkg.ExtensionReloadFailed,
+	} {
 		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})
 		if err != nil {
 			t.Fatalf("ListEventSummaries(%s) error = %v", eventType, err)
@@ -391,8 +427,21 @@ func assertNativeExtensionDevEvents(
 		if len(events) != 1 {
 			t.Fatalf("ListEventSummaries(%s) count = %d, want 1", eventType, len(events))
 		}
-		if !strings.Contains(string(events[0].Content), `"workspace_id":"`+workspaceID+`"`) {
-			t.Fatalf("%s content = %s, want workspace_id", eventType, string(events[0].Content))
+		var fields map[string]any
+		if err := json.Unmarshal(events[0].Content, &fields); err != nil {
+			t.Fatalf("json.Unmarshal(%s event) error = %v", eventType, err)
+		}
+		if len(fields) != 3 || fields["workspace_id"] != workspaceID || fields["bundle_generation"] == "" {
+			t.Fatalf("%s fields = %#v, want exact extension/workspace/generation keys", eventType, fields)
+		}
+	}
+	for _, eventType := range []string{eventspkg.ExtensionPublishCompleted, eventspkg.ExtensionPublishFailed} {
+		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})
+		if err != nil {
+			t.Fatalf("ListEventSummaries(%s) error = %v", eventType, err)
+		}
+		if len(events) != 1 || string(events[0].Content) != `{"extension_name":"native-dev"}` {
+			t.Fatalf("ListEventSummaries(%s) = %#v, want exact native-dev payload", eventType, events)
 		}
 	}
 }

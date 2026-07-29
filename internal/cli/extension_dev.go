@@ -49,7 +49,7 @@ func newExtensionDevCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := writeCommandOutput(cmd, extensionBundle(item)); err != nil {
+			if err := writeCommandOutput(cmd, extensionSuccessBundle(extensionDevVerb, item)); err != nil {
 				return err
 			}
 			if !watch {
@@ -98,7 +98,7 @@ func newExtensionReloadCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionBundle(item))
+			return writeCommandOutput(cmd, extensionSuccessBundle(extensionReloadVerb, item))
 		},
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
@@ -235,7 +235,8 @@ func watchExtensionSource(
 			if reloadErr != nil {
 				return reloadErr
 			}
-			if outputErr := writeCommandOutput(cmd, extensionBundle(item)); outputErr != nil {
+			bundle := extensionSuccessBundle(extensionReloadVerb, item)
+			if outputErr := writeCommandOutput(cmd, bundle); outputErr != nil {
 				return outputErr
 			}
 			previous = current

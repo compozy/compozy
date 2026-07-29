@@ -880,7 +880,7 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	if got, want := manager.restartBackoffMax, defaultRestartBackoffMax; got != want {
 		t.Fatalf("restartBackoffMax = %v, want %v", got, want)
 	}
-	if got, want := manager.restartFailureThreshold, defaultRestartFailureThreshold; got != want {
+	if got, want := manager.restartFailureThreshold, DefaultRestartFailureThreshold; got != want {
 		t.Fatalf("restartFailureThreshold = %d, want %d", got, want)
 	}
 	if got, want := manager.healthPollFloor, defaultHealthPollFloor; got != want {
