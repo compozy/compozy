@@ -1,0 +1,470 @@
+---
+title: Memory System
+description: How Compozy stores curated Markdown memory, captures a frozen snapshot at session start, and routes every write through the controller WAL.
+---
+
+Compozy memory is curated Markdown that survives across sessions. It is designed for durable facts that
+future agents should be able to discover without replaying every old transcript.
+
+The current implementation is intentionally hybrid:
+
+- curated semantic memory (`user`, `feedback`, `project`, `reference`) is **Markdown-authoritative**
+  on disk
+- `memory_decisions` is a per-database write-ahead log: every controller decision lands there
+  before any file mutation
+- `memory_events` is the canonical observability log for memory operations
+- `memory_catalog_entries`, `memory_chunks`, and FTS5 indexes are derived projections
+- `memory_recall_signals` and `memory_consolidations` carry live runtime state for dreaming
+- there are three scopes: `global`, `workspace`, and `agent` — agent has two tiers
+- normal session prompts receive a **frozen startup snapshot** plus the workspace checkpoint;
+  degraded resume replay receives the same checkpoint before persisted transcript context
+
+<OperatorNote>
+  Memory v2 is the only memory subsystem. There is no `[memory.v2] enabled` flag and no legacy
+  two-scope mode. If you used `compozy memory read` or `compozy memory consolidate` previously, the
+  replacement verbs are `compozy memory show` and `compozy memory dream trigger`.
+</OperatorNote>
+
+## Runtime Flow
+
+<Mermaid
+  chart={`flowchart TD
+SessionStart[Session starts] --> Snapshot[Frozen snapshot]
+Snapshot --> Recall[Deterministic recall packaging]
+Snapshot --> StartupPrompt[Startup system prompt]
+StartupPrompt --> Agent[Agent works]
+Agent --> SessionStop[Eligible session stops]
+SessionStop --> Checkpoint[Update workspace checkpoint]
+Checkpoint --> Controller
+Agent --> Extractor[Async extractor on session.message_persisted]
+Extractor --> Controller[Write controller]
+Agent --> Tools[CLI / HTTP / UDS / native tools]
+Tools --> Controller
+Controller --> WAL[memory_decisions WAL]
+WAL --> Files[Curated Markdown files]
+WAL --> Events[memory_events]
+Files --> Catalog[Catalog + FTS5 + chunks]
+Files --> NextSession[Next session sees the new snapshot]`}
+  caption="Every write — operator, agent, extractor, dreaming — goes through the controller. The WAL is durable before the file lands; the catalog is rebuilt from the file."
+/>
+
+Memory is not streamed into an already-running process. When a session starts, Compozy captures a
+**frozen snapshot** of the resolved scopes, packages a recall block, appends the current workspace
+checkpoint, prepends the assembled memory section to the agent prompt, and hands that prompt to the
+ACP subprocess. Writes during the session are durable immediately but only become visible to the
+**next** session via a fresh snapshot.
+
+## Scopes And Authorities
+
+| Scope                 | Storage root                                  | Authority                                                    |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| `global`              | `$COMPOZY_HOME/memory/`                       | Cross-workspace user-wide facts.                             |
+| `workspace`           | `<workspace>/.compozy/memory/`                | Workspace-private project facts.                             |
+| `agent` (`workspace`) | `<workspace>/.compozy/agents/<agent>/memory/` | Default agent tier. Workspace-private agent state.           |
+| `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`        | Cross-workspace agent state. Explicit `--agent-tier global`. |
+
+Read precedence is `agent-workspace ▸ agent-global ▸ workspace ▸ global`. Identity is keyed by
+`(type, slug)` per scope, and a deeper scope shadows a shallower scope with the same identity. The
+runtime never silently merges shadowed entries — see [Scopes](/docs/memory/scopes).
+
+Scope is selected explicitly. `--scope agent` requires `--agent <name>` and a validated
+`--agent-tier {workspace, global}`; the agent tier defaults to `workspace` when omitted. CLI/HTTP/UDS
+operator writes that omit `--scope` fall back to a conservative type-driven default for the
+non-agent scopes only: `user` and `feedback` → `global`, `project` and `reference` → `workspace`.
+Agent scope must be explicit.
+
+## Workspace Identity
+
+Workspace memory is keyed by a stable ULID stored in `<workspace>/.compozy/workspace.toml`:
+
+```toml
+workspace_id = "01HXJ9YR4Q..."
+created_at   = "2026-05-04T14:30:00Z"
+realpath_at_creation = "/Users/you/dev/checkout-api"
+```
+
+The runtime resolves the workspace by walking ancestors for `.compozy/workspace.toml`, reads the ULID,
+and uses that as the durable identity for catalog rows, events, decisions, dreaming runs, and
+session ledgers. Path-keyed memory is gone — moving the workspace directory does not orphan its
+memory because the ULID travels with the directory. See
+[Workspace Resolver](/docs/workspaces/resolver) for the lookup cascade.
+
+## Four Memory Types
+
+Every curated memory file declares one of four types:
+
+| Type        | Use it for                                                                         | Example                                                                   |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `user`      | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                   |
+| `feedback`  | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                           |
+| `project`   | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/runtime/`." |
+| `reference` | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files."   |
+
+The taxonomy is closed. Unsupported types are rejected at the controller boundary.
+
+## Memory File Format
+
+Memory files are Markdown with strict YAML frontmatter. The canonical YAML key for the agent name
+is `agent`; JSON and HTTP payloads use `agent_name`.
+
+| Field         | Required when        | Meaning                                                                |
+| ------------- | -------------------- | ---------------------------------------------------------------------- |
+| `name`        | yes                  | Human-readable title shown in list output and useful in index entries. |
+| `description` | yes                  | One concise discovery sentence used by recall and indexing.            |
+| `type`        | yes                  | One of `user`, `feedback`, `project`, or `reference`.                  |
+| `scope`       | yes                  | One of `global`, `workspace`, `agent`.                                 |
+| `agent`       | when `scope = agent` | Producer agent name.                                                   |
+| `agent_tier`  | when `scope = agent` | One of `workspace`, `global`.                                          |
+| `provenance`  | optional             | Source actor, source sessions, confidence, supersession, timestamps.   |
+
+Example `feedback` memory written through the controller:
+
+```text
+---
+name: Test Integrity
+description: Production bugs must be fixed instead of weakening tests
+type: feedback
+scope: global
+provenance:
+  source_actor: extractor
+  source_sessions:
+    - 01J7VR2Q8MZ4FXWZ8WB7M2A4S0
+  confidence: high
+  created_at: 2026-04-12T14:32:11Z
+  updated_at: 2026-04-12T14:32:11Z
+---
+
+If a test reveals incorrect behavior, fix the production code. Do not relax assertions just to make
+the suite green.
+```
+
+## Storage Layout
+
+Each scope has a `MEMORY.md` index next to its memory documents and a structurally-excluded
+`_system/` namespace for machine-managed artifacts:
+
+```text
+$COMPOZY_HOME/memory/
+  MEMORY.md
+  user_review-style.md
+  feedback_test-integrity.md
+  _inbox/                        # extractor staging (operator-quiet)
+  _system/
+    dreaming/
+    extractor/
+    extractor/failures/
+    ad_hoc/
+
+<workspace>/.compozy/memory/
+  MEMORY.md
+  project_checkpoint_summary.md # machine-maintained continuity context
+  project_runtime-docs.md
+  reference_session-events.md
+  _system/
+    dreaming/
+    ...
+
+<workspace>/.compozy/agents/<agent>/memory/
+  MEMORY.md
+  user_pedro-style.md
+  _system/
+    ...
+```
+
+`_system/` is reserved. Curated indexing skips it, recall filters it out by default, and the
+controller rejects any write that would land directly in a top-level `_system_*.md` file. Operators
+can browse `_system/` artifacts explicitly with `--include-system` on `list`/`show`/`search`/etc.
+
+## The Write Controller
+
+Every write — CLI, HTTP, UDS, native tool, extractor, dreaming, file-watcher, provider — passes
+through the controller:
+
+1. Caller submits a `Candidate { workspace_id, scope, agent, agent_tier, origin, frontmatter, content, ... }`.
+2. The controller computes a deterministic **decision** with rule-first lexical+entity-slot logic; an
+   LLM tiebreaker runs only when the rule trace falls in the configured ambiguity band.
+3. The decision is persisted to `memory_decisions` (per-database WAL) **before** any file mutation,
+   carrying full replay material: `target_filename`, `frontmatter`, `post_content`,
+   `post_content_hash`, `prior_content` (for update/delete), `idempotency_key`, and the rule/LLM
+   trace.
+4. The file mutation lands atomically; the catalog reindexes the affected file; a canonical
+   `memory_events` row is appended.
+5. On crash, daemon boot replays unapplied decisions in `decided_at` order. Replay is idempotent by
+   `idempotency_key` and `post_content_hash`.
+
+There is exactly one write path. Controller-bypassing tools are forbidden; provider-supplied tools
+that collide with reserved names are rejected at registration with a `memory.provider.collision`
+event.
+
+### Atomic native-tool batches
+
+`compozy__memory_propose` accepts `operations` when an agent needs to change several parts of one
+Memory v2 document as a unit. The batch is closed to three body operations:
+
+| Action    | Required fields       | Effect                                                              |
+| --------- | --------------------- | ------------------------------------------------------------------- |
+| `add`     | `content`             | Appends one Markdown block unless that exact block already exists.  |
+| `replace` | `old_text`, `content` | Replaces `old_text` when it occurs exactly once in the staged body. |
+| `remove`  | `old_text`            | Removes `old_text` when it occurs exactly once in the staged body.  |
+
+Operations run in array order against an in-memory body. A missing or ambiguous `old_text`, an
+invalid operation shape, unsafe content, or an oversized final body rejects the whole batch before
+a decision is written. Compozy checks `[memory.file] max_lines` and `max_bytes` only against the final
+body, so one call can remove stale content and add a replacement even when the current file is at
+capacity.
+
+```json
+{
+  "scope": "workspace",
+  "workspace": "01HXJ9YR4Q...",
+  "filename": "project_release.md",
+  "operations": [
+    {
+      "action": "remove",
+      "old_text": "The release still uses the retired deploy path."
+    },
+    {
+      "action": "add",
+      "content": "The release uses the signed artifact deploy path."
+    }
+  ]
+}
+```
+
+The result becomes one controller decision and one Markdown mutation; no earlier operation can
+land by itself. Retrying the same payload returns the existing decision and marks each operation
+`already_applied`. `operations` cannot be mixed with the single-write `operation` or top-level
+`content` fields. Batch support is currently agent-manageable through `compozy__memory_propose`; the
+CLI and HTTP/UDS entry-write shapes remain single-document replacements.
+
+## Frozen Snapshot And Recall
+
+At session start, Compozy captures a **frozen snapshot** of the resolved memory context (global,
+workspace, and the agent's two tiers when applicable). The snapshot includes:
+
+- the per-scope `MEMORY.md` index after staleness banners
+- a packaged recall block produced by the deterministic recall pipeline (FTS5 unicode + trigram,
+  scope shadow, top-K) when a contextual query is available
+- a freshness banner for entries whose age exceeds `memory.recall.freshness.banner_after_days`
+
+Snapshots are cached by session boot request and memory generation. Repeating the same assembly
+request without a memory mutation returns byte-identical prefix content. A committed write,
+delete, or reindex advances the shared generation; the next assembly captures the new index once
+and then remains byte-identical at that generation. Compozy does not rewrite a system prompt already
+delivered to an ACP subprocess, so a running session keeps that delivered prompt and the **next**
+session receives the new snapshot. Sub-agent sessions inherit the parent snapshot read-only.
+
+`_system/` artifacts are never injected into the prompt by default. Recall skips ledger files,
+extractor inbox/DLQ artifacts, and dreaming output unless the caller explicitly opts in.
+
+## Workspace Checkpoint Continuity
+
+Compozy maintains one workspace-scoped `project` memory at
+`<workspace>/.compozy/memory/project_checkpoint_summary.md`. After an eligible user, coordinator, or
+dream session stops, the active workspace memory provider receives a bounded transcript projection.
+The bundled local provider updates the previous checkpoint instead of regenerating it from scratch.
+The file keeps the 32 most recent unique source-session IDs in provenance.
+
+Checkpoint writes use the same controller and `memory_decisions` WAL as operator and agent writes.
+Ordinary memory proposals and generated checkpoint summaries reject raw `compozy_claim_*` tokens before
+persistence. Malformed, oversized, raw-token-bearing, or failed generations leave the previous
+checkpoint unchanged. Inspect or revert its decisions through the existing surfaces:
+
+```bash
+compozy memory show project_checkpoint_summary.md --scope workspace
+compozy memory decisions list --filename project_checkpoint_summary.md -o json
+compozy memory decisions revert <decision-id>
+```
+
+New sessions receive the complete checkpoint in a `<compozy_checkpoint_summary>` block after their
+frozen memory indexes. When ACP session loading is unavailable or its saved provider session is
+missing, degraded resume places that checkpoint before the pruned transcript replay. The block is
+reference-only historical context: it cannot replace the current user request. Workspace identity
+is resolved explicitly on both write and injection paths, so one workspace's checkpoint cannot
+enter another workspace's prompt.
+
+### Pressure compaction coverage
+
+When an ACP usage update reaches `[session.compaction].pressure_threshold`, Compozy selects only the
+complete persisted turns before the triggering turn. The active memory provider summarizes that
+sequence span into the workspace checkpoint and records hidden `(workspace, session, from, to)`
+coverage before the session store marks the rows archived. Repeating the same span is idempotent:
+existing coverage prevents duplicate provider work while still allowing an interrupted archive to
+finish.
+
+Archiving is non-destructive. `compozy session events` and `compozy session history` retain the rows for
+forensics, while degraded replay excludes archived rows so it does not re-inject context already
+covered by the checkpoint. A successful provider `session/load` keeps using provider-owned context.
+If a daemon stops after checkpoint coverage but before archive, the original events remain
+unarchived and readable; Compozy never archives first and hopes a later summary succeeds.
+
+## Operator And Agent Surfaces
+
+Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice 1 verbs are:
+
+| Capability         | CLI                                                                | HTTP / UDS                                                                | Native tool                                                     |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| List entries       | `compozy memory list [--type/--sort/--cursor/--limit]`             | `GET /api/memory?type=&sort=&cursor=&limit=`                              | `compozy__memory_list`                                          |
+| Show one entry     | `compozy memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `compozy__memory_show`                                          |
+| Search recall      | `compozy memory search <query>`                                    | `POST /api/memory/search`                                                 | `compozy__memory_search`                                        |
+| Operator write     | `compozy memory write`                                             | `POST /api/memory`                                                        | n/a                                                             |
+| Edit               | `compozy memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `compozy__memory_propose`                                       |
+| Delete             | `compozy memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `compozy__memory_propose`                                       |
+| Agent proposal     | n/a                                                                | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `compozy__memory_propose` (single write or atomic body batch)   |
+| Ad-hoc note        | n/a                                                                | `POST /api/memory/ad-hoc`                                                 | `compozy__memory_note`                                          |
+| Dream trigger      | `compozy memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | `compozy__memory_dream_trigger`                                 |
+| Dream listing      | `compozy memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | `compozy__memory_dream_list`, `compozy__memory_dream_show`      |
+| Dream retry        | `compozy memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | `compozy__memory_dream_retry`                                   |
+| Dream status       | `compozy memory dream status`                                      | `GET /api/memory/dreams/status`                                           | `compozy__memory_dream_status`                                  |
+| Decisions list     | `compozy memory decisions list [--filename <file>]`                | `GET /api/memory/decisions[?filename=<file>]`                             | `compozy__memory_decisions_list`                                |
+| Decision detail    | `compozy memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | `compozy__memory_decisions_show`                                |
+| Decision revert    | `compozy memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | `compozy__memory_decisions_revert`                              |
+| Recall trace       | `compozy memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | `compozy__memory_recall_trace`                                  |
+| History            | `compozy memory history`                                           | `GET /api/memory/history`                                                 | `compozy__memory_admin_history`                                 |
+| Health             | `compozy memory health`                                            | `GET /api/memory/health`                                                  | `compozy__memory_health`                                        |
+| Config metadata    | n/a                                                                | `GET /api/memory/config`                                                  | n/a                                                             |
+| Reindex            | `compozy memory reindex`                                           | `POST /api/memory/reindex`                                                | `compozy__memory_reindex`                                       |
+| Promote            | `compozy memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | `compozy__memory_promote`                                       |
+| Reset              | `compozy memory reset`                                             | `POST /api/memory/reset`                                                  | `compozy__memory_reset`                                         |
+| Reload snapshot    | `compozy memory reload`                                            | `POST /api/memory/reload`                                                 | `compozy__memory_reload`                                        |
+| Scope inspector    | `compozy memory scope-show`                                        | `GET /api/memory/scope-show`                                              | `compozy__memory_scope_show`                                    |
+| Daily logs         | `compozy memory daily ls`                                          | `GET /api/memory/daily`                                                   | `compozy__memory_daily_list`                                    |
+| Extractor status   | `compozy memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | `compozy__memory_extractor_status`                              |
+| Extractor failures | `compozy memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | `compozy__memory_extractor_failures`                            |
+| Extractor replay   | `compozy memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | `compozy__memory_extractor_retry`                               |
+| Extractor drain    | `compozy memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | `compozy__memory_extractor_drain`                               |
+| Provider list      | `compozy memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | `compozy__memory_provider_list`, `compozy__memory_provider_get` |
+| Provider select    | n/a                                                                | `POST /api/memory/providers/select`                                       | `compozy__memory_provider_select`                               |
+| Provider enable    | `compozy memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | `compozy__memory_provider_enable`                               |
+| Provider disable   | `compozy memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | `compozy__memory_provider_disable`                              |
+| Session ledger     | n/a                                                                | `GET /api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger`  | `compozy__memory_session_ledger`                                |
+| Session replay     | n/a                                                                | `POST /api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay` | `compozy__memory_session_replay`                                |
+| Session prune      | n/a                                                                | `POST /api/memory/sessions/prune`                                         | `compozy__memory_sessions_prune`                                |
+| Session repair     | n/a                                                                | `POST /api/memory/sessions/repair`                                        | `compozy__memory_sessions_repair`                               |
+
+Entry writes from agents still route through `compozy__memory_propose` and `compozy__memory_note`; both go
+through the controller. The operational tools live in the separate `compozy__memory_admin` toolset and
+mirror the daemon CLI/API surfaces. There is no `compozy__memory_read`, no `compozy__memory_history`, no raw
+`compozy__memory_write`, no raw `compozy__memory_edit`, no raw `compozy__memory_delete`, no `compozy memory read`,
+and no `compozy memory consolidate` in this slice — the renamed verbs above own the same intent.
+
+CLI verbs accept `-o json` and `-o jsonl` for structured output. Errors are deterministic
+`{code, message, details}` payloads with stable codes such as `memory.scope.invalid`,
+`memory.controller.timeout`, and `memory.provider.collision`.
+
+## MEMORY.md Indexes
+
+The per-scope `MEMORY.md` is the prompt-safe table of contents. `[memory.file] max_lines = 200` and
+`max_bytes = 25600` cap both a controller-authored document body and the index content included in
+the snapshot. Useful index entries are short and point to one file:
+
+```markdown
+- [Review Style](user_review-style.md) — User wants concise review findings with file references first.
+- [Runtime Docs Location](project_runtime-docs.md) — Runtime docs live under `packages/site/content/runtime/`.
+```
+
+| Behavior            | Current implementation                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Missing `MEMORY.md` | Compozy synthesizes an index from memory-file frontmatter for that scope and warns when an existing index is stale.                 |
+| Prompt limits       | Index injection is capped by `[memory.file] max_lines` and `max_bytes`.                                                             |
+| Write behavior      | Controller writes the file, updates the WAL, reindexes the catalog, and re-renders the scope index so new entries are discoverable. |
+| Delete behavior     | Deleting a memory file also removes index lines that link to that filename and emits `memory.write.committed` with op `delete`.     |
+| Full entry content  | Not injected. Agents fetch full entries on demand with `compozy memory show <filename>` or `compozy__memory_show`.                  |
+
+## Observability
+
+Every controller decision and recall outcome is observable.
+
+| Surface                                                 | Use it for                                                                                                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy memory health`                                 | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                                                     |
+| `compozy memory decisions list [--filename <file>]`     | The Slice 1 truthful audit log. Filename filtering happens before `--limit`, so one file's recent decisions are not displaced by newer decisions for another file.                      |
+| `compozy memory recall trace <session_id> <turn_seq>`   | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes.                                      |
+| `compozy memory extractor status`                       | Queue and useful-work diagnostics: queued/in-flight sessions, active provider sessions, backpressured sessions, coalesced/dropped turns, skipped empty turns, and failure count.        |
+| `GET /api/memory/health`                                | Same data as `compozy memory health` over HTTP/UDS.                                                                                                                                     |
+| `GET /api/memory/decisions[?filename=<file>]`           | Same data as `compozy memory decisions list` with redaction-safe payloads; `filename` is applied before `limit` (no `post_content`, `prior_content`, or raw LLM responses on the wire). |
+| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `compozy memory recall trace` over HTTP/UDS.                                                                                                                               |
+| `GET /api/memory/extractor/status`                      | Same extractor queue and useful-work diagnostics over HTTP/UDS.                                                                                                                         |
+
+`memory_events` rows have stable canonical op names (`memory.write.committed`,
+`memory.write.rejected`, `memory.recall.executed`, `memory.dream.run.promoted`,
+`memory.extractor.completed`, `memory.provider.collision`, etc.). They are queryable through the
+event store and feed `compozy memory health` and the web Memory inspector.
+
+Skipped empty extractor turns are recorded as `memory.extractor.dropped` with
+`metadata.reason = "empty_snapshot"` and redaction-safe counters only. Extractor completion events
+carry `candidate_count`, and controller write decisions remain under `memory.write.*`.
+
+`compozy memory history` returns the same audit material in the legacy summary shape as a thin
+compatibility view over `memory_events`. Use `compozy memory decisions list` when you need
+controller-level detail.
+
+## Basic Usage
+
+Write a global preference (operator-only):
+
+```bash
+compozy memory write \
+  --scope global \
+  --type user \
+  --name "Review Style" \
+  --description "User wants concise review findings with file references first" \
+  --content "Put blocking findings first. Cite file paths and symbols."
+```
+
+Write a workspace decision in the current workspace:
+
+```bash
+compozy memory write \
+  --scope workspace \
+  --type project \
+  --name "Runtime Docs Location" \
+  --description "Runtime docs live in the Fumadocs runtime collection" \
+  --content 'Runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.'
+```
+
+Write to a specific agent tier:
+
+```bash
+compozy memory write \
+  --scope agent \
+  --agent reviewer \
+  --agent-tier global \
+  --type feedback \
+  --name "Reviewer Tone" \
+  --description "Reviewer keeps findings short and actionable" \
+  --content "Lead with the blocker. Cite file:line. Keep lists tight."
+```
+
+List and show:
+
+```bash
+compozy memory list
+compozy memory list --scope workspace --type project --sort name --limit 50 -o json
+compozy memory show project_runtime-docs.md --scope workspace
+```
+
+Memory lists are counted cursor pages. Filtering and sorting happen before the page cut; JSON and
+native-tool results expose `page.total`, the normalized `page.limit`, `page.has_more`, and an opaque
+`page.next_cursor`. Reuse that cursor only with the same selector, type, and sort. The default page
+size is 50 and the maximum is 200. `_system/` entries remain excluded unless `include_system` is
+explicitly enabled.
+
+Search recall:
+
+```bash
+compozy memory search "review tone" --scope agent --agent reviewer --agent-tier global
+```
+
+Trigger a gated dreaming pass:
+
+```bash
+compozy memory dream trigger
+```
+
+## Related Pages
+
+- [Scopes](/docs/memory/scopes) explains scope selection, agent-tier rules, and shadowing.
+- [Dream](/docs/memory/dream) explains gates, signals, and what `dream trigger` actually changes.
+- [Memory Best Practices](/docs/memory/best-practices) gives concrete writing and hygiene guidance.
+- [Memory CLI Reference](/docs/cli/memory) lists every generated memory command.

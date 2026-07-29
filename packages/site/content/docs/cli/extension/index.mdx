@@ -1,0 +1,53 @@
+---
+title: "compozy extension"
+description: "Manage Compozy extensions"
+---
+
+## compozy extension
+
+Manage Compozy extensions
+
+### Options
+
+```
+  -h, --help   help for extension
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                     | Description                                                     |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [compozy extension build](/docs/cli/extension/build)           | Build source into an immutable extension bundle                 |
+| [compozy extension commands](/docs/cli/extension/commands)     | List active extension-contributed commands                      |
+| [compozy extension dev](/docs/cli/extension/dev)               | Build and link an extension to the current workspace            |
+| [compozy extension disable](/docs/cli/extension/disable)       | Disable an installed extension                                  |
+| [compozy extension enable](/docs/cli/extension/enable)         | Enable an installed extension                                   |
+| [compozy extension exec](/docs/cli/extension/exec)             | Invoke an extension command through daemon tool policy          |
+| [compozy extension init](/docs/cli/extension/init)             | Create an extension project from an embedded template           |
+| [compozy extension install](/docs/cli/extension/install)       | Install an extension from curated, GitHub, git, or a local path |
+| [compozy extension list](/docs/cli/extension/list)             | List installed extensions                                       |
+| [compozy extension logs](/docs/cli/extension/logs)             | Read redacted logs for one extension instance                   |
+| [compozy extension provenance](/docs/cli/extension/provenance) | Show extension provenance and trust report                      |
+| [compozy extension publish](/docs/cli/extension/publish)       | Publish an immutable extension generation to GitHub Releases    |
+| [compozy extension reload](/docs/cli/extension/reload)         | Build and atomically reload a dev-linked extension              |
+| [compozy extension remove](/docs/cli/extension/remove)         | Remove an installed extension from disk and the registry        |
+| [compozy extension search](/docs/cli/extension/search)         | Search curated and GitHub extensions                            |
+| [compozy extension status](/docs/cli/extension/status)         | Show extension runtime status                                   |
+| [compozy extension update](/docs/cli/extension/update)         | Check for or install extension updates                          |
+| [compozy extension validate](/docs/cli/extension/validate)     | Validate an extension bundle without running its code           |

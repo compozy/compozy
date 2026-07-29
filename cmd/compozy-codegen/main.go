@@ -29,7 +29,7 @@ const usage = "usage: compozy-codegen " +
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 const defaultLoopEnumsPath = "web/src/generated/loop-enums.ts"
-const defaultLifecycleMatrixPath = "packages/site/content/runtime/core/configuration/lifecycle-matrix.mdx"
+const defaultLifecycleMatrixPath = "packages/site/content/docs/configuration/lifecycle-matrix.mdx"
 const defaultNativeToolCatalogPath = "internal/tools/builtin/testdata/native-tool-catalog.json"
 
 var ErrStaleGeneratedFile = errors.New("generated file is stale")

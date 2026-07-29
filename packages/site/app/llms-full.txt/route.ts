@@ -1,10 +1,10 @@
 import { getLLMText } from "@/lib/get-llm-text";
-import { protocolDocs, runtimeDocs } from "@/lib/source";
+import { docsSource } from "@/lib/source";
 
 export const dynamic = "force-static";
 export const revalidate = false;
 
-const PAGES = [...runtimeDocs.getPages(), ...protocolDocs.getPages()];
+const PAGES = docsSource.getPages();
 
 export async function GET() {
   const sections = await Promise.all(PAGES.map(page => getLLMText(page)));

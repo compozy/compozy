@@ -8,9 +8,9 @@ export const siteConfig = {
   repoBranch: "main",
 } as const;
 
-export function docsSourceUrl(tree: "runtime" | "protocol", relativePath: string): string {
+export function docsSourceUrl(relativePath: string): string {
   const branch = siteConfig.repoBranch;
-  return `${siteConfig.repoUrl}/blob/${branch}/packages/site/content/${tree}/${relativePath}`;
+  return `${siteConfig.repoUrl}/blob/${branch}/packages/site/content/docs/${relativePath}`;
 }
 
 export function absoluteUrl(path = "/") {
@@ -31,7 +31,7 @@ function resolveOGImagePath(path: string): string {
   const trimmed = path.replace(/^\//, "").replace(/\/$/, "");
   if (!trimmed) return "/opengraph-image";
   const [head] = trimmed.split("/");
-  if (head === "runtime" || head === "protocol" || head === "blog") {
+  if (head === "docs" || head === "blog") {
     return `/og/${trimmed}/image.png`;
   }
   return "/opengraph-image";

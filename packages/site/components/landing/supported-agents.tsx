@@ -124,7 +124,7 @@ export function SupportedAgents() {
             coordinate through Compozy Network.
           </p>
           <Link
-            href="/runtime/core/agents/providers"
+            href="/docs/agents/providers"
             className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted transition-colors hover:text-accent"
           >
             Read more about providers

@@ -1,0 +1,307 @@
+---
+title: compozy.loop/v1 DSL
+description: The Loop definition schema — declared inputs, the contract, node classes and kinds, the gate contract, and start bindings.
+---
+
+{/* Design reference: docs/design/opendesign/loop-detail.html — LOOPS-DESIGN-SPEC §4.2 (the detail screen renders this definition). Daemon truth wins on divergence (ADR-017 §9). */}
+
+A Loop definition is a **data-first, serializable** document — `compozy.loop/v1` YAML on disk, never a
+program of inline functions. The daemon compiles it to a resolved form that the coordinator and
+executors consume; authors and agents read and write the YAML. This page is the schema reference.
+For the `{{ }}` and CEL grammar used inside fields, see the
+[reference grammar](/docs/loops/reference-grammar).
+
+## Top-level shape
+
+```yaml
+apiVersion: compozy.loop/v1 # required — the only accepted value
+kind: Loop # required
+meta: { name, description, version, catalog }
+concurrency: forbid # forbid (default) | allow | queue
+inputs: {} # declared typed inputs
+contract: {} # goal, verification, stop model, terminal outcomes
+graph: { nodes: [], edges: [] } # the body DAG
+start: [] # how a run may be started
+```
+
+| Field         | Required | Notes                                                                                                                 |
+| ------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `apiVersion`  | yes      | Must be `compozy.loop/v1`.                                                                                            |
+| `kind`        | yes      | Must be `Loop`.                                                                                                       |
+| `meta`        | yes      | `name`, `description`, `catalog`; `version` is daemon-owned and monotonic.                                            |
+| `concurrency` | no       | `forbid` (default) rejects a second same-Loop start; `allow` runs in parallel; `queue` defers to a FIFO `queued` run. |
+| `inputs`      | no       | Map of declared inputs.                                                                                               |
+| `contract`    | yes      | The goal → verify → stop contract.                                                                                    |
+| `graph`       | yes      | `nodes` + `edges`.                                                                                                    |
+| `start`       | no       | Start bindings; defaults to manual only.                                                                              |
+
+`meta.catalog` carries the browsable metadata: `use_when`, `keywords`, and `category`.
+
+## Declared inputs
+
+Each input names a type; a caller supplies values at run time.
+
+```yaml
+inputs:
+  slug: { type: string, required: true }
+  implementer: { type: agent, default: code_implementer }
+  verify_command: { type: string, default: "" }
+  auto_commit: { type: boolean, default: false }
+  spec: { type: ref, ref: { kind: skill } }
+```
+
+| Type      | Accepts                  | Notes                                                             |
+| --------- | ------------------------ | ----------------------------------------------------------------- |
+| `string`  | text                     |                                                                   |
+| `number`  | int or float             |                                                                   |
+| `boolean` | bool                     |                                                                   |
+| `file`    | a file path (string)     |                                                                   |
+| `agent`   | an agent name (string)   | Web picker uses the agent list.                                   |
+| `ref`     | a resource name (string) | `ref.kind` names the resource kind; picker uses that kind's list. |
+
+Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
+`ref` (for `type: ref`). Values are type-checked at run start.
+
+## The contract
+
+```yaml
+contract:
+  goal: "Ship the tasks under {{ .inputs.slug }} and verify them."
+  definition_of_done: "All tasks pass their gates and the project's checks are green."
+  constraints: [] # optional guardrail statements
+  boundaries: [] # optional scope statements
+  stop_when: "" # optional CEL terminal condition
+  verification: # gate criteria that decide "done"
+    - { id: checks, type: command, check: "{{ .inputs.verify_command }}", expect: exit_zero }
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+  iteration_cap: 50 # 0 = unbounded (watch Loops)
+  no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
+  runtime_defaults:
+    worker: { provider: codex, model: gpt-5.4, reasoning: high }
+    judge: { provider: claude, model: opus }
+  runtime_rules:
+    - match: { type: frontend }
+      runtime: { model: gpt-5.5-codex }
+```
+
+`verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
+model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
+[guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed six outcomes.
+`runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
+Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
+the runtime fields it sets.
+
+## The body graph
+
+`graph.nodes` is a list of typed nodes; `graph.edges` are `{ from, to }` dependency edges. Edges
+are acyclic — the linter rejects a cycle. Node IDs match `^[a-z][a-z0-9_]*$` — lowercase and
+snake_case — which makes the same ID valid in both `{{ }}` and CEL without escaping.
+
+Every node shares an envelope — `id`, `class`, `kind` — plus optional `session`, `timeout`,
+`retry`, `harvest`, and `produces` (a JSON schema declaring the node's output so downstream
+`nodes.<id>.output.*` references validate).
+
+### Node classes
+
+| Class     | Openness | Kinds                                                        |
+| --------- | -------- | ------------------------------------------------------------ |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`           |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`       |
+
+### Action nodes
+
+Four action kinds are reserved; every other action `kind` is a literal **tool ID**
+(`compozy__*`, `ext__*`, or `mcp__*`) resolved through the runtime tool registry — so every native,
+extension, and MCP tool is a Loop action for free.
+
+| Kind        | Params                                                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `runtime?`, `allowed_tools?`, `max_turns?`                      |
+| `run-loop`  | `loop` (name), `inputs`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                  |
+| `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                          |
+| `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`; see the [Goal node reference](/docs/loops/goal-node) |
+| any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                  |
+
+A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
+`nodes.<id>.output.<field>` — the type-safe chaining pattern.
+`params.runtime` is a per-node `{ provider, model, reasoning }` layer. For an imported task item,
+fields resolve independently in this order: per-run rule, task frontmatter, configured rule,
+`params.runtime`, `runtime_defaults.worker`, then the agent definition. Rule specificity is
+`id > type > complexity`; a later rule wins at equal specificity. A child `run-loop` resolves its
+own rules and never inherits the parent's per-run rules.
+`run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
+permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
+canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
+rejects the node run deterministically before an ungated session can start.
+
+### Control nodes
+
+| Kind       | Purpose                                   | Key fields                                                                                    |
+| ---------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64) |
+| `collect`  | Join barrier — waits for fanned branches  | —                                                                                             |
+| `branch`   | Route on a CEL condition                  | `condition` (true/false edges)                                                                |
+| `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                    |
+| `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                   |
+
+`fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
+array slice above it.
+
+### Source nodes
+
+| Kind           | Purpose                                      | Key fields                                   |
+| -------------- | -------------------------------------------- | -------------------------------------------- |
+| `input`        | Expose a declared input to the graph         | `input_ref`                                  |
+| `file-import`  | Materialize a finite collection from files   | `pattern`, `parse: json \| text`, `produces` |
+| `watch-source` | Wait for an external signal, then tick       | `watch` (spec)                               |
+| `watch-events` | Wake on an internal Compozy event, then tick | `events` (subscription list)                 |
+
+A definition that contains a `watch-source` node is a **watch Loop** — it defaults to
+`iteration_cap: 0` and holds the `watching` state between ticks.
+See [extending Loops](/docs/loops/extensions#watch-sources).
+
+### Watch-events source
+
+A `watch-events` node parks the Loop at zero cost and wakes it when an **internal Compozy event**
+commits — a task status transition, a task-run outcome, a loop terminal. It is the event-driven
+sibling of `watch-source`: `watch-source` polls an _external_ signal through an extension, while
+`watch-events` observes Compozy's own durable ledgers. Hook dispatch is only the doorbell; the matched
+batch is always re-derived from the append-only ledger at wake, so a subscription survives daemon
+downtime and dropped hooks.
+
+The node carries a typed `events` list. Each subscription names a supported hook `kind` and an
+optional `filter` — a [CEL](/docs/loops/reference-grammar) expression over `event`, `inputs`,
+and `nodes`. Multiple subscriptions OR together; an empty `filter` matches every event of that kind
+in the Loop's workspace.
+
+```yaml
+graph:
+  nodes:
+    - id: on_task_done
+      class: source
+      kind: watch-events
+      events:
+        - kind: task.status_changed
+          filter: "event.payload.to_status == 'completed'"
+        - kind: loop.terminal
+    - id: react
+      class: action
+      kind: run-agent
+      params:
+        { agent: "{{ .inputs.responder }}", prompt: "Handle {{ .nodes.on_task_done.output }}" }
+  edges:
+    - { from: on_task_done, to: react }
+```
+
+The matched batch lands at `nodes.<id>.output` for downstream nodes (fan out over it to process each
+event). A Loop with a `watch-events` node is a **watch Loop**: it defaults to `iteration_cap: 0`, holds
+`watching` between wakes, and — unlike `watch-source` — **never stalls on silence**. A quiet
+subscription is healthy dormancy, not a failure; the Loop parks indefinitely until an event matches.
+
+**Supported kinds.** `events[].kind` validates against the full hook catalog at publish; a
+kind outside the supported set fails lint (`watch_events_kind_unsupported`). Only **post-state
+observation** hooks are subscribable — sync-eligible `pre_*` hooks are rejected (you watch committed
+state, you do not intercept it).
+
+| Family        | Kinds                                                                                                                                                         | Replay ledger                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`                                                             | `task_events`                 |
+| `task.run`    | `task.run.completed`, `task.run.failed`                                                                                                                       | `task_events`                 |
+| `loop`        | `loop.terminal`, `loop.node.terminal`                                                                                                                         | `loop_run_events`             |
+| `automation`  | `automation.run.completed`, `automation.run.failed`                                                                                                           | `automation_runs`             |
+| `network`     | `network.message.persisted`, `network.thread.opened`, `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`, `network.work.closed` | `network_timeline_log`        |
+| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`                                                                    | `event_summaries`             |
+| `event`       | `event.post_record`                                                                                                                                           | `session_events:<session_id>` |
+
+`event.post_record` subscriptions must constrain `event.session_id` with equality; otherwise lint
+returns `watch_events_filter_too_broad`. Its output includes metadata such as `record_type`,
+`sequence`, `turn_id`, `agent_name`, and `session_id`; record content is never copied into the
+watch-events batch. The kind select and lint error text always name the registry-derived supported
+set, so the grammar never changes as families are added.
+
+The parked read-model — the active subscriptions, per-stream cursors, and last wake — is visible on the
+run detail (`compozy loop status --run-id <run-id> -o json`, HTTP/UDS, and the web run page) only
+while the Loop is dormant on events.
+
+## The gate contract
+
+A `gate` node (and the contract's `verification`) is a list of typed **criteria**. Each criterion
+is a typed object, never a bare string — push vague checks toward a `command` where you can.
+
+| Criterion `type` | Fields                                                   | Verdict source? |
+| ---------------- | -------------------------------------------------------- | --------------- |
+| `command`        | `check` (command), `expect` (e.g. `exit_zero`)           | no              |
+| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `runtime` | yes             |
+| `human`          | `prompt`                                                 | yes             |
+| `extension`      | `tool` (tool ID), `inputs`                               | no              |
+
+`verdict_policy` selects how the gate decides:
+
+- `revise_until_clean` — iterate until the criteria pass. **Requires at least one `agent-judge` or
+  `human` criterion** (a verdict source); the linter rejects it otherwise
+  (`verdict_policy_requires_judge`).
+- `fixed_passes` — a fixed number of passing runs, for command-only gates.
+
+An `agent-judge` verdict emits **blocking issues** — `{ id, note }` objects. The `id` set is
+load-bearing: the [stall signature](/docs/loops/guardrails#the-two-no-progress-axes)
+compares the repeated set across the no-progress window. A malformed judge response degrades to a
+revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
+`error`, `timeout`, `invalid_output`) to a route; `max_revisions` caps the loop before the gate
+fails.
+An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
+only. Task runtime rules never apply to judges.
+
+## Runtime validation and provenance
+
+`compozy loop validate --workspace <ref> --file <path>` validates definition-contained runtime
+values. `compozy loop run --dry-run` and normal submission validate the effective runtime after
+workspace, stored, and per-run layers resolve; the daemon repeats the check immediately before
+binding. A failure returns structured `runtime_validation` items and starts no ACP process.
+
+Use repeatable `--runtime` flags for per-run defaults and rules. The expression is
+`provider/model@reasoning`; `-` leaves one field unset, and model IDs may contain additional
+slashes. Run detail exposes the final binder-applied `resolved_runtime` and each field's source
+through CLI, HTTP/UDS, native tools, SSE, and the read-only web run inspector.
+
+## Start bindings
+
+`start` lists the kinds that may launch a run. Declared kinds are a read-only allowlist; the
+[catalog](/docs/loops/catalog) and detail screens render them as chips.
+
+```yaml
+start:
+  - { kind: manual }
+  - { kind: cli }
+  - { kind: http }
+  - { kind: uds }
+  - { kind: native_tool }
+  - { kind: schedule } # hands-free starts via automation
+```
+
+Available kinds: `manual`, `cli`, `http`, `uds`, `native_tool`, `schedule`, `trigger`, `webhook`,
+`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride Compozy's existing
+[automation](/docs/automation) primitives — a `Trigger` or `Job` targets the Loop with
+typed inputs. A watch-source is a body-node concept, **never** a start binding.
+
+## Config defaults
+
+`[loops.defaults.<kind>]` in `config.toml` seeds new Loops of that kind (`delivery` or `watch`).
+These defaults are a `RestartRequired` config plane, separate from the per-Loop
+[configure](/docs/loops/configure) store.
+
+| Key                     | `delivery` | `watch` |
+| ----------------------- | ---------- | ------- |
+| `iteration_cap`         | 50         | 0       |
+| `no_progress.window`    | 3          | 2       |
+| `gates.max_revisions`   | 10         | —       |
+| `budget.tokens`         | 0          | 0       |
+| `budget.wall_clock_sec` | 0          | 0       |
+| `budget.on_exceeded`    | `halt`     | `halt`  |
+| `fan_out_width`         | 4          | 2       |
+
+Write-time validation rejects negatives and clamps each value to its daemon ceiling. The effective
+config a run uses is a four-layer merge — definition defaults ⊕ `[loops.defaults.*]` ⊕ the per-Loop
+config store ⊕ per-run overrides — with every layer clamped to ceilings. See
+[configure](/docs/loops/configure).

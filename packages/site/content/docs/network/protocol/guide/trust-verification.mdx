@@ -1,0 +1,340 @@
+---
+title: Optional Trust Verification Walkthrough (v1)
+description: Explore the optional RFC 004 v1 Ed25519 and JCS profile with an illustrative proof-only demo; CompozyOS does not currently implement this verifier.
+icon: ShieldCheck
+---
+
+This walkthrough shows how an independent implementation could add the optional RFC 004 v1 trust
+profile to a core `compozy-network/v0` envelope. It does not enable trust in CompozyOS.
+
+Normative details live in [Ed25519 + JCS](/docs/network/protocol/ed25519-jcs/) and
+[signature verification](/docs/network/protocol/verification/). The profile version is v1; the core wire contract
+in the example remains v0.
+
+## What you'll build
+
+The illustrative program demonstrates a small proof path that:
+
+- derives a `nickname@fingerprint` sender handle from an Ed25519 public key
+- adds v1 profile fields to a core v0 envelope shape
+- canonicalizes the envelope with `proof.sig` omitted
+- signs and verifies the canonical bytes
+- detects tampering in that proof-only demonstration
+
+<OperatorNote label="Not a CompozyOS fixture">
+  The CompozyOS runtime validates v0 envelopes and preserves `proof` as opaque JSON. It does not
+  sign, canonicalize, or verify Ed25519 + JCS proofs. The code below is not a conformance fixture
+  and does not call the CompozyOS core validator.
+</OperatorNote>
+
+## Place trust after core validation
+
+An implementation claiming this profile must run trust evaluation after core envelope validation
+and freshness checks, but before normal routing or extension handling.
+
+<Mermaid
+  chart={`flowchart TD
+    Recv([Receive envelope]) --> Core[Validate core fields and body]
+    Core --> Fresh[Check expires_at or replay window]
+    Fresh --> Trust{Verify proof?}
+    Trust -->|verified| Route[Route envelope]
+    Trust -->|unverified| Policy[Apply unverified policy]
+    Trust -->|rejected| Stop[Stop normal routing]`}
+  caption="A failed baseline proof stops normal routing before the message can affect peer state."
+/>
+
+## Inspect a proof-only Go demonstration
+
+The program below signs a freshly timestamped, profile-shaped `say` object and checks its proof. It
+does not perform core validation or freshness validation. In particular, the current CompozyOS v0
+validator does not implement the profile's verified-handle grammar. Its compact canonicalizer
+supports only the JSON shapes used by this demo and is not a complete RFC 8785 implementation.
+Consequently, running it demonstrates Ed25519 byte flow and tamper detection only; it does not
+establish Core or Trust conformance.
+
+```go
+package main
+
+import (
+	"bytes"
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"log"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const profileID = "compozy-network.trust.ed25519-jcs/v1"
+
+var nicknamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
+
+func main() {
+	seed, err := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	if err != nil {
+		log.Fatal(err)
+	}
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+
+	envelope := map[string]any{
+		"protocol":     "compozy-network/v0",
+		"id":           "msg_trust_01",
+		"workspace_id": "ws_alpha",
+		"kind":         "say",
+		"channel":      "builders",
+		"surface":      "thread",
+		"thread_id":    "thread_trust_demo",
+		"direct_id":    nil,
+		"to":           nil,
+		"work_id":      nil,
+		"reply_to":     nil,
+		"trace_id":     "trace_trust_01",
+		"causation_id": nil,
+		"ts":           json.Number(strconv.FormatInt(time.Now().UTC().Unix(), 10)),
+		"expires_at":   nil,
+		"body": map[string]any{
+			"text": "Verified hello.",
+		},
+		"ext": map[string]any{},
+	}
+
+	if err := signEnvelope(envelope, "patch-worker", privateKey, publicKey); err != nil {
+		log.Fatalf("sign: %v", err)
+	}
+	if err := verifyProof(envelope); err != nil {
+		log.Fatalf("verify: %v", err)
+	}
+	fmt.Println("verified", envelope["from"])
+
+	envelope["channel"] = "ops"
+	if err := verifyProof(envelope); err == nil {
+		log.Fatal("tampered envelope verified")
+	}
+	fmt.Println("tamper rejected")
+}
+
+func signEnvelope(envelope map[string]any, nickname string, privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) error {
+	digest := sha256.Sum256(publicKey)
+	digestHex := hex.EncodeToString(digest[:])
+	envelope["from"] = nickname + "@" + digestHex[:32]
+	envelope["proof"] = map[string]any{
+		"profile": profileID,
+		"alg":     "Ed25519",
+		"key_id":  "sha256:" + digestHex,
+		"pubkey":  base64.RawURLEncoding.EncodeToString(publicKey),
+	}
+
+	canonical, err := canonicalJSON(envelope)
+	if err != nil {
+		return err
+	}
+	signature := ed25519.Sign(privateKey, canonical)
+	envelope["proof"].(map[string]any)["sig"] = base64.RawURLEncoding.EncodeToString(signature)
+	return nil
+}
+
+func verifyProof(envelope map[string]any) error {
+	proof, ok := envelope["proof"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("proof is required")
+	}
+	if proof["profile"] != profileID || proof["alg"] != "Ed25519" {
+		return fmt.Errorf("unsupported proof profile")
+	}
+
+	pubkeyText, ok := proof["pubkey"].(string)
+	if !ok {
+		return fmt.Errorf("proof.pubkey is required")
+	}
+	publicKey, err := base64.RawURLEncoding.DecodeString(pubkeyText)
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid proof.pubkey")
+	}
+
+	digest := sha256.Sum256(publicKey)
+	digestHex := hex.EncodeToString(digest[:])
+	if proof["key_id"] != "sha256:"+digestHex {
+		return fmt.Errorf("proof.key_id mismatch")
+	}
+
+	from, ok := envelope["from"].(string)
+	if !ok {
+		return fmt.Errorf("from is required")
+	}
+	nickname, fingerprint, ok := strings.Cut(from, "@")
+	if !ok || !nicknamePattern.MatchString(nickname) || fingerprint != digestHex[:32] {
+		return fmt.Errorf("from fingerprint mismatch")
+	}
+
+	sigText, ok := proof["sig"].(string)
+	if !ok {
+		return fmt.Errorf("proof.sig is required")
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(sigText)
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid proof.sig")
+	}
+
+	withoutSig := cloneMap(envelope)
+	delete(withoutSig["proof"].(map[string]any), "sig")
+	canonical, err := canonicalJSON(withoutSig)
+	if err != nil {
+		return err
+	}
+	if !ed25519.Verify(ed25519.PublicKey(publicKey), canonical, signature) {
+		return fmt.Errorf("signature verification failed")
+	}
+	return nil
+}
+
+func canonicalJSON(value any) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := writeCanonical(&buf, value); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func writeCanonical(buf *bytes.Buffer, value any) error {
+	switch typed := value.(type) {
+	case nil:
+		buf.WriteString("null")
+	case bool:
+		if typed {
+			buf.WriteString("true")
+		} else {
+			buf.WriteString("false")
+		}
+	case string:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return err
+		}
+		buf.Write(encoded)
+	case json.Number:
+		buf.WriteString(typed.String())
+	case int64:
+		buf.WriteString(strconv.FormatInt(typed, 10))
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		buf.WriteByte('{')
+		for index, key := range keys {
+			if index > 0 {
+				buf.WriteByte(',')
+			}
+			keyJSON, err := json.Marshal(key)
+			if err != nil {
+				return err
+			}
+			buf.Write(keyJSON)
+			buf.WriteByte(':')
+			if err := writeCanonical(buf, typed[key]); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte('}')
+	case []any:
+		buf.WriteByte('[')
+		for index, item := range typed {
+			if index > 0 {
+				buf.WriteByte(',')
+			}
+			if err := writeCanonical(buf, item); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte(']')
+	default:
+		return fmt.Errorf("unsupported JSON value %T", value)
+	}
+	return nil
+}
+
+func cloneMap(input map[string]any) map[string]any {
+	output := make(map[string]any, len(input))
+	for key, value := range input {
+		if nested, ok := value.(map[string]any); ok {
+			output[key] = cloneMap(nested)
+			continue
+		}
+		output[key] = value
+	}
+	return output
+}
+```
+
+Language-agnostic integration pseudocode:
+
+```text
+private_key = load_or_generate_ed25519_key()
+public_key = raw_public_key(private_key)
+digest = sha256(public_key)
+fingerprint = lower_hex(digest)[0:32]
+
+envelope.from = nickname + "@" + fingerprint
+envelope.proof = {
+  profile: "compozy-network.trust.ed25519-jcs/v1",
+  alg: "Ed25519",
+  key_id: "sha256:" + lower_hex(digest),
+  pubkey: base64url_no_padding(public_key)
+}
+
+signed_bytes = jcs_canonicalize(envelope)
+envelope.proof.sig = base64url_no_padding(ed25519_sign(private_key, signed_bytes))
+
+receiver:
+  core_validate(envelope)
+  freshness_validate(envelope)
+  require proof.profile and proof.alg
+  decode proof.pubkey and proof.sig
+  require proof.key_id matches sha256(pubkey)
+  require envelope.from fingerprint matches sha256(pubkey)[0:32]
+  clone envelope and remove only proof.sig
+  canonical_bytes = jcs_canonicalize(clone)
+  require ed25519_verify(pubkey, canonical_bytes, sig)
+```
+
+## Add local policy after verification
+
+The signature proves key possession for the `nickname@fingerprint` handle. It does not prove that
+the sender is allowed to act in your deployment.
+
+| Layer                 | Example decision                                  |
+| --------------------- | ------------------------------------------------- |
+| Baseline verification | Does the proof match the envelope and public key? |
+| Local key policy      | Is this key pinned, allowed, denied, or new?      |
+| Channel policy        | Can this verified peer send to this channel?      |
+| Message policy        | Can this peer send this `kind` with this body?    |
+
+Keep those layers separate. A `verified` envelope can still be rejected by local authorization.
+
+## Run the cryptographic demonstration
+
+Run the program:
+
+```bash
+go run ./trust-verification.go
+```
+
+Expected output:
+
+```text
+verified patch-worker@56475aa75463474c0285df5dbf2bcab7
+tamper rejected
+```
+
+This output proves only that the illustrative signer and proof checker agree and detect the shown
+mutation. Before claiming the optional profile, replace the compact canonicalizer with a complete
+RFC 8785 implementation, run the core and freshness validators first, and publish versioned positive
+and negative vectors as described in the [testing guide](/docs/network/protocol/guide/testing/).

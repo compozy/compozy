@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/runtime/core/loops/catalog",
+  usePathname: () => "/docs/loops/catalog",
 }));
 
 vi.mock("fumadocs-ui/contexts/tree", () => ({
@@ -100,7 +100,7 @@ describe("sidebar compact tree", () => {
         item={{
           type: "page",
           name: "Loops",
-          url: "/runtime/core/loops",
+          url: "/docs/loops",
           icon: <span data-testid="page-icon" />,
         }}
       />
@@ -113,7 +113,7 @@ describe("sidebar compact tree", () => {
         item={{
           type: "page",
           name: "Catalog",
-          url: "/runtime/core/loops/catalog",
+          url: "/docs/loops/catalog",
           icon: <span data-testid="nested-icon" />,
         }}
       />
@@ -127,13 +127,13 @@ describe("sidebar compact tree", () => {
       <CompactFolder
         item={{
           type: "folder",
-          $id: "core/loops",
+          $id: "loops",
           name: "Loops",
           icon: <span data-testid="folder-icon" />,
           index: {
             type: "page",
             name: "Loops",
-            url: "/runtime/core/loops",
+            url: "/docs/loops",
           },
           children: [],
         }}
@@ -153,7 +153,7 @@ describe("sidebar compact tree", () => {
         item={{
           type: "page",
           name: longName,
-          url: "/runtime/core/network/channels-and-peers",
+          url: "/docs/network/channels-and-peers",
         }}
       />
     );
@@ -170,12 +170,12 @@ describe("sidebar compact tree", () => {
       <CompactFolder
         item={{
           type: "folder",
-          $id: "core/network/delivery",
+          $id: "network/delivery",
           name: longName,
           index: {
             type: "page",
             name: longName,
-            url: "/runtime/core/network/delivery-and-safety",
+            url: "/docs/network/delivery-and-safety",
           },
           children: [],
         }}

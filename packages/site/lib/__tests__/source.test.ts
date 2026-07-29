@@ -3,11 +3,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Folder, Node, Root } from "fumadocs-core/page-tree";
 import { loader, type MetaData, type VirtualFile } from "fumadocs-core/source";
-import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
 import { describe, expect, it } from "vitest";
+import rootMeta from "../../content/docs/meta.json";
 import { DOCS_ICONS } from "../docs-icons";
+import { assertDocsTreeComplete, DOCS_GROUP_BY_FOLDER, docsGroupForUrl } from "../docs-navigation";
 import { overviewPageTransformer } from "../docs-overview-tree";
-import { createRuntimeLayoutTree } from "../runtime-navigation";
 
 function getNodeName(node: { name?: unknown }): string {
   return typeof node.name === "string" ? node.name : "";
@@ -17,235 +17,77 @@ function findFolder(children: Node[], id: string): Folder | undefined {
   return children.find((node): node is Folder => node.type === "folder" && node.$id === id);
 }
 
-const runtimePageTree: Root = {
-  name: "Runtime",
-  children: [
-    {
-      type: "page",
-      $id: "index.mdx",
-      name: "Runtime Overview",
-      url: "/runtime",
-    },
-    {
-      type: "page",
-      $id: "how-to-use-these-docs.mdx",
-      name: "How to Use These Docs",
-      url: "/runtime/how-to-use-these-docs",
-    },
-    {
-      type: "folder",
-      $id: "core",
-      name: "Core Concepts",
-      root: true,
-      children: [
-        {
-          type: "page",
-          $id: "core/index.mdx",
-          name: "Index",
-          url: "/runtime/core",
-        },
-        { type: "folder", $id: "core/getting-started", name: "Getting Started", children: [] },
-        { type: "folder", $id: "core/sessions", name: "Sessions", children: [] },
-        { type: "folder", $id: "core/agents", name: "Agents", children: [] },
-        { type: "folder", $id: "core/network", name: "Network", children: [] },
-        { type: "folder", $id: "core/autonomy", name: "Autonomy", children: [] },
-        { type: "folder", $id: "core/memory", name: "Memory", children: [] },
-        { type: "folder", $id: "core/resources", name: "Resources", children: [] },
-        { type: "folder", $id: "core/tools", name: "Tools", children: [] },
-        { type: "folder", $id: "core/skills", name: "Skills", children: [] },
-        { type: "folder", $id: "core/sandbox", name: "Sandbox", children: [] },
-        { type: "folder", $id: "core/workspaces", name: "Workspaces", children: [] },
-        { type: "folder", $id: "core/automation", name: "Automation", children: [] },
-        { type: "folder", $id: "core/bridges", name: "Bridges", children: [] },
-        { type: "folder", $id: "core/hooks", name: "Hooks", children: [] },
-        { type: "folder", $id: "core/extensions", name: "Extensions", children: [] },
-        { type: "folder", $id: "core/operations", name: "Operations", children: [] },
-        { type: "folder", $id: "core/configuration", name: "Configuration", children: [] },
-      ],
-    },
-    {
-      type: "folder",
-      $id: "guides",
-      name: "Guides",
-      children: [
-        {
-          type: "page",
-          $id: "guides/index.mdx",
-          name: "Guides Index",
-          url: "/runtime/guides",
-        },
-        {
-          type: "page",
-          $id: "guides/debug.mdx",
-          name: "Debug a Failed Session",
-          url: "/runtime/guides/debug-a-failed-session",
-        },
-      ],
-    },
-    {
-      type: "folder",
-      $id: "use-cases",
-      name: "Use Cases",
-      children: [
-        {
-          type: "page",
-          $id: "use-cases/index.mdx",
-          name: "Use Cases Index",
-          url: "/runtime/use-cases",
-        },
-        {
-          type: "page",
-          $id: "use-cases/review.mdx",
-          name: "Review a Change",
-          url: "/runtime/use-cases/review-a-change",
-        },
-      ],
-    },
-    {
-      type: "folder",
-      $id: "migration",
-      name: "Migration",
-      children: [
-        {
-          type: "page",
-          $id: "migration/index.mdx",
-          name: "Migrate from v0.2",
-          url: "/runtime/migration",
-        },
-      ],
-    },
-    {
-      type: "folder",
-      $id: "cli-reference",
-      name: "CLI Reference",
-      root: true,
-      children: [
-        {
-          type: "page",
-          $id: "cli-reference/index.mdx",
-          name: "Index",
-          url: "/runtime/cli-reference",
-        },
-        {
-          type: "page",
-          $id: "cli-reference/compozy.mdx",
-          name: "Compozy",
-          url: "/runtime/cli-reference/compozy",
-        },
-      ],
-    },
-    {
-      type: "folder",
-      $id: "api-reference",
-      name: "API Reference",
-      root: true,
-      children: [
-        {
-          type: "page",
-          $id: "api-reference/index.mdx",
-          name: "Index",
-          url: "/runtime/api-reference",
-        },
-      ],
-    },
-  ],
-};
+function treeFromIds(folderIds: string[], pageUrls: string[]): Root {
+  return {
+    name: "Docs",
+    children: [
+      ...pageUrls.map(url => ({
+        type: "page" as const,
+        $id: `${url}.mdx`,
+        name: url,
+        url,
+      })),
+      ...folderIds.map(id => ({
+        type: "folder" as const,
+        $id: id,
+        name: id,
+        children: [],
+      })),
+    ],
+  };
+}
 
-describe("runtime navigation tree", () => {
-  it("Should produce a single unified core sidebar with Overview, How to Use, and grouped sections", () => {
-    const layoutTree = createRuntimeLayoutTree(runtimePageTree);
-    const core = findFolder(layoutTree.children, "core");
+const ROOT_FOLDER_IDS = rootMeta.pages.filter(id => !id.startsWith("---") && id !== "index");
 
-    expect(core).toBeDefined();
-    if (!core) throw new Error("expected unified core folder");
-    expect(core.root).toBe(true);
-    expect(getNodeName(core)).toBe("CompozyOS");
+describe("docs tree completeness", () => {
+  it("Should accept a tree where every root meta id resolves to a folder or page", () => {
+    const pages = ["/docs", "/docs/how-to-use-these-docs"];
+    const folders = ROOT_FOLDER_IDS.filter(id => id !== "how-to-use-these-docs");
+    expect(() => assertDocsTreeComplete(treeFromIds(folders, pages))).not.toThrow();
+  });
 
-    const ids = core.children.map(child => child.$id ?? getNodeName(child));
-    expect(ids[0]).toBe("runtime-overview");
-    expect(ids[1]).toBe("how-to-use-these-docs.mdx");
-    expect(ids[2]).toBe("core/getting-started");
+  it("Should fail the build when a listed folder is missing from the tree", () => {
+    const pages = ["/docs", "/docs/how-to-use-these-docs"];
+    const folders = ROOT_FOLDER_IDS.filter(id => id !== "how-to-use-these-docs" && id !== "loops");
+    expect(() => assertDocsTreeComplete(treeFromIds(folders, pages))).toThrow(/loops/);
+  });
+});
 
-    const sectionLabels = core.children
-      .filter(child => child.type === "separator")
-      .map(child => getNodeName(child));
-    expect(sectionLabels).toEqual([
-      "System foundations",
-      "Tools & automation",
-      "Workspace & isolation",
-      "Operations & settings",
-      "Guides & scenarios",
+describe("docs sidebar groups (D14)", () => {
+  it("Should declare the eight journey-ordered groups in the root meta", () => {
+    const groupLabels = rootMeta.pages
+      .filter(id => id.startsWith("---") && id.endsWith("---"))
+      .map(id => id.slice(3, -3));
+    expect(groupLabels).toEqual([
+      "Start here",
+      "Guides & examples",
+      "Core concepts",
+      "Automation",
+      "Compozy Network",
+      "Extensibility",
+      "Operations",
+      "Reference",
     ]);
   });
 
-  it("Should group runtime surfaces by reader intent", () => {
-    const layoutTree = createRuntimeLayoutTree(runtimePageTree);
-    const core = findFolder(layoutTree.children, "core");
-    if (!core) throw new Error("expected unified core folder");
-
-    const labelByChildId = new Map<string, string>();
-    let currentLabel = "";
-    for (const child of core.children) {
-      if (child.type === "separator") {
-        currentLabel = getNodeName(child);
-        continue;
-      }
-      if (child.$id) labelByChildId.set(child.$id, currentLabel);
-    }
-
-    expect(labelByChildId.get("core/automation")).toBe("Tools & automation");
-    expect(labelByChildId.get("core/bridges")).toBe("Tools & automation");
-    expect(labelByChildId.get("core/operations")).toBe("Operations & settings");
-    expect(labelByChildId.get("core/configuration")).toBe("Operations & settings");
-    expect(labelByChildId.get("core/extensions")).toBe("Operations & settings");
-    expect(labelByChildId.get("core/hooks")).toBe("Operations & settings");
+  it("Should map every top-level folder to its sidebar group", () => {
+    expect(DOCS_GROUP_BY_FOLDER.get("getting-started")).toBe("Start here");
+    expect(DOCS_GROUP_BY_FOLDER.get("guides")).toBe("Guides & examples");
+    expect(DOCS_GROUP_BY_FOLDER.get("sessions")).toBe("Core concepts");
+    expect(DOCS_GROUP_BY_FOLDER.get("loops")).toBe("Automation");
+    expect(DOCS_GROUP_BY_FOLDER.get("network")).toBe("Compozy Network");
+    expect(DOCS_GROUP_BY_FOLDER.get("marketplace")).toBe("Extensibility");
+    expect(DOCS_GROUP_BY_FOLDER.get("configuration")).toBe("Operations");
+    expect(DOCS_GROUP_BY_FOLDER.get("cli")).toBe("Reference");
+    expect(DOCS_GROUP_BY_FOLDER.get("api")).toBe("Reference");
   });
 
-  it("Should nest guides and use-cases as collapsible folders under the Learn section", () => {
-    const layoutTree = createRuntimeLayoutTree(runtimePageTree);
-    const core = findFolder(layoutTree.children, "core");
-    if (!core) throw new Error("expected unified core folder");
-
-    const guides = findFolder(core.children, "guides");
-    const useCases = findFolder(core.children, "use-cases");
-    expect(guides).toBeDefined();
-    expect(useCases).toBeDefined();
-    if (!guides || !useCases) throw new Error("expected nested learn folders");
-
-    const guideUrls = guides.children
-      .filter(child => child.type === "page")
-      .map(page => (page.type === "page" ? page.url : ""));
-    const useCaseUrls = useCases.children
-      .filter(child => child.type === "page")
-      .map(page => (page.type === "page" ? page.url : ""));
-
-    expect(guideUrls).toContain("/runtime/guides/debug-a-failed-session");
-    expect(useCaseUrls).toContain("/runtime/use-cases/review-a-change");
-  });
-
-  it("Should retain migration while nesting guides and use cases", () => {
-    const layoutTree = createRuntimeLayoutTree(runtimePageTree);
-    const outerIds = layoutTree.children
-      .filter(child => child.type === "folder")
-      .map(folder => folder.$id);
-
-    expect(outerIds).toEqual(["core", "migration", "cli-reference", "api-reference"]);
-    const migration = findFolder(layoutTree.children, "migration");
-    expect(
-      migration?.children.some(child => child.type === "page" && child.url === "/runtime/migration")
-    ).toBe(true);
-  });
-
-  it("Should route the CompozyOS tab to /runtime instead of /runtime/core", () => {
-    const layoutTree = createRuntimeLayoutTree(runtimePageTree);
-    const tabs = getLayoutTabs(layoutTree);
-    const tabUrls = tabs.map(tab => tab.url);
-    expect(tabUrls).toContain("/runtime");
-    expect(tabUrls).toContain("/runtime/cli-reference");
-    expect(tabUrls).toContain("/runtime/api-reference");
-    expect(tabUrls).not.toContain("/runtime/core");
-    expect(tabUrls).not.toContain("/runtime/guides");
-    expect(tabUrls).not.toContain("/runtime/use-cases");
+  it("Should resolve page URLs to their sidebar group with Docs as the ungrouped fallback", () => {
+    expect(docsGroupForUrl("/docs")).toBe("Docs");
+    expect(docsGroupForUrl("/docs/how-to-use-these-docs")).toBe("Docs");
+    expect(docsGroupForUrl("/docs/sessions/lifecycle")).toBe("Core concepts");
+    expect(docsGroupForUrl("/docs/network/protocol/envelope")).toBe("Compozy Network");
+    expect(docsGroupForUrl("/docs/cli/session")).toBe("Reference");
   });
 });
 
@@ -260,7 +102,7 @@ function meta(path: string, data: MetaData): VirtualFile {
 function buildCategoryTree(files: VirtualFile[]): Root {
   return loader(
     { files },
-    { baseUrl: "/runtime", pageTree: { transformers: [overviewPageTransformer()] } }
+    { baseUrl: "/docs", pageTree: { transformers: [overviewPageTransformer()] } }
   ).pageTree;
 }
 
@@ -271,9 +113,9 @@ function childNames(folder: Folder): string[] {
 describe("docs category overview", () => {
   it("Should expose the landing page as an Overview child when meta omits index", () => {
     const tree = buildCategoryTree([
-      meta("network/meta.json", { title: "Network", pages: ["protocol", "threads"] }),
+      meta("network/meta.json", { title: "Network", pages: ["protocol-model", "threads"] }),
       page("network/index.mdx", "Network Overview", ["network"]),
-      page("network/protocol.mdx", "Protocol Model", ["network", "protocol"]),
+      page("network/protocol-model.mdx", "Protocol Model", ["network", "protocol-model"]),
       page("network/threads.mdx", "Public Threads", ["network", "threads"]),
     ]);
 
@@ -283,7 +125,7 @@ describe("docs category overview", () => {
     expect(network.index).toBeUndefined();
     expect(childNames(network)).toEqual(["Overview", "Protocol Model", "Public Threads"]);
     const overview = network.children[0];
-    expect(overview.type === "page" ? overview.url : "").toBe("/runtime/network");
+    expect(overview.type === "page" ? overview.url : "").toBe("/docs/network");
   });
 
   it("Should relabel and hoist the landing page when meta already lists index", () => {
@@ -346,11 +188,9 @@ function collectReferencedIcons(dir: string, found: Map<string, string>): void {
 }
 
 describe("docs icon registry", () => {
-  it("Should resolve every icon referenced by runtime and protocol content", () => {
+  it("Should resolve every icon referenced by docs content", () => {
     const found = new Map<string, string>();
-    for (const tree of ["runtime", "protocol"]) {
-      collectReferencedIcons(join(CONTENT_ROOT, tree), found);
-    }
+    collectReferencedIcons(join(CONTENT_ROOT, "docs"), found);
     expect(found.size).toBeGreaterThan(0);
 
     const unresolved = [...found.entries()]

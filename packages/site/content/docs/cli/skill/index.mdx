@@ -1,0 +1,47 @@
+---
+title: "compozy skill"
+description: "Manage local AgentSkills"
+---
+
+## compozy skill
+
+Manage local AgentSkills
+
+### Options
+
+```
+  -h, --help   help for skill
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                          | Description                                         |
+| ------------------------------------------------ | --------------------------------------------------- |
+| [compozy skill create](/docs/cli/skill/create)   | Scaffold a new workspace skill                      |
+| [compozy skill disable](/docs/cli/skill/disable) | Disable a daemon-managed skill                      |
+| [compozy skill enable](/docs/cli/skill/enable)   | Enable a daemon-managed skill                       |
+| [compozy skill info](/docs/cli/skill/info)       | Show one Marketplace skill entry                    |
+| [compozy skill inspect](/docs/cli/skill/inspect) | Inspect installed skill metadata and resources      |
+| [compozy skill install](/docs/cli/skill/install) | Install a marketplace skill                         |
+| [compozy skill list](/docs/cli/skill/list)       | List locally available skills                       |
+| [compozy skill remove](/docs/cli/skill/remove)   | Remove an installed marketplace skill               |
+| [compozy skill search](/docs/cli/skill/search)   | Search marketplace skills                           |
+| [compozy skill update](/docs/cli/skill/update)   | Check for or install updates for marketplace skills |
+| [compozy skill view](/docs/cli/skill/view)       | Read a skill or one of its resource files           |
+| [compozy skill where](/docs/cli/skill/where)     | Show every path participating in skill resolution   |

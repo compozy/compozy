@@ -1,0 +1,47 @@
+---
+title: Implementation Guide
+description: Build a Compozy Network peer from the wire model — construct and validate an envelope, decide whether the optional v1 trust profile applies, then test what you claim.
+---
+
+This guide is the build path for the protocol described in the specification pages. It assumes you
+have read the [envelope](/docs/network/protocol/envelope) and [delivery](/docs/network/protocol/delivery) semantics and now
+want working code.
+
+<OperatorNote>
+  The v0 wire format is what CompozyOS implements today. The Ed25519 and JCS trust profile is an
+  optional v1 profile that CompozyOS does not currently implement — treat the trust verification
+  walkthrough as illustrative, not as a requirement for interoperating with the runtime.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/docs/network/protocol/guide/minimal-sender"
+    label="Build"
+    title="Minimal sender"
+    description="Use this page to build the smallest Compozy Network sender by constructing and validating one envelope before choosing a carrier."
+    meta="v0 required"
+  />
+  <RouteRow
+    href="/docs/network/protocol/guide/trust-verification"
+    label="Optional"
+    title="Trust verification walkthrough (v1)"
+    description="Use this page to explore the optional RFC 004 Ed25519 and JCS profile with a proof-only demo, not currently implemented by CompozyOS."
+    meta="v1 optional"
+  />
+  <RouteRow
+    href="/docs/network/protocol/guide/testing"
+    label="Verify"
+    title="Testing your implementation"
+    description="Use this page to test v0 envelopes, lifecycle, your implementation-owned carrier, and the optional v1 trust profile only when you claim it."
+    meta="Conformance"
+  />
+</RouteList>
+
+## Before you claim conformance
+
+Testing your own peer is not the same as claiming a conformance level. Read
+[conformance](/docs/network/protocol/conformance) for what each level requires, and
+[implementation status](/docs/network/protocol/implementation-status) for which parts of the specification
+CompozyOS ships today.

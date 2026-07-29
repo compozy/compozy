@@ -6,21 +6,21 @@ import { describe, expect, it } from "vitest";
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 
-const publicProtocolDocs = listMDXDocs(resolve(siteRoot, "content/protocol"));
+const publicProtocolDocs = listMDXDocs(resolve(siteRoot, "content/docs/network/protocol"));
 const currentProtocolContractDocs = [
-  "packages/site/content/protocol/delivery.mdx",
-  "packages/site/content/protocol/ed25519-jcs.mdx",
-  "packages/site/content/protocol/envelope.mdx",
-  "packages/site/content/protocol/examples.mdx",
-  "packages/site/content/protocol/implementation-status.mdx",
-  "packages/site/content/protocol/interactions.mdx",
-  "packages/site/content/protocol/overview.mdx",
+  "packages/site/content/docs/network/protocol/delivery.mdx",
+  "packages/site/content/docs/network/protocol/ed25519-jcs.mdx",
+  "packages/site/content/docs/network/protocol/envelope.mdx",
+  "packages/site/content/docs/network/protocol/examples.mdx",
+  "packages/site/content/docs/network/protocol/implementation-status.mdx",
+  "packages/site/content/docs/network/protocol/interactions.mdx",
+  "packages/site/content/docs/network/protocol/overview.mdx",
 ] as const;
 const protocolEnvelopeDocs = [
-  "packages/site/content/protocol/ed25519-jcs.mdx",
-  "packages/site/content/protocol/envelope.mdx",
-  "packages/site/content/protocol/examples.mdx",
-  "packages/site/content/protocol/message-kinds.mdx",
+  "packages/site/content/docs/network/protocol/ed25519-jcs.mdx",
+  "packages/site/content/docs/network/protocol/envelope.mdx",
+  "packages/site/content/docs/network/protocol/examples.mdx",
+  "packages/site/content/docs/network/protocol/message-kinds.mdx",
 ] as const;
 
 function listMDXDocs(dir: string): string[] {
@@ -36,8 +36,8 @@ function listMDXDocs(dir: string): string[] {
 
 const workspaceQualifiedProtocolDocs = [
   ...publicProtocolDocs,
-  ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
-  "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
+  ...listMDXDocs(resolve(siteRoot, "content/docs/network")),
+  "packages/site/content/docs/guides/coordinate-agents-over-network.mdx",
   "docs/_memory/glossary.md",
 ];
 
@@ -167,7 +167,7 @@ describe("protocol hard cut", () => {
 
   it("keeps shipped docs truthful about current v0 and future v1 trust work", () => {
     const implementationStatus = readRepoFile(
-      "packages/site/content/protocol/implementation-status.mdx"
+      "packages/site/content/docs/network/protocol/implementation-status.mdx"
     );
     expect(implementationStatus).toContain(
       "The current CompozyOS reference implementation supports `compozy-network/v0`"
@@ -177,7 +177,9 @@ describe("protocol hard cut", () => {
       "Trust profile v1   | Not implemented; `proof` is opaque"
     );
 
-    const trustProfile = readRepoFile("packages/site/content/protocol/ed25519-jcs.mdx");
+    const trustProfile = readRepoFile(
+      "packages/site/content/docs/network/protocol/ed25519-jcs.mdx"
+    );
     expect(trustProfile).toContain("The optional RFC 004 v1 trust profile");
     expect(trustProfile).toContain("The envelope contract remains v0");
     expect(trustProfile).toContain(
@@ -296,7 +298,7 @@ describe("protocol hard cut", () => {
   });
 
   it("documents v1 signed fields and proves public examples carry them when present", () => {
-    const trustProfilePath = "packages/site/content/protocol/ed25519-jcs.mdx";
+    const trustProfilePath = "packages/site/content/docs/network/protocol/ed25519-jcs.mdx";
     const trustProfile = readRepoFile(trustProfilePath);
     expect(trustProfile).toContain(
       "conversation surface fields `surface`, `thread_id`, and `direct_id` when present"

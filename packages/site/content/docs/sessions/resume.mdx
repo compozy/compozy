@@ -1,0 +1,222 @@
+---
+title: Resume Attach and Replay
+description: How Compozy attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
+---
+
+Resume attach and replay are related, but they are not the same thing in Compozy.
+
+- **Resume attach** acquires a short-lived holder lease on an existing live session.
+- **Replay** reconstructs durable history from the stored event log.
+- **Recap** returns a bounded, deterministic snapshot for reorientation.
+
+<OperatorNote>
+  `compozy session resume` is an attach command. It does not start another provider subprocess, call
+  ACP `session/load`, or create a second session authority. CLI, HTTP, UDS, and web attach to the
+  same daemon-owned session record.
+</OperatorNote>
+
+## When resume attach is the right tool
+
+Use resume attach when an operator or agent needs to re-enter a session that is still live and
+eligible for an explicit holder:
+
+- after a browser refresh
+- after the CLI process exits while the daemon keeps running
+- after handing an active session from one control surface to another
+- after listing resumable sessions and choosing the same Compozy session ID
+
+Use a new session when you want a clean slate. Use history, repair, and recap when the session is
+already terminal and you need to understand what happened before deciding the next action.
+
+## Finding an attachable session
+
+The daemon computes attach eligibility from runtime truth and persists the result in the session
+payload. List only sessions that can be attached:
+
+```bash
+compozy session list --resumable
+compozy session list --resumable --workspace checkout-api
+```
+
+Session payloads include a canonical `badge` plus attach metadata:
+
+```json
+{
+  "id": "sess-1234",
+  "state": "active",
+  "badge": "idle",
+  "attachable": true,
+  "attached_to": "cli:pane-7",
+  "attach_expires_at": "2026-05-20T14:03:00Z"
+}
+```
+
+Badges are product contract, not UI decoration. Clients should render the daemon-provided badge
+instead of inferring status from local timers or transcript text.
+
+## Attaching from CLI and HTTP
+
+Attach by ID:
+
+```bash
+compozy session resume sess-1234
+```
+
+Attach the latest eligible session in a workspace:
+
+```bash
+compozy session resume --latest --workspace checkout-api
+```
+
+Attach over HTTP:
+
+```bash
+curl -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"attached_to":"cli:pane-7","ttl_seconds":900}' \
+  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/attach
+```
+
+The request body is optional. `attached_to` identifies the holder. `ttl_seconds` controls the lease
+duration: omitted, zero, and negative values use the 900-second default; positive values cannot
+exceed 86,400 seconds (24 hours). The response returns the session and the attach lease:
+
+```json
+{
+  "session": {
+    "id": "sess-1234",
+    "state": "active",
+    "badge": "idle",
+    "attachable": false,
+    "attached_to": "cli:pane-7",
+    "attach_expires_at": "2026-05-20T14:03:00Z"
+  },
+  "attach": {
+    "session_id": "sess-1234",
+    "attached_to": "cli:pane-7",
+    "attached_at": "2026-05-20T13:58:00Z",
+    "attach_expires_at": "2026-05-20T14:03:00Z"
+  }
+}
+```
+
+The daemon returns `400` when the JSON body is invalid or a positive TTL exceeds 24 hours. It returns
+`409` when the session is not attachable or another holder owns a live lease. A client should then
+show the recap or history instead of trying to restart the session locally.
+
+## Deterministic recap
+
+Recap is the bounded read path for reorientation. It is deterministic for the same stored event
+set, applies the transcript redaction rules, and reports what was omitted by the limit.
+
+```bash
+compozy session recap sess-1234 --limit 20
+```
+
+HTTP clients use the same daemon operation:
+
+```bash
+curl 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/recap?limit=20'
+```
+
+Example response shape:
+
+```json
+{
+  "recap": {
+    "session": { "id": "sess-1234", "badge": "idle", "state": "active" },
+    "recent_markers": [
+      {
+        "kind": "prompt_timeout",
+        "summary": "Prompt exceeded the configured timeout",
+        "occurred_at": "2026-05-20T13:56:00Z"
+      }
+    ],
+    "recent_messages": [],
+    "pending_markers": 0,
+    "pending_inputs": 0,
+    "snapshot": {
+      "generated_at": "2026-05-20T13:58:00Z",
+      "event_cursor": 42,
+      "transcript_cursor": 42,
+      "queue_generation": 7,
+      "consistency": "persisted_reads"
+    }
+  }
+}
+```
+
+Recap is useful before attaching, after an interrupted turn, and when agents need a compact state
+summary without parsing raw event rows.
+
+`snapshot.consistency` is a closed string. v1 returns `"persisted_reads"`, which means the recap
+was assembled from persisted event, marker, and input-queue read models with stable cursors. Compozy does
+not currently return `"read_snapshot"`.
+
+## Transcript markers
+
+Compozy emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
+session facts such as interrupts, prompt timeouts, unhealthy state, and MCP auth prompts. Markers
+are durable event rows and appear in recap output, logs, and web activity notices.
+
+Markers have a stable kind, severity, summary, timestamp, and optional diagnostic payload. The
+diagnostic payload is redacted before it leaves the daemon when it contains sensitive context.
+
+## Replay surfaces
+
+Compozy exposes these read paths for old work:
+
+| Surface                                                             | Use it for                               |
+| ------------------------------------------------------------------- | ---------------------------------------- |
+| `compozy session events`                                            | Raw persisted event rows.                |
+| `compozy session history`                                           | Turn-grouped operator history.           |
+| `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` | Canonical chat transcript entries.       |
+| `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`     | Live transcript snapshots and deltas.    |
+| `compozy session recap` / `GET .../recap`                           | Bounded redacted reorientation snapshot. |
+
+Transcript assembly is deterministic and event-driven:
+
+- events are sorted by sequence, timestamp, and ID
+- `agent_message` chunks are concatenated into assistant `content`
+- `thought` chunks are concatenated into assistant `thinking`
+- `tool_call` and `tool_result` are stitched together by `tool_call_id`
+- marker events are kept as marker records instead of being guessed from message text
+- empty text chunks are dropped
+- non-chat events such as `plan`, `system`, `done`, and `error` only flush in-progress assistant buffers
+
+The transcript API returns `entries`, not a bare `messages` array. Each entry carries the folded AI
+SDK UI message, a stable `start_sequence` for backward paging, and the latest `sequence` that shaped
+it. Use `next_before_sequence` as `before_sequence` while `has_older` is true; `limit` bounds every
+page. Forward changes come from the session stream, not from the page endpoint.
+
+Live clients should cache `epoch`, `generation`, and the applied stream cursor together. Reconnect
+with all three values. Matching fences produce bounded `transcript_delta` batches; a missing or stale
+fence produces an explicit reset snapshot. The stream rejects the old `replay` query.
+
+## Common cases and gotchas
+
+### Attach after a CLI exits
+
+This is the normal path. The daemon still owns the session, and the new surface obtains a holder
+lease on the same Compozy session ID.
+
+### Attach after a terminal stop
+
+Attach is intentionally refused. Inspect the recap, history, status, and repair output before
+starting new work.
+
+### Resume does not rewrite history
+
+The per-session store is append-only for the Compozy session ID. Attach records and transcript markers
+are additional evidence, not replacements for earlier events.
+
+### The command name is historical
+
+`compozy session resume` remains the operator command name, but its contract is attach. Scripts should
+key off the HTTP operation and response payload, not the English verb in the CLI command.
+
+## Next steps
+
+- Use [Event Streaming](/docs/sessions/events) to inspect the stored event log and live SSE stream.
+- Use [Session Lifecycle](/docs/sessions/lifecycle) to understand terminal states and repair.
+- Use [Permissions](/docs/sessions/permissions) to understand what requires approval before and after attach.

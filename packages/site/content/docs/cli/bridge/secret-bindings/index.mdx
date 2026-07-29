@@ -1,0 +1,48 @@
+---
+title: "compozy bridge secret-bindings"
+description: "Manage bridge secret bindings"
+---
+
+## compozy bridge secret-bindings
+
+Manage bridge secret bindings
+
+```
+compozy bridge secret-bindings [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for secret-bindings
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy bridge secret-bindings -o json
+```
+
+## Subcommands
+
+| Command                                                                          | Description                                  |
+| -------------------------------------------------------------------------------- | -------------------------------------------- |
+| [compozy bridge secret-bindings delete](/docs/cli/bridge/secret-bindings/delete) | Delete one bridge secret binding             |
+| [compozy bridge secret-bindings list](/docs/cli/bridge/secret-bindings/list)     | List secret bindings for one bridge instance |
+| [compozy bridge secret-bindings put](/docs/cli/bridge/secret-bindings/put)       | Create or update one bridge secret binding   |

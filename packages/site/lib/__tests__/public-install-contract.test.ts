@@ -12,7 +12,7 @@ import { siteRoot } from "../content-test-utils";
 const publicRoot = resolve(siteRoot, "public");
 const installScriptPath = resolve(publicRoot, "install.sh");
 const headersPath = resolve(publicRoot, "_headers");
-const installPagePath = resolve(siteRoot, "content/runtime/core/getting-started/installation.mdx");
+const installPagePath = resolve(siteRoot, "content/docs/getting-started/installation.mdx");
 const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
 const readmePath = resolve(siteRoot, "../../README.md");
@@ -473,9 +473,7 @@ describe("public install contract", () => {
     expect(readSiteFile(readmePath)).toContain(firstSessionCommand);
     expect(readSiteFile(landingInstallPath)).toContain(firstSessionCommand);
     expect(launchPost).toContain(`records ${historicalLaunchBeta}`);
-    expect(launchPost).toContain(
-      "[installation guide](/runtime/core/getting-started/installation)"
-    );
+    expect(launchPost).toContain("[installation guide](/docs/getting-started/installation)");
     for (const option of installOptions.slice(0, -1)) {
       expect(installPage, option).toContain(option);
     }

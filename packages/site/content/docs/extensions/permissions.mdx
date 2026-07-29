@@ -1,0 +1,159 @@
+---
+title: Extension Permissions
+description: Declare the Host API methods an extension calls, read the consent areas Compozy derives from them, and understand the ceilings applied per install source.
+---
+
+An extension declares **one** list: the Host API methods it calls. Compozy derives everything else —
+the consent summary an operator sees, the enforcement set, and the ceiling that applies to the
+install source.
+
+```go
+compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+	Name:    "release-notes",
+	Version: "0.1.0",
+	Permissions: compozysdk.PermissionsConfig{
+		Requires: []compozysdk.HostAPIMethod{"sessions/list", "memory/recall", "memory/store"},
+	},
+	Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+})
+```
+
+`compozy extension build` writes that list into the generated manifest:
+
+```toml
+[permissions]
+  requires = ["memory/recall", "memory/store", "sessions/list"]
+```
+
+## Closed set
+
+`permissions.requires` is validated against a closed set of **87** Host API methods at build,
+validate, install, and daemon load. An unknown value is a hard error, never a silent no-op:
+
+```text
+ERROR permissions.requires[0]  unknown Host API permission
+```
+
+Both SDKs export the method names as typed constants, so a typo fails before the daemon sees it.
+
+## Derived consent areas
+
+Compozy maps every method to one `area:access` pair and shows the deduplicated set wherever consent
+is presented. `compozy extension validate` prints exactly what an operator will be asked to accept:
+
+```bash
+compozy extension validate ./dist/gen-<hash>
+```
+
+```text
+Extension bundle validation
+===========================
+Status:   valid
+Issues:   0
+Consent:  memory:read, memory:write, sessions:read
+```
+
+The same summary is available structurally:
+
+```bash
+compozy extension validate ./dist/gen-<hash> -o json
+```
+
+```json
+{
+  "manifest": {
+    "name": "hello",
+    "provides": ["tool.provider"],
+    "permissions": ["memory/recall", "memory/store", "sessions/list"]
+  },
+  "issues": [],
+  "consent_areas": [
+    { "area": "memory", "access": "read" },
+    { "area": "memory", "access": "write" },
+    { "area": "sessions", "access": "read" }
+  ]
+}
+```
+
+Consent areas are a display and policy projection. Enforcement always runs against the declared
+method list, per call.
+
+## Permission catalog
+
+Twenty-six consent areas cover the 87 methods.
+
+| Consent area       | Host API methods                                                                                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `automation:read`  | `automation/jobs`, `automation/jobs/get`, `automation/jobs/runs`, `automation/runs`, `automation/triggers`, `automation/triggers/get`, `automation/triggers/runs`                                                             |
+| `automation:write` | `automation/jobs/create`, `automation/jobs/delete`, `automation/jobs/trigger`, `automation/jobs/update`, `automation/triggers/create`, `automation/triggers/delete`, `automation/triggers/fire`, `automation/triggers/update` |
+| `bridge:read`      | `bridges/instances/get`, `bridges/instances/list`                                                                                                                                                                             |
+| `bridge:write`     | `bridges/instances/report_state`, `bridges/messages/ingest`                                                                                                                                                                   |
+| `clarify:ask`      | `clarify/ask`                                                                                                                                                                                                                 |
+| `heartbeat:read`   | `agents/heartbeat/get`, `agents/heartbeat/history`, `agents/heartbeat/status`, `agents/heartbeat/validate`                                                                                                                    |
+| `heartbeat:write`  | `agents/heartbeat/delete`, `agents/heartbeat/put`, `agents/heartbeat/rollback`, `agents/heartbeat/wake`                                                                                                                       |
+| `logs:read`        | `logs/list`                                                                                                                                                                                                                   |
+| `memory:read`      | `memory/recall`                                                                                                                                                                                                               |
+| `memory:write`     | `memory/forget`, `memory/store`                                                                                                                                                                                               |
+| `model:read`       | `models/list`, `models/status`                                                                                                                                                                                                |
+| `model:write`      | `models/refresh`                                                                                                                                                                                                              |
+| `network:read`     | `network/channels`, `network/direct/messages`, `network/directs`, `network/peers`, `network/status`, `network/thread/get`, `network/thread/messages`, `network/threads`, `network/usage`, `network/work/get`                  |
+| `network:write`    | `network/direct/resolve`, `network/send`                                                                                                                                                                                      |
+| `observe:read`     | `observe/health`                                                                                                                                                                                                              |
+| `resources:read`   | `resources/get`, `resources/list`                                                                                                                                                                                             |
+| `resources:write`  | `resources/snapshot`                                                                                                                                                                                                          |
+| `sandbox:exec`     | `sandbox/exec`                                                                                                                                                                                                                |
+| `sandbox:read`     | `sandbox/info`, `sandbox/list`                                                                                                                                                                                                |
+| `sessions:read`    | `sessions/events`, `sessions/health/get`, `sessions/list`, `sessions/status`, `sessions/status/get`                                                                                                                           |
+| `sessions:write`   | `sessions/create`, `sessions/prompt`, `sessions/stop`                                                                                                                                                                         |
+| `skills:read`      | `skills/list`                                                                                                                                                                                                                 |
+| `soul:read`        | `agents/soul/get`, `agents/soul/history`, `agents/soul/validate`                                                                                                                                                              |
+| `soul:write`       | `agents/soul/delete`, `agents/soul/put`, `agents/soul/rollback`, `sessions/soul/refresh`                                                                                                                                      |
+| `task:read`        | `tasks`, `tasks/dashboard`, `tasks/get`, `tasks/inbox`, `tasks/runs`, `tasks/runs/get`, `tasks/timeline`, `tasks/tree`                                                                                                        |
+| `task:write`       | `tasks/cancel`, `tasks/create`, `tasks/runs/attach_session`, `tasks/runs/cancel`, `tasks/runs/complete`, `tasks/runs/enqueue`, `tasks/runs/fail`, `tasks/runs/start`, `tasks/update`                                          |
+
+Read and write are separate areas everywhere, so a read-only reviewer extension never requests a
+mutation grant. Paged collection methods (`tasks`, `tasks/inbox`, `automation/jobs`,
+`automation/triggers`, and the `network/*` collections) return bounded envelopes with page metadata —
+read the collection field and its page metadata together, never as a bare array.
+
+## Source ceilings
+
+The install source decides how much of the declared list can be granted.
+
+| Install source                                 | Persisted tier | Granted permissions                                                                                                       |
+| ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Dev link (`compozy extension dev`)             | `workspace`    | Every declared method.                                                                                                    |
+| Local path (`compozy extension install ./dir`) | `user`         | Every declared method.                                                                                                    |
+| Bundled with the daemon                        | `bundled`      | Every declared method.                                                                                                    |
+| Published (`curated`, `github`, `git`)         | `marketplace`  | Only methods inside the read-oriented ceiling below. Everything else is dropped at grant time with a recorded diagnostic. |
+
+The published ceiling is `logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`,
+and `tool.read`. A published extension that declares `sessions/prompt`, `models/refresh`, or
+`tasks/create` still installs, but those methods are not granted, and the trust report names each
+dropped request. Read the outcome with:
+
+```bash
+compozy extension provenance <name> -o json
+```
+
+Design for it: keep the published surface read-oriented, and ship anything that must mutate runtime
+state as a local or workspace-linked extension.
+
+## Enforcement
+
+Every Host API call is checked against the extension's effective grant at call time. A denied call
+returns the protocol `capability_denied` error with the method name; it does not fall back to a
+partial result. The grant is computed once per session scope from three inputs — the declared list,
+the source ceiling, and the operator resource policy under `[extensions.resources]` — and never
+widens at runtime.
+
+Resource publication (`resources/snapshot`) carries a second axis: the manifest declares the resource
+families and scope ceiling it requests under `[resources.publish]`, and the effective grant is the
+narrowest of manifest request, source tier, operator policy, and session scope.
+
+## Related
+
+- [Develop Extensions](/docs/extensions/develop) — where permissions fit in the authoring loop.
+- [Extension Manifest](/docs/extensions/manifest) — the generated `[permissions]` block.
+- [Install Extensions](/docs/extensions/install) — trust, consent, and provenance at install time.
+- [`compozy extension validate`](/docs/cli/extension/validate) — generated CLI reference.

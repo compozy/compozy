@@ -1,0 +1,363 @@
+---
+title: Hook Event Catalog
+description: Complete reference for Compozy hook events, payload schemas, patch schemas, sync eligibility, and example payloads.
+---
+
+Compozy hooks fire at named runtime points such as session creation, prompt assembly, tool execution,
+permission decisions, automation runs, and context compaction. Each event has a fixed payload type
+and a fixed patch type. A hook reads the payload from stdin, decides whether it applies, and writes a
+JSON patch to stdout.
+
+<OperatorNote>
+  The catalog below is generated from the same event taxonomy used by `GET /api/hooks/events` and
+  `compozy hooks events`. Use the CLI when you need the daemon's active view: `compozy hooks events
+  --family tool --sync-only`.
+</OperatorNote>
+
+## Runtime Placement
+
+<Mermaid
+  chart={`flowchart LR
+  Session["Session lifecycle"] --> Input["Input and prompt"]
+  Input --> Turn["Turn and messages"]
+  Turn --> Tools["Tools and permissions"]
+  Tools --> Events["Event persistence"]
+  Events --> Automation["Automation observations"]
+  Turn --> Context["Context compaction"]`}
+  caption="Hook events sit on the runtime path where Compozy can either control an operation or observe it."
+/>
+
+## Reading This Catalog
+
+| Column     | Meaning                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| Event      | The exact value used in a hook declaration.                                                           |
+| Sync       | `yes` means a declaration may set `mode = "sync"`. `async only` means sync declarations are rejected. |
+| Payload    | The JSON object type delivered to the executor.                                                       |
+| Patch      | The JSON object type the executor may write to stdout. Empty stdout means an empty patch.             |
+| Fires when | The runtime point that dispatches the event.                                                          |
+
+Most session-scoped payloads include common session fields:
+
+| Field                                        | Meaning                                             |
+| -------------------------------------------- | --------------------------------------------------- |
+| `event`                                      | Current event name.                                 |
+| `timestamp`                                  | Dispatch timestamp.                                 |
+| `session_id`, `session_name`, `session_type` | Session identity and kind when available.           |
+| `agent_name`                                 | Agent attached to the session or runtime operation. |
+| `workspace_id`, `workspace`                  | Workspace identity and root path when available.    |
+| `turn_id`                                    | Current turn when the event is turn-scoped.         |
+
+Control patches use `deny` and `deny_reason`. A deny patch stops the sync hook chain. For
+pre-operation control points, Compozy returns the event-specific denial error to the caller.
+
+## Session Events
+
+| Event                 | Sync | Payload                    | Patch                    | Fires when                                  |
+| --------------------- | ---- | -------------------------- | ------------------------ | ------------------------------------------- |
+| `session.pre_create`  | yes  | `SessionPreCreatePayload`  | `SessionCreatePatch`     | Before Compozy creates a session record.    |
+| `session.post_create` | yes  | `SessionPostCreatePayload` | `SessionPostCreatePatch` | After Compozy creates a session record.     |
+| `session.pre_resume`  | yes  | `SessionPreResumePayload`  | `SessionPreResumePatch`  | Before Compozy resumes an existing session. |
+| `session.post_resume` | yes  | `SessionPostResumePayload` | `SessionPostResumePatch` | After Compozy resumes an existing session.  |
+| `session.pre_stop`    | yes  | `SessionPreStopPayload`    | `SessionPreStopPatch`    | Before Compozy stops a session.             |
+| `session.post_stop`   | yes  | `SessionPostStopPayload`   | `SessionPostStopPatch`   | After Compozy stops a session.              |
+
+Session lifecycle patches can set `session_name`, `session_type`, `agent_name`, `workspace_id`,
+or `workspace`. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
+
+## Input And Prompt Events
+
+| Event                  | Sync | Payload                 | Patch                 | Fires when                                                                |
+| ---------------------- | ---- | ----------------------- | --------------------- | ------------------------------------------------------------------------- |
+| `input.pre_submit`     | yes  | `InputPreSubmitPayload` | `InputPreSubmitPatch` | Before a user message is submitted to the agent turn.                     |
+| `prompt.post_assemble` | yes  | `PromptPayload`         | `PromptPatch`         | After Compozy assembles the final prompt and before it reaches the agent. |
+
+`input.pre_submit` patches can replace `message`, append or replace `context_blocks`, or deny the
+submission. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
+the assembled prompt.
+
+## Event Persistence Events
+
+| Event               | Sync       | Payload                  | Patch                  | Fires when                                |
+| ------------------- | ---------- | ------------------------ | ---------------------- | ----------------------------------------- |
+| `event.pre_record`  | async only | `EventPreRecordPayload`  | `EventPreRecordPatch`  | Before an ACP/runtime event is persisted. |
+| `event.post_record` | async only | `EventPostRecordPayload` | `EventPostRecordPatch` | After an ACP/runtime event is persisted.  |
+
+Event-record hooks are observation hooks. Their payload includes `record_type`, `sequence`, and raw
+`content`. Their patch type accepts `labels`, but the current dispatch path does not mutate the
+stored event record from that patch.
+
+## Automation Events
+
+| Event                          | Sync       | Payload                            | Patch                        | Fires when                                               |
+| ------------------------------ | ---------- | ---------------------------------- | ---------------------------- | -------------------------------------------------------- |
+| `automation.job.pre_fire`      | yes        | `AutomationJobPreFirePayload`      | `AutomationFirePatch`        | Before a scheduled or manually triggered job dispatches. |
+| `automation.job.post_fire`     | async only | `AutomationJobPostFirePayload`     | `AutomationObservationPatch` | After a job hands work to a session or run.              |
+| `automation.trigger.pre_fire`  | yes        | `AutomationTriggerPreFirePayload`  | `AutomationFirePatch`        | Before a trigger dispatches an automation run.           |
+| `automation.trigger.post_fire` | async only | `AutomationTriggerPostFirePayload` | `AutomationObservationPatch` | After a trigger hands work to a session or run.          |
+| `automation.run.completed`     | async only | `AutomationRunCompletedPayload`    | `AutomationObservationPatch` | After an automation run completes successfully.          |
+| `automation.run.failed`        | async only | `AutomationRunFailedPayload`       | `AutomationObservationPatch` | After an automation run fails.                           |
+
+Automation pre-fire patches can replace `prompt` or set `cancel = true`. Observation patches are
+empty structs and are used only to record hook execution.
+
+## Autonomy Events
+
+Autonomy hooks cover coordinator bootstrap, task-run leases, and safe child-session spawn. They do
+not replace the authority of task-run leases or spawn policy. A hook can deny or narrow the exposed
+pre-operation payload where a control patch exists, but it cannot mint raw claim tokens, complete a
+task run through channel messages, bypass TTL, widen permissions, or bypass child depth and child
+count limits.
+
+### Coordinator
+
+| Event                   | Sync | Payload                      | Patch                         | Fires when                                                   |
+| ----------------------- | ---- | ---------------------------- | ----------------------------- | ------------------------------------------------------------ |
+| `coordinator.pre_spawn` | yes  | `CoordinatorPreSpawnPayload` | `CoordinatorSpawnPatch`       | Before Compozy creates a managed coordinator session.        |
+| `coordinator.spawned`   | yes  | `CoordinatorSpawnedPayload`  | `CoordinatorObservationPatch` | After a managed coordinator session is created.              |
+| `coordinator.decision`  | yes  | `CoordinatorDecisionPayload` | `CoordinatorObservationPatch` | When a coordinator records a semantic coordination decision. |
+| `coordinator.stopped`   | yes  | `CoordinatorStoppedPayload`  | `CoordinatorObservationPatch` | After a managed coordinator session stops.                   |
+| `coordinator.failed`    | yes  | `CoordinatorFailedPayload`   | `CoordinatorObservationPatch` | After coordinator bootstrap or lifecycle handling fails.     |
+
+`CoordinatorSpawnPatch` may deny coordinator spawn or replace `agent_name`, `provider`, and
+`model`. Observation patches are empty and record hook execution only.
+
+### Task
+
+These are task-level state transitions, deliberately outside the run-level `task.run.*` namespace —
+they describe the task's blocking and escalation state, not a run's lifecycle.
+
+| Event                  | Sync | Payload                     | Patch                  | Fires when                                                  |
+| ---------------------- | ---- | --------------------------- | ---------------------- | ----------------------------------------------------------- |
+| `task.blocked`         | yes  | `TaskBlockedPayload`        | `TaskObservationPatch` | After a typed block is created on a task.                   |
+| `task.unblocked`       | yes  | `TaskUnblockedPayload`      | `TaskObservationPatch` | After a block is cleared explicitly or by transient expiry. |
+| `task.needs_attention` | yes  | `TaskNeedsAttentionPayload` | `TaskObservationPatch` | After the unblock-loop breaker escalates a task.            |
+| `task.recovered`       | yes  | `TaskRecoveredPayload`      | `TaskObservationPatch` | After an operator or agent recovers an escalated task.      |
+
+`TaskBlockedPayload` and `TaskUnblockedPayload` carry `block_id`, `kind`, `reason`, opaque
+`details`, and (on unblock) `cleared_at` / `clear_note`. `TaskNeedsAttentionPayload` and
+`TaskRecoveredPayload` carry the escalation `reason` / recovery `note` plus `at`. All four share the
+`TaskContext` fields (`task_id`, `workspace_id`, `task_status`, actor/origin identity, and — when a
+run was parked — `run_id` and `claim_token_hash`). `TaskObservationPatch` is empty; these hooks may
+annotate or deny but cannot mint claim tokens or bypass the breaker. The raw bearer lease token never
+appears in these payloads. See the [block lifecycle](/docs/autonomy/task-runs-and-leases#typed-task-blocks-and-the-unblock-loop-breaker)
+for the operator and agent surfaces that drive these transitions.
+
+### Task Run
+
+| Event                      | Sync | Payload                        | Patch                     | Fires when                                                     |
+| -------------------------- | ---- | ------------------------------ | ------------------------- | -------------------------------------------------------------- |
+| `task.run.enqueued`        | yes  | `TaskRunEnqueuedPayload`       | `TaskRunObservationPatch` | After a task run is enqueued and its audit event is committed. |
+| `task.run.pre_claim`       | yes  | `TaskRunPreClaimPayload`       | `TaskRunPreClaimPatch`    | Before a task-run claim transaction commits.                   |
+| `task.run.post_claim`      | yes  | `TaskRunPostClaimPayload`      | `TaskRunObservationPatch` | After a task-run claim and audit event commit.                 |
+| `task.run.lease_extended`  | yes  | `TaskRunLeaseExtendedPayload`  | `TaskRunObservationPatch` | After a token-fenced heartbeat extends a task-run lease.       |
+| `task.run.lease_expired`   | yes  | `TaskRunLeaseExpiredPayload`   | `TaskRunObservationPatch` | After a task-run lease reaches expiry.                         |
+| `task.run.lease_recovered` | yes  | `TaskRunLeaseRecoveredPayload` | `TaskRunObservationPatch` | After lease recovery requeues or finalizes expired work.       |
+| `task.run.released`        | yes  | `TaskRunReleasedPayload`       | `TaskRunObservationPatch` | After a token-fenced task-run lease release.                   |
+| `task.run.completed`       | yes  | `TaskRunCompletedPayload`      | `TaskRunObservationPatch` | After a token-fenced task-run completion.                      |
+| `task.run.failed`          | yes  | `TaskRunFailedPayload`         | `TaskRunObservationPatch` | After a token-fenced task-run failure.                         |
+
+`TaskRunPreClaimPatch` may deny the claim, add required capabilities, or raise `priority_min`. It
+cannot remove task-run requirements or change the selected run after the claim transaction commits.
+The raw bearer lease token never appears in these hook payloads.
+
+### Spawn
+
+| Event                  | Sync | Payload                     | Patch                   | Fires when                                                           |
+| ---------------------- | ---- | --------------------------- | ----------------------- | -------------------------------------------------------------------- |
+| `spawn.pre_create`     | yes  | `SpawnPreCreatePayload`     | `SpawnCreatePatch`      | Before Compozy creates a child session from an agent-facing request. |
+| `spawn.created`        | yes  | `SpawnCreatedPayload`       | `SpawnObservationPatch` | After a child session is created.                                    |
+| `spawn.parent_stopped` | yes  | `SpawnParentStoppedPayload` | `SpawnObservationPatch` | When parent-stop cleanup reaps a child session.                      |
+| `spawn.ttl_expired`    | yes  | `SpawnTTLExpiredPayload`    | `SpawnObservationPatch` | When TTL expiry reaps a child session.                               |
+| `spawn.reaped`         | yes  | `SpawnReapedPayload`        | `SpawnObservationPatch` | After child-session reap cleanup completes.                          |
+
+`SpawnCreatePatch` may deny the spawn or narrow the child request by replacing `agent_name`,
+`spawn_role`, `ttl_seconds`, or `child_permissions`. The runtime still rejects permission widening,
+coordinator-role spawn, unauthorized cross-workspace spawn, and invalid TTL/depth/child caps.
+
+## Agent Process Events
+
+| Event             | Sync | Payload                | Patch               | Fires when                                   |
+| ----------------- | ---- | ---------------------- | ------------------- | -------------------------------------------- |
+| `agent.pre_start` | yes  | `AgentPreStartPayload` | `AgentStartPatch`   | Before Compozy starts the ACP agent process. |
+| `agent.spawned`   | yes  | `AgentSpawnedPayload`  | `AgentSpawnedPatch` | After the agent process is spawned.          |
+| `agent.crashed`   | yes  | `AgentCrashedPayload`  | `AgentCrashedPatch` | When the agent process exits unexpectedly.   |
+| `agent.stopped`   | yes  | `AgentStoppedPayload`  | `AgentStoppedPatch` | After the agent process stops.               |
+
+`agent.pre_start` patches can replace `command`, `args`, or `cwd`, or deny process startup. The
+post-start lifecycle patches accept `labels` for observation.
+
+## Turn And Message Events
+
+| Event           | Sync       | Payload               | Patch               | Fires when                        |
+| --------------- | ---------- | --------------------- | ------------------- | --------------------------------- |
+| `turn.start`    | yes        | `TurnStartPayload`    | `TurnStartPatch`    | When an agent turn starts.        |
+| `turn.end`      | yes        | `TurnEndPayload`      | `TurnEndPatch`      | When an agent turn ends.          |
+| `message.start` | yes        | `MessageStartPayload` | `MessageStartPatch` | When a streamed message begins.   |
+| `message.delta` | async only | `MessageDeltaPayload` | `MessageDeltaPatch` | For streaming message deltas.     |
+| `message.end`   | yes        | `MessageEndPayload`   | `MessageEndPatch`   | When a streamed message finishes. |
+
+Turn patches can set `labels` and include the common deny fields. A turn deny stops the hook chain;
+the current turn events do not return a user-visible denial error. Message patches can replace
+`role`, `delta_type`, or `text`; only `message.start` and `message.end` can run sync hooks.
+
+## Tool Events
+
+| Event             | Sync | Payload                | Patch                | Fires when                   |
+| ----------------- | ---- | ---------------------- | -------------------- | ---------------------------- |
+| `tool.pre_call`   | yes  | `ToolPreCallPayload`   | `ToolCallPatch`      | Before a tool call executes. |
+| `tool.post_call`  | yes  | `ToolPostCallPayload`  | `ToolResultPatch`    | After a tool call succeeds.  |
+| `tool.post_error` | yes  | `ToolPostErrorPayload` | `ToolPostErrorPatch` | After a tool call fails.     |
+
+Tool payloads include `tool_call_id`, `tool_name`, `tool_namespace`, `read_only`, and `tool_input`.
+Pre-call patches can replace the tool name, namespace, read-only flag, or input, and can deny the
+tool call. Post-call and post-error patches can replace `title`, `tool_result`, or `error`; deny
+fields on post events stop the hook chain but do not undo an already completed tool result.
+
+## Permission Events
+
+| Event                 | Sync       | Payload                     | Patch                     | Fires when                             |
+| --------------------- | ---------- | --------------------------- | ------------------------- | -------------------------------------- |
+| `permission.request`  | yes        | `PermissionRequestPayload`  | `PermissionRequestPatch`  | Before a permission decision resolves. |
+| `permission.resolved` | async only | `PermissionResolvedPayload` | `PermissionResolvedPatch` | After a permission decision resolves.  |
+| `permission.denied`   | async only | `PermissionDeniedPayload`   | `PermissionDeniedPatch`   | After a permission denial resolves.    |
+
+`permission.request` patches can set `decision`, `decision_class`, and `reason`, or deny the
+request. Compozy rejects escalation patches that try to turn a blocked, denied, or rejected decision
+into an allow decision; those hook runs are recorded as `rejected`.
+
+## Context Events
+
+| Event                  | Sync | Payload                     | Patch                     | Fires when                                    |
+| ---------------------- | ---- | --------------------------- | ------------------------- | --------------------------------------------- |
+| `context.pre_compact`  | yes  | `ContextPreCompactPayload`  | `ContextPreCompactPatch`  | Before Compozy compacts conversation context. |
+| `context.post_compact` | yes  | `ContextPostCompactPayload` | `ContextPostCompactPatch` | After Compozy compacts conversation context.  |
+
+Context compaction payloads include `reason`, `strategy`, `summary`, and `context_blocks`. Patches
+can replace `reason`, `strategy`, or `context_blocks`. A pre-compact deny blocks compaction; a
+post-compact deny only stops the remaining hook chain because compaction has already happened.
+
+## Example Payloads And Patches
+
+### Deny a risky permission request
+
+`permission.request` payload:
+
+```json
+{
+  "event": "permission.request",
+  "timestamp": "2026-04-16T15:04:05Z",
+  "session_id": "sess_9f4a",
+  "agent_name": "coder",
+  "workspace_id": "ws_checkout",
+  "turn_id": "turn_42",
+  "request_id": "perm_123",
+  "action": "write",
+  "resource": "/Users/you/src/checkout/.env",
+  "decision": "ask",
+  "decision_class": "write",
+  "tool_input": {
+    "path": "/Users/you/src/checkout/.env"
+  },
+  "tool_call": {
+    "id": "toolu_123",
+    "kind": "edit_file",
+    "title": "Edit .env"
+  }
+}
+```
+
+`PermissionRequestPatch` denying the operation:
+
+```json
+{
+  "deny": true,
+  "deny_reason": "Secrets files require manual review.",
+  "decision": "deny",
+  "decision_class": "write",
+  "reason": "Protected file pattern matched."
+}
+```
+
+### Add workspace context to a prompt
+
+`prompt.post_assemble` payload:
+
+```json
+{
+  "event": "prompt.post_assemble",
+  "timestamp": "2026-04-16T15:04:05Z",
+  "session_id": "sess_9f4a",
+  "agent_name": "coder",
+  "workspace_id": "ws_checkout",
+  "workspace": "/Users/you/src/checkout",
+  "turn_id": "turn_42",
+  "input_class": "user",
+  "prompt": "Review the current diff.",
+  "context_blocks": [
+    {
+      "kind": "workspace",
+      "text": "Repository: checkout"
+    }
+  ]
+}
+```
+
+`PromptPatch` replacing the assembled prompt:
+
+```json
+{
+  "prompt": "[Workspace: checkout]\n\nReview the current diff."
+}
+```
+
+### Cancel an automation fire
+
+`automation.job.pre_fire` payload:
+
+```json
+{
+  "job_id": "job_daily_review",
+  "job_name": "weekday-review",
+  "agent_name": "reviewer",
+  "workspace_id": "ws_checkout",
+  "prompt": "Review the repository.",
+  "schedule": {
+    "mode": "cron",
+    "expr": "0 9 * * 1-5"
+  },
+  "attempt": 1
+}
+```
+
+`AutomationFirePatch` canceling dispatch:
+
+```json
+{
+  "cancel": true
+}
+```
+
+## Introspection Surfaces
+
+Use the CLI for local inspection:
+
+```bash
+compozy hooks events --family permission
+compozy hooks events --sync-only -o json
+```
+
+Use the API when building tooling:
+
+```http
+GET /api/hooks/events?family=permission&sync_only=true
+GET /api/hooks/catalog?workspace=checkout&event=permission.request
+GET /api/workspaces/ws_checkout/hooks/runs?session=sess_9f4a&event=permission.request&last=20
+```
+
+Related references:
+
+- [Hook Declaration Format](/docs/hooks/declaration)
+- [Runtime Autonomy](/docs/autonomy)
+- [Hooks CLI Reference](/docs/cli/hooks)
+- [Automation Triggers](/docs/automation/triggers)

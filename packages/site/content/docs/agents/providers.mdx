@@ -1,0 +1,482 @@
+---
+title: Providers
+description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for Compozy agents.
+---
+
+A provider is the ACP-compatible command Compozy launches for an agent. The provider owns the actual
+LLM integration. Compozy owns definition resolution, process lifecycle, workspace boundaries,
+permissions, MCP server wiring, and event persistence.
+
+Provider IDs appear in `AGENT.md`:
+
+```yaml
+---
+name: implementation
+provider: codex
+---
+You implement scoped changes and verify them before handoff.
+```
+
+Or they can be selected globally:
+
+```toml
+[defaults]
+agent = "general"
+provider = "claude"
+```
+
+## Built-in providers
+
+The built-in registry lives in `internal/config/provider.go`.
+
+| Provider ID         | Harness  | Runtime provider    | Command                                                          | `models.default`            | Auth mode      | Credential target    |
+| ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
+| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-5`           | `native_cli`   | provider login       |
+| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                   | `gpt-5.6-sol`               | `native_cli`   | provider login       |
+| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                   | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
+| `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                  | none                        | `native_cli`   | provider login       |
+| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | `native_cli`   | provider login       |
+| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                               | none                        | `native_cli`   | provider login       |
+| `kiro`              | `acp`    | `kiro`              | `kiro-cli-chat acp`                                              | none                        | `native_cli`   | provider login       |
+| `blackbox`          | `acp`    | `blackbox`          | `blackbox --experimental-acp`                                    | none                        | `native_cli`   | provider login       |
+| `cline`             | `acp`    | `cline`             | `npx -y cline@latest --acp`                                      | none                        | `native_cli`   | provider login       |
+| `goose`             | `acp`    | `goose`             | `goose acp`                                                      | none                        | `native_cli`   | provider login       |
+| `hermes`            | `acp`    | `hermes`            | `hermes acp`                                                     | none                        | `native_cli`   | provider login       |
+| `junie`             | `acp`    | `junie`             | `junie --acp true`                                               | none                        | `native_cli`   | provider login       |
+| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                       | none                        | `native_cli`   | provider login       |
+| `openclaw`          | `acp`    | `openclaw`          | `openclaw acp`                                                   | none                        | `native_cli`   | provider login       |
+| `openhands`         | `acp`    | `openhands`         | `openhands acp`                                                  | none                        | `native_cli`   | provider login       |
+| `qoder`             | `acp`    | `qoder`             | `npx -y @qoder-ai/qodercli@latest --acp`                         | none                        | `native_cli`   | provider login       |
+| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | `native_cli`   | provider login       |
+| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
+| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
+| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                           | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
+| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                           | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
+| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                           | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
+| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                           | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
+| `minimax`           | `pi_acp` | `minimax`           | `npx -y pi-acp@latest`                                           | `MiniMax-M2.1`              | `bound_secret` | `MINIMAX_API_KEY`    |
+| `mistral`           | `pi_acp` | `mistral`           | `npx -y pi-acp@latest`                                           | `devstral-medium-latest`    | `bound_secret` | `MISTRAL_API_KEY`    |
+| `groq`              | `pi_acp` | `groq`              | `npx -y pi-acp@latest`                                           | `openai/gpt-oss-120b`       | `bound_secret` | `GROQ_API_KEY`       |
+
+<OperatorNote>
+  `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
+  OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are wrapped
+  providers: Compozy exposes them as first-class providers, launches Pi under the hood, and injects
+  the provider key through a session-local Pi config.
+</OperatorNote>
+
+## Authentication modes
+
+Provider authentication is explicit. Compozy does not infer that every provider needs a Compozy-managed
+API key.
+
+| Mode           | Owner                             | Runtime behavior                                                                                      |
+| -------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `native_cli`   | The provider CLI                  | Compozy launches the provider without preflight key checks. The CLI uses its own login/session store. |
+| `bound_secret` | Compozy config or Compozy Vault   | Compozy resolves `credential_slots` and injects the bound values into the provider subprocess.        |
+| `none`         | No authentication at Compozy side | Compozy launches the provider without native auth diagnostics or secret injection.                    |
+
+Direct ACP providers and the direct `pi` provider default to `native_cli`. Pi-backed API-key
+wrappers default to `bound_secret` because their public provider contract is an API key managed by
+Compozy. Custom providers with `credential_slots` default to `bound_secret`; custom providers without
+slots default to `native_cli` unless `auth_mode = "none"` is set explicitly.
+
+`native_cli` providers cannot define `credential_slots`. If you intentionally want Compozy to inject a
+key into a native ACP command, set `auth_mode = "bound_secret"` in the provider override and define
+the slots there. This keeps secret injection opt-in and prevents daemon shell variables from
+silently overriding a provider's own login state.
+
+## Provider config fields
+
+Provider overrides and custom providers are configured in `config.toml`.
+
+| Field                 | Type   | Required                 | Runtime behavior                                                                                              |
+| --------------------- | ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                 |
+| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                 |
+| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".    |
+| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`. |
+| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the Compozy provider id.                     |
+| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                              |
+| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                      |
+| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                           |
+| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.      |
+| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.              |
+| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                 |
+| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                      |
+| `auth_login_command`  | string | no                       | Optional native CLI login command used by `compozy provider auth login`.                                      |
+| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                    |
+| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                             |
+
+`auth_mode = "none"` is an explicit `No auth required` contract, not an authenticated state. Set
+`none_security` to describe why the provider is safe without credentials: `local_transport` for
+local-only transports, `external_identity` when another system authenticates the caller, or
+`public_readonly` for public read-only providers. No-auth providers cannot define
+`credential_slots`, `auth_status_command`, or `auth_login_command`; Compozy rejects those combinations
+at config load time.
+
+Compozy overlays provider config on top of a built-in provider when the name matches. Unknown provider
+names are accepted only when they have a `[providers.<name>]` entry.
+
+Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
+`claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
+resolve to their canonical provider IDs. Model IDs do not alias: configuration, catalog rows,
+session diagnostics, CLI, and ACP negotiation use the exact canonical model ID. A shorthand or
+unknown model ID never resolves to the provider default.
+
+The old `providers.<id>.aliases` config key was removed for v1. Reference providers by canonical
+name only; config files that set `aliases = [...]` under a provider are rejected during load.
+
+The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
+accepted. Config that still sets them is rejected at load time with a deterministic hard-cut error
+that names the exact path. Move every value into the nested `[providers.<id>.models]` block below.
+
+## Provider models
+
+Each provider declares pre-session model defaults and curated metadata under `[providers.<id>.models]`.
+Pre-session model selection is served by the daemon-owned model catalog. The catalog merges builtin
+defaults, the operator config, the optional `models.dev` enrichment source, live provider discovery
+sources, and extension model sources, then projects them through HTTP, UDS, CLI, the OpenAI-compatible
+projection, the Host API, and the web. Active ACP `configOptions` continue to govern model and
+reasoning controls inside a running session.
+
+| Field                                           | Type    | Required                    | Runtime behavior                                                                                                                  |
+| ----------------------------------------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `models.default`                                | string  | no                          | Default model when an `AGENT.md` omits `model`. Free-form: it does not need to appear in `models.curated`.                        |
+| `models.curated`                                | array   | no                          | Curated entries shown in pickers and projected as `config` rows in the catalog. Not an allowlist.                                 |
+| `models.curated[].id`                           | string  | yes per entry               | Provider model identifier sent to the runtime. Must be unique inside the provider.                                                |
+| `models.curated[].display_name`                 | string  | no                          | Optional human label.                                                                                                             |
+| `models.curated[].context_window`               | integer | no                          | Context window in tokens.                                                                                                         |
+| `models.curated[].max_input_tokens`             | integer | no                          | Maximum input tokens.                                                                                                             |
+| `models.curated[].max_output_tokens`            | integer | no                          | Maximum output tokens.                                                                                                            |
+| `models.curated[].supports_tools`               | bool    | no                          | Whether the model supports tool calls.                                                                                            |
+| `models.curated[].supports_reasoning`           | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
+| `models.curated[].reasoning_efforts`            | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
+| `models.curated[].default_reasoning_effort`     | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
+| `models.curated[].cost_input_per_million`       | number  | no                          | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                                          |
+| `models.curated[].cost_output_per_million`      | number  | no                          | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                                         |
+| `models.curated[].cost_cache_read_per_million`  | number  | no                          | Cache-read rate used only for the cache-read token bucket.                                                                        |
+| `models.curated[].cost_cache_write_per_million` | number  | no                          | Cache-write rate used only for the cache-write token bucket.                                                                      |
+| `models.curated[].cost_reasoning_per_million`   | number  | no                          | Reasoning-token rate used only for the reasoning token bucket.                                                                    |
+| `models.curated[].deprecated`                   | bool    | no                          | Marks a row deprecated; curated view excludes it. Omit to inherit lower-source metadata; explicit `false` clears it.              |
+| `models.curated[].hidden`                       | bool    | no                          | Operator curation flag; curated view always excludes hidden rows. Omit to inherit; explicit `false` clears it.                    |
+| `models.curated[].featured`                     | bool    | no                          | Promotes a row into the curated candidate set. Omit to inherit; explicit `false` clears a lower-source feature flag.              |
+| `models.curated[].release_date`                 | string  | no                          | Optional `YYYY-MM` or `YYYY-MM-DD` release metadata used for ordering.                                                            |
+| `models.reasoning.apply`                        | string  | no                          | `acp_option` applies effort through ACP; `none` exposes no selectable effort strategy.                                            |
+| `models.discovery.enabled`                      | bool    | no                          | Enables the side-effect-free discovery adapter for this provider. Defaults to `false` for providers without a built-in safe path. |
+| `models.discovery.command`                      | string  | required for some providers | Side-effect-free discovery command (mutually exclusive with `endpoint` unless the adapter documents both).                        |
+| `models.discovery.endpoint`                     | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
+| `models.discovery.timeout`                      | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
+
+Rate changes apply to subsequent usage updates. Compozy does not reprice stored token statistics, and
+an agent-reported actual amount always takes precedence over catalog estimation. Every nonzero
+input, output, cache-read, cache-write, or reasoning bucket requires its own finite, non-negative
+rate. Compozy does not substitute input rates for cache tokens or output rates for reasoning tokens.
+
+Provider Settings PUTs distinguish omission from an explicit membership change. If
+`models.curated` is omitted, Compozy preserves the server-owned raw membership even when catalog sources
+are temporarily unavailable. A present empty array is an explicit membership clear and fails with
+`503 Service Unavailable` when Compozy cannot enumerate the authoritative catalog. For a present array,
+Compozy compares every entry with the current effective catalog projection and persists only explicit
+deltas, including the five pricing fields, without copying unchanged catalog enrichment into
+`config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
+change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
+
+Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
+When a discovery path is unavailable or fails, the model catalog records a source status and falls
+back to stale or lower-priority rows; session creation never depends on a successful discovery.
+
+Session creation can override `provider`, `model`, `reasoning_effort`, and `speed` for one launch. Speed
+is provider-neutral, accepts `normal | fast`, and defaults to `normal`. Authoring
+accepts a custom model ID as a candidate because `models.curated` is metadata, not an allowlist. The
+active ACP adapter must still advertise or accept that exact ID; otherwise start fails with
+`model_unavailable` instead of falling back.
+
+`modelcatalog.ReasoningEffort` is the single enum:
+`none | minimal | low | medium | high | xhigh | max`. Each model exposes only its actual subset.
+Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
+levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
+
+Claude and Codex built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
+providers default to `none` unless explicitly configured. Strategy `none` means Compozy has no effort
+application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
+the active model advertises it.
+
+Negotiation order is deterministic: session mode, model, the refreshed config-option snapshot
+returned by that model change, reasoning effort, speed, then the first prompt. Empty effort sends no RPC;
+explicit `none` does. The live ACP snapshot is authoritative even when its effort set is empty.
+Missing or unsupported model/reasoning options fail before the first prompt with stable diagnostics.
+Speed V1 writes only an unambiguous ACP select/value-ID option; boolean speed options remain
+unsupported until the released ACP capability contract can advertise boolean writes. Missing or
+ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns
+`speed_rejected` before the first prompt.
+
+See [Provider Model Catalog](/docs/agents/model-catalog) for the curated Claude/Codex seeds,
+curated/all views, curation surfaces, and error codes.
+
+Native provider auth state belongs to the provider. Run the provider's own login command, such as
+`claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside Compozy or through
+a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
+expose those login commands through `compozy provider auth login <provider>`. By default, that command
+executes the configured login command locally and attaches the terminal when stdin, stdout, and
+stderr are TTYs, so OAuth URLs and provider prompts remain visible. Use
+`compozy provider auth login <provider> --print-command` when automation needs one copyable shell
+command without executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout`
+when scripts need a bounded login attempt. When a provider uses `home_policy = "isolated"`, the
+resolved command includes the required `HOME`/provider-home environment prefix so the native login
+writes credentials where Compozy will read them. Remote HTTP/UDS surfaces never run login commands; they
+only run non-interactive `auth_status_command` probes. Wrapped API-key providers use their
+configured `credential_slots` instead of Pi login. Custom providers should set `auth_mode` to match
+the runtime's real authentication contract.
+
+## Override a built-in provider
+
+Use this when you need to pin a different adapter command or change the default model used by
+agents that omit `model`.
+
+```toml
+[providers.claude]
+auth_mode = "native_cli"
+auth_status_command = "claude auth status"
+auth_login_command = "claude auth login"
+
+[providers.claude.models]
+default = "claude-sonnet-5"
+
+[providers.claude.models.reasoning]
+apply = "acp_option"
+
+[[providers.claude.models.curated]]
+id = "claude-sonnet-5"
+display_name = "Claude Sonnet 5"
+
+[[providers.claude.models.curated]]
+id = "claude-fable-5"
+display_name = "Claude Fable 5"
+featured = true
+release_date = "2026-06-09"
+
+[[providers.claude.mcp_servers]]
+name = "github"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+secret_env = { GITHUB_TOKEN = "env:GITHUB_TOKEN" }
+```
+
+Only non-empty scalar fields replace the built-in values. MCP servers merge by `name`.
+
+## Configure wrapped API-key providers
+
+OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are built-in
+wrapped providers. Operators select them directly, and Compozy uses Pi only as the underlying ACP
+adapter. These built-ins default to `auth_mode = "bound_secret"` with required provider-key slots.
+Override the slot when you want Compozy Vault, rather than the daemon environment, to own the
+launch-time credential.
+
+```toml
+[providers.openrouter]
+display_name = "OpenRouter"
+harness = "pi_acp"
+auth_mode = "bound_secret"
+runtime_provider = "openrouter"
+command = "npx -y pi-acp@latest"
+
+[providers.openrouter.models]
+default = "openai/gpt-5.4"
+
+[[providers.openrouter.models.curated]]
+id = "openai/gpt-5.4"
+display_name = "OpenAI GPT-5.4"
+
+[[providers.openrouter.credential_slots]]
+name = "api_key"
+target_env = "OPENROUTER_API_KEY"
+secret_ref = "env:OPENROUTER_API_KEY"
+kind = "api_key"
+required = true
+```
+
+For Compozy-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
+through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase
+provider/slot identifiers using letters, numbers, hyphens, underscores, or dots; path traversal,
+whitespace, and arbitrary vault paths are rejected.
+
+```toml
+[[providers.openrouter.credential_slots]]
+name = "api_key"
+target_env = "OPENROUTER_API_KEY"
+secret_ref = "vault:providers/openrouter/api-key"
+kind = "api_key"
+required = true
+```
+
+Compozy never exposes provider secret values through settings reads. Status surfaces report only
+whether the bound credential is present.
+
+## Add a custom provider
+
+A custom provider needs an ACP-compatible command. Compozy will launch it the same way it launches the
+built-ins.
+
+```toml
+[providers.local-agent]
+command = "local-agent --acp --stdio"
+auth_mode = "native_cli"
+auth_status_command = "local-agent auth status"
+auth_login_command = "local-agent auth login"
+
+[providers.local-agent.models]
+default = "local-default"
+
+[[providers.local-agent.models.curated]]
+id = "local-default"
+display_name = "Local Default"
+
+[[providers.local-agent.mcp_servers]]
+name = "filesystem-index"
+command = "local-index-mcp"
+args = ["serve"]
+```
+
+Then point an agent at the custom provider:
+
+```yaml
+---
+name: local-operator
+provider: local-agent
+permissions: approve-reads
+---
+You inspect this repository with the local agent runtime.
+Report risks and cite exact files.
+```
+
+If the custom provider has no authentication at all, set `auth_mode = "none"` and document the
+reason with `none_security`:
+
+```toml
+[providers.local-readonly]
+command = "local-readonly-agent --acp"
+auth_mode = "none"
+none_security = "local_transport"
+```
+
+No-auth providers render as `No auth required` in status, doctor, web, and CLI output. They cannot
+define credential slots or login/status commands. If a custom provider requires a Compozy-managed key,
+use `auth_mode = "bound_secret"` and define `credential_slots`:
+
+```toml
+[providers.team-gateway]
+command = "team-gateway acp"
+auth_mode = "bound_secret"
+
+[[providers.team-gateway.credential_slots]]
+name = "api_key"
+target_env = "TEAM_GATEWAY_API_KEY"
+secret_ref = "vault:providers/team-gateway/api-key"
+kind = "api_key"
+required = true
+```
+
+## Command parsing
+
+Provider commands are parsed with shell-style quoting, then launched without a shell. That means:
+
+- quoted arguments are preserved
+- shell expansion is not performed
+- the executable must be available on the daemon process `PATH`
+- `npx`-based built-ins can download and run their adapter package through the local Node toolchain
+
+For example, this is valid:
+
+```toml
+[providers.reviewer]
+command = "reviewer-acp --profile \"team default\""
+```
+
+But shell-only behavior is not applied:
+
+```toml
+[providers.bad-example]
+command = "MY_FLAG=1 reviewer-acp"
+```
+
+Set environment variables before starting the daemon instead.
+
+## Models and authentication
+
+`model` and `models.default` are resolved and exposed as runtime metadata. Direct `acp` providers
+receive the normal ACP startup flow. Native `pi` sessions receive the resolved
+`runtime_provider/model` through ACP model selection. Wrapped Pi-backed API-key providers receive
+session-local Pi `settings.json` and `models.json` so Pi can run with the Compozy-selected provider,
+model, and injected credential while the operator-facing provider remains OpenRouter, z.ai,
+Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, or Groq.
+
+The practical rule is:
+
+- use `model` in `AGENT.md` when you want Compozy metadata and provider-specific wrappers to agree on
+  the intended model
+- use `native_cli` when the provider command owns login state, session files, or browser/device auth
+- use `bound_secret` plus `credential_slots` when Compozy should inject a specific API key into the
+  subprocess
+- use `env:` refs for service-manager-owned secrets and `vault:providers/<provider>/<slot>` refs
+  for Compozy-managed encrypted provider credentials
+
+## MCP server merge order
+
+MCP servers can be declared at several levels. Startup uses this order:
+
+1. Top-level `mcp_servers` from resolved config
+2. Provider `mcp_servers`
+3. Agent `mcp_servers`
+4. Active skill MCP servers
+
+Config/provider/agent merges are field overlays by server name. Agent-local `mcp.json` sidecars
+replace same-name inline servers as whole objects before that cross-scope merge happens.
+Configured MCP `env` values are passed through as literal strings. Pi-backed providers are launched
+through `pi-acp`; current Pi ACP support does not wire Compozy MCP server declarations into Pi's own MCP
+configuration.
+
+## Choosing a provider
+
+Use the provider that already owns your credentials and preferred operating path:
+
+| If you use                  | Start with          |
+| --------------------------- | ------------------- |
+| Claude Code                 | `claude`            |
+| Codex                       | `codex`             |
+| Gemini CLI                  | `gemini`            |
+| OpenCode                    | `opencode`          |
+| GitHub Copilot CLI          | `copilot`           |
+| Cursor Agent                | `cursor`            |
+| Kiro CLI                    | `kiro`              |
+| BLACKBOX AI                 | `blackbox`          |
+| Cline                       | `cline`             |
+| Goose                       | `goose`             |
+| Hermes                      | `hermes`            |
+| Junie                       | `junie`             |
+| Kimi CLI                    | `kimi-cli`          |
+| OpenClaw                    | `openclaw`          |
+| OpenHands                   | `openhands`         |
+| Qoder CLI                   | `qoder`             |
+| Qwen Code                   | `qwen-code`         |
+| Pi                          | `pi`                |
+| OpenRouter                  | `openrouter`        |
+| z.ai / GLM                  | `zai`               |
+| Moonshot / Kimi API         | `moonshot`          |
+| Vercel AI Gateway           | `vercel-ai-gateway` |
+| xAI                         | `xai`               |
+| MiniMax                     | `minimax`           |
+| Mistral                     | `mistral`           |
+| Groq                        | `groq`              |
+| A local or team ACP wrapper | a custom provider   |
+
+Then keep provider-specific behavior in the provider command or provider config, and keep the
+agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.
+
+## Related pages
+
+- [Agent Definitions](/docs/agents/definitions) explains the `AGENT.md` fields that reference providers.
+- [Spawning](/docs/agents/spawning) shows exactly how the resolved provider command becomes a running ACP process.
+- [Provider Model Catalog](/docs/agents/model-catalog) covers the daemon-owned catalog, sources, refresh lifecycle, OpenAI-compatible projection, and extension `model.source`.
+- [CLI agent reference](/docs/cli/agent) lists the current `compozy agent` inspection commands.
+- [`compozy provider models` CLI](/docs/cli/provider/models) inspects and refreshes the catalog without a UI.

@@ -5,17 +5,17 @@ import { LogoLockup } from "../logo";
 import { COLORS, FONTS, SIZE, truncate } from "../tokens";
 import { Chip } from "./chip";
 
-export type DocsTree = "runtime" | "protocol";
+export type DocsOGVariant = "docs" | "protocol";
 
 export interface RenderDocsOGInput {
-  tree: DocsTree;
+  variant: DocsOGVariant;
   title: string;
   description?: string;
   path: string;
 }
 
-const TREE_LABELS: Record<DocsTree, { eyebrow: string; chip: string }> = {
-  runtime: { eyebrow: "COMPOZYOS RUNTIME", chip: "RUNTIME" },
+const VARIANT_LABELS: Record<DocsOGVariant, { eyebrow: string; chip: string }> = {
+  docs: { eyebrow: "COMPOZYOS DOCS", chip: "COMPOZYOS" },
   protocol: { eyebrow: "COMPOZY NETWORK PROTOCOL", chip: "PROTOCOL" },
 };
 
@@ -52,13 +52,13 @@ const titleStyle: CSSProperties = {
 };
 
 export async function renderDocsOG({
-  tree,
+  variant,
   title,
   description,
   path,
 }: RenderDocsOGInput): Promise<ImageResponse> {
   const fonts = await loadOGFonts();
-  const labels = TREE_LABELS[tree];
+  const labels = VARIANT_LABELS[variant];
   const safeTitle = truncate(title, 120);
   const safeDescription = truncate(description, 165);
 

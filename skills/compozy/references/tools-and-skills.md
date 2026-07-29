@@ -63,7 +63,7 @@ workspace's registry projection.
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
 `path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
 scalar field. The daemon selects and redacts the preview. See [Tool progress in
-bridges](https://compozy.com/runtime/core/bridges/progress) for the rendering and validation
+bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
 contract.
 
 ## Marketplace Discovery

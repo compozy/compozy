@@ -1,0 +1,52 @@
+---
+title: "compozy automation runs"
+description: "Inspect automation run history"
+---
+
+## compozy automation runs
+
+Inspect automation run history
+
+```
+compozy automation runs [flags]
+```
+
+### Options
+
+```
+  -h, --help                help for runs
+      --job-id string       Filter by automation job ID
+      --last int            Show only the most recent N runs
+      --since string        Show runs since an RFC3339 timestamp or relative duration
+      --status string       Filter by run status
+      --trigger-id string   Filter by automation trigger ID
+      --until string        Show runs until an RFC3339 timestamp or relative duration
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy automation runs -o json
+```
+
+## Subcommands
+
+| Command                                                      | Description             |
+| ------------------------------------------------------------ | ----------------------- |
+| [compozy automation runs get](/docs/cli/automation/runs/get) | Show one automation run |

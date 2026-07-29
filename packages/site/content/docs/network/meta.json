@@ -1,0 +1,14 @@
+{
+    "title": "Network",
+    "icon": "Network",
+    "pages": [
+        "protocol-model",
+        "channels-and-peers",
+        "threads",
+        "directs",
+        "work",
+        "delivery-and-safety",
+        "task-promotion",
+        "protocol"
+    ]
+}

@@ -1,0 +1,43 @@
+---
+title: "compozy agent"
+description: "Inspect Compozy agent definitions"
+---
+
+## compozy agent
+
+Inspect Compozy agent definitions
+
+### Options
+
+```
+  -h, --help   help for agent
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                              | Description                                            |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| [compozy agent create](/docs/cli/agent/create)       | Create a global or workspace-local agent definition    |
+| [compozy agent delete](/docs/cli/agent/delete)       | Durably delete an agent definition                     |
+| [compozy agent duplicate](/docs/cli/agent/duplicate) | Duplicate an agent definition without exposing secrets |
+| [compozy agent heartbeat](/docs/cli/agent/heartbeat) | Inspect and manage agent HEARTBEAT.md files            |
+| [compozy agent info](/docs/cli/agent/info)           | Show one agent definition                              |
+| [compozy agent list](/docs/cli/agent/list)           | List installed agent definitions                       |
+| [compozy agent soul](/docs/cli/agent/soul)           | Inspect and manage agent SOUL.md files                 |
+| [compozy agent update](/docs/cli/agent/update)       | Update an agent definition for future sessions         |

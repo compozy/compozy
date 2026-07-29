@@ -1,0 +1,39 @@
+---
+title: "compozy mcp"
+description: "Manage MCP integrations"
+---
+
+## compozy mcp
+
+Manage MCP integrations
+
+### Options
+
+```
+  -h, --help   help for mcp
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                          | Description                                         |
+| ------------------------------------------------ | --------------------------------------------------- |
+| [compozy mcp auth](/docs/cli/mcp/auth)           | Authenticate remote MCP servers through the daemon  |
+| [compozy mcp authorize](/docs/cli/mcp/authorize) | Authorize a remote MCP server through the daemon    |
+| [compozy mcp install](/docs/cli/mcp/install)     | Install a curated MCP server                        |
+| [compozy mcp serve](/docs/cli/mcp/serve)         | Serve the workspace-bound Compozy Host API over MCP |

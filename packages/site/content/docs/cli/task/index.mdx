@@ -1,0 +1,90 @@
+---
+title: "compozy task"
+description: "Manage tasks and task runs"
+---
+
+## compozy task
+
+Manage tasks and task runs
+
+```
+compozy task [flags]
+```
+
+### Examples
+
+```
+  # Create durable task intent without starting execution
+  compozy task create --scope workspace --workspace checkout-api --title "Audit auth flow"
+
+  # Explicitly enqueue execution for an existing task
+  compozy task start task-123 --network live \
+    --network-channel-strategy named --network-channel coord-run-123
+
+  # Let the current agent session claim work
+  compozy task next --wait
+```
+
+### Options
+
+```
+  -h, --help   help for task
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task -o json
+```
+
+## Subcommands
+
+| Command                                                  | Description                                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------- |
+| [compozy task approve](/docs/cli/task/approve)           | Approve a task and enqueue its first run                          |
+| [compozy task block](/docs/cli/task/block)               | Block a task with a typed reason                                  |
+| [compozy task blocks](/docs/cli/task/blocks)             | List task blocks                                                  |
+| [compozy task cancel](/docs/cli/task/cancel)             | Cancel a task tree                                                |
+| [compozy task child](/docs/cli/task/child)               | Manage child tasks                                                |
+| [compozy task complete](/docs/cli/task/complete)         | Complete a claimed task run for the current agent session         |
+| [compozy task create](/docs/cli/task/create)             | Create a task                                                     |
+| [compozy task delete](/docs/cli/task/delete)             | Delete a task                                                     |
+| [compozy task dependency](/docs/cli/task/dependency)     | Manage task dependencies                                          |
+| [compozy task fail](/docs/cli/task/fail)                 | Fail task runs through a session-bound lease or operator override |
+| [compozy task fan-out](/docs/cli/task/fan-out)           | Enqueue designated sibling runs for one task                      |
+| [compozy task get](/docs/cli/task/get)                   | Show one task with related detail                                 |
+| [compozy task heartbeat](/docs/cli/task/heartbeat)       | Extend a claimed task run lease for the current agent session     |
+| [compozy task inspect](/docs/cli/task/inspect)           | Inspect a task or run with diagnostics                            |
+| [compozy task list](/docs/cli/task/list)                 | List tasks                                                        |
+| [compozy task next](/docs/cli/task/next)                 | Claim the next task run for the current agent session             |
+| [compozy task notification](/docs/cli/task/notification) | Manage task terminal notifications                                |
+| [compozy task pause](/docs/cli/task/pause)               | Pause new runs for one task                                       |
+| [compozy task profile](/docs/cli/task/profile)           | Manage task execution profiles                                    |
+| [compozy task promote](/docs/cli/task/promote)           | Promote one network thread message into a task                    |
+| [compozy task publish](/docs/cli/task/publish)           | Publish a draft task and enqueue its first run                    |
+| [compozy task recover](/docs/cli/task/recover)           | Recover a task from needs_attention                               |
+| [compozy task reject](/docs/cli/task/reject)             | Reject a pending approval task                                    |
+| [compozy task release](/docs/cli/task/release)           | Force release claimed task runs back to the queue                 |
+| [compozy task resume](/docs/cli/task/resume)             | Resume new runs for one paused task                               |
+| [compozy task retry](/docs/cli/task/retry)               | Retry one failed task run                                         |
+| [compozy task review](/docs/cli/task/review)             | Manage task-run reviews                                           |
+| [compozy task run](/docs/cli/task/run)                   | Manage task runs                                                  |
+| [compozy task start](/docs/cli/task/start)               | Enqueue a run for an executable task                              |
+| [compozy task unblock](/docs/cli/task/unblock)           | Clear one task block                                              |
+| [compozy task update](/docs/cli/task/update)             | Update mutable task fields                                        |

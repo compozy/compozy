@@ -274,18 +274,18 @@ func TestRenderSubcommandsSection(t *testing.T) {
 		}
 
 		targets := map[string]string{
-			"compozy_task":        "/runtime/cli-reference/task",
-			"compozy_task_create": "/runtime/cli-reference/task/create",
-			"compozy_task_list":   "/runtime/cli-reference/task/list",
+			"compozy_task":        "/docs/cli/task",
+			"compozy_task_create": "/docs/cli/task/create",
+			"compozy_task_list":   "/docs/cli/task/list",
 		}
 
 		result := renderSubcommandsSection(inputs[0], inputs, targets)
 		want := `## Subcommands
 
-| Command                                                   | Description   |
-| --------------------------------------------------------- | ------------- |
-| [compozy task create](/runtime/cli-reference/task/create) | Create a task |
-| [compozy task list](/runtime/cli-reference/task/list)     | List tasks    |`
+| Command                                      | Description   |
+| -------------------------------------------- | ------------- |
+| [compozy task create](/docs/cli/task/create) | Create a task |
+| [compozy task list](/docs/cli/task/list)     | List tasks    |`
 		if result != want {
 			t.Fatalf("renderSubcommandsSection() = %q, want %q", result, want)
 		}
@@ -476,10 +476,10 @@ func TestBuildTargetMap(t *testing.T) {
 	targets := buildTargetMap(inputs)
 
 	want := map[string]string{
-		"compozy":                        "/runtime/cli-reference/compozy",
-		"compozy_agent":                  "/runtime/cli-reference/agent",
-		"compozy_agent_list":             "/runtime/cli-reference/agent/list",
-		"compozy_automation_jobs_create": "/runtime/cli-reference/automation/jobs/create",
+		"compozy":                        "/docs/cli/compozy",
+		"compozy_agent":                  "/docs/cli/agent",
+		"compozy_agent_list":             "/docs/cli/agent/list",
+		"compozy_automation_jobs_create": "/docs/cli/automation/jobs/create",
 	}
 
 	for k, v := range want {
@@ -493,9 +493,9 @@ func TestRemapLinks(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"compozy":            "/runtime/cli-reference/compozy",
-		"compozy_agent":      "/runtime/cli-reference/agent",
-		"compozy_agent_list": "/runtime/cli-reference/agent/list",
+		"compozy":            "/docs/cli/compozy",
+		"compozy_agent":      "/docs/cli/agent",
+		"compozy_agent_list": "/docs/cli/agent/list",
 	}
 
 	tests := []struct {
@@ -506,12 +506,12 @@ func TestRemapLinks(t *testing.T) {
 		{
 			name: "remaps stripped cross link",
 			raw:  "* [compozy agent list](compozy_agent_list) - list agents",
-			want: "* [compozy agent list](/runtime/cli-reference/agent/list) - list agents",
+			want: "* [compozy agent list](/docs/cli/agent/list) - list agents",
 		},
 		{
 			name: "remaps root",
 			raw:  "See [compozy](compozy) for the root command.",
-			want: "See [compozy](/runtime/cli-reference/compozy) for the root command.",
+			want: "See [compozy](/docs/cli/compozy) for the root command.",
 		},
 		{
 			name: "leaves unknown targets alone",
@@ -796,7 +796,7 @@ Print the version.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(createMDX), "(/runtime/cli-reference/automation/jobs)") {
+	if !strings.Contains(string(createMDX), "(/docs/cli/automation/jobs)") {
 		t.Errorf("automation/jobs/create.mdx should contain absolute cross-link, got:\n%s", createMDX)
 	}
 	if strings.Contains(string(createMDX), "(compozy_automation_jobs)") {

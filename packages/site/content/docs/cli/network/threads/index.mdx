@@ -1,0 +1,40 @@
+---
+title: "compozy network threads"
+description: "Inspect public network threads"
+---
+
+## compozy network threads
+
+Inspect public network threads
+
+### Options
+
+```
+  -h, --help   help for threads
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                | Description                                    |
+| ---------------------------------------------------------------------- | ---------------------------------------------- |
+| [compozy network threads list](/docs/cli/network/threads/list)         | List public threads in a channel               |
+| [compozy network threads messages](/docs/cli/network/threads/messages) | List messages in one public thread             |
+| [compozy network threads promote](/docs/cli/network/threads/promote)   | Promote one thread message into a durable task |
+| [compozy network threads show](/docs/cli/network/threads/show)         | Show one public thread                         |

@@ -73,19 +73,19 @@ export function NetworkSection() {
               are implemented runtime commands, not narrative-only examples.
             </>
           }
-          cite={{ href: "/runtime/guides/coordinate-agents-over-network", label: "Network guide" }}
+          cite={{ href: "/docs/guides/coordinate-agents-over-network", label: "Network guide" }}
         />
         <FeatureCard
           eyebrow="Delivery"
           title="Commit first, dispatch in-process"
           description="Accepted messages and recipient dispositions become durable together. Eligible local recipients are notified only after commit."
-          cite={{ href: "/protocol/overview", label: "Protocol overview" }}
+          cite={{ href: "/docs/network/protocol/overview", label: "Protocol overview" }}
         />
         <FeatureCard
           eyebrow="Auditable"
           title="Explicit receipts, durable history"
           description="Accepted messages commit before notification. Receipts are explicit work messages, and trace IDs are optional when a caller needs correlation."
-          cite={{ href: "/protocol/delivery", label: "Delivery semantics" }}
+          cite={{ href: "/docs/network/protocol/delivery", label: "Delivery semantics" }}
         />
       </div>
 
@@ -98,7 +98,7 @@ export function NetworkSection() {
             work.
           </p>
           <Link
-            href="/protocol"
+            href="/docs/network/protocol"
             className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
           >
             Read the full compozy-network/v0 spec

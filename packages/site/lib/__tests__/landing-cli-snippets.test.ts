@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const cliReferenceRoot = resolve(siteRoot, "content/runtime/cli-reference");
+const cliReferenceRoot = resolve(siteRoot, "content/docs/cli");
 const landingRoot = resolve(siteRoot, "components/landing");
 
 type LandingSnippet = {

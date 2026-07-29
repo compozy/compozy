@@ -10,30 +10,27 @@ const mockedDocs = vi.hoisted(() => ({
   protocolPages: [
     {
       data: { description: "Implemented protocol surface.", title: "Implementation Status" },
-      url: "/protocol/implementation-status",
+      url: "/docs/network/protocol/implementation-status",
     },
   ],
   runtimePages: [
     {
       data: { description: "Runtime docs overview.", title: "How to use these docs" },
-      url: "/runtime/how-to-use-these-docs",
+      url: "/docs/how-to-use-these-docs",
     },
     {
       data: {
         description: "Prepare a project workspace for agent execution.",
         title: "Prepare a project workspace",
       },
-      url: "/runtime/use-cases/prepare-a-project-workspace",
+      url: "/docs/use-cases/prepare-a-project-workspace",
     },
   ],
 }));
 
 vi.mock("@/lib/source", () => ({
-  protocolDocs: {
-    getPages: () => mockedDocs.protocolPages,
-  },
-  runtimeDocs: {
-    getPages: () => mockedDocs.runtimePages,
+  docsSource: {
+    getPages: () => [...mockedDocs.runtimePages, ...mockedDocs.protocolPages],
   },
 }));
 
@@ -74,9 +71,9 @@ describe("public route metadata", () => {
     }
 
     expect(urls).toContain(absoluteUrl("/"));
-    expect(urls).toContain(absoluteUrl("/runtime/how-to-use-these-docs/"));
-    expect(urls).toContain(absoluteUrl("/runtime/use-cases/prepare-a-project-workspace/"));
-    expect(urls).toContain(absoluteUrl("/protocol/implementation-status/"));
+    expect(urls).toContain(absoluteUrl("/docs/how-to-use-these-docs/"));
+    expect(urls).toContain(absoluteUrl("/docs/use-cases/prepare-a-project-workspace/"));
+    expect(urls).toContain(absoluteUrl("/docs/network/protocol/implementation-status/"));
     for (const category of BLOG_CATEGORIES) {
       expect(urls).toContain(absoluteUrl(`/blog/categories/${category}/`));
     }
@@ -98,21 +95,23 @@ describe("public route metadata", () => {
 
     expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
     expect(body).toContain("# CompozyOS Documentation");
+    expect(body).toContain("## Docs");
+    expect(body).toContain("## Guides & examples");
     expect(body).toContain("## Compozy Network");
     expect(body).toContain(
       "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime."
     );
     expect(body).toContain(
-      "- [How to use these docs](https://compozy.com/runtime/how-to-use-these-docs): Runtime docs overview."
+      "- [How to use these docs](https://compozy.com/docs/how-to-use-these-docs): Runtime docs overview."
     );
     expect(body).toContain(
-      "- [Implementation Status](https://compozy.com/protocol/implementation-status): Implemented protocol surface."
+      "- [Implementation Status](https://compozy.com/docs/network/protocol/implementation-status): Implemented protocol surface."
     );
     expect(body).toContain(
       `- [Current release: ${allReleases()[0]?.version}](https://compozy.com/changelog#${allReleases()[0]?.version}): ${allReleases()[0]?.status}`
     );
     expect(body).toContain(
-      "- [Migrate from Compozy v0.2.15 to CompozyOS v0.3](https://compozy.com/runtime/migration)"
+      "- [Migrate from Compozy v0.2.15 to CompozyOS v0.3](https://compozy.com/docs/migration)"
     );
   });
 

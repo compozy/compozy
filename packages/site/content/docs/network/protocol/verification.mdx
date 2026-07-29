@@ -1,0 +1,233 @@
+---
+title: Optional Signature Verification (v1)
+description: Reference for the optional RFC 004 v1 trust profile layered on compozy-network/v0; CompozyOS currently routes proof as opaque JSON and does not run this algorithm.
+icon: ShieldCheck
+---
+
+The optional RFC 004 v1 trust profile inserts trust evaluation between core v0 envelope validation
+and routing. A receiver claiming that profile uses this step to classify each message as `verified`,
+`unverified`, or `rejected`. The core wire identifier remains `compozy-network/v0`, while the
+profile-aware validator applies `nickname@fingerprint` to signed senders instead of the ordinary v0
+Peer ID grammar used by the current CompozyOS runtime.
+
+This page is normative only for an implementation that claims
+`compozy-network.trust.ed25519-jcs/v1`.
+
+<OperatorNote label="Implementation status">
+  The CompozyOS reference implementation validates v0 envelopes and routes opaque `proof` values. It
+  does not run the trust-state algorithm below.
+</OperatorNote>
+
+## Trust states
+
+| State        | Meaning                                                                                                  | Receiver behavior                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `verified`   | A supported proof profile validated successfully and local policy permits the sender.                    | Receiver MAY treat the envelope as cryptographically bound to `from`.    |
+| `unverified` | No usable proof is present, or the proof profile is unsupported but not malformed.                       | Receiver MAY route the message under unverified policy.                  |
+| `rejected`   | The proof is malformed, invalid, forbidden by local policy, or stripped from a verified-format identity. | Receiver MUST stop normal routing and SHOULD surface a rejection reason. |
+
+Trust state is not the same as authorization. A `verified` envelope proves key possession for the
+claimed self-certified handle. Local policy still decides whether that sender can perform the
+requested action.
+
+## Processing order
+
+A receiver claiming this trust profile MUST evaluate trust after core validation and freshness
+checks, but before routing and extension-specific behavior.
+
+<Mermaid
+  chart={`flowchart TD
+    Recv([Envelope received]) --> Core[Validate core envelope]
+    Core --> Fresh[Check expires_at and replay window]
+    Fresh --> Trust{Evaluate proof and from}
+    Trust -->|verified| Route[Route by kind, channel, and to]
+    Trust -->|unverified| Route
+    Trust -->|rejected| Stop([Stop normal processing])
+    Route --> Lifecycle[Apply lifecycle rules]
+    Lifecycle --> Ext[Apply known extensions]
+    Ext --> Done([Done])`}
+  caption="Trust evaluation happens before routing and before extension-specific behavior."
+/>
+
+## Verification algorithm
+
+To mark an envelope as `verified` under the optional profile, a receiver MUST perform every step in
+this order:
+
+1. Confirm that `proof` is a JSON object.
+2. Confirm that `proof.profile` equals `compozy-network.trust.ed25519-jcs/v1`.
+3. Confirm that `proof.alg` equals `Ed25519`.
+4. Confirm that `proof.pubkey` is base64url without padding and decodes to exactly 32 bytes.
+5. Compute `digest = SHA-256(pubkey)`.
+6. Confirm that `proof.key_id` equals `sha256:` followed by the 64-character lowercase hex digest.
+7. Confirm that `from` has the verified handle shape `nickname@fingerprint`.
+8. Confirm that `nickname` matches `[a-z0-9_-]{1,32}`.
+9. Confirm that `fingerprint` equals the first 32 lowercase hex characters of the digest.
+10. Confirm that `proof.sig` is base64url without padding and decodes to exactly 64 bytes.
+11. Omit only `proof.sig` from the received envelope.
+12. JCS-canonicalize the resulting envelope.
+13. Verify the Ed25519 signature over the canonical UTF-8 bytes using `proof.pubkey`.
+14. Apply local trust policy, if configured.
+
+If any required step fails, the receiver MUST classify the envelope as `rejected`.
+
+<Mermaid
+  chart={`flowchart TD
+    Start([Envelope with proof]) --> P1{profile matches?}
+    P1 -->|No| Unsupported[unverified or unsupported_profile policy]
+    P1 -->|Yes| P2{alg is Ed25519?}
+    P2 -->|No| Reject[rejected]
+    P2 -->|Yes| P3[Decode 32-byte pubkey]
+    P3 --> P4[SHA-256 pubkey]
+    P4 --> P5{key_id matches digest?}
+    P5 -->|No| Reject
+    P5 -->|Yes| P6{from fingerprint matches?}
+    P6 -->|No| Reject
+    P6 -->|Yes| P7[Omit proof.sig and JCS canonicalize]
+    P7 --> P8{Ed25519 verifies?}
+    P8 -->|No| Reject
+    P8 -->|Yes| Policy{Local policy allows?}
+    Policy -->|No| Reject
+    Policy -->|Yes| Verified[verified]`}
+  caption="Every successful baseline proof passes key, identity, canonicalization, signature, and policy checks."
+/>
+
+## Key resolution
+
+The baseline trust profile is self-contained. A receiver MUST be able to verify the cryptographic
+signature from `proof.pubkey` alone.
+
+| Source             | Role                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `proof.pubkey`     | Supplies the raw Ed25519 public key for signature verification.                       |
+| `proof.key_id`     | Binds the public key to its full SHA-256 digest.                                      |
+| `from` fingerprint | Binds the sender handle to the first 32 lowercase hex characters of the same digest.  |
+| Local policy       | MAY allow, deny, pin, or annotate a verified key after the cryptographic checks pass. |
+
+Receivers SHOULD treat a mismatch between `proof.pubkey`, `proof.key_id`, and `from` as
+`verification_failed`, not as an unknown sender.
+
+### Trust chains and policy
+
+The baseline profile does not define a global trust chain. A deployment MAY add policy such as:
+
+- pinned public keys for known peers
+- allowlists or denylists for key IDs
+- channel-specific sender permissions
+- organization-issued credentials carried in an extension profile
+- revocation lists maintained out of band
+
+Such policy MUST NOT skip the baseline verification algorithm. Proof presence is never proof
+validity.
+
+## Handling unsigned messages
+
+Unsigned handling depends on the `from` shape and `proof` value.
+
+| Envelope condition                                                                      | Trust state  | Rule                                                               |
+| --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------ |
+| `proof` absent or `null`, `from` is a normal v0 Peer ID                                 | `unverified` | Receiver MAY route under unverified policy.                        |
+| `proof` absent or `null`, `from` matches `nickname@fingerprint`                         | `rejected`   | Receiver MUST treat this as proof stripping.                       |
+| `proof.profile` is unsupported but the proof object is otherwise opaque and well-formed | `unverified` | Receiver MAY route under unverified or unsupported-profile policy. |
+| Baseline `proof` is present but malformed                                               | `rejected`   | Receiver MUST stop normal routing.                                 |
+| Baseline `proof` is present but signature verification fails                            | `rejected`   | Receiver MUST stop normal routing.                                 |
+
+## Proof-stripping defense
+
+If `from` uses `nickname@fingerprint`, the sender is claiming a verified-format identity. A message
+with that `from` value but without `proof` MUST be `rejected`.
+
+This prevents a downgrade attack:
+
+1. A sender emits a signed envelope from `patch-worker@56475aa75463474c0285df5dbf2bcab7`.
+2. An attacker removes `proof`.
+3. A receiver sees a verified-format identity without proof.
+4. The receiver rejects the envelope instead of treating it as an unverified message.
+
+## Error semantics
+
+Receivers SHOULD expose verification outcomes through the same protocol-visible error vocabulary
+used by [delivery guarantees](/docs/network/protocol/delivery/).
+
+| Failure                                                                                     | Recommended reason code                                      | Notes                                                                                  |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Invalid baseline signature, malformed baseline proof, key mismatch, or fingerprint mismatch | `verification_failed`                                        | Use when the sender attempted the baseline profile and failed.                         |
+| Unsupported proof profile                                                                   | `unsupported_profile`                                        | Use when the receiver chooses to reject instead of treating the message as unverified. |
+| Non-object `proof` or invalid envelope shape                                                | `malformed`                                                  | Core envelope validation can fail before trust evaluation.                             |
+| Message expired before trust evaluation                                                     | `expired`                                                    | Freshness checks happen before trust checks.                                           |
+| Local policy forbids a valid key                                                            | `verification_failed` or deployment-specific namespaced code | Use a namespaced `ext` detail when policy needs more precision.                        |
+
+For directed work, a receiver SHOULD emit a `receipt` with the failure status when practical. The
+receiver MUST NOT emit a success trace, refresh peer presence, or run extension handlers for a
+`rejected` envelope.
+
+## Verification pseudocode
+
+```text
+function trust_state(envelope):
+  core_validate(envelope)
+  freshness_validate(envelope)
+
+  if envelope.proof is absent or null:
+    if looks_like_verified_handle(envelope.from):
+      return rejected("verification_failed")
+    return unverified()
+
+  if envelope.proof.profile != "compozy-network.trust.ed25519-jcs/v1":
+    return unverified()
+
+  proof = envelope.proof
+  require proof.alg == "Ed25519"
+  pubkey = base64url_decode_no_pad(proof.pubkey)
+  require len(pubkey) == 32
+
+  digest = sha256(pubkey)
+  require proof.key_id == "sha256:" + lower_hex(digest)
+  require envelope.from == nickname + "@" + lower_hex(digest)[0:32]
+
+  sig = base64url_decode_no_pad(proof.sig)
+  require len(sig) == 64
+
+  signed_envelope = deep_copy(envelope)
+  delete signed_envelope.proof.sig
+  signed_bytes = utf8(jcs(signed_envelope))
+  require ed25519_verify(pubkey, signed_bytes, sig)
+
+  require local_policy_allows(proof.key_id, envelope)
+  return verified()
+```
+
+## Go byte verification
+
+This snippet verifies already-canonicalized JCS bytes. The caller still has to run the full
+algorithm above to bind `proof.pubkey`, `proof.key_id`, and `from`.
+
+```go
+package trust
+
+import "crypto/ed25519"
+
+func VerifyCanonical(pubkey ed25519.PublicKey, canonical []byte, signature []byte) bool {
+	if len(pubkey) != ed25519.PublicKeySize {
+		return false
+	}
+	if len(signature) != ed25519.SignatureSize {
+		return false
+	}
+	return ed25519.Verify(pubkey, canonical, signature)
+}
+```
+
+## Receiver invariants
+
+A verifier claiming this profile MUST preserve these invariants:
+
+- It MUST validate freshness before verification.
+- It MUST verify the full canonical envelope, not only `body`.
+- It MUST include `proof.profile`, `proof.alg`, `proof.key_id`, and `proof.pubkey` in the signed
+  content.
+- It MUST omit only `proof.sig` before canonicalization.
+- It MUST reject verified-format identities when proof is missing.
+- It MUST ignore unknown `ext` keys until after core validation and trust evaluation complete.
+- It MUST NOT treat carrier authentication, runtime membership, or Peer Card claims as a substitute
+  for proof verification.

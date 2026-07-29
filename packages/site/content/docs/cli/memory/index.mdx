@@ -1,0 +1,55 @@
+---
+title: "compozy memory"
+description: "Show, write, search, and operate Memory v2 durable context"
+---
+
+## compozy memory
+
+Show, write, search, and operate Memory v2 durable context
+
+### Options
+
+```
+  -h, --help   help for memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                  | Description                                                 |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| [compozy memory adhoc](/docs/cli/memory/adhoc)           | Inspect ad-hoc Memory v2 notes                              |
+| [compozy memory daily](/docs/cli/memory/daily)           | Inspect Memory v2 daily operation logs                      |
+| [compozy memory decisions](/docs/cli/memory/decisions)   | Inspect and revert Memory v2 controller decisions           |
+| [compozy memory delete](/docs/cli/memory/delete)         | Delete a Memory v2 entry through the controller             |
+| [compozy memory dream](/docs/cli/memory/dream)           | Operate Memory v2 dreaming runs                             |
+| [compozy memory edit](/docs/cli/memory/edit)             | Edit a Memory v2 entry through the controller               |
+| [compozy memory extractor](/docs/cli/memory/extractor)   | Operate Memory v2 extractor runtime                         |
+| [compozy memory health](/docs/cli/memory/health)         | Show Memory v2 health                                       |
+| [compozy memory history](/docs/cli/memory/history)       | Show redaction-safe Memory v2 operation history             |
+| [compozy memory list](/docs/cli/memory/list)             | List Memory v2 entries                                      |
+| [compozy memory promote](/docs/cli/memory/promote)       | Promote a memory entry across Memory v2 scopes              |
+| [compozy memory provider](/docs/cli/memory/provider)     | Operate Memory v2 providers                                 |
+| [compozy memory recall](/docs/cli/memory/recall)         | Inspect Memory v2 recall traces                             |
+| [compozy memory reindex](/docs/cli/memory/reindex)       | Rebuild the derived Memory v2 search catalog                |
+| [compozy memory reload](/docs/cli/memory/reload)         | Invalidate frozen memory snapshots for future session boots |
+| [compozy memory reset](/docs/cli/memory/reset)           | Reset derived Memory v2 state through the daemon            |
+| [compozy memory scope-show](/docs/cli/memory/scope-show) | Show resolved Memory v2 precedence for a selector           |
+| [compozy memory search](/docs/cli/memory/search)         | Search deterministic Memory v2 recall                       |
+| [compozy memory show](/docs/cli/memory/show)             | Show one Memory v2 entry                                    |
+| [compozy memory write](/docs/cli/memory/write)           | Create a Memory v2 entry through the controller             |

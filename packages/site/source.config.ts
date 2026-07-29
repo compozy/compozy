@@ -1,12 +1,8 @@
 import { COMPOZY_CODE_THEMES } from "@compozy/ui/lib/code-theme";
 import { defineDocs, defineConfig } from "fumadocs-mdx/config";
 
-export const runtime = defineDocs({
-  dir: "content/runtime",
-});
-
-export const protocol = defineDocs({
-  dir: "content/protocol",
+export const docs = defineDocs({
+  dir: "content/docs",
 });
 
 export default defineConfig({

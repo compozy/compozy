@@ -1,0 +1,37 @@
+---
+title: "compozy network subscriptions"
+description: "Inspect network delivery preferences"
+---
+
+## compozy network subscriptions
+
+Inspect network delivery preferences
+
+### Options
+
+```
+  -h, --help   help for subscriptions
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                    | Description                       |
+| -------------------------------------------------------------------------- | --------------------------------- |
+| [compozy network subscriptions list](/docs/cli/network/subscriptions/list) | List network delivery preferences |

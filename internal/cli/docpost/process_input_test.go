@@ -130,8 +130,8 @@ func TestLinkRewriteCodeRegionHandling(t *testing.T) {
 		t.Parallel()
 
 		targets := map[string]string{
-			"compozy_agent": "/runtime/cli-reference/agent",
-			"compozy_task":  "/runtime/cli-reference/task",
+			"compozy_agent": "/docs/cli/agent",
+			"compozy_task":  "/docs/cli/task",
 		}
 		raw := strings.Join([]string{
 			"See [compozy agent](compozy_agent).",
@@ -143,7 +143,7 @@ func TestLinkRewriteCodeRegionHandling(t *testing.T) {
 
 		got := remapLinks(raw, targets)
 		want := strings.Join([]string{
-			"See [compozy agent](/runtime/cli-reference/agent).",
+			"See [compozy agent](/docs/cli/agent).",
 			"Inline `[compozy agent](compozy_agent)` stays literal.",
 			"```",
 			"[compozy task](compozy_task)",

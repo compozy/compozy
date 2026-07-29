@@ -84,11 +84,9 @@ describe("Hero", () => {
       )
     ).toBeDefined();
     const install = screen.getByText("Install the beta");
-    expect(install.closest("a")?.getAttribute("href")).toBe(
-      "/runtime/core/getting-started/installation"
-    );
+    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const overview = screen.getByText("See how CompozyOS works");
-    expect(overview.closest("a")?.getAttribute("href")).toBe("/runtime");
+    expect(overview.closest("a")?.getAttribute("href")).toBe("/docs");
   });
 
   it("renders four proof-of-life signal tiles", () => {
@@ -177,7 +175,7 @@ describe("BentoSection", () => {
     render(<BentoSection />);
 
     const expectedSources = [
-      "/images/bento-illustrations/os-shell-v3.png",
+      "/images/bento-illustrations/os-v2.png",
       "/images/bento-illustrations/network-v2.png",
       "/images/bento-illustrations/bridges-v2.png",
       "/images/bento-illustrations/memory-v2.png",
@@ -250,10 +248,10 @@ describe("BridgesSection", () => {
     render(<BridgesSection />);
 
     expect(screen.getByRole("link", { name: "Set up a bridge" }).getAttribute("href")).toBe(
-      "/runtime/core/bridges/setup"
+      "/docs/bridges/setup"
     );
     expect(screen.getByRole("link", { name: "Build a bridge adapter" }).getAttribute("href")).toBe(
-      "/runtime/core/bridges/adding-a-bridge"
+      "/docs/bridges/adding-a-bridge"
     );
   });
 });
@@ -267,7 +265,7 @@ describe("ExtensibilitySection", () => {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(screen.getByRole("link", { name: "Read extensions docs" }).getAttribute("href")).toBe(
-      "/runtime/core/extensions"
+      "/docs/extensions"
     );
   });
 
@@ -423,11 +421,9 @@ describe("FinalCta", () => {
   it("links the final actions to installation, protocol, and the repository", () => {
     render(<FinalCta />);
     const install = screen.getByText("Install the beta");
-    expect(install.closest("a")?.getAttribute("href")).toBe(
-      "/runtime/core/getting-started/installation"
-    );
+    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const spec = screen.getByText("Read compozy-network/v0 spec");
-    expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
+    expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/network/protocol");
     const star = screen.getByText("Star on GitHub");
     expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);
   });

@@ -4,8 +4,8 @@ area: ET
 title: Docs sidebar matches OpenDesign section and group anatomy
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: On /runtime docs, the sidebar shows warm accent-mix section labels for CORE_SECTIONS, 28px single-line rows with elevated hover and active accent rail (long labels truncate with ellipsis and native title tooltip), Lucide icons only on top-level rows, and in-folder separators (e.g. Loops Operate/Author/Reference) as subordinate group labels with hairlines inside a 1px guide-line — never the same chrome as top-level sections.
-entry_points: compozy.com /runtime; /runtime/core/loops; docs/design/opendesign/docs/docs-design-system.html §03
+expected: On /docs docs, the sidebar shows warm accent-mix section labels for the eight meta.json sidebar groups, 28px single-line rows with elevated hover and active accent rail (long labels truncate with ellipsis and native title tooltip), Lucide icons only on top-level rows, and in-folder separators (e.g. Loops Operate/Author/Reference) as subordinate group labels with hairlines inside a 1px guide-line — never the same chrome as top-level sections.
+entry_points: compozy.com /docs; /docs/loops; docs/design/opendesign/docs/docs-design-system.html §03
 qa_status: untested
 bug_ids:
 fix_status:

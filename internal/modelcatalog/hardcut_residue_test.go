@@ -191,8 +191,8 @@ func allowedProviderModelResidue(
 	if lineWithinRanges(lineNo, allowedRanges) {
 		return strings.Contains(line, fmt.Sprintf("%q", field))
 	}
-	if rel == "packages/site/content/runtime/core/agents/providers.mdx" ||
-		rel == "packages/site/content/runtime/core/configuration/config-toml.mdx" {
+	if rel == "packages/site/content/docs/agents/providers.mdx" ||
+		rel == "packages/site/content/docs/configuration/config-toml.mdx" {
 		return strings.Contains(line, "flat keys") || strings.Contains(line, "are no longer")
 	}
 	if field != "supported_models" {

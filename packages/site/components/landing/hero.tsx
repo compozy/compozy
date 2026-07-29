@@ -64,10 +64,10 @@ export function Hero() {
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
-              <CtaButton href="/runtime/core/getting-started/installation" variant="primary">
+              <CtaButton href="/docs/getting-started/installation" variant="primary">
                 Install the beta
               </CtaButton>
-              <CtaButton href="/runtime" variant="ghost">
+              <CtaButton href="/docs" variant="ghost">
                 See how CompozyOS works
               </CtaButton>
             </div>

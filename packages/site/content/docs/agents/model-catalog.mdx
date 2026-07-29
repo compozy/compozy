@@ -1,0 +1,403 @@
+---
+title: Provider Model Catalog
+description: Daemon-owned model catalog — sources, refresh lifecycle, native HTTP/UDS endpoints, OpenAI-compatible projection, and extension model.source contract.
+---
+
+The model catalog is the daemon-owned authority for **pre-session** provider model selection. The
+new-session dialog, CLI, HTTP, UDS, Host API, web settings, and the OpenAI-compatible model list
+all read the same projected rows. Active session controls keep flowing through ACP `configOptions`
+once a session is running.
+
+Catalog refresh never blocks session creation. Every refresh is detached from the request lifetime,
+runs under an explicit deadline, falls back to stale rows when refresh fails, and exposes source
+health through structured status. A requested model or reasoning effort can still fail before the
+first prompt when the active ACP adapter does not advertise an applicable option.
+
+## Why a separate catalog
+
+ACP `models.availableModels` is observed only after `session/new` or `session/load`, which is too
+late for the new-session dialog and for agents picking a model through CLI/HTTP/UDS. The catalog
+splits two concepts that used to live together:
+
+- Pre-session catalog: which provider models Compozy knows about before creating a session.
+- Active session config: which controls the running ACP session exposes right now.
+
+The catalog is daemon-owned, persisted, refreshable, extensible, and agent-manageable. Active
+session `configOptions` continue to govern the live session — catalog rows never override them.
+
+## Source priorities and merge
+
+The merge key is `(provider_id, model_id)`. Source rows are preserved separately and merged on read.
+
+| Source kind     | Priority       | Origin                                                             |
+| --------------- | -------------- | ------------------------------------------------------------------ |
+| `config`        | 120            | `[providers.<id>.models]` operator config.                         |
+| `provider_live` | 110            | Live discovery sources for the provider account/runtime.           |
+| `extension`     | 100            | Extension model sources (capability `model.source`).               |
+| `models_dev`    | 50             | Cross-provider enrichment from `models.dev` (with stale fallback). |
+| `builtin`       | 10             | Built-in defaults shipped with the daemon.                         |
+| `acp_session`   | session-scoped | Observed during an ACP session; never rewrites global authority.   |
+
+Higher-priority non-empty fields win; lower-priority sources fill missing fields. Ties resolve by
+fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
+metadata but never prove account-level availability.
+
+Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
+source of the winning field. A cost estimate is available only when every nonzero usage bucket has
+its own finite, non-negative rate and all active rates have compatible provenance. Rates are never
+inferred between buckets.
+
+## Merged availability
+
+The merged projection exposes both nullable `available` and string `availability_state` so stale
+live truth is visible instead of collapsed:
+
+| `availability_state` | Meaning                                                            | API `available` | API `stale` |
+| -------------------- | ------------------------------------------------------------------ | --------------- | ----------- |
+| `available_live`     | Live or extension row confirmed availability with fresh data.      | `true`          | `false`     |
+| `available_stale`    | Live or extension row confirmed availability but the row is stale. | `true`          | `true`      |
+| `unavailable_live`   | Live or extension row denied availability with fresh data.         | `false`         | `false`     |
+| `unavailable_stale`  | Live or extension row denied availability but the row is stale.    | `false`         | `true`      |
+| `unknown`            | Only catalog/builtin/config metadata is known.                     | `null`          | depends     |
+
+Manual model entry remains valid even when no source advertises the model. `models.curated` is
+metadata, never an allowlist.
+
+## Curated and all views
+
+Catalog lists default to `view=curated`. When a provider has an explicit `models.curated` set, the
+projection contains its visible explicit entries plus visible featured models. Live discovery updates
+availability and metadata, but does not expand that set with every upstream model. When no explicit
+set exists, every current non-hidden, non-deprecated row forms the fallback. An explicit set still
+counts when all its entries are hidden or deprecated, so curation never reopens the full catalog by
+accident. Rows sort curated first, then non-deprecated, featured, newest known release date, and
+canonical model ID. This keeps excluded featured rows below actual curated members and demotes every
+deprecated row in the full search set.
+
+`view=all` returns every current row, including hidden and deprecated entries. Use it when inspecting
+or reversing curation. The response field `curated` means the row participates in the current curated
+projection; it is not merely a check for a matching TOML array entry.
+
+## Native HTTP and UDS endpoints
+
+| Method | Path                                                        | Transports | Description                                                            |
+| ------ | ----------------------------------------------------------- | ---------- | ---------------------------------------------------------------------- |
+| GET    | `/api/model-catalog/models`                                 | HTTP, UDS  | List merged provider model catalog entries.                            |
+| GET    | `/api/model-catalog/providers/{provider_id}/models`         | HTTP, UDS  | List merged catalog entries for one provider.                          |
+| POST   | `/api/model-catalog/providers/{provider_id}/models/curate`  | HTTP, UDS  | Apply one serialized, global model curation mutation through settings. |
+| POST   | `/api/model-catalog/models/refresh`                         | HTTP, UDS  | Refresh sources across providers; returns source status.               |
+| POST   | `/api/model-catalog/providers/{provider_id}/models/refresh` | HTTP, UDS  | Refresh sources for one provider.                                      |
+| GET    | `/api/model-catalog/sources/status`                         | HTTP, UDS  | Source status across providers.                                        |
+| GET    | `/api/model-catalog/providers/{provider_id}/models/status`  | HTTP, UDS  | Source status for one provider.                                        |
+
+List endpoints accept these query parameters:
+
+- `provider_id`: filter by Compozy provider id (only on the cross-provider list).
+- `source_id`: filter by catalog source id (`config`, `models_dev`, `provider_live:<id>`, `extension:<slug>`).
+- `view`: `curated` (default) or `all` on list endpoints.
+- `refresh=true`: refresh sources before listing.
+- `include_stale=true`: include stale source rows in the merged projection.
+
+Refresh requests accept an optional JSON body:
+
+```json
+{
+  "source_id": "provider_live:codex",
+  "force": true,
+  "request_id": "rfsh-2026-05-07-abc"
+}
+```
+
+`request_id` (or a daemon-generated value) is the `refresh_request_id` correlation key surfaced in
+logs and source status events. Refresh work runs under daemon-owned lifetime: the request's cancel
+does not cancel refresh work, and the daemon joins outstanding refresh workers during shutdown.
+
+The native list response shape is:
+
+```json
+{
+  "models": [
+    {
+      "provider_id": "codex",
+      "model_id": "gpt-5.6-sol",
+      "display_name": "GPT-5.6 Sol",
+      "sources": [
+        {
+          "source_id": "config",
+          "source_kind": "config",
+          "priority": 120,
+          "stale": false,
+          "refreshed_at": "2026-05-07T18:32:11Z"
+        },
+        {
+          "source_id": "models_dev",
+          "source_kind": "models_dev",
+          "priority": 50,
+          "stale": false,
+          "refreshed_at": "2026-05-07T03:00:00Z"
+        }
+      ],
+      "available": true,
+      "availability_state": "available_live",
+      "stale": false,
+      "refreshed_at": "2026-05-07T18:32:11Z",
+      "context_window": 1050000,
+      "max_output_tokens": 128000,
+      "supports_tools": true,
+      "supports_reasoning": true,
+      "reasoning_efforts": ["none", "low", "medium", "high", "xhigh", "max"],
+      "default_reasoning_effort": "medium",
+      "cost": { "input_per_million": 5, "output_per_million": 30 },
+      "curated": true,
+      "deprecated": false,
+      "hidden": false,
+      "featured": true,
+      "release_date": "2026-06-26",
+      "reasoning_source": "catalog"
+    }
+  ]
+}
+```
+
+Each cost bucket is independent. A model with five explicitly configured rates returns all five
+fields; omitted fields remain unpriced:
+
+```json
+{
+  "cost": {
+    "input_per_million": 1.1,
+    "output_per_million": 2.2,
+    "cache_read_per_million": 0.11,
+    "cache_write_per_million": 0.22,
+    "reasoning_per_million": 3.3
+  }
+}
+```
+
+The built-in curated seeds are metadata, not an account-level availability promise. ACP live options
+remain authoritative when a session starts.
+
+| Provider | Canonical model ID          | Flags             | Context / output    | Input / output $ per MTok | Seeded efforts                            |
+| -------- | --------------------------- | ----------------- | ------------------- | ------------------------- | ----------------------------------------- |
+| Codex    | `gpt-5.6-sol`               | default, featured | 1,050,000 / 128,000 | 5 / 30                    | `none, low, medium, high, xhigh, max`     |
+| Codex    | `gpt-5.6-terra`             | —                 | 1,050,000 / 128,000 | 2.5 / 15                  | `none, low, medium, high, xhigh, max`     |
+| Codex    | `gpt-5.6-luna`              | —                 | 1,050,000 / 128,000 | 1 / 6                     | `none, low, medium, high, xhigh, max`     |
+| Claude   | `claude-fable-5`            | featured          | 1,000,000 / 128,000 | 10 / 50                   | `low, medium, high, xhigh, max`           |
+| Claude   | `claude-opus-4-8`           | —                 | 1,000,000 / 128,000 | 5 / 25                    | `low, medium, high, xhigh, max`           |
+| Claude   | `claude-sonnet-5`           | default           | 1,000,000 / 128,000 | 3 / 15                    | `low, medium, high, xhigh, max`           |
+| Claude   | `claude-haiku-4-5-20251001` | —                 | 200,000 / 64,000    | 1 / 5                     | none seeded; ACP live may advertise a set |
+
+GPT-5.6 seeds carry release date `2026-06-26`; Claude Fable 5 carries `2026-06-09`. Unknown release
+dates remain absent rather than being inferred. The seed table lists only input/output rates; an
+active cache-read, cache-write, or reasoning bucket remains unpriced unless another catalog source
+provides that bucket's explicit rate.
+
+Source status payloads carry `source_id`, `provider_id`, `source_kind`, `refresh_state`
+(`idle | refreshing | succeeded | failed`), `last_refresh`, `next_refresh`, `last_success`,
+`row_count`, `stale`, and a redacted `last_error`. Raw secrets, command lines, OAuth material, or
+provider response bodies never appear in `last_error`.
+
+The HTTP and UDS transports return canonical, byte-equal JSON for the same projection so cross-
+transport regression tests can compare daemon output directly.
+
+## Native tools
+
+Managed agents can use the `compozy__provider_models` toolset instead of shelling out to the CLI. The
+native tools share the same daemon service and response payloads as HTTP, UDS, and
+`compozy provider models`.
+
+| Native tool                        | Purpose                                                |
+| ---------------------------------- | ------------------------------------------------------ |
+| `compozy__provider_models_list`    | List `curated` (default) or `all` model projections.   |
+| `compozy__provider_models_curate`  | Persist model flags/default effort through live apply. |
+| `compozy__provider_models_refresh` | Refresh provider model catalog sources.                |
+| `compozy__provider_models_status`  | Inspect source status and stale fallback.              |
+
+`compozy__provider_models_list` accepts `view=curated|all`; `provider_id` remains optional for read and
+refresh tools. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and
+accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and
+`default_effort`. The effort must be canonical and present in that model's actual subset. Omitted
+flags preserve projected values; a call with no optional flags still materializes an explicit
+curation row. Resolve the live descriptor before calling it.
+
+## OpenAI-compatible projection
+
+A list-only OpenAI-compatible endpoint is registered on HTTP only. UDS does not expose this route.
+
+```http
+GET /api/openai/v1/models
+GET /api/openai/v1/models?provider_id=codex
+```
+
+Authentication uses the same bearer-auth and middleware contract as the rest of `/api/*`. CORS and
+rate-limit behavior follow HTTP defaults. Errors are wrapped in the OpenAI envelope shape
+(`{"error": {...}}`) but reuse Compozy's normal status-code semantics. Refresh work is **not**
+available through this endpoint; clients use the native catalog endpoints, the CLI, the Host API,
+or the web for refreshes.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "gpt-5.6-sol",
+      "object": "model",
+      "created": 0,
+      "owned_by": "codex",
+      "compozy": {
+        "provider_id": "codex",
+        "model_id": "gpt-5.6-sol",
+        "display_name": "GPT-5.6 Sol",
+        "sources": ["config", "models_dev"],
+        "available": true,
+        "availability_state": "available_live",
+        "stale": false,
+        "supports_tools": true,
+        "supports_reasoning": true,
+        "reasoning_efforts": ["none", "low", "medium", "high", "xhigh", "max"],
+        "default_reasoning_effort": "medium",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "cost": { "input_per_million": 5, "output_per_million": 30 }
+      }
+    }
+  ]
+}
+```
+
+The `compozy` extension key carries Compozy-specific metadata. Generated OpenAPI/SDK contracts treat it as
+a typed object (`OpenAIModelCompozyPayload`), not a free-form blob.
+This endpoint uses the curated projection; use the native catalog list with `view=all` to inspect
+hidden or deprecated rows.
+
+## Provider models CLI
+
+The CLI surface lives under the singular `provider` namespace because the catalog is provider-
+scoped and already neighbors `compozy provider auth`. A top-level `compozy models …` alias is intentionally
+out of scope for the MVP to avoid forking the command contract before the first one is stable.
+
+```bash
+compozy provider models list [provider] -o json
+compozy provider models list [provider] --all -o json
+compozy provider models list [provider] --source models_dev --refresh --include-stale
+compozy provider models set codex gpt-5.6-sol --featured=true
+compozy provider models set codex gpt-5.6-luna --hidden=true --default-effort=high
+compozy provider models refresh [provider] -o json
+compozy provider models refresh [provider] --source provider_live:codex --force --request-id rfsh-abc
+compozy provider models status [provider] -o json
+```
+
+`refresh` returns the same source-status payloads as the native HTTP/UDS refresh endpoints — not a
+single success line — so CI scripts and agents can act on partial-source failures without parsing
+stderr. List defaults to curated; `--all` exposes hidden and deprecated rows for reversal.
+`--hidden=false`, `--featured=false`, and `--deprecated=false` explicitly clear flags. `set` is a
+serialized global mutation and returns the config-apply result. JSON output is canonical: identical
+between `compozy provider models …` and the daemon HTTP response for the same projection.
+
+## Stable selection and curation errors
+
+| Code                           | Meaning                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `model_not_found`              | A curation target does not exist in the current catalog.                            |
+| `model_unavailable`            | The active ACP model option does not advertise the requested model.                 |
+| `reasoning_option_missing`     | An effort was requested, but the adapter advertised no applicable reasoning option. |
+| `reasoning_effort_unsupported` | The reasoning option exists, but does not advertise the requested level.            |
+
+Session negotiation failures return HTTP/UDS 422 before the first prompt. CLI and native-tool
+errors preserve the same diagnostic code.
+
+See [`compozy provider models`](/docs/cli/provider/models) for full flag and output
+documentation generated from the cobra source.
+
+## Extension model.source contract
+
+Extensions can provide model rows by declaring the manifest provide capability `model.source`. The
+daemon validates rows, persists them, and applies the normal merge policy. Extensions cannot own
+global catalog state; they only contribute source rows.
+
+```toml
+[capabilities]
+provides = ["model.source"]
+
+[permissions]
+requires = ["models/list", "models/refresh", "models/status"]
+
+[subprocess]
+command = "node"
+args = ["dist/index.js"]
+```
+
+For a subprocess extension this manifest is generated by `compozy extension build` from the SDK
+declaration; declare the provide surface and the permission list in code. Compozy derives the
+`model:read` and `model:write` consent areas from those methods — see
+[Extension Permissions](/runtime/core/extensions/permissions).
+
+Extensions that provide `model.source` must implement the Compozy-to-extension service method
+`models/list`. The daemon calls it with a deadline-bound context; the extension returns rows scoped
+to provider IDs the extension declares.
+
+| Method           | Direction           | Purpose                                                                    |
+| ---------------- | ------------------- | -------------------------------------------------------------------------- |
+| `models/list`    | Compozy → extension | Extension returns provider model rows; daemon validates and persists them. |
+| `models/list`    | Host API            | Extension reads the daemon-owned merged projection.                        |
+| `models/refresh` | Host API            | Extension triggers a daemon-owned source refresh.                          |
+| `models/status`  | Host API            | Extension reads daemon-owned source status.                                |
+
+Capability grants follow the same area-based scheme as other Host API methods:
+
+| Method           | Area          | Notes                                                       |
+| ---------------- | ------------- | ----------------------------------------------------------- |
+| `models/list`    | `model.read`  | Returns the daemon-owned merged projection, not raw rows.   |
+| `models/status`  | `model.read`  | Returns daemon-owned source status.                         |
+| `models/refresh` | `model.write` | Triggers daemon-owned refresh; rate-limited and serialized. |
+
+Marketplace extensions are limited to read-oriented grants by policy, so a marketplace extension
+can declare `model.read` and read the projection but must request `model.write` explicitly to
+trigger refresh, and refresh grants stay subject to the marketplace policy review.
+
+Extension source rows can carry `deprecated`, `hidden`, `featured`, nullable `release_date`, and
+independent input/output/cache-read/cache-write/reasoning rates. They are always validated through
+`internal/modelcatalog`; non-finite or negative rates, invalid dates, and other malformed rows produce
+a recorded source status (with redacted error) instead of corrupting the projection.
+
+## Refresh lifetime and serialization
+
+- Catalog list calls return cached rows immediately when present.
+- Refresh detaches from request cancellation via `context.WithoutCancel(ctx)` and re-attaches an
+  explicit deadline through `context.WithDeadline`.
+- Refresh work is **serialized** per `provider_id` before any subprocess or provider-home work.
+- Concurrent refresh requests for the same provider **coalesce** behind the in-flight refresh and
+  return identical source statuses when it finishes.
+- Refreshes for different providers can run concurrently.
+- The daemon joins outstanding refresh workers during shutdown.
+
+Discovery never creates an ACP session. Live provider sources fail closed by recording source
+status; session creation is never blocked on a successful network refresh. Stale rows remain
+available as a fallback while the catalog labels them stale.
+
+## Observability
+
+Catalog operations emit structured events with the following correlation keys:
+
+- `refresh_request_id`
+- `provider_id`
+- `source_id`
+- `source_kind`
+- `model_id` for row-scoped events
+- `extension_name` for extension sources
+- `session_id` only for ACP session config observations
+
+Tracked events include refresh started/succeeded/failed, source row count changes, stale fallback
+usage, all-source failure, extension source denied/unavailable, and ACP config option captured/
+updated transitions.
+
+## Related pages
+
+- [Providers](/docs/agents/providers) covers `[providers.<id>.models]` and the
+  per-provider `models.discovery` shape.
+- [config.toml](/docs/configuration/config-toml#modelcatalogsourcesmodelsdev) documents
+  `[model_catalog.sources.models_dev]` defaults.
+- [`compozy provider models`](/docs/cli/provider/models) is the CLI generated from the
+  cobra source.
+- [Develop Extensions](/docs/extensions/develop#model-source-extensions) covers the
+  manifest provide capability `model.source` and Host API model methods.

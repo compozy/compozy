@@ -56,7 +56,7 @@ export default function ChangelogPage() {
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
-                    href="/runtime/core/getting-started/installation"
+                    href="/docs/getting-started/installation"
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-line px-3.5 font-sans text-sm font-medium text-fg transition-colors hover:bg-hover"
                   >
                     Install the runtime

@@ -5,7 +5,7 @@ title: Complete the documented first-session lifecycle
 persona: Dora
 journey: J-evaluate-compozy-beta
 expected: A reader installs and bootstraps CompozyOS, starts the daemon, creates a session from a repository through cwd workspace inference, attaches with `session resume` while the session is live, inspects durable history, and stops only as terminal cleanup.
-entry_points: README Quick Start; /runtime/core/getting-started/installation; /runtime/core/getting-started/quick-start; /runtime/core/sessions/lifecycle
+entry_points: README Quick Start; /docs/getting-started/installation; /docs/getting-started/quick-start; /docs/sessions/lifecycle
 qa_status: untested
 bug_ids:
 fix_status:

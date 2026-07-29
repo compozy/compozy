@@ -9,38 +9,30 @@ import {
 } from "../doc-masthead-meta";
 
 const loopsTree: Root = {
-  name: "Runtime",
+  name: "Docs",
   children: [
     {
       type: "folder",
-      $id: "core",
-      name: "Core Concepts",
-      root: true,
+      $id: "loops",
+      name: "Loops",
+      index: {
+        type: "page",
+        $id: "loops/index.mdx",
+        name: "Loops",
+        url: "/docs/loops",
+      },
       children: [
         {
-          type: "folder",
-          $id: "core/loops",
-          name: "Loops",
-          index: {
-            type: "page",
-            $id: "core/loops/index.mdx",
-            name: "Loops",
-            url: "/runtime/core/loops",
-          },
-          children: [
-            {
-              type: "page",
-              $id: "core/loops/catalog.mdx",
-              name: "Catalog",
-              url: "/runtime/core/loops/catalog",
-            },
-            {
-              type: "page",
-              $id: "core/loops/running.mdx",
-              name: "Running",
-              url: "/runtime/core/loops/running",
-            },
-          ],
+          type: "page",
+          $id: "loops/catalog.mdx",
+          name: "Catalog",
+          url: "/docs/loops/catalog",
+        },
+        {
+          type: "page",
+          $id: "loops/running.mdx",
+          name: "Running",
+          url: "/docs/loops/running",
         },
       ],
     },
@@ -48,37 +40,34 @@ const loopsTree: Root = {
 };
 
 describe("doc-masthead-meta", () => {
-  it("resolves runtime product and audience labels", () => {
-    expect(resolveProductLabel("runtime", ["core", "loops"])).toBe("CompozyOS Runtime");
-    expect(resolveAudience("runtime")).toBe("people running agent work");
+  it("resolves the CompozyOS product and audience labels for docs pages", () => {
+    expect(resolveProductLabel(["loops"])).toBe("CompozyOS");
+    expect(resolveAudience(["loops"])).toBe("people running agent work");
   });
 
-  it("resolves protocol product labels from the family slug", () => {
-    expect(resolveProductLabel("protocol", ["specification"])).toBe("Compozy Network Protocol");
-    expect(resolveProductLabel("protocol", ["guides"])).toBe("Compozy Network");
-    expect(resolveAudience("protocol")).toBe("protocol implementers");
+  it("resolves protocol product labels for pages nested under network/protocol", () => {
+    expect(resolveProductLabel(["network", "protocol", "envelope"])).toBe(
+      "Compozy Network Protocol"
+    );
+    expect(resolveProductLabel(["network", "threads"])).toBe("CompozyOS");
+    expect(resolveAudience(["network", "protocol"])).toBe("protocol implementers");
+    expect(resolveAudience(["network"])).toBe("people running agent work");
   });
 
   it("counts navigable pages in the immediate parent folder including the index", () => {
-    expect(sectionPageCount(loopsTree, "/runtime/core/loops")).toBe(3);
-    expect(sectionPageCount(loopsTree, "/runtime/core/loops/catalog")).toBe(3);
+    expect(sectionPageCount(loopsTree, "/docs/loops")).toBe(3);
+    expect(sectionPageCount(loopsTree, "/docs/loops/catalog")).toBe(3);
   });
 
   it("builds masthead crumbs with a non-linked leaf matching the page title", () => {
-    const meta = resolveDocMastheadMeta(
-      "runtime",
-      ["core", "loops"],
-      loopsTree,
-      "/runtime/core/loops",
-      "Loops"
-    );
+    const meta = resolveDocMastheadMeta(["loops"], loopsTree, "/docs/loops", "Loops");
 
-    expect(meta.product).toBe("CompozyOS Runtime");
+    expect(meta.product).toBe("CompozyOS");
     expect(meta.sectionPageCount).toBe(3);
     expect(meta.crumbs.at(-1)).toEqual({ name: "Loops" });
-    expect(buildMastheadCrumbs(loopsTree, "/runtime/core/loops/catalog", "Catalog")).toEqual(
+    expect(buildMastheadCrumbs(loopsTree, "/docs/loops/catalog", "Catalog")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: "Loops", href: "/runtime/core/loops" }),
+        expect.objectContaining({ name: "Loops", href: "/docs/loops" }),
         { name: "Catalog" },
       ])
     );

@@ -1,0 +1,119 @@
+---
+title: Participation, Channels, and Peers
+description: How Compozy resolves Local or Live participation, derives workspace channels, and registers Live sessions as peers.
+---
+
+Participation belongs to an execution, not to the daemon and not to a bare channel string. Every
+execution resolves to Local or Live before it starts.
+
+## Local is the default
+
+Local executions do not join a channel. They have no peer identity, Network environment variables,
+Network tools, Network prompt section, conversation state, or Network-triggered turns.
+
+This is a hard absence contract. A channel in a task selector, review route, bridge route, or
+unrelated payload does not infer Live participation.
+
+## Live is explicit and bounded
+
+A Live execution receives:
+
+- one workspace-qualified channel
+- a peer identity tied to its durable session
+- `COMPOZY_SESSION_CHANNEL` and `COMPOZY_PEER_ID`
+- the coordination toolset when policy permits it
+- finite wake and usage bounds
+
+The immutable resolved snapshot is returned as `resolved_network_participation` on execution read
+surfaces. It includes the source and resolved bounds so an operator can explain exactly why the
+execution is Live.
+
+## Channel strategies
+
+Channels are lowercase workspace-scoped names matching `[a-z0-9][a-z0-9_-]{0,63}`.
+
+| Strategy   | Use                                                      |
+| ---------- | -------------------------------------------------------- |
+| `named`    | Join the explicit `channel_id`.                          |
+| `run`      | Derive the stable conversation channel for one task run. |
+| `loop_run` | Derive the stable conversation channel for one Loop run. |
+
+`named` requires `channel_id`. Derived strategies reject a supplied channel. Local rejects all
+channel and bound fields rather than silently ignoring them.
+
+Example session creation:
+
+```bash
+compozy session new \
+  --agent reviewer \
+  --workspace checkout-api \
+  --network live \
+  --network-channel-strategy named \
+  --network-channel release-readiness
+```
+
+Example bounded task run:
+
+```bash
+compozy task start task-123 \
+  --network live \
+  --network-channel-strategy run \
+  --network-bounds '{"max_wakes":4,"max_wake_depth":2}' \
+  -o json
+```
+
+Omitted bound fields come from `[network.live.defaults]`; a request above
+`[network.live.limits]` is rejected.
+
+## Availability is not participation
+
+`[network].enabled` is the administrative availability switch. Turning it on changes status from
+`disabled` to `ready`, but it does not mutate definitions, create channels, join sessions, or enable
+coordination for future runs.
+
+Turning availability off blocks new Live resolution and Live wake admission. It does not rewrite
+the immutable snapshot of an existing execution.
+
+## Workspace coordination
+
+The workspace coordination record is a default for future coordinated task runs:
+
+```bash
+compozy network coordination status --workspace checkout-api -o json
+compozy network coordination enable --workspace checkout-api -o json
+compozy network coordination disable --workspace checkout-api -o json
+```
+
+The web invitation writes the same workspace record. Accepting it does not change the current run;
+the next coordinated run resolves from the new revision unless an explicit request or task profile
+has higher precedence.
+
+## Peers and presence
+
+The current CompozyOS runtime registers only sessions whose resolved mode is Live. A local peer exists
+while its session is registered in the channel. Peer cards advertise protocol and capability
+claims for routing and inspection; they do not grant task, tool, or file authority.
+
+Use:
+
+```bash
+compozy network status -o json
+compozy network channels -o json
+compozy network peers release-readiness -o json
+```
+
+The status payload reports `local_peers`; it does not claim an embedded listener, broker workers,
+or remote-peer population. External peer transport is outside the current runtime release.
+
+## Tool visibility
+
+A Live snapshot is necessary but not sufficient for a Network tool call. Tool policy, capability
+gates, workspace scope, and daemon availability still apply. Local sessions receive the
+deterministic `not_participating` diagnostic instead of a plausible empty Network result.
+
+## Related pages
+
+- [Delivery, Admission, and Usage](/docs/network/delivery-and-safety) explains wake gates.
+- [Task-Run Coordination Conversations](/docs/autonomy/coordination-channels) explains the
+  future-run workspace opt-in.
+- [config.toml](/docs/configuration/config-toml) lists defaults and administrative limits.

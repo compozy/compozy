@@ -1,0 +1,37 @@
+---
+title: "compozy daemon"
+description: "Manage the Compozy daemon"
+---
+
+## compozy daemon
+
+Manage the Compozy daemon
+
+### Options
+
+```
+  -h, --help   help for daemon
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                        | Description              |
+| ---------------------------------------------- | ------------------------ |
+| [compozy daemon start](/docs/cli/daemon/start) | Start the Compozy daemon |
+| [compozy daemon stop](/docs/cli/daemon/stop)   | Stop the Compozy daemon  |

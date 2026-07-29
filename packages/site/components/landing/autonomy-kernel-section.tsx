@@ -96,7 +96,7 @@ export function AutonomyKernelSection() {
 
       <div className="mt-10">
         <Link
-          href="/runtime"
+          href="/docs"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
         >
           Read the autonomy kernel guide

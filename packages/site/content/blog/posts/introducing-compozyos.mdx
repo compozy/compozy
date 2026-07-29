@@ -22,7 +22,7 @@ featured: true
 ---
 
 > **Release context:** This launch post records v0.3.0-beta.1. For the current installable beta, use
-> the [installation guide](/runtime/core/getting-started/installation) and
+> the [installation guide](/docs/getting-started/installation) and
 > [changelog](/changelog).
 
 Compozy v0.3 is the point where the product becomes CompozyOS: one system for running agent work,
@@ -60,7 +60,7 @@ The v0.3 line replaces the old product boundary instead of wrapping it in compat
 
 This release also removes surfaces that no longer fit that boundary. Existing v0.2 installations
 should not be pointed at the v0.3 state directory and expected to upgrade in place. The complete
-[v0.3 migration guide](/runtime/migration) maps commands and configuration, lists every removed
+[v0.3 migration guide](/docs/migration) maps commands and configuration, lists every removed
 surface, and explains the clean-state transition.
 
 ## Built to be built on
@@ -127,10 +127,10 @@ $ compozy workspace add "$PWD" --name current
 $ compozy session new --workspace current --agent general --name first-run
 ```
 
-Continue with the [Quick Start](/runtime/core/getting-started/quick-start), inspect the
-[runtime documentation](/runtime), or read the [Compozy Network protocol](/protocol) before enabling
+Continue with the [Quick Start](/docs/getting-started/quick-start), inspect the
+[runtime documentation](/docs), or read the [Compozy Network protocol](/docs/network/protocol) before enabling
 Live coordination.
 
-For an existing v0.2 environment, start with the [migration guide](/runtime/migration). It records
+For an existing v0.2 environment, start with the [migration guide](/docs/migration). It records
 the hard cuts, the clean-state procedure, and where each legacy surface moved — including the cases
 that intentionally have no v0.3 replacement.

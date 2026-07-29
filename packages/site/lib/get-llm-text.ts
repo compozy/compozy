@@ -3,12 +3,12 @@ import { remarkInclude } from "fumadocs-mdx/config";
 import { remark } from "remark";
 import remarkGfm from "remark-gfm";
 import remarkMdx from "remark-mdx";
-import type { runtimeDocs } from "@/lib/source";
+import type { docsSource } from "@/lib/source";
 import { absoluteUrl } from "@/lib/site-config";
 
 const processor = remark().use(remarkMdx).use(remarkInclude).use(remarkGfm);
 
-type DocsPage = InferPageType<typeof runtimeDocs>;
+type DocsPage = InferPageType<typeof docsSource>;
 type DocsPageDataExtras = DocsPage["data"] & {
   _file?: { absolutePath: string };
   content?: string;

@@ -1,0 +1,211 @@
+---
+title: Bundles
+description: Package agents, channels, automation, window layouts, and bridge presets from extensions into activatable runtime profiles.
+---
+
+Bundles are extension-provided presets. A bundle catalog record describes what an extension can
+provide; a bundle activation chooses one profile and asks Compozy to project its runtime resources.
+
+Use bundles when a feature should install as a coherent unit: specialized agents, channels,
+automation jobs, triggers, window layouts, and bridge instances that make sense together.
+
+## Activation flow
+
+<Mermaid
+  chart={`flowchart TD
+    Extension[Installed extension] --> Catalog[bundle resource]
+    Catalog --> Preview[Preview activation]
+    Preview --> Activate[bundle.activation resource]
+    Activate --> Project[Bundle activation projector]
+    Project --> Agents[agent records]
+    Project --> Sidecars[agent.soul and agent.heartbeat records]
+    Project --> Jobs[automation.job records]
+    Project --> Triggers[automation.trigger records]
+    Project --> Layouts[window_layout records]
+    Project --> Bridges[bridge.instance records]
+    Project --> Channels[Declared network channels]`}
+  caption="Bundle activation projects one extension profile into runtime resources. Declared channels never enroll executions into Live participation."
+/>
+
+| Object            | What it does                                                                      |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Bundle catalog    | Lists extension bundles and profiles available for activation.                    |
+| Bundle profile    | Chooses agents, channels, jobs, triggers, layouts, and bridges inside one bundle. |
+| Bundle activation | Records one active profile at global or workspace scope.                          |
+| Inventory         | Lists the resources Compozy projected from the activation.                        |
+| Network settings  | Reports declared channels for inventory and explicit future selection.            |
+
+## Operator routes
+
+```http
+GET /api/bundles/catalog
+POST /api/bundles/preview
+GET /api/bundles/activations
+POST /api/bundles/activations
+GET /api/bundles/activations/:id
+PATCH /api/bundles/activations/:id
+DELETE /api/bundles/activations/:id
+GET /api/bundles/network/settings
+```
+
+These routes are available over HTTP and UDS and are included in the generated OpenAPI contract.
+
+## Agent-manageable CLI
+
+The same bundle lifecycle is exposed through UDS-backed CLI commands:
+
+```bash
+compozy bundle catalog
+compozy bundle preview --extension github --bundle release-readiness --profile default
+compozy bundle activate --extension github --bundle release-readiness --profile default --scope workspace --workspace project --confirm-network-requirement
+compozy bundle list
+compozy bundle get act_123
+compozy bundle update act_123 --expected-version 7 --confirm-network-requirement
+compozy bundle deactivate act_123
+compozy bundle network-settings
+```
+
+Use `--json` or `-o toon` when another agent will consume the output.
+
+## Preview before activation
+
+```http
+POST /api/bundles/preview
+Content-Type: application/json
+
+{
+  "extension_name": "github",
+  "bundle_name": "release-readiness",
+  "profile_name": "default",
+  "scope": "workspace",
+  "workspace": "project",
+  "confirm_network_requirement": true
+}
+```
+
+Preview returns the activation payload Compozy would create: channels, agents, jobs, triggers, layouts,
+bridges, and inventory. It does not mutate the runtime.
+
+## Activate a profile
+
+```http
+POST /api/bundles/activations
+Content-Type: application/json
+
+{
+  "extension_name": "github",
+  "bundle_name": "release-readiness",
+  "profile_name": "default",
+  "scope": "workspace",
+  "workspace": "project",
+  "confirm_network_requirement": true
+}
+```
+
+Activation creates or updates a `bundle.activation` resource. Reconcile then projects owned
+`agent`, `agent.soul`, `agent.heartbeat`, `automation.job`, `automation.trigger`, `window_layout`,
+and `bridge.instance` records. The response includes the stable activation id and projected inventory
+so operators can audit what changed.
+
+If the extension manifest declares a Live Network requirement, activation must confirm the current
+requirement digest. The activation records that digest plus who confirmed it and when. A changed
+manifest digest clears the old confirmation and requires a new explicit confirmation. Confirmation
+acknowledges the extension requirement; it never enrolls a session, task run, Loop run, or automation
+run by itself.
+
+Activation reads include an optimistic `version`. Confirmation updates must send that exact version:
+
+```http
+PATCH /api/bundles/activations/act_123
+Content-Type: application/json
+
+{
+  "expected_version": 7,
+  "confirm_network_requirement": true
+}
+```
+
+Compozy returns `409 Conflict` when another writer or requirement reconciliation advanced the activation.
+Read the activation again, inspect the current digest and confirmation state, then decide whether to
+confirm the new version.
+
+## Bundle-owned agents and sidecars
+
+Bundle profiles declare activation-scoped agents with `[[profiles.agents]]`:
+
+```toml
+[[profiles.agents]]
+path = "agents/campaign-planner"
+```
+
+The path must point to an extension-local directory with `AGENT.md`. Optional `SOUL.md` and
+`HEARTBEAT.md` files in that directory become package-owned sidecar resources for the same
+activation. They are read by session start, Soul inspection, and Heartbeat status resolution, but
+authoring write/delete/rollback APIs return `409 Conflict` because package sidecars are read-only
+defaults.
+
+Sidecars are paired by agent resource id, owner, and scope. A global sidecar with the same agent
+name cannot attach to a workspace-scoped bundled agent, and one activation cannot leak sidecars into
+another activation.
+
+## Bundle-owned window layouts
+
+Bundle profiles reference strict `window_layout` JSON files with `[[profiles.layouts]]`:
+
+```toml
+[[profiles.layouts]]
+path = "layouts/two-up.json"
+```
+
+The path is relative to the extension root and must remain inside it after symlinks resolve. The file
+must contain one canonical `window_layout` resource: resource version `1`, a stable authored `id`, a
+display name, an `any`, `landscape`, or `portrait` aspect variant, a `stack` or `reject` overflow
+policy, optional participant slots, and a valid version `2` layout document.
+
+Compozy validates the file when the extension loads and validates it again in the activation scope before
+writing anything. Each activation receives its own derived resource id, so two activations of the same
+profile cannot overwrite one another. Preview and activation payloads expose the projected layouts and
+inventory; deactivation removes only the layouts owned by that activation.
+
+## Scope and Network requirement rules
+
+| Rule                          | Behavior                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| Global activation             | Applies without a workspace id.                                                        |
+| Workspace activation          | Requires a workspace id resolved from the `workspace` request field.                   |
+| Declared channels             | Remain inventory only until a future execution explicitly resolves Live participation. |
+| Live requirement confirmation | Requires `confirm_network_requirement` for the current extension requirement digest.   |
+| Requirement changes           | Clear prior confirmation and require the operator to confirm the new digest.           |
+| Extension dependency          | The bundle must still exist in the installed extension catalog.                        |
+| Agent conflict                | A bundled agent name must not collide with another visible agent.                      |
+| Agent references              | Jobs and triggers must reference packaged or already-visible agents.                   |
+
+Native bundle tools inherit a trusted caller workspace when one is present. That means an
+`compozy__bundles_activate` call made from a workspace-scoped agent or operator context defaults to a
+workspace activation unless it explicitly requests global scope without a workspace.
+
+## Deactivation
+
+```http
+DELETE /api/bundles/activations/act_123
+```
+
+Deactivation removes the activation and lets reconcile remove the owned projected resources. Remove
+bundle activations before disabling or removing the extension that owns them.
+
+## Failure guide
+
+| Symptom                                    | Likely cause                                                    | First check                                             |
+| ------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- |
+| `404` on preview or activation             | Extension, bundle, profile, or workspace missing.               | `GET /api/bundles/catalog` and workspace list.          |
+| `409` on activation or update              | Unconfirmed Live requirement, stale version, or agent conflict. | Current activation version, digest, and visible agents. |
+| `422` on preview or activation             | Job or trigger references an unavailable agent.                 | Preview payload and profile `agent` fields.             |
+| Activation exists but resources are absent | Reconcile failed after writing the activation.                  | Activation inventory and daemon resource health.        |
+| Extension cannot be disabled               | Active bundle activations still depend on it.                   | `GET /api/bundles/activations`.                         |
+| Projected job or bridge should change      | Bundle profile changed or activation is stale.                  | Preview the activation, then update/reactivate.         |
+
+## Next
+
+- [Extensions](/docs/extensions/install) explains install, enable, disable, and removal constraints.
+- [Automation](/docs/automation) explains jobs and triggers after projection.
+- [Bridges](/docs/bridges) explains bridge instances after projection.

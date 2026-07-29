@@ -57,7 +57,7 @@ export function MemoryDreamSection() {
               into durable facts.
             </p>
             <Link
-              href="/runtime/core/memory/dream"
+              href="/docs/memory/dream"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
             >
               Read the memory and dream guide

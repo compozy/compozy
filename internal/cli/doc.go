@@ -14,7 +14,7 @@ const (
 	docDocKey = "doc"
 )
 
-const defaultCLIDocsDir = "packages/site/content/runtime/cli-reference"
+const defaultCLIDocsDir = "packages/site/content/docs/cli"
 
 func newDocCommand() *cobra.Command {
 	var outputDir string

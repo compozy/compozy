@@ -1,0 +1,53 @@
+---
+title: "compozy session"
+description: "Manage Compozy sessions"
+---
+
+## compozy session
+
+Manage Compozy sessions
+
+### Options
+
+```
+  -h, --help   help for session
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                              | Description                                                |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| [compozy session approve](/docs/cli/session/approve) | Approve or reject a pending session permission request     |
+| [compozy session clarify](/docs/cli/session/clarify) | Manage live session questions                              |
+| [compozy session events](/docs/cli/session/events)   | Read session events                                        |
+| [compozy session health](/docs/cli/session/health)   | Read session health and wake eligibility                   |
+| [compozy session history](/docs/cli/session/history) | Show session history grouped by turn                       |
+| [compozy session inspect](/docs/cli/session/inspect) | Inspect session health, wake audit, and policy correlation |
+| [compozy session list](/docs/cli/session/list)       | List sessions                                              |
+| [compozy session new](/docs/cli/session/new)         | Create a new session                                       |
+| [compozy session prompt](/docs/cli/session/prompt)   | Send a prompt to a session                                 |
+| [compozy session recap](/docs/cli/session/recap)     | Show deterministic session recap                           |
+| [compozy session remove](/docs/cli/session/remove)   | Remove a session and its persisted history                 |
+| [compozy session repair](/docs/cli/session/repair)   | Inspect and repair an interrupted session transcript       |
+| [compozy session resume](/docs/cli/session/resume)   | Attach to a resumable session                              |
+| [compozy session soul](/docs/cli/session/soul)       | Manage session Soul snapshots                              |
+| [compozy session status](/docs/cli/session/status)   | Show session status                                        |
+| [compozy session stop](/docs/cli/session/stop)       | Stop a session                                             |
+| [compozy session usage](/docs/cli/session/usage)     | Show aggregated session token usage and cost provenance    |
+| [compozy session wait](/docs/cli/session/wait)       | Block until a session stops                                |

@@ -6,7 +6,7 @@ Fumadocs documentation site at `compozy.com` — Next.js 16, Fumadocs 16, Velite
 
 - **Tokens from `packages/ui/src/tokens.css` + generated `DESIGN.md`** — no invented values. Site-only layout/type extensions go in `packages/site/app/global.css` `@theme inline`. After changing runtime/site theme tokens run `make codegen` + `make codegen-check`; never hand-edit generated `DESIGN.md` regions.
 - **Eyebrow markup is mandatory** for every uppercase label: `<Eyebrow>` from `@compozy/ui` (children + `className` only) **or** the `eyebrow` utility class on structural elements; tone via `className`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract **Inter UC 11/600/-0.005em**. Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
-- **Product language from `COPY.md`** — landing copy, blog/changelog, runtime/protocol docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
+- **Product language from `COPY.md`** — landing copy, blog/changelog, docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
 - **Launch hero lock:** ship `The only true OS for AI agents.` followed immediately by `A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it.` The two are one contract; `COPY.md` owns the OS-first positioning and people-first register.
 - **`packages/site` ships in the same PR as backend contract changes** that affect documented APIs/CLI verbs (per the `internal/api/contract` co-ship rule).
 - **Test placement before any site test.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites first. No prose-string/snapshot/generated/file-existence tests unless that artifact is the product contract and no stronger gate exists.
@@ -43,7 +43,7 @@ make cli-docs / make cli-docs-check                  # regenerate / verify the C
 ## Coding Style
 
 - TypeScript strict (no `any` when the concrete type is known). Functional React components only — no `React.FC`; named exports; kebab-case files; `@/*` alias.
-- MDX lives under `content/runtime/` + `content/protocol/` (Fumadocs) and `content/blog/` (Velite). CLI docs auto-generate under `content/runtime/cli-reference/` — never hand-edit generated pages; edit the Cobra command source.
+- MDX lives under `content/docs/` (Fumadocs, single tree; protocol spec nests at `content/docs/network/protocol/`) and `content/blog/` (Velite). CLI docs auto-generate under `content/docs/cli/`, API docs under `content/docs/api/` — never hand-edit generated pages; edit the Cobra command source or `openapi/compozy.json`.
 - Blog layout: `content/blog/posts/<slug>.mdx`, `content/blog/changelog/<version>.mdx`, `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
 - Pages need `<title>` + meta via Fumadocs metadata helpers. Code blocks use the project syntax-highlight theme — no new variants.
 

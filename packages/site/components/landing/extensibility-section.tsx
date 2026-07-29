@@ -6,7 +6,7 @@ import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-const EXTENSIONS_DOCS_HREF = "/runtime/core/extensions";
+const EXTENSIONS_DOCS_HREF = "/docs/extensions";
 
 const FEATURES = [
   {
@@ -15,7 +15,7 @@ const FEATURES = [
     title: "Typed dispatch on every state transition",
     description:
       "Not an event bus. Typed lifecycle hooks fire at the call site that owns the transition: session, prompt, tool, permission, autonomy. Hooks can deny or narrow, never bypass.",
-    cite: { href: "/runtime/core/hooks", label: "hooks catalog" },
+    cite: { href: "/docs/hooks", label: "hooks catalog" },
   },
   {
     icon: <Sparkles className="size-4" />,
@@ -23,7 +23,7 @@ const FEATURES = [
     title: "Drop-in SKILL.md bundles",
     description:
       "Share reusable instruction sets with YAML frontmatter and Markdown body. Bundled defaults + global + workspace scopes.",
-    cite: { href: "/runtime/core/skills", label: "skills guide" },
+    cite: { href: "/docs/skills", label: "skills guide" },
   },
   {
     icon: <Timer className="size-4" />,
@@ -31,7 +31,7 @@ const FEATURES = [
     title: "Cron + webhook + event triggers",
     description:
       "Durable jobs and triggers the daemon owns. Schedule work. Delegate to peers. Track runs.",
-    cite: { href: "/runtime/core/automation", label: "automation" },
+    cite: { href: "/docs/automation", label: "automation" },
   },
   {
     icon: <Box className="size-4" />,
@@ -39,7 +39,7 @@ const FEATURES = [
     title: "Run agents away from the host filesystem",
     description:
       "Stay local when isolation isn't needed, or bind a workspace to a Daytona sandbox with explicit sync, lifecycle, and provider metadata.",
-    cite: { href: "/runtime/core/sandbox/profiles", label: "sandbox profiles" },
+    cite: { href: "/docs/sandbox/profiles", label: "sandbox profiles" },
   },
   {
     icon: <Plug className="size-4" />,

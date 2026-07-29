@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const contentRoot = resolve(siteRoot, "content");
-const cliReferenceRoot = resolve(contentRoot, "runtime/cli-reference");
+const cliReferenceRoot = resolve(contentRoot, "docs/cli");
 
 type ManualDoc = {
   path: string;
@@ -22,7 +22,7 @@ function listManualDocs(dir: string): ManualDoc[] {
   for (const entry of readdirSync(dir)) {
     const fullPath = resolve(dir, entry);
     const relPath = relative(contentRoot, fullPath);
-    if (relPath === "runtime/cli-reference" || relPath.startsWith("runtime/cli-reference/")) {
+    if (relPath === "docs/cli" || relPath.startsWith("docs/cli/")) {
       continue;
     }
 

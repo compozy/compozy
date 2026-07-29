@@ -29,23 +29,23 @@
             "inputs": [
                 "scripts/generate-openapi.ts",
                 "lib/openapi.ts",
-                "lib/runtime-navigation.ts",
+                "lib/docs-navigation.ts",
                 "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
                 "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
                 "$TURBO_ROOT$/openapi/compozy.json"
             ],
             "outputs": [
-                "content/runtime/api-reference/*.mdx",
-                "!content/runtime/api-reference/index.mdx",
-                "content/runtime/api-reference/meta.json"
+                "content/docs/api/*.mdx",
+                "!content/docs/api/index.mdx",
+                "content/docs/api/meta.json"
             ]
         },
         "@compozy/site#generate:content": {
             "dependsOn": ["generate:openapi"],
             "inputs": [
                 "$TURBO_DEFAULT$",
-                "!content/runtime/api-reference/meta.json",
-                "!content/runtime/api-reference/support.mdx"
+                "!content/docs/api/meta.json",
+                "!content/docs/api/support.mdx"
             ],
             "outputs": [".source/**", ".velite/**"]
         },
@@ -61,8 +61,8 @@
             "dependsOn": ["//#codegen-check", "generate:content", "transit"],
             "inputs": [
                 "$TURBO_DEFAULT$",
-                "!content/runtime/api-reference/meta.json",
-                "!content/runtime/api-reference/support.mdx",
+                "!content/docs/api/meta.json",
+                "!content/docs/api/support.mdx",
                 "$TURBO_ROOT$/docs/_memory/glossary.md",
                 "$TURBO_ROOT$/docs/rfcs/003_compozy-network-v0.md",
                 "$TURBO_ROOT$/docs/rfcs/004_compozy-network-v1.md",

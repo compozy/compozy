@@ -1,0 +1,270 @@
+---
+title: Spawning
+description: How Compozy resolves an agent definition into an ACP subprocess, negotiates a session, injects environment, and stops the process.
+---
+
+Spawning is the handoff from a Compozy agent definition to a live ACP subprocess. It starts when a
+session is created or resumed, and it ends when the subprocess has completed ACP initialization and
+the Compozy session becomes active.
+
+<Mermaid
+  chart={`sequenceDiagram
+participant Client
+participant Daemon
+participant Workspace
+participant Config
+participant ACP
+participant Agent
+
+Client->>Daemon: Create or resume session
+Daemon->>Workspace: Resolve workspace snapshot
+Workspace-->>Daemon: Agents, config, additional dirs
+Daemon->>Config: Resolve AGENT.md and provider
+Config-->>Daemon: command, prompt, permissions, MCP servers
+Daemon->>ACP: Start subprocess
+ACP->>Agent: initialize
+Agent-->>ACP: capabilities
+ACP->>Agent: session/new or session/load
+Agent-->>ACP: ACP session id, modes, models
+ACP->>Agent: session/set_mode when supported
+ACP-->>Daemon: running process
+Daemon-->>Client: active Compozy session`}
+caption="Compozy resolves workspace and provider configuration before launching an ACP-compatible process over stdio."
+/>
+
+## Spawn inputs
+
+The session manager builds `acp.StartOpts` from the resolved workspace and agent:
+
+| Start option      | Source                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `AgentName`       | resolved `AGENT.md` name                                                                                 |
+| `Command`         | `agent.command` or provider `command`                                                                    |
+| `Cwd`             | primary workspace root                                                                                   |
+| `AdditionalDirs`  | registered workspace additional roots                                                                    |
+| `Env`             | provider-policy environment plus Compozy session variables and bound secrets                             |
+| `MCPServers`      | resolved config/provider/agent/skill MCP server list                                                     |
+| `Permissions`     | resolved agent or global permission mode                                                                 |
+| `SystemPrompt`    | assembled startup prompt built from the CompozyOS runtime envelope, runtime context, and `AGENT.md` body |
+| `ResumeSessionID` | stored ACP session ID when resuming                                                                      |
+
+The ACP driver validates these before launch:
+
+- `AgentName`, `Command`, and `Cwd` are required.
+- `Cwd` must resolve to an existing directory.
+- Each non-empty additional dir must be absolute and resolve to an existing directory.
+- Duplicate additional dirs are removed after symlink resolution.
+- An additional dir equal to the primary workspace root is skipped.
+- Permissions must be `deny-all`, `approve-reads`, or `approve-all`.
+
+## Launch
+
+Compozy parses the provider command with shell-style quoting:
+
+```text
+npx -y @agentclientprotocol/claude-agent-acp@latest
+```
+
+The parsed executable and arguments are launched directly, not through a shell. The subprocess runs
+with `cwd` set to the workspace root, and Compozy connects JSON-RPC to the subprocess over stdio.
+
+On Unix systems, managed ACP subprocesses start in their own process group. Stop can therefore
+terminate wrapper processes and their children, which matters for commands such as `npx ...` that
+start a Node wrapper before the actual ACP runtime.
+
+## Environment
+
+The subprocess environment starts from the provider's `env_policy`:
+
+- `filtered` keeps ordinary daemon context and strips secret-shaped variables before launch.
+- `isolated` starts from a small operational allowlist and then adds only CompozyOS runtime metadata,
+  provider-home variables, and explicit bound credentials.
+
+Compozy then applies these additions:
+
+| Variable                       | When set                                                         | Value                                                |
+| ------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| `COMPOZY_SESSION_ID`           | every spawned session                                            | Compozy session ID                                   |
+| `COMPOZY_AGENT`                | every spawned session                                            | resolved agent name                                  |
+| `COMPOZY_AGENT_NAME`           | every spawned session                                            | resolved agent name                                  |
+| `COMPOZY_PROVIDER`             | every spawned session                                            | resolved provider id                                 |
+| `COMPOZY_PROVIDER_HARNESS`     | every spawned session                                            | resolved provider harness, such as `acp` or `pi_acp` |
+| `COMPOZY_PROVIDER_AUTH_MODE`   | every spawned session                                            | `native_cli`, `bound_secret`, or `none`              |
+| `COMPOZY_PROVIDER_ENV_POLICY`  | every spawned session                                            | `filtered` or `isolated`                             |
+| `COMPOZY_PROVIDER_HOME_POLICY` | every spawned session                                            | `operator` or `isolated`                             |
+| `COMPOZY_MODEL`                | every spawned session with a resolved model                      | resolved model string                                |
+| `PROVIDER_HOME`                | when `home_policy = "isolated"`                                  | `$COMPOZY_HOME/providers/<provider>`                 |
+| `HOME` and XDG homes           | when `home_policy = "isolated"`                                  | provider-owned home/config/data/cache directories    |
+| Provider-specific homes        | known isolated providers                                         | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or similar        |
+| `PI_CODING_AGENT_DIR`          | native Pi isolated home or Pi-backed `bound_secret` sessions     | Pi auth/config directory                             |
+| `COMPOZY_SESSION_CHANNEL`      | sessions whose execution resolved as Live                        | immutable participation channel                      |
+| `COMPOZY_PEER_ID`              | sessions whose execution resolved as Live                        | `<agentName>.<sessionID>`                            |
+| `COMPOZY_BIN`                  | every spawned session when the daemon executable can be resolved | absolute path to the Compozy binary                  |
+
+Compozy also prepends the Compozy binary directory to `PATH`, removing a duplicate entry if it already
+exists. Before setting Live participation values, stale `COMPOZY_SESSION_CHANNEL` and `COMPOZY_PEER_ID`
+values are cleared from the inherited environment. Local executions receive neither variable.
+
+Provider API keys are injected only when `auth_mode = "bound_secret"` through provider
+`credential_slots`. A slot maps a `secret_ref` into a target environment variable such as
+`OPENROUTER_API_KEY`. `env:NAME` refs read from the daemon environment at launch, while
+`vault:providers/<provider>/<slot>` refs read encrypted Compozy-managed provider credentials written
+through settings. Required slots fail startup when the bound secret is missing.
+
+For `native_cli` providers, Compozy does not require provider API-key environment variables. The
+provider command uses its own login/session store. The default `home_policy = "operator"` preserves
+existing CLI logins; `home_policy = "isolated"` creates a private provider home under `$COMPOZY_HOME`
+and starts with no copied credentials.
+
+For the direct native `pi` provider, Compozy does not override Pi's operator auth directory. When
+`home_policy = "isolated"` is selected, Compozy points Pi at `$COMPOZY_HOME/providers/pi/.pi/agent` so
+`compozy provider auth login pi` and session launch use the same isolated auth store. Wrapped API-key
+providers that use `pi_acp` with `auth_mode = "bound_secret"` get session-local `settings.json`
+and `models.json`; Compozy sets `PI_CODING_AGENT_DIR` to that per-session runtime config and injects
+the provider key there.
+
+## ACP negotiation
+
+After the process starts, Compozy sends `initialize`.
+
+Compozy advertises:
+
+- filesystem read text support
+- filesystem write text support
+- terminal support
+- client name `compozy`
+- client version `dev`
+
+The initialize response tells Compozy whether the agent supports `session/load`.
+
+### New session
+
+For a new session, Compozy sends `session/new`:
+
+```json
+{
+  "cwd": "/workspace/root",
+  "mcpServers": [],
+  "additional_dirs": ["/workspace/other-root"]
+}
+```
+
+`additional_dirs` is a Compozy extension field. It is top-level snake_case because the upstream ACP
+SDK does not model it yet.
+
+The response provides the ACP `sessionId`, supported modes, and supported models. Compozy stores the
+ACP session ID separately from the durable Compozy session ID.
+
+### Resume
+
+For resume, Compozy sends `session/load`:
+
+```json
+{
+  "cwd": "/workspace/root",
+  "mcpServers": [],
+  "additional_dirs": ["/workspace/other-root"],
+  "sessionId": "provider-session-id"
+}
+```
+
+Resume requires the agent to advertise `loadSession` during initialize. If it does not, startup
+fails with an unsupported load-session error. If the upstream runtime says the stored session no
+longer exists, Compozy can recognize the ACP resource-not-found shape and repair resume behavior at the
+session layer.
+
+## Permission mode mapping
+
+Compozy applies its static permission mode to ACP session modes when the provider reports a compatible
+mode. When Compozy enables the provider-native tool execution gateway, it may first try a separate
+approval-mediated ACP mode candidate such as `default` or `ask` so provider-native tool calls flow
+back through Compozy before any real side effect. Those gateway candidates are separate from the static
+permission-to-session-mode mapping below. The configured `permissions.mode` still stays
+authoritative at the execution boundary.
+
+If the provider does not advertise a compatible mediated mode, Compozy falls back to the static
+permission-to-session-mode mapping below.
+
+| Compozy permission | ACP mode names Compozy tries                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `approve-all`      | `full-access`, `full_access`, `bypassPermissions`, `bypass_permissions`, `auto`, `acceptEdits` |
+| `approve-reads`    | `read-only`, `read_only`, `readOnly`, `plan`, `ask`                                            |
+| `deny-all`         | `read-only`, `read_only`, `readOnly`, `plan`, `ask`                                            |
+
+If no reported mode matches, Compozy skips `session/set_mode` and still keeps its own inbound
+permission policy. Filesystem permission checks use the primary workspace root as the sandbox.
+
+## Prompt startup behavior
+
+The `AGENT.md` body becomes the agent-owned role portion of the startup prompt. Compozy wraps it with a
+daemon-owned runtime envelope that states the session is running inside Compozy, records session and
+workspace facts, and explains that Compozy owns the session lifecycle, runtime context, native tool
+gateway, and observable event stream.
+
+Generic ACP does not provide a system-role field in `session/new` or `session/load`, so Compozy sends the
+assembled startup prompt with the first user prompt and annotates that fallback in prompt metadata.
+Later turns send only user prompt text plus any live turn context Compozy adds through its prompt
+augmenters. Provider-native system-prompt channels can receive the same rendered startup guidance
+directly when a harness supports them.
+
+That means:
+
+- the body should contain durable role and operating instructions, not the fact that the process is
+  running inside Compozy
+- CompozyOS runtime identity, session facts, and daemon-owned tool guidance are added by the runtime
+- per-turn details belong in the user prompt or daemon-provided turn context
+- changing `AGENT.md` affects new processes, not a process that is already running
+
+## Stop behavior
+
+Stopping is cooperative first:
+
+1. Mark the process as stop-requested.
+2. Send ACP `session/cancel` when an ACP session ID exists.
+3. Ask the managed subprocess to shut down.
+4. Wait for process exit.
+5. Escalate through the process-tree shutdown path when needed.
+6. Close managed terminals and suppress expected wait errors for requested stops.
+
+Failed startup uses the same cleanup path. If initialize, `session/new`, or `session/load` fails
+after the process was launched, Compozy stops the process. Synchronous internal callers receive the
+startup error; an HTTP/UDS session that was already accepted becomes durably `stopped` with a
+`startup_failure` diagnostic.
+
+## Agent-Initiated Safe Spawn
+
+An active agent can request a child session through `compozy spawn`. This is separate from normal
+session creation: Compozy validates the caller identity, requires a positive TTL, keeps the child inside
+the parent's coordination channel, denies coordinator-role children, and only permits permission
+subsets of the parent session. The child inherits the parent workspace unless `--workspace` targets
+another one, which the workspace-access policy must authorize.
+
+Safe-spawn children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL,
+and permission metadata. In the MVP, max depth is `1` and the default max children per parent is
+`5`. Parent-stop and TTL expiry cleanup release active task-run leases through the task service
+before stopping the child session.
+
+Use [Safe Spawn](/docs/autonomy/safe-spawn) for command flags, constraints, and lifecycle
+hooks.
+
+## Edge cases
+
+| Case                                           | Behavior                                                                                             |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Command cannot be parsed                       | Startup fails before launch.                                                                         |
+| Executable is missing from `PATH`              | Startup fails from subprocess launch.                                                                |
+| Workspace root is missing                      | Startup fails during `Cwd` normalization.                                                            |
+| Additional dir is relative                     | Startup validation fails.                                                                            |
+| Additional dir is missing                      | Startup normalization fails.                                                                         |
+| Provider omits supported modes                 | Compozy skips `session/set_mode`.                                                                    |
+| Provider omits default model                   | Resolved model may be empty.                                                                         |
+| Provider lacks `session/load`                  | Resume fails.                                                                                        |
+| Stored ACP session is missing upstream         | Compozy clears the stale ACP session ID and starts a fresh ACP session for the same Compozy session. |
+| Agent requests a filesystem or terminal action | Compozy evaluates the inbound permission policy before serving the request.                          |
+
+## Related pages
+
+- [Agent Definitions](/docs/agents/definitions) shows how the launch inputs are declared.
+- [Providers](/docs/agents/providers) lists the built-in provider commands.
+- [Session Lifecycle](/docs/sessions/lifecycle) explains how the spawned process is wrapped by a durable Compozy session.
+- [Safe Spawn](/docs/autonomy/safe-spawn) covers agent-initiated child sessions.

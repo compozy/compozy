@@ -1,0 +1,414 @@
+---
+title: mcp.json
+description: Configure, authorize, inspect, edit, and repair local and remote MCP servers across Compozy scopes.
+---
+
+`mcp.json` is an optional JSON sidecar for MCP server declarations. Compozy accepts it at global,
+workspace, agent, and skill scopes.
+
+## Quick Reference
+
+| Field                | Type         | Default             | Valid values                          | Description                                     |
+| -------------------- | ------------ | ------------------- | ------------------------------------- | ----------------------------------------------- |
+| `mcpServers`         | object map   | empty               | Server-name keys with server objects. | Camel-case top-level MCP server map.            |
+| `mcp_servers`        | object map   | empty               | Server-name keys with server objects. | Snake-case top-level MCP server map.            |
+| `<server>.transport` | string       | inferred            | `stdio`, `http`, or `sse`.            | MCP transport. `url` without transport is HTTP. |
+| `<server>.command`   | string       | required for stdio  | Non-empty after trimming.             | Local MCP server command.                       |
+| `<server>.url`       | string URL   | required for remote | Absolute URL.                         | Remote MCP endpoint for `http` or `sse`.        |
+| `<server>.auth`      | object       | empty               | OAuth 2.1 PKCE config.                | Remote auth metadata and client settings.       |
+| `<server>.args`      | string array | empty               | Strings on `stdio` only.              | Command arguments for stdio servers.            |
+| `<server>.env`       | string map   | empty               | String keys and values on `stdio`.    | Literal environment values for stdio servers.   |
+
+Unknown JSON fields fail parsing. Trailing JSON values after the first document also fail parsing.
+Missing `mcp.json` files are treated as absent.
+
+There is no implemented `mcp.json` tool-mapping schema today. The current parser accepts MCP server
+definitions only.
+
+## Supported Locations
+
+| Location                        | Scope                   | Applies when                                                     |
+| ------------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `$COMPOZY_HOME/mcp.json`        | Global top-level MCP    | General runtime config loads. Defaults to `~/.compozy/mcp.json`. |
+| `<workspace>/.compozy/mcp.json` | Workspace top-level MCP | A workspace root is resolved for the command or session.         |
+| `<agent-dir>/mcp.json`          | Agent-local MCP         | Next to `AGENT.md`.                                              |
+| `<skill-dir>/mcp.json`          | Skill-local MCP         | Next to `SKILL.md`.                                              |
+
+## Complete Example
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/work"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "secret_env": {
+        "GITHUB_TOKEN": "vault:mcp/global/github/env/GITHUB_TOKEN"
+      }
+    },
+    "remote-docs": {
+      "transport": "sse",
+      "url": "https://mcp.example.com/sse",
+      "auth": {
+        "type": "oauth2_pkce",
+        "issuer_url": "https://auth.example.com",
+        "client_id": "compozy-desktop",
+        "client_secret_ref": "env:REMOTE_DOCS_MCP_CLIENT_SECRET",
+        "scopes": ["mcp.read", "mcp.write"]
+      }
+    }
+  }
+}
+```
+
+The snake-case form is also accepted:
+
+```json
+{
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+## Top-Level Keys
+
+| Key           | Type       | Default | Valid values                                      | Description                                                          |
+| ------------- | ---------- | ------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| `mcpServers`  | object map | empty   | Keys are server names; values are server objects. | Primary JSON form.                                                   |
+| `mcp_servers` | object map | empty   | Keys are server names; values are server objects. | Alternate JSON form. Loaded after `mcpServers` inside the same file. |
+
+If both top-level keys are present in the same file and both define the same server name,
+`mcp_servers` replaces the whole server object from `mcpServers`.
+
+## Server Object
+
+| Field             | Type         | Default             | Valid values                                            | Description                                                                                                          |
+| ----------------- | ------------ | ------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Map key           | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                                                       |
+| `transport`       | string       | inferred            | `stdio`, `http`, or `sse`.                              | Local command servers default to `stdio`; URL servers default to `http`.                                             |
+| `command`         | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                                               |
+| `url`             | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http` and `sse`; invalid for `stdio`.                                             |
+| `auth`            | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                                                     |
+| `args`            | string array | empty               | Strings on `stdio` only.                                | Process arguments for stdio servers.                                                                                 |
+| `env`             | string map   | empty               | String keys and values on `stdio` only.                 | Literal environment values. Compozy does not expand `$VAR`, `~`, or shell syntax. Management reads expose keys only. |
+| `secret_env`      | string map   | empty               | `env:NAME` or `vault:mcp/**` refs on `stdio` only.      | Secret bindings resolved at launch. Management reads expose configured keys only.                                    |
+| `catalog_entry`   | string       | empty               | Compozy-managed catalog entry ID.                       | Provenance stamped by catalog install. Generic settings replacement clears it.                                       |
+| `catalog_version` | string       | empty               | Compozy-managed catalog version.                        | Provenance stamped with `catalog_entry`. Do not author these fields manually.                                        |
+
+Both `env` and `secret_env` reject process-injection keys such as `NODE_OPTIONS`, `PYTHONPATH`,
+`PYTHONHOME`, `LD_PRELOAD`, and `DYLD_*`. Literal `env` also rejects secret-like names; place those
+bindings in `secret_env` with an `env:NAME` or `vault:mcp/**` ref.
+
+### Management read and write projection
+
+`GET /api/settings/mcp-servers` does not return literal environment values or binding refs. Each
+stdio item exposes `env_keys` and `secret_env_keys`; OAuth config exposes
+`client_secret_configured`. To keep an unchanged value during an exact-target `PUT`, include its
+name in `preserve_env`. Use `preserve_secrets.secret_env` and
+`preserve_secrets.oauth_client_secret` for existing secret bindings. A rename or target change
+requires a new value or an explicit Vault binding because preservation never crosses keys, scopes,
+or source files.
+
+## Remote OAuth Auth Object
+
+Remote MCP servers can use OAuth 2.1 authorization code with PKCE. The config contains only
+metadata and client settings; access tokens, refresh tokens, authorization codes, PKCE verifiers,
+and client-secret values are stored or handled by the auth subsystem and are never written to
+`mcp.json`.
+
+Compozy-managed MCP secret refs live in the Vault under the `mcp` namespace. Catalog and settings
+writes create scope-qualified refs:
+
+- global: `vault:mcp/global/<server>/env/<KEY>` and
+  `vault:mcp/global/<server>/oauth/client-secret`
+- workspace: `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` and
+  `vault:mcp/ws/<workspace-segment>/<server>/oauth/client-secret`
+
+The workspace segment is the workspace ID when it already fits the Vault grammar; otherwise Compozy
+encodes it deterministically. A catalog install can also bind any existing, present `vault:mcp/**`
+ref without taking ownership of that ref.
+
+When a later install replaces an owned canonical ref, Compozy deletes it only after the new binding is
+persisted and only when the replacement no longer references it. Shared and retained refs remain
+untouched. If cleanup fails and Compozy can restore every deleted secret, it restores the prior MCP
+definition and returns an error. If secret restoration is partial, or the prior definition cannot
+be restored, the replacement remains committed and the mutation returns a warning describing the
+residual cleanup state.
+
+| Field               | Type         | Default  | Valid values                    | Description                                                                  |
+| ------------------- | ------------ | -------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `type`              | string       | required | `oauth2_pkce`                   | Enables the OAuth 2.1 PKCE lifecycle.                                        |
+| `client_id`         | string       | required | Non-empty.                      | OAuth client ID registered with the remote MCP provider.                     |
+| `client_secret_ref` | string       | empty    | `env:NAME` or `vault:mcp/**`.   | Optional ref containing the OAuth client secret when the provider needs one. |
+| `issuer_url`        | string URL   | optional | Absolute `http` or `https` URL. | Issuer used for `/.well-known/oauth-authorization-server` discovery.         |
+| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL. | Explicit OAuth authorization-server metadata URL.                            |
+| `authorization_url` | string URL   | optional | Absolute `http` or `https` URL. | Direct authorization endpoint. Must be paired with `token_url`.              |
+| `token_url`         | string URL   | optional | Absolute `http` or `https` URL. | Direct token endpoint. Must be paired with `authorization_url`.              |
+| `revocation_url`    | string URL   | optional | Absolute `http` or `https` URL. | Optional token revocation endpoint used by `compozy mcp auth logout`.        |
+| `scopes`            | string array | empty    | Non-empty strings when present. | Requested OAuth scopes.                                                      |
+
+One of `metadata_url`, `issuer_url`, or the pair `authorization_url` plus `token_url` is required.
+
+## Authorize A Remote Server
+
+OAuth sessions and PKCE verifiers live in the daemon, so CLI, HTTP, and UDS clients complete the
+same flow. Start authorization with a copyable URL:
+
+```bash
+compozy mcp authorize linear
+```
+
+For a remote operator or a daemon with a non-loopback HTTP bind, use manual completion and paste
+either the returned code or the full redirect URL:
+
+```bash
+compozy mcp authorize linear --manual
+```
+
+`--timeout` bounds the whole authorization attempt, including manual input and exchange. The active
+daemon PKCE session expiry can shorten that deadline; it never extends it.
+
+Target a workspace sidecar explicitly with both selectors:
+
+```bash
+compozy mcp authorize linear --scope workspace --workspace <workspace-id>
+compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
+```
+
+The equivalent daemon routes are:
+
+- `POST /api/settings/mcp-servers/{name}/auth/begin`
+- `POST /api/settings/mcp-servers/{name}/auth/exchange`
+- `POST /api/settings/mcp-servers/{name}/auth/logout`
+
+Each route requires `scope`; workspace targets also require `workspace_id`. The routes are available
+over HTTP and UDS. Begin requires a JSON body with `mode: "automatic"` or `mode: "manual"`; manual
+mode creates a fresh paste-based PKCE session instead of reusing an automatic callback session.
+`GET /api/mcp/oauth/callback` is HTTP-only and refuses automatic completion when the daemon bind
+host is not loopback. On loopback, begin derives the callback origin from the effective listener,
+including bracketed IPv6 addresses; an unavailable callback runtime returns a documented `503`
+HTML response. Exchange accepts exactly one of `code` or `redirect_url`, and success requires
+redacted status with both `authenticated` and `token_present`.
+
+Each pending session and issued token is bound to the exact scoped server definition. Editing or
+deleting the server invalidates pending completion. If the transport, remote URL, or OAuth settings
+change, Compozy keeps the previous token record but does not report it as authenticated, refresh it,
+revoke it against the replacement provider, or send its bearer to that provider. Authorize the new
+definition again. Tokens created before definition binding was introduced also require one new login.
+
+## Install From The Curated Catalog
+
+Use the catalog install command when an MCP entry comes from Marketplace:
+
+```bash
+compozy mcp install github --scope global --vault-ref GITHUB_TOKEN=vault:mcp/shared/github-token -o json
+```
+
+For workspace scope, pass both `--scope workspace` and `--workspace <workspace-id>`. The daemon
+loads the catalog entry, locks its command, URL, and auth fields, checks required values and bound
+Vault refs, writes the MCP sidecar through the serialized config-apply lifecycle, and stamps catalog
+provenance. Inspect the response's `apply` object for the record ID, lifecycle, active generation,
+and required repair action. The install does not probe the MCP server, so a successful config apply
+does not claim server readiness. OAuth entries return `next_step: "authorize"`; other entries return
+`next_step: "none"`.
+
+Direct API callers must always include the nullable `values` property: send `null` for an input-free
+entry. Omitting `values` violates the request contract and returns `400` before installation.
+
+Use `--set KEY` to read a catalog field from stdin or a hidden terminal prompt. For an existing
+secret, create it with `compozy vault put ... --value-stdin`, then use `--vault-ref`; neither path puts
+secret material in shell arguments or history. Management reads return configured field names and
+OAuth client-secret presence, never bound refs or secret values.
+
+Structured JSON output returns the complete install response: the committed `mcp_server`, config
+`apply` outcome, `next_step`, and any top-level diagnostics. In particular,
+`mcp_install_event_persist_failed` means the server and config apply remain committed while the
+Marketplace install event was not persisted. Inspect `warnings` before deciding whether operator
+cleanup is required.
+
+## Inspect Runtime Status
+
+The MCP Installed scope at `/marketplace/mcps?tab=installed` and
+`GET /api/settings/mcp-servers` keep configuration, authorization, runtime, and probe state
+separate. A configured server is not automatically ready.
+
+| Signal  | Payload fields                                      | Interpretation                                                                            |
+| ------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Config  | One scoped settings entry                           | The definition exists at the selected scope.                                              |
+| Auth    | `auth_status.status`, `token_present`, `diagnostic` | OAuth is unconfigured, needs login, authenticated, expired, or invalid.                   |
+| Runtime | `runtime_status.state`, `reason`, `diagnostic`      | The daemon reports `ready` or a concrete config, auth, permission, or availability state. |
+| Probe   | `runtime_status.probe`, `tool_count`                | A probe was skipped, failed, or succeeded with a reported tool count.                     |
+
+Use the redacted CLI and native-tool surfaces for agent diagnostics:
+
+```bash
+compozy mcp auth status -o json
+compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
+```
+
+Inside a Compozy session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
+redacted status. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
+
+The web repair action appears only for OAuth-capable HTTP/SSE servers that need their first login,
+have expired or invalid auth, or report `auth_refresh_failed`. Authorization success still requires
+both `authenticated` and `token_present=true`; runtime and probe state remain independent.
+
+## Edit A Configured Server
+
+Open `/marketplace/mcps?tab=installed` to inspect global definitions together with definitions from
+the active workspace, then open the matching Marketplace detail. MCP configuration supports:
+
+- stdio `command`, `args`, literal `env`, and bound `secret_env` refs;
+- remote `http` or `sse` transport and absolute `url`;
+- OAuth `client_id`, optional client-secret ref, scopes, and exactly one discovery form:
+  `issuer_url`, `metadata_url`, or the `authorization_url` + `token_url` pair.
+
+The structured mutation is `PUT /api/settings/mcp-servers/{name}` over HTTP and UDS. Supply `scope`
+and, for workspace definitions, `workspace_id` according to the generated
+[Settings API reference](/docs/api/settings). A generic settings edit clears
+`catalog_entry` and `catalog_version` because the resulting definition is operator-managed.
+
+Deleting or replacing one scoped definition does not mutate a same-name definition in another
+workspace or at global scope. OAuth tokens and Compozy-owned Vault refs use scope-qualified identities
+for the same reason.
+
+## Repair Authorization
+
+Use Authorize for `needs_login` and Reauthorize for expired, invalid, or refresh-failed OAuth state.
+The daemon preserves an existing token when begin, exchange, refresh, or operator completion fails.
+
+```bash
+# Automatic loopback completion.
+compozy mcp authorize linear --scope global
+
+# Paste a code or full redirect URL when operating away from the daemon host.
+compozy mcp authorize linear --scope global --manual
+
+# Remove the scoped credential when that is the intended repair.
+compozy mcp auth logout linear --scope global -o json
+```
+
+Do not interpret a successful config write, browser open, or redirect as credential confirmation.
+Re-read status and require `authenticated` plus `token_present=true`.
+
+## Merge And Override Rules
+
+`mcp.json` uses whole-object replacement. TOML uses field-level merging.
+
+| Situation                                                | Behavior                                                                                                              |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Same-name TOML `[[mcp_servers]]` overlay                 | Fields merge by name. Non-empty transport, command, URL, auth fields, args, and env keys overlay the existing server. |
+| Same-name `mcp.json` sidecar overlay                     | The sidecar replaces the entire existing server object.                                                               |
+| Same-name inline `AGENT.md` and agent-local `mcp.json`   | Agent-local sidecar replaces the whole inline server object.                                                          |
+| Same-name `SKILL.md` metadata and skill-local `mcp.json` | Skill-local sidecar replaces the whole frontmatter server object.                                                     |
+| Duplicate names inside one JSON document after trimming  | Loading fails.                                                                                                        |
+
+## Runtime Precedence
+
+Top-level configuration loads in this order:
+
+1. Built-in defaults.
+2. `$COMPOZY_HOME/config.toml`.
+3. `$COMPOZY_HOME/mcp.json`.
+4. `<workspace>/.compozy/config.toml`.
+5. `<workspace>/.compozy/mcp.json`.
+
+Daemon boot uses home config for boot-time daemon settings. MCP sidecars are applied by the general
+config loader used for session and runtime resolution.
+
+Session startup then resolves MCP servers in this order:
+
+1. Top-level config MCP servers.
+2. Provider MCP servers.
+3. Agent MCP servers.
+4. Active skill MCP servers.
+
+Provider and agent MCP servers use field-level merging when they come from TOML or YAML. Agent and
+skill sidecars replace same-name inline servers as whole objects.
+
+## Validation Errors
+
+| Error case                           | Result               |
+| ------------------------------------ | -------------------- |
+| Unknown top-level key                | Parse error.         |
+| Unknown server field                 | Parse error.         |
+| Trailing JSON value                  | Parse error.         |
+| Empty server name after trimming     | Validation error.    |
+| Duplicate trimmed server name        | Validation error.    |
+| Missing stdio `command`              | Validation error.    |
+| `command` on remote transport        | Validation error.    |
+| `args` on remote transport           | Validation error.    |
+| `env` on remote transport            | Validation error.    |
+| Forbidden key in `env`/`secret_env`  | Validation error.    |
+| Missing remote `url`                 | Validation error.    |
+| `url` on stdio transport             | Validation error.    |
+| `auth` on stdio transport            | Validation error.    |
+| Incomplete OAuth metadata            | Validation error.    |
+| Non-string values in `args` or `env` | JSON decoding error. |
+| Missing file                         | Ignored.             |
+
+## Examples By Scope
+
+### Global MCP Server
+
+```text
+~/.compozy/
+  config.toml
+  mcp.json
+```
+
+Use this for tools every workspace may use.
+
+### Workspace MCP Server
+
+```text
+my-project/
+  .compozy/
+    config.toml
+    mcp.json
+```
+
+Use this for tools that only make sense inside one project.
+
+### Agent MCP Server
+
+```text
+~/.compozy/agents/reviewer/
+  AGENT.md
+  mcp.json
+```
+
+Use this when the tool belongs to one agent.
+
+### Skill MCP Server
+
+```text
+~/.compozy/skills/docs-search/
+  SKILL.md
+  mcp.json
+```
+
+Use this when the tool belongs to one skill. Marketplace skill MCP servers are blocked unless the
+skill is explicitly allowlisted in `[skills].allowed_marketplace_mcp`. Skill-local `mcp.json`
+symlinks must resolve inside the skill directory; Compozy rejects sidecars that escape the approved
+skill root.
+
+## Related Pages
+
+- [config.toml](/docs/configuration/config-toml) documents top-level and provider MCP fields.
+- [Vault](/docs/configuration/vault) documents `env:` versus `vault:` refs and redacted
+  metadata management.
+- [AGENT.md](/docs/configuration/agent-md) documents agent-local MCP declarations.
+- [SKILL.md](/docs/configuration/skill-md) documents skill-local MCP declarations.
+- [Marketplace](/docs/marketplace) covers discovery, guided install, updates, and trust.

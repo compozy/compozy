@@ -25,7 +25,7 @@ const (
 // linkBasePath is the URL prefix the site router mounts the CLI reference at.
 // We rewrite inter-command links to use absolute paths under this prefix so
 // they resolve the same regardless of which nested page they live on.
-const linkBasePath = "/runtime/cli-reference"
+const linkBasePath = "/docs/cli"
 
 var (
 	autoGenLine  = regexp.MustCompile(`(?m)^###### Auto generated.*$\n?`)

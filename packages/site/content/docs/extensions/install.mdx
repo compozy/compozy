@@ -1,0 +1,285 @@
+---
+title: Install Extensions
+description: Install extensions from curated, GitHub, git, or local sources; understand trust and consent; update, enable, disable, remove, and inspect provenance.
+---
+
+Extensions are installable packages that add static resources or runtime behavior to Compozy. An
+extension can bundle skills, agent definitions, hooks, loops, bundles, MCP servers, memory backends,
+model sources, and subprocess tools.
+
+Compozy stores installed extensions in the global registry and copies managed installs into
+`<COMPOZY_HOME>/extensions/<name>`.
+
+<OperatorNote>
+  Installing **your own** code is not an install. Use [`compozy extension
+  dev`](/docs/extensions/develop#dev-reload-logs): it links your source directory to the
+  current workspace with no trust policy and no consent prompt. This page is about code that came
+  from somewhere else.
+</OperatorNote>
+
+## Install sources
+
+`compozy extension install <source>` takes one closed source union. The CLI infers the source from
+the argument:
+
+| Argument form                       | Source       | Notes                                                                      |
+| ----------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| `./dir`, `../dir`, `/abs/dir`       | `local_path` | A directory containing `extension.toml` or `extension.json`.               |
+| `github:owner/repo[@ref]`           | `github`     | GitHub release asset.                                                      |
+| `git:https://host/owner/repo[@ref]` | `git`        | Shallow clone at the ref. Needs the `git` executable on the daemon host.   |
+| `owner/repo[@ref]`                  | `curated`    | Tries the curated catalog first, falling back to `github` only on a `404`. |
+
+```bash
+compozy extension install ./hello
+compozy extension install github:acme/hello@v0.1.0
+compozy extension install git:https://github.com/acme/hello@v0.1.0
+compozy extension install acme/linear-bridge
+```
+
+A path that does not exist fails naming that path instead of degrading into a slug lookup, and a git
+URL carrying embedded credentials is rejected before any request. HTTP, UDS, and native-tool callers
+submit the structured union directly; the shorthand is a CLI convenience.
+
+`--version` and `--asset` select a specific registry version or archive for published sources.
+
+## Trust and consent
+
+Two things gate a published install: an operator **policy** and a per-request **consent**.
+
+| Install                                                  | Policy needed                                        | Consent needed       |
+| -------------------------------------------------------- | ---------------------------------------------------- | -------------------- |
+| Curated entry with an `official` or `community` tier     | none                                                 | none                 |
+| Curated `unverified` tier, `github`, `git`, `local_path` | `extensions.trust.allow_unverified` (default `true`) | `--allow-unverified` |
+| Any of the above in machine-readable output              | same                                                 | plus `--yes`         |
+
+Human output prompts on `--allow-unverified` unless you pass `--yes`. Structured output requires
+`--yes`, so an agent cannot hide an interactive trust decision.
+
+Deterministic failures:
+
+| Reason code                           | Meaning                                                   | Fix                                                                                  |
+| ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `extension_unverified_policy_blocked` | Live policy is off. Evidence path `/settings/extensions`. | Review the source, then `compozy config set extensions.trust.allow_unverified true`. |
+| `extension_checksum_unverified`       | Policy is on but the request carried no consent.          | Add `--allow-unverified` (and `--yes` for structured output).                        |
+| `extension_archive_digest_mismatch`   | A curated archive differs from the catalog-pinned bytes.  | Stop. No `--allow-unverified` bypass exists for this.                                |
+| `extension_git_unavailable`           | No `git` executable on the daemon host.                   | Install `git` or use another source.                                                 |
+
+Both consent failures are `422`.
+
+Curated installs download the feed-owned artifact, verify the catalog-pinned SHA-256 **before**
+extraction, and persist the catalog entry, archive digest, and extracted-tree checksum separately.
+Any digest failure aborts before the registry write, so no partial install survives.
+
+A GitHub release may carry an `<asset>.sha256` sidecar. When one exists the daemon verifies the
+archive against it and records `digest_matched`. That is an integrity fact only: it never raises
+`registry_tier` above `unverified`, never sets `checksum_verified`, and never removes the consent
+requirement.
+
+Registry tier and digest verification are provenance signals, not safety guarantees.
+
+## Permission ceilings
+
+Published installs (`curated`, `github`, `git`) run under the marketplace tier, whose Host API grants
+are limited to `logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`, and
+`tool.read`. A published extension may declare more; anything outside the ceiling is dropped at grant
+time with a recorded diagnostic instead of silently succeeding.
+
+Local-path installs and dev links carry no ceiling. Full detail:
+[Extension Permissions](/docs/extensions/permissions).
+
+Managed installs do not allow runtime dependency symlinks to escape the extracted extension root. If
+a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
+fails instead of copying content from the host filesystem.
+
+## Configure sources and trust policy
+
+```toml
+[extensions.trust]
+# Operator policy for non-curated installs. Per-install consent still applies.
+allow_unverified = true
+
+[extensions.sources.github]
+enabled = true
+base_url = "https://api.github.com"
+
+[extensions.sources.git]
+enabled = true
+
+[marketplace.catalog]
+base_url = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
+ttl = "1h"
+timeout = "10s"
+```
+
+`base_url` accepts `https` or `http`; `http` logs an insecure-scheme warning. The GitHub client reads
+`GITHUB_TOKEN` from the daemon environment for authenticated release access and higher rate limits.
+
+After changing policy, reconcile and inspect the daemon's apply record:
+
+```bash
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
+```
+
+Full key reference: [`config.toml`](/docs/configuration/config-toml#extensionstrust).
+
+## Search across sources
+
+```bash
+compozy extension search notes --sources curated,github --limit 20
+compozy extension search notes --cursor <cursor>
+```
+
+Search fans out across the curated catalog and GitHub. A rate-limited or unreachable source degrades
+to cached-or-omitted results with a `sources_degraded` marker rather than failing the whole query.
+`compozy marketplace search <query> --kind extension -o json` returns the same catalog projection
+with installed state and trust fields.
+
+## List, inspect, and update
+
+```bash
+compozy extension list
+compozy extension status hello
+compozy extension provenance hello
+```
+
+`list` uses the daemon when it is running and falls back to the local registry when it is offline. It
+carries an `Update` column driven by the `update_available` projection, so a pending update is
+visible without asking for it. `status` and `provenance` require the daemon.
+
+Both read the global installed set. A workspace-scoped dev instance is not part of it — read those
+through `GET /api/extensions?workspace=<id>`, through an agent caller whose session binds the
+workspace, or through `compozy extension logs <name>`. See
+[Develop Extensions](/docs/extensions/develop#instances).
+
+`status` returns registry and runtime truth together:
+
+| Field                                                                          | Meaning                                                                                                  |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `name`, `version`, `source`                                                    | Registry identity and install source.                                                                    |
+| `type`                                                                         | `resource` when no subprocess is required; `subprocess` otherwise.                                       |
+| `enabled`                                                                      | Registry flag. Disabled extensions are skipped by the manager.                                           |
+| `state`                                                                        | `disabled`, `enabled`, `registered`, `active`, or `error`.                                               |
+| `health`                                                                       | `unknown`, `healthy`, or `unhealthy`.                                                                    |
+| `capabilities`, `permissions`                                                  | Manifest-declared provide surfaces and Host API methods.                                                 |
+| `consecutive_failures`, `restart_backoff_ms`                                   | Crash-loop honesty: a looping extension is distinguishable from a stably-failed one.                     |
+| `dev`, `overrides_published`, `origin_path`, `generation_hash`, `workspace_id` | Dev-overlay identity when one is active.                                                                 |
+| `update_available`, `remote_version`                                           | Passive update projection.                                                                               |
+| `requires_env`, `missing_env`                                                  | Declared environment variable names and the ones currently unset.                                        |
+| `bundles`                                                                      | Bundle summaries packaged by the extension.                                                              |
+| `provenance`, `trust`                                                          | Install source, checksums, registry tier, `allow_unverified`, installer identity, decision, diagnostics. |
+
+Apply updates:
+
+```bash
+compozy extension update hello
+compozy extension update --all
+```
+
+Update targets extensions installed from a source with remote version metadata; local installs and
+dev links are not update targets. A successful update replaces the managed directory, updates the
+registry row and provenance, reloads runtime resources, and writes an `extension.updated` event.
+
+A batch update stops at the first failing target **without discarding earlier progress**: the
+response is `200` and carries every completed item plus the failed one, whose `status` is `failed`
+with `extension_update_failed`. Targets after the failure are not attempted.
+
+The runtime activation is the commit point. If the new version is active but Compozy cannot remove a
+staging directory or backup, the result is still `status: "updated"` with an
+`extension_update_cleanup_failed` warning naming the residual path.
+
+## Enable, disable, remove
+
+```bash
+compozy extension disable hello
+compozy extension enable hello
+compozy extension remove hello
+compozy extension remove hello --global
+```
+
+Enable and disable require the daemon: it updates the registry flag, reloads the extension manager,
+rebuilds the hook registry, reconciles bundles, and writes an `extension.enabled` or
+`extension.disabled` event. Both are rejected while active bundle activations depend on the
+extension — remove or deactivate those first.
+
+Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
+`--global` removes the published installation. Removal deletes the managed install directory and
+registry row with rollback handling. Post-commit cleanup failure leaves `status: "removed"` with an
+`extension_remove_cleanup_failed` warning and a residual path — treat that path as cleanup debt, not
+as a live extension.
+
+## Declare required environment
+
+Extensions declare the environment variable **names** they need:
+
+```toml
+[extension]
+name = "daytona"
+version = "1.2.3"
+min_compozy_version = "0.3.0-beta.1"
+requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
+```
+
+Compozy validates `requires_env` at install and status load. Diagnostics report names, never values.
+An unset or empty variable surfaces through `missing_env` in `list`, `status`, the API, and the
+settings page.
+
+## Agent surfaces
+
+Extension lifecycle is agent-manageable. The `compozy__extensions` toolset reaches the same services
+as the CLI:
+
+| Action             | Tool                                    | CLI                                |
+| ------------------ | --------------------------------------- | ---------------------------------- |
+| Scaffold           | `compozy__extensions_init`              | `compozy extension init`           |
+| Build              | `compozy__extensions_build`             | `compozy extension build`          |
+| Validate           | `compozy__extensions_validate`          | `compozy extension validate`       |
+| Dev-link / reload  | `compozy__extensions_dev`/`_reload`     | `compozy extension dev`/`reload`   |
+| Read logs          | `compozy__extensions_logs`              | `compozy extension logs`           |
+| Search             | `compozy__extensions_search`            | `compozy extension search`         |
+| List installed     | `compozy__extensions_list`              | `compozy extension list`           |
+| Inspect one        | `compozy__extensions_info`              | `compozy extension status`         |
+| Inspect provenance | `compozy__extensions_provenance`        | `compozy extension provenance`     |
+| Install            | `compozy__extensions_install`           | `compozy extension install`        |
+| Update             | `compozy__extensions_update`            | `compozy extension update`         |
+| Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
+| Enable / disable   | `compozy__extensions_enable`/`_disable` | `compozy extension enable/disable` |
+| Publish            | `compozy__extensions_publish`           | `compozy extension publish`        |
+
+Tools that execute author or extension code (`build`, `dev`, `reload`) are interaction-gated;
+`publish` is additionally `open_world`; `validate` is read-only. Deterministic denials include
+`EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`, `EXTENSION_NOT_INSTALLED`, and
+`EXTENSION_VALIDATION_FAILED`. Credentials never appear in tool inputs: the publish token is resolved
+server-side and registered for redaction.
+
+Native `dev` and `reload` never build. Call `compozy__extensions_build` first and pass its
+`generation_hash`.
+
+Extension bundles have their own UDS-backed surface: `compozy bundle catalog|preview|activate|list|get|update|deactivate|network-settings`,
+mirrored by `compozy__bundles_list`, `compozy__bundles_info`, `compozy__bundles_activate`,
+`compozy__bundles_deactivate`, and `compozy__bundles_status`. Desired-state resources published by
+extensions are inspectable through `compozy__resources_list`, `compozy__resources_info`, and
+`compozy__resources_snapshot`. An extension declares the corresponding Host API methods in
+`permissions.requires`, such as `resources/list`, `resources/get`, and `resources/snapshot`.
+
+## Troubleshooting
+
+| Symptom                                     | Cause                                                                             | Fix                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `extension_unverified_policy_blocked`       | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
+| `extension_checksum_unverified`             | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
+| `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
+| `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
+| Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
+| Disable or remove returns a conflict        | Active bundle activations depend on the extension.                                | Deactivate those bundle activations first.                                  |
+| `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters). |
+| Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
+
+Related references:
+
+- [Develop Extensions](/docs/extensions/develop)
+- [Publish an Extension](/docs/extensions/publish)
+- [Extension Permissions](/docs/extensions/permissions)
+- [Extension CLI Reference](/docs/cli/extension)
+- [Hook Declaration Format](/docs/hooks/declaration)
+- [Unified Marketplace](/docs/marketplace)

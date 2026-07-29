@@ -2,9 +2,9 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-docs_dir="$repo_root/packages/site/content/runtime/cli-reference"
+docs_dir="$repo_root/packages/site/content/docs/cli"
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/compozy-cli-docs-check.XXXXXX")"
-candidate_dir="$tmp_root/cli-reference"
+candidate_dir="$tmp_root/cli"
 
 cleanup() {
   rm -rf -- "$tmp_root"

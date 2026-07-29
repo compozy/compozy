@@ -5,10 +5,10 @@ import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
 import { API_TAG_ICONS } from "../lib/docs-icons";
 import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
-import { API_SECTIONS } from "../lib/runtime-navigation";
+import { API_SECTIONS } from "../lib/docs-navigation";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.resolve(HERE, "../content/runtime/api-reference");
+const OUT_DIR = path.resolve(HERE, "../content/docs/api");
 const REPO_ROOT = path.resolve(HERE, "../../..");
 const PRESERVE = new Set(["index.mdx"]);
 const OPENAPI_METHODS = new Set(["get", "post", "patch", "put", "delete"]);
@@ -210,10 +210,10 @@ function buildMetaPages(usedTagSlugs: Set<string>): string[] {
 }
 
 async function writeMeta(usedTagSlugs: Set<string>): Promise<void> {
+  // No `"root": true`: the reference lives as a collapsed folder inside the single /docs tree (D3).
   const meta = {
     title: "API Reference",
     icon: "FileCode",
-    root: true,
     pages: buildMetaPages(usedTagSlugs),
   };
   await fs.writeFile(path.join(OUT_DIR, "meta.json"), `${JSON.stringify(meta, null, 4)}\n`, "utf8");

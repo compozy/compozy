@@ -1,0 +1,245 @@
+---
+title: Database Operations
+description: Back up, inspect, and clean up Compozy's SQLite databases.
+---
+
+Use this guide when you need to back up Compozy state, inspect stored sessions, or retire old session
+directories.
+
+<OperatorNote>
+  Compozy uses SQLite in WAL mode. A live filesystem copy must include the database file and its
+  `-wal` and `-shm` sidecar files, or use SQLite's backup command. The simplest safe backup is a
+  cold backup while the daemon is stopped.
+</OperatorNote>
+
+## Find the databases
+
+Set the home path used by the commands below:
+
+```bash
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+```
+
+| Path                                            | Purpose                                                                                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one Compozy session.                                                                                                                                             |
+| `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
+
+The global database is an index and catalog. The per-session `events.db` files hold the detailed
+session timeline.
+
+<Mermaid
+  chart={`flowchart TD
+  Home["$COMPOZY_HOME"] --> Global["compozy.db global catalog"]
+  Home --> Sessions["sessions/"]
+  Sessions --> One["<session-id>/"]
+  One --> Events["events.db event stream"]
+  One --> Meta["meta.json session metadata"]
+  Global --> Summary["session rows and summaries"]
+  Events --> Replay["events, token usage, hook runs"]`}
+  caption="Compozy separates global catalog state from per-session event history."
+/>
+
+## Back up while the daemon is stopped
+
+Use this for scheduled maintenance windows and before upgrades:
+
+```bash
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+backup="$HOME/compozy-backups/$(date +%Y%m%d-%H%M%S)"
+
+compozy daemon stop
+mkdir -p "$backup"
+cp -a "$COMPOZY_HOME"/compozy.db* "$backup"/
+cp -a "$COMPOZY_HOME/sessions" "$backup"/sessions
+compozy daemon start
+```
+
+This captures the global database, any WAL sidecars, every per-session event database, and each
+session metadata file.
+
+## Back up a live daemon with SQLite
+
+Use SQLite's backup command when you cannot stop the daemon:
+
+```bash
+export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+backup="$HOME/compozy-backups/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup/sessions"
+
+sqlite3 "$COMPOZY_HOME/compozy.db" ".backup '$backup/compozy.db'"
+
+find "$COMPOZY_HOME/sessions" -mindepth 2 -maxdepth 2 -name events.db -type f -print0 |
+while IFS= read -r -d '' db; do
+  session_dir="$(basename "$(dirname "$db")")"
+  mkdir -p "$backup/sessions/$session_dir"
+  sqlite3 "$db" ".backup '$backup/sessions/$session_dir/events.db'"
+  cp -a "$(dirname "$db")/meta.json" "$backup/sessions/$session_dir/meta.json"
+done
+```
+
+This reads each database through SQLite instead of copying the main file without its WAL state.
+
+## Inspect the global catalog
+
+Open the global database directly:
+
+```bash
+sqlite3 "$COMPOZY_HOME/compozy.db"
+```
+
+List recent sessions:
+
+```sql
+select id, name, agent_name, state, stop_reason, updated_at
+from sessions
+order by updated_at desc
+limit 20;
+```
+
+List registered workspaces:
+
+```sql
+select id, root_dir, name, updated_at
+from workspaces
+order by updated_at desc;
+```
+
+List active tool process checkpoints:
+
+```sql
+select id, source, session_id, turn_id, pid, state, updated_at
+from tool_processes
+where state in ('running', 'interrupting')
+order by updated_at desc;
+```
+
+The global catalog records summaries and indexes. Use the session event database when you need the
+ordered event stream for one session.
+
+## Schema migration discipline
+
+Compozy versions each SQLite authority as an independent Goose migration stream:
+
+| Stream      | Database family                                  | Version table                |
+| ----------- | ------------------------------------------------ | ---------------------------- |
+| `global`    | `$COMPOZY_HOME/compozy.db` global runtime tables | `goose_db_version_global`    |
+| `memory`    | `$COMPOZY_HOME/compozy.db` memory catalog tables | `goose_db_version_memory`    |
+| `session`   | Per-session `events.db`                          | `goose_db_version_session`   |
+| `workspace` | Workspace-local `.compozy/compozy.db`            | `goose_db_version_workspace` |
+
+Before Compozy runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
+`atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a
+version table to repair drift and does not read an incompatible database as a fallback.
+
+For the daemon-global streams, inspect the applied version, migration count, and schema digest
+without opening SQLite directly:
+
+```bash
+compozy status -o json | jq '.daemon.schema_streams'
+```
+
+Contributors add schema changes as numbered SQL migrations, refresh `atlas.sum` through the codegen
+lane, and keep the declarative schema and package-owned sqlc queries in the same change. Existing
+migration files and checksums are immutable.
+
+## Inspect a session event database
+
+Set the session ID and query its event store:
+
+```bash
+session_id="sess_1234"
+sqlite3 "$COMPOZY_HOME/sessions/$session_id/events.db"
+```
+
+Show recent events:
+
+```sql
+select sequence, type, agent_name, timestamp
+from events
+order by sequence desc
+limit 20;
+```
+
+Show token usage:
+
+```sql
+select turn_id, total_tokens, cost_amount, cost_currency, timestamp
+from token_usage
+order by timestamp desc
+limit 20;
+```
+
+Show hook runs:
+
+```sql
+select hook_name, event, outcome, required, recorded_at
+from hook_runs
+order by recorded_at desc
+limit 20;
+```
+
+## Clean up old session directories
+
+Compozy does not currently expose a prune command for old session directories. Use a conservative
+archive flow instead of deleting files in place.
+
+1. List stopped sessions:
+
+   ```bash
+   compozy session list --all
+   ```
+
+2. Stop the daemon:
+
+   ```bash
+   compozy daemon stop
+   ```
+
+3. Back up `COMPOZY_HOME` using the cold backup steps above.
+
+4. Move the old stopped session directory into an archive location:
+
+   ```bash
+   export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
+   session_id="sess_1234"
+   mkdir -p "$COMPOZY_HOME/session-archive"
+   mv "$COMPOZY_HOME/sessions/$session_id" "$COMPOZY_HOME/session-archive/$session_id"
+   ```
+
+5. Start the daemon and confirm current sessions still list correctly:
+
+   ```bash
+   compozy daemon start
+   compozy session list --all
+   ```
+
+At boot, Compozy reconciles the global catalog with the session directories on disk. Sessions missing
+from disk are marked `orphaned` in the global catalog; Compozy does not physically purge the global
+session row.
+
+## Handle corrupt database files
+
+When Compozy classifies a SQLite database as corrupt, it stops the open and reports the database path.
+Compozy leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
+repair, or replace any member of the database family automatically.
+
+If this happens:
+
+1. Stop the daemon and keep it stopped during recovery.
+2. Make a cold copy of the complete containing `COMPOZY_HOME` or workspace `.compozy` family, including every
+   database and SQLite sidecar.
+3. Diagnose the copy. Do not run repair or migration writes against the original files.
+4. Restore a complete known-good family, or select a separate fresh `COMPOZY_HOME` when discarding the
+   retained state is acceptable.
+5. Start the daemon and run `compozy doctor`.
+
+Do not restore only the `.db` file while retaining sidecars from another point in time. The original
+family is recovery evidence, not a backup strategy.
+
+## Related pages
+
+- [Daemon Operations](/docs/operations/daemon) covers the runtime files that point to these databases.
+- [Session Events](/docs/sessions/events) explains the session event stream stored in `events.db`.
+- [File Locations](/docs/configuration/file-locations) lists the full `COMPOZY_HOME` layout.

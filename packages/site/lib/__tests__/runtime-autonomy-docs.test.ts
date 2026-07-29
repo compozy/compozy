@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeRoot = resolve(siteRoot, "content/runtime");
+const runtimeRoot = resolve(siteRoot, "content/docs");
 
 function readRuntimeDoc(...parts: string[]): string {
   return readFileSync(resolve(runtimeRoot, ...parts), "utf8");
@@ -28,9 +28,9 @@ function expectExcludesAll(content: string, values: string[]): void {
 
 describe("runtime autonomy docs", () => {
   it("documents the MVP execution boundary and manual operator control", () => {
-    const overview = readRuntimeDoc("core/autonomy/index.mdx");
-    const coordinator = readRuntimeDoc("core/autonomy/coordinator.mdx");
-    const config = readRuntimeDoc("core/configuration/config-toml.mdx");
+    const overview = readRuntimeDoc("autonomy/index.mdx");
+    const coordinator = readRuntimeDoc("autonomy/coordinator.mdx");
+    const config = readRuntimeDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(overview, [
       "Creating a task records intent only",
@@ -58,8 +58,8 @@ describe("runtime autonomy docs", () => {
   });
 
   it("documents task leases and channel authority without exposing raw tokens in read paths", () => {
-    const leases = readRuntimeDoc("core/autonomy/task-runs-and-leases.mdx");
-    const channels = readRuntimeDoc("core/autonomy/coordination-channels.mdx");
+    const leases = readRuntimeDoc("autonomy/task-runs-and-leases.mdx");
+    const channels = readRuntimeDoc("autonomy/coordination-channels.mdx");
 
     expectIncludesAll(leases, [
       "`claim_token_hash`",
@@ -80,8 +80,8 @@ describe("runtime autonomy docs", () => {
   });
 
   it("exposes autonomy docs in runtime navigation without a marketing redesign", () => {
-    const coreMeta = readJSON<{ pages: string[] }>("core/meta.json");
-    const autonomyMeta = readJSON<Record<string, unknown>>("core/autonomy/meta.json");
+    const coreMeta = readJSON<{ pages: string[] }>("meta.json");
+    const autonomyMeta = readJSON<Record<string, unknown>>("autonomy/meta.json");
 
     expect(coreMeta.pages).toContain("autonomy");
     expect(autonomyMeta).toMatchObject({
@@ -101,9 +101,9 @@ describe("runtime autonomy docs", () => {
   });
 
   it("documents task execution profiles with truthful management surfaces and config lifecycle", () => {
-    const profiles = readRuntimeDoc("core/autonomy/execution-profiles.mdx");
-    const overview = readRuntimeDoc("core/autonomy/index.mdx");
-    const config = readRuntimeDoc("core/configuration/config-toml.mdx");
+    const profiles = readRuntimeDoc("autonomy/execution-profiles.mdx");
+    const overview = readRuntimeDoc("autonomy/index.mdx");
+    const config = readRuntimeDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(profiles, [
       "[task.orchestration.profile]",
@@ -137,7 +137,7 @@ describe("runtime autonomy docs", () => {
       "compozy__config_*",
       "Authority boundary",
     ]);
-    expect(overview).toContain("/runtime/core/autonomy/execution-profiles");
+    expect(overview).toContain("/docs/autonomy/execution-profiles");
     expectIncludesAll(config, [
       "[task.orchestration]",
       "[task.orchestration.profile]",
@@ -159,9 +159,9 @@ describe("runtime autonomy docs", () => {
 
 describe("runtime review-gate docs", () => {
   it("documents the post-terminal review gate, reviewer routing, and continuation runs", () => {
-    const reviewGate = readRuntimeDoc("core/autonomy/review-gate.mdx");
-    const overview = readRuntimeDoc("core/autonomy/index.mdx");
-    const config = readRuntimeDoc("core/configuration/config-toml.mdx");
+    const reviewGate = readRuntimeDoc("autonomy/review-gate.mdx");
+    const overview = readRuntimeDoc("autonomy/index.mdx");
+    const config = readRuntimeDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(reviewGate, [
       "Authority boundary",
@@ -241,7 +241,7 @@ describe("runtime review-gate docs", () => {
       "[task.orchestration.review]",
     ]);
     expectExcludesAll(reviewGate, [
-      "/runtime/core/agent/context",
+      "/docs/agent/context",
       "route_run_review_request",
       "task.run_review_routed",
       "task.run_review_circuit_opened",
@@ -252,7 +252,7 @@ describe("runtime review-gate docs", () => {
       "allow_coordinator",
       "ParticipantPolicy",
     ]);
-    expect(overview).toContain("/runtime/core/autonomy/review-gate");
+    expect(overview).toContain("/docs/autonomy/review-gate");
     expectIncludesAll(config, [
       "default_policy",
       "max_review_attempts",
@@ -265,8 +265,8 @@ describe("runtime review-gate docs", () => {
 
 describe("runtime notification cursor docs", () => {
   it("documents cursor identity, lifecycle, terminal notifier states, and SSE resume", () => {
-    const notifications = readRuntimeDoc("core/autonomy/notification-cursors.mdx");
-    const overview = readRuntimeDoc("core/autonomy/index.mdx");
+    const notifications = readRuntimeDoc("autonomy/notification-cursors.mdx");
+    const overview = readRuntimeDoc("autonomy/index.mdx");
 
     expectIncludesAll(notifications, [
       "internal/notifications",
@@ -336,13 +336,13 @@ describe("runtime notification cursor docs", () => {
       "route it through the existing operator surface",
       "bound delivery diagnostics and event payload sizes",
     ]);
-    expect(overview).toContain("/runtime/core/autonomy/notification-cursors");
+    expect(overview).toContain("/docs/autonomy/notification-cursors");
   });
 });
 
 describe("bundled Compozy skill docs", () => {
   it("describes the Compozy skill as instructional only and lists contextual references", () => {
-    const bundled = readRuntimeDoc("core/skills/bundled.mdx");
+    const bundled = readRuntimeDoc("skills/bundled.mdx");
 
     expectIncludesAll(bundled, [
       "`compozy`",
@@ -360,11 +360,11 @@ describe("bundled Compozy skill docs", () => {
 
 describe("generated task review CLI references", () => {
   const requiredReviewPages = [
-    "cli-reference/task/review/index.mdx",
-    "cli-reference/task/review/request.mdx",
-    "cli-reference/task/review/list.mdx",
-    "cli-reference/task/review/show.mdx",
-    "cli-reference/task/review/submit.mdx",
+    "cli/task/review/index.mdx",
+    "cli/task/review/request.mdx",
+    "cli/task/review/list.mdx",
+    "cli/task/review/show.mdx",
+    "cli/task/review/submit.mdx",
   ];
 
   it("keeps regenerated CLI reference pages present for the review command group", () => {
@@ -374,10 +374,10 @@ describe("generated task review CLI references", () => {
   });
 
   it("documents review CLI flags exactly once on each generated page", () => {
-    const request = readRuntimeDoc("cli-reference/task/review/request.mdx");
-    const list = readRuntimeDoc("cli-reference/task/review/list.mdx");
-    const show = readRuntimeDoc("cli-reference/task/review/show.mdx");
-    const submit = readRuntimeDoc("cli-reference/task/review/submit.mdx");
+    const request = readRuntimeDoc("cli/task/review/request.mdx");
+    const list = readRuntimeDoc("cli/task/review/list.mdx");
+    const show = readRuntimeDoc("cli/task/review/show.mdx");
+    const submit = readRuntimeDoc("cli/task/review/submit.mdx");
 
     expectIncludesAll(request, ["--policy", "--reason", "--round", "--attempt"]);
     expectIncludesAll(list, ["--task", "--run", "--status", "--reviewer-session", "--last"]);
@@ -398,11 +398,11 @@ describe("generated task review CLI references", () => {
 
 describe("generated task notification CLI references", () => {
   const requiredNotificationPages = [
-    "cli-reference/task/notification/index.mdx",
-    "cli-reference/task/notification/subscribe.mdx",
-    "cli-reference/task/notification/list.mdx",
-    "cli-reference/task/notification/show.mdx",
-    "cli-reference/task/notification/delete.mdx",
+    "cli/task/notification/index.mdx",
+    "cli/task/notification/subscribe.mdx",
+    "cli/task/notification/list.mdx",
+    "cli/task/notification/show.mdx",
+    "cli/task/notification/delete.mdx",
   ];
 
   it("keeps regenerated CLI reference pages present for the notification command group", () => {
@@ -412,8 +412,8 @@ describe("generated task notification CLI references", () => {
   });
 
   it("documents notification CLI flags on the generated pages", () => {
-    const subscribe = readRuntimeDoc("cli-reference/task/notification/subscribe.mdx");
-    const list = readRuntimeDoc("cli-reference/task/notification/list.mdx");
+    const subscribe = readRuntimeDoc("cli/task/notification/subscribe.mdx");
+    const list = readRuntimeDoc("cli/task/notification/list.mdx");
 
     expectIncludesAll(subscribe, [
       "--bridge",
@@ -431,10 +431,10 @@ describe("generated task notification CLI references", () => {
 
 describe("generated task execution profile CLI references", () => {
   const requiredProfilePages = [
-    "cli-reference/task/profile/index.mdx",
-    "cli-reference/task/profile/inspect.mdx",
-    "cli-reference/task/profile/update.mdx",
-    "cli-reference/task/profile/delete.mdx",
+    "cli/task/profile/index.mdx",
+    "cli/task/profile/inspect.mdx",
+    "cli/task/profile/update.mdx",
+    "cli/task/profile/delete.mdx",
   ];
 
   it("keeps regenerated CLI reference pages present for the profile command group", () => {
@@ -444,9 +444,9 @@ describe("generated task execution profile CLI references", () => {
   });
 
   it("documents the profile update --profile JSON flag on the generated CLI page", () => {
-    const update = readRuntimeDoc("cli-reference/task/profile/update.mdx");
-    const inspect = readRuntimeDoc("cli-reference/task/profile/inspect.mdx");
-    const del = readRuntimeDoc("cli-reference/task/profile/delete.mdx");
+    const update = readRuntimeDoc("cli/task/profile/update.mdx");
+    const inspect = readRuntimeDoc("cli/task/profile/inspect.mdx");
+    const del = readRuntimeDoc("cli/task/profile/delete.mdx");
 
     expectIncludesAll(update, ["--profile", "Replace one task execution profile"]);
     expectIncludesAll(inspect, ["Show one task execution profile", "-o, --output"]);
@@ -459,20 +459,20 @@ describe("generated task execution profile CLI references", () => {
 
 describe("generated autonomy CLI references", () => {
   const requiredPages = [
-    "cli-reference/me/index.mdx",
-    "cli-reference/me/context.mdx",
-    "cli-reference/ch/index.mdx",
-    "cli-reference/ch/list.mdx",
-    "cli-reference/ch/recv.mdx",
-    "cli-reference/ch/send.mdx",
-    "cli-reference/ch/reply.mdx",
-    "cli-reference/spawn.mdx",
-    "cli-reference/task/next.mdx",
-    "cli-reference/task/heartbeat.mdx",
-    "cli-reference/task/complete.mdx",
-    "cli-reference/task/fail.mdx",
-    "cli-reference/task/release.mdx",
-    "cli-reference/task/retry.mdx",
+    "cli/me/index.mdx",
+    "cli/me/context.mdx",
+    "cli/ch/index.mdx",
+    "cli/ch/list.mdx",
+    "cli/ch/recv.mdx",
+    "cli/ch/send.mdx",
+    "cli/ch/reply.mdx",
+    "cli/spawn.mdx",
+    "cli/task/next.mdx",
+    "cli/task/heartbeat.mdx",
+    "cli/task/complete.mdx",
+    "cli/task/fail.mdx",
+    "cli/task/release.mdx",
+    "cli/task/retry.mdx",
   ];
 
   it("keeps regenerated command pages present for agent-facing autonomy commands", () => {
@@ -482,15 +482,15 @@ describe("generated autonomy CLI references", () => {
   });
 
   it("lists exact implemented flags for task, channel, and spawn examples", () => {
-    const taskNext = readRuntimeDoc("cli-reference/task/next.mdx");
-    const heartbeat = readRuntimeDoc("cli-reference/task/heartbeat.mdx");
-    const complete = readRuntimeDoc("cli-reference/task/complete.mdx");
-    const fail = readRuntimeDoc("cli-reference/task/fail.mdx");
-    const release = readRuntimeDoc("cli-reference/task/release.mdx");
-    const retry = readRuntimeDoc("cli-reference/task/retry.mdx");
-    const send = readRuntimeDoc("cli-reference/ch/send.mdx");
-    const reply = readRuntimeDoc("cli-reference/ch/reply.mdx");
-    const spawn = readRuntimeDoc("cli-reference/spawn.mdx");
+    const taskNext = readRuntimeDoc("cli/task/next.mdx");
+    const heartbeat = readRuntimeDoc("cli/task/heartbeat.mdx");
+    const complete = readRuntimeDoc("cli/task/complete.mdx");
+    const fail = readRuntimeDoc("cli/task/fail.mdx");
+    const release = readRuntimeDoc("cli/task/release.mdx");
+    const retry = readRuntimeDoc("cli/task/retry.mdx");
+    const send = readRuntimeDoc("cli/ch/send.mdx");
+    const reply = readRuntimeDoc("cli/ch/reply.mdx");
+    const spawn = readRuntimeDoc("cli/spawn.mdx");
 
     expectIncludesAll(taskNext, ["--wait", "--lease-seconds", "--capability", "--priority-min"]);
     expectIncludesAll(heartbeat, ["--lease-seconds"]);

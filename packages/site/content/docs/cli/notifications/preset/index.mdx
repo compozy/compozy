@@ -1,0 +1,41 @@
+---
+title: "compozy notifications preset"
+description: "Manage one notification preset"
+---
+
+## compozy notifications preset
+
+Manage one notification preset
+
+### Options
+
+```
+  -h, --help   help for preset
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                        | Description                         |
+| ------------------------------------------------------------------------------ | ----------------------------------- |
+| [compozy notifications preset create](/docs/cli/notifications/preset/create)   | Create a notification preset        |
+| [compozy notifications preset delete](/docs/cli/notifications/preset/delete)   | Delete a custom notification preset |
+| [compozy notifications preset disable](/docs/cli/notifications/preset/disable) | Disable a notification preset       |
+| [compozy notifications preset enable](/docs/cli/notifications/preset/enable)   | Enable a notification preset        |
+| [compozy notifications preset show](/docs/cli/notifications/preset/show)       | Show one notification preset        |
+| [compozy notifications preset update](/docs/cli/notifications/preset/update)   | Update a notification preset        |

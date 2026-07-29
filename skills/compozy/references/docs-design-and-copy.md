@@ -30,11 +30,11 @@ Do not hand-edit generated DESIGN.md token regions. Run `make codegen` when chan
 
 ## Site Docs
 
-Fumadocs runtime docs live under packages/site/content/runtime/. CLI reference pages are generated from command sources. If generated references are wrong, fix source commands, not generated output.
+Fumadocs runtime docs live under packages/site/content/docs/. CLI reference pages are generated from command sources. If generated references are wrong, fix source commands, not generated output.
 
 Site validation uses Turbo-backed commands from the repo root. Do not rely on package-local Bun commands as final evidence.
 
-Generated site/runtime artifacts include the config lifecycle matrix at `packages/site/content/runtime/core/configuration/lifecycle-matrix.mdx`. Native tool catalog drift is checked through `internal/tools/builtin/testdata/native-tool-catalog.json`. Update sources and run codegen rather than editing generated output by hand.
+Generated site/runtime artifacts include the config lifecycle matrix at `packages/site/content/docs/configuration/lifecycle-matrix.mdx`. Native tool catalog drift is checked through `internal/tools/builtin/testdata/native-tool-catalog.json`. Update sources and run codegen rather than editing generated output by hand.
 
 ## Vocabulary
 

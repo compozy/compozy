@@ -39,7 +39,8 @@
         "remark-mdx": "^3.1.1",
         "remotion": "^4.0.499",
         "shiki": "^4.3.1",
-        "velite": "^0.4.0"
+        "velite": "^0.4.0",
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.3.3",

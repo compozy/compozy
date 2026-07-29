@@ -1,0 +1,38 @@
+---
+title: "compozy provider"
+description: "Inspect and manage provider authentication"
+---
+
+## compozy provider
+
+Inspect and manage provider authentication
+
+### Options
+
+```
+  -h, --help   help for provider
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                              | Description                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| [compozy provider auth](/docs/cli/provider/auth)     | Inspect native CLI and bound-secret provider authentication |
+| [compozy provider list](/docs/cli/provider/list)     | List providers and declared auth state                      |
+| [compozy provider models](/docs/cli/provider/models) | Inspect and refresh the provider model catalog              |

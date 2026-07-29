@@ -1,0 +1,40 @@
+---
+title: "compozy memory extractor"
+description: "Operate Memory v2 extractor runtime"
+---
+
+## compozy memory extractor
+
+Operate Memory v2 extractor runtime
+
+### Options
+
+```
+  -h, --help   help for extractor
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                                                          | Description                                  |
+| -------------------------------------------------------------------------------- | -------------------------------------------- |
+| [compozy memory extractor disable](/docs/cli/memory/extractor/disable)           | Reserved Memory v2 command                   |
+| [compozy memory extractor drain](/docs/cli/memory/extractor/drain)               | Drain Memory v2 extractor work               |
+| [compozy memory extractor list-pending](/docs/cli/memory/extractor/list-pending) | List Memory v2 extractor pending/DLQ records |
+| [compozy memory extractor replay](/docs/cli/memory/extractor/replay)             | Replay Memory v2 extractor work              |
+| [compozy memory extractor status](/docs/cli/memory/extractor/status)             | Show Memory v2 extractor runtime status      |

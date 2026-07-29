@@ -15,25 +15,26 @@ export const footerColumns: FooterColumn[] = [
   {
     title: "CompozyOS",
     items: [
-      { label: "Overview", href: "/runtime" },
-      { label: "Getting started", href: "/runtime/core/getting-started/installation" },
-      { label: "Migrate from v0.2", href: "/runtime/migration" },
-      { label: "API reference", href: "/runtime/api-reference" },
-      { label: "CLI reference", href: "/runtime/cli-reference" },
+      { label: "Overview", href: "/docs" },
+      { label: "Getting started", href: "/docs/getting-started/installation" },
+      { label: "Migrate from v0.2", href: "/docs/migration" },
+      { label: "API reference", href: "/docs/api" },
+      { label: "CLI reference", href: "/docs/cli" },
     ],
   },
   {
     title: "Compozy Network",
     items: [
-      { label: "Overview", href: "/protocol" },
-      { label: "Envelope", href: "/protocol/envelope" },
-      { label: "Peer discovery", href: "/protocol/peer-discovery" },
-      { label: "Conformance", href: "/protocol/conformance" },
+      { label: "Overview", href: "/docs/network" },
+      { label: "Protocol spec", href: "/docs/network/protocol" },
+      { label: "Envelope", href: "/docs/network/protocol/envelope" },
+      { label: "Conformance", href: "/docs/network/protocol/conformance" },
     ],
   },
   {
     title: "Resources",
     items: [
+      { label: "Marketplace", href: "/marketplace" },
       { label: "Blog", href: "/blog" },
       { label: "Changelog", href: "/changelog" },
       { label: "GitHub", href: siteConfig.githubUrl, external: true },

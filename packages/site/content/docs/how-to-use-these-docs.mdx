@@ -1,0 +1,80 @@
+---
+title: How to use these docs
+description: Choose the right CompozyOS docs path for learning, operating, extending, and integrating with the daemon.
+icon: Compass
+---
+
+Compozy has several surfaces because the runtime has several jobs: it runs agent sessions, preserves
+history, manages workspace context, exposes a daemon API, and lets agents and extensions manage
+runtime state. You do not need to understand all of that before starting.
+
+Use this page to pick the shortest path for the work in front of you.
+
+## Choose by goal
+
+| Goal                                       | Start here                                           | What you should have after reading                                              |
+| ------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Try Compozy for the first time             | [Quick Start](/docs/getting-started/quick-start)     | One daemon, one workspace, one durable session.                                 |
+| Understand what Compozy is                 | [Overview](/docs)                                    | The operating model and when Compozy is the right fit.                          |
+| Solve an operational problem               | [Guides](/docs/guides)                               | A decision path or debugging flow.                                              |
+| See Compozy in a realistic scenario        | [Use Cases](/docs/use-cases)                         | Concrete commands, checkpoints, and failure paths.                              |
+| Learn the runtime model                    | [Overview](/docs)                                    | Mental models for sessions, agents, memory, network, resources, and extensions. |
+| Look up an exact CLI flag                  | [CLI Reference](/docs/cli)                           | Generated command syntax and options.                                           |
+| Integrate with the daemon over HTTP or UDS | [API Reference](/docs/api)                           | Route families, stream surfaces, and caveats.                                   |
+| Implement the open agent network protocol  | [Protocol Overview](/docs/network/protocol/overview) | Wire-level protocol concepts and conformance path.                              |
+
+## Recommended reading paths
+
+### I am new to Compozy
+
+1. [Overview](/docs)
+2. [Quick Start](/docs/getting-started/quick-start)
+3. [Review a Change](/docs/use-cases/review-a-change)
+4. [Debug a Failed Session](/docs/guides/debug-a-failed-session)
+
+### I operate Compozy day to day
+
+1. [Choose a control surface](/docs/guides/choose-an-operator-surface)
+2. [Session Lifecycle](/docs/sessions/lifecycle)
+3. [Operations](/docs/operations)
+4. [CLI Reference](/docs/cli)
+
+### I am integrating or extending Compozy
+
+1. [Desired-State Resources](/docs/resources)
+2. [Tools](/docs/tools)
+3. [Extensions](/docs/extensions)
+4. [API Reference](/docs/api)
+
+### I am coordinating multiple agents
+
+1. [Coordinate Agents over Network](/docs/guides/coordinate-agents-over-network)
+2. [Network](/docs/network)
+3. [Handoff Between Agents](/docs/use-cases/handoff-between-agents)
+4. [Protocol Implementation Status](/docs/network/protocol/implementation-status)
+
+## How the sections differ
+
+| Section       | Best for                                               | Avoid using it for                                      |
+| ------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+| Tutorials     | First successful run.                                  | Exhaustive reference.                                   |
+| Guides        | Choosing what to do next for one problem.              | Learning every subsystem detail.                        |
+| Use cases     | Seeing complete operator scenarios.                    | Exact flag lookup.                                      |
+| Core concepts | Understanding the model behind a feature.              | Copy-paste-only command runs.                           |
+| CLI Reference | Flags, syntax, output formats, and generated commands. | Product explanation.                                    |
+| API Reference | Route families and streaming surfaces.                 | Complete generated schema coverage for every route yet. |
+| Protocol spec | Implementing Compozy Network outside CompozyOS.        | Operating the local daemon day to day.                  |
+
+## When docs disagree
+
+Runtime truth wins:
+
+1. Generated CLI reference wins for command names and flags.
+2. Implemented code and generated contracts win for API behavior.
+3. Core concept pages explain intent, but should not override generated references.
+4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every
+   CompozyOS runtime feature.
+
+If a guide and a generated reference disagree, follow the generated contract for the immediate
+operation and report the conflicting guide. A failed documented step is a documentation defect, not
+a burden the reader should silently work around.

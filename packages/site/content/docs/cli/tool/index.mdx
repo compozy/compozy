@@ -1,0 +1,42 @@
+---
+title: "compozy tool"
+description: "Inspect and invoke registry tools"
+---
+
+## compozy tool
+
+Inspect and invoke registry tools
+
+### Options
+
+```
+  -h, --help   help for tool
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+## Subcommands
+
+| Command                                            | Description                                            |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| [compozy tool approvals](/docs/cli/tool/approvals) | Manage remembered native-tool approval decisions       |
+| [compozy tool approve](/docs/cli/tool/approve)     | Mint a one-shot approval token for one tool invocation |
+| [compozy tool artifact](/docs/cli/tool/artifact)   | Read retained oversized tool results                   |
+| [compozy tool info](/docs/cli/tool/info)           | Show one registry tool descriptor and diagnostics      |
+| [compozy tool invoke](/docs/cli/tool/invoke)       | Invoke one registry tool through daemon policy         |
+| [compozy tool list](/docs/cli/tool/list)           | List operator-visible registry tools                   |
+| [compozy tool search](/docs/cli/tool/search)       | Search operator-visible registry tools                 |

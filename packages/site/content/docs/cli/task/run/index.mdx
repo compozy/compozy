@@ -1,0 +1,54 @@
+---
+title: "compozy task run"
+description: "Manage task runs"
+---
+
+## compozy task run
+
+Manage task runs
+
+```
+compozy task run [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for run
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task run -o json
+```
+
+## Subcommands
+
+| Command                                                              | Description                                             |
+| -------------------------------------------------------------------- | ------------------------------------------------------- |
+| [compozy task run attach-session](/docs/cli/task/run/attach-session) | Attach an existing session to a claimed or starting run |
+| [compozy task run cancel](/docs/cli/task/run/cancel)                 | Cancel a task run                                       |
+| [compozy task run complete](/docs/cli/task/run/complete)             | Complete a running task run                             |
+| [compozy task run enqueue](/docs/cli/task/run/enqueue)               | Enqueue a task run                                      |
+| [compozy task run fail](/docs/cli/task/run/fail)                     | Fail a task run                                         |
+| [compozy task run list](/docs/cli/task/run/list)                     | List runs for a task                                    |
+| [compozy task run recover](/docs/cli/task/run/recover)               | Recover one needs_attention task run                    |
+| [compozy task run show](/docs/cli/task/run/show)                     | Show a task run                                         |
+| [compozy task run start](/docs/cli/task/run/start)                   | Start a claimed task run                                |

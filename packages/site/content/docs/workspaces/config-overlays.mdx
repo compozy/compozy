@@ -1,0 +1,240 @@
+---
+title: Workspace Config Overlays
+description: How workspace config.toml and mcp.json layer over global Compozy configuration without making project copies brittle.
+---
+
+Workspace config lets one project change runtime behavior without changing every Compozy session on the
+machine. The loader starts from built-in defaults, applies global config, then applies the resolved
+workspace root overlay.
+
+This keeps project behavior portable. Copy a repository with `.compozy/config.toml`, `.compozy/agents/`,
+`.compozy/skills/`, and `.compozy/memory/`, register the copied path, and the project-level runtime context
+comes with it.
+
+<OperatorNote>
+  Workspace overlays are explicit. `config.Load()` does not inspect the process current directory.
+  The workspace overlay is loaded only when the caller supplies `WithWorkspaceRoot(root)`, which the
+  workspace resolver does during session start and workspace detail resolution.
+</OperatorNote>
+
+## Load Order
+
+The effective config for a resolved workspace is built in this order:
+
+| Order | Source                             | Notes                                                                                    |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1     | Built-in defaults                  | `DefaultWithHome(homePaths)`.                                                            |
+| 2     | `~/.compozy/config.toml`           | Global operator settings. `$COMPOZY_HOME/config.toml` when `COMPOZY_HOME` is set.        |
+| 3     | `~/.compozy/mcp.json`              | Global top-level MCP sidecar.                                                            |
+| 4     | `<workspace>/.compozy/config.toml` | Workspace root overlay only.                                                             |
+| 5     | `<workspace>/.compozy/mcp.json`    | Workspace top-level MCP sidecar.                                                         |
+| 6     | Path normalization and validation  | Expands `~` in `daemon.socket` and `memory.global_dir`, then validates the final config. |
+
+Workspace additional roots do not contribute config. They can contribute agents and skills, but
+only the primary root contributes `config.toml` and top-level `mcp.json`.
+
+## Create A Workspace Overlay
+
+Create the config file under the project root:
+
+```bash
+mkdir -p /Users/you/src/checkout-api/.compozy
+```
+
+```toml
+# /Users/you/src/checkout-api/.compozy/config.toml
+[defaults]
+agent = "reviewer"
+provider = "claude"
+
+[permissions]
+mode = "approve-reads"
+
+[limits]
+max_concurrent_agents = 12
+
+[skills]
+disabled_skills = ["public-cloud-deploy"]
+
+[[mcp_servers]]
+name = "repo-fs"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/src/checkout-api"]
+```
+
+Then register the workspace:
+
+```bash
+compozy workspace add /Users/you/src/checkout-api --name checkout-api
+```
+
+Sessions that target `checkout-api` now inherit the overlay:
+
+```bash
+compozy session new --workspace checkout-api
+```
+
+The command uses `reviewer` as the default agent unless you pass `--agent`.
+
+## Merge Rules
+
+TOML overlays are field-aware. A field changes only when the overlay provides that field.
+
+| Shape                                   | Merge behavior                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------- |
+| Scalar values                           | Replace the previous value when present.                                  |
+| Nested tables                           | Merge recursively. Omitted nested fields keep previous values.            |
+| Slices such as `skills.disabled_skills` | Replace the previous slice when present.                                  |
+| `providers.<name>`                      | Merge by provider key. Existing provider fields are kept unless replaced. |
+| `hooks.declarations`                    | Merge by hook `name`; same-name declarations replace earlier ones.        |
+| `[[mcp_servers]]`                       | Merge by MCP server `name`; same-name servers are patched field by field. |
+| Unknown TOML keys                       | Fail config loading with an unknown-key error.                            |
+| Missing config files                    | Treated as absent.                                                        |
+
+This example keeps the global marketplace URL while changing only skill enablement:
+
+```toml
+# ~/.compozy/config.toml
+[skills.marketplace]
+registry = "clawhub"
+base_url = "https://registry.example.test/api/v1"
+```
+
+```toml
+# <workspace>/.compozy/config.toml
+[skills]
+enabled = false
+```
+
+The final config has `skills.enabled = false`, but keeps the global marketplace registry and
+`base_url`.
+
+## MCP Sidecars
+
+Top-level `mcp.json` files are optional. They may use either `mcpServers` or `mcp_servers`.
+
+```json
+{
+  "mcpServers": {
+    "repo-db": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "postgres://localhost/checkout"
+      }
+    }
+  }
+}
+```
+
+When both key styles appear in the same `mcp.json`, `mcp_servers` replaces same-name entries from
+`mcpServers`. When a TOML MCP server and an `mcp.json` server have the same name, the JSON sidecar
+replaces the whole server object at that scope.
+
+Across the session start path, MCP servers are then resolved in this order:
+
+1. top-level config MCP servers
+2. provider MCP servers
+3. agent MCP servers
+4. active skill MCP servers
+
+## Workspace Agents And Skills
+
+Config overlays do not define agents or skills directly. They change the runtime defaults around
+the agents and skills discovered by the resolver.
+
+| Goal                                          | Put this in config                                                                   | Put this in the workspace filesystem                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Change the default agent for one project      | `[defaults].agent = "reviewer"` or `compozy workspace edit --default-agent reviewer` | `.compozy/agents/reviewer/AGENT.md`                                         |
+| Disable a noisy skill in one project          | `[skills].disabled_skills = ["skill-name"]`                                          | Keep the skill where it is.                                                 |
+| Add project MCP servers                       | `[[mcp_servers]]` or `.compozy/mcp.json`                                             | Agent/skill-local `mcp.json` when the server belongs to one agent or skill. |
+| Change provider command/model for one project | `[providers.<name>]`                                                                 | No filesystem resource needed.                                              |
+| Add a project-only skill                      | No config entry required.                                                            | `.compozy/skills/<group>/.../<name>/SKILL.md`; groups are optional          |
+
+Workspace registration has one extra override: `default_agent`. When it is set on the workspace row,
+the resolver applies it after loading config by setting `defaults.agent` for the resolved snapshot.
+
+```bash
+compozy workspace edit checkout-api --default-agent reviewer
+```
+
+Set it to an empty value to clear it:
+
+```bash
+compozy workspace edit checkout-api --default-agent ""
+```
+
+## Concrete Overlay Walkthrough
+
+Global config:
+
+```toml
+# ~/.compozy/config.toml
+[defaults]
+agent = "general"
+provider = "codex"
+
+[permissions]
+mode = "approve-all"
+
+[limits]
+max_concurrent_agents = 20
+
+[skills]
+disabled_skills = ["legacy-notes"]
+```
+
+Workspace config:
+
+```toml
+# <workspace>/.compozy/config.toml
+[defaults]
+agent = "reviewer"
+
+[permissions]
+mode = "approve-reads"
+
+[skills]
+disabled_skills = ["deploy-production", "legacy-notes"]
+```
+
+Effective result for the workspace:
+
+| Setting                        | Final value                             | Why                                             |
+| ------------------------------ | --------------------------------------- | ----------------------------------------------- |
+| `defaults.agent`               | `reviewer`                              | Workspace scalar replaces global scalar.        |
+| `defaults.provider`            | `codex`                                 | Workspace omitted it, so global remains.        |
+| `permissions.mode`             | `approve-reads`                         | Workspace scalar replaces global scalar.        |
+| `limits.max_concurrent_agents` | `20`                                    | Workspace omitted the table, so global remains. |
+| `skills.disabled_skills`       | `["deploy-production", "legacy-notes"]` | Workspace slice replaces the global slice.      |
+
+## `.env` And `COMPOZY_HOME`
+
+If a workspace root contains `.env`, Compozy loads it before resolving the Compozy home layout for that
+config load. That means a workspace can set `COMPOZY_HOME` for sessions that resolve that workspace:
+
+```dotenv
+COMPOZY_HOME=/Users/you/.compozy-checkout
+```
+
+Use this carefully. It changes the global config, agents, skills, memory, sessions, logs, socket,
+and database locations for that resolved workspace config load. Most projects should prefer
+`<workspace>/.compozy/config.toml` for project-specific behavior and keep `COMPOZY_HOME` stable.
+
+## Failure Behavior
+
+| Case                          | Behavior                                                 |
+| ----------------------------- | -------------------------------------------------------- |
+| Missing `config.toml`         | Ignored. Defaults and other layers still load.           |
+| Missing `mcp.json`            | Ignored.                                                 |
+| Unknown TOML key              | Loading fails and reports the key path.                  |
+| Invalid TOML duration or type | Loading fails during decode or validation.               |
+| Invalid MCP JSON              | Loading fails with path context.                         |
+| Invalid final config          | Loading fails before the workspace snapshot is returned. |
+
+## Related Pages
+
+- [Workspace Resolver](/docs/workspaces/resolver) explains when config loading happens.
+- [Multi-Root Workspaces](/docs/workspaces/multi-root) explains why additional roots do not add config overlays.
+- [Agent Definitions](/docs/agents/definitions) documents agent-local MCP sidecars.
+- [Skills Overview](/docs/skills) documents skill-local MCP sidecars and disabled skill behavior.

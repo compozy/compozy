@@ -125,27 +125,27 @@ describe("Landing OpenGraph image (root)", () => {
   });
 });
 
-describe("Docs OpenGraph template (runtime/protocol)", () => {
-  it("renders the runtime eyebrow, technical path, and Inter title", async () => {
+describe("Docs OpenGraph template", () => {
+  it("renders the docs eyebrow, technical path, and Inter title", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({
-        tree: "runtime",
+        variant: "docs",
         title: "Sessions and lifecycle",
         description: "How Compozy durably runs ACP-compatible agents end to end.",
-        path: "runtime/sessions/lifecycle",
+        path: "docs/sessions/lifecycle",
       })
     );
     const copy = textContent(response.element);
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("COMPOZYOS RUNTIME");
-    expect(copy).toContain("runtime/sessions/lifecycle");
+    expect(copy).toContain("COMPOZYOS DOCS");
+    expect(copy).toContain("docs/sessions/lifecycle");
     expect(copy).toContain("Sessions and lifecycle");
     expect(copy).toContain("How Compozy durably runs ACP-compatible agents end to end.");
     expect(copy).toContain("DOCS");
-    expect(copy).toContain("RUNTIME");
+    expect(copy).toContain("COMPOZYOS");
     expect(copy).toContain("compozy.com");
 
     expect(types).toContain(LogoLockup);
@@ -156,13 +156,13 @@ describe("Docs OpenGraph template (runtime/protocol)", () => {
     expect(usesPlayfair).toBe(false);
   });
 
-  it("uses the protocol eyebrow when tree is protocol", async () => {
+  it("uses the protocol eyebrow for pages nested under the protocol spec", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({
-        tree: "protocol",
+        variant: "protocol",
         title: "Envelopes and channels",
-        path: "protocol/envelopes",
+        path: "docs/network/protocol/envelope",
       })
     );
     const copy = textContent(response.element);

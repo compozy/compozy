@@ -1,6 +1,7 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { Eyebrow, Logo } from "@compozy/ui";
 import { siteConfig } from "./site-config";
+import { SITE_NAV_LINKS } from "./site-nav";
 
 export const baseOptions: BaseLayoutProps = {
   nav: {
@@ -20,11 +21,9 @@ export const baseOptions: BaseLayoutProps = {
   },
   githubUrl: siteConfig.githubUrl,
   themeSwitch: { enabled: false },
-  links: [
-    { text: "Home", url: "/", active: "url" },
-    { text: "Runtime", url: "/runtime", active: "nested-url" },
-    { text: "Compozy Network", url: "/protocol", active: "nested-url" },
-    { text: "Blog", url: "/blog", active: "nested-url" },
-    { text: "Changelog", url: "/changelog", active: "nested-url" },
-  ],
+  links: SITE_NAV_LINKS.map(link => ({
+    text: link.label,
+    url: link.href,
+    active: link.active,
+  })),
 };

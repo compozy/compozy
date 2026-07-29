@@ -1,0 +1,49 @@
+---
+title: "compozy task review"
+description: "Manage task-run reviews"
+---
+
+## compozy task review
+
+Manage task-run reviews
+
+```
+compozy task review [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for review
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every Compozy command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+compozy task review -o json
+```
+
+## Subcommands
+
+| Command                                                      | Description                        |
+| ------------------------------------------------------------ | ---------------------------------- |
+| [compozy task review list](/docs/cli/task/review/list)       | List task-run reviews              |
+| [compozy task review request](/docs/cli/task/review/request) | Request review for a task run      |
+| [compozy task review show](/docs/cli/task/review/show)       | Show one task-run review           |
+| [compozy task review submit](/docs/cli/task/review/submit)   | Submit one task-run review verdict |

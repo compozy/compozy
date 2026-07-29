@@ -28,15 +28,14 @@ func TestBridgeProviderDocsConformance(t *testing.T) {
 
 	repoRoot := bridgeDocsRepoRoot(t)
 	providers := bridgeDocProviders(t, filepath.Join(repoRoot, "extensions", "bridges"))
-	indexPath := filepath.Join(repoRoot, "packages", "site", "content", "runtime", "core", "bridges", "index.mdx")
-	setupPath := filepath.Join(repoRoot, "packages", "site", "content", "runtime", "core", "bridges", "setup.mdx")
+	indexPath := filepath.Join(repoRoot, "packages", "site", "content", "docs", "bridges", "index.mdx")
+	setupPath := filepath.Join(repoRoot, "packages", "site", "content", "docs", "bridges", "setup.mdx")
 	slackSetupPath := filepath.Join(
 		repoRoot,
 		"packages",
 		"site",
 		"content",
-		"runtime",
-		"core",
+		"docs",
 		"bridges",
 		"setup-slack.mdx",
 	)
@@ -50,7 +49,7 @@ func TestBridgeProviderDocsConformance(t *testing.T) {
 			row, ok := rows[provider.Manifest.Bridge.DisplayName]
 			if !ok {
 				t.Errorf(
-					"provider %q is missing from packages/site/content/runtime/core/bridges/index.mdx supported slots table",
+					"provider %q is missing from packages/site/content/docs/bridges/index.mdx supported slots table",
 					provider.Name,
 				)
 				continue
@@ -87,7 +86,7 @@ func TestBridgeProviderDocsConformance(t *testing.T) {
 				continue
 			}
 			t.Errorf(
-				"provider %q is missing its dedicated setup guide under packages/site/content/runtime/core/bridges",
+				"provider %q is missing its dedicated setup guide under packages/site/content/docs/bridges",
 				provider.Name,
 			)
 		}

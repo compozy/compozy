@@ -2,8 +2,6 @@ import { getBreadcrumbItems } from "fumadocs-core/breadcrumb";
 import { findParent, flattenTree, type Root } from "fumadocs-core/page-tree";
 import type { ReactNode } from "react";
 
-export type DocKind = "runtime" | "protocol";
-
 export interface DocMastheadCrumb {
   name: string;
   href?: string;
@@ -23,16 +21,17 @@ function nodeName(value: ReactNode): string {
   return "";
 }
 
-export function resolveProductLabel(kind: DocKind, slug: string[]): string {
-  if (kind === "runtime") {
-    return "CompozyOS Runtime";
-  }
-  return slug[0] === "specification" ? "Compozy Network Protocol" : "Compozy Network";
+function isProtocolSpecSlug(slug: string[]): boolean {
+  return slug[0] === "network" && slug[1] === "protocol";
 }
 
-export function resolveAudience(kind: DocKind): string {
+export function resolveProductLabel(slug: string[]): string {
+  return isProtocolSpecSlug(slug) ? "Compozy Network Protocol" : "CompozyOS";
+}
+
+export function resolveAudience(slug: string[]): string {
   // COPY.md §4 audience names — never "operators" (control-room drift).
-  return kind === "runtime" ? "people running agent work" : "protocol implementers";
+  return isProtocolSpecSlug(slug) ? "protocol implementers" : "people running agent work";
 }
 
 export function sectionPageCount(tree: Root, pageUrl: string): number | null {
@@ -71,15 +70,14 @@ export function buildMastheadCrumbs(
 }
 
 export function resolveDocMastheadMeta(
-  kind: DocKind,
   slug: string[],
   tree: Root,
   pageUrl: string,
   pageTitle: string
 ): DocMastheadMeta {
   return {
-    product: resolveProductLabel(kind, slug),
-    audience: resolveAudience(kind),
+    product: resolveProductLabel(slug),
+    audience: resolveAudience(slug),
     crumbs: buildMastheadCrumbs(tree, pageUrl, pageTitle),
     sectionPageCount: sectionPageCount(tree, pageUrl),
   };
