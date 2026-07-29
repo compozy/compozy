@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -90,7 +91,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent)
+	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
 
 	child, err := m.Create(ctx, CreateOpts{
 		AgentName:            normalized.AgentName,
@@ -136,7 +137,8 @@ func (m *Manager) prepareSpawn(
 	if normalized.Speed == "" {
 		normalized.Speed = parent.Speed
 	}
-	if err := validateSpawnWorkspace(parent, normalized); err != nil {
+	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
+	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
 
@@ -152,7 +154,8 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	if err := validateSpawnWorkspace(parent, normalized); err != nil {
+	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
+	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
 	if err := ValidatePermissionSubset(parent.Lineage.PermissionPolicy, normalized.PermissionPolicy); err != nil {
@@ -227,27 +230,83 @@ func (m *Manager) spawnParent(ctx context.Context, parentID string, allowStopped
 	return parent, nil
 }
 
-func validateSpawnWorkspace(parent *Info, opts SpawnOpts) error {
+func (m *Manager) validateSpawnWorkspace(
+	ctx context.Context,
+	parent *Info,
+	opts SpawnOpts,
+) (SpawnOpts, error) {
 	if parent == nil {
-		return spawnValidation("parent session is required")
+		return SpawnOpts{}, spawnValidation("parent session is required")
 	}
-	if opts.Workspace != "" && opts.Workspace != parent.WorkspaceID && opts.Workspace != parent.Workspace {
-		return fmt.Errorf(
-			"%w: child workspace %q is outside parent workspace %q",
-			ErrSpawnPermissionDenied,
-			opts.Workspace,
-			parent.WorkspaceID,
-		)
+	refs := make([]string, 0, 2)
+	if opts.Workspace != "" {
+		refs = append(refs, opts.Workspace)
 	}
-	if opts.WorkspacePath != "" && opts.WorkspacePath != parent.Workspace {
-		return fmt.Errorf(
-			"%w: child workspace_path %q is outside parent workspace %q",
-			ErrSpawnPermissionDenied,
-			opts.WorkspacePath,
-			parent.Workspace,
-		)
+	if opts.WorkspacePath != "" {
+		refs = append(refs, opts.WorkspacePath)
 	}
-	return nil
+	if len(refs) == 0 {
+		return opts, nil
+	}
+	resolver, err := m.requireWorkspaceResolver()
+	if err != nil {
+		return SpawnOpts{}, err
+	}
+	targetWorkspaceID := ""
+	for _, ref := range refs {
+		resolved, resolveErr := resolver.Resolve(ctx, ref)
+		if resolveErr != nil {
+			return SpawnOpts{}, spawnWorkspaceAccessDenied(ref, strings.TrimSpace(parent.WorkspaceID))
+		}
+		resolvedID := strings.TrimSpace(resolved.ID)
+		if resolvedID == "" {
+			return SpawnOpts{}, fmt.Errorf("%w: child workspace %q has no id", ErrSpawnValidation, ref)
+		}
+		if targetWorkspaceID != "" && targetWorkspaceID != resolvedID {
+			return SpawnOpts{}, fmt.Errorf("%w: child workspace references disagree", ErrSpawnValidation)
+		}
+		targetWorkspaceID = resolvedID
+	}
+	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
+	if parentWorkspaceID == "" && strings.TrimSpace(parent.Workspace) != "" {
+		resolved, resolveErr := resolver.Resolve(ctx, parent.Workspace)
+		if resolveErr != nil {
+			return SpawnOpts{}, fmt.Errorf("%w: resolve parent workspace: %w", ErrSpawnValidation, resolveErr)
+		}
+		parentWorkspaceID = strings.TrimSpace(resolved.ID)
+	}
+	if parentWorkspaceID != targetWorkspaceID {
+		policy := m.workspaceAccessPolicy()
+		if policy == nil {
+			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+		}
+		decision, authorizeErr := policy.Authorize(ctx, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   strings.TrimSpace(parent.ID),
+				WorkspaceID: parentWorkspaceID,
+				AgentName:   strings.TrimSpace(parent.AgentName),
+			},
+			TargetWorkspaceID: targetWorkspaceID,
+			Seam:              workspaceaccess.SeamSpawn,
+		})
+		if authorizeErr != nil || !decision.Allowed {
+			return SpawnOpts{}, spawnWorkspaceAccessDenied(targetWorkspaceID, parentWorkspaceID)
+		}
+	}
+	opts.Workspace = targetWorkspaceID
+	opts.WorkspacePath = ""
+	return opts, nil
+}
+
+func spawnWorkspaceAccessDenied(targetWorkspaceID string, parentWorkspaceID string) error {
+	return fmt.Errorf(
+		"%w: child workspace %q is outside parent workspace %q: %s",
+		ErrSpawnPermissionDenied,
+		targetWorkspaceID,
+		parentWorkspaceID,
+		workspaceaccess.DenialHint,
+	)
 }
 
 func (m *Manager) spawnLineage(

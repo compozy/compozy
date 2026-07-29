@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	testWorkspaceA = "01J00000000000000000000000"
-	testWorkspaceB = "01J00000000000000000000001"
+	testWorkspaceA = "ws_0000000000000000"
+	testWorkspaceB = "ws_0000000000000001"
 )
 
 func TestDefaultPolicyAuthorize(t *testing.T) {
@@ -172,7 +172,13 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 
 	t.Run("Should UT-053 reject non-canonical target references", func(t *testing.T) {
 		t.Parallel()
-		for _, target := range []string{"marketing", "../marketing", "/tmp/marketing", "ws_marketing"} {
+		for _, target := range []string{
+			"marketing",
+			"../marketing",
+			"/tmp/marketing",
+			"ws_marketing",
+			"01J00000000000000000000000",
+		} {
 			modes := &modeSourceStub{mode: ModeApproveAll}
 			policy := newPolicyForTest(t, modes, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
 			decision, err := policy.Authorize(

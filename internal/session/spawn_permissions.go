@@ -85,7 +85,13 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 	})
 }
 
-func spawnWorkspaceCreateRefs(parent *Info) (string, string) {
+func spawnWorkspaceCreateRefs(parent *Info, opts SpawnOpts) (string, string) {
+	if workspaceID := strings.TrimSpace(opts.Workspace); workspaceID != "" {
+		return workspaceID, ""
+	}
+	if workspacePath := strings.TrimSpace(opts.WorkspacePath); workspacePath != "" {
+		return "", workspacePath
+	}
 	if parent == nil {
 		return "", ""
 	}

@@ -20,7 +20,7 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
 	}
-	req, err := normalizeCallRequest(scope, req)
+	req, err := r.normalizeDispatchCallRequest(ctx, scope, req)
 	if err != nil {
 		return ToolResult{}, err
 	}
@@ -74,6 +74,9 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	}
 	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)
+	}
+	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallDenied)
 	}
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)

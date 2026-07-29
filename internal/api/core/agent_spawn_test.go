@@ -61,8 +61,10 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	body := []byte(`{
 		"agent_name":"coder",
 		"provider":"codex",
+		"model":"gpt-test",
 		"speed":"fast",
 		"name":"child",
+		"workspace":"ws-target",
 		"prompt_overlay":"focus",
 		"spawn_role":"worker",
 		"ttl_seconds":60,
@@ -86,8 +88,10 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	if got.ParentSessionID != "sess-parent" ||
 		got.AgentName != "coder" ||
 		got.Provider != "codex" ||
+		got.Model != "gpt-test" ||
 		got.Speed != speedpkg.SpeedFast ||
 		got.Name != "child" ||
+		got.Workspace != "ws-target" ||
 		got.PromptOverlay != "focus" ||
 		got.SpawnRole != "worker" ||
 		got.TTL != time.Minute ||

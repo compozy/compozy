@@ -16,6 +16,7 @@ const (
 	workspaceResolutionFlag            = "flag"
 	workspaceResolutionEnv             = "env"
 	workspaceResolutionSessionIdentity = "session_identity"
+	workspaceResolutionCrossAttempt    = "cross_workspace_attempt"
 	workspaceResolutionCWD             = "cwd"
 	workspaceEnvName                   = "COMPOZY_WORKSPACE"
 	workspaceFlagName                  = "workspace"
@@ -113,9 +114,7 @@ func resolveCommandWorkspace(
 		if err != nil {
 			return workspaceResolution{}, err
 		}
-		if err := validateResolutionAgainstSessionIdentity(identityRef, resolved.ID); err != nil {
-			return workspaceResolution{}, err
-		}
+		resolved = markCrossWorkspaceAttempt(cmd, resolved, identityRef)
 		return resolved, nil
 	}
 
@@ -172,7 +171,7 @@ func resolveWorkspaceOverrideOnly(
 		}
 		resolution, err := resolveWorkspaceCandidate(ctx, cmd, client, candidate.ref, candidate.source)
 		if err == nil {
-			err = validateResolutionAgainstSessionIdentity(identityRef, resolution.ID)
+			resolution = markCrossWorkspaceAttempt(cmd, resolution, identityRef)
 		}
 		return resolution, true, err
 	}
@@ -185,16 +184,6 @@ func commandWorkspaceFlagIsBlank(cmd *cobra.Command, value string) bool {
 	}
 	flag := cmd.Flags().Lookup(workspaceFlagName)
 	return flag != nil && flag.Changed
-}
-
-func validateResolutionAgainstSessionIdentity(
-	identityRef string,
-	resolvedWorkspaceID string,
-) error {
-	if strings.TrimSpace(identityRef) == "" {
-		return nil
-	}
-	return agentidentity.ValidateWorkspaceAccess(identityRef, resolvedWorkspaceID)
 }
 
 func resolveOptionalWorkspaceOverride(
@@ -366,7 +355,7 @@ func workspaceRefFromSessionIdentity(
 	if cmd != nil {
 		originRef = cmd.CommandPath()
 	}
-	caller, err := resolveAgentCallerFromEnv(ctx, deps, sessionClient, "", originRef)
+	caller, err := resolveAgentCallerFromEnv(ctx, deps, sessionClient, originRef)
 	if err != nil {
 		return "", "", err
 	}
@@ -378,6 +367,20 @@ func recordWorkspaceResolution(cmd *cobra.Command, resolution workspaceResolutio
 		return
 	}
 	cmd.SetContext(context.WithValue(cmd.Context(), workspaceResolutionContextKey{}, resolution))
+}
+
+func markCrossWorkspaceAttempt(
+	cmd *cobra.Command,
+	resolution workspaceResolution,
+	identityWorkspaceID string,
+) workspaceResolution {
+	identityWorkspaceID = strings.TrimSpace(identityWorkspaceID)
+	if identityWorkspaceID == "" || identityWorkspaceID == strings.TrimSpace(resolution.ID) {
+		return resolution
+	}
+	resolution.Source = workspaceResolutionCrossAttempt
+	recordWorkspaceResolution(cmd, resolution)
+	return resolution
 }
 
 func commandWorkspaceResolution(cmd *cobra.Command) (workspaceResolution, bool) {

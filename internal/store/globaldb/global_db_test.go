@@ -1405,7 +1405,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			WorkspaceID: updated.ID,
 			ScopeKind:   compozyworkspace.InvitationScopeWorkspace,
 		}
-		commands := compozyworkspace.NewCoordinationService(globalDB)
+		commands := compozyworkspace.NewCoordinationService(globalDB, nil)
 		initialView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
 		if getErr != nil {
 			t.Fatalf("Get(initial coordination) error = %v", getErr)

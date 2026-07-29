@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // ResourceAuthorizer owns task-resource visibility and mutation policy.
@@ -11,16 +13,18 @@ type ResourceAuthorizer interface {
 	AuthorizeTaskScope(ctx context.Context, actor ActorContext, scope Scope, workspaceID string) error
 }
 
-type scopedTaskResourceAuthorizer struct{}
+type scopedTaskResourceAuthorizer struct {
+	workspaceAccess workspaceaccess.Policy
+}
 
 var _ ResourceAuthorizer = scopedTaskResourceAuthorizer{}
 
-func (scopedTaskResourceAuthorizer) AuthorizeTask(
+func (a scopedTaskResourceAuthorizer) AuthorizeTask(
 	ctx context.Context,
 	actor ActorContext,
 	taskRecord Task,
 ) error {
-	return scopedTaskResourceAuthorizer{}.AuthorizeTaskScope(
+	return a.AuthorizeTaskScope(
 		ctx,
 		actor,
 		taskRecord.Scope,
@@ -28,8 +32,8 @@ func (scopedTaskResourceAuthorizer) AuthorizeTask(
 	)
 }
 
-func (scopedTaskResourceAuthorizer) AuthorizeTaskScope(
-	_ context.Context,
+func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
+	ctx context.Context,
 	actor ActorContext,
 	scope Scope,
 	workspaceID string,
@@ -40,12 +44,40 @@ func (scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	if scope.Normalize() == ScopeWorkspace {
 		actorWorkspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
 		if actor.Actor.Kind.Normalize() == ActorKindAgentSession || actorWorkspaceID != "" {
-			if actorWorkspaceID != strings.TrimSpace(workspaceID) {
+			targetWorkspaceID := strings.TrimSpace(workspaceID)
+			if actorWorkspaceID != targetWorkspaceID && !taskWorkspaceAccessAllowed(
+				ctx,
+				a.workspaceAccess,
+				actor,
+				targetWorkspaceID,
+			) {
 				return ErrPermissionDenied
 			}
 		}
 	}
 	return nil
+}
+
+func taskWorkspaceAccessAllowed(
+	ctx context.Context,
+	policy workspaceaccess.Policy,
+	actor ActorContext,
+	targetWorkspaceID string,
+) bool {
+	if policy == nil {
+		return false
+	}
+	decision, err := policy.Authorize(ctx, workspaceaccess.Request{
+		Actor: workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorKind(actor.Actor.Kind.Normalize()),
+			SessionID:   strings.TrimSpace(actor.Scope.SessionID),
+			WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID),
+			Operator:    actor.Scope.Operator,
+		},
+		TargetWorkspaceID: strings.TrimSpace(targetWorkspaceID),
+		Seam:              workspaceaccess.SeamTask,
+	})
+	return err == nil && decision.Allowed
 }
 
 func (m *Service) authorizeTaskResource(
@@ -55,7 +87,7 @@ func (m *Service) authorizeTaskResource(
 ) error {
 	authorizer := m.taskAuthorizer
 	if authorizer == nil {
-		authorizer = scopedTaskResourceAuthorizer{}
+		authorizer = scopedTaskResourceAuthorizer{workspaceAccess: m.workspaceAccess}
 	}
 	return authorizer.AuthorizeTask(ctx, actor, taskRecord)
 }
@@ -68,7 +100,7 @@ func (m *Service) authorizeTaskScope(
 ) error {
 	authorizer := m.taskAuthorizer
 	if authorizer == nil {
-		authorizer = scopedTaskResourceAuthorizer{}
+		authorizer = scopedTaskResourceAuthorizer{workspaceAccess: m.workspaceAccess}
 	}
 	return authorizer.AuthorizeTaskScope(ctx, actor, scope, workspaceID)
 }

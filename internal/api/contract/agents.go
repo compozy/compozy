@@ -286,6 +286,7 @@ type AgentSpawnRequest struct {
 	Model            string                       `json:"model,omitempty"`
 	Speed            Speed                        `json:"speed,omitempty"`
 	Name             string                       `json:"name,omitempty"`
+	Workspace        string                       `json:"workspace,omitempty"`
 	PromptOverlay    string                       `json:"prompt_overlay,omitempty"`
 	SpawnRole        string                       `json:"spawn_role"`
 	TTLSeconds       int64                        `json:"ttl_seconds"`

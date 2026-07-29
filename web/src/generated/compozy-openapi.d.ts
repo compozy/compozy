@@ -13078,6 +13078,7 @@ export interface operations {
           speed?: "normal" | "fast";
           /** Format: int64 */
           ttl_seconds: number;
+          workspace?: string;
         };
       };
     };

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -99,6 +100,7 @@ type managerOptions struct {
 	blockRecurrenceLimit  int
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
+	workspaceAccess       workspaceaccess.Policy
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
@@ -128,6 +130,7 @@ type Service struct {
 	blockRecurrenceLimit  int
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
+	workspaceAccess       workspaceaccess.Policy
 	forceRateLimiter      *forceRunRateLimiter
 	wakeMu                sync.Mutex
 	wakeEventIDs          map[string]struct{}

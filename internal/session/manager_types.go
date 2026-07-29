@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreateOpts defines the inputs required to create a new session.
@@ -174,6 +175,7 @@ type Manager struct {
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
+	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader
 	openStore                    StoreOpener
 	openQueryStore               QueryStoreOpener

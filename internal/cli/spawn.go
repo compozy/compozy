@@ -21,6 +21,7 @@ type spawnCommandFlags struct {
 	provider         string
 	model            string
 	name             string
+	workspace        string
 	promptOverlay    string
 	spawnRole        string
 	ttlSeconds       int64
@@ -63,6 +64,7 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringVar(&flags.provider, "provider", "", "Optional provider override")
 	cmd.Flags().StringVar(&flags.model, "model", "", "Optional model override")
 	cmd.Flags().StringVar(&flags.name, "name", "", "Optional child session display name")
+	cmd.Flags().StringVar(&flags.workspace, "workspace", "", "Override child workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.promptOverlay, "prompt-overlay", "", "Prompt overlay for the child session")
 	cmd.Flags().StringVar(&flags.spawnRole, "role", "worker", "Child spawn role")
 	cmd.Flags().Int64Var(&flags.ttlSeconds, "ttl-seconds", 0, "Mandatory child TTL in seconds")
@@ -121,6 +123,7 @@ func (flags *spawnCommandFlags) request() (AgentSpawnRequest, error) {
 		Provider:         strings.TrimSpace(flags.provider),
 		Model:            strings.TrimSpace(flags.model),
 		Name:             strings.TrimSpace(flags.name),
+		Workspace:        strings.TrimSpace(flags.workspace),
 		PromptOverlay:    strings.TrimSpace(flags.promptOverlay),
 		SpawnRole:        firstCLIValue(flags.spawnRole, "worker"),
 		TTLSeconds:       flags.ttlSeconds,

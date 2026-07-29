@@ -243,10 +243,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 		}
 	}
 	if createReq.Scope == contract.AgentCreateScopeWorkspace {
-		workspaceRef, err := nativeCallerWorkspaceInput(id, createReq.Workspace, scope)
-		if err != nil {
-			return contract.CreateAgentRequest{}, err
-		}
+		workspaceRef := nativeCallerWorkspaceInput(createReq.Workspace, scope)
 		if strings.TrimSpace(workspaceRef) == "" {
 			return contract.CreateAgentRequest{}, nativeRequiredInputError(id, "workspace")
 		}

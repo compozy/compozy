@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -86,6 +87,7 @@ type Server struct {
 	settingsUpdate     core.SettingsUpdateController
 	vault              core.VaultService
 	workspaces         core.WorkspaceService
+	workspaceAccess    workspaceaccess.Policy
 	onboarding         core.OnboardingStore
 	agentCatalog       core.AgentCatalog
 	agentSync          core.AgentDefinitionSync
@@ -214,6 +216,13 @@ func WithVaultService(service core.VaultService) Option {
 func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 	return func(server *Server) {
 		server.workspaces = workspaces
+	}
+}
+
+// WithWorkspaceAccessPolicy injects the cross-workspace decision policy.
+func WithWorkspaceAccessPolicy(policy workspaceaccess.Policy) Option {
+	return func(server *Server) {
+		server.workspaceAccess = policy
 	}
 }
 

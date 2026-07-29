@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -117,10 +118,29 @@ func (h *BaseHandlers) resolveAgentCallerForWorkspace(
 	if err != nil {
 		return agentidentity.Caller{}, err
 	}
-	if err := agentidentity.ValidateWorkspaceAccess(caller.Session.WorkspaceID, expectedWorkspaceID); err != nil {
+	if err := agentidentity.ValidateWorkspaceAccess(ctx, h.WorkspaceAccess, workspaceAccessRequestForCaller(
+		caller,
+		expectedWorkspaceID,
+	)); err != nil {
 		return agentidentity.Caller{}, err
 	}
 	return caller, nil
+}
+
+func workspaceAccessRequestForCaller(
+	caller agentidentity.Caller,
+	targetWorkspaceID string,
+) workspaceaccess.Request {
+	return workspaceaccess.Request{
+		Actor: workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorAgentSession,
+			SessionID:   caller.Session.ID,
+			WorkspaceID: caller.Session.WorkspaceID,
+			AgentName:   caller.Session.AgentName,
+		},
+		TargetWorkspaceID: targetWorkspaceID,
+		Seam:              workspaceaccess.SeamIdentity,
+	}
 }
 
 func (h *BaseHandlers) resolveExpectedWorkspaceID(ctx context.Context, ref string) (string, error) {
@@ -138,7 +158,7 @@ func (h *BaseHandlers) resolveExpectedWorkspaceID(ctx context.Context, ref strin
 	if err != nil {
 		return "", fmt.Errorf("api: resolve requested workspace %q: %w", target, err)
 	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	workspaceID := strings.TrimSpace(resolved.ID)
 	if workspaceID == "" {
 		return "", fmt.Errorf("api: resolved workspace %q has no id", target)
 	}

@@ -59,7 +59,7 @@ type DefaultPolicy struct {
 }
 
 var (
-	workspaceIDPattern        = regexp.MustCompile(`^[0-9A-HJ-KMNP-TV-Z]{26}$`)
+	workspaceIDPattern        = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
 	_                  Policy = (*DefaultPolicy)(nil)
 )
 

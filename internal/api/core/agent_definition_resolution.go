@@ -67,7 +67,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		return resolvedAgentDefinition{}, fmt.Errorf(
 			"api: agent %q is not available in workspace %q: %w",
 			target,
-			strings.TrimSpace(resolved.ID),
+			canonicalWorkspaceDisplay(&resolved, workspaceRef),
 			workspacepkg.ErrAgentNotAvailable,
 		)
 	}
@@ -91,6 +91,15 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		Entry:  h.agentCatalogEntryFromDef(agent, ""),
 		Config: h.Config,
 	}, nil
+}
+
+func canonicalWorkspaceDisplay(resolved *workspacepkg.ResolvedWorkspace, fallback string) string {
+	if resolved != nil {
+		if root := strings.TrimSpace(resolved.RootDir); root != "" {
+			return root
+		}
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func (h *BaseHandlers) duplicateAgentTarget(

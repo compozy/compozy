@@ -19,6 +19,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type recordingParticipationResolver struct {
@@ -6993,6 +6994,83 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			t.Fatalf("foreign task title = %q, want unchanged %q", got, foreignTask.Title)
 		}
 	})
+
+	t.Run("Should delegate foreign workspace access to the injected policy", func(t *testing.T) {
+		t.Parallel()
+
+		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		allowedPolicy := &recordingTaskWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		allowed := scopedTaskResourceAuthorizer{workspaceAccess: allowedPolicy}
+		if err := allowed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); err != nil {
+			t.Fatalf("AuthorizeTaskScope(allow) error = %v", err)
+		}
+		if allowedPolicy.calls != 1 || allowedPolicy.last.Seam != workspaceaccess.SeamTask {
+			t.Fatalf("policy calls/request = %d/%#v, want one task-seam call", allowedPolicy.calls, allowedPolicy.last)
+		}
+
+		denied := scopedTaskResourceAuthorizer{workspaceAccess: &recordingTaskWorkspaceAccessPolicy{}}
+		if err := denied.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("AuthorizeTaskScope(deny) error = %v, want ErrPermissionDenied", err)
+		}
+	})
+
+	t.Run("Should preserve the run not found mask for policy denials", func(t *testing.T) {
+		t.Parallel()
+
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		authorizer := scopedTaskResourceAuthorizer{workspaceAccess: policy}
+		runAuthorizer := taskRunReadAuthorizer{tasks: authorizer}
+		taskRecord := &Task{Scope: ScopeWorkspace, WorkspaceID: "ws-b"}
+		err := runAuthorizer.AuthorizeRunRead(
+			t.Context(),
+			agentSessionActorContextForWorkspace("sess-a", "ws-a"),
+			Run{WorkspaceID: "ws-b"},
+			taskRecord,
+		)
+		if !errors.Is(err, ErrTaskRunNotFound) {
+			t.Fatalf("AuthorizeRunRead() error = %v, want ErrTaskRunNotFound", err)
+		}
+		if policy.calls != 1 {
+			t.Fatalf("policy calls = %d, want 1", policy.calls)
+		}
+	})
+
+	t.Run("Should let operators short circuit before the policy", func(t *testing.T) {
+		t.Parallel()
+
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		authorizer := scopedTaskResourceAuthorizer{workspaceAccess: policy}
+		if err := authorizer.AuthorizeTaskScope(
+			t.Context(),
+			validActorContext(),
+			ScopeWorkspace,
+			"ws-b",
+		); err != nil {
+			t.Fatalf("AuthorizeTaskScope(operator) error = %v", err)
+		}
+		if policy.calls != 0 {
+			t.Fatalf("policy calls = %d, want 0", policy.calls)
+		}
+	})
+}
+
+type recordingTaskWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	err      error
+	calls    int
+	last     workspaceaccess.Request
+}
+
+func (p *recordingTaskWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, p.err
 }
 
 func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {

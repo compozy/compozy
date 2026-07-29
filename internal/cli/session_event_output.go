@@ -154,9 +154,7 @@ func resolveSessionCreateWorkspace(
 			if identityErr != nil {
 				return "", "", identityErr
 			}
-			if err := validateResolutionAgainstSessionIdentity(identityRef, resolution.ID); err != nil {
-				return "", "", err
-			}
+			resolution = markCrossWorkspaceAttempt(cmd, resolution, identityRef)
 			return resolution.ID, "", nil
 		}
 		if !workspaceResolutionAllowsGlobalFallback(err) {

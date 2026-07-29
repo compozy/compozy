@@ -10,6 +10,7 @@ import (
 )
 
 func (m *Service) normalizeClaimCriteriaForActor(
+	ctx context.Context,
 	criteria ClaimCriteria,
 	actor ActorContext,
 ) (ClaimCriteria, error) {
@@ -27,16 +28,26 @@ func (m *Service) normalizeClaimCriteriaForActor(
 	if strings.TrimSpace(normalized.AgentName) == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
 		normalized.AgentName = strings.TrimSpace(actor.Actor.Ref)
 	}
-	if actor.Actor.Kind.Normalize() == ActorKindAgentSession {
-		if strings.TrimSpace(normalized.ClaimerSessionID) != strings.TrimSpace(actor.Scope.SessionID) {
-			return ClaimCriteria{}, fmt.Errorf("%w: claimer session does not match trusted caller", ErrPermissionDenied)
-		}
-		if normalized.Scope.Normalize() == ScopeWorkspace &&
-			strings.TrimSpace(normalized.WorkspaceID) != strings.TrimSpace(actor.Scope.WorkspaceID) {
+	var err error
+	normalized, err = normalized.Normalize(m.now().UTC())
+	if err != nil {
+		return ClaimCriteria{}, err
+	}
+	if actor.Actor.Kind.Normalize() == ActorKindAgentSession &&
+		strings.TrimSpace(normalized.ClaimerSessionID) != strings.TrimSpace(actor.Scope.SessionID) {
+		return ClaimCriteria{}, fmt.Errorf("%w: claimer session does not match trusted caller", ErrPermissionDenied)
+	}
+	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
+		return normalized, nil
+	}
+	if normalized.Scope.Normalize() == ScopeWorkspace {
+		targetWorkspaceID := strings.TrimSpace(normalized.WorkspaceID)
+		if targetWorkspaceID != strings.TrimSpace(actor.Scope.WorkspaceID) &&
+			!taskWorkspaceAccessAllowed(ctx, m.workspaceAccess, actor, targetWorkspaceID) {
 			return ClaimCriteria{}, fmt.Errorf("%w: claim workspace does not match trusted caller", ErrPermissionDenied)
 		}
 	}
-	return normalized.Normalize(m.now().UTC())
+	return normalized, nil
 }
 
 func (m *Service) dispatchTaskRunPreClaimCriteria(

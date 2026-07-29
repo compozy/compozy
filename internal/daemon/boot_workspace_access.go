@@ -32,5 +32,24 @@ func (d *Daemon) bootWorkspaceAccess(state *bootState, sessions SessionManager) 
 	}
 	state.accessPolicy = policy
 	state.accessConsent = consent
+	if binder, ok := sessions.(interface {
+		SetWorkspaceAccessPolicy(workspaceaccess.Policy)
+	}); ok {
+		binder.SetWorkspaceAccessPolicy(policy)
+	}
 	return nil
+}
+
+func nativeWorkspaceAccessBinderForBoot(state *bootState) *nativeWorkspaceInputBinder {
+	prompt := newWorkspaceAccessPromptBridge(
+		sessionPermissionRequesterProvider(state),
+		state.cfg.Tools.Policy.ApprovalTimeout(),
+		state.accessConsent,
+	)
+	return newNativeWorkspaceInputBinder(
+		state.workspaceResolver,
+		state.sessions,
+		state.accessPolicy,
+		prompt,
+	)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -295,6 +296,25 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 
 func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the public cross workspace denial hint", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			toolspkg.ToolIDWorkspaceInfo,
+			"workspace info denied: "+workspaceaccess.DenialHint,
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonWorkspaceAccessDenied,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+		if status != http.StatusForbidden ||
+			payload.Error.Message != "workspace info denied: "+workspaceaccess.DenialHint ||
+			!slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
+			t.Fatalf("workspace denial payload = %#v, want public hint and reason", payload.Error)
+		}
+	})
 
 	t.Run("Should return HTTP 422 for reserved agent names", func(t *testing.T) {
 		t.Parallel()

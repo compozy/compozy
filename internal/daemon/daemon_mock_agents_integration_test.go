@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -28,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 )
@@ -985,6 +988,219 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 	})
 }
 
+func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	fixturePath := mockFixturePath(t, "workspace_access_fixture.json")
+	agentNames := []string{
+		"mock-cross-deny",
+		"mock-cross-once",
+		"mock-cross-session",
+		"mock-cross-reject",
+		"mock-cross-all",
+	}
+	mockAgents := make([]e2etest.MockAgentSpec, 0, len(agentNames))
+	for _, agentName := range agentNames {
+		fixtureAgent := "hosted-reads"
+		switch agentName {
+		case "mock-cross-deny":
+			fixtureAgent = "hosted-deny"
+		case "mock-cross-all":
+			fixtureAgent = "hosted-all"
+		}
+		mockAgents = append(mockAgents, e2etest.MockAgentSpec{
+			FixturePath:  fixturePath,
+			FixtureAgent: fixtureAgent,
+			AgentName:    agentName,
+		})
+	}
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: mockAgents})
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	sourceWorkspaceID := harness.WorkspaceID
+	target, err := harness.ResolveWorkspace(ctx, t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveWorkspace(target) error = %v", err)
+	}
+	harness.WorkspaceID = sourceWorkspaceID
+
+	denySession, denyClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-deny",
+		"cross-deny",
+	)
+	denied := callWorkspaceAccessTool(t, ctx, denyClient, "cross-deny-1", target.ID)
+	assertWorkspaceAccessDeniedResult(t, denied)
+	assertSessionPermissionEventCount(t, ctx, harness, denySession.ID, 0)
+	waitForRuntimeCondition(t, "deny-all workspace access audit", 5*time.Second, func() bool {
+		return workspaceAccessAuditExists(
+			t,
+			ctx,
+			harness,
+			denySession.ID,
+			target.ID,
+			workspaceaccess.SeamTool,
+			workspaceaccess.SourceDenied,
+			"workspace.access_denied",
+		)
+	})
+
+	onceSession, onceClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-once",
+		"cross-once",
+	)
+	firstOnce := callWorkspaceAccessToolWithDecision(
+		t,
+		ctx,
+		harness,
+		onceSession.ID,
+		onceClient,
+		"cross-once-1",
+		target.ID,
+		"allow-once",
+	)
+	assertWorkspaceAccessAllowedResult(t, firstOnce)
+	secondOnce := callWorkspaceAccessToolWithDecision(
+		t,
+		ctx,
+		harness,
+		onceSession.ID,
+		onceClient,
+		"cross-once-2",
+		target.ID,
+		"allow-once",
+	)
+	assertWorkspaceAccessAllowedResult(t, secondOnce)
+
+	sessionConsent, sessionClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-session",
+		"cross-session",
+	)
+	allowedSession := callWorkspaceAccessToolWithDecision(
+		t,
+		ctx,
+		harness,
+		sessionConsent.ID,
+		sessionClient,
+		"cross-session-1",
+		target.ID,
+		"allow-always",
+	)
+	assertWorkspaceAccessAllowedResult(t, allowedSession)
+	assertWorkspaceAccessAllowedResult(
+		t,
+		callWorkspaceAccessTool(t, ctx, sessionClient, "cross-session-2", target.ID),
+	)
+
+	newSessionConsent, newSessionClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-session",
+		"cross-session-new",
+	)
+	newSessionDenied := callWorkspaceAccessToolWithDecision(
+		t,
+		ctx,
+		harness,
+		newSessionConsent.ID,
+		newSessionClient,
+		"cross-session-new-1",
+		target.ID,
+		"reject-once",
+	)
+	assertWorkspaceAccessDeniedResult(t, newSessionDenied)
+
+	rejectSession, rejectClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-reject",
+		"cross-reject",
+	)
+	rejectedSession := callWorkspaceAccessToolWithDecision(
+		t,
+		ctx,
+		harness,
+		rejectSession.ID,
+		rejectClient,
+		"cross-reject-1",
+		target.ID,
+		"reject-always",
+	)
+	assertWorkspaceAccessDeniedResult(t, rejectedSession)
+	assertWorkspaceAccessDeniedResult(
+		t,
+		callWorkspaceAccessTool(t, ctx, rejectClient, "cross-reject-2", target.ID),
+	)
+
+	approveAllSession, approveAllClient := newWorkspaceAccessHostedSession(
+		t,
+		ctx,
+		harness,
+		"mock-cross-all",
+		"cross-all",
+	)
+	assertWorkspaceAccessAllowedResult(
+		t,
+		callWorkspaceAccessTool(t, ctx, approveAllClient, "cross-all-1", target.ID),
+	)
+	assertSessionPermissionEventCount(t, ctx, harness, approveAllSession.ID, 0)
+
+	assertWorkspaceAccessAgentCLIParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
+	assertWorkspaceAccessSpawnParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
+
+	var created compozycontract.TaskResponse
+	if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", compozycontract.CreateTaskRequest{
+		Scope:     taskpkg.ScopeWorkspace,
+		Workspace: target.ID,
+		Title:     "Cross seam consent reuse",
+	}, &created); err != nil {
+		t.Fatalf("create foreign task error = %v", err)
+	}
+	run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, created.Task.ID, "cross-seam-consent")
+	_, claimStderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		map[string]string{
+			agentidentity.EnvSessionID: sessionConsent.ID,
+			agentidentity.EnvAgent:     sessionConsent.AgentName,
+		},
+		"task",
+		"next",
+		"--run-id",
+		run.ID,
+		"--workspace",
+		target.ID,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("cross-seam consent task claim error = %v; stderr=%s", err, claimStderr)
+	}
+	waitForRuntimeCondition(t, "task seam session consent audit", 5*time.Second, func() bool {
+		return workspaceAccessAuditExists(
+			t,
+			ctx,
+			harness,
+			sessionConsent.ID,
+			target.ID,
+			workspaceaccess.SeamTask,
+			workspaceaccess.SourceSessionConsent,
+			"workspace.access_granted",
+		)
+	})
+}
+
 func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWakes(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
@@ -1147,6 +1363,419 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 
 	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
+	}
+}
+
+func newWorkspaceAccessHostedSession(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+	name string,
+) (compozycontract.SessionPayload, *mcpclient.Client) {
+	t.Helper()
+
+	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+		AgentName:     agentName,
+		Name:          name,
+		WorkspacePath: harness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession(%q) error = %v", agentName, err)
+	}
+	active, err := harness.WaitForSessionActive(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("WaitForSessionActive(%q) error = %v", created.ID, err)
+	}
+	registration, ok := harness.MockAgentRegistration(agentName)
+	if !ok {
+		t.Fatalf("MockAgentRegistration(%q) = missing", agentName)
+	}
+	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(%q) error = %v", agentName, err)
+	}
+	client := startHostedMCPClient(t, requireLatestHostedMCPStdioServer(t, diagnostics))
+	var init sdkmcp.InitializeRequest
+	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
+	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-workspace-access-e2e", Version: "1.0.0"}
+	if _, err := client.Initialize(ctx, init); err != nil {
+		if closeErr := client.Close(); closeErr != nil {
+			t.Fatalf("Initialize(hosted MCP client) error = %v; Close() error = %v", err, closeErr)
+		}
+		t.Fatalf("Initialize(hosted MCP client) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("Close(hosted workspace-access MCP client) error = %v", err)
+		}
+	})
+	return active, client
+}
+
+func requireLatestHostedMCPStdioServer(
+	t testing.TB,
+	records []acpmock.DiagnosticsRecord,
+) acpsdk.McpServerStdio {
+	t.Helper()
+
+	for index := len(records) - 1; index >= 0; index-- {
+		record := records[index]
+		if record.LifecycleEvent != "session_new" {
+			continue
+		}
+		for _, server := range record.MCPServers {
+			if server.Stdio != nil && server.Stdio.Name == mcppkg.HostedServerName {
+				return *server.Stdio
+			}
+		}
+	}
+	t.Fatalf("diagnostics = %#v, want latest session_new %s stdio MCP server", records, mcppkg.HostedServerName)
+	return acpsdk.McpServerStdio{}
+}
+
+func callWorkspaceAccessTool(
+	t testing.TB,
+	ctx context.Context,
+	client *mcpclient.Client,
+	toolCallID string,
+	targetWorkspaceID string,
+) *sdkmcp.CallToolResult {
+	t.Helper()
+	return callHostedTool(
+		t,
+		ctx,
+		client,
+		toolspkg.ToolIDWorkspaceInfo,
+		toolCallID,
+		map[string]any{"workspace": strings.TrimSpace(targetWorkspaceID)},
+	)
+}
+
+func callHostedTool(
+	t testing.TB,
+	ctx context.Context,
+	client *mcpclient.Client,
+	toolID toolspkg.ToolID,
+	toolCallID string,
+	arguments map[string]any,
+) *sdkmcp.CallToolResult {
+	t.Helper()
+
+	var call sdkmcp.CallToolRequest
+	call.Params.Name = toolID.String()
+	call.Params.Arguments = arguments
+	call.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": toolCallID}}
+	result, err := client.CallTool(ctx, call)
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", toolID, err)
+	}
+	return result
+}
+
+func callWorkspaceAccessToolWithDecision(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	client *mcpclient.Client,
+	toolCallID string,
+	targetWorkspaceID string,
+	decision string,
+) *sdkmcp.CallToolResult {
+	t.Helper()
+
+	type callOutcome struct {
+		result *sdkmcp.CallToolResult
+		err    error
+	}
+	outcomeCh := make(chan callOutcome, 1)
+	go func() {
+		var call sdkmcp.CallToolRequest
+		call.Params.Name = toolspkg.ToolIDWorkspaceInfo.String()
+		call.Params.Arguments = map[string]any{"workspace": strings.TrimSpace(targetWorkspaceID)}
+		call.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": toolCallID}}
+		result, err := client.CallTool(ctx, call)
+		outcomeCh <- callOutcome{result: result, err: err}
+	}()
+	approved := false
+	var lastApprovalErr error
+	promptDeadline := time.NewTimer(5 * time.Second)
+	defer promptDeadline.Stop()
+	promptPoll := time.NewTicker(25 * time.Millisecond)
+	defer promptPoll.Stop()
+	for !approved {
+		select {
+		case outcome := <-outcomeCh:
+			raw, marshalErr := json.Marshal(outcome.result)
+			if marshalErr != nil {
+				raw = []byte("<unavailable>")
+			}
+			t.Fatalf(
+				"workspace access call returned before prompt: result=%s err=%v last_approval_error=%v",
+				raw,
+				outcome.err,
+				lastApprovalErr,
+			)
+		case <-promptDeadline.C:
+			t.Fatal("timed out waiting for workspace access permission event")
+		case <-ctx.Done():
+			t.Fatalf("workspace access permission context ended: %v", ctx.Err())
+		case <-promptPoll.C:
+		}
+		lastApprovalErr = harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
+			RequestID: toolCallID,
+			Decision:  decision,
+		})
+		approved = lastApprovalErr == nil
+	}
+	select {
+	case outcome := <-outcomeCh:
+		if outcome.err != nil {
+			t.Fatalf("CallTool(%s) error = %v", toolspkg.ToolIDWorkspaceInfo, outcome.err)
+		}
+		return outcome.result
+	case <-ctx.Done():
+		t.Fatalf("CallTool(%s) did not complete: %v", toolspkg.ToolIDWorkspaceInfo, ctx.Err())
+		return nil
+	}
+}
+
+func assertWorkspaceAccessAllowedResult(t testing.TB, result *sdkmcp.CallToolResult) {
+	t.Helper()
+	if result == nil || result.IsError {
+		t.Fatalf("workspace access result = %#v, want success", result)
+	}
+}
+
+func assertWorkspaceAccessDeniedResult(t testing.TB, result *sdkmcp.CallToolResult) {
+	t.Helper()
+	if result == nil || !result.IsError {
+		t.Fatalf("workspace access result = %#v, want denied tool result", result)
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal(workspace access result) error = %v", err)
+	}
+	if !strings.Contains(string(raw), string(toolspkg.ReasonWorkspaceAccessDenied)) ||
+		!strings.Contains(string(raw), workspaceaccess.DenialHint) {
+		t.Fatalf("workspace access result = %s, want reason and denial hint", raw)
+	}
+}
+
+func assertSessionPermissionEventCount(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	want int,
+) {
+	t.Helper()
+	count := sessionPermissionEventCount(t, ctx, harness, sessionID)
+	if count != want {
+		t.Fatalf("session %q permission event count = %d, want %d", sessionID, count, want)
+	}
+}
+
+func sessionPermissionEventCount(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) int {
+	t.Helper()
+
+	response, err := harness.SessionEvents(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("SessionEvents(%q) error = %v", sessionID, err)
+	}
+	count := 0
+	for _, event := range decodeAgentEvents(t, response.Events) {
+		if event.Type == "permission" {
+			count++
+		}
+	}
+	return count
+}
+
+func workspaceAccessAuditExists(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	targetWorkspaceID string,
+	seam workspaceaccess.Seam,
+	source workspaceaccess.DecisionSource,
+	eventType string,
+) bool {
+	t.Helper()
+
+	path := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
+		"&type=" + url.QueryEscape(eventType) + "&limit=100"
+	var logs compozycontract.LogsListResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &logs); err != nil {
+		return false
+	}
+	for _, event := range logs.Events {
+		if event.SessionID != sessionID || event.Type != eventType {
+			continue
+		}
+		var payload workspaceAccessAuditPayload
+		if err := json.Unmarshal(event.Content, &payload); err != nil {
+			continue
+		}
+		if payload.TargetWorkspaceID == targetWorkspaceID && payload.Seam == seam && payload.Source == source {
+			return true
+		}
+	}
+	return false
+}
+
+func assertWorkspaceAccessAgentCLIParity(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	approveReads compozycontract.SessionPayload,
+	approveAll compozycontract.SessionPayload,
+	targetWorkspaceID string,
+) {
+	t.Helper()
+
+	readEnv := map[string]string{
+		agentidentity.EnvSessionID: approveReads.ID,
+		agentidentity.EnvAgent:     approveReads.AgentName,
+	}
+	_, deniedStderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		readEnv,
+		"task",
+		"create",
+		"--scope",
+		"workspace",
+		"--workspace",
+		targetWorkspaceID,
+		"--title",
+		"Cross-workspace CLI deny parity",
+		"--as-agent",
+		"-o",
+		"json",
+	)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
+		t.Fatalf("approve-reads CLI error = %v, want exit %d; stderr=%s", err, agentidentity.ExitUnauthorized, deniedStderr)
+	}
+	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
+		t.Fatalf("approve-reads CLI stderr = %q, want denial hint", deniedStderr)
+	}
+
+	allEnv := map[string]string{
+		agentidentity.EnvSessionID: approveAll.ID,
+		agentidentity.EnvAgent:     approveAll.AgentName,
+	}
+	stdout, stderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		allEnv,
+		"task",
+		"create",
+		"--scope",
+		"workspace",
+		"--workspace",
+		targetWorkspaceID,
+		"--title",
+		"Cross-workspace CLI allow parity",
+		"--as-agent",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("approve-all CLI error = %v; stderr=%s", err, stderr)
+	}
+	var payload struct {
+		ResolutionSource string `json:"resolution_source"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(approve-all CLI) error = %v; stdout=%s", err, stdout)
+	}
+	if payload.ResolutionSource != "cross_workspace_attempt" {
+		t.Fatalf("approve-all CLI resolution_source = %q, want cross_workspace_attempt", payload.ResolutionSource)
+	}
+}
+
+func assertWorkspaceAccessSpawnParity(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	approveReads compozycontract.SessionPayload,
+	approveAll compozycontract.SessionPayload,
+	targetWorkspaceID string,
+) {
+	t.Helper()
+
+	readEnv := map[string]string{
+		agentidentity.EnvSessionID: approveReads.ID,
+		agentidentity.EnvAgent:     approveReads.AgentName,
+	}
+	promptCountBefore := sessionPermissionEventCount(t, ctx, harness, approveReads.ID)
+	_, deniedStderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		readEnv,
+		"spawn",
+		"--agent",
+		approveReads.AgentName,
+		"--workspace",
+		targetWorkspaceID,
+		"--ttl-seconds",
+		"60",
+		"--idempotency-key",
+		"cross-workspace-spawn-denied",
+		"-o",
+		"json",
+	)
+	if err == nil {
+		t.Fatalf("approve-reads cross-workspace spawn error = nil, want denial")
+	}
+	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
+		t.Fatalf("approve-reads cross-workspace spawn stderr = %q, want denial hint", deniedStderr)
+	}
+	assertSessionPermissionEventCount(t, ctx, harness, approveReads.ID, promptCountBefore)
+
+	allEnv := map[string]string{
+		agentidentity.EnvSessionID: approveAll.ID,
+		agentidentity.EnvAgent:     approveAll.AgentName,
+	}
+	stdout, stderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		allEnv,
+		"spawn",
+		"--agent",
+		approveAll.AgentName,
+		"--workspace",
+		targetWorkspaceID,
+		"--ttl-seconds",
+		"60",
+		"--idempotency-key",
+		"cross-workspace-spawn-allowed",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("approve-all cross-workspace spawn error = %v; stderr=%s", err, stderr)
+	}
+	var payload struct {
+		Session struct {
+			ID          string `json:"id"`
+			WorkspaceID string `json:"workspace_id"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(approve-all spawn output) error = %v; stdout=%s", err, stdout)
+	}
+	if payload.Session.ID == "" || payload.Session.WorkspaceID != targetWorkspaceID {
+		t.Fatalf("approve-all spawn output = %#v, want child in workspace %q", payload, targetWorkspaceID)
 	}
 }
 

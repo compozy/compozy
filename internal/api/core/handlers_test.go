@@ -3374,7 +3374,9 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Workspace: workspacepkg.Workspace{
+							ID: "ws-1", Name: workspaceRef, RootDir: "/workspace",
+						},
 						Agents: []compozyconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
 							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
@@ -3480,8 +3482,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 				missingResp.Body.String(),
 			)
 		}
-		if !strings.Contains(missingResp.Body.String(), "not available in workspace") {
-			t.Fatalf("get missing workspace agent body = %s, want not available message", missingResp.Body.String())
+		if !strings.Contains(missingResp.Body.String(), `not available in workspace \"/workspace\"`) {
+			t.Fatalf("get missing workspace agent body = %s, want canonical workspace root", missingResp.Body.String())
 		}
 	})
 

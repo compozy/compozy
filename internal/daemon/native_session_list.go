@@ -34,16 +34,14 @@ func (n *daemonNativeTools) sessionList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceRef, err := nativeCallerWorkspaceInput(req.ToolID, input.Workspace, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
+	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
 	workspaceID := ""
 	if workspaceRef != "" {
-		workspaceID, err = n.workspaceID(ctx, workspaceRef)
+		resolvedWorkspaceID, err := n.workspaceID(ctx, workspaceRef)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+		workspaceID = resolvedWorkspaceID
 	}
 	pager, ok := n.deps.Sessions.(core.SessionPageManager)
 	if !ok {

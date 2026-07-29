@@ -52,7 +52,7 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	entries, workspaceID, cfg, diagnostics, err := h.workspaceAgentEntriesWithDiagnostics(
+	resolved, err := h.workspaceAgentEntriesWithDiagnostics(
 		c.Request.Context(),
 		query.Workspace,
 	)
@@ -61,19 +61,19 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		return
 	}
 
-	agents := make([]contract.AgentPayload, 0, len(entries)+len(diagnostics))
-	for _, entry := range entries {
-		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, &cfg))
+	agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
+	for _, entry := range resolved.Entries {
+		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, &resolved.Config))
 	}
-	for _, diagnostic := range diagnostics {
-		agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspaceID))
+	for _, diagnostic := range resolved.Diagnostics {
+		agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, resolved.WorkspaceID))
 	}
 	slices.SortFunc(agents, func(left, right contract.AgentPayload) int {
 		return compareAgentCatalogNames(left.Name, right.Name)
 	})
 
-	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, workspaceID)
-	response, err := buildAgentCatalogResponse(query, workspaceID, agents, metrics, sessionsAvailable)
+	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, resolved.WorkspaceID)
+	response, err := buildAgentCatalogResponse(query, resolved.WorkspaceID, agents, metrics, sessionsAvailable)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return

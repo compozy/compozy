@@ -47,6 +47,7 @@ import (
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
@@ -326,7 +327,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDDesktopList,
 			Input:  json.RawMessage(`{"workspace":"workspace-b"}`),
 		})
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDDesktopList,
@@ -870,6 +871,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			BundleService: func() core.BundleService { return bundleService },
 			Resources:     resourceService,
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -953,7 +955,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if bundleService.activateCalls != 1 {
 			t.Fatalf(
 				"Activate calls = %d, want cross-workspace request rejected before service",
@@ -1090,13 +1092,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Resolved workspace id = %q, want ws-1", resolved.WorkspaceID)
 		}
 
-		_, err = adapter.nativeResolvedWorkspace(
+		foreignResolved, err := adapter.nativeResolvedWorkspace(
 			t.Context(),
 			toolspkg.ToolIDNetworkPeers,
 			"ws-2",
 			scope,
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil || foreignResolved.WorkspaceID != "ws-2" {
+			t.Fatalf("nativeResolvedWorkspace(foreign) = %#v, %v, want binder-authorized ws-2", foreignResolved, err)
+		}
 
 		operatorResolved, err := adapter.nativeResolvedWorkspace(
 			t.Context(),
@@ -1129,7 +1133,6 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		filter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{},
 			scope,
 		)
@@ -1140,17 +1143,17 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Hook filter workspace = %#v, want id ws-1 and a canonical root", filter)
 		}
 
-		_, err = adapter.hookCatalogFilter(
+		foreignFilter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{Workspace: "ws-2"},
 			scope,
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil || foreignFilter.WorkspaceID != "ws-2" {
+			t.Fatalf("hookCatalogFilter(foreign) = %#v, %v, want binder-authorized ws-2", foreignFilter, err)
+		}
 
 		operatorFilter, err := adapter.hookCatalogFilter(
 			t.Context(),
-			toolspkg.ToolIDHooksList,
 			hooksListInput{Workspace: "ws-2"},
 			toolspkg.Scope{Operator: true},
 		)
@@ -1164,7 +1167,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		observer := &nativeObserverStub{}
 		registry := newDaemonNativeRegistry(
 			t,
-			&daemonNativeToolsDeps{Observer: observer},
+			&daemonNativeToolsDeps{
+				Observer:   observer,
+				Workspaces: nativeNetworkTestWorkspaceService(t),
+			},
 			nativeApproveAllPolicyInputs(),
 		)
 		_, err = registry.Call(
@@ -1175,7 +1181,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-2"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		_, err = registry.Call(
 			t.Context(),
 			scope,
@@ -1184,13 +1190,13 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-2","name":"hook-a"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if observer.catalogCall != 0 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
 		}
 	})
 
-	t.Run("Should fail closed for unresolved and global native workspace inputs", func(t *testing.T) {
+	t.Run("Should fail closed for unresolved native workspace inputs and preserve global scope", func(t *testing.T) {
 		t.Parallel()
 
 		descriptor := toolspkg.Descriptor{
@@ -1210,26 +1216,109 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 
-		binder := newNativeWorkspaceInputBinder(nil)
-		_, err = binder.BindCallInput(
+		binder := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
+		bound, err := binder.BindCallInput(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
 			descriptor,
 			json.RawMessage(`{"scope":"global"}`),
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if err != nil {
+			t.Fatalf("BindCallInput(global scope) error = %v", err)
+		}
+		requireNativeStructuredContains(t, toolspkg.ToolResult{Structured: bound}, []byte(`"scope":"global"`))
+		requireNativeStructuredExcludes(t, toolspkg.ToolResult{Structured: bound}, []byte(`"workspace"`))
+	})
+
+	t.Run("Should bind and authorize native workspace inputs through the workspace policy", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := toolspkg.Descriptor{
+			ID:      toolspkg.ToolIDWorkspaceDescribe,
+			Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
+			InputSchema: json.RawMessage(
+				`{"type":"object","properties":{"workspace":{"type":"string"}}}`,
+			),
+			Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
+		}
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		binder := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			nativeNetworkTestSessionManager("ws-1"),
+			policy,
+			nil,
+		)
+
+		inherited, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(`{}`))
+		if err != nil {
+			t.Fatalf("BindCallInput(inherit) error = %v", err)
+		}
+		if string(inherited) != `{"workspace":"ws-1"}` {
+			t.Fatalf("inherited input = %s, want trusted workspace", inherited)
+		}
+		foreign, err := binder.BindCallInput(
+			t.Context(),
+			scope,
+			descriptor,
+			json.RawMessage(`{"workspace":"ws-2"}`),
+		)
+		if err != nil {
+			t.Fatalf("BindCallInput(foreign) error = %v", err)
+		}
+		call := toolspkg.CallRequest{ToolID: descriptor.ID, SessionID: "sess-1", Input: foreign}
+		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
+			t.Fatalf("AuthorizeCallInput(allow) error = %v", err)
+		}
+		if policy.calls != 1 || policy.last.TargetWorkspaceID != "ws-2" {
+			t.Fatalf("policy calls/request = %d/%#v, want foreign target", policy.calls, policy.last)
+		}
+
+		cache := newWorkspaceAccessConsentCache()
+		requester := selectedPermissionRequester(workspaceAccessAllowSessionID)
+		consentPolicy := &consentAwareNativeWorkspaceAccessPolicy{cache: cache}
+		liveSessions := apitest.StubSessionManager{StatusFn: func(
+			context.Context,
+			string,
+		) (*session.Info, error) {
+			return &session.Info{
+				ID:          "sess-1",
+				AgentName:   "coder",
+				WorkspaceID: "ws-1",
+				State:       session.StateActive,
+			}, nil
+		}}
+		promptingBinder := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			liveSessions,
+			consentPolicy,
+			newWorkspaceAccessPromptBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				cache,
+			),
+		)
+		for attempt := range 2 {
+			if err := promptingBinder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
+				t.Fatalf("AuthorizeCallInput(session consent %d) error = %v", attempt, err)
+			}
+		}
+		if len(requester.requests) != 1 {
+			t.Fatalf("permission requests = %d, want one prompt before session consent reuse", len(requester.requests))
+		}
+
+		denied := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
+		err = denied.AuthorizeCallInput(t.Context(), scope, descriptor, call)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
 
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: apitest.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return []*session.Info{{ID: "sess-1", WorkspaceID: "ws-1"}}, nil
-				},
-			},
-			Skills: newLoadedNativeSkillRegistry(t),
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
 
@@ -1251,7 +1340,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					scope,
 					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
 				)
-				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			})
 		}
 	})
@@ -2719,7 +2808,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		target, resolveErr := compozyconfig.ResolveConfigWriteTarget(
 			homePaths,
 			workspaceBRoot,
@@ -3625,7 +3714,8 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Tasks:      tasks,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -3636,7 +3726,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-b"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if tasks.claimNextCalls != 0 {
 			t.Fatalf("ClaimNextRun() calls = %d, want 0 for cross-workspace request", tasks.claimNextCalls)
 		}
@@ -5753,7 +5843,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					Input:  json.RawMessage(`{"workspace":"ws-b"}`),
 				},
 			)
-			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		}
 
 		operatorResult, err := registry.Call(
@@ -5855,7 +5945,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					scope,
 					toolspkg.CallRequest{ToolID: tc.toolID, Input: tc.input},
 				)
-				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			})
 		}
 
@@ -7277,7 +7367,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-other"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(
 			t.Context(),
@@ -7287,7 +7377,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-other","query":"deploy"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
 
 	t.Run(
@@ -7471,7 +7561,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					return result, nil
 				},
 			},
-			Observer: observer,
+			Observer:   observer,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		first, err := registry.Call(
@@ -7553,8 +7644,40 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input:  json.RawMessage(`{"workspace":"ws-2"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
+}
+
+type recordingNativeWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	calls    int
+	last     workspaceaccess.Request
+}
+
+type consentAwareNativeWorkspaceAccessPolicy struct {
+	cache workspaceaccess.SessionConsentCache
+}
+
+func (p *consentAwareNativeWorkspaceAccessPolicy) Authorize(
+	ctx context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	if consent, ok := p.cache.ConsentFor(ctx, req.Actor.SessionID); ok {
+		return workspaceaccess.Decision{
+			Allowed: consent == workspaceaccess.ConsentAllow,
+			Source:  workspaceaccess.SourceSessionConsent,
+		}, nil
+	}
+	return workspaceaccess.Decision{PromptEligible: true, Source: workspaceaccess.SourceDenied}, nil
+}
+
+func (p *recordingNativeWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, nil
 }
 
 func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
@@ -8042,11 +8165,21 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					},
 				},
 			}
-			registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
-				Network:    networkService,
-				Sessions:   sessions,
-				Workspaces: workspaces,
-			}, resolver)
+			registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+				t,
+				&daemonNativeToolsDeps{
+					Network:    networkService,
+					Sessions:   sessions,
+					Workspaces: workspaces,
+				},
+				resolver,
+				&recordingNativeWorkspaceAccessPolicy{
+					decision: workspaceaccess.Decision{
+						Allowed: true,
+						Source:  workspaceaccess.SourcePermissionMode,
+					},
+				},
+			)
 			scope := toolspkg.Scope{SessionID: "sess-coord"}
 
 			channelsResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
@@ -8246,6 +8379,16 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	resolver toolspkg.PolicyInputResolver,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
+	return newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps, resolver, nil)
+}
+
+func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+	t *testing.T,
+	deps *daemonNativeToolsDeps,
+	resolver toolspkg.PolicyInputResolver,
+	workspaceAccess workspaceaccess.Policy,
+) *toolspkg.RuntimeRegistry {
+	t.Helper()
 
 	if deps == nil {
 		deps = &daemonNativeToolsDeps{}
@@ -8262,10 +8405,12 @@ func newDaemonNativeRegistryWithPolicyResolver(
 	if err != nil {
 		t.Fatalf("builtin.ToolsetCatalog() error = %v", err)
 	}
+	workspaceBinder := newNativeWorkspaceInputBinder(deps.Workspaces, deps.Sessions, workspaceAccess, nil)
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(provider),
 		toolspkg.WithPolicyInputResolver(resolver, toolsets),
-		toolspkg.WithCallInputBinder(newNativeWorkspaceInputBinder(deps.Workspaces)),
+		toolspkg.WithCallInputBinder(workspaceBinder),
+		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(compozyconfig.DefaultToolsMaxResultBytes),
 	)
 	if err != nil {
@@ -8944,12 +9089,12 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 			Sessions: manager,
 		}}
 		scope := toolspkg.Scope{SessionID: "sess-authored", AgentName: "reviewer"}
-		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+		if _, err := native.skillsFor(t.Context(), scope, ""); err != nil {
 			t.Fatalf("skillsFor(authored) error = %v", err)
 		}
 
 		manager.agent.SourcePath = ""
-		if _, err := native.skillsFor(t.Context(), scope, toolspkg.ToolIDSkillList, ""); err != nil {
+		if _, err := native.skillsFor(t.Context(), scope, ""); err != nil {
 			t.Fatalf("skillsFor(packaged) error = %v", err)
 		}
 		if got, want := registry.resolvedNames, []string{"reviewer"}; !slices.Equal(got, want) {

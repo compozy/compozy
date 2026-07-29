@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var (
@@ -77,15 +78,19 @@ type CoordinationCommandStore interface {
 }
 
 type coordinationService struct {
-	store CoordinationCommandStore
+	store           CoordinationCommandStore
+	workspaceAccess workspaceaccess.Policy
 }
 
 // NewCoordinationService builds the application command boundary used by HTTP and UDS.
-func NewCoordinationService(store CoordinationCommandStore) CoordinationCommands {
+func NewCoordinationService(
+	store CoordinationCommandStore,
+	workspaceAccess workspaceaccess.Policy,
+) CoordinationCommands {
 	if store == nil {
 		return nil
 	}
-	return &coordinationService{store: store}
+	return &coordinationService{store: store, workspaceAccess: workspaceAccess}
 }
 
 func (s *coordinationService) Get(
@@ -97,7 +102,7 @@ func (s *coordinationService) Get(
 	if err != nil {
 		return CoordinationView{}, err
 	}
-	if err := authorizeCoordinationActor(actor, normalized.WorkspaceID, false); err != nil {
+	if err := s.authorizeCoordinationActor(ctx, actor, normalized.WorkspaceID, false); err != nil {
 		return CoordinationView{}, err
 	}
 	return s.store.GetCoordination(ctx, normalized)
@@ -112,7 +117,7 @@ func (s *coordinationService) Set(
 	if err != nil {
 		return CoordinationView{}, err
 	}
-	if err := authorizeCoordinationActor(actor, normalized.Ref.WorkspaceID, true); err != nil {
+	if err := s.authorizeCoordinationActor(ctx, actor, normalized.Ref.WorkspaceID, true); err != nil {
 		return CoordinationView{}, err
 	}
 	return s.store.SetCoordination(ctx, normalized, actor)
@@ -127,7 +132,7 @@ func (s *coordinationService) SetInvitation(
 	if err != nil {
 		return CoordinationView{}, err
 	}
-	if err := authorizeCoordinationActor(actor, normalized.Ref.WorkspaceID, true); err != nil {
+	if err := s.authorizeCoordinationActor(ctx, actor, normalized.Ref.WorkspaceID, true); err != nil {
 		return CoordinationView{}, err
 	}
 	return s.store.SetCoordinationInvitation(ctx, normalized, actor)
@@ -192,19 +197,39 @@ func normalizeSetInvitation(cmd SetInvitation) (SetInvitation, error) {
 	return cmd, nil
 }
 
-func authorizeCoordinationActor(actor taskpkg.ActorContext, workspaceID string, write bool) error {
+func (s *coordinationService) authorizeCoordinationActor(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	workspaceID string,
+	write bool,
+) error {
 	if err := actor.Validate(); err != nil {
 		return err
 	}
 	if !actor.Authority.Read || (write && !actor.Authority.Write) {
 		return taskpkg.ErrPermissionDenied
 	}
-	actorWorkspace := strings.TrimSpace(actor.Scope.WorkspaceID)
-	if actorWorkspace != "" && actorWorkspace != workspaceID {
-		return taskpkg.ErrPermissionDenied
-	}
 	if write && !actor.Scope.Operator {
 		return taskpkg.ErrPermissionDenied
+	}
+	actorWorkspace := strings.TrimSpace(actor.Scope.WorkspaceID)
+	if actorWorkspace != "" && actorWorkspace != workspaceID {
+		if s == nil || s.workspaceAccess == nil {
+			return taskpkg.ErrPermissionDenied
+		}
+		decision, err := s.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorKind(actor.Actor.Kind.Normalize()),
+				SessionID:   strings.TrimSpace(actor.Scope.SessionID),
+				WorkspaceID: actorWorkspace,
+				Operator:    actor.Scope.Operator,
+			},
+			TargetWorkspaceID: strings.TrimSpace(workspaceID),
+			Seam:              workspaceaccess.SeamCoordination,
+		})
+		if err != nil || !decision.Allowed {
+			return taskpkg.ErrPermissionDenied
+		}
 	}
 	return nil
 }

@@ -24340,6 +24340,9 @@
                   "ttl_seconds": {
                     "format": "int64",
                     "type": "integer"
+                  },
+                  "workspace": {
+                    "type": "string"
                   }
                 },
                 "required": [

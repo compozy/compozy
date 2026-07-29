@@ -352,13 +352,20 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a registered cwd outside the active session workspace", func(t *testing.T) {
+	t.Run("Should defer a registered cross workspace cwd decision to the daemon", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
-			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
-				t.Fatal("CreateSession() called for a foreign workspace")
-				return SessionRecord{}, nil
+			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
+				if request.Workspace != "ws-foreign" {
+					t.Fatalf("CreateSession() workspace = %q, want ws-foreign", request.Workspace)
+				}
+				return SessionRecord{
+					ID:          "sess-foreign",
+					AgentName:   "coder",
+					WorkspaceID: request.Workspace,
+					State:       session.StateActive,
+				}, nil
 			},
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				return SessionRecord{
@@ -386,7 +393,7 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			}
 		}
 
-		_, _, err := executeRootCommand(
+		stdout, _, err := executeRootCommand(
 			t,
 			deps,
 			"session",
@@ -396,8 +403,11 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			"-o",
 			"json",
 		)
-		if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
-			t.Fatalf("executeRootCommand(session new --cwd foreign) error = %v, want ErrIdentityUnauthorized", err)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --cwd foreign) error = %v", err)
+		}
+		if !strings.Contains(stdout, `"resolution_source": "cross_workspace_attempt"`) {
+			t.Fatalf("session new output = %s, want cross workspace provenance", stdout)
 		}
 	})
 }

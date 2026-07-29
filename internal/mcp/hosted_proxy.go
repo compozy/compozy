@@ -473,18 +473,3 @@ func hostedResultFallback(result tools.ToolResult) string {
 	}
 	return "{}"
 }
-
-func hostedToolErrorMessage(err error) string {
-	if err == nil {
-		return ""
-	}
-	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
-		if len(toolErr.ReasonCodes) > 0 {
-			return string(toolErr.ReasonCodes[0]) + ": " + toolErr.Error()
-		}
-		if toolErr.Code != "" {
-			return string(toolErr.Code) + ": " + toolErr.Error()
-		}
-	}
-	return err.Error()
-}

@@ -12,6 +12,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -91,6 +92,48 @@ func TestValidatePermissionSubset(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should bind an authorized child to the foreign workspace after both validations", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		foreign, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(home) error = %v", err)
+		}
+		foreign.ID = "ws-other"
+		foreign.Name = "other"
+		h.resolver.upsert(&foreign)
+		policy := &recordingSpawnWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		h.manager.SetWorkspaceAccessPolicy(policy)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Workspace:       foreign.ID,
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(foreign) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if child.Info().WorkspaceID != foreign.ID {
+			t.Fatalf("child workspace = %q, want %q", child.Info().WorkspaceID, foreign.ID)
+		}
+		if policy.calls != 2 {
+			t.Fatalf("policy calls = %d, want both prepareSpawn validations", policy.calls)
+		}
+		for _, req := range policy.requests {
+			if req.Actor.SessionID != parent.ID || req.Seam != workspaceaccess.SeamSpawn {
+				t.Fatalf("policy request = %#v, want parent actor at spawn seam", req)
+			}
+		}
+	})
 }
 
 func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testing.T) {
@@ -718,6 +761,21 @@ type recordingSessionSpawnHooks struct {
 	preCreate      []hookspkg.SpawnPreCreatePayload
 	created        []hookspkg.SpawnCreatedPayload
 	preCreatePatch func(hookspkg.SpawnPreCreatePayload) hookspkg.SpawnPreCreatePayload
+}
+
+type recordingSpawnWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	calls    int
+	requests []workspaceaccess.Request
+}
+
+func (p *recordingSpawnWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.requests = append(p.requests, req)
+	return p.decision, nil
 }
 
 func (h *recordingSessionSpawnHooks) DispatchSpawnPreCreate(

@@ -122,6 +122,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 					},
 				}
 			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -138,8 +139,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("Registry.Call(loop_list foreign workspace) error = %v, want ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeDenied ||
-			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("tool error = %#v, want scope mismatch denial", toolErr)
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
+			t.Fatalf("tool error = %#v, want workspace access denial", toolErr)
 		}
 		if listCalled {
 			t.Fatal("ListLoops was called for a workspace outside caller scope")

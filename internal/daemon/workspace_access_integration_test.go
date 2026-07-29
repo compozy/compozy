@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	workspaceAccessIntegrationHome   = "01J10000000000000000000000"
-	workspaceAccessIntegrationTarget = "01J10000000000000000000001"
+	workspaceAccessIntegrationHome   = "ws_0000000000000000"
+	workspaceAccessIntegrationTarget = "ws_0000000000000001"
 )
 
 func TestWorkspaceAccessIntegration(t *testing.T) {

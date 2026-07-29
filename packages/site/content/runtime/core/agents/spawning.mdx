@@ -235,8 +235,9 @@ startup error; an HTTP/UDS session that was already accepted becomes durably `st
 
 An active agent can request a child session through `compozy spawn`. This is separate from normal
 session creation: Compozy validates the caller identity, requires a positive TTL, keeps the child inside
-the parent's workspace and coordination channel, denies coordinator-role children, and only permits
-permission subsets of the parent session.
+the parent's coordination channel, denies coordinator-role children, and only permits permission
+subsets of the parent session. The child inherits the parent workspace unless `--workspace` targets
+another one, which the workspace-access policy must authorize.
 
 Safe-spawn children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL,
 and permission metadata. In the MVP, max depth is `1` and the default max children per parent is

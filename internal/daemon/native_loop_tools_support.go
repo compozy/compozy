@@ -40,10 +40,7 @@ func retiredNativeLoopRuntimePath(raw json.RawMessage) (string, bool) {
 }
 
 func nativeLoopWorkspaceID(id toolspkg.ToolID, workspaceID string, scope toolspkg.Scope) (string, error) {
-	resolved, err := nativeCallerWorkspaceInput(id, workspaceID, scope)
-	if err != nil {
-		return "", err
-	}
+	resolved := nativeCallerWorkspaceInput(workspaceID, scope)
 	if strings.TrimSpace(resolved) == "" {
 		return "", nativeRequiredInputError(id, nativeWorkspaceInputKey)
 	}

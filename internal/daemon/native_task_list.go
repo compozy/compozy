@@ -42,14 +42,7 @@ func (n *daemonNativeTools) taskList(
 	}
 	query := input.query()
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
-		workspaceID, workspaceErr := nativeCallerWorkspaceInput(
-			req.ToolID,
-			input.WorkspaceID,
-			scope,
-		)
-		if workspaceErr != nil {
-			return toolspkg.ToolResult{}, workspaceErr
-		}
+		workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 		query.Scope = taskpkg.CatalogScopeWorkspace
 		query.WorkspaceID = workspaceID
 	}

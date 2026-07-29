@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // RegistryOption configures a runtime registry.
@@ -21,6 +23,8 @@ type RuntimeRegistry struct {
 	hooks                 HookRunner
 	approvalBridge        ApprovalBridge
 	callInputBinder       CallInputBinder
+	callInputAuthorizer   CallInputAuthorizer
+	workspaceAccess       workspaceaccess.Policy
 	processor             ResultProcessor
 	events                ToolEventSink
 	defaultMaxResultBytes int64
@@ -102,6 +106,20 @@ func WithApprovalBridge(bridge ApprovalBridge) RegistryOption {
 func WithCallInputBinder(binder CallInputBinder) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.callInputBinder = binder
+	}
+}
+
+// WithCallInputAuthorizer wires authorization of the final bound call input.
+func WithCallInputAuthorizer(authorizer CallInputAuthorizer) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.callInputAuthorizer = authorizer
+	}
+}
+
+// WithWorkspaceAccessPolicy wires workspace-envelope authorization into dispatch.
+func WithWorkspaceAccessPolicy(policy workspaceaccess.Policy) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.workspaceAccess = policy
 	}
 }
 

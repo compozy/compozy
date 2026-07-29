@@ -293,6 +293,7 @@ func newTaskRuntimeManager(
 		options,
 		taskpkg.WithParticipationResolver(resolver),
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
+		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
 	)
 	return taskpkg.NewManager(options...)
 }

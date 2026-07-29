@@ -3,7 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
-	"strings"
+	"slices"
 	"testing"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -113,6 +113,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ApprovalGrants: &recordingApprovalGrantStore{},
+			Workspaces:     nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-a"}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
@@ -127,9 +128,8 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		if !errors.As(err, &toolErr) {
 			t.Fatalf("Registry.Call(workspace override) error = %T, want *ToolError", err)
 		}
-		if !strings.Contains(toolErr.Message, "workspace") ||
-			!strings.Contains(toolErr.Message, "caller scope") {
-			t.Fatalf("workspace override ToolError message = %q, want workspace scope mismatch", toolErr.Message)
+		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
+			t.Fatalf("workspace override ToolError = %#v, want workspace access denial", toolErr)
 		}
 	})
 

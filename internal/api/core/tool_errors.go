@@ -116,6 +116,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 			partial := *toolErr.PartialResult
 			payload.PartialResult = &partial
 		}
+		if hasToolReason(toolErr.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
+			payload.Message = strings.TrimSpace(toolErr.Message)
+		}
 	case err != nil:
 		payload.Code = toolErrorCodeForStatus(status)
 		payload.Message = safeToolErrorMessage(status, payload.Code)

@@ -126,10 +126,7 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 	workspaceRef string,
 	scope toolspkg.Scope,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	ref, err := nativeCallerWorkspaceInput(id, workspaceRef, scope)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, err
-	}
+	ref := nativeCallerWorkspaceInput(workspaceRef, scope)
 	if ref == "" {
 		return workspacepkg.ResolvedWorkspace{}, nativeRequiredInputError(id, nativeWorkspaceInputKey)
 	}
@@ -147,28 +144,15 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 }
 
 func nativeCallerWorkspaceInput(
-	id toolspkg.ToolID,
 	value string,
 	scope toolspkg.Scope,
-) (string, error) {
+) string {
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	current := strings.TrimSpace(value)
-	if scope.Operator {
-		if current == "" {
-			return trusted, nil
-		}
-		return current, nil
+	if current != "" {
+		return current
 	}
-	if trusted == "" {
-		return current, nil
-	}
-	if current == "" {
-		return trusted, nil
-	}
-	if current != trusted {
-		return "", nativeScopeMismatchError(id, nativeWorkspaceInputKey)
-	}
-	return current, nil
+	return trusted
 }
 
 func nativeScopeMismatchError(id toolspkg.ToolID, field string) error {

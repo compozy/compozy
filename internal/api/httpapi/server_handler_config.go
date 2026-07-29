@@ -37,6 +37,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		settingsUpdate:     s.settingsUpdate,
 		vault:              s.vault,
 		workspaces:         s.workspaces,
+		workspaceAccess:    s.workspaceAccess,
 		onboarding:         s.onboarding,
 		agentCatalog:       s.agentCatalog,
 		agentSync:          s.agentSync,

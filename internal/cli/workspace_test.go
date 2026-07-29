@@ -436,15 +436,15 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 		envValue string
 	}{
 		{
-			name: "Should reject a positional workspace outside the active session",
+			name: "Should resolve a positional workspace outside the active session",
 			args: []string{"workspace", "info", "ws-foreign", "-o", "json"},
 		},
 		{
-			name: "Should reject a workspace flag outside the active session",
+			name: "Should resolve a workspace flag outside the active session",
 			args: []string{"workspace", "info", "--workspace", "ws-foreign", "-o", "json"},
 		},
 		{
-			name:     "Should reject a workspace env override outside the active session",
+			name:     "Should resolve a workspace env override outside the active session",
 			args:     []string{"workspace", "info", "-o", "json"},
 			envValue: "ws-foreign",
 		},
@@ -480,9 +480,20 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 				}
 			}
 
-			_, _, err := executeRootCommand(t, deps, tt.args...)
-			if !errors.Is(err, agentidentity.ErrIdentityUnauthorized) {
-				t.Fatalf("executeRootCommand(%v) error = %v, want ErrIdentityUnauthorized", tt.args, err)
+			stdout, _, err := executeRootCommand(t, deps, tt.args...)
+			if err != nil {
+				t.Fatalf("executeRootCommand(%v) error = %v", tt.args, err)
+			}
+			var decoded workspaceDetailOutput
+			if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+				t.Fatalf("json.Unmarshal(workspace info) error = %v", err)
+			}
+			if decoded.ResolutionSource != workspaceResolutionCrossAttempt {
+				t.Fatalf(
+					"ResolutionSource = %q, want %q",
+					decoded.ResolutionSource,
+					workspaceResolutionCrossAttempt,
+				)
 			}
 		})
 	}

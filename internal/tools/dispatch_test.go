@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type recordingHookRunner struct {
@@ -91,6 +93,21 @@ type approvalBridgeCall struct {
 
 type recordingCallInputBinder struct {
 	bind func(context.Context, Scope, Descriptor, json.RawMessage) (json.RawMessage, error)
+}
+
+type recordingDispatchWorkspaceAccessPolicy struct {
+	decision workspaceaccess.Decision
+	calls    int
+	last     workspaceaccess.Request
+}
+
+func (p *recordingDispatchWorkspaceAccessPolicy) Authorize(
+	_ context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	p.calls++
+	p.last = req
+	return p.decision, nil
 }
 
 var _ CallInputBinder = (*recordingCallInputBinder)(nil)
@@ -659,6 +676,59 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		requireToolReason(t, err, ReasonScopeMismatch)
 		if called {
 			t.Fatal("provider handle was called for spoofed request scope")
+		}
+	})
+
+	t.Run("Should authorize workspace envelope conflicts without prompting", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		policy := &recordingDispatchWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		registry := mustDispatchRegistry(t, provider, WithWorkspaceAccessPolicy(policy))
+		_, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			CallRequest{
+				ToolID:      descriptor.ID,
+				WorkspaceID: "ws-b",
+				Input:       json.RawMessage(`{"query":"x"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v", err)
+		}
+		if !called || policy.calls != 1 || policy.last.Seam != workspaceaccess.SeamTool {
+			t.Fatalf(
+				"called/policy/request = %v/%d/%#v, want one tool-seam authorization",
+				called,
+				policy.calls,
+				policy.last,
+			)
+		}
+
+		called = false
+		policy.decision = workspaceaccess.Decision{PromptEligible: true}
+		_, err = registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			CallRequest{
+				ToolID:      descriptor.ID,
+				WorkspaceID: "ws-b",
+				Input:       json.RawMessage(`{"query":"x"}`),
+			},
+		)
+		requireToolReason(t, err, ReasonWorkspaceAccessDenied)
+		if called {
+			t.Fatal("provider handle was called after workspace policy denial")
 		}
 	})
 
