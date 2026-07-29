@@ -149,7 +149,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 - **Files / Surfaces**: enumerated list of files/packages touched.
 - **Implementation Steps**: numbered, deterministic.
 - **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
-- **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/state.csv` scenario ids to reset to `untested` when user-visible behavior changes (flag, don't retest), OR `none — no user-visible behavior change`.
+- **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/scenarios/` ids to reset to `untested` and walk to a recorded verdict at completion when user-visible behavior changes (flag, then verify), OR `none — no user-visible behavior change`.
 - **Extensibility / Agent Manageability / Config Lifecycle**: affected extension hooks/manifests/skills/tools/resources/bundles/registries/bridge SDKs, CLI/HTTP/UDS agent operation paths, and `config.toml` keys/docs/tests, OR explicit `none — checked surfaces: ...` line.
 - **References**: `.resources/<competitor>/path` paths cited from the TechSpec.
 - **Completion Notes** (filled at execution time): commands run, coverage %, "not changed" disclaimers for `web/`/`packages/site`.

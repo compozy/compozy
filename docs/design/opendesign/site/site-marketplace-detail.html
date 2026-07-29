@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>/marketplace/extensions/dev-cycle — compozy.com restructure · Compozy</title>
+<link rel="stylesheet" href="site.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div id="cz-topnav"></div>
+
+<main class="mkd-wrap" data-od-id="marketplace-detail">
+
+  <div class="mh-context">
+    <nav class="mh-crumbs" aria-label="Breadcrumb">
+      <a class="mh-crumbs__product" href="site-marketplace.html">Marketplace</a>
+      <span class="mh-crumbs__sep"></span>
+      <a href="site-marketplace-list.html#extensions">Extensions</a>
+      <span class="mh-crumbs__sep"></span>
+      <span class="mh-crumbs__leaf">Dev Cycle</span>
+    </nav>
+  </div>
+
+  <div class="mk-card__top" style="margin-top:22px">
+    <span class="mk-spot__well"><i data-lucide="repeat" class="ic"></i></span>
+    <div class="mk-card__id">
+      <h1 class="mh-title" data-od-id="detail-title" style="margin-top:0;font-size:clamp(2rem,3.4vw,2.7rem)">Dev Cycle</h1>
+      <p class="mh-lead" style="margin-top:10px">First-party developer Loops for task delivery and review remediation. One install wires the whole spec → tasks → execute → review workflow into your runtime.</p>
+    </div>
+  </div>
+
+  <div class="mh-meta" data-od-id="detail-meta">
+    <span class="mh-meta__item"><code>v0.3.1</code></span>
+    <span class="mh-meta__item"><span class="pill"><i data-lucide="shield-check" class="ic"></i>Official</span></span>
+    <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg>Requires <strong>Compozy ≥ 0.0.9</strong></span>
+    <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>By <strong>Compozy</strong></span>
+  </div>
+
+  <!-- the one accent CTA on this screen -->
+  <div class="mkd-install" data-od-id="install-cta">
+    <div class="cmd"><span class="cmd__prompt">$</span><span class="cmd__text">compozy extension install compozy/dev-cycle</span>
+      <button class="act-btn act-btn--primary" type="button" data-copy="compozy extension install compozy/dev-cycle"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+  </div>
+
+  <!-- ============ What's inside — real resources from extension.json ============ -->
+  <section class="mkd-section" data-od-id="detail-contents">
+    <h2 class="mkd-section__head"><i data-lucide="package-open" class="ic"></i>What's inside</h2>
+
+    <p class="mk-feedflow__label" style="margin-top:18px">2 loops · compozy.loop/v1</p>
+    <div class="mkd-inv-grid">
+      <article class="mkd-loop" data-od-id="loop-software-delivery">
+        <p class="mkd-loop__name"><i data-lucide="repeat" class="ic"></i>software-delivery<span class="pill" data-mono>goal → act → verify</span></p>
+        <p class="mkd-loop__desc">Deliver pending Compozy task files for one slug with a configurable verification gate.</p>
+        <p class="mkd-loop__use"><strong>Use when</strong> you have authored tasks under <code style="font-family:var(--font-mono);font-size:0.85em">.compozy/tasks/&lt;slug&gt;</code> and want them shipped unattended.</p>
+      </article>
+      <article class="mkd-loop" data-od-id="loop-review-and-fix">
+        <p class="mkd-loop__name"><i data-lucide="repeat" class="ic"></i>review-and-fix<span class="pill" data-mono>goal → act → verify</span></p>
+        <p class="mkd-loop__desc">Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.</p>
+        <p class="mkd-loop__use"><strong>Use when</strong> you want the work on a task reviewed by an agent and every finding remediated until a round comes back clean.</p>
+      </article>
+    </div>
+
+    <p class="mk-feedflow__label" style="margin-top:26px">9 skills</p>
+    <div class="mkd-chips" data-od-id="dev-cycle-skills">
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-create-prd</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-create-techspec</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-create-tasks</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-execute-task</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-review-round</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-fix-reviews</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-final-verify</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>cy-workflow-memory</span>
+      <span class="mkd-chip"><i data-lucide="file-code" class="ic"></i>git-rebase</span>
+    </div>
+
+    <p class="mk-feedflow__label" style="margin-top:26px">3 agents</p>
+    <div class="mkd-chips" data-od-id="dev-cycle-agents">
+      <span class="mkd-chip"><i data-lucide="bot" class="ic"></i>code_implementer</span>
+      <span class="mkd-chip"><i data-lucide="bot" class="ic"></i>reviewer</span>
+      <span class="mkd-chip"><i data-lucide="bot" class="ic"></i>review_fixer</span>
+    </div>
+
+    <p class="mk-feedflow__label" style="margin-top:26px">1 tool</p>
+    <div class="kv" style="margin-top:10px">
+      <div class="kv__row"><span class="kv__k mono" style="font-family:var(--font-mono);color:var(--fg)">import_tasks</span><span class="kv__v">Parse a Compozy task manifest and task markdown files into ordered pending task payloads.<span class="kv__hint"><span class="pill">read-only</span> <span class="pill">model-visible</span> <span class="pill">concurrency-safe</span></span></span></div>
+    </div>
+  </section>
+
+  <!-- ============ Provenance ============ -->
+  <section class="mkd-section" data-od-id="detail-provenance">
+    <h2 class="mkd-section__head"><i data-lucide="shield-check" class="ic"></i>Provenance</h2>
+    <div class="kv">
+      <div class="kv__row"><span class="kv__k">Tier</span><span class="kv__v"><span class="pill" style="margin-left:0"><i data-lucide="shield-check" class="ic"></i>Official</span><span class="kv__hint">First-party, shipped from the Compozy repository.</span></span></div>
+      <div class="kv__row"><span class="kv__k">Author</span><span class="kv__v">Compozy</span></div>
+      <div class="kv__row"><span class="kv__k">Repository</span><span class="kv__v mono"><a href="https://github.com/compozy/compozy/tree/main/extensions/dev-cycle" style="color:var(--fg);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:0.22em">github.com/compozy/compozy · extensions/dev-cycle</a></span></div>
+      <div class="kv__row"><span class="kv__k">Min runtime</span><span class="kv__v mono">compozy ≥ 0.0.9</span></div>
+      <div class="kv__row"><span class="kv__k">Digest</span><span class="kv__v"><span class="mkd-pending"><i data-lucide="clock" class="ic"></i>sha256 assigned at packaging — compozy-catalog package | validate (catalog population workstream)</span></span></div>
+    </div>
+  </section>
+
+  <!-- ============ kind variant: MCP detail anatomy (real context7 entry) ============ -->
+  <section class="mkd-section" id="mcp-variant" data-od-id="mcp-variant">
+    <h2 class="mkd-section__head"><i data-lucide="plug" class="ic"></i>MCP detail — kind-specific blocks</h2>
+    <p class="mkd-section__note">An MCP detail page swaps the extension blocks for transport, environment, OAuth, and default scope. Rendered below with the real <code>context7</code> feed entry.</p>
+
+    <div class="spec-frame" data-od-id="mcp-anatomy">
+      <div class="spec-frame__bar">variant · /marketplace/mcp/context7</div>
+      <div class="spec-frame__body">
+        <div class="mk-card__top" style="margin-top:14px">
+          <span class="mk-card__well"><i data-lucide="plug" class="ic"></i></span>
+          <div class="mk-card__id">
+            <div class="mk-card__name"><span style="font-size:1rem;font-weight:600;letter-spacing:-0.014em;color:var(--fg)">Context7</span><span class="mk-card__ver">v3.2.3</span><span class="pill" data-mono>stdio</span></div>
+            <p class="mk-card__desc">Fetch current, version-specific library documentation and code examples.</p>
+          </div>
+        </div>
+
+        <div class="cmd" style="margin-top:14px"><span class="cmd__prompt">$</span><span class="cmd__text">compozy mcp install context7</span>
+          <button class="act-btn" type="button" data-copy="compozy mcp install context7"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+
+        <div class="kv" style="margin-top:14px">
+          <div class="kv__row"><span class="kv__k">Transport</span><span class="kv__v"><span class="pill" data-mono style="margin-left:0">stdio</span><span class="kv__hint">Runs locally as a child process the daemon supervises.</span></span></div>
+          <div class="kv__row"><span class="kv__k">Command</span><span class="kv__v mono">npx -y @upstash/context7-mcp@3.2.3</span></div>
+          <div class="kv__row"><span class="kv__k">Default scope</span><span class="kv__v">Global<span class="kv__hint">Available to every workspace after install. The feed sets the default; the runtime owns the scope at install.</span></span></div>
+        </div>
+
+        <table class="env-table" style="margin-top:14px">
+          <thead><tr><th>Variable</th><th>Prompt at install</th><th>Required</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td>CONTEXT7_API_KEY</td>
+              <td>Context7 API key (optional)</td>
+              <td>Optional</td>
+              <td><span class="pill"><i data-lucide="lock" class="ic"></i>Secret</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="mkd-section__note" style="margin-top:10px">Secret values are prompted at install — never stored in the catalog, never rendered on the page. Context7 does not use OAuth; the OAuth block renders only when the feed provides <code>oauth{…}</code>.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="cz-footer"></div>
+
+<script src="site.js"></script>
+<script>
+  czBoot({ nav: "marketplace" });
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
+import { FileCode2, Layers, MonitorCog, Network, Plug } from "lucide-react";
 import Image from "next/image";
-import { Database, FileCode2, Layers, Network, Plug } from "lucide-react";
 
 const cardBase =
   "group relative isolate min-w-0 overflow-hidden rounded-diagram border border-line bg-rail p-7 transition-colors hover:border-accent/40 sm:p-8 xl:p-10";
@@ -37,8 +37,8 @@ function RuntimeCard() {
     >
       <div className="absolute inset-x-0 bottom-0 top-[0%] pointer-events-none">
         <Image
-          src="/images/bento-illustrations/autonomy-v2.png"
-          alt="CompozyOS run lifecycle showing a task moving from queued to claimed, heartbeating, and complete."
+          src="/images/bento-illustrations/os-v2.png"
+          alt="CompozyOS shell routing several application windows through a central control surface."
           fill
           loading="lazy"
           decoding="async"
@@ -51,16 +51,16 @@ function RuntimeCard() {
 
       <div className="relative z-10 max-w-84">
         <div className={labelBase}>
-          <Database className="size-4" />
-          <span>Runtime</span>
+          <MonitorCog className="size-4" />
+          <span>OS Shell</span>
         </div>
         <h2
-          aria-label="Your agents. Under control."
+          aria-label="True OS. Every window managed."
           className="font-display text-site-bento-lg font-normal leading-tight text-fg sm:text-site-bento-xl xl:text-site-bento-2xl"
         >
-          Your agents.
+          True OS.
           <br />
-          <span className="text-accent">Under control.</span>
+          <span className="text-accent">Every window managed.</span>
         </h2>
         <span className="mt-5 block h-px w-8 bg-accent" aria-hidden="true" />
       </div>

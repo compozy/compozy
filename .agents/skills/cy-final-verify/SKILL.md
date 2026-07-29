@@ -106,7 +106,7 @@ Two companion gates below are **conditional**. Probe the agent skill roots (`.ag
 | Gate              | Requires                            | If missing                     |
 | ----------------- | ----------------------------------- | ------------------------------ |
 | Deslop Gate       | `deslop`                            | Skip deslop; proceed to verify |
-| QA Tracker Impact | both `qa-report` and `qa-execution` | Skip the QA impact flag        |
+| QA Tracker Impact | both `qa-report` and `qa-execution` | Skip the QA impact gate        |
 
 ## Deslop Gate (code-change tasks)
 
@@ -121,7 +121,7 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
 2. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
 3. Confirm zero errors, zero warnings, zero test failures in the output.
-4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact flag (see "QA Tracker Impact" below).
+4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact gate — flag and walk (see "QA Tracker Impact" below).
 5. Produce a Verification Report (see template below) with verdict PASS.
 6. Only then run `git commit`.
 
@@ -135,7 +135,7 @@ If the full pipeline has not passed in this session after the last code change, 
 
 ## QA Tracker Impact (living QA docs)
 
-**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), a completion claim also requires the impact flag — one question, ~1 minute:
+**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), a completion claim also requires the QA impact gate. One question first:
 
 > Does this diff change user-visible behavior (UI, CLI verb, API route, config key, user-facing copy)?
 
@@ -143,7 +143,13 @@ If the full pipeline has not passed in this session after the last code change, 
 - **New behavior:** add content-addressed scenario file(s) with `qa_status: untested`.
 - **Changed behavior:** reset the affected files' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
 
-**Flag, don't retest.** Running QA is the QA cycle's job — `untested` scenarios are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
+**Flag, then verify.** A flag without a walk piles up `untested` debt no cycle is guaranteed to clear. Walk every scenario this task added or reset — per the `qa-execution` contract (session setup, persona walk, fix loop, teardown) — before the completion claim:
+
+- **Walk passes:** record the verdict fields per the qa-report state schema (`qa_status: pass`, `evidence`, `last_report`).
+- **Walk fails:** the diff broke the promise — fix the production code and re-walk until it passes, recording bugs/fixes per the fix loop. A scenario left at `fail` makes the task verdict FAIL.
+- **Human-only step** (real payment, external email/SMS, product decision): record `blocked-verify`/`blocked-decision` with the blocker in the body — the only statuses that may remain unwalked.
+
+Completing with a flagged scenario still `untested` is a stale-verdict claim: the same dishonesty as claiming tests pass without running them. Cite the walked scenario ids and verdicts on the Verification Report's `QA impact:` line.
 
 ## Spec Contract Parity (PRD/spec workflows)
 
@@ -186,6 +192,7 @@ Warnings: [Any warnings, or "none"]
 Errors: [Any errors, or "none"]
 Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
 Visual contract: [named-reference UI: matrix rows passed/total + durable bundle root; otherwise "n/a — no named visual reference found"]
+QA impact: [walked scenario ids + verdicts; "none — no user-visible change"; or "n/a — no living QA tracker"]
 Verdict: PASS or FAIL
 ```
 

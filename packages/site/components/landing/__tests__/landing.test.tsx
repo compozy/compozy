@@ -1,6 +1,6 @@
+import { baseOptions } from "@/lib/layout.shared";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { baseOptions } from "@/lib/layout.shared";
 
 const remotionPlayerMocks = vi.hoisted(() => ({
   player: vi.fn(),
@@ -40,20 +40,20 @@ vi.mock("@remotion/player", () => ({
   },
 }));
 
-import { Hero } from "../hero";
-import { FeaturesSection } from "../features-section";
+import { Pill } from "@compozy/ui";
+import { AutonomyKernelSection } from "../autonomy-kernel-section";
 import { BentoSection } from "../bento-section";
+import { BridgesSection } from "../bridges-section";
+import { Comparison } from "../comparison";
+import { ExtensibilitySection } from "../extensibility-section";
+import { FeaturesSection } from "../features-section";
+import { FinalCta } from "../final-cta";
+import { Hero } from "../hero";
+import { InstallSection } from "../install-section";
+import { MemoryDreamSection } from "../memory-dream-section";
+import { NetworkSection } from "../network-section";
 import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provider-data";
 import { SupportedAgents } from "../supported-agents";
-import { BridgesSection } from "../bridges-section";
-import { ExtensibilitySection } from "../extensibility-section";
-import { NetworkSection } from "../network-section";
-import { MemoryDreamSection } from "../memory-dream-section";
-import { AutonomyKernelSection } from "../autonomy-kernel-section";
-import { InstallSection } from "../install-section";
-import { Comparison } from "../comparison";
-import { FinalCta } from "../final-cta";
-import { Pill } from "@compozy/ui";
 
 import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
@@ -156,14 +156,14 @@ describe("BentoSection", () => {
     expect(screen.getAllByRole("article")).toHaveLength(5);
     expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
 
-    for (const label of ["Runtime", "Network", "Bridges", "Memory", "Extensibility"]) {
+    for (const label of ["OS Shell", "Network", "Bridges", "Memory", "Extensibility"]) {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(screen.queryByText("Trace")).toBeNull();
     expect(screen.queryByText("Tool Registry")).toBeNull();
 
     for (const title of [
-      "Your agents. Under control.",
+      "True OS. Every window managed.",
       "Built-in network. Delegate. Deliver. Done.",
       "From anywhere. Into a session.",
       "Memory that compounds.",
@@ -173,11 +173,11 @@ describe("BentoSection", () => {
     }
   });
 
-  it("uses the five exported bento illustration assets including extensibility-v2", () => {
+  it("uses the five active bento illustration assets including extensibility-v2", () => {
     render(<BentoSection />);
 
     const expectedSources = [
-      "/images/bento-illustrations/autonomy-v2.png",
+      "/images/bento-illustrations/os-shell-v3.png",
       "/images/bento-illustrations/network-v2.png",
       "/images/bento-illustrations/bridges-v2.png",
       "/images/bento-illustrations/memory-v2.png",

@@ -20,7 +20,7 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 - [ ] **Status** starts as `pending` unless enriching an existing task tree with known completed work.
 - [ ] **Skills** are named in each task body, not in the master table, when a task requires explicit skill activation.
 - [ ] **Web/Docs Impact** subsection exists in every backend task body, even when "none" (run `cy-web-docs-impact` to populate).
-- [ ] **QA impact** line exists in every task body that changes user-visible behavior: names the `docs/qa/scenarios/*.md` ids to reset to `untested` (or new content-addressed files to add), or states `none — no user-visible behavior change`.
+- [ ] **QA impact** line exists in every task body that changes user-visible behavior: names the `docs/qa/scenarios/*.md` ids to reset to `untested` (or new content-addressed files to add) and walk to a recorded verdict at completion, or states `none — no user-visible behavior change`.
 - [ ] **Extensibility / Agent Manageability / Config Lifecycle** subsection exists in every feature-bearing backend task body, even when "none with evidence".
 
 ## Trailing QA pair

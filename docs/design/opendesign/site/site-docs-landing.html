@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>/docs overview — compozy.com restructure · Compozy</title>
+<link rel="stylesheet" href="site.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div id="cz-topnav"></div>
+
+<div class="dsh-body dsh-body--notoc" data-od-id="docs-landing-shell">
+
+  <nav class="dsh-sidebar" id="cz-sidebar" aria-label="Docs" data-od-id="docs-sidebar"></nav>
+
+  <main class="dsh-article" data-od-id="docs-landing">
+    <div class="dsh-article__inner dsh-article__inner--wide">
+
+      <div class="mh-context">
+        <nav class="mh-crumbs" aria-label="Breadcrumb">
+          <span class="mh-crumbs__product">CompozyOS</span>
+          <span class="mh-crumbs__sep"></span>
+          <span class="mh-crumbs__leaf">Docs</span>
+        </nav>
+        <div class="mh-actions">
+          <button class="act-btn" type="button" data-copy="curl https://compozy.com/llms.txt">
+            <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy llms.txt</button>
+          <button class="act-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>Open with AI
+            <svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+
+      <h1 class="mh-title" data-od-id="landing-title">CompozyOS documentation</h1>
+      <p class="mh-lead">CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.</p>
+
+      <div class="mh-meta" data-od-id="landing-meta">
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>Written for <strong>everyone who runs agent work</strong> — technical or not</span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>CLI and API references are <strong>generated from the runtime</strong></span>
+      </div>
+
+      <div class="doc-body">
+
+        <h2 id="choose-your-path">Choose your path</h2>
+        <p>The docs serve four jobs. Start with yours — every path stays inside the same system, so the deeper pages are always one link away.</p>
+
+        <div class="path-grid" data-od-id="choose-your-path">
+          <section class="path-card" data-od-id="path-run">
+            <p class="path-card__eyebrow">People running agent work</p>
+            <h3 class="path-card__title">Start and steer agent work</h3>
+            <p class="path-card__desc">Install the runtime, start your first session, and watch work finish. Sessions stay durable and inspectable — nothing lives in a throwaway terminal tab.</p>
+            <div class="path-card__links">
+              <a class="is-cta" href="#"><i data-lucide="rocket" class="ic"></i>Install the runtime</a>
+              <a href="#"><i data-lucide="play" class="ic"></i>Quick start</a>
+              <a href="#"><i data-lucide="bot" class="ic"></i>Your first agent</a>
+              <a href="#"><i data-lucide="app-window" class="ic"></i>The web UI</a>
+            </div>
+          </section>
+
+          <section class="path-card" data-od-id="path-build">
+            <p class="path-card__eyebrow">Agent &amp; runtime developers</p>
+            <h3 class="path-card__title">Build on the runtime</h3>
+            <p class="path-card__desc">Extensions, hooks, skills, tools, and SDKs plug into daemon-owned registries and public contracts. Anything the UI can do, an agent can do through CLI, HTTP, or UDS.</p>
+            <div class="path-card__links">
+              <a class="is-cta" href="#"><i data-lucide="puzzle" class="ic"></i>Build an extension</a>
+              <a href="#"><i data-lucide="file-code" class="ic"></i>Author a skill</a>
+              <a href="#"><i data-lucide="plug" class="ic"></i>Tools and toolsets</a>
+              <a href="#"><i data-lucide="terminal" class="ic"></i>CLI reference</a>
+            </div>
+          </section>
+
+          <section class="path-card" data-od-id="path-protocol">
+            <p class="path-card__eyebrow">Protocol implementers</p>
+            <h3 class="path-card__title">Implement compozy-network/v0</h3>
+            <p class="path-card__desc">The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting Compozy internals.</p>
+            <div class="path-card__links">
+              <a class="is-cta" href="#"><i data-lucide="network" class="ic"></i>Read the compozy-network/v0 spec</a>
+              <a href="#"><i data-lucide="mail" class="ic"></i>Envelope</a>
+              <a href="#"><i data-lucide="list" class="ic"></i>Message kinds</a>
+              <a href="#"><i data-lucide="badge-check" class="ic"></i>Conformance</a>
+            </div>
+          </section>
+
+          <section class="path-card" data-od-id="path-evaluate">
+            <p class="path-card__eyebrow">Evaluators</p>
+            <h3 class="path-card__title">See what ships today</h3>
+            <p class="path-card__desc">Real use cases and runnable examples, each grounded in a shipped mechanism and labeled with honest maturity. No roadmap dressed as product.</p>
+            <div class="path-card__links">
+              <a class="is-cta" href="#"><i data-lucide="workflow" class="ic"></i>Read the use cases</a>
+              <a href="site-example-page.html"><i data-lucide="flask-conical" class="ic"></i>Run an example</a>
+              <a href="site-marketplace.html"><i data-lucide="store" class="ic"></i>Browse the marketplace</a>
+            </div>
+          </section>
+        </div>
+
+        <h2 id="one-system">One system, not a stack of tools</h2>
+        <p>Everything in these docs shares one daemon-owned state: a task can start a session, permissions bound it, memory follows the workspace, and another agent can continue the work without rebuilding context by hand. <strong>Compozy Network</strong> — peer discovery, typed envelopes, receipts — is a subsystem of that same runtime, documented under its own group below with the protocol spec nested for implementers.</p>
+        <div class="doc-pre">
+          <div class="doc-pre__head"><svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>shell<button class="act-btn" type="button" data-copy="compozy daemon start"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <pre><span class="tok-c"># no Docker, no Postgres — one local binary</span>
+compozy daemon start</pre>
+        </div>
+
+        <h2 id="how-organized">How the docs are organized</h2>
+        <p>One sidebar, eight groups, ordered by journey: start, do, understand, automate, coordinate, extend, operate, look up. Task-oriented content sits above concepts; the generated references collapse to two rows until you need them.</p>
+
+        <div class="group-index" data-od-id="group-index">
+          <div class="group-row"><span class="group-row__name">Start here</span><p class="group-row__body"><a href="#">Getting started</a> and <a href="#">migration</a> — install, run the quick start, meet your first agent.</p></div>
+          <div class="group-row"><span class="group-row__name">Guides &amp; examples</span><p class="group-row__body">Task-first material: <a href="#">guides</a> for a job to be done, <a href="site-example-page.html">examples</a> you can run as shipped, and <a href="#">use cases</a> that show whole journeys.</p></div>
+          <div class="group-row"><span class="group-row__name">Core concepts</span><p class="group-row__body">The state model behind the work: <a href="#">sessions</a>, <a href="#">agents</a>, <a href="#">autonomy</a>, <a href="#">memory</a>, <a href="#">workspaces</a>, and <a href="#">sandbox</a>.</p></div>
+          <div class="group-row"><span class="group-row__name">Automation</span><p class="group-row__body">Work that runs without you: <a href="#">jobs, triggers, and webhooks</a>, goal-seeking <a href="#">Loops</a>, and chat <a href="#">bridges</a>.</p></div>
+          <div class="group-row"><span class="group-row__name">Compozy Network</span><p class="group-row__body"><a href="#">Using the network from Compozy</a>, with the <a href="#">compozy-network/v0 protocol spec</a> nested one level deeper for implementers.</p></div>
+          <div class="group-row"><span class="group-row__name">Extensibility</span><p class="group-row__body">How the system grows: the <a href="site-marketplace.html">marketplace</a>, <a href="#">skills</a>, <a href="#">tools</a>, <a href="#">resources</a>, <a href="#">extensions</a>, and <a href="#">hooks</a>.</p></div>
+          <div class="group-row"><span class="group-row__name">Operations</span><p class="group-row__body">Running the daemon well: <a href="#">operations</a> and every <a href="#">configuration</a> surface, from <code>config.toml</code> to file locations.</p></div>
+          <div class="group-row"><span class="group-row__name">Reference</span><p class="group-row__body">Generated from the runtime, never paraphrased: the <a href="#">CLI reference</a> and the <a href="#">API reference</a>.</p></div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<div id="cz-footer"></div>
+
+<script src="site.js"></script>
+<script>
+  czBoot({
+    nav: "docs",
+    wide: true,
+    sidebar: { active: "index", open: [] }
+  });
+</script>
+</body>
+</html>
