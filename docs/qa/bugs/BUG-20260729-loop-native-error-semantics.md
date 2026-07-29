@@ -1,6 +1,6 @@
 # BUG-20260729-loop-native-error-semantics: Native Loop errors discarded actionable recovery state
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -54,7 +54,7 @@ delete returned `schema_invalid`; HTTP and UDS returned 400.
   `tool_conflict/loop_version_conflict` with `partial_result.structured.current_version`. The same
   adapter now preserves typed control reasons such as `invalid_status_transition` and
   `terminal_loop_run` before applying status-based fallbacks.
-- **Fix commit:**
+- **Fix commit:** `103192e4`
 - **Regression test:** `internal/daemon/native_loop_tools_test.go`,
   `internal/daemon/loop_resources_test.go`, `internal/api/core/errors_test.go`, and
   `internal/api/core/loops_test.go`.
@@ -70,4 +70,5 @@ delete returned `schema_invalid`; HTTP and UDS returned 400.
 - The rebuilt stateful-control replay returned native
   `tool_invalid_input/invalid_status_transition` for repeated Pause, matching the domain reason
   exposed by HTTP and UDS; positive Pause, Resume, and Stop retained their successful contracts.
-- Status remains open until the correction has its one logical governed commit.
+- **Retested:** 2026-07-29 in the original isolated Loop catalog and stateful-control labs.
+- **Result:** Pass. Governed fix commit `103192e4`; original-persona native/HTTP/UDS replays green.

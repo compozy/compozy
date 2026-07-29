@@ -499,8 +499,8 @@
 | 398 | CH-untested-009-07-bruno | J-07 / TA-072 | Bruno | Feature Tour | Pass | 2026-07-29 | All 24 Loop OpenAPI/TS operations, statuses, enums, defaults, envelopes, events, and automation additions passed fresh drift/spec/typecheck gates. |
 | 399 | CH-untested-010-09-ada | J-09 / TA-073 | Ada | Feature Tour | Pass | 2026-07-29 | HTTP/UDS create/update/list/error parity and delegated Loop-run linkage passed with exact no-residue cleanup. |
 | 400 | CH-untested-010-09-ada | J-09 / TA-074 | Ada | Feature Tour | Pass | 2026-07-29 | Exact native toolset/availability, filtered counted pages, rich run receipts, scope denial, parity, and cleanup passed. |
-| 401 | CH-untested-008-07-ada | J-07 / TA-075 | Ada | Feature Tour | Pending | BUG-20260729-loop-native-error-semantics | Rebuilt native/HTTP/UDS replay passed; governed fix commit is still pending. |
-| 402 | CH-untested-008-07-ada | J-07 / TA-076 | Ada | Feature Tour | Pending | BUG-20260729-loop-native-error-semantics; BUG-20260729-loop-resume-restart-stuck | Native run/dry-run/status/runs/Pause/Resume/Stop and isolation passed after repair; the original candidate lost control reasons and left Resume after restart stuck without a coordinator. |
+| 401 | CH-untested-008-07-ada | J-07 / TA-075 | Ada | Feature Tour | Pass | BUG-20260729-loop-native-error-semantics | Governed fix `103192e4`; rebuilt native/HTTP/UDS CAS and read-only-source replay passed without mutation. |
+| 402 | CH-untested-008-07-ada | J-07 / TA-076 | Ada | Feature Tour | Pass | BUG-20260729-loop-native-error-semantics; BUG-20260729-loop-resume-restart-stuck | Governed fix `103192e4`; native run/dry-run/status/runs/Pause/Resume/Stop, restart recovery, and isolation passed after repair. |
 | 403 | CH-untested-008-07-ada | J-07 / TA-077 | Ada | Feature Tour | Pending | | |
 | 404 | CH-untested-008-07-ada | J-07 / TA-078 | Ada | Feature Tour | Pending | | |
 | 405 | CH-untested-008-07-ada | J-07 / TA-079 | Ada | Feature Tour | Pending | | |
@@ -1128,8 +1128,8 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
   passed, but the original native CAS and read-only-delete errors discarded actionable semantics and
   the HTTP/UDS delete status diverged from OpenAPI.
 - **Bugs filed/updated:** BUG-20260729-loop-native-error-semantics
-- **Scenarios settled:** TA-067 → pass; TA-075 remains failed/Pending until the repaired candidate
-  has its one logical governed commit. The original-persona replay itself is green.
+- **Scenarios settled:** TA-067 → pass; TA-075 → pass after governed fix `103192e4` and the green
+  original-persona replay.
 - **Paper cuts:** none
 - **Surprises:** The generated reason enum correctly co-shipped the two new codes; the combined
   OpenAPI/TypeScript files also contain earlier pending Loop/session contract updates from this QA run.
@@ -1182,9 +1182,9 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
   generic finisher wake without claiming next-generation identity.
 - **Bugs filed/updated:** BUG-20260729-loop-native-error-semantics;
   BUG-20260729-loop-resume-restart-stuck
-- **Scenarios settled:** TA-076 → fail/Pending until both repaired behaviors have governed commit
-  provenance. The rebuilt original-persona replay is green: paused generation 1 survived restart and
-  reached done generation 2 after native Resume.
+- **Scenarios settled:** TA-076 → pass after governed fix `103192e4`. The rebuilt original-persona
+  replay is green: paused generation 1 survived restart and reached done generation 2 after native
+  Resume.
 - **Paper cuts:** none
 - **Surprises:** Pre-reserving the deterministic generation-2 coordinator was also incorrect because
   the resumed coordinator first acts as generation 1's finisher. The generic wake preserves that
@@ -1192,6 +1192,18 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Suggested next charter:** after the requested main rebase, bootstrap a fresh isolated lab and
   continue TA-077 approval safety plus TA-078 terminal/result contracts.
 - **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-loop-native-controls-20260729-20260729-205221-682163-lab/qa-artifacts/qa/evidence/053-loop-native-controls`
+
+Compozy Impact Audit:
+
+- Native tools: no tool IDs or schemas changed; the existing Pause/Resume/Stop/Approve adapters now
+  preserve typed Loop reasons, with canonical native regressions and live receipts.
+- Extensibility and hooks: Loop service wiring gained a coordinator-reactivation option; extension,
+  hook, bundle, MCP-sidecar, and config lifecycle surfaces were checked and are unchanged.
+- Workspace data isolation: control state, decisions, and the generic finisher wake are transacted
+  under the requested `workspace_id`; a second workspace listed zero matching runs, and no cache,
+  event, SSE, HTTP, UDS, or native read leaked the repaired run.
+- Official Compozy skill: `skills/compozy/references/loops.md` documents the exact native control
+  reasons; no public command or tool ID changed.
 
 ## What Was Fixed
 
@@ -1302,5 +1314,5 @@ None identified yet.
 
 - **Exit gate (full automated suite):** pending
 - **Issues by user impact:** pending
-- **Coverage:** 65/452 scenarios settled; 387 Pending
+- **Coverage:** 67/452 scenarios settled; 385 Pending
 - **Verdict:** in progress — sixty-five scenarios passed; repaired root failures remain Pending until their governed fixes exist.

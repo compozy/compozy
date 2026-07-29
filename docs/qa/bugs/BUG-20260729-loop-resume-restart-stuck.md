@@ -1,6 +1,6 @@
 # BUG-20260729-loop-resume-restart-stuck: Native Resume after restart left Loop running without a coordinator
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Ada
@@ -49,7 +49,7 @@ all generation-1 outputs already succeeded and no coordinator available to finis
   decisions when applicable, performs the status CAS, and reserves one generic finisher wake without
   claiming a generation identity. After commit, the daemon wakes the existing task backstop; the
   finisher remains the sole owner of next-generation snapshot and task creation.
-- **Fix commit:**
+- **Fix commit:** `103192e4`
 - **Regression test:** `internal/daemon/loop_run_events_e2e_integration_test.go` owns the real
   pause → daemon restart → HTTP Resume → generation-2 terminal progression invariant.
 
@@ -62,4 +62,6 @@ all generation-1 outputs already succeeded and no coordinator available to finis
 - The rebuilt public replay preserved the paused generation-1 run across PID 67382 → 74307, native
   Resume returned `ok`, and status reached `done`, generation 2. HTTP and UDS detail bodies had the
   same SHA-256 digest; the daemon log contained no uniqueness or wake failure.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** 2026-07-29 in the original isolated stateful-control lab.
+- **Result:** Pass. Governed fix commit `103192e4`; public pause → restart → native Resume reached
+  done generation 2.
