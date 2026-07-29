@@ -45,9 +45,8 @@ type Manifest struct {
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
 	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Security             SecurityConfig              `toml:"security"                        json:"security"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
@@ -74,8 +73,8 @@ type CapabilitiesConfig struct {
 	Provides []string `toml:"provides,omitempty" json:"provides,omitempty"`
 }
 
-// ActionsConfig declares Host API methods the extension wants to call.
-type ActionsConfig struct {
+// PermissionsConfig declares Host API methods the extension wants to call.
+type PermissionsConfig struct {
 	Requires []string `toml:"requires,omitempty" json:"requires,omitempty"`
 }
 
@@ -87,11 +86,6 @@ type SubprocessConfig struct {
 	SecretEnv           map[string]string `toml:"secret_env,omitempty"            json:"secret_env,omitempty"`
 	HealthCheckInterval Duration          `toml:"health_check_interval,omitempty" json:"health_check_interval,omitempty"`
 	ShutdownTimeout     Duration          `toml:"shutdown_timeout,omitempty"      json:"shutdown_timeout,omitempty"`
-}
-
-// SecurityConfig declares the security grants the extension requests.
-type SecurityConfig struct {
-	Capabilities []string `toml:"capabilities,omitempty" json:"capabilities,omitempty"`
 }
 
 // BridgeConfig declares provider metadata for bridge-capable extensions.
@@ -210,9 +204,8 @@ type manifestDocument struct {
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
 	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Security             SecurityConfig              `toml:"security"                        json:"security"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 

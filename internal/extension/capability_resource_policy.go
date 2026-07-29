@@ -9,41 +9,26 @@ import (
 )
 
 type sourceTierPolicy struct {
-	allowAllActions  bool
-	allowAllSecurity bool
-	allowedActions   []string
-	allowedSecurity  []string
-	maxResourceScope resources.ResourceScopeKind
+	allowAllPermissions bool
+	allowedConsent      []string
+	maxResourceScope    resources.ResourceScopeKind
 }
 
 func sourcePolicy(source ExtensionSource) sourceTierPolicy {
 	switch source {
 	case SourceBundled, SourceUser, SourceWorkspace:
 		return sourceTierPolicy{
-			allowAllActions:  true,
-			allowAllSecurity: true,
-			maxResourceScope: sourceTierMaxScope(source),
+			allowAllPermissions: true,
+			maxResourceScope:    sourceTierMaxScope(source),
 		}
 	case SourceMarketplace:
 		return sourceTierPolicy{
-			allowedActions:   marketplaceActionCeiling(),
-			allowedSecurity:  slices.Clone(marketplaceSecurityCeiling),
+			allowedConsent:   slices.Clone(marketplaceConsentCeiling),
 			maxResourceScope: sourceTierMaxScope(source),
 		}
 	default:
 		return sourceTierPolicy{}
 	}
-}
-
-func marketplaceActionCeiling() []string {
-	actions := make([]string, 0, len(hostAPIMethodSecurityCapability))
-	for method, capability := range hostAPIMethodSecurityCapability {
-		if capabilityGranted(marketplaceSecurityCeiling, capability) {
-			actions = append(actions, method)
-		}
-	}
-	slices.Sort(actions)
-	return actions
 }
 
 func effectiveResourceGrants(

@@ -70,7 +70,7 @@ func testInitializeRequest() subprocess.InitializeRequest {
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-			GrantedActions: []extensionprotocol.HostAPIMethod{
+			GrantedPermissions: []extensionprotocol.HostAPIMethod{
 				extensionprotocol.HostAPIMethodBridgesInstancesList,
 				extensionprotocol.HostAPIMethodBridgesInstancesGet,
 				extensionprotocol.HostAPIMethodBridgesInstancesReportState,

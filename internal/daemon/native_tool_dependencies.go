@@ -68,7 +68,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionRegistry          *extensionpkg.Registry
 	Extensions                 func() core.ExtensionService
 	ExtensionRuntime           func() extensionRuntime
-	ExtensionMarket            compozyconfig.ExtensionsMarketplaceConfig
+	ExtensionConfig            compozyconfig.ExtensionsConfig
 	ExtensionSources           extensionMarketplaceSourceLoader
 	ExtensionEvents            store.EventSummaryStore
 	AgentSkills                agentSkillPublisher

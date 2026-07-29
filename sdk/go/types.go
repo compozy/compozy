@@ -103,8 +103,7 @@ type ExtensionDefinition struct {
 	Description         string             `json:"description,omitempty"`
 	MinCompozyVersion   string             `json:"min_compozy_version,omitempty"`
 	Capabilities        CapabilitiesConfig `json:"capabilities"`
-	Actions             ActionsConfig      `json:"actions"`
-	Security            SecurityConfig     `json:"security"`
+	Permissions         PermissionsConfig  `json:"permissions"`
 	SupportedHookEvents []string           `json:"supported_hook_events,omitempty"`
 	Metadata            map[string]string  `json:"metadata,omitempty"`
 }
@@ -114,14 +113,9 @@ type CapabilitiesConfig struct {
 	Provides []string `json:"provides,omitempty"`
 }
 
-// ActionsConfig lists required Host API methods.
-type ActionsConfig struct {
+// PermissionsConfig lists required Host API methods.
+type PermissionsConfig struct {
 	Requires []HostAPIMethod `json:"requires,omitempty"`
-}
-
-// SecurityConfig lists required security grants.
-type SecurityConfig struct {
-	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // InitializeRequest is the Compozy -> extension session contract request.
@@ -146,8 +140,7 @@ type InitializeExtension struct {
 // InitializeCapabilities carries runtime-granted capabilities.
 type InitializeCapabilities struct {
 	Provides              []string        `json:"provides"`
-	GrantedActions        []HostAPIMethod `json:"granted_actions"`
-	GrantedSecurity       []string        `json:"granted_security"`
+	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
 	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
 	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
 }
@@ -188,9 +181,8 @@ type InitializeExtensionInfo struct {
 
 // AcceptedCapabilities is the subset the extension accepted for this session.
 type AcceptedCapabilities struct {
-	Provides []string        `json:"provides"`
-	Actions  []HostAPIMethod `json:"actions"`
-	Security []string        `json:"security"`
+	Provides    []string        `json:"provides"`
+	Permissions []HostAPIMethod `json:"permissions"`
 }
 
 // InitializeSupports advertises optional protocol features.

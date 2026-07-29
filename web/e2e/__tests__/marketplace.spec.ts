@@ -2297,7 +2297,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
           sdk_name: "browser-e2e-fixture",
           sdk_version: "0.1.0"
         },
-        accepted_capabilities: { provides: ["tool.provider"], actions: [], security: [] },
+        accepted_capabilities: { provides: ["tool.provider"], permissions: [] },
         implemented_methods: ["health_check", "provide_tools", "tools/call", "shutdown"],
         supported_hook_events: [],
         supports: { health_check: true }

@@ -7,6 +7,7 @@ import (
 
 	"strings"
 
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -52,6 +53,16 @@ func validateInstallConfig(manifest *Manifest, checksum string, config *installC
 	}
 	if config == nil {
 		return "", errors.New("extension: install config is required")
+	}
+	if config.source != SourceBundled && providesCapability(
+		manifest.Capabilities.Provides,
+		extensionprotocol.CapabilityProvideBridgeAdapter,
+	) {
+		return "", &ManifestValidationError{
+			Field:   "capabilities.provides",
+			Value:   extensionprotocol.CapabilityProvideBridgeAdapter,
+			Message: "external bridge authoring is a planned follow-up",
+		}
 	}
 
 	sourceText := config.source.String()
@@ -114,7 +125,7 @@ func registryInstallInfo(
 ) ExtensionInfo {
 	installedAt := r.now().UTC()
 	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
-	actions := normalizeActionsConfig(resolvedManifest.Actions)
+	permissions := normalizePermissionsConfig(resolvedManifest.Permissions)
 	fallbackProvenance := ExtensionProvenance{
 		Slug:             dereferenceOptionalString(config.registrySlug),
 		InstalledFrom:    installedFromForSource(config.source),
@@ -138,7 +149,7 @@ func registryInstallInfo(
 		ManifestPath:  manifestPath,
 		InstalledAt:   installedAt,
 		Capabilities:  capabilities,
-		Actions:       actions,
+		Permissions:   permissions,
 		Checksum:      actualChecksum,
 		RegistrySlug:  config.registrySlug,
 		RegistryName:  config.registryName,
@@ -148,13 +159,13 @@ func registryInstallInfo(
 }
 
 func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, replaceExisting bool) error {
-	capabilitiesJSON, err := json.Marshal(info.Capabilities)
+	capabilitiesJSON, err := json.Marshal(info.Capabilities.Provides)
 	if err != nil {
 		return fmt.Errorf("extension: marshal capabilities for %q: %w", info.Name, err)
 	}
-	actionsJSON, err := json.Marshal(info.Actions)
+	permissionsJSON, err := json.Marshal(info.Permissions.Requires)
 	if err != nil {
-		return fmt.Errorf("extension: marshal actions for %q: %w", info.Name, err)
+		return fmt.Errorf("extension: marshal permissions for %q: %w", info.Name, err)
 	}
 	provenanceJSON, err := json.Marshal(info.Provenance)
 	if err != nil {
@@ -174,8 +185,8 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			source = excluded.source,
 			manifest_path = excluded.manifest_path,
 			installed_at = excluded.installed_at,
-			capabilities = excluded.capabilities,
-			actions = excluded.actions,
+			provides_json = excluded.provides_json,
+			permissions_json = excluded.permissions_json,
 			checksum = excluded.checksum,
 			registry_slug = excluded.registry_slug,
 			registry_name = excluded.registry_name,
@@ -194,7 +205,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		info.ManifestPath,
 		store.FormatTimestamp(info.InstalledAt),
 		string(capabilitiesJSON),
-		string(actionsJSON),
+		string(permissionsJSON),
 		info.Checksum,
 		nullableStringValue(info.RegistrySlug),
 		nullableStringValue(info.RegistryName),

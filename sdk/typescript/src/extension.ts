@@ -307,12 +307,10 @@ export class Extension {
     validateProtocolVersion(request);
 
     const requestedProvides = normalizeStringList(this.definition.capabilities?.provides);
-    const requestedActions = normalizeHostMethodList(this.definition.actions?.requires);
-    const requestedSecurity = normalizeStringList(this.definition.security?.capabilities);
+    const requestedPermissions = normalizeHostMethodList(this.definition.permissions?.requires);
 
     ensureSubset("provides", requestedProvides, request.capabilities.provides);
-    ensureSubset("actions", requestedActions, request.capabilities.granted_actions);
-    ensureSubset("security", requestedSecurity, request.capabilities.granted_security);
+    ensureSubset("permissions", requestedPermissions, request.capabilities.granted_permissions);
 
     const implementedMethods = this.getImplementedMethods();
     validateProvidedMethodCoverage(requestedProvides, implementedMethods);
@@ -327,8 +325,7 @@ export class Extension {
       },
       accepted_capabilities: {
         provides: requestedProvides,
-        actions: requestedActions,
-        security: requestedSecurity,
+        permissions: requestedPermissions,
       },
       implemented_methods: implementedMethods,
       supported_hook_events: this.getSupportedHookEvents(),

@@ -16,10 +16,12 @@ type SkillsConfig struct {
 	Marketplace             MarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
-// ExtensionsConfig controls extension marketplace discovery and install behavior.
+// ExtensionsConfig controls extension trust, sources, development, and resource policy.
 type ExtensionsConfig struct {
-	Marketplace ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
-	Resources   ExtensionsResourcesConfig   `toml:"resources,omitempty"`
+	Trust     ExtensionsTrustConfig     `toml:"trust"`
+	Sources   ExtensionsSourcesConfig   `toml:"sources"`
+	Dev       ExtensionsDevConfig       `toml:"dev"`
+	Resources ExtensionsResourcesConfig `toml:"resources,omitempty"`
 }
 
 // ExtensionsResourcesConfig controls resource publication policy for extensions.

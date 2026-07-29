@@ -31,7 +31,7 @@ func installExtension(
 			if err := extensionpkg.ValidateUnverifiedSideLoad(
 				prepared.Manifest.Name,
 				prepared.Path,
-				runtime.Config.Extensions.Marketplace.AllowUnverified,
+				runtime.Config.Extensions.Trust.AllowUnverified,
 				allowUnverified,
 			); err != nil {
 				return ExtensionRecord{}, err

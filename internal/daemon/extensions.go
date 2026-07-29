@@ -94,7 +94,7 @@ func (s *daemonExtensionService) Install(
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,
 		req.Path,
-		cfg.AllowUnverified,
+		cfg.Trust.AllowUnverified,
 		req.AllowUnverified,
 	); err != nil {
 		return contract.ExtensionPayload{}, err
@@ -166,7 +166,7 @@ func (s *daemonExtensionService) UpdateBatch(
 	}
 	req.InstalledBy = extensionInstalledBy(actor)
 	cfg := s.marketplaceConfig()
-	req.PolicyAllowsUnverified = cfg.AllowUnverified
+	req.PolicyAllowsUnverified = cfg.Trust.AllowUnverified
 	req.ResolveTrust = s.marketplaceTrustResolver()
 	req.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,

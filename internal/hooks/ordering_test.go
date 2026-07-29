@@ -18,13 +18,14 @@ func TestSortResolvedHooks(t *testing.T) {
 				hooks := []*ResolvedHook{
 					testResolvedHook("skill", HookSourceSkill, 0, HookSkillSourceUser),
 					testResolvedHook("agent", HookSourceAgentDefinition, 100, ""),
+					testResolvedHook("extension", HookSourceExtension, 300, ""),
 					testResolvedHook("config", HookSourceConfig, 500, ""),
 					testResolvedHook("native", HookSourceNative, 1000, ""),
 				}
 
 				SortResolvedHooks(hooks)
 
-				assertHookNames(t, hooks, []string{"native", "config", "agent", "skill"})
+				assertHookNames(t, hooks, []string{"native", "config", "extension", "agent", "skill"})
 			},
 		},
 		{
@@ -111,6 +112,7 @@ func TestDefaultHookPriority(t *testing.T) {
 	}{
 		{source: HookSourceNative, want: 1000},
 		{source: HookSourceConfig, want: 500},
+		{source: HookSourceExtension, want: 300},
 		{source: HookSourceAgentDefinition, want: 100},
 		{source: HookSourceSkill, want: 0},
 	}

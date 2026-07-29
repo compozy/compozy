@@ -8,14 +8,20 @@ import (
 
 func diffExtensionsSettings(current compozyconfig.ExtensionsConfig, desired compozyconfig.ExtensionsConfig) []string {
 	var changed []string
-	if current.Marketplace.Registry != desired.Marketplace.Registry {
-		changed = append(changed, "extensions.marketplace.registry")
+	if current.Trust.AllowUnverified != desired.Trust.AllowUnverified {
+		changed = append(changed, "extensions.trust.allow_unverified")
 	}
-	if current.Marketplace.BaseURL != desired.Marketplace.BaseURL {
-		changed = append(changed, "extensions.marketplace.base_url")
+	if current.Sources.GitHub.Enabled != desired.Sources.GitHub.Enabled {
+		changed = append(changed, "extensions.sources.github.enabled")
 	}
-	if current.Marketplace.AllowUnverified != desired.Marketplace.AllowUnverified {
-		changed = append(changed, "extensions.marketplace.allow_unverified")
+	if current.Sources.GitHub.BaseURL != desired.Sources.GitHub.BaseURL {
+		changed = append(changed, "extensions.sources.github.base_url")
+	}
+	if current.Sources.Git.Enabled != desired.Sources.Git.Enabled {
+		changed = append(changed, "extensions.sources.git.enabled")
+	}
+	if current.Dev.WatchInterval != desired.Dev.WatchInterval {
+		changed = append(changed, "extensions.dev.watch_interval")
 	}
 	if !reflect.DeepEqual(current.Resources.AllowedKinds, desired.Resources.AllowedKinds) {
 		changed = append(changed, "extensions.resources.allowed_kinds")
@@ -38,16 +44,24 @@ func applyExtensionsSettings(editor *compozyconfig.OverlayEditor, settings compo
 		value any
 	}{
 		{
-			path:  []string{sectionsExtensionsKey, sectionsMarketplaceKey, "registry"},
-			value: settings.Marketplace.Registry,
+			path:  []string{sectionsExtensionsKey, sectionsTrustKey, "allow_unverified"},
+			value: settings.Trust.AllowUnverified,
 		},
 		{
-			path:  []string{sectionsExtensionsKey, sectionsMarketplaceKey, "base_url"},
-			value: settings.Marketplace.BaseURL,
+			path:  []string{sectionsExtensionsKey, sectionsSourcesKey, sectionsGitHubKey, sectionsEnabledKey},
+			value: settings.Sources.GitHub.Enabled,
 		},
 		{
-			path:  []string{sectionsExtensionsKey, sectionsMarketplaceKey, "allow_unverified"},
-			value: settings.Marketplace.AllowUnverified,
+			path:  []string{sectionsExtensionsKey, sectionsSourcesKey, sectionsGitHubKey, "base_url"},
+			value: settings.Sources.GitHub.BaseURL,
+		},
+		{
+			path:  []string{sectionsExtensionsKey, sectionsSourcesKey, sectionsGitKey, "enabled"},
+			value: settings.Sources.Git.Enabled,
+		},
+		{
+			path:  []string{sectionsExtensionsKey, sectionsDevKey, "watch_interval"},
+			value: settings.Dev.WatchInterval.String(),
 		},
 		{
 			path:  []string{sectionsExtensionsKey, sectionsResourcesKey, "allowed_kinds"},
@@ -107,11 +121,19 @@ func applyExtensionsSettings(editor *compozyconfig.OverlayEditor, settings compo
 
 func cloneExtensionsConfig(value compozyconfig.ExtensionsConfig) compozyconfig.ExtensionsConfig {
 	return compozyconfig.ExtensionsConfig{
-		Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
-			Registry:        value.Marketplace.Registry,
-			BaseURL:         value.Marketplace.BaseURL,
-			AllowUnverified: value.Marketplace.AllowUnverified,
+		Trust: compozyconfig.ExtensionsTrustConfig{
+			AllowUnverified: value.Trust.AllowUnverified,
 		},
+		Sources: compozyconfig.ExtensionsSourcesConfig{
+			GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+				Enabled: value.Sources.GitHub.Enabled,
+				BaseURL: value.Sources.GitHub.BaseURL,
+			},
+			Git: compozyconfig.ExtensionsGitSourceConfig{
+				Enabled: value.Sources.Git.Enabled,
+			},
+		},
+		Dev: compozyconfig.ExtensionsDevConfig{WatchInterval: value.Dev.WatchInterval},
 		Resources: compozyconfig.ExtensionsResourcesConfig{
 			AllowedKinds: cloneAllowedKinds(value.Resources.AllowedKinds),
 			MaxScope:     value.Resources.MaxScope,

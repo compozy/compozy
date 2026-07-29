@@ -35,7 +35,7 @@ required = false
 schema = "compozy.bridge.linear"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/messages/ingest",
@@ -59,6 +59,3 @@ COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONC
 COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_LINEAR_LISTEN_ADDR}}"
 COMPOZY_BRIDGE_LINEAR_API_BASE_URL = "{{env:COMPOZY_BRIDGE_LINEAR_API_BASE_URL}}"
 COMPOZY_BRIDGE_LINEAR_TOKEN_URL = "{{env:COMPOZY_BRIDGE_LINEAR_TOKEN_URL}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]

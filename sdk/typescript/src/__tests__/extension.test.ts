@@ -38,8 +38,7 @@ function initializeFor(extension: Extension): InitializeRequest {
     },
     capabilities: {
       provides: extension.definition.capabilities?.provides ?? [],
-      granted_actions: extension.definition.actions?.requires ?? [],
-      granted_security: extension.definition.security?.capabilities ?? [],
+      granted_permissions: extension.definition.permissions?.requires ?? [],
       granted_resource_kinds: [],
       granted_resource_scopes: [],
     },
@@ -130,7 +129,7 @@ describe("Extension", () => {
       {
         name: "denied",
         version: "0.1.0",
-        actions: { requires: ["sessions/list"] },
+        permissions: { requires: ["sessions/list"] },
       },
       { transport: pair.extension }
     );
@@ -141,8 +140,7 @@ describe("Extension", () => {
         ...initializeFor(extension),
         capabilities: {
           provides: [],
-          granted_actions: [],
-          granted_security: [],
+          granted_permissions: [],
           granted_resource_kinds: [],
           granted_resource_scopes: [],
         },
@@ -170,8 +168,7 @@ describe("Extension", () => {
       name: "bridge-adapter",
       version: "0.1.0",
       capabilities: { provides: ["bridge.adapter"] },
-      actions: { requires: ["bridges/instances/get"] },
-      security: { capabilities: ["bridge.read"] },
+      permissions: { requires: ["bridges/instances/get"] },
     });
 
     extension.handle("bridges/deliver", async () => ({
@@ -183,8 +180,7 @@ describe("Extension", () => {
     });
 
     await harness.loadExtension(extension, {
-      grantedActions: ["bridges/instances/get"],
-      grantedSecurity: ["bridge.read"],
+      grantedPermissions: ["bridges/instances/get"],
       runtime: {
         bridge: {
           runtime_version: "1",
@@ -299,7 +295,7 @@ describe("Extension", () => {
     const extension = new Extension({
       name: "linear",
       version: "0.1.0",
-      actions: { requires: ["clarify/ask"] },
+      permissions: { requires: ["clarify/ask"] },
     });
 
     extension.tool<{ query: string }>(

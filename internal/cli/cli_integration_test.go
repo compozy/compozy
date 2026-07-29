@@ -1333,7 +1333,7 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
-	h.runner.cfg.Extensions.Marketplace.AllowUnverified = true
+	h.runner.cfg.Extensions.Trust.AllowUnverified = true
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	defer func() {
 		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
@@ -3833,7 +3833,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		registry:                         extRegistry,
 		manager:                          extManager,
 		marketplaceLoader:                d.extensionMarketplaceLoader(),
-		marketplacePolicyAllowUnverified: d.cfg.Extensions.Marketplace.AllowUnverified,
+		marketplacePolicyAllowUnverified: d.cfg.Extensions.Trust.AllowUnverified,
 		marketplaceTrust:                 d.extensionTrust,
 	}
 

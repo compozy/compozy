@@ -26,7 +26,7 @@ const legacyRegistryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS exte
 	manifest_path TEXT NOT NULL,
 	installed_at  TEXT NOT NULL,
 	capabilities  TEXT NOT NULL DEFAULT '{}',
-	actions       TEXT NOT NULL DEFAULT '{}',
+	permissions       TEXT NOT NULL DEFAULT '{}',
 	checksum      TEXT NOT NULL
 );`
 
@@ -35,8 +35,8 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 
 	env := newRegistryTestEnv(t)
 	dir, manifest, checksum := createRegistryTestExtension(t, "alpha-registry", registryManifestOptions{
-		capabilities: []string{"memory.backend", "prompt.provider"},
-		actions:      []string{"sessions/list", "observe/health"},
+		capabilities: []string{"memory.backend", "tool.provider"},
+		permissions:  []string{"sessions/list", "observe/health"},
 		extraFiles: map[string]string{
 			"skills/alpha.md": "# alpha\n",
 		},
@@ -72,8 +72,8 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 	if !reflect.DeepEqual(got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities)) {
 		t.Fatalf("Capabilities = %#v, want %#v", got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities))
 	}
-	if !reflect.DeepEqual(got.Actions, normalizeActionsConfig(manifest.Actions)) {
-		t.Fatalf("Actions = %#v, want %#v", got.Actions, normalizeActionsConfig(manifest.Actions))
+	if !reflect.DeepEqual(got.Permissions, normalizePermissionsConfig(manifest.Permissions)) {
+		t.Fatalf("Permissions = %#v, want %#v", got.Permissions, normalizePermissionsConfig(manifest.Permissions))
 	}
 	if got.Checksum != checksum {
 		t.Fatalf("Checksum = %q, want %q", got.Checksum, checksum)
@@ -86,6 +86,61 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 			got.RemoteVersion,
 		)
 	}
+}
+
+func TestRegistryInstallRejectsExternalBridgeAdapters(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	env := newRegistryTestEnv(t)
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "bridge-fixture"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[permissions]
+requires = ["bridges/messages/ingest"]
+
+[bridge]
+platform = "fixture"
+display_name = "Fixture"
+`)
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	checksum, err := ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		source ExtensionSource
+	}{
+		{name: "Should reject a user bridge adapter", source: SourceUser},
+		{name: "Should reject a workspace bridge adapter", source: SourceWorkspace},
+		{name: "Should reject a marketplace bridge adapter", source: SourceMarketplace},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := env.registry.Install(manifest, dir, checksum, WithInstallSource(tt.source))
+			if err == nil {
+				t.Fatalf("Install(source=%s) error = nil, want external bridge rejection", tt.source)
+			}
+			if !strings.Contains(err.Error(), "external bridge authoring is a planned follow-up") {
+				t.Fatalf("Install(source=%s) error = %v, want planned follow-up", tt.source, err)
+			}
+		})
+	}
+
+	t.Run("Should accept a bundled bridge adapter", func(t *testing.T) {
+		if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceBundled)); err != nil {
+			t.Fatalf("Install(source=bundled) error = %v", err)
+		}
+	})
 }
 
 func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
@@ -210,11 +265,11 @@ func TestRegistryListReturnsAllInstalledExtensions(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	alphaDir, alphaManifest, alphaChecksum := createRegistryTestExtension(t, "alpha", registryManifestOptions{
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
+		permissions:  []string{"sessions/list"},
 	})
 	betaDir, betaManifest, betaChecksum := createRegistryTestExtension(t, "beta", registryManifestOptions{
-		capabilities: []string{"prompt.provider"},
-		actions:      []string{"observe/health"},
+		capabilities: []string{"tool.provider"},
+		permissions:  []string{"observe/health"},
 	})
 
 	if err := env.registry.Install(alphaManifest, alphaDir, alphaChecksum); err != nil {
@@ -406,13 +461,13 @@ func TestRegistryUninstallMissingReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestRegistryCapabilitiesAndActionsJSONRoundTrip(t *testing.T) {
+func TestRegistryProvidesAndPermissionsJSONRoundTrip(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
 	env := newRegistryTestEnv(t)
 	dir, manifest, checksum := createRegistryTestExtension(t, "round-trip-registry", registryManifestOptions{
-		capabilities: []string{"agent.driver", "memory.backend", "prompt.provider"},
-		actions:      []string{"memory/recall", "observe/health", "sessions/list"},
+		capabilities: []string{"loop.watch_source", "memory.backend", "tool.provider"},
+		permissions:  []string{"memory/recall", "observe/health", "sessions/list"},
 	})
 
 	if err := env.registry.Install(manifest, dir, checksum); err != nil {
@@ -427,8 +482,8 @@ func TestRegistryCapabilitiesAndActionsJSONRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities)) {
 		t.Fatalf("Capabilities = %#v, want %#v", got.Capabilities, normalizeCapabilitiesConfig(manifest.Capabilities))
 	}
-	if !reflect.DeepEqual(got.Actions, normalizeActionsConfig(manifest.Actions)) {
-		t.Fatalf("Actions = %#v, want %#v", got.Actions, normalizeActionsConfig(manifest.Actions))
+	if !reflect.DeepEqual(got.Permissions, normalizePermissionsConfig(manifest.Permissions)) {
+		t.Fatalf("Permissions = %#v, want %#v", got.Permissions, normalizePermissionsConfig(manifest.Permissions))
 	}
 }
 
@@ -1087,7 +1142,7 @@ func (failingHash) BlockSize() int              { return 0 }
 
 type registryManifestOptions struct {
 	capabilities []string
-	actions      []string
+	permissions  []string
 	extraFiles   map[string]string
 }
 
@@ -1153,9 +1208,9 @@ func registryManifestTOML(name string, opts registryManifestOptions) string {
 		capabilities = []string{"memory.backend"}
 	}
 
-	actions := append([]string(nil), opts.actions...)
-	if len(actions) == 0 {
-		actions = []string{"sessions/list"}
+	permissions := append([]string(nil), opts.permissions...)
+	if len(permissions) == 0 {
+		permissions = []string{"sessions/list"}
 	}
 
 	return fmt.Sprintf(
@@ -1168,12 +1223,12 @@ min_compozy_version = "0.5.0"
 [capabilities]
 provides = %s
 
-[actions]
+[permissions]
 requires = %s
 `,
 		name,
 		tomlStringArray(capabilities),
-		tomlStringArray(actions),
+		tomlStringArray(permissions),
 	)
 }
 

@@ -202,13 +202,9 @@ func (s *Session) InitializeResponse() subprocess.InitializeResponse {
 
 	response := s.response
 	response.AcceptedCapabilities.Provides = append([]string(nil), response.AcceptedCapabilities.Provides...)
-	response.AcceptedCapabilities.Actions = append(
+	response.AcceptedCapabilities.Permissions = append(
 		[]extensionprotocol.HostAPIMethod(nil),
-		response.AcceptedCapabilities.Actions...,
-	)
-	response.AcceptedCapabilities.Security = append(
-		[]string(nil),
-		response.AcceptedCapabilities.Security...,
+		response.AcceptedCapabilities.Permissions...,
 	)
 	response.ImplementedMethods = append([]string(nil), response.ImplementedMethods...)
 	response.SupportedHookEvents = append([]string(nil), response.SupportedHookEvents...)

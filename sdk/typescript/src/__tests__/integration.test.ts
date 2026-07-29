@@ -316,8 +316,7 @@ describe("SDK integration", () => {
            name: "integration-ext",
            version: "0.1.0",
            capabilities: { provides: ["memory.backend"] },
-           actions: { requires: ["sessions/list"] },
-           security: { capabilities: ["memory.read", "memory.write", "session.read"] }
+           permissions: { requires: ["sessions/list"] }
          }
        );
        extension.handle("memory/store", async (_ctx, params) => ({ stored: params.key }));
@@ -356,8 +355,7 @@ describe("SDK integration", () => {
               extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
                 provides: ["memory.backend"],
-                granted_actions: ["sessions/list"],
-                granted_security: ["memory.read", "memory.write", "session.read"],
+                granted_permissions: ["sessions/list"],
                 granted_resource_kinds: [],
                 granted_resource_scopes: [],
               },
@@ -507,8 +505,7 @@ describe("SDK integration", () => {
               extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
                 provides: ["tool.provider"],
-                granted_actions: [],
-                granted_security: [],
+                granted_permissions: [],
                 granted_resource_kinds: [],
                 granted_resource_scopes: [],
               },

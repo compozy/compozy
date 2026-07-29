@@ -93,7 +93,7 @@ func configPathIsTrustRoot(path []string) bool {
 	case "extensions":
 		return true
 	case toolSurfaceMarketplaceKey:
-		return len(path) >= 3 && path[1] == "catalog" && path[2] == "base_url"
+		return len(path) >= 3 && path[1] == "catalog" && path[2] == configBaseURLKey
 	}
 	return false
 }

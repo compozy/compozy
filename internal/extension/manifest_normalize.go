@@ -46,9 +46,8 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		NetworkParticipation: d.NetworkParticipation.Normalize(),
 		Resources:            normalizeResourcesConfig(d.Resources),
 		Capabilities:         normalizeCapabilitiesConfig(d.Capabilities),
-		Actions:              normalizeActionsConfig(d.Actions),
+		Permissions:          normalizePermissionsConfig(d.Permissions),
 		Subprocess:           normalizeSubprocessConfig(d.Subprocess),
-		Security:             normalizeSecurityConfig(d.Security),
 		Bridge:               normalizeBridgeConfig(d.Bridge),
 	}
 	return manifest, nil
@@ -145,8 +144,8 @@ func normalizeCapabilitiesConfig(cfg CapabilitiesConfig) CapabilitiesConfig {
 	}
 }
 
-func normalizeActionsConfig(cfg ActionsConfig) ActionsConfig {
-	return ActionsConfig{
+func normalizePermissionsConfig(cfg PermissionsConfig) PermissionsConfig {
+	return PermissionsConfig{
 		Requires: normalizeStrings(cfg.Requires),
 	}
 }
@@ -159,12 +158,6 @@ func normalizeSubprocessConfig(cfg SubprocessConfig) SubprocessConfig {
 		SecretEnv:           normalizeStringMap(cfg.SecretEnv),
 		HealthCheckInterval: cfg.HealthCheckInterval,
 		ShutdownTimeout:     cfg.ShutdownTimeout,
-	}
-}
-
-func normalizeSecurityConfig(cfg SecurityConfig) SecurityConfig {
-	return SecurityConfig{
-		Capabilities: normalizeStrings(cfg.Capabilities),
 	}
 }
 

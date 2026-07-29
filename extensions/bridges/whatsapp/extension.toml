@@ -30,7 +30,7 @@ required = true
 schema = "compozy.bridge.whatsapp"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/messages/ingest",
@@ -53,6 +53,3 @@ COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PA
 COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
 COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR}}"
 COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL = "{{env:COMPOZY_BRIDGE_WHATSAPP_API_BASE_URL}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]

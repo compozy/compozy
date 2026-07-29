@@ -46,7 +46,6 @@ const (
 	defaultHealthPollFloor         = 50 * time.Millisecond
 	defaultHealthPollCeiling       = time.Second
 	defaultSubprocessSignalGrace   = 10 * time.Second
-	extensionHookSource            = hookspkg.HookSourceConfig
 	manifestFileExtTOML            = ".toml"
 	manifestFileExtJSON            = ".json"
 )
@@ -163,7 +162,7 @@ type Extension struct {
 	Bundles               []BundleSpec
 	Skills                []*skillspkg.Skill
 	Loops                 []looppkg.ResourceSpec
-	GrantedActions        []string
+	GrantedPermissions    []string
 	GrantedSecurity       []string
 	GrantedResourceKinds  []resources.ResourceKind
 	GrantedResourceScopes []resources.ResourceScopeKind
@@ -180,7 +179,7 @@ type managedExtension struct {
 	bundles               []BundleSpec
 	skills                []*skillspkg.Skill
 	loops                 []looppkg.ResourceSpec
-	grantedActions        []string
+	grantedPermissions    []string
 	grantedSecurity       []string
 	grantedResourceKinds  []resources.ResourceKind
 	grantedResourceScopes []resources.ResourceScopeKind

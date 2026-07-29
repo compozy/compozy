@@ -90,9 +90,8 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
     {
       name: "prompt-enhancer",
       version: "0.1.0",
-      capabilities: { provides: ["prompt.provider"] },
-      actions: { requires: ["sessions/list"] },
-      security: { capabilities: ["session.read"] },
+      capabilities: { provides: [] },
+      permissions: { requires: ["sessions/list"] },
       supported_hook_events: ["prompt.post_assemble"],
     },
     options

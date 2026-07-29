@@ -24,7 +24,7 @@ type daemonExtensionService struct {
 	homePaths          compozyconfig.HomePaths
 	logger             *slog.Logger
 	now                func() time.Time
-	marketplace        compozyconfig.ExtensionsMarketplaceConfig
+	extensionConfig    compozyconfig.ExtensionsConfig
 	marketplaceLoader  extensionMarketplaceSourceLoader
 	marketplaceCatalog marketplacepkg.Service
 	eventWriter        store.EventSummaryStore
@@ -35,11 +35,11 @@ var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
 type daemonExtensionServiceOption func(*daemonExtensionService)
 
 func withDaemonExtensionMarketplace(
-	cfg compozyconfig.ExtensionsMarketplaceConfig,
+	cfg compozyconfig.ExtensionsConfig,
 	loader extensionMarketplaceSourceLoader,
 ) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
-		service.marketplace = cfg
+		service.extensionConfig = cfg
 		service.marketplaceLoader = loader
 	}
 }
@@ -100,14 +100,14 @@ func newDaemonExtensionService(
 	return service
 }
 
-func (s *daemonExtensionService) marketplaceConfig() compozyconfig.ExtensionsMarketplaceConfig {
+func (s *daemonExtensionService) marketplaceConfig() compozyconfig.ExtensionsConfig {
 	s.marketplaceMu.RLock()
 	defer s.marketplaceMu.RUnlock()
-	return s.marketplace
+	return s.extensionConfig
 }
 
-func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg compozyconfig.ExtensionsMarketplaceConfig) {
+func (s *daemonExtensionService) reconcileMarketplaceConfig(cfg compozyconfig.ExtensionsConfig) {
 	s.marketplaceMu.Lock()
-	s.marketplace = cfg
+	s.extensionConfig = cfg
 	s.marketplaceMu.Unlock()
 }

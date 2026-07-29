@@ -1022,7 +1022,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		cfg.Extensions.Marketplace.AllowUnverified = true
+		cfg.Extensions.Trust.AllowUnverified = false
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
 			SectionRequest:  SectionRequest{Section: SectionHooksExtensions},
 			HooksExtensions: &cfg.Extensions,
@@ -1040,8 +1040,8 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ActiveConfig() error = %v", err)
 		}
-		if !active.Extensions.Marketplace.AllowUnverified {
-			t.Fatal("ActiveConfig() extension side-load policy = false, want true")
+		if active.Extensions.Trust.AllowUnverified {
+			t.Fatal("ActiveConfig() extension trust policy = true, want false")
 		}
 	})
 }

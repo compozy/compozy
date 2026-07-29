@@ -87,7 +87,7 @@ export interface CapabilitiesConfig {
   provides?: string[];
 }
 
-export interface ActionsConfig {
+export interface PermissionsConfig {
   requires?: HostAPIMethod[];
 }
 
@@ -99,10 +99,6 @@ export interface SubprocessConfig {
   shutdown_timeout?: string;
 }
 
-export interface SecurityConfig {
-  capabilities?: string[];
-}
-
 export interface ExtensionManifest {
   name: string;
   version: string;
@@ -110,20 +106,13 @@ export interface ExtensionManifest {
   min_compozy_version?: string;
   resources?: ResourcesConfig;
   capabilities?: CapabilitiesConfig;
-  actions?: ActionsConfig;
+  permissions?: PermissionsConfig;
   subprocess?: SubprocessConfig;
-  security?: SecurityConfig;
 }
 
 export interface ExtensionDefinition extends Pick<
   ExtensionManifest,
-  | "name"
-  | "version"
-  | "description"
-  | "min_compozy_version"
-  | "capabilities"
-  | "actions"
-  | "security"
+  "name" | "version" | "description" | "min_compozy_version" | "capabilities" | "permissions"
 > {
   supported_hook_events?: HookEvent[];
 }

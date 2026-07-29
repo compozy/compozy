@@ -80,7 +80,7 @@ func TestClassifyPath(t *testing.T) {
 		},
 		{
 			name:          "Should classify extension side-load policy as live",
-			path:          "extensions.marketplace.allow_unverified",
+			path:          "extensions.trust.allow_unverified",
 			wantLifecycle: Live,
 			wantDiffClass: DiffClassLive,
 		},
@@ -98,7 +98,7 @@ func TestClassifyPath(t *testing.T) {
 		},
 		{
 			name:          "Should keep extension registry changes restart required",
-			path:          "extensions.marketplace.registry",
+			path:          "extensions.sources.github.enabled",
 			wantLifecycle: RestartRequired,
 			wantDiffClass: DiffClassRestartRequired,
 		},

@@ -347,10 +347,17 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	}
 
 	if _, err := extensionsConfigFromPayload(contract.SettingsExtensionsConfigPayload{
-		Marketplace: contract.SettingsExtensionMarketplacePayload{
-			Registry:        "github",
+		Trust: contract.SettingsExtensionTrustPayload{
 			AllowUnverified: true,
 		},
+		Sources: contract.SettingsExtensionSourcesPayload{
+			GitHub: contract.SettingsExtensionGitHubSourcePayload{
+				Enabled: true,
+				BaseURL: "https://api.github.com",
+			},
+			Git: contract.SettingsExtensionGitSourcePayload{Enabled: true},
+		},
+		Dev: contract.SettingsExtensionDevPayload{WatchInterval: "2s"},
 		Resources: contract.SettingsExtensionResourcesPayload{
 			AllowedKinds: []string{string(resources.ResourceKind("tool"))},
 			MaxScope:     resources.ResourceScopeKindWorkspace,

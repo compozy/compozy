@@ -93,13 +93,16 @@ func (m *Manifest) Validate() error {
 	if err := validateDottedIdentifiers("capabilities.provides", m.Capabilities.Provides, false); err != nil {
 		return err
 	}
+	if err := validateProvideCapabilities(m.Capabilities.Provides); err != nil {
+		return err
+	}
 	if err := m.validateModelSourceCapability(); err != nil {
 		return err
 	}
-	if err := validateSlashIdentifiers("actions.requires", m.Actions.Requires); err != nil {
+	if err := validateSlashIdentifiers("permissions.requires", m.Permissions.Requires); err != nil {
 		return err
 	}
-	if err := validateDottedIdentifiers("security.capabilities", m.Security.Capabilities, true); err != nil {
+	if err := validatePermissionMethods(m.Permissions.Requires); err != nil {
 		return err
 	}
 	if err := m.validateBridgeAdapterCapability(); err != nil {
@@ -234,8 +237,12 @@ func loadManifestTOML(path string) (*Manifest, error) {
 	}
 
 	var doc manifestDocument
-	if _, err := toml.Decode(string(data), &doc); err != nil {
+	meta, err := toml.Decode(string(data), &doc)
+	if err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
+	}
+	if err := rejectLegacyManifestTOML(meta.Undecoded()); err != nil {
+		return nil, err
 	}
 
 	manifest, err := doc.toManifest()
@@ -255,6 +262,9 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	}
 
 	var doc manifestDocument
+	if err := rejectLegacyManifestJSON(data); err != nil {
+		return nil, err
+	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
@@ -267,4 +277,39 @@ func loadManifestJSON(path string) (*Manifest, error) {
 		return nil, err
 	}
 	return &manifest, nil
+}
+
+func rejectLegacyManifestTOML(keys []toml.Key) error {
+	for _, key := range keys {
+		if len(key) == 0 || (key[0] != legacyManifestActionsKey && key[0] != legacyManifestSecurityKey) {
+			continue
+		}
+		return legacyManifestSectionError(key[0])
+	}
+	return nil
+}
+
+func rejectLegacyManifestJSON(data []byte) error {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil
+	}
+	for _, section := range []string{legacyManifestActionsKey, legacyManifestSecurityKey} {
+		if _, ok := root[section]; ok {
+			return legacyManifestSectionError(section)
+		}
+	}
+	return nil
+}
+
+const (
+	legacyManifestActionsKey  = "actions"
+	legacyManifestSecurityKey = "security"
+)
+
+func legacyManifestSectionError(section string) error {
+	return &ManifestValidationError{
+		Field:   section,
+		Message: fmt.Sprintf("[%s] was removed; use [permissions]", section),
+	}
 }

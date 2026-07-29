@@ -27,22 +27,19 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		method   string
-		params   json.RawMessage
-		security []string
+		name   string
+		method string
+		params json.RawMessage
 	}{
 		{
-			name:     "ShouldRejectReadMethodWithoutNetworkRead",
-			method:   string(extensioncontract.HostAPIMethodNetworkStatus),
-			params:   json.RawMessage(`{}`),
-			security: []string{"network.write"},
+			name:   "ShouldRejectReadMethodWithoutNetworkRead",
+			method: string(extensioncontract.HostAPIMethodNetworkStatus),
+			params: json.RawMessage(`{}`),
 		},
 		{
-			name:     "ShouldRejectUsageWithoutNetworkRead",
-			method:   string(extensioncontract.HostAPIMethodNetworkUsage),
-			params:   json.RawMessage(`{"workspace_id":"ws-host-network"}`),
-			security: []string{"network.write"},
+			name:   "ShouldRejectUsageWithoutNetworkRead",
+			method: string(extensioncontract.HostAPIMethodNetworkUsage),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network"}`),
 		},
 		{
 			name:   "ShouldRejectSendWithoutNetworkWrite",
@@ -56,7 +53,6 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 				"kind":"say",
 				"body":{"text":"hello"}
 			}`),
-			security: []string{"network.read"},
 		},
 		{
 			name:   "ShouldRejectDirectResolveWithoutNetworkWrite",
@@ -67,7 +63,6 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 				"session_id":"sess-local",
 				"peer_id":"peer.remote"
 			}`),
-			security: []string{"network.read"},
 		},
 	}
 
@@ -76,10 +71,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 			t.Parallel()
 
 			handler, checker := newHostAPINetworkTestHandler(t, &hostAPINetworkServiceStub{}, nil)
-			checker.Register("ext-network", SourceUser, &Manifest{
-				Actions:  ActionsConfig{Requires: []string{tt.method}},
-				Security: SecurityConfig{Capabilities: append([]string(nil), tt.security...)},
-			})
+			checker.Register("ext-network", SourceUser, &Manifest{})
 
 			_, err := handler.Handle(testutil.Context(t), "ext-network", tt.method, tt.params)
 			assertCapabilityDenied(t, err, tt.method)
@@ -240,8 +232,7 @@ func TestHostAPIHandlerNetworkSendShouldRejectLocalSession(t *testing.T) {
 			},
 		}
 		checker.Register("ext-network", SourceUser, &Manifest{
-			Actions:  ActionsConfig{Requires: []string{string(extensioncontract.HostAPIMethodNetworkSend)}},
-			Security: SecurityConfig{Capabilities: []string{"network.write"}},
+			Permissions: PermissionsConfig{Requires: []string{string(extensioncontract.HostAPIMethodNetworkSend)}},
 		})
 
 		_, err := handler.Handle(
@@ -1072,15 +1063,14 @@ func newAuthorizedHostAPINetworkHandler(
 	t testing.TB,
 	service hostAPINetworkService,
 	networkStore store.NetworkConversationStore,
-	actions []string,
-	security []string,
+	permissions []string,
+	_ []string,
 ) (*HostAPIHandler, *CapabilityChecker) {
 	t.Helper()
 
 	handler, checker := newHostAPINetworkTestHandler(t, service, networkStore)
 	checker.Register("ext-network", SourceUser, &Manifest{
-		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
-		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
+		Permissions: PermissionsConfig{Requires: append([]string(nil), permissions...)},
 	})
 	return handler, checker
 }

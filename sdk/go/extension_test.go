@@ -684,8 +684,7 @@ func initializeParams(name string) map[string]any {
 		},
 		"capabilities": map[string]any{
 			"provides":                []string{"tool.provider"},
-			"granted_actions":         []string{},
-			"granted_security":        []string{},
+			"granted_permissions":     []string{},
 			"granted_resource_kinds":  []string{},
 			"granted_resource_scopes": []string{},
 		},

@@ -53,7 +53,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		Enabled:       ext.Info.Enabled,
 		State:         extensionState(ext.Info, ext.Status, daemonRunning),
 		Capabilities:  append([]string(nil), ext.Info.Capabilities.Provides...),
-		Actions:       append([]string(nil), ext.Info.Actions.Requires...),
+		Permissions:   append([]string(nil), ext.Info.Permissions.Requires...),
 		RequiresEnv:   requiresEnv,
 		MissingEnv:    missingEnv,
 		PID:           ext.Status.PID,
@@ -70,7 +70,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 }
 
 func extensionType(manifest *Manifest, info ExtensionInfo) string {
-	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Actions.Requires) > 0 {
+	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Permissions.Requires) > 0 {
 		return describeSubprocessKey
 	}
 	return describeResourceKey
@@ -101,7 +101,7 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 	}
 	if status.Active {
 		if status.Healthy ||
-			(!requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0) {
+			(!requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Permissions.Requires) == 0) {
 			return extensionHealthHealthy
 		}
 		return extensionHealthUnhealthy
@@ -109,7 +109,7 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 	if status.LastError != "" {
 		return extensionHealthUnhealthy
 	}
-	if !requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0 &&
+	if !requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Permissions.Requires) == 0 &&
 		status.Registered {
 		return extensionHealthHealthy
 	}

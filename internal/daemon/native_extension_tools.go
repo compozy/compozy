@@ -34,7 +34,7 @@ var (
 
 type extensionMarketplaceSourceLoader func(
 	context.Context,
-	compozyconfig.ExtensionsMarketplaceConfig,
+	compozyconfig.ExtensionsConfig,
 ) ([]registrypkg.Source, error)
 
 type extensionNameInput struct {
@@ -351,7 +351,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		n.deps.HomePaths,
 		nil,
 		nil,
-		withDaemonExtensionMarketplace(n.deps.ExtensionMarket, n.deps.ExtensionSources),
+		withDaemonExtensionMarketplace(n.deps.ExtensionConfig, n.deps.ExtensionSources),
 		withDaemonExtensionEventWriter(n.deps.ExtensionEvents),
 	).(*daemonExtensionService)
 	if !ok {
@@ -376,19 +376,16 @@ func (n *daemonNativeTools) extensionDependency() core.ExtensionService {
 
 func defaultDaemonExtensionMarketplaceSourceLoader(
 	_ context.Context,
-	cfg compozyconfig.ExtensionsMarketplaceConfig,
+	cfg compozyconfig.ExtensionsConfig,
 ) ([]registrypkg.Source, error) {
-	registryName := strings.ToLower(strings.TrimSpace(cfg.Registry))
-	if registryName == "" && strings.TrimSpace(cfg.BaseURL) == "" {
+	github := cfg.Sources.GitHub
+	if !github.Enabled {
 		return nil, errExtensionMarketplaceNotConfigured
 	}
-
-	switch registryName {
-	case extensionRegistryGitHub:
-		return []registrypkg.Source{registrygithub.NewClient(cfg.BaseURL)}, nil
-	default:
-		return nil, fmt.Errorf("%w: %q", errExtensionRegistryUnsupported, cfg.Registry)
+	if strings.TrimSpace(github.BaseURL) == "" {
+		return nil, fmt.Errorf("%w: GitHub source base URL is required", errExtensionMarketplaceNotConfigured)
 	}
+	return []registrypkg.Source{registrygithub.NewClient(github.BaseURL)}, nil
 }
 
 func (i extensionInstallInput) installSource() (string, error) {

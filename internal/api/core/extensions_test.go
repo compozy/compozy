@@ -331,7 +331,7 @@ func TestInstallExtensionReturnsPolicyDiagnosticOverHTTP(t *testing.T) {
 		for _, want := range []string{
 			contract.CodeExtensionUnverifiedPolicyBlocked,
 			"Settings › Extensions",
-			"extensions.marketplace.allow_unverified",
+			"extensions.trust.allow_unverified",
 		} {
 			if !strings.Contains(response.Body.String(), want) {
 				t.Fatalf("body = %q, want %q", response.Body.String(), want)

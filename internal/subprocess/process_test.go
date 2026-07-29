@@ -619,13 +619,13 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			wantSub: "unsupported protocol version",
 		},
 		{
-			name: "action-outside-grant",
+			name: "permission-outside-grant",
 			mutate: func(response *InitializeResponse) {
-				response.AcceptedCapabilities.Actions = []extensionprotocol.HostAPIMethod{
+				response.AcceptedCapabilities.Permissions = []extensionprotocol.HostAPIMethod{
 					extensionprotocol.HostAPIMethodSessionsCreate,
 				}
 			},
-			wantSub: "accepted actions",
+			wantSub: "accepted permissions",
 		},
 		{
 			name: "missing-shutdown",
@@ -720,9 +720,8 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			response := InitializeResponse{
 				ProtocolVersion: defaultProtocolVersion,
 				AcceptedCapabilities: AcceptedCapabilities{
-					Provides: append([]string(nil), req.Capabilities.Provides...),
-					Actions:  append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedActions...),
-					Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
+					Provides:    append([]string(nil), req.Capabilities.Provides...),
+					Permissions: append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedPermissions...),
 				},
 				ImplementedMethods: []string{"health_check", "shutdown"},
 				Supports: InitializeSupports{
@@ -880,9 +879,8 @@ func newInitializeRequest(runtimeCfg InitializeRuntime) InitializeRequest {
 			SourceTier: "user",
 		},
 		Capabilities: InitializeCapabilities{
-			Provides:        nil,
-			GrantedActions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodSessionsList},
-			GrantedSecurity: []string{"memory.read", "memory.write"},
+			Provides:           nil,
+			GrantedPermissions: []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodSessionsList},
 		},
 		Methods: InitializeMethods{
 			DaemonRequests:    []string{"health_check", "shutdown"},
@@ -1030,9 +1028,8 @@ func (h *helperServer) handleInitialize(envelope rpcEnvelope) {
 			SDKName: "compozy-test-helper",
 		},
 		AcceptedCapabilities: AcceptedCapabilities{
-			Provides: append([]string(nil), request.Capabilities.Provides...),
-			Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
-			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
+			Provides:    append([]string(nil), request.Capabilities.Provides...),
+			Permissions: append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedPermissions...),
 		},
 		ImplementedMethods: []string{"echo", "sleep", "relay_to_host", "health_check", "shutdown", "oversize"},
 		Supports: InitializeSupports{

@@ -51,7 +51,7 @@ type daemonMigrationExpectation struct {
 
 func daemonMigrationExpectations() []daemonMigrationExpectation {
 	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 27},
+		{stream: globaldb.MigrationStream(), version: 28},
 		{stream: memory.MigrationStream(), version: 1},
 	}
 }
@@ -2061,6 +2061,16 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	if d.extensions == nil {
 		t.Fatal("boot() did not publish the extension runtime")
 	}
+	extensionHooks, err := d.extensions.HookDeclarations(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("HookDeclarations() error = %v", err)
+	}
+	if len(extensionHooks) != 1 {
+		t.Fatalf("HookDeclarations() count = %d, want 1", len(extensionHooks))
+	}
+	if extensionHooks[0].Source != hookspkg.HookSourceExtension || extensionHooks[0].Priority != 300 {
+		t.Fatalf("extension hook = %#v, want source extension with priority 300", extensionHooks[0])
+	}
 
 	payload := hookspkg.SessionPostCreatePayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -3096,12 +3106,11 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
@@ -3203,12 +3212,11 @@ func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
@@ -3300,12 +3308,11 @@ func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
@@ -3384,12 +3391,11 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
@@ -3529,12 +3535,11 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	d, err := New(
@@ -3621,12 +3626,11 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
@@ -3772,12 +3776,11 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "slack",
 		bridgeDisplayName: "Slack",
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}, true)
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)

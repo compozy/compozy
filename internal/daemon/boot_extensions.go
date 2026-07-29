@@ -23,7 +23,7 @@ func (d *Daemon) attachExtensionRuntime(
 		d.homePaths,
 		state.logger,
 		d.now,
-		withDaemonExtensionMarketplace(state.cfg.Extensions.Marketplace, nil),
+		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 	)

@@ -7,12 +7,9 @@ min_compozy_version = "0.5.0"
 [capabilities]
 provides = ["memory.backend"]
 
-[actions]
+[permissions]
 requires = ["sessions/list"]
 
 [subprocess]
 command = "node"
 args = ["dist/index.js"]
-
-[security]
-capabilities = ["memory.read", "memory.write", "session.read"]

@@ -23,6 +23,9 @@ func (e stubExecutor) Execute(_ context.Context, _ RegisteredHook, _ []byte) ([]
 func TestHookSourceOrderingAndJSON(t *testing.T) {
 	t.Parallel()
 
+	if HookSourceExtension != 4 || HookSourceExtension.String() != "extension" {
+		t.Fatalf("HookSourceExtension = (%d, %q), want (4, extension)", HookSourceExtension, HookSourceExtension)
+	}
 	if HookSourceNative >= HookSourceConfig ||
 		HookSourceConfig >= HookSourceAgentDefinition ||
 		HookSourceAgentDefinition >= HookSourceSkill {

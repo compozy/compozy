@@ -66,13 +66,9 @@ type configSeedFile struct {
 	Network     *compozyconfig.NetworkConfig            `toml:"network,omitempty"`
 	Tools       *compozyconfig.ToolsConfig              `toml:"tools,omitempty"`
 	Marketplace *compozyconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
-	Extensions  *configSeedExtensionsSection            `toml:"extensions,omitempty"`
+	Extensions  *compozyconfig.ExtensionsConfig         `toml:"extensions,omitempty"`
 	Providers   map[string]compozyconfig.ProviderConfig `toml:"providers,omitempty"`
 	Sandboxes   map[string]compozyconfig.SandboxProfile `toml:"sandboxes,omitempty"`
-}
-
-type configSeedExtensionsSection struct {
-	Marketplace *compozyconfig.ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -181,11 +177,9 @@ func writeSeedConfigFile(homePaths compozyconfig.HomePaths, cfg *compozyconfig.C
 		Marketplace: &compozyconfig.MarketplaceRuntimeConfig{
 			Catalog: cfg.Marketplace.Catalog,
 		},
-		Extensions: &configSeedExtensionsSection{
-			Marketplace: &cfg.Extensions.Marketplace,
-		},
-		Providers: cloneProviders(cfg.Providers),
-		Sandboxes: cloneSandboxProfiles(cfg.Sandboxes),
+		Extensions: &cfg.Extensions,
+		Providers:  cloneProviders(cfg.Providers),
+		Sandboxes:  cloneSandboxProfiles(cfg.Sandboxes),
 	}
 	if cfg.Permissions.Mode != "" {
 		overlay.Permissions = &configSeedPermissionsSection{Mode: cfg.Permissions.Mode}

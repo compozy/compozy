@@ -271,10 +271,26 @@ type SettingsMarketplacePayload struct {
 	BaseURL  string `json:"base_url,omitempty"`
 }
 
-type SettingsExtensionMarketplacePayload struct {
-	Registry        string `json:"registry"`
-	BaseURL         string `json:"base_url,omitempty"`
-	AllowUnverified bool   `json:"allow_unverified"`
+type SettingsExtensionTrustPayload struct {
+	AllowUnverified bool `json:"allow_unverified"`
+}
+
+type SettingsExtensionSourcesPayload struct {
+	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
+	Git    SettingsExtensionGitSourcePayload    `json:"git"`
+}
+
+type SettingsExtensionGitHubSourcePayload struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+}
+
+type SettingsExtensionGitSourcePayload struct {
+	Enabled bool `json:"enabled"`
+}
+
+type SettingsExtensionDevPayload struct {
+	WatchInterval string `json:"watch_interval"`
 }
 
 type SettingsSkillsConfigPayload struct {
@@ -339,8 +355,10 @@ type SettingsObservabilityTranscriptPayload struct {
 }
 
 type SettingsExtensionsConfigPayload struct {
-	Marketplace SettingsExtensionMarketplacePayload `json:"marketplace"`
-	Resources   SettingsExtensionResourcesPayload   `json:"resources"`
+	Trust     SettingsExtensionTrustPayload     `json:"trust"`
+	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
+	Dev       SettingsExtensionDevPayload       `json:"dev"`
+	Resources SettingsExtensionResourcesPayload `json:"resources"`
 }
 
 type SettingsExtensionResourcesPayload struct {

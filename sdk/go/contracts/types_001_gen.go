@@ -5,9 +5,8 @@ package contracts
 import "time"
 
 type AcceptedCapabilities struct {
-	Provides []string        `json:"provides"`
-	Actions  []HostAPIMethod `json:"actions"`
-	Security []string        `json:"security"`
+	Provides    []string        `json:"provides"`
+	Permissions []HostAPIMethod `json:"permissions"`
 }
 
 type ActorIdentity struct {

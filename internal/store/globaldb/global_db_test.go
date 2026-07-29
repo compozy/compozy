@@ -139,6 +139,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"token_stats",
 			"permission_log",
 			"extensions",
+			"extension_dev_links",
 			"config_apply_records",
 			"network_channel_stats",
 			"network_channel_participants",
@@ -865,13 +866,20 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"enabled",
 		"manifest_path",
 		"installed_at",
-		"capabilities",
-		"actions",
+		"provides_json",
+		"permissions_json",
 		"checksum",
 		"registry_slug",
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+	})
+	assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
+		"extension_name",
+		"workspace_id",
+		"origin_path",
+		"bundle_generation",
+		"linked_at",
 	})
 }
 
@@ -904,13 +912,20 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"enabled",
 		"manifest_path",
 		"installed_at",
-		"capabilities",
-		"actions",
+		"provides_json",
+		"permissions_json",
 		"checksum",
 		"registry_slug",
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+	})
+	assertTableColumns(t, second.db, "extension_dev_links", []string{
+		"extension_name",
+		"workspace_id",
+		"origin_path",
+		"bundle_generation",
+		"linked_at",
 	})
 }
 

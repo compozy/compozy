@@ -160,8 +160,10 @@ func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subpr
 		ExtensionInfo:   r.config.ExtensionInfo,
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
 			Provides: append([]string(nil), request.Capabilities.Provides...),
-			Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
-			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
+			Permissions: append(
+				[]extensionprotocol.HostAPIMethod(nil),
+				request.Capabilities.GrantedPermissions...,
+			),
 		},
 		ImplementedMethods: implemented,
 		Supports: subprocess.InitializeSupports{

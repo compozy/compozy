@@ -22,8 +22,7 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
       name: "__EXTENSION_NAME__",
       version: "0.1.0",
       capabilities: { provides: ["memory.backend"] },
-      actions: { requires: ["sessions/list"] },
-      security: { capabilities: ["memory.read", "memory.write", "session.read"] },
+      permissions: { requires: ["sessions/list"] },
     },
     options
   );

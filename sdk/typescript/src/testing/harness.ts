@@ -16,12 +16,10 @@ import { MockTransport, createMockTransportPair } from "./mock-transport.js";
 export interface HarnessLoadOptions {
   sourceTier?: "bundled" | "user" | "workspace" | "marketplace";
   provides?: string[];
-  grantedActions?: string[];
-  grantedSecurity?: string[];
+  grantedPermissions?: string[];
   grantedResourceKinds?: string[];
   grantedResourceScopes?: ("global" | "workspace")[];
   sessionNonce?: string;
-  capabilities?: string[];
   daemonRequests?: string[];
   extensionServices?: string[];
   compozyVersion?: string;
@@ -184,8 +182,7 @@ export class TestHarness {
       options.extensionServices ?? implementedMethods.filter(method => !DAEMON_METHODS.has(method));
 
     const requestedProvides = definition.capabilities?.provides ?? [];
-    const requestedActions = definition.actions?.requires ?? [];
-    const requestedSecurity = definition.security?.capabilities ?? [];
+    const requestedPermissions = definition.permissions?.requires ?? [];
 
     return {
       protocol_version: "1",
@@ -199,8 +196,9 @@ export class TestHarness {
       },
       capabilities: {
         provides: options.provides ?? [...requestedProvides],
-        granted_actions: (options.grantedActions ?? [...requestedActions]) as HostAPIMethod[],
-        granted_security: options.grantedSecurity ?? options.capabilities ?? [...requestedSecurity],
+        granted_permissions: (options.grantedPermissions ?? [
+          ...requestedPermissions,
+        ]) as HostAPIMethod[],
         granted_resource_kinds: options.grantedResourceKinds ?? [],
         granted_resource_scopes: options.grantedResourceScopes ?? [],
       },

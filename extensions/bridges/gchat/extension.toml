@@ -25,7 +25,7 @@ required = false
 schema = "compozy.bridge.gchat"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/messages/ingest",
@@ -51,6 +51,3 @@ COMPOZY_BRIDGE_GCHAT_API_BASE_URL = "{{env:COMPOZY_BRIDGE_GCHAT_API_BASE_URL}}"
 COMPOZY_BRIDGE_GCHAT_TOKEN_URL = "{{env:COMPOZY_BRIDGE_GCHAT_TOKEN_URL}}"
 COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL = "{{env:COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL}}"
 COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL = "{{env:COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]

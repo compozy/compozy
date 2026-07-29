@@ -65,8 +65,7 @@ type InitializeBridgeRuntime struct {
 
 type InitializeCapabilities struct {
 	Provides              []string        `json:"provides"`
-	GrantedActions        []HostAPIMethod `json:"granted_actions"`
-	GrantedSecurity       []string        `json:"granted_security"`
+	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
 	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
 	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
 }

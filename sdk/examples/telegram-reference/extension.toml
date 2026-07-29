@@ -16,7 +16,7 @@ name = "bot_token"
 description = "Telegram bot token bound through the Compozy bridge vault."
 required = true
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/messages/ingest",
@@ -38,6 +38,3 @@ COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_UPDATES_PATH
 COMPOZY_BRIDGE_ADAPTER_STARTS_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_STARTS_PATH}}"
 COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_SHUTDOWN_PATH}}"
 COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH = "{{env:COMPOZY_BRIDGE_ADAPTER_CRASH_ONCE_PATH}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]

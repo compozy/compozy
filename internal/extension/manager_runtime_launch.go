@@ -166,8 +166,7 @@ func (m *Manager) initializeRuntimeRequest(
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides:              normalizeUniqueStrings(ext.manifest.Capabilities.Provides),
-			GrantedActions:        hostAPIMethodsFromStrings(ext.grantedActions),
-			GrantedSecurity:       normalizeUniqueStrings(ext.grantedSecurity),
+			GrantedPermissions:    hostAPIMethodsFromStrings(ext.grantedPermissions),
 			GrantedResourceKinds:  resourceKindStrings(ext.grantedResourceKinds),
 			GrantedResourceScopes: resourceScopeStrings(ext.grantedResourceScopes),
 		},

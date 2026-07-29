@@ -240,7 +240,7 @@ func validateHandshakeConformance(
 
 	runtime := request.Runtime.Bridge
 	issues = append(issues, validateHandshakeRuntime(runtime, expect, expectedByID)...)
-	issues = append(issues, validateGrantedActions(request.Capabilities.GrantedActions)...)
+	issues = append(issues, validateGrantedPermissions(request.Capabilities.GrantedPermissions)...)
 	return issues
 }
 
@@ -368,9 +368,9 @@ func validateUnexpectedManagedInstances(
 	return issues
 }
 
-func validateGrantedActions(actions []extensionprotocol.HostAPIMethod) []ConformanceIssue {
+func validateGrantedPermissions(permissions []extensionprotocol.HostAPIMethod) []ConformanceIssue {
 	issues := make([]ConformanceIssue, 0)
-	for _, method := range actions {
+	for _, method := range permissions {
 		text := strings.ToLower(strings.TrimSpace(string(method)))
 		if strings.Contains(text, "vault/") || strings.Contains(text, "secret/") {
 			issues = append(issues, ConformanceIssue{

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/extension/surfaces"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -30,13 +31,11 @@ func (c *CapabilityChecker) resolve(
 	policy := cloneResourcePolicy(c.resourcePolicy)
 	c.mu.RUnlock()
 
-	var requestedActions []string
-	var requestedSecurity []string
+	var requestedPermissions []string
 	var requestedResources surfaces.GrantRequest
 	var err error
 	if manifest != nil {
-		requestedActions = normalizeUniqueStrings(manifest.Actions.Requires)
-		requestedSecurity = normalizeUniqueStrings(manifest.Security.Capabilities)
+		requestedPermissions = normalizeUniqueStrings(manifest.Permissions.Requires)
 		requestedResources, err = surfaces.ResolveManifestRequest(
 			manifest.Resources.Publish.Families,
 			manifest.Resources.Publish.MaxScope,
@@ -56,10 +55,16 @@ func (c *CapabilityChecker) resolve(
 		return capabilityGrant{}, err
 	}
 
+	permissions := effectivePermissionGrants(source, requestedPermissions)
+	security, err := derivedSecurityGrants(permissions)
+	if err != nil {
+		return capabilityGrant{}, err
+	}
+
 	return capabilityGrant{
 		source:         source,
-		actions:        effectiveActionGrants(source, requestedActions),
-		security:       effectiveSecurityGrants(source, requestedSecurity),
+		permissions:    permissions,
+		security:       security,
 		resourceKinds:  resourceKinds,
 		resourceScopes: resourceScopes,
 	}, nil
@@ -67,7 +72,7 @@ func (c *CapabilityChecker) resolve(
 
 func (g capabilityGrant) snapshot() EffectiveGrant {
 	return EffectiveGrant{
-		Actions:        slices.Clone(g.actions),
+		Permissions:    slices.Clone(g.permissions),
 		Security:       slices.Clone(g.security),
 		ResourceKinds:  slices.Clone(g.resourceKinds),
 		ResourceScopes: slices.Clone(g.resourceScopes),
@@ -84,49 +89,40 @@ func newCapabilityDeniedError(method string, required []string, granted []string
 	}
 }
 
-func effectiveActionGrants(source ExtensionSource, requested []string) []string {
+func effectivePermissionGrants(source ExtensionSource, requested []string) []string {
 	requested = normalizeUniqueStrings(requested)
 	policy := sourcePolicy(source)
-	if policy.allowAllActions {
+	if policy.allowAllPermissions {
 		return requested
 	}
-	if len(requested) == 0 || len(policy.allowedActions) == 0 {
+	if len(requested) == 0 || len(policy.allowedConsent) == 0 {
 		return nil
 	}
 
 	var granted []string
 	for _, method := range requested {
-		if slices.Contains(policy.allowedActions, method) {
+		contract, ok := extensioncontract.PermissionContractForMethod(method)
+		if ok && capabilityGranted(policy.allowedConsent, contract.Capability) {
 			granted = append(granted, method)
 		}
 	}
 	return normalizeUniqueStrings(granted)
 }
 
-func effectiveSecurityGrants(source ExtensionSource, requested []string) []string {
-	requested = normalizeUniqueStrings(requested)
-	policy := sourcePolicy(source)
-	if policy.allowAllSecurity {
-		return requested
-	}
-	if len(requested) == 0 || len(policy.allowedSecurity) == 0 {
-		return nil
-	}
-
-	var granted []string
-	for _, request := range requested {
-		if ceilingAllowsRequestedGrant(policy.allowedSecurity, request) {
-			granted = append(granted, request)
-			continue
-		}
-
-		for _, allowed := range policy.allowedSecurity {
-			if capabilityGrantSuperset(request, allowed) {
-				granted = append(granted, allowed)
+func derivedSecurityGrants(permissions []string) ([]string, error) {
+	grants := make([]string, 0, len(permissions))
+	for _, method := range permissions {
+		contract, ok := extensioncontract.PermissionContractForMethod(method)
+		if !ok {
+			return nil, &ManifestValidationError{
+				Field:   "permissions.requires",
+				Value:   method,
+				Message: unknownHostAPIPermissionMessage,
 			}
 		}
+		grants = append(grants, contract.Capability)
 	}
-	return normalizeUniqueStrings(granted)
+	return normalizeUniqueStrings(grants), nil
 }
 
 func capabilityGranted(grants []string, capability string) bool {
@@ -136,15 +132,6 @@ func capabilityGranted(grants []string, capability string) bool {
 	}
 	for _, grant := range grants {
 		if capabilityGrantSuperset(grant, required) {
-			return true
-		}
-	}
-	return false
-}
-
-func ceilingAllowsRequestedGrant(ceiling []string, requested string) bool {
-	for _, allowed := range ceiling {
-		if capabilityGrantSuperset(allowed, requested) {
 			return true
 		}
 	}

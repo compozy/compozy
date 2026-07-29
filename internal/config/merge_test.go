@@ -192,7 +192,7 @@ timeout = "3s"
 	})
 }
 
-func TestApplyConfigOverlayFileAppliesExtensionSideLoadPolicy(t *testing.T) {
+func TestApplyConfigOverlayFileAppliesExtensionConfig(t *testing.T) {
 	t.Parallel()
 	t.Run("Should apply the extension side-load policy from an overlay", func(t *testing.T) {
 		t.Parallel()
@@ -204,15 +204,21 @@ func TestApplyConfigOverlayFileAppliesExtensionSideLoadPolicy(t *testing.T) {
 		cfg := DefaultWithHome(homePaths)
 		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
 		writeFile(t, overlayPath, `
-[extensions.marketplace]
-allow_unverified = true
+[extensions.trust]
+allow_unverified = false
+
+[extensions.sources.github]
+enabled = false
 `)
 
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if !cfg.Extensions.Marketplace.AllowUnverified {
-			t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
+		if cfg.Extensions.Trust.AllowUnverified {
+			t.Fatal("Extensions.Trust.AllowUnverified = true, want false")
+		}
+		if cfg.Extensions.Sources.GitHub.Enabled {
+			t.Fatal("Extensions.Sources.GitHub.Enabled = true, want false")
 		}
 	})
 }

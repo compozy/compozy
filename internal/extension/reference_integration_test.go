@@ -174,11 +174,8 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if secretHandshake.PID <= 0 {
 		t.Fatalf("secret handshake pid = %d, want > 0", secretHandshake.PID)
 	}
-	if got := secretHandshake.Request.Capabilities.GrantedActions; len(got) != 1 || got[0] != "sessions/list" {
-		t.Fatalf("secret granted actions = %#v, want sessions/list", got)
-	}
-	if got := secretHandshake.Request.Capabilities.GrantedSecurity; len(got) != 1 || got[0] != "session.read" {
-		t.Fatalf("secret granted security = %#v, want session.read", got)
+	if got := secretHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
+		t.Fatalf("secret granted permissions = %#v, want sessions/list", got)
 	}
 	if got := secretHandshake.Response.SupportedHookEvents; len(got) != 1 ||
 		got[0] != string(hookspkg.HookInputPreSubmit) {
@@ -192,11 +189,8 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if promptHandshake.PID <= 0 {
 		t.Fatalf("prompt handshake pid = %d, want > 0", promptHandshake.PID)
 	}
-	if got := promptHandshake.Request.Capabilities.GrantedActions; len(got) != 1 || got[0] != "sessions/list" {
-		t.Fatalf("prompt granted actions = %#v, want sessions/list", got)
-	}
-	if got := promptHandshake.Request.Capabilities.GrantedSecurity; len(got) != 1 || got[0] != "session.read" {
-		t.Fatalf("prompt granted security = %#v, want session.read", got)
+	if got := promptHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
+		t.Fatalf("prompt granted permissions = %#v, want sessions/list", got)
 	}
 	if got := promptHandshake.Response.SupportedHookEvents; len(got) != 1 ||
 		got[0] != string(hookspkg.HookPromptPostAssemble) {
@@ -1132,7 +1126,7 @@ func referenceConfig(t *testing.T, homePaths compozyconfig.HomePaths, command st
 	cfg.Defaults.Provider = acpmock.ProviderName
 	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = false
-	cfg.Extensions.Marketplace.AllowUnverified = true
+	cfg.Extensions.Trust.AllowUnverified = true
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	return cfg
 }

@@ -218,7 +218,7 @@ func newExtensionPolicyBlockedError(slug string, source string) *ExtensionPolicy
 			"Enable it in Settings › Extensions, then confirm the individual install.",
 		diagnosticcontract.SeverityError,
 		diagnosticcontract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("compozy config set extensions.marketplace.allow_unverified true"),
+		diagnostics.WithSuggestedCommand("compozy config set extensions.trust.allow_unverified true"),
 		diagnostics.WithEvidence(map[string]any{
 			"slug":                          strings.TrimSpace(slug),
 			extensionTrustEvidenceSourceKey: strings.TrimSpace(source),

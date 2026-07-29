@@ -117,7 +117,7 @@ func requiresSubprocess(manifest *Manifest) bool {
 		return true
 	}
 	return len(manifest.Capabilities.Provides) > 0 ||
-		len(manifest.Actions.Requires) > 0 ||
+		len(manifest.Permissions.Requires) > 0 ||
 		len(manifest.Resources.Publish.Families) > 0
 }
 

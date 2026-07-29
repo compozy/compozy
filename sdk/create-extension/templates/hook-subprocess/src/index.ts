@@ -12,7 +12,7 @@ export function createExtension(options: ExtensionOptions = {}): Extension {
     {
       name: "__EXTENSION_NAME__",
       version: "0.1.0",
-      capabilities: { provides: ["prompt.provider"] },
+      capabilities: { provides: [] },
       supported_hook_events: ["prompt.post_assemble"],
     },
     options

@@ -60,7 +60,7 @@ func TestInitializeBridgeRuntimeV2PurposeContract(t *testing.T) {
 
 		request := controlInitializeRequest(managed, bridgepkg.ControlMethodCheck)
 		request.Runtime.Bridge.Purpose = BridgeRuntimePurpose(" control ")
-		request.Capabilities.GrantedActions = []extensionprotocol.HostAPIMethod{
+		request.Capabilities.GrantedPermissions = []extensionprotocol.HostAPIMethod{
 			extensionprotocol.HostAPIMethodBridgesInstancesGet,
 		}
 		err := request.Validate()
@@ -136,7 +136,7 @@ func TestInitializeRequestControlRuntimeRejectsHostAPIGrants(t *testing.T) {
 		t.Parallel()
 
 		invalid := CloneInitializeRequest(request)
-		invalid.Capabilities.GrantedActions = []extensionprotocol.HostAPIMethod{
+		invalid.Capabilities.GrantedPermissions = []extensionprotocol.HostAPIMethod{
 			extensionprotocol.HostAPIMethodBridgesInstancesGet,
 		}
 		err := invalid.Validate()

@@ -56,7 +56,7 @@ type ExtensionPayload struct {
 	Enabled       bool                            `json:"enabled"`
 	State         string                          `json:"state"`
 	Capabilities  []string                        `json:"capabilities,omitempty"`
-	Actions       []string                        `json:"actions,omitempty"`
+	Permissions   []string                        `json:"permissions,omitempty"`
 	RequiresEnv   []string                        `json:"requires_env,omitempty"`
 	MissingEnv    []string                        `json:"missing_env,omitempty"`
 	PID           int                             `json:"pid,omitempty"`

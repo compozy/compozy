@@ -187,7 +187,7 @@ func TestSeedConfigPersistsExtensionsMarketplaceOverlay(t *testing.T) {
 		homePaths := NewHomePaths(t)
 		SeedConfig(t, homePaths, ConfigSeedOptions{
 			Mutate: func(cfg *compozyconfig.Config) {
-				cfg.Extensions.Marketplace.AllowUnverified = true
+				cfg.Extensions.Trust.AllowUnverified = true
 			},
 		})
 
@@ -195,8 +195,8 @@ func TestSeedConfigPersistsExtensionsMarketplaceOverlay(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
-		if !loaded.Extensions.Marketplace.AllowUnverified {
-			t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
+		if !loaded.Extensions.Trust.AllowUnverified {
+			t.Fatal("Extensions.Trust.AllowUnverified = false, want true")
 		}
 	})
 }

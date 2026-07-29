@@ -10,6 +10,9 @@ import (
 
 func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error) {
 	joined := strings.Join(path, ".")
+	if replacement, removed := removedExtensionConfigSetReplacement(joined); removed {
+		return configSetString, false, fmt.Errorf("cli: config path %q was removed; use %q", joined, replacement)
+	}
 	if kind, ok := configScalarMutationKinds[joined]; ok {
 		return kind, false, nil
 	}

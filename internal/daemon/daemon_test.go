@@ -2092,7 +2092,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		discardLogger(),
 		func() time.Time { return fixedNow },
 		withDaemonExtensionMarketplace(
-			compozyconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+			compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 			nil,
 		),
 		withDaemonExtensionEventWriter(db),
@@ -2344,7 +2344,7 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			discardLogger(),
 			time.Now,
 			withDaemonExtensionMarketplace(
-				compozyconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+				compozyconfig.ExtensionsConfig{Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true}},
 				nil,
 			),
 		)
@@ -9002,8 +9002,7 @@ type daemonTestExtensionOptions struct {
 	hookArgs          []string
 	hookEvent         hookspkg.HookEvent
 	capabilities      []string
-	actions           []string
-	security          []string
+	permissions       []string
 	bridgePlatform    string
 	bridgeDisplayName string
 }
@@ -9086,13 +9085,9 @@ func daemonTestExtensionManifest(name string, opts daemonTestExtensionOptions) s
 	if opts.capabilities == nil {
 		capabilities = []string{"memory.backend"}
 	}
-	actions := append([]string(nil), opts.actions...)
-	if opts.actions == nil {
-		actions = []string{"sessions/list"}
-	}
-	security := append([]string(nil), opts.security...)
-	if opts.security == nil {
-		security = []string{"session.read"}
+	permissions := append([]string(nil), opts.permissions...)
+	if opts.permissions == nil {
+		permissions = []string{"sessions/list"}
 	}
 	bridgePlatform := strings.TrimSpace(opts.bridgePlatform)
 	bridgeDisplayName := strings.TrimSpace(opts.bridgeDisplayName)
@@ -9140,8 +9135,8 @@ provides = ` + daemonTOMLStringArray(capabilities) + `
 
 `)
 	builder.WriteString(`
-[actions]
-requires = ` + daemonTOMLStringArray(actions) + `
+[permissions]
+requires = ` + daemonTOMLStringArray(permissions) + `
 
 [subprocess]
 command = ` + fmt.Sprintf("%q", command) + `
@@ -9161,10 +9156,6 @@ command = ` + fmt.Sprintf("%q", command) + `
 		}
 	}
 
-	builder.WriteString(`
-[security]
-capabilities = ` + daemonTOMLStringArray(security) + `
-`)
 	if bridgePlatform != "" || bridgeDisplayName != "" {
 		fmt.Fprintf(&builder, `
 [bridge]
@@ -9192,7 +9183,6 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 		for _, expected := range []string{
 			`provides = ["memory.backend"]`,
 			`requires = ["sessions/list"]`,
-			`capabilities = ["session.read"]`,
 		} {
 			if !strings.Contains(manifest, expected) {
 				t.Fatalf("daemonTestExtensionManifest() missing default %q in manifest %q", expected, manifest)
@@ -9205,14 +9195,12 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 
 		manifest := daemonTestExtensionManifest("service-ext", daemonTestExtensionOptions{
 			capabilities: []string{},
-			actions:      []string{},
-			security:     []string{},
+			permissions:  []string{},
 		})
 
 		for _, expected := range []string{
 			"provides = []",
 			"requires = []",
-			"capabilities = []",
 		} {
 			if !strings.Contains(manifest, expected) {
 				t.Fatalf(
@@ -9222,7 +9210,7 @@ func TestDaemonTestExtensionManifest(t *testing.T) {
 				)
 			}
 		}
-		for _, unexpected := range []string{"memory.backend", "sessions/list", "session.read"} {
+		for _, unexpected := range []string{"memory.backend", "sessions/list"} {
 			if strings.Contains(manifest, unexpected) {
 				t.Fatalf(
 					"daemonTestExtensionManifest() unexpectedly injected %q into manifest %q",
@@ -9663,9 +9651,8 @@ func daemonExtensionInitializeResponse(req subprocess.InitializeRequest) subproc
 			Version: req.Extension.Version,
 		},
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
-			Provides: append([]string(nil), req.Capabilities.Provides...),
-			Actions:  append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedActions...),
-			Security: append([]string(nil), req.Capabilities.GrantedSecurity...),
+			Provides:    append([]string(nil), req.Capabilities.Provides...),
+			Permissions: append([]extensionprotocol.HostAPIMethod(nil), req.Capabilities.GrantedPermissions...),
 		},
 		ImplementedMethods:  implementedMethods,
 		SupportedHookEvents: []string{string(hookspkg.HookSessionPostCreate)},

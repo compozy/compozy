@@ -18,10 +18,9 @@ func TestSessionInitializeRequestClonesHandshakeSlicesContract(t *testing.T) {
 				SupportedProtocolVersion: []string{"1"},
 				Capabilities: subprocess.InitializeCapabilities{
 					Provides: []string{"bridge.adapter"},
-					GrantedActions: []extensionprotocol.HostAPIMethod{
+					GrantedPermissions: []extensionprotocol.HostAPIMethod{
 						extensionprotocol.HostAPIMethodBridgesInstancesList,
 					},
-					GrantedSecurity:       []string{"bridge.read"},
 					GrantedResourceKinds:  []string{"agent"},
 					GrantedResourceScopes: []string{"workspace"},
 				},

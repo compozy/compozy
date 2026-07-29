@@ -27,9 +27,12 @@ func (c SkillsConfig) Validate() error {
 	return nil
 }
 
-// Validate ensures the extension marketplace configuration is internally consistent.
+// Validate ensures the extension configuration is internally consistent.
 func (c ExtensionsConfig) Validate() error {
-	if err := c.Marketplace.Validate(); err != nil {
+	if err := c.Sources.GitHub.Validate(); err != nil {
+		return err
+	}
+	if err := c.Dev.Validate(); err != nil {
 		return err
 	}
 	return c.Resources.Validate()
@@ -102,38 +105,38 @@ func (c MarketplaceConfig) Validate() error {
 	}
 }
 
-// Validate ensures the extension marketplace configuration is internally consistent when configured.
-func (c ExtensionsMarketplaceConfig) Validate() error {
-	const githubRegistry = "github"
-
-	registry := strings.TrimSpace(c.Registry)
+// Validate ensures the GitHub extension source is internally consistent.
+func (c ExtensionsGitHubSourceConfig) Validate() error {
 	baseURL := strings.TrimSpace(c.BaseURL)
-	if registry == "" && baseURL == "" {
-		return nil
+	if baseURL == "" {
+		if !c.Enabled {
+			return nil
+		}
+		return errors.New("extensions.sources.github.base_url is required")
 	}
-	if registry == "" {
-		return errors.New("extensions.marketplace.registry is required")
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("extensions.sources.github.base_url is invalid: %w", err)
 	}
-	if baseURL != "" {
-		parsed, err := url.Parse(baseURL)
-		if err != nil {
-			return fmt.Errorf("extensions.marketplace.base_url is invalid: %w", err)
-		}
-		if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != urlSchemeHTTPS {
-			return fmt.Errorf("extensions.marketplace.base_url must use http or https: %q", c.BaseURL)
-		}
-		if strings.TrimSpace(parsed.Host) == "" {
-			return fmt.Errorf("extensions.marketplace.base_url must include a host: %q", c.BaseURL)
-		}
-		if parsed.Scheme == marketplaceSchemeHTTP {
-			slog.Warn("config: extensions marketplace base_url uses insecure http scheme", "url", c.BaseURL)
-		}
+	if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != urlSchemeHTTPS {
+		return fmt.Errorf("extensions.sources.github.base_url must use http or https: %q", c.BaseURL)
 	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return fmt.Errorf("extensions.sources.github.base_url must include a host: %q", c.BaseURL)
+	}
+	if parsed.Scheme == marketplaceSchemeHTTP {
+		slog.Warn("config: extensions GitHub source uses insecure http scheme", "url", c.BaseURL)
+	}
+	return nil
+}
 
-	switch strings.ToLower(registry) {
-	case githubRegistry:
+// Validate ensures the extension dev-loop interval is usable.
+func (c ExtensionsDevConfig) Validate() error {
+	if c.WatchInterval == 0 {
 		return nil
-	default:
-		return fmt.Errorf("extensions.marketplace.registry must be %q: %q", githubRegistry, c.Registry)
 	}
+	if c.WatchInterval <= 0 {
+		return fmt.Errorf("extensions.dev.watch_interval must be positive: %s", c.WatchInterval)
+	}
+	return nil
 }

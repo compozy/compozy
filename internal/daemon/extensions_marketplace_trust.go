@@ -26,7 +26,7 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 		SourceFilter:           req.Source,
 		Version:                req.Version,
 		Asset:                  req.Asset,
-		PolicyAllowsUnverified: cfg.AllowUnverified,
+		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		AllowUnverified:        req.AllowUnverified,
 		InstalledBy:            installedBy,
 		Trust:                  trust,
@@ -39,7 +39,7 @@ func (s *daemonExtensionService) MarketplaceTrust(
 ) (contract.ExtensionTrustReportPayload, error) {
 	return extensionpkg.MarketplaceEntryTrustReport(
 		evidence,
-		s.marketplaceConfig().AllowUnverified,
+		s.marketplaceConfig().Trust.AllowUnverified,
 	)
 }
 

@@ -4239,11 +4239,15 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionHooksExtensions},
 				HooksExtensions: &compozyconfig.ExtensionsConfig{
-					Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
-						Registry:        "github",
-						BaseURL:         "https://extensions-updated.example",
-						AllowUnverified: true,
+					Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true},
+					Sources: compozyconfig.ExtensionsSourcesConfig{
+						GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+							Enabled: true,
+							BaseURL: "https://extensions-updated.example",
+						},
+						Git: compozyconfig.ExtensionsGitSourceConfig{Enabled: true},
 					},
+					Dev: compozyconfig.ExtensionsDevConfig{WatchInterval: 2 * time.Second},
 					Resources: compozyconfig.ExtensionsResourcesConfig{
 						AllowedKinds: []resources.ResourceKind{
 							resources.ResourceKind("tool"),
@@ -5316,9 +5320,18 @@ enabled = true
 segment_bytes = 512
 max_bytes_per_session = 1024
 
-[extensions.marketplace]
-registry = "github"
+[extensions.trust]
+allow_unverified = true
+
+[extensions.sources.github]
+enabled = true
 base_url = "https://ext.example"
+
+[extensions.sources.git]
+enabled = true
+
+[extensions.dev]
+watch_interval = "2s"
 
 [extensions.resources]
 allowed_kinds = ["tool", "mcp_server"]

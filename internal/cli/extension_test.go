@@ -20,7 +20,7 @@ import (
 
 type extensionFixtureOptions struct {
 	capabilities []string
-	actions      []string
+	permissions  []string
 	requiresEnv  []string
 }
 
@@ -69,7 +69,9 @@ func TestExtensionInstallOfflineRequiresSideLoadPolicy(t *testing.T) {
 
 		deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 		deps.loadConfig = func() (compozyconfig.Config, error) {
-			return compozyconfig.DefaultWithHome(homePaths), nil
+			cfg := compozyconfig.DefaultWithHome(homePaths)
+			cfg.Extensions.Trust.AllowUnverified = false
+			return cfg, nil
 		}
 		dir := writeExtensionFixture(t, "blocked-offline-ext", extensionFixtureOptions{})
 
@@ -292,7 +294,7 @@ func TestExtensionStatusOnlineUsesDaemonClient(t *testing.T) {
 		Enabled:       true,
 		State:         "active",
 		Capabilities:  []string{"memory.backend"},
-		Actions:       []string{"memory/store"},
+		Permissions:   []string{"memory/store"},
 		PID:           4242,
 		UptimeSeconds: 120,
 		Health:        "healthy",
@@ -455,7 +457,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 		Enabled:       true,
 		State:         "active",
 		Capabilities:  []string{"observe.exporter"},
-		Actions:       []string{"observe/health"},
+		Permissions:   []string{"observe/health"},
 		PID:           321,
 		UptimeSeconds: 3660,
 		Health:        "healthy",
@@ -480,7 +482,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	if !strings.Contains(
 		toon,
 		"extension{name,version,type,source,enabled,state,daemon_running,"+
-			"pid,uptime_seconds,health,last_error,capabilities,actions,requires_env,missing_env}:",
+			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}
@@ -522,7 +524,7 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, comp
 	deps.ensureHome = compozyconfig.EnsureHomeLayout
 	deps.loadConfig = func() (compozyconfig.Config, error) {
 		cfg := compozyconfig.DefaultWithHome(homePaths)
-		cfg.Extensions.Marketplace.AllowUnverified = true
+		cfg.Extensions.Trust.AllowUnverified = true
 		return cfg, nil
 	}
 	return deps, homePaths
@@ -564,11 +566,11 @@ min_compozy_version = "0.5.0"
 provides = [%s]
 `, quotedTOMLValues(opts.capabilities))
 	}
-	if len(opts.actions) > 0 {
+	if len(opts.permissions) > 0 {
 		fmt.Fprintf(&builder, `
-[actions]
+[permissions]
 requires = [%s]
-`, quotedTOMLValues(opts.actions))
+`, quotedTOMLValues(opts.permissions))
 	}
 	return builder.String()
 }

@@ -8,6 +8,9 @@
     "capabilities": {
         "provides": ["tool.provider"]
     },
+    "permissions": {
+        "requires": []
+    },
     "resources": {
         "skills": ["skills"],
         "loops": ["loops"],

@@ -167,7 +167,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 		for _, want := range []string{
 			contract.CodeExtensionUnverifiedPolicyBlocked,
 			"Settings › Extensions",
-			"extensions.marketplace.allow_unverified",
+			"extensions.trust.allow_unverified",
 		} {
 			if !strings.Contains(recorder.Body.String(), want) {
 				t.Fatalf("body = %q, want %q", recorder.Body.String(), want)

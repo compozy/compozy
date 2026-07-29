@@ -55,6 +55,146 @@ func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 	})
 }
 
+func TestLoadManifestV2RejectsUnknownAndLegacyContracts(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	tests := []struct {
+		name          string
+		fileName      string
+		content       string
+		wantField     string
+		wantFragments []string
+	}{
+		{
+			name:     "Should reject an unknown provide and list the closed set",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "unknown-provide"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+
+[capabilities]
+provides = ["prompt.provider"]
+`,
+			wantField: "capabilities.provides[0]",
+			wantFragments: []string{
+				"prompt.provider",
+				"bridge.adapter",
+				"loop.watch_source",
+				"memory.backend",
+				"model.source",
+				"tool.provider",
+			},
+		},
+		{
+			name:     "Should reject an unknown permission",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "unknown-permission"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+
+[permissions]
+requires = ["sessions/does-not-exist"]
+`,
+			wantField:     "permissions.requires[0]",
+			wantFragments: []string{"sessions/does-not-exist", "unknown Host API permission"},
+		},
+		{
+			name:     "Should reject a legacy actions section",
+			fileName: manifestTOMLFileName,
+			content: `[extension]
+name = "legacy-actions"
+version = "0.1.0"
+min_compozy_version = "0.6.0"
+
+[actions]
+requires = ["sessions/list"]
+`,
+			wantField:     "actions",
+			wantFragments: []string{"[actions]", "[permissions]"},
+		},
+		{
+			name:     "Should reject a legacy security section in JSON",
+			fileName: manifestJSONFileName,
+			content: `{
+  "extension": {
+    "name": "legacy-security",
+    "version": "0.1.0",
+    "min_compozy_version": "0.6.0"
+  },
+  "security": {"capabilities": ["session.read"]}
+}`,
+			wantField:     "security",
+			wantFragments: []string{"[security]", "[permissions]"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, tt.fileName), tt.content)
+
+			_, err := LoadManifest(dir)
+			if err == nil {
+				t.Fatal("LoadManifest() error = nil, want manifest validation error")
+			}
+			var validationErr *ManifestValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("LoadManifest() error = %T, want *ManifestValidationError", err)
+			}
+			if validationErr.Field != tt.wantField {
+				t.Fatalf("validation field = %q, want %q", validationErr.Field, tt.wantField)
+			}
+			for _, fragment := range tt.wantFragments {
+				if !strings.Contains(err.Error(), fragment) {
+					t.Fatalf("LoadManifest() error = %v, want fragment %q", err, fragment)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadManifestEnforcesMinimumCompozyVersionBoundary(t *testing.T) {
+	tests := []struct {
+		name    string
+		minimum string
+		wantErr bool
+	}{
+		{name: "Should accept the stamped daemon version", minimum: "0.6.0"},
+		{name: "Should reject one patch above the stamped daemon version", minimum: "0.6.1", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withDaemonVersion(t, "0.6.0")
+			dir := t.TempDir()
+			content := strings.Replace(
+				validManifestTOML,
+				"min_compozy_version = \"0.5.0\"",
+				"min_compozy_version = \""+tt.minimum+"\"",
+				1,
+			)
+			writeFile(t, filepath.Join(dir, manifestTOMLFileName), content)
+
+			_, err := LoadManifest(dir)
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("LoadManifest() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("LoadManifest() error = nil, want compatibility error")
+			}
+			var compatibilityErr *ManifestCompatibilityError
+			if !errors.As(err, &compatibilityErr) {
+				t.Fatalf("LoadManifest() error = %T, want *ManifestCompatibilityError", err)
+			}
+		})
+	}
+}
+
 func TestLoadManifest_FiltersBlankStringEntries(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
@@ -72,15 +212,13 @@ agents = ["agents/", "\t"]
 [capabilities]
 provides = ["memory.backend", "   "]
 
-[actions]
+[permissions]
 requires = ["sessions/list", ""]
 
 [subprocess]
 command = "compozy-ext-filtered"
 args = ["--config", " ", "\t", "config.toml"]
 
-[security]
-capabilities = ["memory.read", "   "]
 `)
 
 	manifest, err := LoadManifest(dir)
@@ -96,14 +234,11 @@ capabilities = ["memory.read", "   "]
 	if !reflect.DeepEqual(manifest.Capabilities.Provides, []string{"memory.backend"}) {
 		t.Fatalf("Capabilities.Provides = %#v, want %#v", manifest.Capabilities.Provides, []string{"memory.backend"})
 	}
-	if !reflect.DeepEqual(manifest.Actions.Requires, []string{"sessions/list"}) {
-		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Actions.Requires, []string{"sessions/list"})
+	if !reflect.DeepEqual(manifest.Permissions.Requires, []string{"sessions/list"}) {
+		t.Fatalf("Actions.Requires = %#v, want %#v", manifest.Permissions.Requires, []string{"sessions/list"})
 	}
 	if !reflect.DeepEqual(manifest.Subprocess.Args, []string{"--config", "config.toml"}) {
 		t.Fatalf("Subprocess.Args = %#v, want %#v", manifest.Subprocess.Args, []string{"--config", "config.toml"})
-	}
-	if !reflect.DeepEqual(manifest.Security.Capabilities, []string{"memory.read"}) {
-		t.Fatalf("Security.Capabilities = %#v, want %#v", manifest.Security.Capabilities, []string{"memory.read"})
 	}
 }
 
@@ -888,22 +1023,11 @@ func TestParseSemanticVersion_PrereleaseComparison(t *testing.T) {
 	}
 }
 
-func TestManifestValidate_AllowsWildcardSecurityCapability(t *testing.T) {
+func TestManifestValidate_RejectsInvalidPermissionName(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
 	manifest := expectedManifest()
-	manifest.Security.Capabilities = []string{"*"}
-
-	if err := manifest.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-}
-
-func TestManifestValidate_RejectsInvalidActionName(t *testing.T) {
-	withDaemonVersion(t, "0.6.0")
-
-	manifest := expectedManifest()
-	manifest.Actions.Requires = []string{"bad action"}
+	manifest.Permissions.Requires = []string{"bad action"}
 
 	err := manifest.Validate()
 	if err == nil {
@@ -917,8 +1041,8 @@ func TestManifestValidate_RejectsInvalidActionName(t *testing.T) {
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 	}
-	if validationErr.Field != "actions.requires[0]" {
-		t.Fatalf("validation field = %q, want %q", validationErr.Field, "actions.requires[0]")
+	if validationErr.Field != "permissions.requires[0]" {
+		t.Fatalf("validation field = %q, want %q", validationErr.Field, "permissions.requires[0]")
 	}
 }
 
@@ -1287,7 +1411,7 @@ func expectedManifest() Manifest {
 		Capabilities: CapabilitiesConfig{
 			Provides: []string{"memory.backend"},
 		},
-		Actions: ActionsConfig{
+		Permissions: PermissionsConfig{
 			Requires: []string{"sessions/list", "sessions/events"},
 		},
 		Subprocess: SubprocessConfig{
@@ -1298,9 +1422,6 @@ func expectedManifest() Manifest {
 			Env: map[string]string{
 				"PGVECTOR_URL": "{{env:PGVECTOR_URL}}",
 			},
-		},
-		Security: SecurityConfig{
-			Capabilities: []string{"memory.read", "memory.write", "session.read"},
 		},
 	}
 }
@@ -1346,7 +1467,7 @@ env = { KUBECONFIG = "{{env:KUBECONFIG}}" }
 [capabilities]
 provides = ["memory.backend"]
 
-[actions]
+[permissions]
 requires = ["sessions/list", "sessions/events"]
 
 [subprocess]
@@ -1357,9 +1478,6 @@ shutdown_timeout = "10s"
 
 [subprocess.env]
 PGVECTOR_URL = "{{env:PGVECTOR_URL}}"
-
-[security]
-capabilities = ["memory.read", "memory.write", "session.read"]
 
 [future]
 mode = "enabled"
@@ -1419,7 +1537,7 @@ const validManifestJSON = `{
   "capabilities": {
     "provides": ["memory.backend"]
   },
-  "actions": {
+  "permissions": {
     "requires": ["sessions/list", "sessions/events"]
   },
   "subprocess": {
@@ -1430,9 +1548,6 @@ const validManifestJSON = `{
     "env": {
       "PGVECTOR_URL": "{{env:PGVECTOR_URL}}"
     }
-  },
-  "security": {
-    "capabilities": ["memory.read", "memory.write", "session.read"]
   },
   "future": {
     "mode": "enabled"

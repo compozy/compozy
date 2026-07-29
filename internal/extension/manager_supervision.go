@@ -90,7 +90,7 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
 	if requiresSubprocess(ext.manifest) && strings.TrimSpace(ext.manifest.Subprocess.Command) == "" {
-		err := errors.New("subprocess command is required when runtime capabilities or actions are declared")
+		err := errors.New("subprocess command is required when runtime capabilities or permissions are declared")
 		m.setFailure(ext, ExtensionPhaseValidate, err)
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
@@ -105,7 +105,7 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		m.setFailure(ext, ExtensionPhaseValidate, err)
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
-	ext.grantedActions = grant.Actions
+	ext.grantedPermissions = grant.Permissions
 	ext.grantedSecurity = grant.Security
 	ext.grantedResourceKinds = grant.ResourceKinds
 	ext.grantedResourceScopes = grant.ResourceScopes

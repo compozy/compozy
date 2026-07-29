@@ -43,7 +43,6 @@ export type {
 } from "./watch-source.js";
 export type {
   AcceptedCapabilities,
-  ActionsConfig,
   AgentCrashedPatch,
   AgentCrashedPayload,
   AgentHeartbeatDeleteParams,
@@ -241,7 +240,6 @@ export type {
   RoutingKey,
   RoutingPolicy,
   ResourcesConfig,
-  SecurityConfig,
   SessionContext,
   SessionCreatePatch,
   SessionCreateResult,

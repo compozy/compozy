@@ -92,8 +92,7 @@ export type HostAPIMethod =
 
 export interface AcceptedCapabilities {
   provides: string[];
-  actions: HostAPIMethod[];
-  security: string[];
+  permissions: HostAPIMethod[];
 }
 
 export interface AgentCrashedPatch {
@@ -2052,7 +2051,7 @@ export interface HookMatcher {
 
 export type HookExecutorKind = "native" | "subprocess" | "wasm";
 
-export type HookSource = "native" | "config" | "agent_definition" | "skill";
+export type HookSource = "native" | "config" | "extension" | "agent_definition" | "skill";
 
 export interface HookDecl {
   name: string;
@@ -2201,8 +2200,7 @@ export interface InitializeBridgeRuntime {
 
 export interface InitializeCapabilities {
   provides: string[];
-  granted_actions: HostAPIMethod[];
-  granted_security: string[];
+  granted_permissions: HostAPIMethod[];
   granted_resource_kinds: string[];
   granted_resource_scopes: string[];
 }

@@ -881,7 +881,7 @@ func daemonBridgeRuntimeRepoRoot(t *testing.T) string {
 }
 
 func allowUnverifiedBridgeExtensionInstalls(cfg *compozyconfig.Config) {
-	cfg.Extensions.Marketplace.AllowUnverified = true
+	cfg.Extensions.Trust.AllowUnverified = true
 }
 
 func daemonTelegramReferenceExtensionDir(repoRoot string) string {

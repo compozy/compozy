@@ -30,7 +30,7 @@ func TestDescribeExtension(t *testing.T) {
 					Capabilities: CapabilitiesConfig{
 						Provides: []string{"bridge.adapter"},
 					},
-					Actions: ActionsConfig{
+					Permissions: PermissionsConfig{
 						Requires: []string{"bridges/messages/ingest"},
 					},
 				},

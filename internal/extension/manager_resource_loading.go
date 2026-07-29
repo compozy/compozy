@@ -204,7 +204,7 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hook
 	decl := hookspkg.HookDecl{
 		Name:         strings.TrimSpace(cfg.Name),
 		Event:        hookspkg.HookEvent(strings.TrimSpace(cfg.Event)),
-		Source:       extensionHookSource,
+		Source:       hookspkg.HookSourceExtension,
 		Mode:         hookspkg.HookMode(strings.TrimSpace(cfg.Mode)),
 		Required:     cfg.Required,
 		Timeout:      time.Duration(cfg.Timeout),
@@ -226,6 +226,12 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hook
 		}
 		decl.Priority = priority
 		decl.PrioritySet = true
+	} else {
+		priority, err := hookspkg.DefaultHookPriority(hookspkg.HookSourceExtension)
+		if err != nil {
+			return hookspkg.HookDecl{}, fmt.Errorf("resolve extension hook priority: %w", err)
+		}
+		decl.Priority = priority
 	}
 
 	if err := hookspkg.ValidateHookDecl(decl); err != nil {

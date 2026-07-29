@@ -23,7 +23,7 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	clone := &Extension{
 		Info:                  cloneExtensionInfo(ext.info),
 		RootDir:               ext.rootDir,
-		GrantedActions:        slices.Clone(ext.grantedActions),
+		GrantedPermissions:    slices.Clone(ext.grantedPermissions),
 		GrantedSecurity:       slices.Clone(ext.grantedSecurity),
 		GrantedResourceKinds:  slices.Clone(ext.grantedResourceKinds),
 		GrantedResourceScopes: slices.Clone(ext.grantedResourceScopes),

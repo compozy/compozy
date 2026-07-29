@@ -1193,7 +1193,7 @@ func TestMarketplaceTrustDiagnostics(t *testing.T) {
 		}
 		item := blocked.DiagnosticItem()
 		if item.Code != diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked ||
-			item.SuggestedCommand != "compozy config set extensions.marketplace.allow_unverified true" {
+			item.SuggestedCommand != "compozy config set extensions.trust.allow_unverified true" {
 			t.Fatalf("ExtensionPolicyBlockedError.DiagnosticItem() = %#v", item)
 		}
 		if got := item.Evidence["settings_path"]; got != "/settings/extensions" {

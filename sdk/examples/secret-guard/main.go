@@ -353,8 +353,10 @@ func (r *secretGuardRuntime) handleInitialize(params json.RawMessage) (any, erro
 		},
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
 			Provides: append([]string(nil), request.Capabilities.Provides...),
-			Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
-			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
+			Permissions: append(
+				[]extensionprotocol.HostAPIMethod(nil),
+				request.Capabilities.GrantedPermissions...,
+			),
 		},
 		ImplementedMethods:  []string{"execute_hook", "health_check", "shutdown"},
 		SupportedHookEvents: []string{string(hookspkg.HookInputPreSubmit)},

@@ -291,17 +291,17 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		previous := compozyconfig.Config{}
 		next := previous
-		next.Extensions.Marketplace.AllowUnverified = true
+		next.Extensions.Trust.AllowUnverified = true
 		syncCalls := 0
 		state := &bootState{
 			cfg:  previous,
 			deps: RuntimeDeps{Extensions: extensionService},
 			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
 				syncCalls++
-				if syncCalls == 1 && !extensionService.marketplaceConfig().AllowUnverified {
+				if syncCalls == 1 && !extensionService.marketplaceConfig().Trust.AllowUnverified {
 					t.Error("extension side-load policy = false during active apply, want true")
 				}
-				if syncCalls == 2 && extensionService.marketplaceConfig().AllowUnverified {
+				if syncCalls == 2 && extensionService.marketplaceConfig().Trust.AllowUnverified {
 					t.Error("extension side-load policy = true during rollback, want false")
 				}
 				return errors.New("mcp sync boom")
@@ -317,7 +317,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if failures[0].Subsystem != "mcp" || failures[1].Subsystem != "mcp_rollback" {
 			t.Fatalf("ApplyActiveConfig() subsystems = %#v, want mcp then mcp_rollback", failures)
 		}
-		if extensionService.marketplaceConfig().AllowUnverified {
+		if extensionService.marketplaceConfig().Trust.AllowUnverified {
 			t.Fatal("extension side-load policy = true after rollback, want false")
 		}
 	})

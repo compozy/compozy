@@ -155,9 +155,8 @@ func initializeResponse(req subprocess.InitializeRequest) subprocess.InitializeR
 			SDKName: devCycleSDKName,
 		},
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
-			Provides: slices.Clone(req.Capabilities.Provides),
-			Actions:  slices.Clone(req.Capabilities.GrantedActions),
-			Security: slices.Clone(req.Capabilities.GrantedSecurity),
+			Provides:    slices.Clone(req.Capabilities.Provides),
+			Permissions: slices.Clone(req.Capabilities.GrantedPermissions),
 		},
 		ImplementedMethods: methods,
 		Supports: subprocess.InitializeSupports{

@@ -77,7 +77,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 					Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
 				},
 				{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
-				{Label: "Actions", Value: stringOrDash(strings.Join(item.Actions, ", "))},
+				{Label: installPermissionsValue, Value: stringOrDash(strings.Join(item.Permissions, ", "))},
 				{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
 				{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
 				{Label: "Last Error", Value: stringOrDash(item.LastError)},
@@ -97,7 +97,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				extensionHealthKey,
 				"last_error",
 				extensionCapabilitiesKey,
-				"actions",
+				configPermissionsKey,
 				"requires_env",
 				"missing_env",
 			}, []string{
@@ -113,7 +113,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				joinExtensionHealth(item.Health, item.HealthMessage),
 				item.LastError,
 				strings.Join(item.Capabilities, "|"),
-				strings.Join(item.Actions, "|"),
+				strings.Join(item.Permissions, "|"),
 				strings.Join(item.RequiresEnv, "|"),
 				strings.Join(item.MissingEnv, "|"),
 			}), nil

@@ -15,6 +15,8 @@ func DefaultHookPriority(source HookSource) (int32, error) {
 		return 1000, nil
 	case HookSourceConfig:
 		return 500, nil
+	case HookSourceExtension:
+		return 300, nil
 	case HookSourceAgentDefinition:
 		return 100, nil
 	case HookSourceSkill:
@@ -59,7 +61,7 @@ func resolvedHookLess(left *ResolvedHook, right *ResolvedHook) bool {
 	}
 
 	if left.Source != right.Source {
-		return left.Source < right.Source
+		return hookSourceRank(left.Source) < hookSourceRank(right.Source)
 	}
 	if left.Priority != right.Priority {
 		return left.Priority > right.Priority
@@ -72,6 +74,23 @@ func resolvedHookLess(left *ResolvedHook, right *ResolvedHook) bool {
 	}
 
 	return false
+}
+
+func hookSourceRank(source HookSource) int {
+	switch source {
+	case HookSourceNative:
+		return 0
+	case HookSourceConfig:
+		return 1
+	case HookSourceExtension:
+		return 2
+	case HookSourceAgentDefinition:
+		return 3
+	case HookSourceSkill:
+		return 4
+	default:
+		return 5
+	}
 }
 
 func hookSkillSourceRank(source HookSkillSource) int {

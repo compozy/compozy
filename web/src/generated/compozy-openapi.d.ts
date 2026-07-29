@@ -30120,7 +30120,6 @@ export interface operations {
         content: {
           "application/json": {
             extensions: {
-              actions?: string[];
               bundles?: {
                 description?: string;
                 name: string;
@@ -30190,6 +30189,7 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              permissions?: string[];
               pid?: number;
               provenance?: {
                 allow_unverified: boolean;
@@ -30353,7 +30353,6 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              actions?: string[];
               bundles?: {
                 description?: string;
                 name: string;
@@ -30423,6 +30422,7 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              permissions?: string[];
               pid?: number;
               provenance?: {
                 allow_unverified: boolean;
@@ -30651,7 +30651,6 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              actions?: string[];
               bundles?: {
                 description?: string;
                 name: string;
@@ -30721,6 +30720,7 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              permissions?: string[];
               pid?: number;
               provenance?: {
                 allow_unverified: boolean;
@@ -31273,7 +31273,6 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              actions?: string[];
               bundles?: {
                 description?: string;
                 name: string;
@@ -31343,6 +31342,7 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              permissions?: string[];
               pid?: number;
               provenance?: {
                 allow_unverified: boolean;
@@ -31546,7 +31546,6 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              actions?: string[];
               bundles?: {
                 description?: string;
                 name: string;
@@ -31616,6 +31615,7 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              permissions?: string[];
               pid?: number;
               provenance?: {
                 allow_unverified: boolean;
@@ -48215,10 +48215,8 @@ export interface operations {
           "application/json": {
             available_scopes: "global"[];
             config: {
-              marketplace: {
-                allow_unverified: boolean;
-                base_url?: string;
-                registry: string;
+              dev: {
+                watch_interval: string;
               };
               resources: {
                 allowed_kinds?: string[];
@@ -48234,6 +48232,18 @@ export interface operations {
                   requests: number;
                   window: string;
                 };
+              };
+              sources: {
+                git: {
+                  enabled: boolean;
+                };
+                github: {
+                  base_url: string;
+                  enabled: boolean;
+                };
+              };
+              trust: {
+                allow_unverified: boolean;
               };
             };
             hooks?: {
@@ -48510,10 +48520,8 @@ export interface operations {
       content: {
         "application/json": {
           config: {
-            marketplace: {
-              allow_unverified: boolean;
-              base_url?: string;
-              registry: string;
+            dev: {
+              watch_interval: string;
             };
             resources: {
               allowed_kinds?: string[];
@@ -48529,6 +48537,18 @@ export interface operations {
                 requests: number;
                 window: string;
               };
+            };
+            sources: {
+              git: {
+                enabled: boolean;
+              };
+              github: {
+                base_url: string;
+                enabled: boolean;
+              };
+            };
+            trust: {
+              allow_unverified: boolean;
             };
           };
         };

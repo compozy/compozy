@@ -72350,12 +72350,6 @@
                     "extensions": {
                       "items": {
                         "properties": {
-                          "actions": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "type": "array"
-                          },
                           "bundles": {
                             "items": {
                               "properties": {
@@ -72602,6 +72596,12 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "permissions": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           },
                           "pid": {
                             "type": "integer"
@@ -73081,12 +73081,6 @@
                   "properties": {
                     "extension": {
                       "properties": {
-                        "actions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
                         "bundles": {
                           "items": {
                             "properties": {
@@ -73333,6 +73327,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "pid": {
                           "type": "integer"
@@ -74407,12 +74407,6 @@
                   "properties": {
                     "extension": {
                       "properties": {
-                        "actions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
                         "bundles": {
                           "items": {
                             "properties": {
@@ -74659,6 +74653,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "pid": {
                           "type": "integer"
@@ -75705,12 +75705,6 @@
                   "properties": {
                     "extension": {
                       "properties": {
-                        "actions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
                         "bundles": {
                           "items": {
                             "properties": {
@@ -75957,6 +75951,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "pid": {
                           "type": "integer"
@@ -76541,12 +76541,6 @@
                   "properties": {
                     "extension": {
                       "properties": {
-                        "actions": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
                         "bundles": {
                           "items": {
                             "properties": {
@@ -76793,6 +76787,12 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "permissions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "pid": {
                           "type": "integer"
@@ -119649,21 +119649,14 @@
                     },
                     "config": {
                       "properties": {
-                        "marketplace": {
+                        "dev": {
                           "properties": {
-                            "allow_unverified": {
-                              "type": "boolean"
-                            },
-                            "base_url": {
-                              "type": "string"
-                            },
-                            "registry": {
+                            "watch_interval": {
                               "type": "string"
                             }
                           },
                           "required": [
-                            "allow_unverified",
-                            "registry"
+                            "watch_interval"
                           ],
                           "type": "object"
                         },
@@ -119726,11 +119719,59 @@
                             "snapshot_rate_limit"
                           ],
                           "type": "object"
+                        },
+                        "sources": {
+                          "properties": {
+                            "git": {
+                              "properties": {
+                                "enabled": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "enabled"
+                              ],
+                              "type": "object"
+                            },
+                            "github": {
+                              "properties": {
+                                "base_url": {
+                                  "type": "string"
+                                },
+                                "enabled": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "base_url",
+                                "enabled"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "git",
+                            "github"
+                          ],
+                          "type": "object"
+                        },
+                        "trust": {
+                          "properties": {
+                            "allow_unverified": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "allow_unverified"
+                          ],
+                          "type": "object"
                         }
                       },
                       "required": [
-                        "marketplace",
-                        "resources"
+                        "dev",
+                        "resources",
+                        "sources",
+                        "trust"
                       ],
                       "type": "object"
                     },
@@ -120330,21 +120371,14 @@
                 "properties": {
                   "config": {
                     "properties": {
-                      "marketplace": {
+                      "dev": {
                         "properties": {
-                          "allow_unverified": {
-                            "type": "boolean"
-                          },
-                          "base_url": {
-                            "type": "string"
-                          },
-                          "registry": {
+                          "watch_interval": {
                             "type": "string"
                           }
                         },
                         "required": [
-                          "allow_unverified",
-                          "registry"
+                          "watch_interval"
                         ],
                         "type": "object"
                       },
@@ -120407,11 +120441,59 @@
                           "snapshot_rate_limit"
                         ],
                         "type": "object"
+                      },
+                      "sources": {
+                        "properties": {
+                          "git": {
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "enabled"
+                            ],
+                            "type": "object"
+                          },
+                          "github": {
+                            "properties": {
+                              "base_url": {
+                                "type": "string"
+                              },
+                              "enabled": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "base_url",
+                              "enabled"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "git",
+                          "github"
+                        ],
+                        "type": "object"
+                      },
+                      "trust": {
+                        "properties": {
+                          "allow_unverified": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "allow_unverified"
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
-                      "marketplace",
-                      "resources"
+                      "dev",
+                      "resources",
+                      "sources",
+                      "trust"
                     ],
                     "type": "object"
                   }

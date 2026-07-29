@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	typesConfigKey = "config"
-	typesSkillKey  = "skill"
+	typesConfigKey    = "config"
+	typesExtensionKey = "extension"
+	typesSkillKey     = "skill"
 )
 
 // HookSource identifies where a hook was declared.
@@ -21,6 +22,7 @@ const (
 	HookSourceConfig
 	HookSourceAgentDefinition
 	HookSourceSkill
+	HookSourceExtension
 )
 
 var hookSourceNames = map[HookSource]string{
@@ -28,6 +30,7 @@ var hookSourceNames = map[HookSource]string{
 	HookSourceConfig:          typesConfigKey,
 	HookSourceAgentDefinition: "agent_definition",
 	HookSourceSkill:           typesSkillKey,
+	HookSourceExtension:       typesExtensionKey,
 }
 
 // HookSkillSource captures the existing skill-registry precedence without
