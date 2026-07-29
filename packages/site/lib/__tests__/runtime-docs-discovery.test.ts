@@ -34,6 +34,21 @@ function protocolPageExists(...parts: string[]): boolean {
   return existsSync(resolve(protocolRoot, ...parts));
 }
 
+/** Every directory below a collection root that owns a meta.json renders as a sidebar category. */
+function collectCategoryDirs(root: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const child = resolve(dir, entry.name);
+      if (existsSync(resolve(child, "meta.json"))) found.push(child);
+      walk(child);
+    }
+  };
+  walk(root);
+  return found;
+}
+
 describe("runtime docs discovery", () => {
   it("exposes orientation, guides, use cases, generated references, and core concepts from runtime meta", () => {
     const runtimeMeta = readRuntimeJSON<{ pages: string[] }>("meta.json");
@@ -144,6 +159,18 @@ describe("runtime docs discovery", () => {
 
     expect(apiMeta.pages).toContain("memory");
     expect(runtimePageExists("api-reference", "memory.mdx")).toBe(true);
+  });
+
+  it("gives every docs category its own landing page", () => {
+    // `core` is the CompozyOS tab root; lib/runtime-navigation.ts points its Overview at /runtime,
+    // so it is the one category that must not own a landing page of its own.
+    const exempt = new Set([resolve(runtimeRoot, "core")]);
+    const missing = [...collectCategoryDirs(runtimeRoot), ...collectCategoryDirs(protocolRoot)]
+      .filter(dir => !exempt.has(dir))
+      .filter(dir => !existsSync(resolve(dir, "index.mdx")))
+      .map(dir => dir.slice(siteRoot.length + 1));
+
+    expect(missing).toEqual([]);
   });
 
   it("keeps protocol implementation status reachable from protocol meta", () => {

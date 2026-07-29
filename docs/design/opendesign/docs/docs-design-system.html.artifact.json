@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "docs/docs-design-system.html",
+  "entry": "docs/docs-design-system.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-29T15:31:26.534Z",
+  "updatedAt": "2026-07-29T15:31:26.534Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

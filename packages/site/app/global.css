@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-ui/css/neutral.css";
+/*
+ * fumadocs-openapi renders precompiled components whose Tailwind classes live
+ * outside this app's source scan; its preset registers them via @source inline.
+ * Without this import every API-reference component ships unstyled.
+ */
+@import "fumadocs-openapi/css/preset.css";
 @import "@compozy/ui/tokens.css";
 
 /*
@@ -37,7 +43,9 @@
   --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
   --text-site-hero-section: clamp(2.6rem, 5.5vw, 4.2rem);
   --text-site-blog-title: clamp(2.6rem, 5.4vw, 4.6rem);
-  --text-site-doc-title: clamp(2.55rem, 4.7vw, 4rem);
+  --text-site-doc-title: clamp(2.4rem, 4vw, 3.4rem);
+  --text-site-doc-lead: 1.125rem;
+  --text-site-doc-lead--line-height: 1.65;
   --text-site-protocol-title: clamp(2.4rem, 5vw, 3.8rem);
   --text-site-page-title: clamp(2.4rem, 4.4vw, 4rem);
   --text-site-article-title: clamp(2.4rem, 4.4vw, 3.6rem);
@@ -46,7 +54,9 @@
   --text-site-cta-title: clamp(2rem, 4.5vw, 3.2rem);
   --text-site-feature-title: clamp(2rem, 3.4vw, 2.8rem);
   --text-site-subsection-title: clamp(1.9rem, 3.4vw, 2.6rem);
-  --text-site-doc-heading: clamp(1.7rem, 3vw, 2.45rem);
+  --text-site-doc-heading: clamp(1.6rem, 2.6vw, 2.15rem);
+  --text-group-label: 0.625rem;
+  --text-group-label--line-height: 0.75rem;
   --text-site-release-title: clamp(1.6rem, 3vw, 2.1rem);
   --text-site-empty-title: clamp(1.55rem, 3vw, 2rem);
   --text-site-quote: clamp(1.5rem, 2.4vw, 1.95rem);
@@ -138,9 +148,10 @@ a {
 }
 
 #nd-sidebar {
+  width: var(--site-doc-sidebar-width);
   border-inline-end: 1px solid var(--color-line);
   border-color: var(--color-line);
-  background: color-mix(in srgb, var(--color-canvas-soft) 92%, var(--color-canvas)) !important;
+  background: color-mix(in srgb, var(--color-canvas-soft) 55%, var(--color-canvas)) !important;
 }
 
 #nd-sidebar [data-active="true"] {
@@ -148,12 +159,61 @@ a {
   color: var(--color-accent);
 }
 
-#nd-sidebar [data-active="true"]::before {
+#nd-sidebar .docs-sb-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -12px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
   background: var(--color-accent);
+}
+
+#nd-sidebar .docs-sb-kids .docs-sb-item[data-active="true"]::before {
+  inset-inline-start: -11px;
+}
+
+#nd-sidebar .docs-sb-folder[data-state="open"] > .docs-sb-folder-head:not([data-active="true"]) {
+  color: var(--color-fg);
+}
+
+#nd-sidebar .docs-sb-item svg:not([data-icon]) {
+  stroke-width: 1.6;
+}
+
+#nd-sidebar .docs-sb-folder-head svg[data-icon] {
+  transition: transform 0.18s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+#nd-sidebar .docs-sb-kids {
+  position: relative;
+  margin-inline-start: 14px;
+  padding-inline-start: 10px;
+}
+
+#nd-sidebar .docs-sb-kids::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--color-line-strong);
+}
+
+#nd-sidebar .docs-sb-kids > .docs-sb-group:first-child {
+  margin-top: 6px;
 }
 
 #nd-sidebar [data-sidebar-body] {
   background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #nd-sidebar .docs-sb-folder-head svg[data-icon] {
+    transition: none;
+  }
 }
 
 #nd-page {
@@ -166,6 +226,7 @@ a {
 
 #nd-notebook-layout {
   --fd-layout-width: 100vw !important;
+  --fd-sidebar-width: var(--site-doc-sidebar-width);
 }
 
 #nd-toc {
@@ -178,6 +239,151 @@ a {
 #nd-toc [data-active="true"],
 #nd-toc a:hover {
   color: var(--color-accent);
+}
+
+/* OpenDesign §05 — page masthead (crumbs use badge mono via CSS, not Eyebrow) */
+.site-doc-masthead {
+  margin-bottom: 0;
+}
+
+.site-doc-masthead__context {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.site-doc-masthead__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-badge);
+  line-height: var(--text-badge--line-height);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-doc-masthead__product {
+  color: var(--color-accent);
+}
+
+.site-doc-masthead__crumb-sep {
+  width: 0.875rem;
+  height: 1px;
+  flex-shrink: 0;
+  background: var(--color-line-strong);
+}
+
+.site-doc-masthead__crumbs a {
+  color: var(--color-muted);
+  text-decoration: none;
+  transition: color 0.15s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.site-doc-masthead__crumbs a:hover {
+  color: var(--color-fg);
+}
+
+.site-doc-masthead__leaf {
+  color: var(--color-fg);
+}
+
+.site-doc-masthead__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-inline-start: auto;
+}
+
+.site-doc-masthead__title {
+  margin-top: 1.125rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-site-doc-title);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: var(--color-fg);
+  overflow-wrap: break-word;
+}
+
+.site-doc-masthead__lead {
+  margin-top: 1rem;
+  max-width: 64ch;
+  font-size: var(--text-site-doc-lead);
+  line-height: var(--text-site-doc-lead--line-height);
+  color: var(--color-muted);
+}
+
+.site-doc-masthead__meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--color-line);
+  font-size: var(--text-small-body);
+  line-height: var(--text-small-body--line-height);
+  color: var(--color-subtle);
+}
+
+.site-doc-masthead__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.site-doc-masthead__meta-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  opacity: 0.7;
+}
+
+.site-doc-masthead__meta-item strong {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.site-doc-page-action {
+  height: var(--height-search);
+  gap: 0.4375rem;
+  padding-inline: 0.625rem;
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-soft);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.site-doc-page-action:hover:not(:disabled) {
+  color: var(--color-fg);
+  background: var(--color-elevated);
+  border-color: var(--color-line-strong);
+}
+
+.site-doc-page-action[data-copy-state="copied"] {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+
+.site-doc-page-action[data-copy-state="failed"] {
+  color: var(--color-danger);
+}
+
+.site-doc-page-action--icon {
+  width: var(--height-search);
+  padding-inline: 0;
+  justify-content: center;
+}
+
+.site-doc-page-action svg:not([class*="size-"]) {
+  width: 0.8125rem;
+  height: 0.8125rem;
 }
 
 .site-doc-body {
@@ -196,7 +402,7 @@ a {
   border-top: 1px solid var(--color-line);
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  font-size: var(--text-site-doc-heading);
   line-height: 1.1;
   letter-spacing: -0.02em;
   color: var(--color-fg);
@@ -205,7 +411,8 @@ a {
 .site-doc-body h3 {
   margin-top: 2.25rem;
   font-size: 1.25rem;
-  line-height: 1.2;
+  font-weight: 600;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   color: var(--color-fg);
 }
@@ -233,6 +440,7 @@ a {
 
 .site-doc-body strong {
   color: var(--color-fg);
+  font-weight: 600;
 }
 
 .site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
@@ -241,6 +449,7 @@ a {
   background: var(--color-elevated);
   padding-inline: 0.38rem;
   padding-block: 0.12rem;
+  font-size: var(--text-inline-code);
   color: var(--color-fg);
 }
 
@@ -252,12 +461,161 @@ a {
   border-color: var(--color-line);
 }
 
-.site-doc-body a {
+.site-doc-body :is(p, li, td, th, blockquote) a {
   color: var(--color-fg);
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 0.24em;
 }
 
-.site-doc-body a:hover {
+.site-doc-body :is(p, li, td, th, blockquote) a:hover {
   color: var(--color-accent);
+}
+
+.site-doc-body :is(h1, h2, h3, h4, h5, h6) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/*
+ * API reference (fumadocs-openapi). `.site-api-page`, `.site-api-operation`,
+ * and the operation column wrappers come from the render overrides in
+ * components/docs/openapi-page.tsx.
+ */
+
+/* API pages are a workbench, not a reading column: instead of the 56.25rem
+   prose cap from DocsMainContainer, the article scales with the available
+   main-column width up to 90rem and centers once the cap binds. */
+#main-content:has(.site-api-page) > * {
+  width: 100%;
+  max-width: min(100%, 90rem);
+  margin-inline: auto;
+}
+
+.site-api-page {
+  /* Schema property names ship as text-fd-primary; every field name in accent
+     is accent overuse — keep names in fg, reserve accent for navigation. */
+  --color-fd-primary: var(--color-fg);
+  --color-fd-primary-foreground: var(--color-canvas);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.site-api-operation + .site-api-operation {
+  margin-top: 3rem;
+  padding-top: 3rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.site-api-operation-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.site-api-operation-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.site-api-operation-example {
+  min-width: 0;
+}
+
+@container (min-width: 56rem) {
+  .site-api-operation-cols {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 2.5rem;
+  }
+
+  .site-api-operation-example {
+    position: sticky;
+    top: calc(var(--fd-docs-row-1, 2rem) + 1rem);
+    width: 22rem;
+    flex-shrink: 0;
+  }
+}
+
+/* Wide containers hand the extra room to code samples as well. */
+@container (min-width: 72rem) {
+  .site-api-operation-cols {
+    gap: 3.5rem;
+  }
+
+  .site-api-operation-example {
+    width: 26rem;
+  }
+}
+
+/* Vertical rhythm for the main column: fumadocs stacks slots with no gaps and
+   relies on prose margins that not-prose blocks opt out of. */
+.site-api-operation-main > * + * {
+  margin-top: 1.25rem;
+}
+
+.site-api-operation-main > :is(h2, h3) + *,
+.site-api-operation-main > div:has(h2, h3) + * {
+  margin-top: 0.875rem;
+}
+
+/* The operation divider owns separation between operations — drop the prose
+   h2 hairline so the title doesn't double-rule against it, and keep titles a
+   step below the page masthead. */
+.site-doc-body .site-api-page h2 {
+  border-top: 0;
+  padding-top: 0;
+  font-size: 1.625rem;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.site-doc-body .site-api-page h3 {
+  margin-top: 2.5rem;
+  font-size: 1.125rem;
+}
+
+/* Component-owned code chips (media types, routes) size themselves; the prose
+   0.9em inline-code scale is for reading columns and inflates them. */
+.site-doc-body .site-api-page :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
+  font-size: 0.8125rem;
+}
+
+/* Enum/value lists inside schema fields span the field, not the 72ch prose
+   measure; paragraphs keep the site reading measure. */
+.site-doc-body .site-api-page :is(ul, ol) {
+  max-width: none;
+}
+
+/* Enum/example panels ship w-full; hug their content instead of spanning the
+   column for three short values. */
+.site-api-page div.w-full.bg-fd-secondary.rounded-lg {
+  width: fit-content;
+  min-width: 18rem;
+  max-width: 100%;
+}
+
+.site-doc-body .site-api-page li::marker {
+  color: var(--color-subtle);
+}
+
+/* Method labels and required markers ship with raw Tailwind palette classes
+   (no override hook); remap them to the signal tokens. */
+.site-api-page :is(.text-green-600, .dark\:text-green-400) {
+  color: var(--color-success);
+}
+
+.site-api-page :is(.text-blue-600, .dark\:text-blue-400) {
+  color: var(--color-info);
+}
+
+.site-api-page
+  :is(.text-yellow-600, .dark\:text-yellow-400, .text-orange-600, .dark\:text-orange-400) {
+  color: var(--color-warning);
+}
+
+.site-api-page :is(.text-red-600, .dark\:text-red-400, .text-red-400) {
+  color: var(--color-danger);
 }
 
 a p.text-fd-muted-foreground.truncate {

@@ -1,77 +1,30 @@
 import { createElement, type ReactElement } from "react";
 import { loader } from "fumadocs-core/source";
 import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
-import {
-  Activity,
-  Award,
-  Brain,
-  Book,
-  Compass,
-  Database,
-  FileCode,
-  FileText,
-  FolderTree,
-  Key,
-  Layers,
-  MessageSquare,
-  Network,
-  Plug,
-  Rocket,
-  Search,
-  Send,
-  Settings,
-  ShieldCheck,
-  Terminal,
-  Waypoints,
-  Workflow,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
 import { runtime, protocol } from "@/.source/server";
+import { DOCS_ICONS } from "./docs-icons";
+import { overviewPageTransformer } from "./docs-overview-tree";
 import { createRuntimeLayoutTree } from "./runtime-navigation";
-
-const iconMap: Record<string, LucideIcon> = {
-  Activity,
-  Award,
-  Brain,
-  Book,
-  Compass,
-  Database,
-  FileCode,
-  FileText,
-  FolderTree,
-  Key,
-  Layers,
-  MessageSquare,
-  Network,
-  Plug,
-  Rocket,
-  Search,
-  Send,
-  Settings,
-  ShieldCheck,
-  Terminal,
-  Waypoints,
-  Workflow,
-  Zap,
-};
 
 function iconResolver(icon?: string): ReactElement | undefined {
   if (!icon) return undefined;
-  const Icon = iconMap[icon];
+  const Icon = DOCS_ICONS[icon];
   return Icon ? createElement(Icon) : undefined;
 }
 
-export const runtimeDocs = loader({
-  source: runtime.toFumadocsSource(),
+// The positional `loader(source, options)` overload keeps the collection page-data types inferred
+// from the source alone; the single-object form widens them to the base schema once `pageTree` is
+// supplied.
+export const runtimeDocs = loader(runtime.toFumadocsSource(), {
   baseUrl: "/runtime",
   icon: iconResolver,
+  pageTree: { transformers: [overviewPageTransformer()] },
 });
 
-export const protocolDocs = loader({
-  source: protocol.toFumadocsSource(),
+export const protocolDocs = loader(protocol.toFumadocsSource(), {
   baseUrl: "/protocol",
   icon: iconResolver,
+  pageTree: { transformers: [overviewPageTransformer()] },
 });
 
 export const runtimeLayoutTree = createRuntimeLayoutTree(runtimeDocs.pageTree);

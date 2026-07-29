@@ -1,6 +1,12 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Folder, Node, Root } from "fumadocs-core/page-tree";
+import { loader, type MetaData, type VirtualFile } from "fumadocs-core/source";
 import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
 import { describe, expect, it } from "vitest";
+import { DOCS_ICONS } from "../docs-icons";
+import { overviewPageTransformer } from "../docs-overview-tree";
 import { createRuntimeLayoutTree } from "../runtime-navigation";
 
 function getNodeName(node: { name?: unknown }): string {
@@ -241,15 +247,115 @@ describe("runtime navigation tree", () => {
     expect(tabUrls).not.toContain("/runtime/guides");
     expect(tabUrls).not.toContain("/runtime/use-cases");
   });
+});
 
-  it("Should keep the sandbox index as the folder target instead of a duplicate child page", async () => {
-    const metadata = (await import("../../content/runtime/core/sandbox/meta.json")) as {
-      default: {
-        pages?: unknown;
-      };
-    };
-    const pages = metadata.default.pages;
+function page(path: string, title: string, slugs: string[]): VirtualFile {
+  return { type: "page", path, slugs, data: { title } };
+}
 
-    expect(Array.isArray(pages) && pages.includes("index")).toBe(false);
+function meta(path: string, data: MetaData): VirtualFile {
+  return { type: "meta", path, data };
+}
+
+function buildCategoryTree(files: VirtualFile[]): Root {
+  return loader(
+    { files },
+    { baseUrl: "/runtime", pageTree: { transformers: [overviewPageTransformer()] } }
+  ).pageTree;
+}
+
+function childNames(folder: Folder): string[] {
+  return folder.children.map(getNodeName);
+}
+
+describe("docs category overview", () => {
+  it("Should expose the landing page as an Overview child when meta omits index", () => {
+    const tree = buildCategoryTree([
+      meta("network/meta.json", { title: "Network", pages: ["protocol", "threads"] }),
+      page("network/index.mdx", "Network Overview", ["network"]),
+      page("network/protocol.mdx", "Protocol Model", ["network", "protocol"]),
+      page("network/threads.mdx", "Public Threads", ["network", "threads"]),
+    ]);
+
+    const network = findFolder(tree.children, "network");
+    if (!network) throw new Error("expected network folder");
+
+    expect(network.index).toBeUndefined();
+    expect(childNames(network)).toEqual(["Overview", "Protocol Model", "Public Threads"]);
+    const overview = network.children[0];
+    expect(overview.type === "page" ? overview.url : "").toBe("/runtime/network");
+  });
+
+  it("Should relabel and hoist the landing page when meta already lists index", () => {
+    const tree = buildCategoryTree([
+      meta("loops/meta.json", {
+        title: "Loops",
+        pages: ["catalog", "---Author---", "index", "authoring"],
+      }),
+      page("loops/index.mdx", "Loops", ["loops"]),
+      page("loops/catalog.mdx", "Catalog and detail", ["loops", "catalog"]),
+      page("loops/authoring.mdx", "Authoring loop", ["loops", "authoring"]),
+    ]);
+
+    const loops = findFolder(tree.children, "loops");
+    if (!loops) throw new Error("expected loops folder");
+
+    expect(loops.index).toBeUndefined();
+    expect(childNames(loops)).toEqual([
+      "Overview",
+      "Catalog and detail",
+      "Author",
+      "Authoring loop",
+    ]);
+  });
+
+  it("Should leave a category without a landing page untouched", () => {
+    const tree = buildCategoryTree([
+      meta("sandbox/meta.json", { title: "Sandbox", pages: ["profiles"] }),
+      page("sandbox/profiles.mdx", "Profiles", ["sandbox", "profiles"]),
+    ]);
+
+    const sandbox = findFolder(tree.children, "sandbox");
+    if (!sandbox) throw new Error("expected sandbox folder");
+
+    expect(sandbox.index).toBeUndefined();
+    expect(childNames(sandbox)).toEqual(["Profiles"]);
+  });
+});
+
+const CONTENT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "content");
+
+function collectReferencedIcons(dir: string, found: Map<string, string>): void {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectReferencedIcons(entryPath, found);
+      continue;
+    }
+    if (entry.name === "meta.json") {
+      const icon = (JSON.parse(readFileSync(entryPath, "utf8")) as { icon?: string }).icon;
+      if (icon) found.set(`${entryPath}: ${icon}`, icon);
+      continue;
+    }
+    if (entry.name.endsWith(".mdx")) {
+      const frontmatter = readFileSync(entryPath, "utf8").match(/^---\n([\s\S]*?)\n---/);
+      const icon = frontmatter?.[1].match(/^icon:\s*(\S+)\s*$/m)?.[1];
+      if (icon) found.set(`${entryPath}: ${icon}`, icon);
+    }
+  }
+}
+
+describe("docs icon registry", () => {
+  it("Should resolve every icon referenced by runtime and protocol content", () => {
+    const found = new Map<string, string>();
+    for (const tree of ["runtime", "protocol"]) {
+      collectReferencedIcons(join(CONTENT_ROOT, tree), found);
+    }
+    expect(found.size).toBeGreaterThan(0);
+
+    const unresolved = [...found.entries()]
+      .filter(([, icon]) => !(icon in DOCS_ICONS))
+      .map(([reference]) => reference);
+    expect(unresolved).toEqual([]);
   });
 });

@@ -22,7 +22,7 @@ const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
   display: "block",
-  weight: ["400", "500"],
+  weight: ["400"],
 });
 
 const jetbrainsMono = JetBrains_Mono({

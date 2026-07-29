@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session/_vc-capture-normal.html",
+  "entry": "session/_vc-capture-normal.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-29T15:22:51.074Z",
+  "updatedAt": "2026-07-29T15:22:51.074Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

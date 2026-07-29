@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
+import { API_TAG_ICONS } from "../lib/docs-icons";
 import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/runtime-navigation";
 
@@ -218,34 +219,8 @@ async function writeMeta(usedTagSlugs: Set<string>): Promise<void> {
   await fs.writeFile(path.join(OUT_DIR, "meta.json"), `${JSON.stringify(meta, null, 4)}\n`, "utf8");
 }
 
-const TAG_ICONS: Record<string, string> = {
-  agent: "MessageSquare",
-  agents: "FileText",
-  automation: "Activity",
-  bridges: "Layers",
-  daemon: "Activity",
-  onboarding: "Rocket",
-  filesystem: "Folder",
-  extensions: "Plug",
-  hooks: "Waypoints",
-  loops: "Workflow",
-  memory: "Brain",
-  network: "Network",
-  observe: "Compass",
-  resources: "Database",
-  sessions: "Send",
-  settings: "Settings",
-  support: "Archive",
-  skills: "FileCode",
-  tasks: "Workflow",
-  tools: "Plug",
-  toolsets: "Layers",
-  vault: "Key",
-  workspaces: "FolderTree",
-};
-
 function iconForTitle(title: string): string | undefined {
-  return TAG_ICONS[tagSlug(title)];
+  return API_TAG_ICONS[tagSlug(title)];
 }
 
 async function main(): Promise<void> {

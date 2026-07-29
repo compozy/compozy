@@ -10,6 +10,7 @@ import {
   type BreadcrumbItem,
 } from "@/components/seo/structured-data";
 import { getMDXComponents } from "@/mdx-components";
+import { resolveDocMastheadMeta } from "@/lib/doc-masthead-meta";
 import { absoluteUrl, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
 
 interface PageProps {
@@ -59,13 +60,20 @@ export default async function Page(props: PageProps) {
   const MDX = page.data.body;
   const actions = buildActionUrls(slug, page.path);
   const breadcrumbs = buildBreadcrumbs(slug, page.data.title);
+  const masthead = resolveDocMastheadMeta(
+    "protocol",
+    slug,
+    protocolDocs.pageTree,
+    page.url,
+    page.data.title
+  );
   const ogImagePath = `/og/protocol/${slug.length ? `${slug.join("/")}/` : ""}image.png`;
 
   return (
     <DocsPage
       id="main-content"
       toc={page.data.toc}
-      breadcrumb={{ enabled: true }}
+      breadcrumb={{ enabled: false }}
       tableOfContentPopover={{ enabled: false }}
       slots={{ container: DocsMainContainer }}
       className="px-4 pt-8 pb-12 md:px-6 xl:layout:[--fd-toc-width:14rem] xl:pt-10"
@@ -78,10 +86,12 @@ export default async function Page(props: PageProps) {
       />
       <BreadcrumbListJsonLd items={breadcrumbs} />
       <DocPageMasthead
-        kind="protocol"
-        slug={slug}
+        product={masthead.product}
+        audience={masthead.audience}
+        crumbs={masthead.crumbs}
         title={page.data.title}
         description={page.data.description}
+        sectionPageCount={masthead.sectionPageCount}
         markdownUrl={actions.markdownUrl}
         pageUrl={actions.pageUrl}
         githubUrl={actions.githubUrl}

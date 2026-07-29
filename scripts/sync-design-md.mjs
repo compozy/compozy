@@ -70,7 +70,10 @@ function replaceGeneratedSections(text) {
     ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
     ["shell-backdrop", tokenTable(namedRows(runtimeDecls, /^(blur-shell|wallpaper-)/))],
     ["motion", tokenTable(namedRows(runtimeTheme, /^(duration|ease)-/))],
-    ["site-clamps", tokenTable(namedRows(siteTheme, /^text-site-|^leading-doc-body$/))],
+    [
+      "site-clamps",
+      tokenTable(namedRows(siteTheme, /^text-site-|^text-group-label|^leading-doc-body$/)),
+    ],
     ["site-layout", tokenTable(namedRows(siteDecls, /^site-/))],
   ];
   for (const [id, content] of sections) text = replaceSection(text, id, content);
@@ -197,7 +200,7 @@ function emitFrontmatter() {
     "  site:",
     yamlMap(
       "typography-clamps",
-      mapNamed(siteTheme, /^text-site-|^leading-doc-body$/, name =>
+      mapNamed(siteTheme, /^text-site-|^text-group-label|^leading-doc-body$/, name =>
         name.replace(/^text-site-/, "")
       ),
       4

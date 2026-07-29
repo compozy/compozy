@@ -75,10 +75,19 @@ export function LLMCopyButton({ markdownUrl }: LLMCopyButtonProps) {
   };
 
   const copied = copyState === "copied";
-  const label = copyState === "failed" ? "Retry copy" : copied ? "Copied" : "Copy as Markdown";
+  const failed = copyState === "failed";
+  const label = failed ? "Retry copy" : copied ? "Copied" : "Copy as Markdown";
+  const dataState = copied ? "copied" : failed ? "failed" : undefined;
 
   return (
-    <Button disabled={copyPending} size="sm" variant="outline" onClick={onClick}>
+    <Button
+      className="site-doc-page-action h-search"
+      data-copy-state={dataState}
+      disabled={copyPending}
+      size="sm"
+      variant="outline"
+      onClick={onClick}
+    >
       {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
       {label}
     </Button>

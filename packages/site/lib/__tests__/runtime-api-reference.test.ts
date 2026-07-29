@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../runtime-navigation";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -60,5 +61,16 @@ describe("api reference", () => {
 
     const unmapped = usedTags.filter(tag => !sectionByTag.has(tag));
     expect(unmapped).toEqual([]);
+  });
+
+  it("Should map every used tag to an icon registered in the docs icon registry", () => {
+    const usedTags = collectUsedTags(loadOpenAPI()).map(tagSlug);
+    const missing = usedTags.filter(tag => !(tag in API_TAG_ICONS));
+    expect(missing).toEqual([]);
+
+    const dangling = Object.entries(API_TAG_ICONS)
+      .filter(([, icon]) => !(icon in DOCS_ICONS))
+      .map(([tag, icon]) => `${tag} -> ${icon}`);
+    expect(dangling).toEqual([]);
   });
 });
