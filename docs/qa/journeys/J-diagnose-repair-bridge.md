@@ -30,7 +30,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-diagnose-repair-bridge
+  id: J-diagnose-repair-bridge
   name: "Diagnose and repair a misconfigured bridge"
   value_statement: "I can identify the exact operator-owned fault before enablement and prove the repair without a diagnostic changing runtime state."
   personas: [Tessa, Ada, Omar]

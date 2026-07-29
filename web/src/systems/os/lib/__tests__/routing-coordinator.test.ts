@@ -289,6 +289,31 @@ describe("RoutingCoordinator", () => {
     expect(store.openOrFocus).toHaveBeenCalledTimes(2);
   });
 
+  it("Should preserve an explicit route while its semantic focus is pending", async () => {
+    const session = windowFixture(
+      "session",
+      "/agents/general/sessions/sess-route-intent",
+      "sess-route-intent"
+    );
+    const marketplace = windowFixture("marketplace", "/marketplace/skills");
+    const { coordinator, router, store } = createCoordinator([session, marketplace]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    store.deferLifecycle();
+
+    coordinator.reportRouteMatch(session.route);
+    coordinator.reportAuthoritativeState();
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
+    expect(router.replace).not.toHaveBeenCalled();
+
+    store.settleLifecycle(true);
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe(session.id));
+    coordinator.reportAuthoritativeState();
+
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();

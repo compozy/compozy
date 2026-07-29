@@ -34,7 +34,9 @@ func (s *service) classifyProviderWrite(
 	maps.Copy(nextConfig.Providers, currentConfig.Providers)
 	nextConfig.Providers[name] = providerConfigFromSettings(settings)
 	if err := nextConfig.Validate(); err != nil {
-		return providerWriteClassification{}, fmt.Errorf("validate provider %q mutation: %w", name, err)
+		return providerWriteClassification{}, validationError(
+			fmt.Errorf("validate provider %q mutation: %w", name, err),
+		)
 	}
 	nextProvider, err := nextConfig.ResolveProvider(name)
 	if err != nil {

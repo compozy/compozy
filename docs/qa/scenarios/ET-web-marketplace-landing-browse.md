@@ -8,15 +8,17 @@ expected: The Marketplace sidebar entry and `/marketplace` route land on the Ski
 entry_points: /marketplace; /marketplace/skills; Marketplace sidebar item
 qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
-fix_status: BUG-20260714-keyboard-focus-invisible fixed
-retest_status: pending full-identity concurrent action state and extension Update routing
-fix_commits:
+fix_status: fixed
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-search-fanout
 ---
 
 Added by marketplace Task 06. The next Web QA cycle should compare the landing against VC01, VC02, VC03, and VC06, including installed and update states with an active workspace.
+
+Historical QA note: full-identity concurrent action state and extension Update routing remain pending.
 
 QA impact 2026-07-16: pending actions now use `(kind, entry_id)` with independent overlap counts,
 and installed extension Update uses the lifecycle PUT instead of the install POST; reset for the next

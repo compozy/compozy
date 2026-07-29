@@ -55,7 +55,8 @@ compile-time ceilings:
 
 `GET /loops/:name/config` returns the stored per-Loop override as `config` and the daemon-resolved
 first three layers as `effective_config`. A missing override is `config: null`; it is not a missing
-Loop and does not prevent clients from reading the effective values.
+Loop and does not prevent clients from reading the effective values. Reading or writing config for
+a missing Loop returns `404` and creates no detached override.
 
 Loop `run-agent` workers use Loop-owned `runtime_defaults` and `runtime_rules`; they do not read
 `[[tasks.run.task_runtime_rules]]`. Runtime fields resolve independently and the daemon persists the

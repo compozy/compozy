@@ -9,7 +9,7 @@ entry_points: web loop run Inspect; compozy loop status -o json; GET /api/worksp
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/cli-origin-dry-run.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/http-origin-dry-run.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/uds-origin-dry-run.normalized.json
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md

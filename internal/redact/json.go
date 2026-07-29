@@ -122,13 +122,14 @@ func normalizeFieldName(key string) string {
 
 func isProtectedEnvelopeKey(key string) bool {
 	if strings.HasSuffix(key, "_id") || strings.HasSuffix(key, "_hash") ||
-		strings.HasSuffix(key, "_digest") || strings.HasSuffix(key, "_fingerprint") {
+		strings.HasSuffix(key, "_digest") || strings.HasSuffix(key, "_fingerprint") ||
+		strings.HasSuffix(key, "_cursor") {
 		return true
 	}
 	switch key {
 	case "claim_token_hash", redactionSessionIDFieldKey, "run_id", "workspace_id", "agent_id",
 		"task_id", "goal_id", "loop_id", "fingerprint", "idempotency_key",
-		"digest", "schema_digest", "descriptor_digest", "correlation_id", "request_id":
+		"digest", "schema_digest", "descriptor_digest", "correlation_id", "request_id", "cursor":
 		return true
 	default:
 		return false

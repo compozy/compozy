@@ -59,6 +59,7 @@ const (
 
 type outputBundle struct {
 	jsonValue any
+	json      func(*cobra.Command) error
 	jsonl     func(*cobra.Command) error
 	human     func() (string, error)
 	toon      func() (string, error)
@@ -155,6 +156,9 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 
 	switch mode {
 	case OutputJSON:
+		if bundle.json != nil {
+			return bundle.json(cmd)
+		}
 		return writeJSON(cmd, bundle.jsonValue)
 	case OutputJSONL:
 		if bundle.jsonl == nil {
@@ -202,6 +206,13 @@ func writeJSON(cmd *cobra.Command, value any) error {
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(outputValueWithWorkspaceResolution(cmd, value))
+}
+
+func writeJSONWithoutWorkspaceResolution(cmd *cobra.Command, value any) error {
+	encoder := json.NewEncoder(cmd.OutOrStdout())
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
 }
 
 func writeRawCommandOutput(cmd *cobra.Command, text string) error {

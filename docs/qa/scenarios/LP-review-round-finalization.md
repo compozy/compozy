@@ -9,7 +9,7 @@ entry_points: workspace .compozy/tasks/<task>/reviews-NNN; loop run status; ext_
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/review-and-fix-e2e.log; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md

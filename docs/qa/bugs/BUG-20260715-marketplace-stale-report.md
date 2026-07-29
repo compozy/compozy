@@ -1,6 +1,6 @@
 # BUG-20260715-marketplace-stale-report: Failed feed refresh hides the preserved stale projection
 
-- **Status:** fixed and verified
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Vera; Ada

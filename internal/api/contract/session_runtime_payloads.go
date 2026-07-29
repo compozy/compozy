@@ -12,6 +12,11 @@ import (
 
 const (
 	contractDirectKey = "direct"
+
+	// SessionAttachDefaultTTLSeconds is the lease duration used when attach omits a positive TTL.
+	SessionAttachDefaultTTLSeconds = 15 * 60
+	// SessionAttachMaxTTLSeconds is the largest attach lease accepted by the daemon.
+	SessionAttachMaxTTLSeconds = 24 * 60 * 60
 )
 
 // CreateSessionRequest is the shared session creation request payload.

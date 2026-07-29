@@ -1,6 +1,11 @@
 package globaldb
 
-import looppkg "github.com/compozy/compozy/internal/loop"
+import (
+	"context"
+
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+)
 
 type loopConfigPatchFlags struct {
 	HumanGate        bool
@@ -32,4 +37,50 @@ func loopConfigPatchFlagsForStore(original looppkg.LoopConfig, normalized looppk
 		RuntimeDefaults:  normalized.RuntimeDefaults != nil,
 		RuntimeRules:     original.RuntimeRules != nil,
 	}
+}
+
+func upsertLoopConfigWithExecutor(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	workspaceID string,
+	loopName string,
+	original looppkg.LoopConfig,
+	normalized looppkg.LoopConfig,
+) error {
+	runtimeDefaultsJSON, err := nullableLoopConfigJSON(normalized.RuntimeDefaults)
+	if err != nil {
+		return err
+	}
+	var runtimeRulesValue any
+	if normalized.RuntimeRules != nil {
+		runtimeRulesValue = normalized.RuntimeRules
+	}
+	runtimeRulesJSON, err := nullableLoopConfigJSON(runtimeRulesValue)
+	if err != nil {
+		return err
+	}
+	insert := sqlcgen.InsertLoopConfigIfMissingParams{
+		WorkspaceID:         workspaceID,
+		LoopName:            loopName,
+		HumanGateEnabled:    int64(boolPtrToInt(normalized.HumanGateEnabled)),
+		ReattemptStrategy:   nullStringPtr(normalized.ReattemptStrategy),
+		EnabledChecksJson:   enabledChecksForStore(normalized.EnabledChecks),
+		IterationCap:        nullIntPtr(normalized.IterationCap),
+		BudgetTokens:        nullIntPtr(normalized.BudgetTokens),
+		BudgetWallSec:       nullIntPtr(normalized.BudgetWallSec),
+		BudgetOnExceeded:    nullStringPtr(normalized.BudgetOnExceeded),
+		NoProgressWindow:    nullIntPtr(normalized.NoProgressWindow),
+		FanOutWidth:         nullIntPtr(normalized.FanOutWidth),
+		GateMaxRevisions:    nullIntPtr(normalized.GateMaxRevisions),
+		RuntimeDefaultsJson: runtimeDefaultsJSON,
+		RuntimeRulesJson:    runtimeRulesJSON,
+	}
+	queries := sqlcgen.New(exec)
+	if err := queries.InsertLoopConfigIfMissing(ctx, insert); err != nil {
+		return err
+	}
+	return queries.PatchLoopConfig(ctx, loopConfigPatchParams(
+		insert,
+		loopConfigPatchFlagsForStore(original, normalized),
+	))
 }

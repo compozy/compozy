@@ -9,12 +9,14 @@ entry_points: POST /api/settings/mcp-servers/{name}/auth/begin; POST /api/settin
 qa_status: untested
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
-retest_status: pending effective IPv4/IPv6 loopback callback origin and documented 503 outcome
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+retest_status: pass
+fix_commits: 8eeb8a38
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/024-mcp-oauth-endpoints; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-nonloopback-20260729-20260729-094415-836845-lab/qa-artifacts/qa/evidence/001-mcp-oauth-nonloopback; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-replacement-20260729-20260729-095438-704553-lab/qa-artifacts/qa/evidence/001-mcp-replacement
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-047; ET-cli-mcp-auth-manual-exchange; ET-cli-mcp-authorize
 ---
+
+Historical QA note: effective IPv4/IPv6 loopback callback origin and documented 503 outcome coverage remains pending.
 
 Added by marketplace Task 04. QA should compare HTTP and UDS payloads, prove two homonymous
 workspace servers cannot read each other's tokens, confirm logout removes only the selected scoped
@@ -34,3 +36,10 @@ assuming `127.0.0.1`; verify IPv4, IPv6, and non-loopback behavior plus the call
 QA impact 2026-07-17: begin now requires the explicit automatic/manual mode over HTTP and UDS.
 Exercise a refresh that starts after begin but finishes after exchange; the exchanged credential must
 remain authoritative. A wrong-state redirect must not consume the active session.
+
+QA result 2026-07-29: HTTP/UDS begin, exchange, and logout; loopback automatic callback; wrong-state
+non-consumption; target replacement and deletion; old-bearer withholding after restart; real expiry;
+newer-exchange versus blocked-refresh ordering; non-loopback 403/503 behavior; redaction; and cleanup
+all passed. The historical name-segment fix passed its fresh retest. The defensive callback-503
+branch with an absent settings runtime remains Pending because no public healthy-daemon fault owner
+can create that handler state.

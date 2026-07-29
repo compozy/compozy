@@ -176,10 +176,11 @@ rate. Compozy does not substitute input rates for cache tokens or output rates f
 Provider Settings PUTs distinguish omission from an explicit membership change. If
 `models.curated` is omitted, Compozy preserves the server-owned raw membership even when catalog sources
 are temporarily unavailable. A present empty array is an explicit membership clear and fails with
-`503 Service Unavailable` when Compozy cannot enumerate the authoritative catalog. Entries in a PUT are
-membership IDs only; use the request-level `model_curation` object or the atomic curation endpoint to
-set `hidden`, `featured`, `deprecated`, or a default reasoning effort without copying merged catalog
-metadata into `config.toml`.
+`503 Service Unavailable` when Compozy cannot enumerate the authoritative catalog. For a present array,
+Compozy compares every entry with the current effective catalog projection and persists only explicit
+deltas, including the five pricing fields, without copying unchanged catalog enrichment into
+`config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
+change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
 
 Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
 When a discovery path is unavailable or fails, the model catalog records a source status and falls

@@ -7,10 +7,10 @@ journey: J-complete-web-bridge-setup
 expected: A browser-first operator can create a disabled Slack bridge, copy its daemon-generated manifest, follow daemon-derived setup state and inline verification remediation, register Telegram webhooks, and distinguish dry-run target checks from real test sends. At 320px, the create dialog and detail panel reflow their step navigation, provider cards, actions, secret inputs, complete secret references, and provider/config metadata without horizontal scrolling or clipping.
 entry_points: Web bridges create dialog; Web bridge detail panel
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
+bug_ids: BUG-20260712-bridge-e2e-retired-route
+fix_status: fixed
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-create-handoff.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-failed-remediation.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-send-result.png
 last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
 overlaps: NB-bridge-provider-setup; NB-026; NB-027; NB-036; NB-037; NB-038; NB-039

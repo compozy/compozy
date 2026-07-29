@@ -357,6 +357,7 @@ function renderSessionThread(
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
     includeDecisionDock?: boolean;
+    liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
     strictMode?: boolean;
@@ -370,6 +371,7 @@ function renderSessionThread(
         sessionId={primarySessionFixture.id}
         workspaceId={fixtureWorkspaceId()}
         eventSourceFactory={options.eventSourceFactory}
+        liveTailEnabled={options.liveTailEnabled}
       >
         {options.onRuntimeTranscriptCommit ? (
           <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
@@ -768,6 +770,15 @@ describe("SessionChatRuntimeProvider", () => {
 
     expect(countTranscriptFetches(fetchMock)).toBe(1);
   }, 10_000);
+
+  it("Should keep the live EventSource closed when liveTailEnabled is false", async () => {
+    const eventSourceFactory = vi.fn((url: string) => new FakeSessionEventSource(url));
+
+    renderSessionThread({ eventSourceFactory, liveTailEnabled: false });
+
+    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+    expect(eventSourceFactory).not.toHaveBeenCalled();
+  });
 
   it("Should preserve a visible message anchor when older history and a live delta arrive together", async () => {
     const user = userEvent.setup();

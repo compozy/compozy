@@ -3,7 +3,7 @@ id: ET-web-sessions-catalog-modal
 area: ET
 title: Open the sessions catalog as a global modal from dock and palette
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: Dock Sessions and ⌘K Toggle sessions open one centered Dialog over the desk with scrim; filter and recent/all views list live catalog truth; selecting a session opens its window and closes the modal; Escape/scrim dismisses without changing windows; compact and floating share the same modal chrome.
 entry_points: web dock Sessions; ⌘K Toggle sessions; os-sessions-modal
 qa_status: untested

@@ -5,7 +5,7 @@
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Bruno
 - **Journey Step:** J-06 fork and edit, step 1
-- **Scenarios:** LP-021; LP-toggle-loop-goal; LP-delete-custom-loop
+- **Scenarios:** LP-021; LP-024; LP-toggle-loop-goal; LP-delete-custom-loop
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
 - **Origin:** n/a
 

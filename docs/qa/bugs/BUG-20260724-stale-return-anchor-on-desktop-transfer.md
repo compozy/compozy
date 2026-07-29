@@ -1,6 +1,6 @@
 # BUG-20260724-stale-return-anchor-on-desktop-transfer: deleting a focus desktop transfers the zoomed window with a stale ReturnAnchor
 
-- **Status:** suspected
+- **Status:** open
 - **Impact (user-side):** latent wrong-place restore — next unzoom after a pager delete may target a stale source
 - **Persona Affected:** Théo
 - **Journey Step:** —

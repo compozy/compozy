@@ -3,7 +3,7 @@ id: ET-window-manager-multi-client
 area: ET
 title: Keep topology shared while desktop and focus stay client-local
 persona: Bruno
-journey:
+journey: J-administer-window-manager
 expected: Two registered clients in one workspace observe the same persistent desktops, groups, windows, revisions, routes, and durable events while independently switching desktops and focusing or zooming windows; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; missing, foreign, and disconnected client IDs reject.
 entry_points: two Web browser contexts; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window zoom
 qa_status: untested

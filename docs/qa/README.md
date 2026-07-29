@@ -26,6 +26,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | LP | Loops (workflow runs, catalog, configure/fork, editor) |
 | GL | Goal (conversational convergence, controls, context, recovery) |
 | REL | Release and distribution (installers, registries, channels, provenance) |
+| SITE | Public documentation site (published receipts and user-visible release truth) |
 
 New areas: define the code here first, then mint ids.
 

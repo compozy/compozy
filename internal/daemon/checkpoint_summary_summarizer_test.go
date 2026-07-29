@@ -130,7 +130,7 @@ type checkpointSummarySessionManagerStub struct {
 	promptErr   error
 }
 
-func (m *checkpointSummarySessionManagerStub) Create(
+func (m *checkpointSummarySessionManagerStub) CreateLifecycleContinuation(
 	_ context.Context,
 	opts session.CreateOpts,
 ) (*session.Session, error) {
@@ -139,7 +139,7 @@ func (m *checkpointSummarySessionManagerStub) Create(
 	return &session.Session{ID: "checkpoint-session"}, nil
 }
 
-func (m *checkpointSummarySessionManagerStub) Prompt(
+func (m *checkpointSummarySessionManagerStub) PromptLifecycleContinuation(
 	_ context.Context,
 	id string,
 	message string,

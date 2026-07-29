@@ -74,4 +74,7 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	if targets.localMemoryProvider != nil {
 		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))
 	}
+	if err := d.shutdownSessionManager(ctx, targets.sessions); err != nil {
+		*errs = append(*errs, err)
+	}
 }

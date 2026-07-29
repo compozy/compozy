@@ -8,15 +8,17 @@ expected: Stdio required fields accept either typed values or present namespace=
 entry_points: /marketplace/mcp/$entryId; MCP Install action
 qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible; BUG-20260715-mcp-install-null-values
-fix_status: BUG-20260714-keyboard-focus-invisible fixed; BUG-20260715-mcp-install-null-values fixed
-retest_status: pending exact invoked Authorize and Manage toast destinations
-fix_commits:
+fix_status: fixed
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/screenshots/marketplace-guided-oauth-installed.png; /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-cli-mcp-install; ET-api-mcp-catalog-install; ET-web-mcp-authorize
 ---
 
 Added by marketplace Task 06. Walk typed, existing-ref, inline-create, remote-no-auth, and remote-OAuth branches; inspect network, DOM, logs, and fresh settings reads for plaintext-secret absence.
+
+Historical QA note: exact invoked Authorize and Manage toast destinations remain pending.
 
 Task 10 planning note: persona moved from Ada to Bruno — the guided modal is a human web surface; Ada's structured equivalents are ET-cli-mcp-install and ET-api-mcp-catalog-install.
 

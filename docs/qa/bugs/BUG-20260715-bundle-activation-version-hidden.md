@@ -32,7 +32,7 @@ The `bundle.activation` resource store had optimistic versions internally, but a
 ## Fix
 
 - **Root cause:** `resources.Record.Version` was dropped when converting an activation, and `UpdateBundleActivation` performed a fresh read instead of using caller-observed state.
-- **Fix commit:** pending final whole-diff commit.
+- **Fix commit:** `8eeb8a38`.
 - **Regression tests:** the canonical resource-store suite rejects stale activation writes; the Network-requirement suite proves reconcile bumps a changed digest, clears confirmation, rejects the stale version, and accepts the current version; API/CLI suites cover the public fields and error mapping.
 
 ## Verification

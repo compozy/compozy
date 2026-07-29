@@ -268,6 +268,16 @@ func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should leave whitespace-only streaming chunks byte identical", func(t *testing.T) {
+		t.Parallel()
+
+		for _, chunk := range []string{" ", "\n", "\n\n", "\t\r\n"} {
+			if got := New(Options{}).RedactString(chunk); got != chunk {
+				t.Fatalf("RedactString(%q) = %q, want byte-identical chunk", chunk, got)
+			}
+		}
+	})
 }
 
 func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
@@ -280,6 +290,7 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 		"run_id":                   "62f82910-18ca-4f2e-aa4a-54dcde9fe761",
 		"fingerprint":              "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		"idempotency_key":          "idem_550e8400e29b41d4a716446655440000",
+		"next_cursor":              "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjoxfQ",
 	}
 	payload := map[string]string{redactionMessageFieldKey: "leaked " + secret}
 	maps.Copy(payload, wantEnvelope)
@@ -288,7 +299,7 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 
-	redacted := New(Options{}).RedactJSON(raw, []string{redactionMessageFieldKey})
+	redacted := New(Options{}).RedactJSON(raw, []string{"", redactionMessageFieldKey})
 	var got map[string]string
 	if err := json.Unmarshal(redacted, &got); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v payload=%s", err, redacted)

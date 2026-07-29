@@ -8,8 +8,16 @@ expected: The generated v0.3.0 changelog and release PR include the CompozyOS mi
 entry_points: cliff.toml; pr-release pr-release; CHANGELOG.md; RELEASE_BODY.md; release/v0.3.0 pull request
 qa_status: untested
 bug_ids:
-notes: Behavior changed after the first v0.3.0 release PR attributed post-v0.2.15 legacy fixes to the CompozyOS release. Planning flag only; verify during the next release QA cycle.
+fix_status:
+retest_status:
+fix_commits:
+evidence:
+last_report:
+overlaps:
 ---
+
+Behavior changed after the first v0.3.0 release PR attributed post-v0.2.15 legacy fixes to the
+CompozyOS release. Planning flag only; verify during the next release QA cycle.
 
 ## Steps
 

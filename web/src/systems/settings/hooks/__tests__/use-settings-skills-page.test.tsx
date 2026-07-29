@@ -19,9 +19,20 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   },
 }));
 
+vi.mock("@/systems/agent/adapters/agent-api", () => ({
+  fetchAgents: vi.fn(),
+}));
+
+vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
+  fetchWorkspaces: vi.fn(),
+}));
+
+import { fetchAgents } from "@/systems/agent/adapters/agent-api";
+import { primaryAgentFixture } from "@/systems/agent/mocks";
 import { getSettingsSkills, updateSettingsSkills } from "@/systems/settings/adapters/settings-api";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsSkillsSection } from "@/systems/settings";
+import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 import { useSettingsSkillsPage } from "../use-settings-skills-page";
 import { settingsSkillsDraftLogic } from "../settings-skills-draft-logic";
 
@@ -60,6 +71,8 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSettingsRestartStore();
+  vi.mocked(fetchAgents).mockResolvedValue([]);
+  vi.mocked(fetchWorkspaces).mockResolvedValue([]);
   vi.mocked(getSettingsSkills).mockResolvedValue(skillsEnvelope);
 });
 
@@ -212,6 +225,92 @@ describe("useSettingsSkillsPage", () => {
       },
       { scope: "global" }
     );
+  });
+
+  it("Should adopt the normalized policy after save without leaving a dirty draft", async () => {
+    let persisted = false;
+    const envelopeWithoutDisabled = {
+      ...skillsEnvelope,
+      config: { ...skillsEnvelope.config, disabled_skills: undefined },
+    };
+    vi.mocked(getSettingsSkills).mockImplementation(async () =>
+      persisted
+        ? {
+            ...envelopeWithoutDisabled,
+            config: { ...envelopeWithoutDisabled.config, poll_interval: "10m0s" },
+          }
+        : envelopeWithoutDisabled
+    );
+    vi.mocked(updateSettingsSkills).mockImplementation(async () => {
+      persisted = true;
+      return {
+        section: "skills",
+        scope: "global",
+        applied: true,
+        active_config_hash: "sha256:test-active",
+        active_generation: 1,
+        apply_record_id: "cfg_apply_test",
+        lifecycle: "restart-required",
+        next_action: "restart-daemon",
+        restart_required: true,
+        write_target: "global-config",
+      };
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft(current =>
+        current ? { ...current, poll_interval: "10m" } : current
+      );
+    });
+    expect(result.current.isPolicyDirty).toBe(true);
+
+    act(() => {
+      result.current.handleSavePolicy();
+    });
+
+    await waitFor(() => {
+      expect(result.current.draft?.poll_interval).toBe("10m0s");
+      expect(result.current.isPolicyDirty).toBe(false);
+    });
+  });
+
+  it("Should select the canonical general agent when entering agent scope", async () => {
+    vi.mocked(fetchAgents).mockResolvedValue([
+      { ...primaryAgentFixture, name: "code_implementer" },
+      { ...primaryAgentFixture, name: "general" },
+    ]);
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => {
+      const requested = filter ?? {};
+      return {
+        ...skillsEnvelope,
+        scope: requested.scope ?? "global",
+        available_scopes: ["global", "agent"],
+        agent_name: requested.agent_name,
+      };
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(2));
+
+    act(() => {
+      result.current.selectAgentScope();
+    });
+
+    await waitFor(() => {
+      expect(result.current.selection).toEqual({ scope: "agent", agentName: "general" });
+    });
+    expect(vi.mocked(getSettingsSkills).mock.calls.at(-1)?.[0]).toEqual({
+      scope: "agent",
+      agent_name: "general",
+      workspace_id: undefined,
+    });
   });
 
   it("Should replace a skills draft when its server scope changes", () => {

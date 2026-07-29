@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260715-loop-participation-contract-dropped;BUG-20260715-automation-task-participation-control-missing;BUG-20260715-loop-run-compact-layout-collapsed
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-local-default.md
 last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-006;TA-001;TA-004;TA-052

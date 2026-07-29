@@ -3,16 +3,16 @@ id: ET-web-shell-shortcuts-about-dialogs
 area: ET
 title: Read the keyboard reference and installation identity from the shell
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell, Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
 entry_points: web desktop menubar Help menu; web desktop menubar Compozy menu
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/041-shell-shortcuts-about-dialogs
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-menubar-menu-set; ET-web-command-palette-shortcuts
 ---
 
@@ -25,3 +25,9 @@ Flag only; the next QA cycle owns live retesting.
 QA impact 2026-07-25 (deep-review remediation): the Layouts shortcut is now disabled when the live
 window-manager command fence is unavailable. Flag only; the next QA cycle owns degraded-state
 keyboard and pointer retesting.
+
+QA 2026-07-29: The real desktop menubar opened both dialogs by keyboard. The shortcuts reference
+listed all 27 live actions across four sections, including four em-dash unbound actions, and exposed
+the enabled Layouts footer under the available command fence. About matched all eight `/api/status`
+fields, invented no unpublished build metadata, retained the last snapshot during an induced poll
+failure, closed on Escape, and returned focus to each owning menu trigger.

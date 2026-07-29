@@ -271,21 +271,23 @@ export abstract class WindowManagerRuntimeCore {
     windowManagerStore.trigger.conflictCleared();
   }
 
-  refreshSnapshot(): void {
+  refreshSnapshot(): Promise<boolean> {
     const binding = this.binding;
-    if (binding === null) return;
-    void fetchWindowManagerSnapshot(binding.workspaceId)
+    if (binding === null) return Promise.resolve(false);
+    return fetchWindowManagerSnapshot(binding.workspaceId)
       .then(snapshot => {
         this.queryClient.setQueryData<WindowManagerSnapshot>(
           windowManagerKeys.snapshot(binding.workspaceId),
           current => reconcileWindowManagerSnapshot(current, snapshot)
         );
         this.setLoadError(null);
+        return true;
       })
       .catch(error => {
         this.setLoadError(
           error instanceof Error ? error : new Error("Unable to reload the window layout.")
         );
+        return false;
       });
   }
 

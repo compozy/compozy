@@ -14,8 +14,8 @@ func String(value string) string {
 }
 
 func exactRedactString(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return strings.TrimSpace(value)
+	if value == "" {
+		return ""
 	}
 
 	redacted := authorizationHeaderPattern.ReplaceAllStringFunc(value, redactAuthorizationHeader)

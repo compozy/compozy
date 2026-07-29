@@ -183,6 +183,85 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should use the latest rollback revision as the current wake policy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB, err := OpenGlobalDB(ctx, filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-rollback", t.TempDir())
+		createdAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+
+		first := heartbeatSnapshotForTest("hb-first", workspaceID, "coder", "sha256:first")
+		first.CreatedAt = createdAt
+		first, err = globalDB.UpsertHeartbeatSnapshot(ctx, first)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot(first) error = %v", err)
+		}
+		firstRevision := heartbeatRevisionForTest(
+			"hrev-first",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			"",
+			first.Digest,
+		)
+		firstRevision.NewSnapshotID = first.ID
+		firstRevision.CreatedAt = createdAt
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, firstRevision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(first) error = %v", err)
+		}
+
+		second := heartbeatSnapshotForTest("hb-second", workspaceID, "coder", "sha256:second")
+		second.CreatedAt = createdAt.Add(time.Minute)
+		second, err = globalDB.UpsertHeartbeatSnapshot(ctx, second)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot(second) error = %v", err)
+		}
+		secondRevision := heartbeatRevisionForTest(
+			"hrev-second",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			first.Digest,
+			second.Digest,
+		)
+		secondRevision.NewSnapshotID = second.ID
+		secondRevision.CreatedAt = createdAt.Add(time.Minute)
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, secondRevision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(second) error = %v", err)
+		}
+
+		rollback := heartbeatRevisionForTest(
+			"hrev-rollback",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationRollback,
+			second.Digest,
+			first.Digest,
+		)
+		rollback.NewSnapshotID = first.ID
+		rollback.CreatedAt = createdAt.Add(2 * time.Minute)
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, rollback); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(rollback) error = %v", err)
+		}
+
+		latest, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		if err != nil {
+			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v", err)
+		}
+		if latest.ID != first.ID {
+			t.Fatalf("latest snapshot id = %q, want rollback target %q", latest.ID, first.ID)
+		}
+	})
+
 	t.Run("Should reuse one snapshot for concurrent duplicate digest upserts", func(t *testing.T) {
 		t.Parallel()
 

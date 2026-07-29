@@ -12,6 +12,7 @@ func (m *Manager) prepareSessionLaunch(
 	spec *sessionStartSpec,
 	session *Session,
 	runtime *sessionStartRuntime,
+	run *sessionStartRun,
 ) (acp.StartOpts, error) {
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
 	startOpts, err := m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
@@ -31,6 +32,14 @@ func (m *Manager) prepareSessionLaunch(
 		if err != nil {
 			return acp.StartOpts{}, startupFailure("session replay preparation failed", err)
 		}
+	}
+	releaseCommit, err := acquireSessionStartLaunchCommit(ctx, run)
+	if err != nil {
+		return acp.StartOpts{}, fmt.Errorf("session: acquire launch commit for %q: %w", spec.sessionID, err)
+	}
+	defer releaseCommit()
+	if err := context.Cause(ctx); err != nil {
+		return acp.StartOpts{}, err
 	}
 	session.setEffectivePermissions(string(startOpts.Permissions))
 	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {

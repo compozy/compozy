@@ -1,6 +1,6 @@
 # Dispatch Rules
 
-The `explorer` agent launched by this skill is registered globally in the Compozy agent registry at `~/.compozy/agents/explorer/AGENT.md` (sourced from `assets/AGENT.md`). The parent dispatches it via `compozy exec --agent explorer`, never through a harness-specific subagent tool. Every dispatched run operates under a strict **scoped-write** contract — exactly one file-write to the named target path, every other action read-only. The rules below MUST be embedded in every dispatched prompt verbatim.
+The `explorer` agent launched by this skill is registered under the active Compozy home (`$COMPOZY_HOME`, otherwise `~/.compozy`) from `assets/AGENT.md`. The parent dispatches it via `compozy exec --agent explorer`, never through a harness-specific subagent tool. Every dispatched run operates under a strict **scoped-write** contract — exactly one file-write to the named target path, every other action read-only. The rules below MUST be embedded in every dispatched prompt verbatim.
 
 ## Scoped-Write Contract
 
@@ -22,7 +22,7 @@ The `explorer` agent launched by this skill is registered globally in the Compoz
 
 ## Parent Responsibilities
 
-- The parent agent MUST verify `~/.compozy/agents/explorer/AGENT.md` exists before dispatch. If absent, the parent MUST offer to install from `assets/AGENT.md` via `scripts/install-explorer.sh` before continuing. Workspace-scoped overrides at `<repo>/.compozy/agents/explorer/AGENT.md` take precedence over the global definition (per Compozy registry rules) and satisfy the existence check.
+- The parent agent MUST verify the active global explorer definition exists before dispatch. If absent, the parent MUST offer to install from `assets/AGENT.md` via `scripts/install-explorer.sh` before continuing. Workspace-scoped overrides at `<repo>/.compozy/agents/explorer/AGENT.md` take precedence over the global definition (per Compozy registry rules) and satisfy the existence check.
 - The parent agent MUST ensure `<path>/analysis/` exists before dispatch (the agent will refuse to write into a missing directory rather than creating it).
 - The parent agent MUST invoke each slice via `compozy exec --agent explorer --ide <ide> --model <model> --reasoning-effort <reasoning> "<slice-prompt>"`. The `--ide`, `--model`, and `--reasoning-effort` values are forwarded from the operator's `--ide`, `--model`, and `--reasoning` inputs (defaults: `claude`, `opus`, `xhigh`). `compozy exec` already defaults `--access-mode` to `full`, so no extra runtime-permission flag is required.
 - The parent agent MUST embed all three names — slice scope, slug+ordinal, target file path — explicitly in the slice prompt, along with this `dispatch-rules.md` and the seven-section schema from `assets/analysis-template.md`, verbatim.

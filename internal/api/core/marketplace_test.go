@@ -345,7 +345,8 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			`{"entry_id":"mcp-beta","name":"Beta","description":"Beta MCP","transport":"stdio","command":"beta"}`,
 		)
 		offsets := make([]int, 0, 3)
-		revision := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+		generatedAt := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+		fetchedAt := generatedAt.Add(time.Minute)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			MarketplaceCatalog: marketplaceCatalogStub{browsePageFn: func(
 				_ context.Context,
@@ -361,7 +362,8 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				return marketplacepkg.BrowseResult{
 					Entries: entries[offset : offset+1], Total: len(entries),
 					State: marketplacepkg.KindState{
-						Kind: marketplacepkg.KindMCP, FetchedAt: revision, EntryCount: len(entries),
+						Kind: marketplacepkg.KindMCP, ManifestVersion: 1,
+						GeneratedAt: generatedAt, FetchedAt: fetchedAt, EntryCount: len(entries),
 					},
 				}, nil
 			}},
@@ -405,7 +407,15 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			t.Fatalf("MarketplaceKind(mismatched cursor) error = %v, want validation", err)
 		}
 
-		revision = revision.Add(time.Second)
+		fetchedAt = fetchedAt.Add(time.Second)
+		if _, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
+			Scope: "workspace", WorkspaceID: "ws-a",
+		}); err != nil {
+			t.Fatalf("MarketplaceKind(refetched unchanged catalog) error = %v, want valid cursor", err)
+		}
+
+		generatedAt = generatedAt.Add(time.Second)
 		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
 			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
 			Scope: "workspace", WorkspaceID: "ws-a",

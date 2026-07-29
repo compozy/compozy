@@ -230,6 +230,11 @@ func TestLoopErrorHelpers(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "Should map read-only Loop definitions to forbidden",
+			err:  looppkg.ErrDefinitionReadOnly,
+			want: http.StatusForbidden,
+		},
+		{
 			name: "Should map invalid Loop transitions to unprocessable entity",
 			err:  looppkg.ErrInvalidTransition,
 			want: http.StatusUnprocessableEntity,

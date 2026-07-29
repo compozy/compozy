@@ -101,6 +101,10 @@ SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
        runtime_defaults_json, runtime_rules_json
 FROM loop_config WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
+-- name: DeleteLoopConfig :exec
+DELETE FROM loop_config
+WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
+
 -- name: ListLoopRunEvents :many
 SELECT id, loop_run_id, workspace_id, seq, kind, payload_json, at
 FROM loop_run_events

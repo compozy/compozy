@@ -32,7 +32,7 @@ Activating a bundle with an unconfirmed Live Network requirement returned `400 B
 ## Fix
 
 - **Root cause:** `StatusForBundleError` grouped `ErrNetworkRequirementConfirmationRequired` with malformed bundle requests instead of conflict errors.
-- **Fix commit:** pending final whole-diff commit.
+- **Fix commit:** `8eeb8a38`.
 - **Regression test:** `TestStatusForBundleErrorAndChannelHelpers/live_network_requirement_needs_confirmation` in the canonical API core mapping suite.
 
 ## Verification

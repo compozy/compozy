@@ -9,7 +9,7 @@ entry_points: README Installation; local packages/site install and runtime insta
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/beta-candidate/beta-origin-contract.txt; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/release-plan/release-plan-contract.txt; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/release-plan/pins.txt
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md

@@ -3,7 +3,7 @@ id: ET-web-inter-opsz-medium-510
 area: ET
 title: Inter Variable opsz + UI medium 510
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: Runtime web and Storybook load Inter Variable with the opsz+wght axes; body uses font-optical-sizing auto; every font-medium surface resolves to weight 510; `--text-small-body` is 12.5px (0.78125rem); UI titles and rows keep the DESIGN.md tracking ladder (detail-h1 / tight / body) so type density matches OpenDesign prototypes.
 entry_points: web SPA (`web/src/styles.css`); Storybook (`packages/ui/.storybook/preview.css`); site (`packages/site/app/layout.tsx` Inter axes); tokens `--font-weight-medium`
 qa_status: untested

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -153,6 +154,35 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 	})
 
+	t.Run("Should preserve read-only definitions when deletion is denied", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newLoopAPIForkFixture(t)
+		before, err := os.ReadFile(fixture.sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(source before delete) error = %v", err)
+		}
+
+		err = fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, "software-delivery")
+		if !errors.Is(err, looppkg.ErrDefinitionReadOnly) {
+			t.Fatalf("DeleteLoop(read-only) error = %v, want ErrDefinitionReadOnly", err)
+		}
+		after, err := os.ReadFile(fixture.sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(source after delete) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("read-only definition changed after rejected deletion")
+		}
+		if _, err := fixture.service.GetLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			"software-delivery",
+		); err != nil {
+			t.Fatalf("GetLoop(after rejected delete) error = %v", err)
+		}
+	})
+
 	t.Run("Should return created loops before asynchronous catalog projection runs", func(t *testing.T) {
 		t.Parallel()
 
@@ -265,6 +295,159 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		if got, want := published.Loop.Version, 1; got != want {
 			t.Fatalf("PatchLoop(fork version zero) version = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should delete definition sidecars before recreating the same name", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newLoopAPIForkFixture(t)
+		fixture.service.publisher = &loopAPITestPublisher{syncFn: func(context.Context) error {
+			if _, err := os.Stat(fixture.forkPath); errors.Is(err, os.ErrNotExist) {
+				removeLoopAPIFixtureWorkspaceRecord(&fixture)
+				return nil
+			} else if err != nil {
+				return fmt.Errorf("inspect workspace loop: %w", err)
+			}
+			return nil
+		}}
+		created, err := fixture.service.CreateLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+		)
+		if err != nil {
+			t.Fatalf("CreateLoop(first) error = %v", err)
+		}
+		if err := fixture.service.persistence.UpsertLoopConfig(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+			looppkg.LoopConfig{IterationCap: new(7)},
+		); err != nil {
+			t.Fatalf("UpsertLoopConfig() error = %v", err)
+		}
+		if _, err := fixture.service.PutLoopAnnotations(
+			fixture.ctx,
+			fixture.workspaceID,
+			created.Loop.Name,
+			contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
+				NodeID: "target_input",
+				X:      10,
+				Y:      20,
+			}}},
+		); err != nil {
+			t.Fatalf("PutLoopAnnotations() error = %v", err)
+		}
+
+		if err := fixture.service.DeleteLoop(fixture.ctx, fixture.workspaceID, created.Loop.Name); err != nil {
+			t.Fatalf("DeleteLoop() error = %v", err)
+		}
+		if _, err := fixture.service.CreateLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+		); err != nil {
+			t.Fatalf("CreateLoop(recreate) error = %v", err)
+		}
+		if _, err := fixture.service.persistence.GetLoopConfig(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+		); !errors.Is(err, looppkg.ErrConfigNotFound) {
+			t.Fatalf("GetLoopConfig(after recreate) error = %v, want ErrConfigNotFound", err)
+		}
+		annotations, err := fixture.service.persistence.ListLoopUIAnnotations(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+		)
+		if err != nil {
+			t.Fatalf("ListLoopUIAnnotations(after recreate) error = %v", err)
+		}
+		if len(annotations) != 0 {
+			t.Fatalf("annotations after recreate = %#v, want empty", annotations)
+		}
+	})
+
+	t.Run("Should restore definition and sidecars when catalog sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newLoopAPIForkFixture(t)
+		created, err := fixture.service.CreateLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+		)
+		if err != nil {
+			t.Fatalf("CreateLoop() error = %v", err)
+		}
+		if err := fixture.service.persistence.UpsertLoopConfig(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+			looppkg.LoopConfig{IterationCap: new(7)},
+		); err != nil {
+			t.Fatalf("UpsertLoopConfig() error = %v", err)
+		}
+		if _, err := fixture.service.PutLoopAnnotations(
+			fixture.ctx,
+			fixture.workspaceID,
+			created.Loop.Name,
+			contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
+				NodeID: "target_input",
+				X:      10,
+				Y:      20,
+			}}},
+		); err != nil {
+			t.Fatalf("PutLoopAnnotations() error = %v", err)
+		}
+
+		requestCtx, cancel := context.WithCancel(fixture.ctx)
+		defer cancel()
+		syncErr := errors.New("sync deleted loop resources")
+		firstSync := true
+		publisher := &loopAPITestPublisher{syncFn: func(ctx context.Context) error {
+			if firstSync {
+				firstSync = false
+				cancel()
+				return syncErr
+			}
+			return ctx.Err()
+		}}
+		fixture.service.publisher = publisher
+
+		err = fixture.service.DeleteLoop(requestCtx, fixture.workspaceID, created.Loop.Name)
+		if !errors.Is(err, syncErr) {
+			t.Fatalf("DeleteLoop(sync failure) error = %v, want injected sync error", err)
+		}
+		if got, want := publisher.calls, 2; got != want {
+			t.Fatalf("publisher.Sync() calls = %d, want %d including rollback reconcile", got, want)
+		}
+		if _, err := os.Stat(fixture.forkPath); err != nil {
+			t.Fatalf("Stat(restored definition) error = %v", err)
+		}
+		config, err := fixture.service.persistence.GetLoopConfig(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+		)
+		if err != nil {
+			t.Fatalf("GetLoopConfig(after rollback) error = %v", err)
+		}
+		if config.IterationCap == nil || *config.IterationCap != 7 {
+			t.Fatalf("config after rollback = %#v, want iteration cap 7", config)
+		}
+		annotations, err := fixture.service.persistence.ListLoopUIAnnotations(
+			fixture.ctx,
+			looppkg.WorkspaceID(fixture.workspaceID),
+			created.Loop.Name,
+		)
+		if err != nil {
+			t.Fatalf("ListLoopUIAnnotations(after rollback) error = %v", err)
+		}
+		if len(annotations) != 1 || annotations[0].NodeID != "target_input" {
+			t.Fatalf("annotations after rollback = %#v, want preserved target_input", annotations)
 		}
 	})
 
@@ -706,6 +889,7 @@ func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
 			looppkg.DefinitionFileName,
 		),
 		service: &daemonLoopAPIService{
+			persistence:       db,
 			catalog:           catalog,
 			publisher:         &loopAPITestPublisher{},
 			toolRegistry:      registry,

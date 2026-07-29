@@ -27,8 +27,6 @@ const (
 const defaultPollInterval = 100 * time.Millisecond
 
 const (
-	defaultSessionAttachTTL        = 15 * time.Minute
-	maxSessionAttachTTL            = 24 * time.Hour
 	defaultSessionRecapLimit       = 20
 	maxSessionRecapLimit           = 100
 	pendingTranscriptMarkerLimit   = maxSessionRecapLimit * 5
@@ -162,13 +160,14 @@ func (h *BaseHandlers) AttachSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	ttl := defaultSessionAttachTTL
+	maxTTL := time.Duration(contract.SessionAttachMaxTTLSeconds) * time.Second
+	if req.TTLSeconds > contract.SessionAttachMaxTTLSeconds {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("attach ttl must be <= %s", maxTTL))
+		return
+	}
+	ttl := time.Duration(contract.SessionAttachDefaultTTLSeconds) * time.Second
 	if req.TTLSeconds > 0 {
 		ttl = time.Duration(req.TTLSeconds) * time.Second
-	}
-	if ttl > maxSessionAttachTTL {
-		h.respondError(c, http.StatusBadRequest, fmt.Errorf("attach ttl must be <= %s", maxSessionAttachTTL))
-		return
 	}
 	attachedTo := strings.TrimSpace(req.AttachedTo)
 	if attachedTo == "" {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -20,6 +20,33 @@ const (
 	clientToolsAPIKeyKey = "api_key"
 	clientToolsPromptKey = "prompt"
 )
+
+var toolResultDisplayJSONFields = []string{
+	"",
+	"authored_text",
+	"body",
+	agentCommandKey,
+	"content",
+	"description",
+	"detail",
+	automationErrorKey,
+	clientMessageKey,
+	"output",
+	loopPayloadKey,
+	windowManagerPreviewKey,
+	"raw",
+	"raw_input",
+	"raw_output",
+	memoryReasonKey,
+	clientResultKey,
+	"stderr",
+	"stdout",
+	"summary",
+	sessionClarifyTextFlag,
+	"title",
+	"tool_input",
+	"tool_result",
+}
 
 // ToolRecord is the shared tool registry projection payload.
 type ToolRecord = contract.ToolPayload
@@ -312,45 +339,15 @@ func redactToolRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(raw)))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
+	if !json.Valid(raw) {
 		redacted := redactToolDiagnostic(string(raw))
 		if !json.Valid([]byte(redacted)) {
 			return raw
 		}
 		return json.RawMessage(redacted)
 	}
-	redacted := redactToolJSONValue(value)
-	payload, err := json.Marshal(redacted)
-	if err != nil {
-		return raw
-	}
-	return json.RawMessage(payload)
-}
-
-func redactToolJSONValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		for key, item := range typed {
-			if sensitiveToolFieldName(key) {
-				typed[key] = "[REDACTED]"
-				continue
-			}
-			typed[key] = redactToolJSONValue(item)
-		}
-		return typed
-	case []any:
-		for i, item := range typed {
-			typed[i] = redactToolJSONValue(item)
-		}
-		return typed
-	case string:
-		return redactToolDiagnostic(typed)
-	default:
-		return typed
-	}
+	engine := redactpkg.New(redactpkg.Options{Disabled: !redactpkg.Enabled()})
+	return engine.RedactJSON(raw, toolResultDisplayJSONFields)
 }
 
 func redactToolMetadata(metadata map[string]json.RawMessage) map[string]json.RawMessage {

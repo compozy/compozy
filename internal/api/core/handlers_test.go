@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -41,6 +42,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	var createCalled atomic.Bool
 	var attachCalls atomic.Int32
 	var attachResult store.SessionAttach
+	var attachTTL time.Duration
 	var repairSeen session.RepairOpts
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -95,6 +97,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		},
 		AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
 			attachCalls.Add(1)
+			attachTTL = req.TTL
 			if req.SessionID != "sess-a" {
 				t.Fatalf("AttachSession() session id = %q, want sess-a", req.SessionID)
 			}
@@ -355,6 +358,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				payload.Attach.AttachedAt,
 			)
 		}
+		wantTTL := time.Duration(contract.SessionAttachDefaultTTLSeconds) * time.Second
+		if got := payload.Attach.AttachExpiresAt.Sub(payload.Attach.AttachedAt); got != wantTTL {
+			t.Fatalf("attach lease duration = %v, want %v", got, wantTTL)
+		}
+		if attachTTL != wantTTL {
+			t.Fatalf("AttachSession() TTL = %v, want %v", attachTTL, wantTTL)
+		}
 		if payload.Session.ID != "sess-a" {
 			t.Fatalf("session id = %q, want %q", payload.Session.ID, "sess-a")
 		}
@@ -382,6 +392,110 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				payload.Session.UpdatedAt,
 				payload.Attach.AttachedAt,
 			)
+		}
+	})
+
+	t.Run("Should normalize non-positive attach TTLs and accept the public maximum", func(t *testing.T) {
+		testCases := []struct {
+			name       string
+			ttlSeconds int
+			wantTTL    time.Duration
+		}{
+			{
+				name:       "Should use the default for zero",
+				ttlSeconds: 0,
+				wantTTL:    time.Duration(contract.SessionAttachDefaultTTLSeconds) * time.Second,
+			},
+			{
+				name:       "Should use the default for a negative value",
+				ttlSeconds: -1,
+				wantTTL:    time.Duration(contract.SessionAttachDefaultTTLSeconds) * time.Second,
+			},
+			{
+				name:       "Should accept the public maximum",
+				ttlSeconds: contract.SessionAttachMaxTTLSeconds,
+				wantTTL:    time.Duration(contract.SessionAttachMaxTTLSeconds) * time.Second,
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				body, err := json.Marshal(contract.AttachSessionRequest{TTLSeconds: testCase.ttlSeconds})
+				if err != nil {
+					t.Fatalf("json.Marshal(attach request) error = %v", err)
+				}
+				resp := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-workspace/sessions/sess-a/attach",
+					body,
+				)
+				if resp.Code != http.StatusOK {
+					t.Fatalf("attach status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+				}
+				var payload contract.SessionAttachResponse
+				if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal(attach response) error = %v", err)
+				}
+				if got := payload.Attach.AttachExpiresAt.Sub(payload.Attach.AttachedAt); got != testCase.wantTTL {
+					t.Fatalf("attach lease duration = %v, want %v", got, testCase.wantTTL)
+				}
+				if attachTTL != testCase.wantTTL {
+					t.Fatalf("AttachSession() TTL = %v, want %v", attachTTL, testCase.wantTTL)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject attach leases above the public maximum before the Manager CAS", func(t *testing.T) {
+		testCases := []struct {
+			name       string
+			ttlSeconds int
+		}{
+			{name: "Should reject maximum plus one", ttlSeconds: contract.SessionAttachMaxTTLSeconds + 1},
+			{name: "Should reject the largest integer", ttlSeconds: int(^uint(0) >> 1)},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				before := attachCalls.Load()
+				body, err := json.Marshal(contract.AttachSessionRequest{TTLSeconds: testCase.ttlSeconds})
+				if err != nil {
+					t.Fatalf("json.Marshal(attach request) error = %v", err)
+				}
+				resp := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-workspace/sessions/sess-a/attach",
+					body,
+				)
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"over-limit attach status = %d, want %d; body=%s",
+						resp.Code,
+						http.StatusBadRequest,
+						resp.Body.String(),
+					)
+				}
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal(attach error) error = %v", err)
+				}
+				wantError := "attach ttl must be <= " +
+					(time.Duration(contract.SessionAttachMaxTTLSeconds) * time.Second).String()
+				if payload.Error != wantError {
+					t.Fatalf("over-limit attach error = %q, want %q", payload.Error, wantError)
+				}
+				if attachCalls.Load() != before {
+					t.Fatalf(
+						"AttachSession() calls = %d after over-limit request, want %d",
+						attachCalls.Load(),
+						before,
+					)
+				}
+			})
 		}
 	})
 
@@ -3882,6 +3996,64 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 			}
 		}
 		t.Fatalf("doctor items = %#v, want disabled network info diagnostic", payload.Items)
+	})
+}
+
+func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the available log-tail capability status as evidence", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Settings = &stubSettingsService{
+			GetSectionFn: func(
+				_ context.Context,
+				req settingspkg.SectionRequest,
+			) (settingspkg.SectionEnvelope, error) {
+				if req.Section != settingspkg.SectionObservability || req.Scope != settingspkg.ScopeGlobal {
+					t.Fatalf("GetSection() request = %#v, want global observability", req)
+				}
+				return settingspkg.SectionEnvelope{
+					Observability: &settingspkg.ObservabilitySection{
+						LogTailSupport: settingspkg.CapabilityStatus{Available: true},
+					},
+				}, nil
+			},
+		}
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/doctor?only=daemon",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("doctor status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.DoctorPayload
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		itemIndex := slices.IndexFunc(payload.Items, func(item contract.DiagnosticItem) bool {
+			return item.ID == "doctor.logs.tail"
+		})
+		if itemIndex < 0 {
+			t.Fatalf("doctor items = %#v, want log-tail diagnostic", payload.Items)
+		}
+		item := payload.Items[itemIndex]
+		if item.ID != "doctor.logs.tail" || item.Code != contract.CodeDaemonStatusOK {
+			t.Fatalf("doctor item = %#v, want available log-tail diagnostic", item)
+		}
+		if got, want := item.Evidence["status"], "available"; got != want {
+			t.Fatalf("doctor log-tail evidence status = %#v, want %q", got, want)
+		}
 	})
 }
 

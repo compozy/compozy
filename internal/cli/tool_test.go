@@ -1143,13 +1143,17 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 	t.Run("Should redact invoke metadata fields", func(t *testing.T) {
 		t.Parallel()
 
+		const publicEntryID = "bundle_cWEtYnVuZGxlLWV4dABxYS1idW5kbGU"
+		const freeTextSecret = "Q7mV2pL9xR4nK8sT6wY3cF5hJ1dB0zAq"
 		response := ToolInvokeResponseRecord{
 			ToolID: toolspkg.ToolIDSkillView,
 			Status: "completed",
 			Result: toolspkg.ToolResult{
 				Preview: "authorization=Bearer abc",
 				Structured: json.RawMessage(
-					`{"password":"super-secret","visible":"ok","completion_tokens":9,"totalTokens":7,"accessToken":"super-secret","apiKey":"super-secret"}`,
+					`{"password":"super-secret","visible":"ok","entry_id":"` + publicEntryID +
+						`","description":"opaque ` + freeTextSecret +
+						`","completion_tokens":9,"totalTokens":7,"accessToken":"super-secret","apiKey":"super-secret"}`,
 				),
 				Metadata: map[string]json.RawMessage{
 					"access_token": json.RawMessage(`"super-secret"`),
@@ -1177,6 +1181,19 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		if !strings.Contains(encoded, "completion_tokens") || !strings.Contains(encoded, "token_count") ||
 			!strings.Contains(encoded, "totalTokens") {
 			t.Fatalf("sanitizeToolInvokeResponse removed benign token metrics: %s", encoded)
+		}
+		var structured struct {
+			EntryID     string `json:"entry_id"`
+			Description string `json:"description"`
+		}
+		if err := json.Unmarshal(sanitized.Result.Structured, &structured); err != nil {
+			t.Fatalf("json.Unmarshal(sanitized structured result) error = %v", err)
+		}
+		if structured.EntryID != publicEntryID {
+			t.Fatalf("sanitized entry_id = %q, want public structural id %q", structured.EntryID, publicEntryID)
+		}
+		if strings.Contains(structured.Description, freeTextSecret) {
+			t.Fatalf("sanitized description leaked heuristic secret: %q", structured.Description)
 		}
 	})
 

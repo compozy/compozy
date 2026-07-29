@@ -42,6 +42,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload](): customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsMCPSecretInputPayload]():       customizeSettingsMCPSecretInputSchema,
 	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest]():      customizeSettingsMCPAuthExchangeRequestSchema,
+	reflect.TypeFor[contract.AttachSessionRequest]():                customizeAttachSessionRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},

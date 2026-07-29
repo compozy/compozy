@@ -8,9 +8,9 @@ expected: Valid marketplace.catalog base_url, ttl, and timeout values load and a
 entry_points: global config.toml; compozy config set marketplace.catalog.* --scope global; compozy__config_set scope=global; rejected workspace config.toml/write attempts; marketplace.catalog.refresh event summaries; compozy.com/runtime/core/configuration (config docs)
 qa_status: untested
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-marketplace-native-config-policy; BUG-20260715-config-set-late-metadata
-fix_status: BUG-20260715-marketplace-config-set-live fixed; BUG-20260715-marketplace-native-config-policy fixed; BUG-20260715-config-set-late-metadata fixed
+fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: MS-033; ET-marketplace-kill-switch

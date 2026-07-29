@@ -10,7 +10,7 @@ qa_status: blocked-verify
 bug_ids: BUG-20260713-goal-judge-unconstrained-leaks-session
 fix_status: fixed
 retest_status: pending
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/provider-attempt.json; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/judge-attribution/
 last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: GL-004;GL-037

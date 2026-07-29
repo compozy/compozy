@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -727,6 +728,123 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist explicit five-rate changes without materializing unchanged catalog metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		service, homePaths, catalog, _ := providerModelCurationTestService(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[[providers.codex.models.curated]]
+id = "gpt-5.6-luna"
+default_reasoning_effort = "high"
+`)
+		catalog.mu.Lock()
+		catalog.models["codex"] = append(catalog.models["codex"], modelcatalog.Model{
+			ProviderID:               "codex",
+			ModelID:                  "gpt-5.6-luna",
+			DisplayName:              "GPT-5.6 Luna",
+			CostInputPerMillion:      new(1.0),
+			CostOutputPerMillion:     new(6.0),
+			CostCacheReadPerMillion:  new(0.1),
+			CostCacheWritePerMillion: new(1.25),
+			DefaultReasoningEffort:   nil,
+			Curated:                  true,
+		})
+		catalog.mu.Unlock()
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "codex").Settings
+		settings.ModelsSet = true
+		model := requireConfiguredProviderModel(t, settings.Models.Curated, "gpt-5.6-luna")
+		costInput := 1.1
+		costOutput := 2.2
+		costCacheRead := 0.11
+		costCacheWrite := 0.22
+		costReasoning := 3.3
+		model.CostInputPerMillion = &costInput
+		model.CostOutputPerMillion = &costOutput
+		model.CostCacheReadPerMillion = &costCacheRead
+		model.CostCacheWritePerMillion = &costCacheWrite
+		model.CostReasoningPerMillion = &costReasoning
+		for index := range settings.Models.Curated {
+			if settings.Models.Curated[index].ID == model.ID {
+				settings.Models.Curated[index] = model
+				break
+			}
+		}
+
+		result, err := service.ApplyCollectionItem(
+			WithMutationSource(ctx, "http"),
+			CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "codex",
+				Provider:          &settings,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplyCollectionItem(provider five-rate change) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired || result.Skipped {
+			t.Fatalf("apply result = %#v, want applied live change", result)
+		}
+
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after five-rate change) error = %v", err)
+		}
+		persisted := requireConfiguredProviderModel(t, cfg.Providers["codex"].Models.Curated, model.ID)
+		if persisted.CostInputPerMillion == nil || *persisted.CostInputPerMillion != costInput ||
+			persisted.CostOutputPerMillion == nil || *persisted.CostOutputPerMillion != costOutput ||
+			persisted.CostCacheReadPerMillion == nil || *persisted.CostCacheReadPerMillion != costCacheRead ||
+			persisted.CostCacheWritePerMillion == nil || *persisted.CostCacheWritePerMillion != costCacheWrite ||
+			persisted.CostReasoningPerMillion == nil || *persisted.CostReasoningPerMillion != costReasoning {
+			t.Fatalf("persisted provider model five-rate override = %#v", persisted)
+		}
+		if persisted.DisplayName != "" || persisted.ContextWindow != nil || persisted.ReleaseDate != "" {
+			t.Fatalf("five-rate override materialized unchanged catalog metadata: %#v", persisted)
+		}
+	})
+
+	t.Run("Should reject negative provider model pricing without mutating config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		service, homePaths, _, _ := providerModelCurationTestService(t)
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "codex").Settings
+		settings.ModelsSet = true
+		for index := range settings.Models.Curated {
+			if settings.Models.Curated[index].ID == "gpt-5.6-sol" {
+				settings.Models.Curated[index].CostInputPerMillion = new(-1.0)
+				break
+			}
+		}
+		before := readFile(t, homePaths.ConfigFile)
+		_, err = service.ApplyCollectionItem(
+			WithMutationSource(ctx, "http"),
+			CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "codex",
+				Provider:          &settings,
+			},
+		)
+		if err == nil {
+			t.Fatal("ApplyCollectionItem(negative provider model price) error = nil")
+		}
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("ApplyCollectionItem(negative provider model price) error = %v, want ErrValidation", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("negative provider model price mutated config:\n%s", after)
+		}
+	})
+
 	t.Run("Should skip an unchanged builtin projection without applying runtime config", func(t *testing.T) {
 		t.Parallel()
 
@@ -772,7 +890,11 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 			t.Fatalf("ApplyCollectionItem(unchanged builtin projection) error = %v", err)
 		}
 		if !result.Applied || result.RestartRequired || !result.Skipped {
-			t.Fatalf("apply result = %#v, want applied skipped no-op without restart", result)
+			t.Fatalf(
+				"apply result = %#v, want applied skipped no-op without restart; config:\n%s",
+				result,
+				readFile(t, homePaths.ConfigFile),
+			)
 		}
 		if got, want := result.SkippedReason, configApplyNoChangesReason; got != want {
 			t.Fatalf("SkippedReason = %q, want %q", got, want)
@@ -1643,41 +1765,38 @@ func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 	if err != nil {
 		return a.fail(err)
 	}
-	var curated *compozyconfig.ProviderModelConfig
-	for index := range provider.Models.Curated {
-		if provider.Models.Curated[index].ID == "gpt-5.6-sol" {
-			curated = &provider.Models.Curated[index]
-			break
-		}
-	}
-	if curated == nil {
-		return a.fail(fmt.Errorf("curated config row gpt-5.6-sol is missing"))
-	}
 	a.catalog.mu.Lock()
 	defer a.catalog.mu.Unlock()
 	models := a.catalog.models["codex"]
-	for index := range models {
-		if models[index].ModelID != curated.ID {
-			continue
+	for _, curated := range provider.Models.Curated {
+		for index := range models {
+			if models[index].ModelID != curated.ID {
+				continue
+			}
+			if curated.Hidden != nil {
+				models[index].Hidden = *curated.Hidden
+			}
+			if curated.Featured != nil {
+				models[index].Featured = *curated.Featured
+			}
+			if curated.Deprecated != nil {
+				models[index].Deprecated = *curated.Deprecated
+			}
+			models[index].Curated = !models[index].Hidden && !models[index].Deprecated
+			if curated.DefaultReasoningEffort != "" {
+				effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
+				models[index].DefaultReasoningEffort = &effort
+			}
+			models[index].CostInputPerMillion = cloneFloat64Ptr(curated.CostInputPerMillion)
+			models[index].CostOutputPerMillion = cloneFloat64Ptr(curated.CostOutputPerMillion)
+			models[index].CostCacheReadPerMillion = cloneFloat64Ptr(curated.CostCacheReadPerMillion)
+			models[index].CostCacheWritePerMillion = cloneFloat64Ptr(curated.CostCacheWritePerMillion)
+			models[index].CostReasoningPerMillion = cloneFloat64Ptr(curated.CostReasoningPerMillion)
+			break
 		}
-		if curated.Hidden != nil {
-			models[index].Hidden = *curated.Hidden
-		}
-		if curated.Featured != nil {
-			models[index].Featured = *curated.Featured
-		}
-		if curated.Deprecated != nil {
-			models[index].Deprecated = *curated.Deprecated
-		}
-		models[index].Curated = !models[index].Hidden && !models[index].Deprecated
-		if curated.DefaultReasoningEffort != "" {
-			effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
-			models[index].DefaultReasoningEffort = &effort
-		}
-		a.catalog.models["codex"] = models
-		return nil
 	}
-	return a.fail(fmt.Errorf("catalog row gpt-5.6-sol is missing"))
+	a.catalog.models["codex"] = models
+	return nil
 }
 
 func (a *providerModelCurationRuntimeApplier) fail(err error) []ApplyFailure {

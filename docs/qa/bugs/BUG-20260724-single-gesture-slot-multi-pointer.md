@@ -1,6 +1,6 @@
 # BUG-20260724-single-gesture-slot-multi-pointer: simultaneous pointer drags share one gesture slot
 
-- **Status:** suspected
+- **Status:** open
 - **Impact (user-side):** preview/commit corruption only under multi-touch or simultaneous mice
 - **Persona Affected:** Bruno
 - **Journey Step:** —

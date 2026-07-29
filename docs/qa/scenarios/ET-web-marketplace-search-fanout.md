@@ -8,15 +8,17 @@ expected: Search filters only the active kind and scope, a failed kind owns its 
 entry_points: /marketplace/<kind>?q=<query>; Marketplace kind search field
 qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
-fix_status: BUG-20260714-keyboard-focus-invisible fixed
-retest_status: Retained sibling results and truthful stale/error isolation passed; keyboard focus passed the shared two-pixel contract
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-stale-served.png; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-landing-browse
 ---
 
 Added by marketplace Task 06. Exercise VC04 and VC05 with a deterministic per-kind source failure and prove the browser issues one grouped request rather than four independent searches.
+
+Historical QA note: retained sibling results, truthful stale/error isolation, and keyboard focus passed.
 
 QA impact 2026-07-17: default listing view is now rows with optional cards; reset to confirm
 partial-failure isolation still holds in both views.

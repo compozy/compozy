@@ -360,6 +360,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				attachRequest := jsonRequestSchema(t, attachSession)
 				assertNotRequired(t, attachRequest, "attached_to", "ttl_seconds")
+				ttlSeconds := propertySchema(t, attachRequest, "ttl_seconds")
+				if ttlSeconds.Max == nil ||
+					*ttlSeconds.Max != float64(contract.SessionAttachMaxTTLSeconds) {
+					t.Fatalf(
+						"attach ttl_seconds maximum = %v, want %d",
+						ttlSeconds.Max,
+						contract.SessionAttachMaxTTLSeconds,
+					)
+				}
 				attachResponse := jsonResponseSchema(t, attachSession, 200)
 				assertRequired(t, attachResponse, "session", "attach")
 				assertRequired(
@@ -370,6 +379,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"attach_expires_at",
 					"attached_at",
 				)
+				attachError := jsonResponseSchema(t, attachSession, 400)
+				assertRequired(t, attachError, "error")
 				assertResponseStatus(t, attachSession, 409)
 
 				recapSession := operationFor(

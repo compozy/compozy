@@ -3,7 +3,7 @@ id: MS-web-sandbox-profile-advanced
 area: MS
 title: Sandbox profile editor exposes lifecycle, network, and Daytona behind Advanced
 persona: Dora
-journey:
+journey: J-manage-sandbox-profiles
 expected: Opening a sandbox profile shows Simple only — the profile name, the execution backend as two cards (Local, Daytona), and the workspace sync mode. Advanced adds isolation and lifecycle (persistence, runtime root, environment, secret environment), network policy (allow outbound, allow public ingress, allow list, deny list), and — only while Daytona is the selected backend — the cloud workspace parameters. Switching Daytona to Local removes the Daytona block and drops those parameters from the replace body instead of persisting a cloud configuration for a profile that no longer runs there. On edit the profile name renders as readable locked identity. `secret_env` accepts only references — `env:NAME` or `vault:sandbox/<path>` — and a literal value is rejected with a field error that also blocks Save, including from Simple where the offending row is not visible. Every profile key this editor does not model is round-tripped untouched, because the sandbox PUT is a full replacement with no preservation channel. The inspect sheet never writes; it only launches this editor.
 entry_points: web desktop shell → Sandbox → New sandbox profile / profile row → Edit, or profile sheet → Edit profile
 qa_status: untested

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -38,7 +39,7 @@ func (s *service) reconcileProviderCuratedWrite(
 		settings.Models = cloneProviderModelsConfig(rawProvider.Models)
 		return settings, nil
 	}
-	_, err = cfg.ResolveProvider(providerID)
+	resolvedProvider, err := cfg.ResolveProvider(providerID)
 	if err != nil {
 		if modelCuration != nil {
 			return ProviderSettings{}, providerModelNotFoundError(providerID, modelCuration.ModelID)
@@ -53,11 +54,16 @@ func (s *service) reconcileProviderCuratedWrite(
 		}
 	}
 	if settings.Models.Curated != nil {
-		currentIDs, currentErr := s.currentCuratedProviderModelIDs(ctx, providerID)
+		currentModels, currentErr := s.currentProviderModels(ctx, providerID)
 		if currentErr != nil {
 			return ProviderSettings{}, currentErr
 		}
-		reconciled = reconcileProviderCuratedRows(raw, currentIDs, settings.Models.Curated)
+		reconciled = reconcileProviderCuratedRows(
+			raw,
+			resolvedProvider.Models.Curated,
+			currentModels,
+			settings.Models.Curated,
+		)
 	}
 	if modelCuration != nil {
 		reconciled, err = s.applyProviderModelCurationIntent(ctx, providerID, reconciled, *modelCuration)
@@ -99,30 +105,27 @@ func (s *service) applyProviderModelCurationIntent(
 	return rows, nil
 }
 
-func (s *service) currentCuratedProviderModelIDs(
+func (s *service) currentProviderModels(
 	ctx context.Context,
 	providerID string,
-) ([]string, error) {
+) ([]modelcatalog.Model, error) {
 	if err := s.requireProviderModelCatalog(); err != nil {
 		return nil, err
 	}
 	models, err := s.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
 		ProviderID: providerID,
-		View:       modelcatalog.CatalogViewCurated,
+		View:       modelcatalog.CatalogViewAll,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("settings: list provider models before write: %w", err)
 	}
-	ids := make([]string, 0, len(models))
-	for _, model := range models {
-		ids = append(ids, model.ModelID)
-	}
-	return ids, nil
+	return models, nil
 }
 
 func reconcileProviderCuratedRows(
 	raw []compozyconfig.ProviderModelConfig,
-	currentIDs []string,
+	configured []compozyconfig.ProviderModelConfig,
+	currentModels []modelcatalog.Model,
 	desired []compozyconfig.ProviderModelConfig,
 ) []compozyconfig.ProviderModelConfig {
 	rows := cloneProviderModelConfigs(raw)
@@ -130,6 +133,25 @@ func reconcileProviderCuratedRows(
 	for index := range rows {
 		if id := strings.TrimSpace(rows[index].ID); id != "" {
 			rowIndex[id] = index
+		}
+	}
+	projectedModels := providerModelConfigsFromCatalog(currentModels, configured)
+	currentByID := make(map[string]compozyconfig.ProviderModelConfig, len(projectedModels))
+	currentIDs := make([]string, 0, len(currentModels))
+	for _, model := range projectedModels {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		currentByID[id] = model
+	}
+	for _, model := range currentModels {
+		id := strings.TrimSpace(model.ModelID)
+		if id == "" {
+			continue
+		}
+		if model.Curated {
+			currentIDs = append(currentIDs, id)
 		}
 	}
 	currentIDs = uniqueProviderModelIDs(currentIDs)
@@ -140,6 +162,29 @@ func reconcileProviderCuratedRows(
 	}
 	desiredIDs := uniqueProviderModelIDs(desiredValues)
 	desiredSet := providerModelIDSet(desiredIDs)
+	for _, desiredModel := range desired {
+		id := strings.TrimSpace(desiredModel.ID)
+		if id == "" {
+			continue
+		}
+		index, configured := rowIndex[id]
+		rawModel := compozyconfig.ProviderModelConfig{ID: id}
+		if configured {
+			rawModel = rows[index]
+		}
+		currentModel := currentByID[id]
+		currentModel.ID = id
+		merged := mergeProviderModelConfigDeltas(rawModel, currentModel, desiredModel)
+		if configured {
+			rows[index] = merged
+			continue
+		}
+		if reflect.DeepEqual(merged, rawModel) {
+			continue
+		}
+		rows = append(rows, merged)
+		rowIndex[id] = len(rows) - 1
+	}
 	if providerModelIDSetsEqual(current, desiredSet) {
 		return rows
 	}
@@ -158,6 +203,67 @@ func reconcileProviderCuratedRows(
 		}
 	}
 	return rows
+}
+
+func mergeProviderModelConfigDeltas(
+	raw compozyconfig.ProviderModelConfig,
+	current compozyconfig.ProviderModelConfig,
+	desired compozyconfig.ProviderModelConfig,
+) compozyconfig.ProviderModelConfig {
+	next := cloneProviderModelConfigs([]compozyconfig.ProviderModelConfig{raw})[0]
+	next.ID = strings.TrimSpace(desired.ID)
+	if desired.DisplayName != current.DisplayName {
+		next.DisplayName = desired.DisplayName
+	}
+	if !reflect.DeepEqual(desired.ContextWindow, current.ContextWindow) {
+		next.ContextWindow = cloneInt64Ptr(desired.ContextWindow)
+	}
+	if !reflect.DeepEqual(desired.MaxInputTokens, current.MaxInputTokens) {
+		next.MaxInputTokens = cloneInt64Ptr(desired.MaxInputTokens)
+	}
+	if !reflect.DeepEqual(desired.MaxOutputTokens, current.MaxOutputTokens) {
+		next.MaxOutputTokens = cloneInt64Ptr(desired.MaxOutputTokens)
+	}
+	if !reflect.DeepEqual(desired.SupportsTools, current.SupportsTools) {
+		next.SupportsTools = cloneBoolPtr(desired.SupportsTools)
+	}
+	if !reflect.DeepEqual(desired.SupportsReasoning, current.SupportsReasoning) {
+		next.SupportsReasoning = cloneBoolPtr(desired.SupportsReasoning)
+	}
+	if !reflect.DeepEqual(desired.ReasoningEfforts, current.ReasoningEfforts) {
+		next.ReasoningEfforts = cloneStringSlicePreserveNil(desired.ReasoningEfforts)
+	}
+	if desired.DefaultReasoningEffort != current.DefaultReasoningEffort {
+		next.DefaultReasoningEffort = desired.DefaultReasoningEffort
+	}
+	if !reflect.DeepEqual(desired.CostInputPerMillion, current.CostInputPerMillion) {
+		next.CostInputPerMillion = cloneFloat64Ptr(desired.CostInputPerMillion)
+	}
+	if !reflect.DeepEqual(desired.CostOutputPerMillion, current.CostOutputPerMillion) {
+		next.CostOutputPerMillion = cloneFloat64Ptr(desired.CostOutputPerMillion)
+	}
+	if !reflect.DeepEqual(desired.CostCacheReadPerMillion, current.CostCacheReadPerMillion) {
+		next.CostCacheReadPerMillion = cloneFloat64Ptr(desired.CostCacheReadPerMillion)
+	}
+	if !reflect.DeepEqual(desired.CostCacheWritePerMillion, current.CostCacheWritePerMillion) {
+		next.CostCacheWritePerMillion = cloneFloat64Ptr(desired.CostCacheWritePerMillion)
+	}
+	if !reflect.DeepEqual(desired.CostReasoningPerMillion, current.CostReasoningPerMillion) {
+		next.CostReasoningPerMillion = cloneFloat64Ptr(desired.CostReasoningPerMillion)
+	}
+	if !reflect.DeepEqual(desired.Deprecated, current.Deprecated) {
+		next.Deprecated = cloneBoolPtr(desired.Deprecated)
+	}
+	if !reflect.DeepEqual(desired.Hidden, current.Hidden) {
+		next.Hidden = cloneBoolPtr(desired.Hidden)
+	}
+	if !reflect.DeepEqual(desired.Featured, current.Featured) {
+		next.Featured = cloneBoolPtr(desired.Featured)
+	}
+	if desired.ReleaseDate != current.ReleaseDate {
+		next.ReleaseDate = desired.ReleaseDate
+	}
+	return next
 }
 
 func providerModelsWriteClearsConfig(models compozyconfig.ProviderModelsConfig) bool {

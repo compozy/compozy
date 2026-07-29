@@ -16,8 +16,8 @@ import (
 const checkpointSummaryStopTimeout = 10 * time.Second
 
 type checkpointSummarySessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
-	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	CreateLifecycleContinuation(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	PromptLifecycleContinuation(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
@@ -72,7 +72,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
-		created, createErr := s.sessions.Create(attemptCtx, session.CreateOpts{
+		created, createErr := s.sessions.CreateLifecycleContinuation(attemptCtx, session.CreateOpts{
 			AgentName:           route.AgentName,
 			Provider:            route.Provider,
 			Model:               route.Model,
@@ -91,7 +91,7 @@ func (s *daemonCheckpointSummarizer) Summarize(
 		return "", fmt.Errorf("daemon: create checkpoint summary session: %w", err)
 	}
 
-	events, err := s.sessions.Prompt(ctx, summarySession.ID, prompt)
+	events, err := s.sessions.PromptLifecycleContinuation(ctx, summarySession.ID, prompt)
 	if err != nil {
 		return "", fmt.Errorf("daemon: prompt checkpoint summary session %q: %w", summarySession.ID, err)
 	}

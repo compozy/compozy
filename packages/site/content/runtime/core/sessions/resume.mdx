@@ -71,11 +71,15 @@ compozy session resume --latest --workspace checkout-api
 Attach over HTTP:
 
 ```bash
-curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/attach
+curl -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"attached_to":"cli:pane-7","ttl_seconds":900}' \
+  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/attach
 ```
 
-The request body can include an optional `attached_to` holder label. The response returns the
-session and the attach lease:
+The request body is optional. `attached_to` identifies the holder. `ttl_seconds` controls the lease
+duration: omitted, zero, and negative values use the 900-second default; positive values cannot
+exceed 86,400 seconds (24 hours). The response returns the session and the attach lease:
 
 ```json
 {
@@ -83,11 +87,12 @@ session and the attach lease:
     "id": "sess-1234",
     "state": "active",
     "badge": "idle",
-    "attachable": true,
+    "attachable": false,
     "attached_to": "cli:pane-7",
     "attach_expires_at": "2026-05-20T14:03:00Z"
   },
   "attach": {
+    "session_id": "sess-1234",
     "attached_to": "cli:pane-7",
     "attached_at": "2026-05-20T13:58:00Z",
     "attach_expires_at": "2026-05-20T14:03:00Z"
@@ -95,8 +100,9 @@ session and the attach lease:
 }
 ```
 
-If the session is not eligible, the daemon returns `409` with `session_not_attachable`. A client
-should then show the recap or history instead of trying to restart the session locally.
+The daemon returns `400` when the JSON body is invalid or a positive TTL exceeds 24 hours. It returns
+`409` when the session is not attachable or another holder owns a live lease. A client should then
+show the recap or history instead of trying to restart the session locally.
 
 ## Deterministic recap
 

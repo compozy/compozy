@@ -46,11 +46,19 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))
 		}
 	}
-	if shutdowner, ok := sessions.(sessionManagerShutdowner); ok {
-		if err := shutdowner.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("daemon: shutdown session manager: %w", err))
-		}
-	}
-
 	return errors.Join(errs...)
+}
+
+func (d *Daemon) shutdownSessionManager(ctx context.Context, sessions SessionManager) error {
+	if sessions == nil {
+		return nil
+	}
+	shutdowner, ok := sessions.(sessionManagerShutdowner)
+	if !ok {
+		return nil
+	}
+	if err := shutdowner.Shutdown(ctx); err != nil {
+		return fmt.Errorf("daemon: shutdown session manager: %w", err)
+	}
+	return nil
 }

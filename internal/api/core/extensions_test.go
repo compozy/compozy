@@ -207,8 +207,43 @@ func (s extensionServiceStub) MarketplaceTrust(
 	return extensionpkg.MarketplaceEntryTrustReport(evidence, false)
 }
 
-func TestListExtensionsRespectsMaskInternalErrors(t *testing.T) {
+func TestListExtensionsErrorResponses(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should return service unavailable when the extension service is not configured", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := testConfigWithDisabledNetwork(homePaths)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName: "api-core-test",
+			HomePaths:     homePaths,
+			Config:        cfg,
+			Logger:        testutil.DiscardLogger(),
+			StartedAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			Now: func() time.Time {
+				return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+			},
+			HTTPPort: cfg.HTTP.Port,
+		})
+
+		engine := gin.New()
+		engine.Use(gin.Recovery())
+		engine.GET("/extensions", handlers.ListExtensions)
+
+		response := performRequest(t, engine, http.MethodGet, "/extensions", nil)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusServiceUnavailable,
+				response.Body.String(),
+			)
+		}
+		if !strings.Contains(response.Body.String(), "extension service is not configured") {
+			t.Fatalf("body = %s, want unavailable diagnostic", response.Body.String())
+		}
+	})
 
 	t.Run("Should mask internal extension errors when handler masking is enabled", func(t *testing.T) {
 		// not parallel: gin.SetMode mutates process-global state.

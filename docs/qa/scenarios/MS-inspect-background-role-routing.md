@@ -9,7 +9,7 @@ entry_points: compozy roles list|show -o json; GET /api/roles and GET /api/roles
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-cli.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-http.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/roles-uds.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-unknown-http.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/role-dream-ghost-http.json
 last_report: docs/qa/reports/2026-07-24-agent-roles.md

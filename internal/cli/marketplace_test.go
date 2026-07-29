@@ -62,6 +62,13 @@ func TestMarketplaceCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marketplace search command error = %v", err)
 		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(marketplace search fields) error = %v", err)
+		}
+		if _, found := fields["resolution_source"]; found {
+			t.Fatalf("marketplace search JSON contains resolution_source, want shared daemon payload: %s", stdout)
+		}
 		var got MarketplaceSearchRecord
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 			t.Fatalf("json.Unmarshal(marketplace search) error = %v", err)
@@ -277,6 +284,13 @@ func TestMarketplaceCommands(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("marketplace info command error = %v", err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(marketplace info fields) error = %v", err)
+		}
+		if _, found := fields["resolution_source"]; found {
+			t.Fatalf("marketplace info JSON contains resolution_source, want shared daemon payload: %s", stdout)
 		}
 		var got MarketplaceEntryRecord
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {

@@ -176,6 +176,77 @@ describe("use-agent-heartbeat", () => {
     });
   });
 
+  it("Should refresh selected-session eligibility while heartbeat operations stay mounted", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const ineligibleStatus = {
+        agent_name: "coder",
+        active: true,
+        present: true,
+        enabled: true,
+        valid: true,
+        validation_status: "valid" as const,
+        preferences: { min_interval: "30m", context: {} },
+        session_health: {
+          session_id: "sess-1",
+          workspace_id: "ws_alpha",
+          agent_name: "coder",
+          state: "prompting" as const,
+          health: "healthy" as const,
+          active_prompt: true,
+          attachable: true,
+          eligible_for_wake: false,
+          ineligibility_reason: "session_prompt_active" as const,
+          updated_at: "2026-07-29T13:11:38Z",
+        },
+      };
+      mockFetchStatus.mockResolvedValueOnce(ineligibleStatus).mockResolvedValueOnce({
+        ...ineligibleStatus,
+        session_health: {
+          ...ineligibleStatus.session_health,
+          state: "idle",
+          active_prompt: false,
+          eligible_for_wake: true,
+          ineligibility_reason: undefined,
+          updated_at: "2026-07-29T13:11:39Z",
+        },
+      });
+
+      const status = renderHook(
+        () =>
+          useAgentHeartbeatStatus("coder", {
+            workspaceId: "ws_alpha",
+            sessionId: "sess-1",
+            includeSessionHealth: true,
+          }),
+        { wrapper: createWrapper(queryClient) }
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(status.result.current.data?.session_health?.eligible_for_wake).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(mockFetchStatus).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        await vi.waitFor(() => {
+          expect(status.result.current.data?.session_health?.eligible_for_wake).toBe(true);
+        });
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("Should validate, delete, rollback, and wake", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

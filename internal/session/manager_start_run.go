@@ -16,6 +16,8 @@ type sessionStartRun struct {
 
 	recorderReady     chan struct{}
 	recorderReadyOnce sync.Once
+	// launchCommit serializes immutable launch metadata with terminal state transitions.
+	launchCommit chan struct{}
 }
 
 func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*sessionStartRun, error) {
@@ -32,7 +34,9 @@ func (m *Manager) newSessionStartRun(base context.Context, sessionID string) (*s
 		cancel:        cancel,
 		done:          make(chan struct{}),
 		recorderReady: make(chan struct{}),
+		launchCommit:  make(chan struct{}, 1),
 	}
+	run.launchCommit <- struct{}{}
 
 	m.startMu.Lock()
 	defer m.startMu.Unlock()
@@ -80,6 +84,24 @@ func waitForSessionStartRecorder(ctx context.Context, run *sessionStartRun) erro
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func acquireSessionStartLaunchCommit(
+	ctx context.Context,
+	run *sessionStartRun,
+) (func(), error) {
+	if run == nil {
+		return func() {}, nil
+	}
+	select {
+	case <-run.launchCommit:
+		var releaseOnce sync.Once
+		return func() {
+			releaseOnce.Do(func() { run.launchCommit <- struct{}{} })
+		}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 

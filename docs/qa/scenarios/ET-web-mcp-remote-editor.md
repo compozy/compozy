@@ -8,9 +8,9 @@ expected: The editor switches field sets by transport. stdio keeps command, orde
 entry_points: web `/marketplace/mcps?tab=installed` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
 qa_status: untested
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
-fix_status: BUG-20260715-mcp-editor-vault-ref-case fixed
-retest_status: pending transport-switch and incomplete-secret-binding regression
-fix_commits:
+fix_status: fixed
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: web/src/systems/settings/lib/mcp-editor-model.ts; web/src/systems/settings/components/mcp-server-editor.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/editor-http-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-editor-vault-ref-case.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-editor-vault-ref-case-green.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: MS-029
@@ -21,6 +21,8 @@ story: As a builder I edit any server class the marketplace can install (local s
 src: docs/design/opendesign/mcp-management.html
 
 inventory: Needs QA
+
+Historical QA note: the transport-switch and incomplete-secret-binding regression remain pending.
 
 QA impact 2026-07-15: new behavior from Task 08 (ADR-006). Flagged untested for the next QA cycle.
 

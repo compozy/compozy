@@ -28,7 +28,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-edit-reply-context
+  id: J-edit-reply-context
   name: "Edit and reply in context"
   value_statement: "I can correct or contextualize my instruction without the agent treating stale quoted text as a new request."
   personas: [Maya]

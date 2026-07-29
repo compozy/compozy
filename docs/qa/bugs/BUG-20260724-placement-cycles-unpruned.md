@@ -1,6 +1,6 @@
 # BUG-20260724-placement-cycles-unpruned: progressive snap cycle entries survive window close
 
-- **Status:** suspected
+- **Status:** open
 - **Impact (user-side):** cosmetic/memory — per-session map growth and a stale cycle step if a window id is reused
 - **Persona Affected:** Bruno
 - **Journey Step:** —

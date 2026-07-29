@@ -88,6 +88,52 @@ func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testin
 	}
 }
 
+func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject reads for a missing definition", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		service := &daemonLoopAPIService{
+			catalog:     newResourceCatalog(looppkg.CloneResourceSpec),
+			persistence: db,
+		}
+
+		_, err := service.GetLoopAnnotations(t.Context(), "ws-missing", "missing-loop")
+		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			t.Fatalf("GetLoopAnnotations(missing definition) error = %v, want ErrDefinitionNotFound", err)
+		}
+	})
+
+	t.Run("Should reject writes for a missing definition without persisting them", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		service := &daemonLoopAPIService{
+			catalog:     newResourceCatalog(looppkg.CloneResourceSpec),
+			persistence: db,
+		}
+		request := contract.PutLoopAnnotationsRequest{Annotations: []contract.LoopAnnotationPayload{{
+			NodeID: "ghost",
+			X:      12,
+			Y:      34,
+		}}}
+
+		_, err := service.PutLoopAnnotations(t.Context(), "ws-missing", "missing-loop", request)
+		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			t.Fatalf("PutLoopAnnotations(missing definition) error = %v, want ErrDefinitionNotFound", err)
+		}
+		annotations, listErr := db.ListLoopUIAnnotations(t.Context(), "ws-missing", "missing-loop")
+		if listErr != nil {
+			t.Fatalf("ListLoopUIAnnotations(after rejected write) error = %v", listErr)
+		}
+		if len(annotations) != 0 {
+			t.Fatalf("annotations after rejected write = %#v, want empty", annotations)
+		}
+	})
+}
+
 func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPresence(t *testing.T) {
 	t.Parallel()
 

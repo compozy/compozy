@@ -104,6 +104,30 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	return m.submitPromptRequest(ctx, req)
 }
 
+// PromptLifecycleContinuation submits the turn for a daemon-owned Dream
+// session whose lifecycle work was accepted before public admission drained.
+func (m *Manager) PromptLifecycleContinuation(
+	ctx context.Context,
+	id string,
+	msg string,
+) (<-chan acp.AgentEvent, error) {
+	req, err := m.parsePromptRequest(ctx, id, PromptOpts{
+		Message:    msg,
+		TurnSource: TurnSourceUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	continuation, ok := m.Get(req.target)
+	if !ok || normalizeSessionType(continuation.Type) != SessionTypeDream {
+		return nil, fmt.Errorf(
+			"session: lifecycle continuation requires an active dream session %q",
+			req.target,
+		)
+	}
+	return m.submitPromptRequest(ctx, req)
+}
+
 // CancelPrompt cancels prompt setup/execution for a known session.
 func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 	if m == nil {

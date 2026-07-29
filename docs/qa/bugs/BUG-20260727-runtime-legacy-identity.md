@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada; Dora
 - **Journey Step:** J-validate-compozy-hard-cut, runtime and public-contract identity
-- **Scenarios:** RT-compozy-environment-namespace; ET-compozy-native-tool-invocation;
+- **Scenarios:** RT-compozy-environment-namespace; ET-compozy-native-tool-invocation; ET-compozy-extension-contract-identity; ET-compozy-public-brand-navigation
   ET-compozy-extension-contract-identity; NB-compozy-wire-identity;
   ET-compozy-public-brand-navigation; ET-dev-cycle-skill-bundle
 - **Found:** 2026-07-27 · **Report:** docs/qa/reports/2026-07-27-devtool-oss-launch.md

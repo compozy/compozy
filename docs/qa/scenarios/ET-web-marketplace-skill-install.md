@@ -8,15 +8,17 @@ expected: A skill installs or updates from its stable marketplace detail, the ca
 entry_points: /marketplace/skill/$entryId; skill card Install or Update action
 qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
-fix_status: BUG-20260714-keyboard-focus-invisible fixed
-retest_status: pending mutation-result identity routing
-fix_commits:
+fix_status: fixed
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-manage.png; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-009; ET-010; ET-api-marketplace-namespace
 ---
 
 Added by marketplace Task 06. Use an entry whose display name differs from `entry_id` and install slug so detail identity, mutation identity, and Manage routing cannot collapse into one accidental field.
+
+Historical QA note: mutation-result identity routing remains pending.
 
 QA impact 2026-07-16: the success CTA now targets the canonical skill name returned by the install
 mutation instead of catalog display metadata; reset with deliberately different names.

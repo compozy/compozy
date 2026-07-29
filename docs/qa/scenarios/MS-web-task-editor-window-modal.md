@@ -3,7 +3,7 @@ id: MS-web-task-editor-window-modal
 area: MS
 title: Task create and edit present as window-scoped modals over their origin surface
 persona: Dora
-journey:
+journey: J-complete-task-tree
 expected: "`/tasks/new` renders the tasks catalog with the task editor layered over it as a window-scoped dialog on the `--width-modal-md` host, and `/tasks/$id/edit` renders the task detail with the same dialog over it — the scrim dims only the owning window and other windows stay interactive. The location carries the surface underneath: opening the editor from Kanban, Dashboard, or Inbox keeps that view behind the dialog and returns to it on Cancel/Escape/close, and opening Edit from the Runs or Activity tab returns to that tab. Template selection stays addressable through `?template=`; a successful create navigates to the created task and a successful edit returns to the task detail. The edit host never renders a half-bound form: it shows a loading state while the task resolves and an explicit unavailable state when it cannot be read, with dismissal reachable in both."
 entry_points: web `/tasks/new`; web `/tasks/$id/edit`; tasks topbar "New task"; tasks empty-state template cards; Kanban create action; task detail Edit action
 qa_status: untested

@@ -12,7 +12,7 @@ flowchart TD
     B --> V{Schema valid?}
     V -->|No| X[Fail action_schema_invalid; write no partial round]
     V -->|Yes| C{Any issues?}
-    C -->|No| D([Terminal done])
+    C -->|No| D([True end: terminal done])
     C -->|Yes| E[Write exclusive reviews-NNN artifact round]
     E --> F[Fan out complete issue-file batches]
     F --> G[Fixer triages and remediates every issue file]

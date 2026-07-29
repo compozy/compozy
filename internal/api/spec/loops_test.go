@@ -89,7 +89,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "put config",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/config",
 				method:     "PUT",
-				statuses:   []int{200, 400, 503, 500},
+				statuses:   []int{200, 400, 404, 503, 500},
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
@@ -131,14 +131,14 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "get annotations",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/annotations",
 				method:     "GET",
-				statuses:   []int{200, 400, 503, 500},
+				statuses:   []int{200, 400, 404, 503, 500},
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
 				name:       "put annotations",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/annotations",
 				method:     "PUT",
-				statuses:   []int{200, 400, 503, 500},
+				statuses:   []int{200, 400, 404, 503, 500},
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
@@ -240,6 +240,13 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
 		assertRequired(t, jsonResponseSchema(t, runLoop, 422), "error")
+
+		getConfig := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/config", "GET")
+		configResponse := jsonResponseSchema(t, getConfig, 200)
+		assertRequired(t, configResponse, "config", "effective_config")
+		if config := propertySchema(t, configResponse, "config"); !config.Nullable {
+			t.Fatal("GET /config response config must be nullable")
+		}
 
 		pauseRun := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause", "POST")
 		assertRequired(t, jsonResponseSchema(t, pauseRun, 422), "error")

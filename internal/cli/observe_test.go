@@ -85,6 +85,13 @@ func TestObserveOverviewCommand(t *testing.T) {
 		if decoded.Attention.Total != 3 || decoded.Network.MessagesToday != 128 {
 			t.Fatalf("decoded = %+v, want stubbed counters", decoded)
 		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(fields) error = %v", err)
+		}
+		if _, found := fields["resolution_source"]; found {
+			t.Fatalf("json output contains resolution_source, want raw overview payload: %s", stdout)
+		}
 	})
 
 	t.Run("Should render human sections with truthful counters", func(t *testing.T) {

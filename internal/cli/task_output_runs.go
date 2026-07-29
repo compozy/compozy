@@ -55,7 +55,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				taskStartedAtKey,
 				taskEndedAtKey,
 				taskErrorKey,
-				"result",
+				clientResultKey,
 			}, []string{
 				item.ID,
 				item.TaskID,

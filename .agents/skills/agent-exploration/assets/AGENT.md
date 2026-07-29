@@ -1,19 +1,9 @@
 ---
-title: Explorer
-description: >-
-  Scoped-write research subagent dispatched by the `agent-exploration` skill (or
-  by another parent explicitly emulating its contract). Reads one slice of a
-  research question, drafts a fixed seven-section analysis, and writes the
-  result to a single named file at `<path>/analysis/NN_analysis_<slug>.md`.
-  Performs exactly one file-write per dispatch. Registered globally in the
-  Compozy agent registry and invoked through `compozy exec --agent explorer`.
-  Do not use for open-ended chat exploration, for analysis files outside the
-  parent-named path, for editing existing files, or for any task that does not
-  name both a slice scope and a target analysis path.
-ide: claude
+name: explorer
+provider: claude
 model: opus
 reasoning_effort: xhigh
-access_mode: full
+permissions: approve-all
 ---
 
 # Explorer — Scoped-Write Research Agent

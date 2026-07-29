@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: TA-055, TA-schedule-catchup-overlap
+overlaps: TA-055; TA-schedule-catchup-overlap
 ---
 
 story: As an autonomy operator, I cannot schedule a job that terminates its own daemon and creates a supervisor restart loop.

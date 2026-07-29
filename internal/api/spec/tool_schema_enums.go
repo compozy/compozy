@@ -41,6 +41,8 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonApprovalTokenMismatch),
 		string(tools.ReasonApprovalTokenReplayed),
 		string(tools.ReasonSessionDenied),
+		string(tools.ReasonLoopVersionConflict),
+		string(tools.ReasonLoopSourceImmutable),
 		string(tools.ReasonHookDenied),
 		string(tools.ReasonSchemaInvalid),
 		string(tools.ReasonConflictedID),

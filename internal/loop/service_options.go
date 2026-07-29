@@ -90,6 +90,13 @@ func WithGoalRunActivator(activator GoalRunActivator) Option {
 	}
 }
 
+// WithCoordinatorRunActivator injects the post-commit activation path for non-Goal coordinator wakes.
+func WithCoordinatorRunActivator(activator CoordinatorRunActivator) Option {
+	return func(s *service) {
+		s.coordinatorActivator = activator
+	}
+}
+
 // WithGoalPromptLeaseRevoker injects post-commit cancellation for exact managed Goal prompt leases.
 func WithGoalPromptLeaseRevoker(revoker GoalPromptLeaseRevoker) Option {
 	return func(s *service) {

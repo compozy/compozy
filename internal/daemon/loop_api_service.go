@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +28,7 @@ type loopAPIPersistence interface {
 	looppkg.RunReader
 	looppkg.CatalogRunReader
 	looppkg.AnnotationStore
+	looppkg.DefinitionStateStore
 }
 
 type loopGoalAPIPersistence interface {
@@ -155,6 +155,7 @@ func loopAPIServiceOptions(
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
+		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 	}
 	if state.participationResolver != nil {
@@ -349,24 +350,6 @@ func (s *daemonLoopAPIService) ValidateLoop(
 		return contract.LoopValidationResponse{}, err
 	}
 	return contract.LoopValidationResponse{Valid: true}, nil
-}
-
-func (s *daemonLoopAPIService) DeleteLoop(ctx context.Context, workspaceID string, name string) error {
-	_, record, err := s.findLoopRecord(workspaceID, name)
-	if err != nil {
-		return err
-	}
-	if err := ensureWritableLoopSource(record.Spec); err != nil {
-		return err
-	}
-	root := filepath.Dir(strings.TrimSpace(record.Spec.Dir))
-	if strings.TrimSpace(root) == "." || strings.TrimSpace(root) == "" {
-		return fmt.Errorf("%w: loop definition root is unavailable", looppkg.ErrValidation)
-	}
-	if err := looppkg.DeleteWritableDefinition(root, name); err != nil {
-		return err
-	}
-	return s.syncLoopResources(ctx)
 }
 
 func (s *daemonLoopAPIService) RunLoop(

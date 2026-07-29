@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Personas Affected:** Bruno; Iris; Ada
 - **Journey Step:** J-mcp-authorize-repair, OAuth callback or manual exchange
-- **Scenarios:** ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-cli-mcp-auth-manual-exchange; ET-api-mcp-oauth-endpoints; MS-029
+- **Scenarios:** ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-cli-mcp-auth-manual-exchange; ET-api-mcp-oauth-endpoints; ET-047; MS-029
 - **Found:** 2026-07-15 · **Report:** docs/qa/reports/2026-07-15-marketplace.md
 - **Origin:** Task 11 isolated Marketplace QA
 

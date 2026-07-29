@@ -18,6 +18,8 @@ import { settingsSkillsDraftLogic, shouldRebindSkillsDraft } from "./settings-sk
 
 type SkillsConfig = SettingsSkillsSection["config"];
 
+const DEFAULT_AGENT_NAME = "general";
+
 export type SkillsScopeSelection =
   | { scope: "global" }
   | { scope: "agent"; agentName: string; workspaceId?: string };
@@ -83,7 +85,7 @@ function sortAgents(agents: AgentPayload[]): AgentPayload[] {
 }
 
 function pickDefaultAgentName(agents: AgentPayload[]): string {
-  return agents[0]?.name ?? "";
+  return agents.find(agent => agent.name === DEFAULT_AGENT_NAME)?.name ?? agents[0]?.name ?? "";
 }
 
 export function useSettingsSkillsPage() {
@@ -187,6 +189,7 @@ export function useSettingsSkillsPage() {
       },
     };
     draftLogic.trigger.saveRequested({
+      baseline: body.config,
       execute: () => disabledMutation.mutateAsync({ body, filter }),
       kind: "disabled",
       label: "Saved · applied immediately",
@@ -198,10 +201,11 @@ export function useSettingsSkillsPage() {
     const body: SettingsUpdateSkillsRequest = {
       config: {
         ...draft,
-        disabled_skills: envelope.config.disabled_skills ?? [],
+        disabled_skills: envelope.config.disabled_skills,
       },
     };
     draftLogic.trigger.saveRequested({
+      baseline: body.config,
       execute: () => policyMutation.mutateAsync({ body, filter }),
       kind: "policy",
       label: "Saved · restart required to apply",

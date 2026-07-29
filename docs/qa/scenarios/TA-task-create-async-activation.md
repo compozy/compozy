@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20260714-task-create-waits-for-worker-session
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: docs/qa/reports/2026-07-13-automation-features.md
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: TA-task-role-session-activation;TA-016

@@ -32,7 +32,7 @@ The Marketplace guided installer correctly submitted `values: null` for a remote
 
 - **Root cause:** `parseInstallSettingsMCPServerRequest` rejected a nil `values` pointer before the catalog service could validate entry-owned required inputs. This contradicted the contract's optional pointer and the Web request builder's intentional null for input-free entries.
 - **Correction:** The parser now maps a nil pointer to the zero `MCPCatalogInstallValues`; catalog-specific required inputs remain validated by the settings service.
-- **Fix commit:** pending Phase D checkpoint
+- **Fix commit:** `8eeb8a38`
 - **Regression test:** The existing canonical API install suite now proves `values: null` reaches the service as an empty value set. It failed before the parser correction and passes afterward.
 
 ## Verification
