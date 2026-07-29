@@ -39,7 +39,7 @@ function humanize(segment: string): string {
 function buildBreadcrumbs(slug: string[], pageTitle: string): BreadcrumbItem[] {
   const items: BreadcrumbItem[] = [
     { name: "Home", path: "/" },
-    { name: "Network Protocol", path: "/protocol/" },
+    { name: "Compozy Network", path: "/protocol/" },
   ];
   let cumulative = "/protocol";
   for (let i = 0; i < slug.length; i += 1) {

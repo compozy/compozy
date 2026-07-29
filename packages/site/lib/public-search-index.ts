@@ -22,6 +22,17 @@ type TocHeading = {
   title: string;
 };
 
+const DOC_PATH_LABELS: Readonly<Record<string, string>> = {
+  runtime: "Runtime",
+  protocol: "Protocol",
+  core: "Core concepts",
+  "cli-reference": "CLI reference",
+  "api-reference": "API reference",
+  guide: "Implementation guide",
+  mcp: "MCP",
+  openai: "OpenAI",
+};
+
 function byURL(left: { url: string }, right: { url: string }): number {
   return left.url.localeCompare(right.url);
 }
@@ -35,6 +46,24 @@ function joinContent(...parts: Array<string | undefined>): string {
     .map(part => part?.trim())
     .filter((part): part is string => Boolean(part))
     .join("\n\n");
+}
+
+function formatDocPathSegment(segment: string): string {
+  const knownLabel = DOC_PATH_LABELS[segment];
+  if (knownLabel) {
+    return knownLabel;
+  }
+
+  const label = segment.replaceAll("-", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function buildDocBreadcrumbs(url: string): string[] {
+  const pathname = url.split(/[?#]/, 1)[0] ?? "";
+  const segments = pathname.split("/").filter(Boolean);
+  const ancestorCount = Math.max(1, segments.length - 1);
+
+  return segments.slice(0, ancestorCount).map(formatDocPathSegment);
 }
 
 function slugFromHash(hashURL: string, fallback: string): string {
@@ -70,6 +99,7 @@ function buildDocIndexes(pages: SearchPage[], tag: string): AdvancedIndex[] {
     structuredData: page.data.structuredData,
     id: page.url,
     url: page.url,
+    breadcrumbs: buildDocBreadcrumbs(page.url),
     tag,
   }));
 }

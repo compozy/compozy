@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { SUPPORTED_AGENT_PROVIDERS } from "@/components/landing/provider-data";
+import { BUILTIN_PROVIDER_INTEGRATIONS } from "@/components/landing/provider-data";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
@@ -129,7 +129,7 @@ describe("landing truth", () => {
   it("keeps provider names aligned with the runtime built-in registry", () => {
     const runtimeProviders = builtinProviderNames();
     const landingProviders = new Map(
-      SUPPORTED_AGENT_PROVIDERS.map(provider => [provider.id, provider.name])
+      BUILTIN_PROVIDER_INTEGRATIONS.map(provider => [provider.id, provider.name])
     );
 
     expect(Object.fromEntries(landingProviders)).toEqual(Object.fromEntries(runtimeProviders));

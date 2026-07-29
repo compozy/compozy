@@ -43,9 +43,7 @@ describe("blog metadata", () => {
   });
 
   it("uses the launch cover art in OpenGraph and Twitter metadata", async () => {
-    const metadata = await generateMetadata(
-      pageProps("introducing-compozy-the-first-agent-network-protocol")
-    );
+    const metadata = await generateMetadata(pageProps("introducing-compozyos"));
     const openGraphImage =
       Array.isArray(metadata.openGraph?.images) && typeof metadata.openGraph.images[0] === "object"
         ? (metadata.openGraph.images[0] as { url?: string; alt?: string })

@@ -1,5 +1,15 @@
 # Runtime Operations
 
+## Contents
+
+- Operating model and beta distribution
+- Daemon drain
+- Session lifecycle and CLI
+- Background roles and usage cost
+- MCP serve and onboarding
+- Automation suggestions
+- Messaging bridge delivery, diagnostics, and runtime boundaries
+
 ## Operating Model
 
 Compozy is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
@@ -10,7 +20,7 @@ Do not manage runtime state by editing SQLite databases, process internals, or g
 
 Keep beta installations on the beta line. Use the verified hosted installer,
 `npm install -g @compozy/cli@beta`, or
-`go install github.com/compozy/compozy@v0.3.0-beta.1`. A beta build's
+`go install github.com/compozy/compozy@v0.3.0-beta.2`. A beta build's
 `compozy update` follows newer v0.3 beta releases and never offers the v0.2
 stable line. Homebrew remains on deprecated v0.2 during beta and returns with
 v0.3.0 stable; do not recommend it for a v0.3 beta install. Existing v0.2
@@ -30,13 +40,15 @@ Compozy sessions are daemon-owned runtimes. Common states:
 - starting - the daemon accepted the session and is booting the provider.
 - active - the provider is connected and ready for prompts.
 - stopping - shutdown has started.
-- stopped - the runtime exited and can be inspected or resumed.
+- stopped - the runtime exited. The durable record remains inspectable, but the public lifecycle is terminal.
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
 With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
 
-Attachability is explicit runtime state. Use `compozy session list --resumable -o json` and `compozy session resume` instead of assuming a stopped or idle session can be reused.
+Attachability is explicit live runtime state. Use `compozy session list --resumable -o json` before
+`compozy session resume`. The command acquires an attach lease for an eligible live session; it does
+not restart `stopped`, and stopped sessions reject attach.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
@@ -45,8 +57,6 @@ A dedicated prompt interrupt followed by steer submits the canceled authored pro
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
 
 Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
-
-When the daemon reactivates a stopped runtime, it first tries the provider's ACP `session/load`. If that method is unsupported or the saved provider session is missing, Compozy starts a fresh provider session and prepends a pruned projection of this session's persisted transcript to the next accepted prompt. The fallback appends a durable `session_recovered` marker summarized as `Context rebuilt from log.` It never issues an autonomous prompt, crosses a session or workspace boundary, or rewrites the authored message. A successful provider load adds no replay or recovery marker.
 
 Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
 event rows archived. Archived rows remain visible to `compozy session events` and `compozy session history`,
@@ -83,10 +93,10 @@ cannot be validated fail closed.
     compozy session history <session-id>
     compozy session history <session-id> --last 20 --after 42
     compozy session prompt <session-id> "Summarize the last three tool results."
-    compozy session stop <session-id>
-    compozy session remove <session-id>
     compozy session resume <session-id>
     compozy session resume --latest --workspace checkout-api
+    compozy session stop <session-id>
+    compozy session remove <session-id>
     compozy session repair <session-id> --dry-run -o json
     compozy session soul refresh <session-id> --expected-digest sha256:old -o json
     compozy session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once
@@ -107,8 +117,10 @@ to `normal`; `fast` is applied only through an unambiguous ACP select/value-ID o
 ambiguous speed capability is reported as `unsupported` without failing startup, while a provider
 rejection fails before the first prompt with `speed_rejected`. Empty or
 whitespace-only values keep create-only behavior. `--no-wait --prompt` returns the durable `starting`
-record with the prompt still queued. A startup failure retains that prompt for an explicit resume;
-deleting the session removes it. Do not send the same prompt again after create.
+record with the prompt still queued. A startup failure retains that prompt and its diagnostic
+evidence, but the public attach command cannot restart that stopped session. Inspect the failure,
+correct its cause, and create a new session for new work. Deleting the failed session removes the
+queued input. Do not send the same prompt again to the original create request.
 
 If a Compozy-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
@@ -162,7 +174,9 @@ reasoning rate from output.
 
 Prefer `compozy session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
 
-`compozy session stop` preserves durable history and resume state. `compozy session remove` is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted session directory. Use removal only when the operator intends to discard that history.
+`compozy session stop` preserves durable history and ends attach eligibility. `compozy session remove`
+is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted
+session directory. Use removal only when the operator intends to discard that history.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 

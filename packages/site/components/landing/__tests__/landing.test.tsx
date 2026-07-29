@@ -43,7 +43,7 @@ vi.mock("@remotion/player", () => ({
 import { Hero } from "../hero";
 import { FeaturesSection } from "../features-section";
 import { BentoSection } from "../bento-section";
-import { SUPPORTED_AGENT_COUNT, SUPPORTED_AGENT_PROVIDERS } from "../provider-data";
+import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provider-data";
 import { SupportedAgents } from "../supported-agents";
 import { BridgesSection } from "../bridges-section";
 import { ExtensibilitySection } from "../extensibility-section";
@@ -72,7 +72,7 @@ function assetSources(): (string | null)[] {
 }
 
 describe("Hero", () => {
-  it("leads with the locked headline, subhead, and agent network protocol CTA", () => {
+  it("leads with the locked headline, subhead, and CompozyOS overview CTA", () => {
     render(<Hero />);
     // Locked launch pair (COPY.md §2). The headline and the definition ship verbatim, together.
     expect(
@@ -87,19 +87,16 @@ describe("Hero", () => {
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const spec = screen.getByText("Read the compozy-network/v0 spec");
-    expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
+    const overview = screen.getByText("See how CompozyOS works");
+    expect(overview.closest("a")?.getAttribute("href")).toBe("/runtime");
   });
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("compozy-network/v0")).toBeDefined();
-    expect(
-      screen.getByText("6 message kinds. Commit-first delivery. Audited outcomes.")
-    ).toBeDefined();
-    expect(screen.getByText(`${SUPPORTED_AGENT_COUNT} ACP drivers supported`)).toBeDefined();
+    expect(screen.getByText("Durable sessions, one state")).toBeDefined();
+    expect(screen.getByText(`${BUILTIN_PROVIDER_COUNT} built-in providers`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
-    expect(screen.getByText("Single binary, no infra")).toBeDefined();
+    expect(screen.getByText("Local by default, Live by choice")).toBeDefined();
   });
 
   it("starts the Remotion player muted so browser autoplay can advance frames", () => {
@@ -200,13 +197,13 @@ describe("BentoSection", () => {
 describe("SupportedAgents", () => {
   it("renders as a compact support strip, not a hero section", () => {
     render(<SupportedAgents />);
-    const list = screen.getByRole("list", { name: "Supported agent CLIs" });
+    const list = screen.getByRole("list", { name: "Built-in provider integrations" });
     const items = within(list).getAllByRole("listitem");
 
     expect(items.map(item => item.getAttribute("aria-label"))).toEqual(
-      SUPPORTED_AGENT_PROVIDERS.map(provider => provider.name)
+      BUILTIN_PROVIDER_INTEGRATIONS.map(provider => provider.name)
     );
-    expect(screen.getByText("Your CLI on the network")).toBeDefined();
+    expect(items).toHaveLength(BUILTIN_PROVIDER_COUNT);
   }, 15_000);
 });
 
@@ -294,21 +291,27 @@ describe("NetworkSection", () => {
     render(<NetworkSection />);
     expect(screen.getByText("Implemented commands")).toBeDefined();
     expect(screen.getByText("Commit first, dispatch in-process")).toBeDefined();
-    expect(screen.getByText("Receipts are first-class")).toBeDefined();
+    expect(screen.getByText("Explicit receipts, durable history")).toBeDefined();
     expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
   });
 });
 
 describe("InstallSection", () => {
-  it("renders three install tabs and the three CLI steps", () => {
+  it("shows method-specific bootstrap steps instead of repeating hosted bootstrap", () => {
     render(<InstallSection />);
-    expect(screen.getByRole("tab", { name: "Installer" })).toBeDefined();
-    expect(screen.getByRole("tab", { name: "npm" })).toBeDefined();
+    const installer = screen.getByRole("tab", { name: "Installer" });
+    const npm = screen.getByRole("tab", { name: "npm" });
+    expect(installer).toBeDefined();
+    expect(npm).toBeDefined();
     expect(screen.getByRole("tab", { name: "Go" })).toBeDefined();
     expect(screen.getByText("curl -fsSL https://compozy.com/install.sh | sh")).toBeDefined();
-    expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
+    expect(screen.queryByText("Bootstrap your CompozyOS home")).toBeNull();
     expect(screen.getByText("Start the daemon")).toBeDefined();
     expect(screen.getByText("Launch a real session")).toBeDefined();
+
+    fireEvent.click(npm);
+
+    expect(screen.getByText("Bootstrap your CompozyOS home")).toBeDefined();
   });
 
   it("wires tab roles, panels, and keyboard navigation", () => {
@@ -417,12 +420,8 @@ describe("AutonomyKernelSection", () => {
 });
 
 describe("FinalCta", () => {
-  it("renders the final CTAs and drops the old hedge copy", () => {
+  it("links the final actions to installation, protocol, and the repository", () => {
     render(<FinalCta />);
-    expect(screen.getByText("Install CompozyOS. Run a session. Join the network.")).toBeDefined();
-    expect(
-      screen.getByText("One binary. No infrastructure. Build your factory on it.")
-    ).toBeDefined();
     const install = screen.getByText("Install the beta");
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"

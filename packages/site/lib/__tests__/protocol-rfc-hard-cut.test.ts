@@ -170,17 +170,20 @@ describe("protocol hard cut", () => {
       "packages/site/content/protocol/implementation-status.mdx"
     );
     expect(implementationStatus).toContain(
-      "The current Compozy Runtime implements `compozy-network/v0`"
+      "The current CompozyOS reference implementation supports `compozy-network/v0`"
     );
     expect(implementationStatus).toContain("External transport | Not shipped in this release.");
     expect(implementationStatus).toContain(
-      "Trust verification | Not shipped; opaque `proof` only."
+      "Trust profile v1   | Not implemented; `proof` is opaque"
     );
 
     const trustProfile = readRepoFile("packages/site/content/protocol/ed25519-jcs.mdx");
-    expect(trustProfile).toContain("The Compozy Network v1 baseline trust profile");
-    expect(trustProfile).toContain("v0 implementation: it preserves `proof` as opaque JSON");
-    expect(trustProfile).toMatch(/does not\s+yet verify Ed25519 proofs/);
+    expect(trustProfile).toContain("The optional RFC 004 v1 trust profile");
+    expect(trustProfile).toContain("The envelope contract remains v0");
+    expect(trustProfile).toContain(
+      "The current CompozyOS runtime preserves `proof` as opaque JSON"
+    );
+    expect(trustProfile).toContain("does not ship a v1 trust fixture or runner");
   });
 
   it("keeps current protocol contract docs free of the retired broker binding", () => {

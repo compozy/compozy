@@ -10,7 +10,7 @@
         "capability-discovery",
         "---Delivery---",
         "delivery",
-        "---Trust---",
+        "---Optional Trust Profile (v1, not implemented in CompozyOS)---",
         "ed25519-jcs",
         "verification",
         "---Build---",

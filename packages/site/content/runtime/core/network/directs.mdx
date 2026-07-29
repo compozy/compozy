@@ -8,7 +8,7 @@ identified by a deterministic `direct_id` and bound to exactly two peers. The wi
 `surface:"direct"` with `direct_id`. Only the two room peers and the daemon's audit path can read
 the messages.
 
-Both Compozy Runtime participants must have resolved Live participation in that channel. Resolving a
+Both CompozyOS runtime participants must have resolved Live participation in that channel. Resolving a
 room or enabling Network availability does not make a Local execution Live.
 
 Direct rooms are restricted runtime visibility. They are not cryptographic privacy. RFC 004 trust
@@ -109,9 +109,9 @@ compozy network send \
   -o json
 ```
 
-The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The
-native `compozy__network_send` tool accepts the same JSON object and requires `workspace_id` because
-it has no route path.
+The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The native
+`compozy__network_send` tool accepts the message fields plus an optional `workspace` selector. When
+that selector is omitted, the hosted tool resolves the caller's bound workspace.
 
 A directed `say` can admit one bounded Live wake. The room write remains durable even when the wake
 is coalesced, exceeds depth, exhausts bounds, or availability is disabled.

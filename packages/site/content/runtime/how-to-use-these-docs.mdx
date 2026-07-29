@@ -1,6 +1,6 @@
 ---
-title: How to Use These Docs
-description: Choose the right Compozy Runtime docs path for learning, operating, extending, and integrating with the daemon.
+title: How to use these docs
+description: Choose the right CompozyOS runtime docs path for learning, operating, extending, and integrating with the daemon.
 icon: Compass
 ---
 
@@ -34,7 +34,7 @@ Use this page to pick the shortest path for the work in front of you.
 
 ### I operate Compozy day to day
 
-1. [Choose an control surface](/runtime/guides/choose-an-operator-surface)
+1. [Choose a control surface](/runtime/guides/choose-an-operator-surface)
 2. [Session Lifecycle](/runtime/core/sessions/lifecycle)
 3. [Operations](/runtime/core/operations)
 4. [CLI Reference](/runtime/cli-reference)
@@ -63,7 +63,7 @@ Use this page to pick the shortest path for the work in front of you.
 | Core Concepts | Understanding the model behind a feature.              | Copy-paste-only command runs.                           |
 | CLI Reference | Flags, syntax, output formats, and generated commands. | Product explanation.                                    |
 | API Reference | Route families and streaming surfaces.                 | Complete generated schema coverage for every route yet. |
-| Protocol      | Interoperability outside Compozy Runtime.              | Operating the local daemon day to day.                  |
+| Protocol      | Implementing Compozy Network outside CompozyOS.        | Operating the local daemon day to day.                  |
 
 ## When docs disagree
 
@@ -72,8 +72,9 @@ Runtime truth wins:
 1. Generated CLI reference wins for command names and flags.
 2. Implemented code and generated contracts win for API behavior.
 3. Core concept pages explain intent, but should not override generated references.
-4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every Compozy
-   Runtime feature.
+4. Protocol pages define wire contracts for interoperable runtimes, not necessarily every
+   CompozyOS runtime feature.
 
-If a guide gives a command that fails, check the generated CLI page for that command and treat the
-guide as stale.
+If a guide and a generated reference disagree, follow the generated contract for the immediate
+operation and report the conflicting guide. A failed documented step is a documentation defect, not
+a burden the reader should silently work around.

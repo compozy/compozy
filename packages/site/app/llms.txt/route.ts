@@ -1,4 +1,4 @@
-import { allPosts } from "@/lib/blog";
+import { allPosts, allReleases } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/site-config";
 import { protocolDocs, runtimeDocs } from "@/lib/source";
 
@@ -19,6 +19,7 @@ export function GET() {
   const runtimePages = runtimeDocs.getPages();
   const protocolPages = protocolDocs.getPages();
   const posts = allPosts();
+  const currentRelease = allReleases()[0];
 
   const runtimeLines = runtimePages.map(page =>
     docLine(page.data.title, page.url, page.data.description)
@@ -27,14 +28,31 @@ export function GET() {
     docLine(page.data.title, page.url, page.data.description)
   );
   const blogLines = posts.map(post => docLine(post.title, post.permalink, post.description));
+  const releaseLines = [
+    ...(currentRelease
+      ? [
+          docLine(
+            `Current release: ${currentRelease.version}`,
+            `/changelog#${currentRelease.version}`,
+            `${currentRelease.status} — ${currentRelease.summary}`
+          ),
+        ]
+      : []),
+    docLine(
+      "Migrate from Compozy v0.2.15 to CompozyOS v0.3",
+      "/runtime/migration",
+      "Hard-cut command, configuration, storage, and extension migration guidance."
+    ),
+  ];
 
   const body = [
-    "# Compozy Documentation",
+    "# CompozyOS Documentation",
     "",
     "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime.",
     "",
+    section("Current release and migration", releaseLines),
     section("Runtime", runtimeLines),
-    section("Network Protocol", protocolLines),
+    section("Compozy Network", protocolLines),
     section("Blog", blogLines),
   ]
     .filter(Boolean)

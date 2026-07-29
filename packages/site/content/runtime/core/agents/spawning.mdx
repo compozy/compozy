@@ -45,7 +45,7 @@ The session manager builds `acp.StartOpts` from the resolved workspace and agent
 | `Env`             | provider-policy environment plus Compozy session variables and bound secrets                           |
 | `MCPServers`      | resolved config/provider/agent/skill MCP server list                                                   |
 | `Permissions`     | resolved agent or global permission mode                                                               |
-| `SystemPrompt`    | assembled startup prompt built from the Compozy runtime envelope, runtime context, and `AGENT.md` body |
+| `SystemPrompt`    | assembled startup prompt built from the CompozyOS runtime envelope, runtime context, and `AGENT.md` body |
 | `ResumeSessionID` | stored ACP session ID when resuming                                                                    |
 
 The ACP driver validates these before launch:
@@ -77,7 +77,7 @@ start a Node wrapper before the actual ACP runtime.
 The subprocess environment starts from the provider's `env_policy`:
 
 - `filtered` keeps ordinary daemon context and strips secret-shaped variables before launch.
-- `isolated` starts from a small operational allowlist and then adds only Compozy runtime metadata,
+- `isolated` starts from a small operational allowlist and then adds only CompozyOS runtime metadata,
   provider-home variables, and explicit bound credentials.
 
 Compozy then applies these additions:
@@ -211,7 +211,7 @@ That means:
 
 - the body should contain durable role and operating instructions, not the fact that the process is
   running inside Compozy
-- Compozy runtime identity, session facts, and daemon-owned tool guidance are added by the runtime
+- CompozyOS runtime identity, session facts, and daemon-owned tool guidance are added by the runtime
 - per-turn details belong in the user prompt or daemon-provided turn context
 - changing `AGENT.md` affects new processes, not a process that is already running
 

@@ -3,7 +3,7 @@ import { GET as feedGET } from "@/app/blog/feed.xml/route";
 import { GET as llmsGET } from "@/app/llms.txt/route";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
-import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
+import { BLOG_CATEGORIES, allPosts, allReleases } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 
 const mockedDocs = vi.hoisted(() => ({
@@ -97,6 +97,8 @@ describe("public route metadata", () => {
     const body = await response.text();
 
     expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(body).toContain("# CompozyOS Documentation");
+    expect(body).toContain("## Compozy Network");
     expect(body).toContain(
       "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime."
     );
@@ -105,6 +107,12 @@ describe("public route metadata", () => {
     );
     expect(body).toContain(
       "- [Implementation Status](https://compozy.com/protocol/implementation-status): Implemented protocol surface."
+    );
+    expect(body).toContain(
+      `- [Current release: ${allReleases()[0]?.version}](https://compozy.com/changelog#${allReleases()[0]?.version}): ${allReleases()[0]?.status}`
+    );
+    expect(body).toContain(
+      "- [Migrate from Compozy v0.2.15 to CompozyOS v0.3](https://compozy.com/runtime/migration)"
     );
   });
 

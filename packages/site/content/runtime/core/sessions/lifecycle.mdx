@@ -1,5 +1,5 @@
 ---
-title: Session Lifecycle
+title: Session lifecycle
 description: How Compozy creates, activates, stops, and classifies one durable runtime session.
 ---
 
@@ -11,13 +11,13 @@ A session is the runtime object Compozy manages. It ties together:
 - one permission policy
 - one durable Compozy session ID
 
-That Compozy session ID stays stable across stop and resume cycles, even when the underlying ACP
-session ID changes.
+That Compozy session ID identifies one durable lifecycle and its retained record.
 
 <OperatorNote>
-  The lifecycle state machine is strict. Live transitions are only `starting -> active ->
-  stopping -> stopped`. If Compozy later repairs stale metadata after a crash, that is a recovery
-  step on read, not a live extra state transition.
+  The public lifecycle is strict: normal work follows `starting -> active -> stopping -> stopped`;
+  cancellation during startup can follow `starting -> stopping -> stopped`, and an accepted
+  background startup failure can persist `starting -> stopped`. No public transition leaves
+  `stopped`. `compozy session resume` only attaches to an eligible live session.
 </OperatorNote>
 
 ## State machine
@@ -25,20 +25,21 @@ session ID changes.
 <Mermaid
   chart={`stateDiagram-v2
 [*] --> starting: create
-stopped --> starting: resume
 starting --> active: agent ready
+starting --> stopping: startup canceled
+starting --> stopped: startup failed
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
-  caption="Compozy creates or resumes a session into `starting`, activates it once the ACP driver is ready, and finalizes it through `stopping` before it becomes durable `stopped` state."
+  caption="Compozy creates a session in `starting`, activates it once the ACP driver is ready, and normally finalizes it through `stopping`; an accepted background startup failure can persist terminal `stopped` directly."
 />
 
-| State      | Meaning                                                                                                                                                  | Valid live transition |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `starting` | Compozy has durably allocated the session ID, prepared its storage, and published the catalog record while provider startup continues in the background. | `starting -> active`  |
-| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                                    | `active -> stopping`  |
-| `stopping` | Compozy has accepted a stop request and is draining the session toward a terminal state.                                                                 | `stopping -> stopped` |
-| `stopped`  | Final metadata is written, the session recorder is closed, and the session can be listed, inspected, or resumed later.                                   | none                  |
+| State      | Meaning                                                                                                                                                  | Valid live transition                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `starting` | Compozy has durably allocated the session ID, prepared its storage, and published the catalog record while provider startup continues in the background. | `starting -> active`, `starting -> stopping`, or `starting -> stopped` |
+| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                                    | `active -> stopping`                                                   |
+| `stopping` | Compozy has accepted a stop request and is draining the session toward a terminal state.                                                                 | `stopping -> stopped`                                                  |
+| `stopped`  | Final metadata is written, the recorder is closed, and the durable record remains available for listing, history, recap, and repair.                     | none                                                                   |
 
 ## Creating a session
 
@@ -109,9 +110,9 @@ blocking startup, while a provider rejection fails startup with `speed_rejected`
 startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers
 always receive the accepted record and should read session detail until it becomes `active` or
 durably `stopped`. A failed background start persists `failure.kind=startup_failure`; it does not
-delete the accepted session or its diagnostic evidence. A staged first prompt remains queued after
-startup failure and is dispatched once after an explicit resume activates the session. Deleting the
-session removes that queued input with the rest of the session state.
+delete the accepted session or its diagnostic evidence. The public lifecycle does not restart that
+stopped session. Fix the startup cause and create a new session for new work; deleting the failed
+session removes its queued input with the rest of the retained record.
 
 ## Running an active session
 
@@ -223,7 +224,8 @@ The stop path is cooperative first and forceful only when needed:
 8. close the recorder and write final metadata
 9. `stopping -> stopped`
 
-Stopping preserves the session directory, catalog row, metadata, events, and resume eligibility.
+Stopping preserves the session directory, catalog row, metadata, and events. It ends attach
+eligibility because `stopped` is terminal in the public contract.
 
 ### Timeout behavior
 
@@ -277,8 +279,8 @@ curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
 ```
 
 Removal stops an active session first, deletes its durable catalog row and session directory, and
-emits a workspace-scoped catalog deletion signal. A successful removal is not resumable and later
-status or detail reads return session not found. If deletion fails before the directory is removed,
+emits a workspace-scoped catalog deletion signal. After a successful removal, later status or detail
+reads return session not found. If deletion fails before the directory is removed,
 Compozy preserves or restores catalog truth instead of reporting a partially deleted session.
 
 ## Failure diagnostics
@@ -300,29 +302,30 @@ compozy session status sess-1234 -o json | jq '.session.failure'
 
 Current failure kinds are:
 
-| Failure kind           | Meaning                                                                                |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `startup_failure`      | Compozy could not finish preparing, launching, initializing, or resuming the provider. |
-| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                       |
-| `load_session_failure` | ACP `session/load` failed while resuming an existing provider session.                 |
-| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.       |
-| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                      |
-| `cancellation`         | The operation was canceled by user action or context cancellation.                     |
-| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                           |
-| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.                  |
-| `transport_failure`    | The ACP stdio transport closed or failed while Compozy expected protocol traffic.      |
-| `timeout`              | Runtime supervision or lifecycle timeout expired.                                      |
-| `unknown_failure`      | Compozy had an error but no more specific kind was available.                          |
+| Failure kind           | Meaning                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `startup_failure`      | Compozy could not finish preparing, launching, or initializing the provider.      |
+| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                  |
+| `load_session_failure` | An internal daemon-owned provider reload path failed. This is not resume attach.  |
+| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.  |
+| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                 |
+| `cancellation`         | The operation was canceled by user action or context cancellation.                |
+| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                      |
+| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.             |
+| `transport_failure`    | The ACP stdio transport closed or failed while Compozy expected protocol traffic. |
+| `timeout`              | Runtime supervision or lifecycle timeout expired.                                 |
+| `unknown_failure`      | Compozy had an error but no more specific kind was available.                     |
 
 Crash bundles are written under `~/.compozy/logs/crash-bundles/` by default. They are JSON documents
 with schema `compozy.session_crash_bundle.v1`, session identity, provider identity, failure kind,
 process metadata, error text, and captured stderr when available. Bundle contents are bounded and
 redacted before they are written, and files are created with owner-only permissions.
 
-## Crash repair and restart behavior
+## Crash classification and transcript repair
 
-Compozy repairs stale metadata the next time it reads a stopped session after an unclean daemon exit.
-That repair is what makes status, list, and resume safe after a crash:
+Compozy repairs stale persisted metadata the next time it reads a session after an unclean daemon
+exit.
+That classification keeps status, list, history, and repair consistent after a crash:
 
 - stale `active` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `daemon crashed while session active`
 - stale `stopping` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `stop did not complete`
@@ -333,21 +336,7 @@ During daemon boot, Compozy also inspects stopped sessions whose stop reason is 
 transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
 error event. The repair is append-only; Compozy does not truncate, delete, or resequence session events.
 
-### Provider context recovery
-
-When the runtime reactivates an existing Compozy session, it first asks the provider to load the saved
-ACP session. If the provider does not support `session/load`, or the saved ACP session no longer
-exists, Compozy starts a fresh provider session and stages a pruned projection of that Compozy session's
-persisted transcript. The projection is prepended to the next prompt the provider accepts; resume
-does not issue an autonomous prompt or rewrite the original authored message.
-
-This fallback appends a durable `session_recovered` transcript marker with the summary `Context
-rebuilt from log.` Successful ACP loads do not add the marker or replay persisted messages. Replay
-uses only the current session's event store, including when different workspaces contain sessions
-with similar content.
-
-This repair happens before recap and replay. The repaired session keeps the same Compozy session ID.
-Operators and agents can inspect or run the same transcript repair explicitly:
+Operators and agents can inspect or run the same append-only transcript repair explicitly:
 
 ```bash
 compozy session repair <session-id> --dry-run
@@ -361,7 +350,10 @@ Every session owns a directory under `~/.compozy/sessions/<session-id>/`:
 - `meta.json`: durable session metadata such as state, workspace, session CWD, stop reason, failure diagnostics, and ACP session ID
 - `events.db`: persisted event, token usage, and hook-run history
 
-That durable store is what makes [resume attach](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), deterministic recap, and [approval audit](/runtime/core/sessions/permissions) possible.
+That durable store supports [live resume attach](/runtime/core/sessions/resume),
+[event replay](/runtime/core/sessions/events), deterministic recap, and
+[approval audit](/runtime/core/sessions/permissions). Attach requires a live, attachable session;
+the other reads remain useful after terminal stop.
 
 ## Session types
 
@@ -383,7 +375,7 @@ TTL, and permission metadata so Compozy can reap children when their TTL expires
 
 ## Next steps
 
-- Use [Resume Attach and Replay](/runtime/core/sessions/resume) when you need to attach to a resumable live session or reconstruct prior work.
+- Use [Resume Attach and Replay](/runtime/core/sessions/resume) when you need to attach to an eligible live session or reconstruct prior work from durable reads.
 - Use [Event Streaming](/runtime/core/sessions/events) when you need the exact stored and streamed session record.
 - Use [Runtime Autonomy](/runtime/core/autonomy) for coordinator, task lease, and safe-spawn behavior.
 - Use [Permissions](/runtime/core/sessions/permissions) when you need to control or approve agent actions.

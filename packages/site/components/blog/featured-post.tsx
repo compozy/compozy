@@ -107,10 +107,10 @@ interface FeaturedVisualProps {
   kinds?: WireKind[];
 }
 
+const fallbackWire = ["greet", "say", "receipt", "trace"] as const satisfies readonly WireKind[];
+
 function FeaturedVisual({ kinds }: FeaturedVisualProps) {
-  const wire = (
-    kinds && kinds.length >= 4 ? kinds.slice(0, 4) : ["greet", "direct", "receipt", "trace"]
-  ) as WireKind[];
+  const wire: readonly WireKind[] = kinds && kinds.length >= 4 ? kinds.slice(0, 4) : fallbackWire;
   const trace: { kind: WireKind; from: string; to: string; t: string }[] = [
     { kind: wire[0], from: "alpha", to: "bravo", t: "00:00.041" },
     { kind: wire[1], from: "alpha", to: "bravo", t: "00:00.108" },
@@ -123,7 +123,7 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
         <Eyebrow className="text-muted tracking-badge!">compozy-network/v0</Eyebrow>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block size-1.5 rounded-full bg-accent" />
-          <Eyebrow className="text-accent tracking-badge!">ALPHA</Eyebrow>
+          <Eyebrow className="text-accent tracking-badge!">BETA</Eyebrow>
         </span>
       </div>
       <div className="mt-10 grid grid-cols-3 gap-4">

@@ -83,8 +83,8 @@ export function NetworkSection() {
         />
         <FeatureCard
           eyebrow="Auditable"
-          title="Receipts are first-class"
-          description="Every delegation returns a receipt with status and trace IDs. Every message is persisted to the audit log."
+          title="Explicit receipts, durable history"
+          description="Accepted messages commit before notification. Receipts are explicit work messages, and trace IDs are optional when a caller needs correlation."
           cite={{ href: "/protocol/delivery", label: "Delivery semantics" }}
         />
       </div>

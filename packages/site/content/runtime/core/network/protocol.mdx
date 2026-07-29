@@ -1,13 +1,13 @@
 ---
 title: Protocol Model
-description: "The core concepts behind compozy-network/v0 and how Compozy Runtime binds them to Local/Live execution participation."
+description: "The core concepts behind compozy-network/v0 and how the CompozyOS runtime binds them to Local/Live execution participation."
 ---
 
 `compozy-network/v0` defines the JSON envelope, six message kinds, public threads, restricted direct
-rooms, peer discovery, and `work_id` lifecycle. Local/Live participation is the Compozy Runtime
+rooms, peer discovery, and `work_id` lifecycle. Local/Live participation is the CompozyOS runtime
 execution contract around that protocol; it is not another envelope field.
 
-Compozy Runtime persists accepted envelopes and recipient decisions in SQLite, then notifies eligible
+The runtime persists accepted envelopes and recipient decisions in SQLite, then notifies eligible
 Live recipients in process. There is no embedded broker, listener, or public subject mapping in the
 current runtime.
 
@@ -39,7 +39,7 @@ message without waking any model.
 
 ## Message kinds and activation
 
-| Kind         | Protocol purpose                           | Current Compozy Runtime wake behavior            |
+| Kind         | Protocol purpose                           | Current reference-runtime wake behavior          |
 | ------------ | ------------------------------------------ | ------------------------------------------------ |
 | `greet`      | Advertise a peer card.                     | Never starts a model turn.                       |
 | `whois`      | Request or return peer information.        | Never starts a model turn.                       |
@@ -80,7 +80,7 @@ continues through its own resolver and lifecycle surfaces.
 Current `compozy-network/v0` messages are unverified. The runtime preserves `proof` as opaque JSON and
 still enforces workspace scope, channel grammar, conversation membership, freshness, deduplication,
 participation, task authority, and local policy. The Ed25519 + JCS profile is implementer guidance,
-not a current Compozy Runtime verification claim.
+not a current CompozyOS verification claim.
 
 ## Related pages
 

@@ -5,6 +5,7 @@ import type { Folder, Item, Node, Root, Separator } from "fumadocs-core/page-tre
 const CORE_FOLDER_ID = "core";
 const GUIDES_FOLDER_ID = "guides";
 const USE_CASES_FOLDER_ID = "use-cases";
+const MIGRATION_FOLDER_ID = "migration";
 const CLI_REF_FOLDER_ID = "cli-reference";
 const API_REF_FOLDER_ID = "api-reference";
 const HOW_TO_USE_URL = "/runtime/how-to-use-these-docs";
@@ -46,19 +47,22 @@ function buildSeparator(id: string, name: string): Separator {
 type CoreSection = { label: string; ids: string[] };
 
 const CORE_SECTIONS: CoreSection[] = [
-  { label: "Foundation", ids: ["sessions", "agents", "network", "autonomy", "memory"] },
+  { label: "System foundations", ids: ["sessions", "agents", "network", "autonomy", "memory"] },
   {
-    label: "Capabilities",
+    label: "Tools & automation",
     ids: ["marketplace", "tools", "skills", "resources", "automation", "loops", "bridges"],
   },
-  { label: "Workspace", ids: ["sandbox", "workspaces"] },
-  { label: "Settings", ids: ["operations", "configuration", "extensions", "hooks"] },
+  { label: "Workspace & isolation", ids: ["sandbox", "workspaces"] },
+  {
+    label: "Operations & settings",
+    ids: ["operations", "configuration", "extensions", "hooks"],
+  },
 ];
 
 export const API_SECTIONS: CoreSection[] = [
   { label: "Workspace", ids: ["sessions", "workspaces", "agents", "memory", "skills"] },
   {
-    label: "Capabilities",
+    label: "Tools & automation",
     ids: [
       "marketplace",
       "tools",
@@ -133,12 +137,12 @@ function buildUnifiedCore(pageTree: Root): Folder | undefined {
   }
 
   if (learnFolders.length > 0) {
-    children.push(buildSeparator("sep-learn", "Learn"), ...learnFolders);
+    children.push(buildSeparator("sep-learn", "Guides & scenarios"), ...learnFolders);
   }
 
   return {
     ...coreFolder,
-    name: "Core Concepts",
+    name: "CompozyOS",
     root: true,
     index: overview,
     children,
@@ -150,6 +154,8 @@ export function createRuntimeLayoutTree(pageTree: Root): Root {
   if (!unifiedCore) return pageTree;
 
   const newChildren: Node[] = [unifiedCore];
+  const migration = findRootFolder(pageTree, MIGRATION_FOLDER_ID);
+  if (migration) newChildren.push(migration);
   for (const id of [CLI_REF_FOLDER_ID, API_REF_FOLDER_ID]) {
     const folder = findRootFolder(pageTree, id);
     if (folder) newChildren.push(folder);

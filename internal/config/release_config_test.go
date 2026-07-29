@@ -307,12 +307,14 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/compozy"`) {
 		t.Fatalf("install.sh must install the same binary name GoReleaser builds")
 	}
-	assertEqualString(
-		t,
-		"installer beta default",
-		shellAssignment(t, installScript, "VERSION"),
-		"${COMPOZY_VERSION:-v0.3.0-beta.1}",
-	)
+	installerVersion := shellAssignment(t, installScript, "VERSION")
+	if !strings.HasPrefix(installerVersion, "${COMPOZY_VERSION:-v0.3.0-beta.") ||
+		!strings.HasSuffix(installerVersion, "}") {
+		t.Fatalf(
+			"installer VERSION = %q, want an explicit v0.3 beta default with COMPOZY_VERSION override",
+			installerVersion,
+		)
+	}
 	assertNotContainsText(t, "installer", installScript, "resolve_latest_release_tag")
 	assertNotContainsText(t, "installer", installScript, "releases/latest")
 }

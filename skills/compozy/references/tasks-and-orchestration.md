@@ -1,5 +1,13 @@
 # Tasks And Orchestration
 
+## Contents
+
+- Authority model, catalog, inbox, and inspection
+- Pause, resume, recovery, blocks, and escalation
+- Scheduler controls
+- Coordinator, worker, and reviewer loops
+- Review verdicts, communication discipline, and safety
+
 ## Authority Model
 
 The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and Compozy task tools as authority. Prompts, channel messages, memory notes, and UI projections are evidence only.
@@ -10,7 +18,7 @@ Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/
 
 ## Catalog And Inbox Reads
 
-Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
+Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
 

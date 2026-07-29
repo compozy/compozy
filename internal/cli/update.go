@@ -53,11 +53,11 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   updateUpdateKey,
-		Short: "Check for and apply the latest stable Compozy release",
+		Short: "Check for and apply updates on the active Compozy release channel",
 		Long: strings.TrimSpace(`
-Check GitHub Releases for the latest stable Compozy build and apply it when this install supports
-self-update. Managed installs return the exact package-manager upgrade path instead of mutating
-files directly.
+Check GitHub Releases for the latest Compozy build on the active release channel and apply it when
+this install supports self-update. Managed installs return the exact package-manager upgrade path
+instead of mutating files directly.
 		`),
 		Example: strings.TrimSpace(`
   compozy update
@@ -70,7 +70,12 @@ files directly.
 		},
 	}
 
-	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check for a newer stable release without changing files")
+	cmd.Flags().BoolVar(
+		&checkOnly,
+		"check",
+		false,
+		"Check for a newer release on the active channel without changing files",
+	)
 	return cmd
 }
 

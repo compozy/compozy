@@ -1,6 +1,6 @@
 ---
 title: Protocol Overview
-description: Understand the transport-neutral Compozy Network envelope, how it differs from Compozy Runtime, and where Local/Live participation fits.
+description: Understand the transport-neutral Compozy Network envelope, how it differs from CompozyOS runtime policy, and where Local/Live participation fits.
 icon: Compass
 ---
 
@@ -14,25 +14,26 @@ storage, process model, or transport.
 
 ## Runtime versus protocol
 
-| Layer           | Responsibility                                                                                         |
-| --------------- | ------------------------------------------------------------------------------------------------------ |
-| Compozy Network | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
-| Compozy Runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
+| Layer             | Responsibility                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| Compozy Network   | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
+| CompozyOS runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
 
-`network_participation` is a Compozy Runtime execution contract. It is not an envelope field and does
+`network_participation` is a CompozyOS runtime execution contract. It is not an envelope field and does
 not change protocol conformance. Another runtime may map a valid envelope to its own execution model.
 
 ## Protocol at a glance
 
-| Concept               | v0 shape                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| Envelope              | `protocol`, IDs, workspace, channel, kind, peers, timestamps, correlation, `body`, `proof`, and `ext`.  |
-| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, and `trace`.                                          |
-| Public thread         | `surface:"thread"` with `thread_id`.                                                                    |
-| Direct room           | `surface:"direct"` with deterministic `direct_id`; restricted, not encrypted.                           |
-| Work lifecycle        | `work_id` bound to exactly one conversation container.                                                  |
-| Delivery expectations | Validate, reject stale content, deduplicate, preserve terminal state, and report receipts where useful. |
-| Trust                 | v0 treats claims as unverified; the Ed25519 + JCS profile is optional implementer guidance.             |
+| Concept               | v0 shape                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Envelope              | `protocol`, IDs, workspace, channel, kind, peers, timestamps, correlation, `body`, `proof`, and `ext`.         |
+| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, and `trace`.                                                 |
+| Public thread         | `surface:"thread"` with `thread_id`.                                                                           |
+| Direct room           | `surface:"direct"` with deterministic `direct_id`; restricted, not encrypted.                                  |
+| Work lifecycle        | `work_id` bound to exactly one conversation container.                                                         |
+| Delivery expectations | Validate, reject stale content, deduplicate, preserve terminal state, and emit explicit receipts where useful. |
+| Correlation           | `trace_id` is optional; delivery and receipt handling do not create one implicitly.                            |
+| Trust                 | v0 treats claims as unverified; the Ed25519 + JCS v1 profile is optional and not implemented by CompozyOS.     |
 
 ## Layer model
 
@@ -50,9 +51,10 @@ not change protocol conformance. Another runtime may map a valid envelope to its
 caption="The core protocol does not require a particular broker, listener, or process boundary."
 />
 
-Compozy Runtime currently stores accepted messages and recipient decisions atomically, enqueues any
-admitted wake as a normal `task_run`, and sends an in-process notification after commit. That is a
-reference-runtime guarantee, not a new wire profile.
+The CompozyOS reference implementation currently stores accepted messages and recipient decisions
+atomically, enqueues any admitted wake as a normal `task_run`, and sends an in-process notification
+after commit. That is a reference-runtime guarantee, not a new wire profile. Receipts and traces are
+separate protocol messages; acceptance does not synthesize either one automatically.
 
 ## Adoption path
 

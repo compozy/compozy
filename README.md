@@ -52,7 +52,7 @@ surfaces.
 
 ## 📦 Installation
 
-The documented beta is `v0.3.0-beta.1`. Homebrew continues to serve the deprecated v0.2 line during
+The documented beta is `v0.3.0-beta.2`. Homebrew continues to serve the deprecated v0.2 line during
 the beta window and is intentionally omitted here. The `compozy` formula returns with v0.3.0 stable.
 
 #### Verified installer
@@ -75,7 +75,7 @@ npm install -g @compozy/cli@beta
 Go's `@latest` still resolves the v0.2 stable line while v0.3 is in beta, so use the explicit version:
 
 ```bash
-go install github.com/compozy/compozy@v0.3.0-beta.1
+go install github.com/compozy/compozy@v0.3.0-beta.2
 ```
 
 #### From Source
@@ -102,7 +102,8 @@ parallel model.
 
 ### Daemon Runtime Model
 
-`compozy daemon start|status|stop` manages the local daemon. Sessions, tasks, Loop runs, memory,
+`compozy daemon start`, `compozy status`, and `compozy daemon stop` manage the local daemon.
+Sessions, tasks, Loop runs, memory,
 automation, tools, and Compozy Network activity keep explicit owners and workspace boundaries. Use
 structured CLI output (`-o json`), HTTP/SSE, UDS, MCP, or native tools when another agent or program
 needs to manage the same resources.
@@ -137,8 +138,8 @@ definitions as a whole.
 
 ```bash
 compozy agent list -o json
-compozy agent inspect general -o json
-compozy session new --workspace current --agent general
+compozy agent info general -o json
+compozy session new --agent general
 ```
 
 ## 🔌 Extensions
@@ -157,7 +158,7 @@ the v0.3 extension contract.
 
 ```bash
 compozy extension list -o json
-compozy extension inspect <name> -o json
+compozy extension status <name> -o json
 compozy extension provenance <name> -o json
 ```
 
@@ -170,18 +171,18 @@ compozy extension provenance <name> -o json
 
 ## 🚀 Quick Start
 
-Bootstrap the home, start the daemon, register the repository you want agents to work in, and create
-one durable session:
+Bootstrap the home, start the daemon, enter the repository you want agents to work in, and create one
+durable session. Compozy infers and registers the workspace from the current directory; use
+`--workspace <id|name|path>` only when you need an override.
 
 ```bash
 compozy install
 compozy daemon start
-compozy workspace add "$PWD" --name current
-compozy session new --workspace current --agent general
+compozy session new --agent general --name first-run
 ```
 
 The [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start) continues through the
-first prompt, inspection, and stop/resume flow.
+first prompt, live attachment, inspection, and cleanup.
 
 ## 🧩 Skills
 

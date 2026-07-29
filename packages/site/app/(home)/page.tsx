@@ -16,7 +16,9 @@ import { WebSiteJsonLd } from "@/components/seo/structured-data";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata = {
-  title: siteConfig.name,
+  title: {
+    absolute: "CompozyOS — Agent operating system for real work",
+  },
   description: siteConfig.description,
 };
 
@@ -25,13 +27,13 @@ export default function HomePage() {
     <>
       <WebSiteJsonLd />
       <Hero />
-      <SupportedAgents />
-      <NetworkSection />
       <BentoSection />
       <MemoryDreamSection />
       <AutonomyKernelSection />
       <FeaturesSection />
       <ExtensibilitySection />
+      <SupportedAgents />
+      <NetworkSection />
       <BridgesSection />
       <InstallSection />
       <Comparison />

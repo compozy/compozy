@@ -72,7 +72,7 @@ Content trees on disk:
   - `cli-reference/` — generated from `make cli-docs` via `go run ./cmd/compozy doc --output-dir packages/site/content/runtime/cli-reference` (`Makefile:77-78`); contains 27 verb folders + `index.mdx`, `meta.json`, plus single-file leaves `compozy.mdx`, `install.mdx`, `update.mdx`, `uninstall.mdx`, `version.mdx`, `whoami.mdx`, `spawn.mdx`.
   - `api-reference/` — generated from `openapi/compozy.json` via `bun run scripts/generate-openapi.ts` (`packages/site/scripts/generate-openapi.ts:96-118`); preserves `index.mdx`, generates one `<tag>.mdx` per OpenAPI tag (currently 21 files: agent, agents, automation, bridges, bundles, daemon, extensions, hooks, memory, network, observe, resources, sessions, settings, skills, tasks, tools, toolsets, vault, workspaces — plus `index.mdx`, `meta.json`).
 - **Protocol docs** — `packages/site/content/protocol/`: 13 top-level MDX (`overview.mdx`, `envelope.mdx`, `message-kinds.mdx`, `interactions.mdx`, `delivery.mdx`, `verification.mdx`, `peer-discovery.mdx`, `capability-discovery.mdx`, `ed25519-jcs.mdx`, `examples.mdx`, `conformance.mdx`, `implementation-status.mdx`, `index.mdx`) plus `guide/` and `meta.json`.
-- **Blog** — `packages/site/content/blog/`: `posts/` (currently `introducing-compozy-the-first-agent-network-protocol.mdx`), `authors/` (`pedronauck.yml`), `changelog/` (currently empty — the Velite `releases` collection is the canonical changelog source).
+- **Blog** — `packages/site/content/blog/`: `posts/` (currently `introducing-compozyos.mdx`), `authors/` (`pedronauck.yml`), and `changelog/` (the Velite `releases` collection).
 
 Generated artifacts that **must be in lockstep** with their generators (any drift here is a doc-site QA failure):
 

@@ -179,7 +179,7 @@ describe("Blog OpenGraph template", () => {
         title: "Introducing Compozy, the first agent network protocol",
         description:
           "Compozy gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
-        slug: "introducing-compozy-the-first-agent-network-protocol",
+        slug: "introducing-compozyos",
         date: "2026-04-29",
         author: "pnauck",
       })
@@ -191,7 +191,7 @@ describe("Blog OpenGraph template", () => {
     expect(copy).toContain("COMPOZY BLOG");
     expect(copy).toContain("Introducing Compozy, the first agent network protocol");
     expect(copy).toContain("APR 29, 2026");
-    expect(copy).toContain("compozy.com/blog/introducing-compozy-the-first-agent-network-protocol");
+    expect(copy).toContain("compozy.com/blog/introducing-compozyos");
     expect(copy).toContain("BY pnauck");
 
     expect(types).toContain(LogoLockup);
