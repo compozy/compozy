@@ -1,6 +1,6 @@
-import { CodeBlock } from "@compozy/ui";
-
 import type { UIMessage } from "../../types";
+import { toolResultIsEmpty } from "../../lib/message-parts";
+import { DetailPre } from "./detail-pre";
 
 function formatInput(input: Record<string, unknown>): string {
   try {
@@ -14,6 +14,8 @@ function formatResult(result: NonNullable<UIMessage["toolResult"]>): string {
   if (result.error) return result.error;
   if (result.stdout) return result.stdout;
   if (result.content) return result.content;
+  if (result.stderr) return result.stderr;
+  if (result.filePath) return result.filePath;
   try {
     return JSON.stringify(result, null, 2);
   } catch {
@@ -21,30 +23,25 @@ function formatResult(result: NonNullable<UIMessage["toolResult"]>): string {
   }
 }
 
+/**
+ * Fallback detail for uncatalogued tools: input and output as bare mono JSON
+ * inside the detail rail — never a top-level card. Error output renders as
+ * danger text.
+ */
 export function GenericContent({ message }: { message: UIMessage }) {
   const result = message.toolResult;
-  const hasResult = result && (result.stdout || result.content || result.error);
+  const hasResult = !toolResultIsEmpty(result);
 
   return (
-    <div className="space-y-1.5 text-small-body">
-      {message.toolInput && (
-        <CodeBlock
-          code={formatInput(message.toolInput)}
-          copyable={false}
-          density="compact"
-          showPrompt={false}
-          truncateLines={8}
-        />
-      )}
-      {hasResult && (
-        <CodeBlock
-          code={formatResult(result)}
-          copyable={false}
-          density="compact"
-          showPrompt={false}
-          truncateLines={12}
-        />
-      )}
+    <div className="flex min-w-0 flex-col gap-1">
+      {message.toolInput && Object.keys(message.toolInput).length > 0 ? (
+        <DetailPre className="text-subtle">{formatInput(message.toolInput)}</DetailPre>
+      ) : null}
+      {hasResult && result ? (
+        <DetailPre className={result.error || result.stderr ? "text-danger" : undefined}>
+          {formatResult(result)}
+        </DetailPre>
+      ) : null}
     </div>
   );
 }

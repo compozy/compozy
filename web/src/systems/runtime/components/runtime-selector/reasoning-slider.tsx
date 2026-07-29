@@ -17,7 +17,7 @@ export interface ReasoningSliderProps {
   /** Model default shown as the selected stop while the wire value is "". */
   defaultEffort: ReasoningEffort | "";
   modelName: string;
-  /** id of the footer's visible "Reasoning effort" label. */
+  /** id of the footer's visible "Reasoning" label. */
   labelId?: string;
   onSelect: (effort: ReasoningEffort) => void;
 }
@@ -28,11 +28,13 @@ function stopLeft(index: number, last: number): string {
 }
 
 /**
- * Discrete reasoning range selector (design ref: provider-model-reasoning-selector.html).
- * One stop per advertised level — there is no "Default" or "None" stop: the
- * model's default level renders pre-selected while the wire value stays "",
- * and any interaction commits an explicit canonical effort. Drag the thumb,
- * click a stop label, or use arrow keys on the `role="slider"` track.
+ * Compact discrete reasoning selector (design ref: runtime-selector-variations.html,
+ * variation A). One 24px-tall track carries the whole control — the per-stop
+ * label row is gone; the current level lives in a tooltip that rides the thumb
+ * (shown on hover, focus, and drag) and in `aria-valuetext`. There is no
+ * "Default"/"None" stop: the model default renders pre-selected while the wire
+ * value stays "", and any interaction commits an explicit canonical effort.
+ * Drag the thumb, click the track, or use arrow keys on the `role="slider"`.
  */
 export function ReasoningSlider({
   levels,
@@ -44,44 +46,19 @@ export function ReasoningSlider({
 }: ReasoningSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const slider = useReasoningSlider({ levels, value, defaultEffort, onSelect });
+  const tipLabel =
+    slider.markedIndex < 0
+      ? "Provider default"
+      : reasoningEffortLabel(slider.stops[slider.valueNow]);
+  const thumbCenter = `calc(${slider.p} * (100% - ${REASONING_SLIDER_TRACK_PX}px) + ${REASONING_SLIDER_TRACK_PX / 2}px)`;
 
   return (
     <div
-      className="relative touch-none select-none"
+      className="relative min-w-0 flex-1 touch-none select-none"
       data-testid="runtime-selector-reasoning-slider"
       data-unset={slider.unset ? "true" : "false"}
       data-dragging={slider.dragging ? "true" : "false"}
     >
-      <div className="relative mb-1 h-11">
-        {slider.stops.map((effort, index) => {
-          const on = index === slider.markedIndex;
-          const edge = index === 0 ? "start" : index === slider.last ? "end" : undefined;
-          return (
-            <button
-              key={effort}
-              type="button"
-              tabIndex={-1}
-              data-rz={effort}
-              data-on={on ? "true" : "false"}
-              data-edge={edge}
-              className={cn(
-                "absolute top-0 flex h-11 min-w-11 items-center justify-center rounded-xs px-1 text-badge font-medium whitespace-nowrap text-muted transition-colors hover:text-fg",
-                edge === "start" && "left-0",
-                edge === "end" && "right-0",
-                edge === undefined && "-translate-x-1/2",
-                on && "text-fg-strong"
-              )}
-              style={edge === undefined ? { left: stopLeft(index, slider.last) } : undefined}
-              onClick={() => {
-                slider.commit(index);
-                trackRef.current?.focus();
-              }}
-            >
-              {reasoningEffortLabel(effort)}
-            </button>
-          );
-        })}
-      </div>
       <div
         ref={trackRef}
         role="slider"
@@ -94,7 +71,7 @@ export function ReasoningSlider({
         aria-valuenow={slider.valueNow}
         aria-valuetext={slider.valueText}
         data-testid="runtime-selector-reasoning-track"
-        className="relative h-11 cursor-pointer rounded-md outline-none focus-visible:shadow-focus-ring"
+        className="group/track relative h-6 cursor-pointer rounded-md outline-none focus-visible:shadow-focus-ring"
         onPointerDown={slider.handlePointerDown}
         onPointerMove={slider.handlePointerMove}
         onPointerUp={event => {
@@ -106,7 +83,7 @@ export function ReasoningSlider({
       >
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 top-1/2 h-4 -translate-y-1/2 rounded-full bg-canvas ring-1 ring-line-soft ring-inset"
+          className="absolute inset-x-0 top-1/2 h-4 -translate-y-1/2 rounded-full bg-canvas-soft ring-1 ring-line-soft ring-inset"
         >
           <div
             className={cn(
@@ -135,6 +112,23 @@ export function ReasoningSlider({
             }}
           />
         </div>
+        {/* Current-level tip rides the thumb; aria-valuetext is the AT channel. */}
+        <span
+          aria-hidden="true"
+          data-testid="runtime-selector-reasoning-tip"
+          className={cn(
+            "pointer-events-none absolute bottom-[calc(100%+3px)] -translate-x-1/2 rounded-xs bg-elevated px-1.5 py-px font-mono text-micro whitespace-nowrap text-fg ring-1 ring-line-strong",
+            "opacity-0 group-hover/track:opacity-100 group-focus-visible/track:opacity-100",
+            // Fade fast, glide with the thumb's spring; while dragging the tip
+            // tracks the pointer directly so `left` must not transition.
+            slider.dragging
+              ? "opacity-100 [transition:opacity_var(--duration-fast)_ease-out] motion-reduce:transition-none"
+              : "[transition:opacity_var(--duration-fast)_ease-out,left_300ms_var(--ease-spring)] motion-reduce:transition-none"
+          )}
+          style={{ left: thumbCenter }}
+        >
+          {tipLabel}
+        </span>
       </div>
     </div>
   );

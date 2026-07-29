@@ -156,9 +156,8 @@ function turnGroupIsActive(
     if (row.kind === "work") return row.active;
     if (row.kind === "working") return true;
     if (row.kind === "reasoning") return row.streaming;
-    if (row.kind === "text" || row.kind === "data") {
-      return isStreamingState(row.part.state);
-    }
+    if (row.kind === "text") return isStreamingState(row.part.state);
+    if (row.kind === "data") return row.parts.some(part => isStreamingState(part.state));
     return false;
   });
 }
@@ -180,9 +179,8 @@ function turnGroupIsInterrupted(
     if (row.kind === "reasoning") {
       return row.parts.some(part => isInterruptedState(part.state));
     }
-    if (row.kind === "text" || row.kind === "data") {
-      return isInterruptedState(row.part.state);
-    }
+    if (row.kind === "text") return isInterruptedState(row.part.state);
+    if (row.kind === "data") return row.parts.some(part => isInterruptedState(part.state));
     return false;
   });
 }

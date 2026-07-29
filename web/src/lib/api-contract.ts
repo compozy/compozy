@@ -70,6 +70,15 @@ export type ReasoningEffort = NonNullable<
   OperationRequestBody<"createSession">["reasoning_effort"]
 >;
 
+/**
+ * Provider-neutral ACP runtime speed (PR #267). "normal" is the daemon default;
+ * surfaces omit it from POST bodies and send only an explicit "fast" request.
+ * The daemon resolves the request at prompt dispatch (`speed_resolution`:
+ * applied | unsupported | rejected) — there is no pre-session capability
+ * signal, so UI treats this as intent, never as a guaranteed mode.
+ */
+export type RuntimeSpeed = NonNullable<OperationRequestBody<"createSession">["speed"]>;
+
 const reasoningEffortMembership = {
   none: true,
   minimal: true,

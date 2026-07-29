@@ -148,20 +148,41 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    expect(indicator?.getAttribute("class")).toContain("text-muted");
+    expect(indicator).not.toHaveClass("text-success");
+    expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
 
-  it("Should map meaningful output to the success row state (Check, success tone)", () => {
+  it("Should map meaningful output to the success row state (grey check)", () => {
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("success");
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("success");
     expect(indicator?.getAttribute("aria-label")).toBe("Done");
-    expect(indicator?.getAttribute("class")).toContain("text-success");
+    expect(indicator).not.toHaveClass("text-success");
+    expect(indicator).not.toHaveClass("text-danger");
     expect(screen.getByRole("img", { name: "Done" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Read file");
+  });
+
+  it("Should expose a successful file diff through the expandable trigger description", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Edit",
+          toolInput: {
+            file_path: "/src/main.ts",
+            old_string: "before",
+            new_string: "after",
+          },
+          toolResult: { content: "updated" },
+        })}
+      />
+    );
+
+    expect(document.querySelector('[data-slot="tool-call-row-stat"]')).toHaveTextContent("+1−1");
+    expect(screen.getByRole("button", { name: /1 addition, 1 deletion/ })).toBeInTheDocument();
   });
 
   it("Should render the empty row state (Minus, faint tone) for empty output mid-stream", () => {
@@ -185,7 +206,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryStatusIndicator()?.getAttribute("aria-label")).toBe("Done");
   });
 
-  it("Should map a runtime error to failed, a danger heading, and the real error detail (not the verb)", () => {
+  it("Should map a runtime error to failed with a neutral heading and the error-first-line preview", async () => {
+    const user = userEvent.setup();
     render(
       <SessionToolCallRow
         message={makeToolMessage({ toolResult: { error: "not found" }, toolError: true })}
@@ -197,8 +219,16 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(indicator?.getAttribute("aria-label")).toBe("Error");
     expect(indicator?.getAttribute("class")).toContain("text-danger");
     expect(screen.getByRole("img", { name: "Error" })).toBe(indicator);
-    expect(queryToolName()).toHaveTextContent("Failed to read file");
-    expect(queryToolName()?.className).toContain("text-danger");
+    // The verb keeps its tense and the row text never turns danger — the ×
+    // glyph plus the error-first-line preview carry the failure.
+    expect(queryToolName()).toHaveTextContent("Read file");
+    expect(queryToolName()?.className).not.toContain("text-danger");
+    expect(document.querySelector('[data-slot="tool-call-row-preview"]')).toHaveTextContent(
+      "not found"
+    );
+    // Failed rows stay collapsed; expanding reveals the error detail.
+    expect(document.querySelector('[data-slot="tool-call-row-error"]')).toBeNull();
+    await user.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
     expect(document.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
       "not found"
     );
@@ -220,6 +250,33 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(headingEl).toHaveTextContent("Ran command");
     expect(headingEl?.className).not.toContain("text-danger");
     expect(headingEl?.className).toContain("text-muted");
+    expect(queryPreview()).toHaveTextContent("bash: deploy: command not found");
+  });
+
+  it("Should render a non-empty generic failure preview when the runtime supplies no error body", async () => {
+    const user = userEvent.setup();
+    render(<SessionToolCallRow message={makeToolMessage({ toolError: true })} />);
+
+    expect(queryRoot()).toHaveAttribute("data-status", "failed");
+    expect(queryPreview()).toHaveTextContent("Tool call failed");
+    await user.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+    expect(document.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
+      "Tool call failed"
+    );
+  });
+
+  it("Should use stderr as the failure preview for a non-Bash tool", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Read",
+          toolError: true,
+          toolResult: { stderr: "read denied\nworkspace is read-only" },
+        })}
+      />
+    );
+
+    expect(queryPreview()).toHaveTextContent("read denied workspace is read-only");
   });
 
   it("Should toggle the specialized output body by click and keyboard", async () => {
@@ -385,10 +442,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     await user.click(loadMore);
 
     await waitFor(() => {
-      const code = screen
-        .getByTestId("full-tool-result")
-        .querySelector<HTMLElement>('[data-slot="code-block-code"]');
-      expect(code?.textContent).toBe(fullResult);
+      // Pages append into the same plain mono pre — content loads in place.
+      expect(screen.getByTestId("full-tool-result").textContent).toBe(fullResult);
     });
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -454,9 +509,12 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(screen.getByText("bounded preview")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open full result" }));
 
-    expect(await screen.findByText("Full result unavailable")).toBeInTheDocument();
-    expect(screen.getByText("This retained result is no longer available")).toBeInTheDocument();
+    // Load failure is a danger text line — never an Alert card — and a gone
+    // artifact (404) offers no Retry.
+    expect(await screen.findByTestId("artifact-error")).toHaveTextContent(
+      "This retained result is no longer available"
+    );
     expect(screen.getByText("bounded preview")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Retry full result" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 });

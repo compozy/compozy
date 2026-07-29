@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { UIMessage } from "../../../types";
@@ -36,7 +36,8 @@ describe("BashContent", () => {
         })}
       />
     );
-    expect(screen.getByText("echo hello")).toBeInTheDocument();
+    // The command renders as a `$ `-prefixed context line in the detail rail.
+    expect(screen.getByText(/echo hello/)).toBeInTheDocument();
     // stdout is rendered in a pre element; getByText normalizes whitespace so use getAllByText
     const matches = screen.getAllByText(/hello/);
     expect(matches.length).toBeGreaterThanOrEqual(1);
@@ -52,9 +53,11 @@ describe("BashContent", () => {
         })}
       />
     );
-    expect(screen.getByText("command not found")).toBeInTheDocument();
-    const stderrEl = screen.getByText("command not found");
-    expect(stderrEl.closest("pre")).toHaveClass("text-danger");
+    // stderr renders as danger TEXT inside the muted detail pre — no tinted block.
+    const stderrEl = screen.getByTestId("bash-stderr");
+    expect(stderrEl).toHaveTextContent("command not found");
+    expect(stderrEl).toHaveClass("text-danger");
+    expect(stderrEl.closest("pre")).not.toHaveClass("bg-danger-tint");
   });
 
   it("renders without command when toolInput has no command", () => {
@@ -68,6 +71,27 @@ describe("BashContent", () => {
     );
     expect(screen.getByText("output")).toBeInTheDocument();
     expect(screen.queryByText("$")).not.toBeInTheDocument();
+  });
+
+  it("counts and clamps stdout, stderr, and error as one combined output", () => {
+    const stdout = Array.from({ length: 10 }, (_, index) => `out-${index + 1}`).join("\n");
+    const stderr = Array.from({ length: 8 }, (_, index) => `stderr-${index + 1}`).join("\n");
+    const error = Array.from({ length: 5 }, (_, index) => `error-${index + 1}`).join("\n");
+    render(
+      <BashContent
+        message={makeMessage({
+          toolName: "Bash",
+          toolResult: { stdout, stderr, error },
+        })}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Show full output (23 lines)" })).toBeInTheDocument();
+    expect(screen.getByText(/error-1/)).toBeInTheDocument();
+    expect(screen.queryByText(/error-3/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show full output (23 lines)" }));
+    expect(screen.getByText(/error-5/)).toBeInTheDocument();
   });
 });
 
@@ -124,7 +148,8 @@ describe("WriteContent", () => {
       />
     );
     expect(screen.getByText("/out.txt")).toBeInTheDocument();
-    expect(screen.getByText("hello world")).toBeInTheDocument();
+    // Written content renders as `+ `-prefixed success text lines.
+    expect(screen.getByText(/\+ hello world/)).toBeInTheDocument();
   });
 
   it("truncates long content", () => {
@@ -246,6 +271,42 @@ describe("GenericContent", () => {
     );
     expect(screen.getByText("something went wrong")).toBeInTheDocument();
   });
+
+  it.each([
+    ["preview", { preview: "preview output" }, "preview output"],
+    [
+      "artifacts",
+      {
+        artifacts: [
+          {
+            uri: "compozy://tool-artifacts/art_fixture",
+            name: "result.json",
+            mime_type: "application/json",
+            bytes: 12,
+            sha256: "fixture",
+          },
+        ],
+      },
+      "result.json",
+    ],
+    ["stderr", { stderr: "stderr output" }, "stderr output"],
+    ["filePath", { filePath: "/tmp/result.txt" }, "/tmp/result.txt"],
+    ["structuredPatch", { structuredPatch: [{ op: "replace" }] }, '"op": "replace"'],
+  ] satisfies Array<[string, NonNullable<UIMessage["toolResult"]>, string]>)(
+    "renders a result carried only by %s",
+    (_field, toolResult, expected) => {
+      render(
+        <GenericContent
+          message={makeMessage({
+            toolName: "CustomTool",
+            toolResult,
+          })}
+        />
+      );
+
+      expect(screen.getByText(expected, { exact: false })).toBeInTheDocument();
+    }
+  );
 });
 
 describe("Per-tool renderers inside the SessionToolCallRow inline body (task 25 — no regression)", () => {

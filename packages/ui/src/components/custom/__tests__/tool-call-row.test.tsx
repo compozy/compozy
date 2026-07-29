@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
+// Calm-transcript status budget: only the failure × carries a signal hue —
+// success check and running spinner stay grey.
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
-  { status: "running", label: "Running", tone: "text-muted" },
+  { status: "running", label: "Running", tone: "text-subtle" },
   { status: "failed", label: "Error", tone: "text-danger" },
-  { status: "success", label: "Done", tone: "text-success" },
+  { status: "success", label: "Done", tone: "text-subtle" },
   { status: "empty", label: "Empty", tone: "text-subtle" },
 ];
 
@@ -77,17 +79,44 @@ describe("ToolCallRow", () => {
     expect(statusGlyph(container)).toBeNull();
   });
 
-  it("Should tone the heading danger only for a true runtime error, never for error-shaped output", () => {
-    const { container: runtime } = render(
-      <ToolCallRow toolName="Read" status="failed" runtimeError errorMessage="ENOENT" />
+  it("Should keep the heading neutral on failure — the × glyph alone carries the state", () => {
+    const { container } = render(
+      <ToolCallRow toolName="Read" status="failed" errorMessage="ENOENT" />
     );
-    expect(heading(runtime)?.className).toContain("text-danger");
+    expect(heading(container)?.className).not.toContain("text-danger");
+    expect(heading(container)?.className).toContain("text-muted");
+    expect(statusGlyph(container)?.getAttribute("class")).toContain("text-danger");
+  });
 
-    const { container: shaped } = render(
-      <ToolCallRow toolName="Read" status="failed" errorMessage="exit status 1" />
+  it("Should render the per-file diff stat slot between text and trailing glyphs", () => {
+    const { container } = render(
+      <ToolCallRow
+        toolName="Edited"
+        preview="src/session.tsx"
+        status="success"
+        statLabel="28 additions, 104 deletions"
+        stat={
+          <>
+            <b>+28</b>
+            <i>−104</i>
+          </>
+        }
+      >
+        <ToolCallRow.Output source="updated" format="code" />
+      </ToolCallRow>
     );
-    expect(heading(shaped)?.className).not.toContain("text-danger");
-    expect(heading(shaped)?.className).toContain("text-muted");
+    const preview = container.querySelector('[data-slot="tool-call-row-preview"]');
+    const stat = container.querySelector('[data-slot="tool-call-row-stat"]');
+    const status = statusGlyph(container);
+    expect(preview).not.toBeNull();
+    expect(stat).not.toBeNull();
+    expect(status).not.toBeNull();
+    expect(stat?.textContent).toBe("+28−104");
+    expect(preview?.compareDocumentPosition(stat as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(stat?.compareDocumentPosition(status as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByRole("button")).toHaveAccessibleName(
+      "Edited 28 additions, 104 deletions Toggle tool call (success)"
+    );
   });
 
   it("Should set role/tabIndex and the expand chevron only when an expandable body exists", () => {

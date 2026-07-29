@@ -284,8 +284,9 @@ test("operator persists an advertised model and non-empty reasoning effort on th
 
   const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
   await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
-  await reasoningStrip.locator('button[data-rz="high"]').click();
-  await expect(reasoningStrip.locator('button[data-rz="high"]')).toHaveAttribute("data-on", "true");
+  const reasoningSlider = reasoningStrip.getByRole("slider");
+  await reasoningSlider.press("End");
+  await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
 
   await appPage.keyboard.press("Escape");
   await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);

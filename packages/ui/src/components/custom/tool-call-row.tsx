@@ -20,13 +20,11 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
   preview?: React.ReactNode;
   status: ToolCallStatus;
   icon?: ToolCallIconComponent | React.ReactNode;
-  /**
-   * True only for a genuine runtime error (a Compozy `output-error`), which tones the
-   * heading danger. Error-shaped tool output keeps `status="failed"` (X glyph) with
-   * `runtimeError` false, so its heading stays neutral.
-   */
-  runtimeError?: boolean;
   errorMessage?: React.ReactNode;
+  /** Per-file diff stat (+a −d) rendered between the text and the trailing glyphs. */
+  stat?: React.ReactNode;
+  /** Accessible description for `stat`, for example "28 additions, 104 deletions". */
+  statLabel?: string;
   /** Trailing affordances rendered beside chevron/status (e.g. copy). */
   actions?: React.ReactNode;
   expanded?: boolean;
@@ -81,19 +79,21 @@ function ToolCallRowOutput(props: ToolCallRowSectionProps) {
 }
 
 /**
- * `ToolCallRow` renders one tool call as a single ~26px line —
- * `[icon well] [heading] [mono preview] [chevron] [status glyph]` — that expands
- * an inline indented body (params/outputs) on click or Enter/Space. It replaces
- * the filled `ToolCallCard` chrome with the transcript language: flat depth,
- * neutral `bg-hover` glaze, signal-toned status glyph as information.
+ * `ToolCallRow` renders one tool call as a single ~24px line —
+ * `[icon well] [verb] [mono preview] [diff stat] [chevron] [status glyph]` —
+ * that expands an inline indented body (params/outputs) on click or
+ * Enter/Space. Calm-transcript grammar: no tinted wells, row text never
+ * changes color on failure — status lives in the trailing glyph alone (grey
+ * check, red ×, grey spinner).
  */
 function ToolCallRowInner({
   toolName,
   preview,
   status,
   icon,
-  runtimeError = false,
   errorMessage,
+  stat,
+  statLabel,
   actions,
   expanded,
   defaultExpanded = false,
@@ -104,17 +104,12 @@ function ToolCallRowInner({
 }: ToolCallRowProps) {
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded);
   const toolNameId = React.useId();
+  const statDescriptionId = React.useId();
   const triggerDescriptionId = React.useId();
   const isExpanded = expanded ?? localExpanded;
   const expandable = Boolean(errorMessage) || React.Children.toArray(children).length > 0;
+  const accessibleStatLabel = stat ? statLabel : undefined;
   const iconContent = renderToolCallIcon(icon);
-  const headingDanger = status === "failed" && runtimeError;
-  const wellTone =
-    status === "failed"
-      ? "bg-danger-tint text-danger"
-      : status === "running"
-        ? "bg-surface-glaze text-muted"
-        : null;
 
   const setExpanded = (next: boolean) => {
     if (expanded === undefined) {
@@ -132,7 +127,7 @@ function ToolCallRowInner({
     <>
       <span
         data-slot="tool-call-row-icon-well"
-        className={cn("flex size-5 shrink-0 items-center justify-center rounded-xs", wellTone)}
+        className="flex size-5 shrink-0 items-center justify-center rounded-xs"
       >
         {iconContent}
       </span>
@@ -140,10 +135,7 @@ function ToolCallRowInner({
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className={cn(
-            "min-w-0 shrink truncate font-medium transition-colors",
-            headingDanger ? "text-danger" : "text-muted group-hover/tool-row:text-fg"
-          )}
+          className="min-w-0 shrink truncate font-medium text-muted transition-colors group-hover/tool-row:text-fg"
           title={nativeTitle(toolName)}
         >
           {toolName}
@@ -160,6 +152,14 @@ function ToolCallRowInner({
           <span className="min-w-0 flex-1" />
         )}
       </span>
+      {stat ? (
+        <span
+          data-slot="tool-call-row-stat"
+          className="flex shrink-0 items-center gap-1 font-mono text-transcript-caption tabular-nums"
+        >
+          {stat}
+        </span>
+      ) : null}
       <span className="flex shrink-0 items-center gap-1 text-subtle">
         {actions ? (
           <span
@@ -207,13 +207,18 @@ function ToolCallRowInner({
             type="button"
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
-            aria-labelledby={`${toolNameId} ${triggerDescriptionId}`}
+            aria-labelledby={`${toolNameId}${accessibleStatLabel ? ` ${statDescriptionId}` : ""} ${triggerDescriptionId}`}
             className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
             onClick={toggle}
           />
           <span id={triggerDescriptionId} className="sr-only">
             Toggle tool call ({status})
           </span>
+          {accessibleStatLabel ? (
+            <span id={statDescriptionId} className="sr-only">
+              {accessibleStatLabel}
+            </span>
+          ) : null}
           {rowContent}
         </div>
       ) : (

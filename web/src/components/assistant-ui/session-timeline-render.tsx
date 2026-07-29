@@ -1,5 +1,5 @@
-import { ChevronRight, CircleStop } from "lucide-react";
-import { useRef } from "react";
+import { CircleStop, Target } from "lucide-react";
+import { createElement, useRef } from "react";
 import type { ReactNode } from "react";
 import { useSelector } from "@xstate/store-react";
 
@@ -13,12 +13,12 @@ import {
   RuntimeActivityNotice,
   SessionToolCallRow,
   ThinkingBlock,
-  useSessionRuntimeRenderContext,
   type CompozyPermissionData,
   type GoalPromptMeta,
   type UIMessage,
 } from "@/systems/session";
-import { Button, Eyebrow } from "@compozy/ui";
+import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
+import { Marker, MarkerMeta } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
@@ -26,9 +26,10 @@ import {
   toggleTimelineExpansion,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
-import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
+import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionWorkingRowView } from "./session-working-row";
+import { TranscriptDisclosure } from "./transcript-disclosure";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
@@ -36,6 +37,7 @@ import {
   type SessionRow,
   type SessionTextRow,
   type SessionTimelineToolPart,
+  type SessionToolGroupSummary,
   type SessionTurnFoldRow,
   type SessionWorkRow,
   type SessionWorkToggleRow,
@@ -51,48 +53,21 @@ function SessionTextRowView({ row }: { row: SessionTextRow }) {
 }
 
 function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
-  return (
-    <ThinkingBlock
-      thinking={row.text}
-      thinkingComplete={!row.streaming}
-      updateCount={row.updateCount}
-    />
-  );
+  return <ThinkingBlock thinking={row.text} thinkingComplete={!row.streaming} />;
 }
 
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
-  const renderContext = useSessionRuntimeRenderContext();
-  if (
-    row.part.name === "data-compozy-event" &&
-    renderContext &&
-    isClarifyEventData(row.part.data)
-  ) {
-    return (
-      <ClarificationDataPart
-        data={row.part.data}
-        sessionId={renderContext.sessionId}
-        workspaceId={renderContext.workspaceId}
-      />
-    );
+  if (row.part.name === "data-compozy-event" && isClarifyEventData(row.part.data)) {
+    return <ClarificationDataPart data={row.part.data} />;
   }
   if (row.part.name === "data-compozy-event" && isAgentEventPayload(row.part.data)) {
-    return <RuntimeActivityNotice event={row.part.data} />;
+    return <RuntimeActivityNotice event={row.part.data} count={row.count} />;
   }
-  if (
-    row.part.name === "data-compozy-permission" &&
-    renderContext &&
-    isCompozyPermissionData(row.part.data)
-  ) {
-    return (
-      <PermissionDataPart
-        data={row.part.data}
-        sessionId={renderContext.sessionId}
-        workspaceId={renderContext.workspaceId}
-      />
-    );
+  if (row.part.name === "data-compozy-permission" && isCompozyPermissionData(row.part.data)) {
+    return <PermissionDataPart data={row.part.data} />;
   }
 
-  return <SessionDataEventCard name={row.part.name} data={row.part.data} />;
+  return <SessionDataEventMarker name={row.part.name} />;
 }
 
 function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
@@ -116,6 +91,7 @@ function workToggleLabel(row: SessionWorkToggleRow): string {
   return `+${row.hiddenCount} previous tool call${row.hiddenCount === 1 ? "" : "s"}`;
 }
 
+// `.tmore` — bare-text overflow toggle above the visible live tail.
 function WorkToggleButton({
   row,
   onToggle,
@@ -125,65 +101,72 @@ function WorkToggleButton({
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
   return (
-    <Button
+    <button
       ref={ref}
       type="button"
-      variant="ghost"
-      size="xs"
       data-testid="work-toggle-row"
       aria-expanded={row.expanded}
       onClick={() => onToggle(ref.current)}
-      className="ml-7 w-fit gap-1 px-1 text-subtle hover:text-fg"
+      className={cn(
+        "ml-transcript-detail-indent inline-flex min-h-transcript-row w-fit items-center gap-1.5 rounded-xs px-1",
+        "text-transcript-meta text-subtle transition-colors duration-base ease-out hover:text-fg",
+        "focus-visible:shadow-focus-ring focus-visible:outline-none"
+      )}
     >
-      <ChevronRight
-        className={cn(
-          "size-3 transition-transform duration-base ease-out motion-reduce:transition-none",
-          row.expanded ? "rotate-90" : null
-        )}
-        aria-hidden="true"
-      />
       {workToggleLabel(row)}
-    </Button>
+    </button>
   );
 }
 
-function TurnFoldButton({
+// `.tgroup-sum` — a settled run resting as one semantic summary line; the
+// first entry's icon leads, the chevron discloses the folded rows.
+function SessionWorkSummaryRow({
   row,
-  expanded,
+  summary,
   onToggle,
 }: {
-  row: Extract<SessionRow, { kind: "turn-fold" }>;
-  expanded: boolean;
+  row: SessionWorkRow;
+  summary: SessionToolGroupSummary;
   onToggle: (button: HTMLElement | null) => void;
 }) {
-  const ref = useRef<HTMLButtonElement | null>(null);
+  const first = row.entries[0];
+  const leadIcon = createElement(
+    getToolIcon(resolveRegisteredToolName(first?.toolName ?? "tool"), first?.args),
+    { "aria-hidden": true, className: "size-3 shrink-0 text-subtle", strokeWidth: 1.8 }
+  );
   return (
-    <Button
-      ref={ref}
-      type="button"
-      variant="ghost"
-      size="xs"
-      data-testid="turn-fold-row"
-      aria-expanded={expanded}
-      onClick={() => onToggle(ref.current)}
-      className="w-fit gap-1 px-1 text-subtle hover:text-fg"
-    >
-      <ChevronRight
-        className={cn("size-3 transition-transform", expanded ? "rotate-90" : null)}
-        aria-hidden="true"
+    <div data-testid="work-summary-row" data-open={row.expanded} className="flex min-w-0 flex-col">
+      <TranscriptDisclosure
+        expanded={row.expanded}
+        onToggle={onToggle}
+        icon={leadIcon}
+        label={<span data-testid="work-summary-label">{summary.label}</span>}
       />
-      {row.label}
-    </Button>
+      {row.expanded ? (
+        <div data-testid="work-summary-entries" className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+          {row.entries.map(tool => (
+            <SessionToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
+  const store = useTimelineRowContext();
+  if (row.summary) {
+    return (
+      <SessionWorkSummaryRow
+        row={row}
+        summary={row.summary}
+        onToggle={button => toggleTimelineExpansion(store, "work-group", row.groupId, button)}
+      />
+    );
+  }
   const tools = visibleWorkEntries(row);
   return (
     <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
-      {row.grouped ? (
-        <Eyebrow className="mb-0.5 px-1 text-subtle">{row.entries.length} tool calls</Eyebrow>
-      ) : null}
       {tools.map(tool => (
         <SessionToolCallRow
           key={tool.id}
@@ -215,36 +198,42 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
   );
 }
 
+// `.turnfold` — "Worked for Ns", the ONLY border in the transcript. The
+// interrupted variant never folds: a quiet danger text line above the
+// always-visible work.
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   const store = useTimelineRowContext();
   const turnId = row.turnId ?? row.id;
   const expanded = useSelector(store, state => state.context.expandedTurns.has(turnId));
-  // An interrupted turn keeps its work expanded so the operator keeps their
-  // place; the fold row becomes a danger-toned interruption label above the
-  // always-visible work (never a collapsing disclosure).
   if (row.interrupted) {
     return (
-      <div data-testid="turn-fold-interrupted" className="flex min-w-0 flex-col gap-1">
+      <div
+        data-testid="turn-fold-interrupted"
+        className="mb-2.5 flex min-w-0 flex-col gap-1 border-b border-line pb-1.5"
+      >
         <div
           data-testid="turn-fold-interrupt-label"
-          className="flex w-fit items-center gap-1.5 px-1 text-small-body text-danger"
+          className="flex w-fit items-center gap-1.5 px-1 text-transcript-body text-danger"
         >
           <CircleStop className="size-3" aria-hidden="true" />
           <span>{row.label}</span>
         </div>
-        <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
+        <div className="flex min-w-0 flex-col gap-0.5">{renderTimelineRows(row.rows)}</div>
       </div>
     );
   }
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <TurnFoldButton
-        row={row}
+    <div data-open={expanded} className="mb-2.5 min-w-0 border-b border-line pb-1.5">
+      <TranscriptDisclosure
+        data-testid="turn-fold-row"
         expanded={expanded}
         onToggle={button => toggleTimelineExpansion(store, "turn", turnId, button)}
+        icon={null}
+        label={row.label}
+        variant="turn"
       />
       {expanded ? (
-        <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
+        <div className="flex min-w-0 flex-col gap-0.5 pt-1">{renderTimelineRows(row.rows)}</div>
       ) : null}
     </div>
   );
@@ -287,26 +276,25 @@ const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
   "goal-compaction": "Goal compaction",
 };
 
+// `.marker--goal` — the goal prompt as one quiet marker line, mono meta for
+// the node/generation facts, the run link in `--info`.
 function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
-  const turn = goal.turn === null ? null : `turn ${goal.turn}`;
+  const turn = goal.turn === null ? "" : ` · turn ${goal.turn}`;
   return (
-    <div
-      className="mb-1 flex flex-wrap items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2.5 py-1.5"
-      data-testid="goal-prompt-meta"
-    >
-      <Eyebrow className="text-info">{GOAL_PROMPT_LABELS[goal.kind]}</Eyebrow>
-      <span className="font-mono text-badge text-subtle">
+    <Marker data-testid="goal-prompt-meta" tone="info" icon={<Target strokeWidth={1.8} />}>
+      <b>{GOAL_PROMPT_LABELS[goal.kind]}</b>{" "}
+      <MarkerMeta>
         {goal.node_id} · generation {goal.generation}
-        {turn ? ` · ${turn}` : ""}
-      </span>
+        {turn}
+      </MarkerMeta>{" "}
       <Link
-        className="ml-auto text-small-body text-muted hover:text-fg"
+        className="text-info transition-colors hover:underline hover:underline-offset-2"
         params={{ runId: goal.run_id }}
         to="/loop-runs/$runId"
       >
         Open run
       </Link>
-    </div>
+    </Marker>
   );
 }
 

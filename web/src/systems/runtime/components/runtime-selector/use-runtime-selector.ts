@@ -207,18 +207,24 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     return false;
   };
 
-  const toggleHighlightedFavorite = () => {
-    const row = highlightIndex >= 0 ? listModel.flatRows[highlightIndex]?.model : undefined;
-    if (!row || row.disabled) return false;
-    const wasFavorite = isFavoriteModel(row);
-    toggleFavorite(row.provider, row.id);
-    // Focus stays in the search field during Alt+F, so the button's aria-pressed
-    // flip is not announced; a polite status carries the result instead.
-    const providerName = providerById.get(row.provider)?.name ?? row.provider;
+  // Shared favorite commit for both entry points (pointer star + Alt+F). Focus
+  // never sits on a per-row control, so a polite status region speaks the
+  // result instead of any aria-pressed flip.
+  const toggleFavoriteFor = (model: RuntimeModelOption) => {
+    if (model.disabled) return false;
+    const wasFavorite = isFavoriteModel(model);
+    toggleFavorite(model.provider, model.id);
+    const providerName = providerById.get(model.provider)?.name ?? model.provider;
     popupStore.trigger.favoriteAnnounced({
-      message: `${wasFavorite ? "Unfavorited" : "Favorited"} ${row.name} from ${providerName}`,
+      message: `${wasFavorite ? "Unfavorited" : "Favorited"} ${model.name} from ${providerName}`,
     });
     return true;
+  };
+
+  const toggleHighlightedFavorite = () => {
+    const row = highlightIndex >= 0 ? listModel.flatRows[highlightIndex]?.model : undefined;
+    if (!row) return false;
+    return toggleFavoriteFor(row);
   };
 
   // Pointer hover activates a (selectable) row by its compound key so the
@@ -229,15 +235,6 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     if (!row || row.model.disabled) return;
     popupStore.trigger.activeRowChanged({ row: { cursor: row.cursor, key: row.key } });
   };
-
-  // The currently-highlighted model + its favorite state, for the external
-  // favorite toggle button's label/pressed state (undefined when none is active).
-  const highlightedModel =
-    highlightIndex >= 0 ? listModel.flatRows[highlightIndex]?.model : undefined;
-  const highlightedRow =
-    highlightedModel && !highlightedModel.disabled
-      ? { model: highlightedModel, favorite: isFavoriteModel(highlightedModel) }
-      : undefined;
 
   return {
     favorites,
@@ -250,11 +247,11 @@ export function useRuntimeSelector({ value, onChange, providers, models }: UseRu
     changeQuery,
     highlightIndex,
     highlightRow,
-    highlightedRow,
     favoriteAnnouncement,
     moveHighlight,
     moveHighlightEdge,
     commitHighlight,
+    toggleFavoriteFor,
     toggleHighlightedFavorite,
     listModel,
     selectedModel,

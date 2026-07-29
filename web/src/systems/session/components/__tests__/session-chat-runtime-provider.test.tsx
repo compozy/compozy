@@ -113,6 +113,36 @@ function sseResponse(frames: string[]) {
   );
 }
 
+function openSseResponse(frames: string[]) {
+  const encoder = new TextEncoder();
+  let streamController!: ReadableStreamDefaultController<Uint8Array>;
+  const response = new Response(
+    new ReadableStream({
+      start(controller) {
+        streamController = controller;
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(frame));
+        }
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "x-vercel-ai-ui-message-stream": "v1",
+      },
+    }
+  );
+  return {
+    response,
+    close(framesToFinish: string[]) {
+      for (const frame of framesToFinish) {
+        streamController.enqueue(encoder.encode(frame));
+      }
+      streamController.close();
+    },
+  };
+}
+
 function getPathname(input: RequestInfo | URL): string {
   if (typeof input === "string") {
     return new URL(input, "http://localhost").pathname;
@@ -326,6 +356,7 @@ function renderSessionThread(
     includeToaster?: boolean;
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
+    includeDecisionDock?: boolean;
     onCancelPrompt?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
     strictMode?: boolean;
@@ -348,6 +379,8 @@ function renderSessionThread(
         <SessionThread
           sessionId={primarySessionFixture.id}
           agentName={primarySessionFixture.agent_name}
+          workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
+          sessionState={options.includeDecisionDock ? "active" : undefined}
           canPrompt
           onCancelPrompt={options.onCancelPrompt ?? (() => {})}
         />
@@ -577,6 +610,20 @@ describe("SessionChatRuntimeProvider", () => {
           epoch: transcriptEpoch,
           generation: transcriptGeneration,
         });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
+      ) {
+        return jsonResponse({ clarifications: [] });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/goal`
+      ) {
+        return jsonResponse({ goal: null });
       }
 
       if (
@@ -1045,6 +1092,29 @@ describe("SessionChatRuntimeProvider", () => {
     ).toBe(true);
   });
 
+  it("Should dock a live permission while the prompt stream remains open", async () => {
+    transcriptMessages = [];
+    const openPrompt = openSseResponse([
+      'data: {"type":"start","messageId":"turn-runtime-permission-001"}\n\n',
+      'data: {"type":"data-compozy-permission","id":"permission-live-001","data":{"type":"permission","session_id":"session_001","turn_id":"turn-runtime-permission-001","request_id":"permission-live-001","title":"Edit file","action":"session/request_permission","resource":"pending.txt","raw":{"options":[{"decision":"allow-once","option_id":"allow-once"},{"decision":"reject-once","option_id":"reject-once"}],"tool_input":{"path":"pending.txt"}}}}\n\n',
+    ]);
+    promptResponsePromise = Promise.resolve(openPrompt.response);
+    const user = userEvent.setup();
+    const view = renderSessionThread({ includeDecisionDock: true });
+
+    try {
+      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+      await user.type(composer, "Request permission");
+      await user.click(screen.getByTestId("composer-send-button"));
+
+      expect(await screen.findByTestId("permission-dock")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Edit file");
+    } finally {
+      openPrompt.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+      view.unmount();
+    }
+  });
+
   it("Should hide a completed runtime tail while an authoritative Clear is pending", async () => {
     transcriptMessages = [];
     const clearResponse = createDeferred<Response>();
@@ -1394,7 +1464,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
   }, 10_000);
 
-  it("renders only unresolved permission events as interactive prompts", async () => {
+  it("keeps pending permissions out of the transcript and renders receipts for resolved ones", async () => {
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),
       {
@@ -1430,12 +1500,17 @@ describe("SessionChatRuntimeProvider", () => {
 
     renderSessionThread();
 
+    // The resolved request keeps only its one-line receipt in the transcript.
     await waitFor(() => {
-      expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-rejected-notice")).toBeInTheDocument();
     });
-
-    expect(screen.getAllByTestId("permission-prompt")).toHaveLength(1);
-    expect(screen.getByTestId("permission-prompt")).toHaveTextContent("pending.txt");
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Edit resolved file"
+    );
+    // The pending ask renders nothing in the transcript — it docks on the
+    // composer instead (owned by session-decision-dock.test.tsx).
+    expect(screen.queryByText(/pending\.txt/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-prompt")).not.toBeInTheDocument();
   }, 10_000);
 
   it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
@@ -1598,7 +1673,8 @@ describe("SessionChatRuntimeProvider", () => {
     expect(beforeIndex).toBeGreaterThanOrEqual(0);
     expect(dataIndex).toBeGreaterThan(beforeIndex);
     expect(afterIndex).toBeGreaterThan(dataIndex);
-    expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("Provider note");
+    // The marker line names the raw event as mono meta — no payload preview card.
+    expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("data-provider-note");
   }, 10_000);
 
   it("reconciles durable transcript after a live session stream event", async () => {

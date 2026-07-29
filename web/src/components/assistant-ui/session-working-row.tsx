@@ -35,10 +35,10 @@ function WorkingTimer({ startedAt }: { startedAt: number }) {
  * Presentational streaming indicator, split from the row wrapper so Storybook can
  * render both the motion and reduced-motion variants without touching `matchMedia`.
  *
- * Motion: typing dots (`@compozy/ui` `TypingDots`, wiring the `typing-bounce`
- * keyframe on `bg-subtle` dots) beside a live "Working for Xs" `tabular-nums`
- * timer. Reduced motion degrades to a resting label — no `TypingDots`, no
- * ticking timer — so no animation class reaches the DOM.
+ * Motion: three 4px dots on a stepped 2s duty cycle beside a live
+ * "Working for Xs" `tabular-nums` timer — the smallest, dimmest text on the
+ * surface. Reduced motion removes the dots while retaining the same elapsed
+ * runtime fact.
  */
 export function WorkingIndicator({
   startedAt,
@@ -47,27 +47,16 @@ export function WorkingIndicator({
   startedAt?: number;
   reducedMotion: boolean;
 }) {
-  if (reducedMotion) {
-    return (
-      <div
-        role="status"
-        aria-label="Working"
-        data-testid="session-working-row"
-        className="flex items-center gap-2 text-small-body text-muted"
-      >
-        <span>Working…</span>
-      </div>
-    );
-  }
-
   return (
     <div
       role="status"
       aria-label="Working"
       data-testid="session-working-row"
-      className="flex items-center gap-2 text-small-body text-muted"
+      className="flex min-h-transcript-row items-center gap-2 px-1 py-0.5 text-transcript-meta text-subtle"
     >
-      <TypingDots />
+      {reducedMotion ? null : (
+        <TypingDots className="session-working-dots gap-transcript-meta-gap [&>span]:bg-faint" />
+      )}
       <span aria-hidden="true" className="tabular-nums">
         {startedAt !== undefined ? (
           <>

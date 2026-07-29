@@ -110,6 +110,7 @@ export function useMergedSessionRuntimeTranscript({
 
   return {
     ...transcript,
+    liveMessages: runtimeMessages,
     messages,
   };
 }

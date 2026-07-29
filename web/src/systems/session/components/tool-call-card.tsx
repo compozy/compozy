@@ -1,6 +1,7 @@
-import { CodeBlock, CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
+import { CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
+import { fileDiffStatForTool } from "../lib/tool-diff-stat";
 import {
   getToolCompactSummary,
   getToolIcon,
@@ -23,16 +24,7 @@ export interface SessionToolCallRowProps {
 }
 
 /** Tools with specialized expanded renderers own input+output — no card-level JSON. */
-const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob"]);
-
-function formatJsonSource(input: Record<string, unknown> | undefined): string {
-  if (!input || Object.keys(input).length === 0) return "";
-  try {
-    return JSON.stringify(input, null, 2);
-  } catch {
-    return String(input);
-  }
-}
+const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob", "TodoWrite"]);
 
 function formatToolPayload(message: UIMessage): string {
   try {
@@ -51,55 +43,100 @@ function formatToolPayload(message: UIMessage): string {
   }
 }
 
-function progressLabelFor(
-  message: UIMessage,
-  status: ToolCallStatus,
-  runtimeError: boolean
-): string {
-  const toolName = resolveRegisteredToolName(message.toolName ?? "tool");
+// The verb keeps its tense on failure — "Ran", never "Failed to run"; the
+// danger × glyph plus the error-first-line preview carry the failure.
+function progressLabelFor(toolName: string, status: ToolCallStatus): string {
   if (status === "pending" || status === "running") {
     return getToolLabel(toolName, "active");
-  }
-  // Only a true runtime error takes the "Failed to …" verb (danger heading);
-  // error-shaped output keeps the neutral past-tense verb + the X glyph.
-  if (status === "failed" && runtimeError) {
-    return `Failed to ${getToolLabel(toolName, "failure")}`;
   }
   return getToolLabel(toolName, "past");
 }
 
+function firstLine(text: string): string | undefined {
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
+function failureText(message: UIMessage): string {
+  const error = message.toolResult?.error;
+  if (typeof error === "string" && error.trim().length > 0) return error;
+  const stderr = message.toolResult?.stderr;
+  if (typeof stderr === "string" && stderr.trim().length > 0) return stderr;
+  return "Tool call failed";
+}
+
+function failurePreview(message: UIMessage, registryTool: string): string {
+  const error = message.toolResult?.error;
+  if (typeof error === "string" && error.trim().length > 0) {
+    return firstLine(error) ?? error;
+  }
+  const stderr = message.toolResult?.stderr;
+  if (typeof stderr === "string" && stderr.trim().length > 0) {
+    return registryTool === "Bash" ? (firstLine(stderr) ?? stderr) : stderr;
+  }
+  return "Tool call failed";
+}
+
+// Collapsed-row preview: failed rows lead with the error's first line; settled
+// Reads append their line count; everything else keeps the compact input summary.
+function previewFor(
+  message: UIMessage,
+  registryTool: string,
+  status: ToolCallStatus
+): string | undefined {
+  if (status === "failed") {
+    return failurePreview(message, registryTool);
+  }
+  const summary = getToolCompactSummary(registryTool, message.toolInput);
+  if (registryTool === "Read" && status === "success" && summary) {
+    const body = message.toolResult?.stdout ?? message.toolResult?.content;
+    if (typeof body === "string" && body.length > 0) {
+      const lineCount = body.split("\n").length;
+      return `${summary} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
+    }
+  }
+  return summary;
+}
+
+function diffStatLabel(additions: number, deletions: number): string {
+  return `${additions} ${additions === 1 ? "addition" : "additions"}, ${deletions} ${deletions === 1 ? "deletion" : "deletions"}`;
+}
+
 /**
- * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`. Maps the
- * legacy `UIMessage.toolResult / toolError / toolName` shape onto the compound
- * `<ToolCallRow.Input>` + `<ToolCallRow.Output>` slots and drives one row-state
- * language via `deriveToolRowStatus`: pending / running / failed / success /
- * empty, with neutral→success promotion gated on `turnSettled`.
+ * Chat-thread tool surface composing `<ToolCallRow>` from `@compozy/ui`: one
+ * calm 24px line whose status lives in the trailing glyph. Failed rows stay
+ * collapsed — failure reads from the × glyph and the error-first-line preview;
+ * successful Edit/Write rows carry their per-file `+a −d` stat.
  */
 export function SessionToolCallRow({
   message,
   defaultExpanded = false,
   turnSettled = false,
 }: SessionToolCallRowProps) {
-  const { status, runtimeError } = deriveToolRowStatus({
+  const { status } = deriveToolRowStatus({
     toolError: message.toolError,
     toolResult: message.toolResult,
     hasInput: hasToolInput(message.toolInput),
     turnSettled,
   });
   const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
-  const compactSummary = getToolCompactSummary(registryTool, message.toolInput);
-  const progressLabel = progressLabelFor(message, status, runtimeError);
+  const progressLabel = progressLabelFor(registryTool, status);
+  const preview = previewFor(message, registryTool, status);
   const toolIcon = getToolIcon(registryTool, message.toolInput);
-  const inputJson = formatJsonSource(message.toolInput);
   const copyPayload = formatToolPayload(message);
   const hasOutput = !toolResultIsEmpty(message.toolResult);
   const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
-  const errorText =
-    typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
-  const errorMessage = status === "failed" ? errorText : undefined;
-  const showGenericInput = !isSpecialized && Boolean(inputJson);
+  const errorMessage = status === "failed" ? failureText(message) : undefined;
+  const diffStat =
+    status === "success" && message.toolInput
+      ? fileDiffStatForTool(registryTool, message.toolInput)
+      : null;
   const showArtifactResult = message.toolResult?.truncated === true;
-  const showExpandedBody = showArtifactResult || isSpecialized || hasOutput;
+  const showExpandedBody =
+    showArtifactResult || isSpecialized || hasOutput || hasToolInput(message.toolInput);
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
@@ -115,18 +152,21 @@ export function SessionToolCallRow({
       <ToolCallRow
         toolName={progressLabel}
         icon={toolIcon}
-        preview={compactSummary}
+        preview={preview}
         status={status}
-        runtimeError={runtimeError}
         errorMessage={errorMessage}
         actions={copyAction}
-        defaultExpanded={defaultExpanded || status === "failed"}
+        defaultExpanded={defaultExpanded}
+        statLabel={diffStat ? diffStatLabel(diffStat.additions, diffStat.deletions) : undefined}
+        stat={
+          diffStat ? (
+            <>
+              <span className="font-medium text-success">+{diffStat.additions}</span>
+              <span className="font-medium text-danger">−{diffStat.deletions}</span>
+            </>
+          ) : undefined
+        }
       >
-        {showGenericInput ? (
-          <ToolCallRow.Input>
-            <CodeBlock code={inputJson} density="compact" showPrompt={false} copyable={false} />
-          </ToolCallRow.Input>
-        ) : null}
         {showExpandedBody ? (
           <ToolCallRow.Output>
             {showArtifactResult && message.toolResult ? (

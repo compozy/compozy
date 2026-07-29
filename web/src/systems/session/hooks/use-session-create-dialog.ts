@@ -4,6 +4,8 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
+import type { RuntimeSpeed } from "@/lib/api-contract";
+
 import {
   networkParticipationDraftFromValues,
   networkParticipationValidationMessage,
@@ -67,6 +69,7 @@ export interface SessionCreateDialogState {
   hasProviderOptions: boolean;
   selectedAgentName: string;
   runtimeValue: RuntimeSelectorValue;
+  runtimeSpeed: RuntimeSpeed;
   runtimeProviders: RuntimeProviderOption[];
   runtimeModels: RuntimeModelOption[];
   catalogStale: boolean;
@@ -92,6 +95,7 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onWorkspacePathChange: (next: string) => void;
   onPromptChange: (next: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onRuntimeSpeedChange: (next: RuntimeSpeed) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   networkParticipation: NetworkParticipationDraft;
   refreshCatalog: () => void;
@@ -271,6 +275,9 @@ export function useSessionCreateDialogViewModel(
           ...(hasRuntimeOverride ? { provider } : {}),
           ...(modelOverride.length > 0 ? { model: modelOverride } : {}),
           ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+          // Speed is an explicit request only — "normal" is the daemon default
+          // and stays off the wire (PR #267 resolution semantics).
+          ...(draft.speed === "fast" ? { speed: draft.speed } : {}),
           network_participation: serializeNetworkParticipation(networkParticipation),
         }),
     });
@@ -302,6 +309,7 @@ export function useSessionCreateDialogViewModel(
     hasProviderOptions: providerOptions.length > 0,
     selectedAgentName,
     runtimeValue,
+    runtimeSpeed: draft.speed,
     runtimeProviders,
     runtimeModels,
     catalogStale: catalog.stale,
@@ -330,6 +338,7 @@ export function useSessionCreateDialogViewModel(
         modelOverride: next.model,
         reasoningEffort: normalizeEffort(next.reasoning_effort),
       }),
+    onRuntimeSpeedChange: next => store.trigger.speedSelected({ speed: next }),
     onNetworkParticipationChange: next =>
       store.trigger.networkParticipationSelected({
         networkParticipationMode: next.mode,

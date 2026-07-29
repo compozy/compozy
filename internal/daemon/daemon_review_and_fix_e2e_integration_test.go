@@ -38,7 +38,8 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 	driverPath := acpmock.RequireDriver(t)
 	homePaths := e2etest.NewHomePaths(t)
 	fixturePath := mockFixturePath(t, "review_and_fix_fixture.json")
-	primaryRoot := filepath.Join(homePaths.HomeDir, "review-primary")
+	workspacesRoot := t.TempDir()
+	primaryRoot := filepath.Join(workspacesRoot, "review-primary")
 	seedReviewAndFixWorkspace(t, primaryRoot, homePaths, driverPath, fixturePath)
 
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -79,7 +80,7 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 	})
 
 	t.Run("Should keep identical task names isolated in a second workspace", func(t *testing.T) {
-		secondaryRoot := filepath.Join(homePaths.HomeDir, "review-secondary")
+		secondaryRoot := filepath.Join(workspacesRoot, "review-secondary")
 		seedReviewAndFixWorkspace(t, secondaryRoot, homePaths, driverPath, fixturePath)
 		secondary, err := harness.ResolveWorkspace(ctx, secondaryRoot)
 		if err != nil {

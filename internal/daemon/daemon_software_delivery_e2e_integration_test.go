@@ -31,7 +31,7 @@ func TestDaemonE2ESoftwareDeliveryShouldCompleteLegacyUserJourney(t *testing.T) 
 
 	driverPath := acpmock.RequireDriver(t)
 	homePaths := e2etest.NewHomePaths(t)
-	workspaceRoot := filepath.Join(homePaths.HomeDir, "software-delivery-workspace")
+	workspaceRoot := filepath.Join(t.TempDir(), "software-delivery-workspace")
 	fixturePath := mockFixturePath(t, "software_delivery_fixture.json")
 	seedSoftwareDeliveryTaskTree(t, workspaceRoot)
 

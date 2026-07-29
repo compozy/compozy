@@ -28,8 +28,17 @@ function replacementObjective(command: string | undefined): string | null {
 export function useSessionGoalHeader(
   workspaceId: string,
   sessionId: string,
-  onPrefillComposer?: (text: string) => void
+  options: {
+    onPrefillComposer?: (text: string) => void;
+    /**
+     * One owner per session subscribes to the loop stream for reconciliation
+     * (the goal strip); secondary readers (the window-head action) pass false
+     * and read the shared query cache.
+     */
+    stream?: boolean;
+  } = {}
 ) {
+  const { onPrefillComposer, stream = true } = options;
   const queryClient = useQueryClient();
   const query = useSessionGoal(workspaceId, sessionId);
   const feedback = useSessionGoalFeedback(sessionId);
@@ -38,7 +47,7 @@ export function useSessionGoalHeader(
   const snapshot = query.data?.goal ?? null;
 
   useLoopStream(workspaceId, snapshot?.run_id ?? "", {
-    enabled: snapshot?.live === true,
+    enabled: snapshot?.live === true && stream,
     onEvent: frame => {
       if (frame.kind === "goal_turn_started") {
         const payload = frame.payload as Record<string, unknown> | undefined;

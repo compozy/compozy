@@ -8,6 +8,7 @@
 // guess reduces scroll drift on long, heterogeneous threads without pixel accuracy.
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
+import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import { toTimelineParts } from "./timeline-message-parts";
 
 // Single source of truth for the virtualizer's fallback row estimate.
@@ -19,27 +20,38 @@ const USER_MESSAGE_ESTIMATE = 64;
 // Vertical rhythm around an assistant message (`pt-1` + content-aware `pb-2`/`pb-4`).
 const MESSAGE_VERTICAL_PADDING = 28;
 
-// Typical rendered height (px) per SessionRow kind. `work` is per visible tool row.
+// Typical rendered height (px) per SessionRow kind under the calm-surface
+// grammar: a `.trow`/summary line ≈ 26px, a `.marker` ≈ 24px, the `.tmore`
+// toggle and `.working` line ≈ 22px, the turn-fold rule ≈ 34px with its border
+// gap. `work` is per visible tool row.
 const ROW_KIND_ESTIMATE: Record<SessionRow["kind"], number> = {
   text: 88,
-  reasoning: 44,
-  data: 72,
-  working: 32,
-  work: 30,
-  "work-toggle": 28,
-  "turn-fold": 32,
-  "changed-files": 36,
+  reasoning: 26,
+  data: 24,
+  working: 22,
+  work: 26,
+  "work-toggle": 22,
+  "turn-fold": 34,
+  "changed-files": 26,
 };
 
 const estimateCache = new WeakMap<object, number>();
 
 function rowEstimate(row: SessionRow): number {
   if (row.kind === "work") {
-    return ROW_KIND_ESTIMATE.work * Math.max(1, row.visibleCount) + (row.grouped ? 20 : 0);
+    // A collapsed settled run is a single summary line; open runs pay per row.
+    if (row.summary && !row.expanded) {
+      return ROW_KIND_ESTIMATE.work;
+    }
+    const visible = row.summary ? row.entries.length : Math.max(1, row.visibleCount);
+    return ROW_KIND_ESTIMATE.work * visible + (row.summary ? ROW_KIND_ESTIMATE.work : 0);
   }
-  // The collapsed roll-up card is one header row plus its border/padding chrome.
+  // The collapsed roll-up is one line; each revealed file adds a bare mono line.
   if (row.kind === "changed-files") {
-    return ROW_KIND_ESTIMATE["changed-files"] + (row.expanded ? row.files.length * 24 : 0);
+    const visibleLineCount =
+      Math.min(row.files.length, CHANGED_FILES_VISIBLE_CAP) +
+      (row.files.length > CHANGED_FILES_VISIBLE_CAP ? 1 : 0);
+    return ROW_KIND_ESTIMATE["changed-files"] + (row.expanded ? visibleLineCount * 22 : 0);
   }
   return ROW_KIND_ESTIMATE[row.kind];
 }

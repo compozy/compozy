@@ -39,7 +39,7 @@ function ThinkingFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AutoExpanded({ updateCount }: { updateCount?: number }) {
+function AutoExpanded() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,11 +53,12 @@ function AutoExpanded({ updateCount }: { updateCount?: number }) {
 
   return (
     <div ref={containerRef}>
-      <ThinkingBlock thinking={REASONING_MARKDOWN} thinkingComplete updateCount={updateCount} />
+      <ThinkingBlock thinking={REASONING_MARKDOWN} thinkingComplete />
     </div>
   );
 }
 
+// Settled reasoning rests as a tool-row line: "Thought" verb + first-line preview.
 export const Collapsed: Story = {
   render: () => (
     <ThinkingFrame>
@@ -74,17 +75,8 @@ export const Expanded: Story = {
   ),
 };
 
-// Grouped reasoning: consecutive updates collapse into one row with an "N updates"
-// count in the trigger, expanding to the same indented markdown rail.
-export const Grouped: Story = {
-  render: () => (
-    <ThinkingFrame>
-      <AutoExpanded updateCount={4} />
-    </ThinkingFrame>
-  ),
-};
-
-// Live reasoning: auto-open with the typing-dots indicator while the turn streams.
+// Live reasoning: a shimmering "Thinking…" label with the streaming body
+// auto-opened beneath it — no icon well, no dots.
 export const Streaming: Story = {
   render: () => (
     <ThinkingFrame>

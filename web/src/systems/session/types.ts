@@ -233,7 +233,7 @@ export interface PermissionRequest {
   toolInput: Record<string, unknown>;
   action: string;
   resource: string;
-  supportedDecisions?: PermissionDecision[];
+  supportedDecisions?: string[];
   turnId?: string;
   toolCallId?: string;
 }

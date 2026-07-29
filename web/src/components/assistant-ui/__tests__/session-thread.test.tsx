@@ -310,10 +310,11 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  it("Should record a debug event when ThreadEmpty renders while the session is active", async () => {
+  it("Should render truthful working state when the successful transcript is empty and active", async () => {
     renderThreadState({ status: "success", isSessionRunning: true });
 
-    expect(await screen.findByText(/Start a conversation/i)).toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Working" })).toBeInTheDocument();
+    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     await waitFor(() => {
       expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.threadEmptyWhileActive]).toBe(1);
     });
@@ -496,25 +497,25 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // Collapsed settled cluster: only the latest call renders, under an "N tool
-    // calls" group label, with the rest behind the previous-calls toggle.
-    expect(await screen.findByText("/tmp/file-8.ts")).toBeInTheDocument();
-    expect(screen.getByText("8 tool calls")).toBeInTheDocument();
-    expect(screen.queryByText("/tmp/file-1.ts")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tool-call-row")).toHaveLength(1);
+    // A settled run rests as one semantic summary line — no tool rows, no
+    // paths, no count eyebrow. The two same-path variants stay distinct files.
+    const summaryLabel = await screen.findByTestId("work-summary-label");
+    expect(summaryLabel).toHaveTextContent("Read 8 files");
+    expect(screen.queryByText(/\/tmp\/file-8\.ts/)).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
 
-    const toggle = screen.getByRole("button", { name: "+7 previous tool calls" });
+    const toggle = screen.getByRole("button", { name: /Read 8 files/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
 
-    expect(await screen.findByText("/tmp/file-1.ts")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByText(/\/tmp\/file-1\.ts/)).toBeInTheDocument();
     expect(screen.getAllByTestId("tool-call-row")).toHaveLength(8);
-    const openToggle = screen.getByRole("button", { name: "Show fewer tool calls" });
-    expect(openToggle).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(openToggle);
-    expect(screen.getAllByTestId("tool-call-row")).toHaveLength(1);
-    expect(screen.queryByText("/tmp/file-1.ts")).not.toBeInTheDocument();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
+    expect(screen.queryByText(/\/tmp\/file-1\.ts/)).not.toBeInTheDocument();
   });
 
   it("Should render an empty-args tool mid-stream as the pending row state (not a bordered box)", async () => {
@@ -546,7 +547,8 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();
   });
 
-  it("Should render an error part as the failed row state (not a custom danger box)", async () => {
+  it("Should preserve output-error text through the repository and render it on the failed row", async () => {
+    const user = userEvent.setup();
     const transcript = [
       {
         id: "assistant-error",
@@ -559,6 +561,11 @@ describe("SessionThread transcript states", () => {
             turn_id: "turn-error",
             timestamp: "2026-07-07T12:00:00Z",
             input: { command: "deploy" },
+            errorText: "terminal/create denied before writing workspace marker",
+            output: {
+              error: "stale nested provider error",
+              stderr: "provider diagnostic",
+            },
           },
         ] as unknown as SessionMessage["parts"],
       } as SessionMessage,
@@ -573,6 +580,13 @@ describe("SessionThread transcript states", () => {
     expect(
       row.querySelector('[data-slot="tool-call-row-status"]')?.getAttribute("aria-label")
     ).toBe("Error");
+    expect(row.querySelector('[data-slot="tool-call-row-preview"]')).toHaveTextContent(
+      "terminal/create denied before writing workspace marker"
+    );
+    await user.click(row.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+    expect(row.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
+      "terminal/create denied before writing workspace marker"
+    );
   });
 
   // Suite: oversized tool-result normalization.
@@ -733,20 +747,24 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("Launch notes are ready.")).toBeInTheDocument();
     const fold = screen.getByRole("button", { name: "Worked for 5s" });
-    expect(screen.queryByText("/tmp/launch.md")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/tmp\/launch\.md/)).not.toBeInTheDocument();
     expect(fold).toHaveAttribute("aria-expanded", "false");
 
     await user.click(fold);
 
     expect(fold).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByText("/tmp/launch.md")).toBeInTheDocument();
+    expect(await screen.findByText(/\/tmp\/launch\.md/)).toBeInTheDocument();
     await user.click(screen.getByTestId("thinking-trigger"));
-    expect(screen.getByText("Need to inspect the launch file.")).toBeInTheDocument();
+    // The settled thinking row previews the first line; the body carries the
+    // full reasoning markdown once expanded.
+    expect(
+      within(screen.getByTestId("thinking-content")).getByText("Need to inspect the launch file.")
+    ).toBeInTheDocument();
 
     await user.click(fold);
 
     expect(fold).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("/tmp/launch.md")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/tmp\/launch\.md/)).not.toBeInTheDocument();
     expect(screen.queryByText("Need to inspect the launch file.")).not.toBeInTheDocument();
   });
 
@@ -861,7 +879,7 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText("You stopped after 7s")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /You stopped after/i })).not.toBeInTheDocument();
     // Work stays expanded without a click, and the terminal message is visible.
-    expect(screen.getByText("/tmp/interrupted.md")).toBeInTheDocument();
+    expect(screen.getByText(/\/tmp\/interrupted\.md/)).toBeInTheDocument();
     expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
   });
 
@@ -1044,10 +1062,10 @@ describe("SessionThread transcript states", () => {
     }
   });
 
-  it("Should render the working row with typing dots and a live timer while a turn streams, and drop it once settled", async () => {
+  it("Should render the working row with stepped dots and a live timer while a turn streams, and drop it once settled", async () => {
     // A streaming reasoning part marks the live turn; the settled turn carries only
     // a done text part. The working row must appear once (live turn), never on the
-    // settled turn, and it must be the typing-dots + timer, not the old spinner.
+    // settled turn, and it must be the stepped 4px dots + timer, not the old spinner.
     const startedAtIso = new Date(Date.now() - 5000).toISOString();
     const transcript = [
       {
@@ -1083,8 +1101,8 @@ describe("SessionThread transcript states", () => {
     const workingRow = await screen.findByTestId("session-working-row");
     // Only the streaming turn carries the indicator; the settled turn drops it.
     expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
-    // Typing dots wire the `typing-bounce` keyframe; the old spinner row is gone.
-    expect(workingRow.querySelector('[data-slot="typing-dots"]')).not.toBeNull();
+    // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
+    expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
     // Live "Working for Xs" tabular-nums timer, counting from the turn start.
     expect(workingRow).toHaveTextContent(/Working for/);
@@ -1126,10 +1144,10 @@ describe("SessionThread transcript states", () => {
       renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
       const workingRow = await screen.findByTestId("session-working-row");
-      expect(workingRow).toHaveTextContent("Working…");
-      // Static label only: no typing dots, no live timer, no animation classes.
+      expect(workingRow).toHaveTextContent(/Working for/);
+      // Reduced motion removes only the dots; the elapsed runtime fact remains.
       expect(workingRow.querySelector('[data-slot="typing-dots"]')).toBeNull();
-      expect(screen.queryByTestId("session-working-timer")).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
       expect(workingRow.innerHTML).not.toMatch(/animate-|typing-bounce/);
     } finally {
       window.matchMedia = originalMatchMedia;
@@ -1187,6 +1205,7 @@ describe("SessionThread transcript states", () => {
     const pill = screen.getByTestId("scroll-to-bottom-pill");
     // Following the live edge: the pill is hidden and non-interactive.
     expect(pill).toHaveAttribute("data-visible", "false");
+    expect(pill).toBeDisabled();
 
     // A manual wheel gesture opts out of live-follow; the machine reads the gap and
     // reveals the pill.
@@ -1194,6 +1213,7 @@ describe("SessionThread transcript states", () => {
     fireEvent.wheel(viewport);
     await waitFor(() => {
       expect(pill).toHaveAttribute("data-visible", "true");
+      expect(pill).toBeEnabled();
     });
 
     // Clicking the pill returns to the live edge and hides the affordance again.
@@ -1222,18 +1242,18 @@ describe("SessionThread transcript states", () => {
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    // Collapsed cluster: the latest call is visible; the reader has scrolled to a
-    // fixed offset before expanding the group.
-    expect(await screen.findByText("/tmp/anchor-8.ts")).toBeInTheDocument();
+    // Collapsed settled run: the summary line is visible; the reader has
+    // scrolled to a fixed offset before expanding the group.
+    expect(await screen.findByTestId("work-summary-label")).toHaveTextContent("Read 8 files");
     const viewport = screen.getByTestId("chat-view");
     primeScrolledAwayViewport(viewport);
 
-    // Expanding reveals the hidden calls without yanking the reader's position: the
-    // anchor-preserving toggle corrects scrollTop by the height delta (0 under the
-    // static jsdom geometry), so the reading offset is unchanged.
-    fireEvent.click(screen.getByRole("button", { name: "+7 previous tool calls" }));
+    // Expanding reveals the folded calls without yanking the reader's position:
+    // the anchor-preserving toggle corrects scrollTop by the height delta (0
+    // under the static jsdom geometry), so the reading offset is unchanged.
+    fireEvent.click(screen.getByRole("button", { name: /Read 8 files/ }));
 
-    expect(await screen.findByText("/tmp/anchor-1.ts")).toBeInTheDocument();
+    expect(await screen.findByText(/\/tmp\/anchor-1\.ts/)).toBeInTheDocument();
     expect(viewport.scrollTop).toBe(300);
   });
 });
@@ -1413,6 +1433,21 @@ describe("SessionThread composer running semantics", () => {
     expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
   });
 
+  it("Should steer the current draft while running and clear it after success", async () => {
+    const user = userEvent.setup();
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "steer with this constraint");
+    await user.click(screen.getByTestId("composer-steer-button"));
+
+    await waitFor(() => {
+      expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
+      expect(textarea).toHaveValue("");
+    });
+  });
+
   it("Should silently preserve the draft when the queue owner is replaced", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() =>
@@ -1434,14 +1469,17 @@ describe("SessionThread composer running semantics", () => {
 
     expect(await screen.findByTestId("composer-send-button")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("composer-enter-hint")).not.toBeInTheDocument();
+    // Idle: the quiet ⏎ hint reads "send".
+    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/send/);
 
     rerender({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt: vi.fn() });
 
     const stop = await screen.findByTestId("composer-stop-button");
     expect(stop).toHaveAttribute("aria-label", "Stop generation");
     expect(screen.queryByTestId("composer-send-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/Enter/);
+    // Busy: Enter has one meaning — queue the draft — and the hint says so.
+    expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/queue/);
+    expect(screen.getByTestId("composer-enter-hint")).not.toHaveTextContent(/send/);
   });
 
   it("Should render queued rows with steer, edit, and remove wired to real entries", async () => {

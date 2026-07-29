@@ -1,21 +1,22 @@
 import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
-import { CodeBlock } from "@compozy/ui";
-
 import type { UIMessage } from "../../types";
+import { DetailPre } from "./detail-pre";
 import { GenericContent } from "./generic-content";
 
 const TRUNCATE_THRESHOLD = 1500;
 
-function prefixDiffLines(source: string, marker: "-" | "+"): string {
-  if (source.length === 0) return "";
-  return source
-    .split("\n")
-    .map(line => `${marker} ${line}`)
-    .join("\n");
+function diffLines(source: string, marker: "-" | "+"): string[] {
+  if (source.length === 0) return [];
+  return source.split("\n").map(line => `${marker} ${line}`);
 }
 
+/**
+ * Edit detail as a unified diff in colored **text** lines only — deletions
+ * first as `- ` lines at `--danger`, additions as `+ ` lines at `--success` —
+ * inside the plain detail rail. No stacked tinted blocks, no line-number chrome.
+ */
 export function EditContent({ message }: { message: UIMessage }) {
   const [showFull, setShowFull] = useState(false);
   const filePath = String(
@@ -37,50 +38,36 @@ export function EditContent({ message }: { message: UIMessage }) {
 
   const displayOld = showFull ? oldStr : oldStr.slice(0, TRUNCATE_THRESHOLD);
   const displayNew = showFull ? newStr : newStr.slice(0, TRUNCATE_THRESHOLD);
-  const oldCode = `${prefixDiffLines(displayOld, "-")}${
-    !showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""
-  }`;
-  const newCode = `${prefixDiffLines(displayNew, "+")}${
-    !showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""
-  }`;
+  const oldSuffix = !showFull && oldStr.length > TRUNCATE_THRESHOLD ? "…" : "";
+  const newSuffix = !showFull && newStr.length > TRUNCATE_THRESHOLD ? "…" : "";
+  const removed = diffLines(`${displayOld}${oldSuffix}`, "-");
+  const added = diffLines(`${displayNew}${newSuffix}`, "+");
 
   return (
-    <div className="space-y-1.5 text-small-body" data-testid="edit-content">
-      {filePath ? <div className="font-mono text-form-label text-subtle">{filePath}</div> : null}
-      {(oldStr || newStr) && (
-        <div className="overflow-hidden rounded-sm">
-          {oldStr ? (
-            <CodeBlock
-              code={oldCode}
-              density="compact"
-              copyable={false}
-              showPrompt={false}
-              showLineNumbers
-              tone="danger"
-              truncateLines={12}
-            />
+    <div className="flex min-w-0 flex-col gap-1" data-testid="edit-content">
+      {filePath ? <div className="font-mono text-[11px] text-subtle">{filePath}</div> : null}
+      {removed.length > 0 || added.length > 0 ? (
+        <DetailPre>
+          {removed.length > 0 ? (
+            <span className="text-danger" data-testid="edit-removed">
+              {removed.join("\n")}
+            </span>
           ) : null}
-          {oldStr && newStr ? <div className="border-t border-line" /> : null}
-          {newStr ? (
-            <CodeBlock
-              code={newCode}
-              density="compact"
-              copyable={false}
-              showPrompt={false}
-              showLineNumbers
-              tone="success"
-              truncateLines={12}
-            />
+          {removed.length > 0 && added.length > 0 ? "\n" : null}
+          {added.length > 0 ? (
+            <span className="text-success" data-testid="edit-added">
+              {added.join("\n")}
+            </span>
           ) : null}
-        </div>
-      )}
+        </DetailPre>
+      ) : null}
       {isTruncated ? (
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="flex items-center gap-1 text-form-label text-muted hover:text-fg transition-colors"
+          className="flex w-fit items-center gap-1 text-[11.5px] text-subtle transition-colors hover:text-fg"
         >
-          <ChevronsUpDown className="size-3" />
+          <ChevronsUpDown aria-hidden="true" className="size-3" />
           Show full content
         </button>
       ) : null}

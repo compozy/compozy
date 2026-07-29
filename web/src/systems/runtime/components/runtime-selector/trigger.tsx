@@ -1,6 +1,7 @@
-import { ChevronDown, TriangleAlert } from "lucide-react";
+import { ChevronDown, TriangleAlert, Zap } from "lucide-react";
 import { useId, type ComponentProps } from "react";
 
+import { type RuntimeSpeed } from "@/lib/api-contract";
 import { cn, IntensityMeter, KindIcon, providerKindIconRegistry } from "@compozy/ui";
 
 import {
@@ -25,6 +26,8 @@ export interface RuntimeSelectorTriggerProps extends Omit<
   needsAuth?: boolean;
   readOnly?: boolean;
   modelPlaceholder?: string;
+  /** Session-level ACP speed request; "fast" adds the bolt mark (undefined = unwired). */
+  speed?: RuntimeSpeed;
   /** id of the popup dialog the trigger controls (announced via aria-controls). */
   popupId?: string;
   /** id of the surface's visible field caption; names the trigger when set. */
@@ -76,6 +79,7 @@ export function RuntimeSelectorTrigger({
   disabled = false,
   readOnly = false,
   modelPlaceholder = "Select model",
+  speed,
   popupId,
   ariaLabelledby,
   onPress,
@@ -91,6 +95,7 @@ export function RuntimeSelectorTrigger({
   // wire value is ""; only a level-less model renders the hollow zero state.
   const currentEffort = value.reasoning_effort || reasoning.defaultEffort;
   const meterUnset = currentEffort === "";
+  const showFast = speed === "fast" && !compact;
   const showWarning = needsAuth || model?.availability === "unavailable";
   const warningLabel = needsAuth ? "Provider needs sign in" : "Model unavailable";
   const providerName = provider?.name || value.provider;
@@ -104,6 +109,7 @@ export function RuntimeSelectorTrigger({
       `reasoning ${meterUnset ? "provider default" : reasoningEffortLabel(currentEffort)}`
     );
   }
+  if (showFast) summaryParts.push("fast speed requested");
   if (showWarning) summaryParts.push(warningLabel.toLowerCase());
   const valueSummary = summaryParts.join(", ");
 
@@ -164,6 +170,15 @@ export function RuntimeSelectorTrigger({
           hollow={meterUnset}
           className="shrink-0"
         />
+      ) : null}
+      {showFast ? (
+        <span
+          title="Fast speed requested"
+          data-slot="runtime-selector-fast"
+          className="grid shrink-0 place-items-center text-accent-strong"
+        >
+          <Zap aria-hidden="true" className="size-[11px] fill-current" />
+        </span>
       ) : null}
       {showWarning ? (
         <span

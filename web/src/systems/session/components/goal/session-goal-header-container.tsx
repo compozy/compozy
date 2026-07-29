@@ -12,6 +12,6 @@ export function SessionGoalHeaderContainer({
   workspaceId,
   onPrefillComposer,
 }: SessionGoalHeaderContainerProps) {
-  const goal = useSessionGoalHeader(workspaceId, sessionId, onPrefillComposer);
+  const goal = useSessionGoalHeader(workspaceId, sessionId, { onPrefillComposer });
   return <SessionGoalHeader {...goal} />;
 }

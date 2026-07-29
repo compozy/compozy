@@ -25,6 +25,8 @@ interface UseSessionTopbarSlotInput {
   isClearing: boolean;
   canClear: boolean;
   inspectorOpen: boolean;
+  /** The one state-gated goal action (Pause/Resume/Approve/Clear) riding the head. */
+  goalAction?: React.ReactNode;
   onInspectorToggle: () => void;
   onDelete: () => void;
   onStop: () => void;
@@ -41,6 +43,7 @@ export function useSessionTopbarSlot({
   isClearing,
   canClear,
   inspectorOpen,
+  goalAction,
   onInspectorToggle,
   onDelete,
   onStop,
@@ -115,6 +118,7 @@ export function useSessionTopbarSlot({
     status: <SessionStatusLine session={session} showState={false} />,
     actions: (
       <>
+        {goalAction}
         {primaryAction}
         {inspectorToggle}
       </>

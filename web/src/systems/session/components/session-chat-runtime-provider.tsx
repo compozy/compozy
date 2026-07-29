@@ -29,6 +29,7 @@ function SessionRuntimeExtensions({
   return (
     <SessionRuntimeRenderProvider sessionId={sessionId} workspaceId={workspaceId}>
       <SessionTranscriptThreadProvider
+        liveMessages={transcript.liveMessages}
         messages={transcript.messages}
         status={transcript.status}
         error={transcript.error}

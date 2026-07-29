@@ -52,6 +52,7 @@ type SessionCreateStoreEvents = {
     "providerOverride" | "modelOverride" | "reasoningEffort"
   >;
   sessionNameChanged: { sessionName: string };
+  speedSelected: Pick<SessionCreateDialogDraft, "speed">;
   submissionFailed: { attempt: number; message: string };
   submissionRequested: {
     agentName: string;
@@ -137,6 +138,11 @@ export const sessionCreateStoreLogic = createStoreLogic<
       submitError: null,
     }),
     runtimeSelected: (context, event) => ({
+      ...context,
+      draft: { ...context.draft, ...event },
+      submitError: null,
+    }),
+    speedSelected: (context, event) => ({
       ...context,
       draft: { ...context.draft, ...event },
       submitError: null,

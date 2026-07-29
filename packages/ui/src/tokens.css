@@ -77,6 +77,12 @@
   --color-btn-default-hover: rgba(255, 255, 255, 0.07);
   --color-badge-fill: rgba(255, 255, 255, 0.05);
 
+  /* Session transcript washes — the ONLY message surfaces in the chat column.
+     `chat-fill-user` is the borderless user block; `chat-fill-code` is the
+     code / "source input" wash shared by fenced blocks and the decision dock. */
+  --color-chat-fill-user: rgba(255, 255, 255, 0.045);
+  --color-chat-fill-code: rgba(255, 255, 255, 0.03);
+
   /* Overlays. */
   --color-overlay-scrim: rgba(0, 0, 0, 0.55);
   --color-overlay-ghost-hover: rgba(255, 255, 255, 0.06);
@@ -209,6 +215,14 @@
   --text-card-title: 0.875rem;
   --text-card-title--line-height: 1.4;
 
+  /* Calm transcript ladder — shared by timeline rows, detail rails, working
+     state, and the user-message surface. These preserve the OpenDesign rhythm
+     without scattering pixel literals across the web renderer. */
+  --text-transcript-message: 0.84375rem; /* 13.5px */
+  --text-transcript-body: 0.75rem; /* 12px */
+  --text-transcript-meta: 0.71875rem; /* 11.5px */
+  --text-transcript-caption: 0.6875rem; /* 11px */
+
   /* Leading. */
   --leading-small-body: var(--text-small-body--line-height);
   /* Prose-body leading for description-card and chat-tool-card markdown
@@ -301,6 +315,17 @@
   --size-button-icon-sm: 22px;
   --size-button-icon-default: 26px;
   --size-button-icon-lg: 30px;
+
+  /* Calm transcript geometry. */
+  --height-transcript-row: 22px;
+  --height-transcript-line: 24px;
+  --size-transcript-icon-well: 18px;
+  --spacing-transcript-inline-gap: 7px;
+  --spacing-transcript-detail-indent: 25px;
+  --spacing-transcript-detail-gutter: 11px;
+  --spacing-transcript-message-y: 7px;
+  --spacing-transcript-turn-gap: 18px;
+  --spacing-transcript-meta-gap: 3px;
 
   /* Form control geometry — the field-control ladder. Input / Select /
      NativeSelect / CommandSelect trigger = 36; compact (Select sm, NativeSelect

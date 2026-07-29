@@ -2,6 +2,7 @@ import { use } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 
 import {
+  SessionDecisionMessagesContext,
   SessionTranscriptErrorContext,
   SessionTranscriptFetchingOlderContext,
   SessionTranscriptHasOlderContext,
@@ -21,6 +22,10 @@ function requireContext<T>(value: T | undefined, name: string): T {
 
 export function useSessionTranscriptThreadMessages(): readonly ThreadMessage[] {
   return requireContext(use(SessionTranscriptMessagesContext), "message");
+}
+
+export function useSessionDecisionMessages(): readonly ThreadMessage[] {
+  return requireContext(use(SessionDecisionMessagesContext), "decision message");
 }
 
 export function useSessionTranscriptThreadStatus(): SessionTranscriptThreadState["status"] {

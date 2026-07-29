@@ -13,7 +13,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizePermissionDecision(value: unknown): PermissionDecision | null {
+export function normalizePermissionDecision(value: unknown): PermissionDecision | null {
   switch (typeof value === "string" ? value.trim() : "") {
     case "allow-once":
       return "allow-once";
@@ -28,19 +28,23 @@ function normalizePermissionDecision(value: unknown): PermissionDecision | null 
   }
 }
 
-function permissionSupportedDecisions(raw: Record<string, unknown> | undefined) {
+function permissionSupportedDecisions(
+  raw: Record<string, unknown> | undefined
+): string[] | undefined {
   const options = Array.isArray(raw?.options) ? raw.options : [];
-  const decisions: PermissionDecision[] = [];
-  const seen = new Set<PermissionDecision>();
+  if (options.length === 0) return undefined;
+  const decisions: string[] = [];
+  const seen = new Set<string>();
   for (const option of options) {
     if (!isRecord(option)) continue;
-    const decision = normalizePermissionDecision(option.decision ?? option.option_id);
-    if (decision != null && !seen.has(decision)) {
+    const candidate = option.decision ?? option.option_id;
+    const decision = typeof candidate === "string" ? candidate.trim() : "";
+    if (decision.length > 0 && !seen.has(decision)) {
       seen.add(decision);
       decisions.push(decision);
     }
   }
-  return decisions.length > 0 ? decisions : undefined;
+  return decisions;
 }
 
 function permissionToolInput(raw: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -150,7 +154,27 @@ export function resolveToolResult(result: unknown): ToolUseResult | undefined {
   if (result === undefined || result === null) return undefined;
   if (isAgentEventPayload(result)) return parseToolUseResult(result);
   if (typeof result === "string") return { content: result };
-  if (isRecord(result)) return { rawOutput: result, ...toolResultEnvelope(result) };
+  if (isRecord(result)) {
+    return {
+      stdout: typeof result.stdout === "string" ? result.stdout : undefined,
+      stderr: typeof result.stderr === "string" ? result.stderr : undefined,
+      filePath:
+        typeof result.filePath === "string"
+          ? result.filePath
+          : typeof result.file_path === "string"
+            ? result.file_path
+            : undefined,
+      content: typeof result.content === "string" ? result.content : undefined,
+      structuredPatch: Array.isArray(result.structuredPatch)
+        ? result.structuredPatch
+        : Array.isArray(result.structured_patch)
+          ? result.structured_patch
+          : undefined,
+      error: typeof result.error === "string" ? result.error : undefined,
+      rawOutput: result,
+      ...toolResultEnvelope(result),
+    };
+  }
   return { content: String(result) };
 }
 
@@ -179,6 +203,7 @@ export function toolResultIsEmpty(result: ToolUseResult | undefined): boolean {
   if (result.truncated === true) return false;
   if (nonEmptyString(result.preview)) return false;
   if (Array.isArray(result.artifacts) && result.artifacts.length > 0) return false;
+  if (nonEmptyString(result.error)) return false;
   if (nonEmptyString(result.content)) return false;
   if (nonEmptyString(result.stdout)) return false;
   if (nonEmptyString(result.stderr)) return false;

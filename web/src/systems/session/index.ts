@@ -225,10 +225,21 @@ export {
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
 export {
   PermissionDataPart,
-  PermissionPrompt,
-  type PermissionPromptProps,
-} from "./components/permission-prompt";
-export { ClarificationCard, type ClarificationCardProps } from "./components/clarification-card";
+  PermissionReceipt,
+  type PermissionReceiptProps,
+} from "./components/permission-data-part";
+export { PermissionDock, type PermissionDockProps } from "./components/permission-dock";
+export { ClarificationDock, type ClarificationDockProps } from "./components/clarification-dock";
+export {
+  SessionDecisionDock,
+  type SessionDecisionDockProps,
+} from "./components/session-decision-dock";
+export {
+  SessionGoalHeadAction,
+  type SessionGoalHeadActionProps,
+} from "./components/goal/goal-head-action";
+export { SessionGoalStrip, type SessionGoalStripProps } from "./components/goal/session-goal-strip";
+export { useSessionGoalHeader } from "./hooks/use-session-goal-header";
 export { ClarificationReceipt } from "./components/clarification-receipt";
 export {
   ClarificationDataPart,

@@ -258,13 +258,14 @@ test("operator rejects a permission request, records tool output, and keeps sess
 
   await expect(ui.chatView).toContainText("Permission hardening started.");
   await expect(ui.permissionPrompt).toBeVisible();
-  await expect(sessionWin.getByTestId("permission-tool-input")).toContainText("hardening.txt");
+  await expect(sessionWin.getByTestId("permission-dock-subject")).toHaveText("hardening.txt");
 
   const approvalResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
       response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/approve"))
   );
+  await sessionWin.getByTestId("permission-reject-menu-trigger").click();
   await sessionWin.getByTestId("permission-reject-always").click();
   expect((await approvalResponsePromise).ok()).toBe(true);
 

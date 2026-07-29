@@ -95,6 +95,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     onWorkspacePathChange: vi.fn(),
     selectedAgentName: "claude-agent",
     runtimeValue: { provider: "claude", model: "", reasoning_effort: "" },
+    runtimeSpeed: "normal",
     runtimeProviders,
     runtimeModels: [],
     catalogStale: false,
@@ -115,6 +116,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     onPromptChange: vi.fn(),
     onAgentChange: vi.fn(),
     onRuntimeChange: vi.fn(),
+    onRuntimeSpeedChange: vi.fn(),
     onNetworkParticipationChange: vi.fn(),
     onCatalogRefresh: vi.fn(),
     onOpenProviderSettings: vi.fn(),
@@ -140,6 +142,17 @@ async function openRuntimePopup(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("SessionCreateDialog", () => {
+  it("Should wire the runtime selector's speed switch to onRuntimeSpeedChange", async () => {
+    const user = userEvent.setup();
+    const onRuntimeSpeedChange = vi.fn();
+    renderDialog({ onRuntimeSpeedChange, runtimeSpeed: "normal" });
+
+    await openRuntimePopup(user);
+    await user.click(screen.getByTestId("runtime-selector-speed"));
+
+    expect(onRuntimeSpeedChange).toHaveBeenLastCalledWith("fast");
+  });
+
   it("Should show identity fields and the composer without Advanced fields in Simple", () => {
     renderDialog({ mode: "simple" });
 

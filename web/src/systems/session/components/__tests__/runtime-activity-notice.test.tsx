@@ -51,7 +51,7 @@ describe("RuntimeActivityNotice", () => {
     expect(isTranscriptMarkerEvent({ type: "runtime_warning" })).toBe(false);
   });
 
-  it("renders progress as a separate status notice", () => {
+  it("renders progress as a quiet neutral marker line", () => {
     const event: AgentEventPayload = {
       type: "runtime_progress",
       text: "Still working",
@@ -60,12 +60,14 @@ describe("RuntimeActivityNotice", () => {
 
     render(<RuntimeActivityNotice event={event} />);
 
-    expect(screen.getByTestId("runtime-activity-notice")).toHaveAttribute("data-tone", "progress");
+    const notice = screen.getByTestId("runtime-activity-notice");
+    // Progress is a neutral marker — no signal tone, no tinted card.
+    expect(notice).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByText("Still working")).toBeInTheDocument();
-    expect(screen.getByText("Still working").className).toContain("text-fg");
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
-    expect(screen.getByTestId("runtime-activity-meta")).toHaveTextContent("11m elapsed · 42s idle");
-    expect(screen.getByTestId("runtime-activity-meta").className).toContain("tabular-nums");
+    const meta = screen.getByTestId("runtime-activity-meta");
+    expect(meta).toHaveTextContent("11m elapsed · 42s idle");
+    expect(meta.className).toContain("font-mono");
   });
 
   it("renders warnings with alert semantics", () => {
@@ -127,13 +129,14 @@ describe("RuntimeActivityNotice", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
-    expect(screen.getByTestId("transcript-marker-notice")).toHaveTextContent("Transcript marker");
-    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
-      "transcript_marker.prompt_timeout"
-    );
+    // The summary is the sentence; the raw kind string is faint mono meta —
+    // never a pill, never a "Transcript marker" card title.
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
       "Runtime activity timed out."
     );
+    const kind = screen.getByTestId("transcript-marker-kind");
+    expect(kind).toHaveTextContent("transcript_marker.prompt_timeout");
+    expect(kind.className).toContain("font-mono");
   });
 
   it("renders the file-mutation verifier marker with warning semantics", () => {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -21,6 +22,13 @@ import (
 )
 
 func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
+	t.Run(
+		"Should persist approval grants across restart and surfaces",
+		testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces,
+	)
+}
+
+func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -31,6 +39,7 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		AgentName:    "mock-tool-approval-grants",
 	}
 	first := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
 		MockAgents: []e2etest.MockAgentSpec{mockSpec},
 	})
 
@@ -60,7 +69,7 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 			firstClient,
 			toolspkg.ToolIDToolApprovalsRevoke,
 			fmt.Sprintf("approval-bootstrap-%d", index),
-			map[string]any{"id": missingID, "workspace_id": workspaceID},
+			map[string]any{"id": missingID, "workspace": workspaceID},
 			"allow-always",
 		)
 		if result == nil || !result.IsError {
@@ -118,6 +127,7 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	second := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		HomePaths:  homePaths,
+		ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
 		MockAgents: []e2etest.MockAgentSpec{mockSpec},
 		Workspace:  e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
 	})
@@ -146,7 +156,7 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		autoApproveCtx,
 		secondClient,
 		"approval-after-restart",
-		map[string]any{"id": missingIDs[0], "workspace_id": workspaceID},
+		map[string]any{"id": missingIDs[0], "workspace": workspaceID},
 	)
 	if autoApproved == nil || !autoApproved.IsError {
 		t.Fatalf("post-restart exact revoke result = %#v, want handler not-found without a new prompt", autoApproved)
@@ -199,7 +209,7 @@ func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		secondClient,
 		toolspkg.ToolIDToolApprovalsRevoke,
 		"approval-native-revoke",
-		map[string]any{"id": nativeSet.ID, "workspace_id": workspaceID},
+		map[string]any{"id": nativeSet.ID, "workspace": workspaceID},
 		"allow-once",
 	)
 	if nativeRevoke == nil || nativeRevoke.IsError {
@@ -468,7 +478,7 @@ func listApprovalGrantsNative(
 
 	var call sdkmcp.CallToolRequest
 	call.Params.Name = toolspkg.ToolIDToolApprovalsList.String()
-	call.Params.Arguments = map[string]any{"workspace_id": workspaceID}
+	call.Params.Arguments = map[string]any{"workspace": workspaceID}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
 		t.Fatalf("CallTool(%s) error = %v", toolspkg.ToolIDToolApprovalsList, err)

@@ -783,9 +783,9 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		var call sdkmcp.CallToolRequest
 		call.Params.Name = networkToolID
 		call.Params.Arguments = map[string]any{
-			"workspace_id": harness.WorkspaceID,
-			"channel":      channelName,
-			"purpose":      "Runtime E2E hosted native tool access",
+			"workspace": harness.WorkspaceID,
+			"channel":   channelName,
+			"purpose":   "Runtime E2E hosted native tool access",
 		}
 		result, err := client.CallTool(ctx, call)
 		if err != nil {
@@ -1318,7 +1318,7 @@ func createHostedTaskForWakeE2E(
 	call.Params.Name = toolspkg.ToolIDTaskCreate.String()
 	call.Params.Arguments = map[string]any{
 		"id":    strings.TrimSpace(taskID),
-		"scope": string(taskpkg.ScopeGlobal),
+		"scope": string(taskpkg.ScopeWorkspace),
 		"title": strings.TrimSpace(title),
 	}
 	result, err := client.CallTool(ctx, call)

@@ -13,6 +13,7 @@ import {
 } from "@compozy/ui";
 
 import type { AgentPayload } from "@/systems/agent";
+import type { RuntimeSpeed } from "@/lib/api-contract";
 import {
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
@@ -47,6 +48,7 @@ export interface SessionCreateDialogProps {
   onWorkspacePathChange: (next: string) => void;
   selectedAgentName: string;
   runtimeValue: RuntimeSelectorValue;
+  runtimeSpeed: RuntimeSpeed;
   runtimeProviders: RuntimeProviderOption[];
   runtimeModels: RuntimeModelOption[];
   catalogStale: boolean;
@@ -63,6 +65,7 @@ export interface SessionCreateDialogProps {
   onPromptChange: (next: string) => void;
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onRuntimeSpeedChange: (next: RuntimeSpeed) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   onCatalogRefresh: () => void;
   onOpenProviderSettings: () => void;
@@ -88,6 +91,7 @@ function SessionCreateDialog({
   onWorkspacePathChange,
   selectedAgentName,
   runtimeValue,
+  runtimeSpeed,
   runtimeProviders,
   runtimeModels,
   catalogStale,
@@ -104,6 +108,7 @@ function SessionCreateDialog({
   onPromptChange,
   onAgentChange,
   onRuntimeChange,
+  onRuntimeSpeedChange,
   onNetworkParticipationChange,
   onCatalogRefresh,
   onOpenProviderSettings,
@@ -239,6 +244,8 @@ function SessionCreateDialog({
                   onRefreshCatalog={onCatalogRefresh}
                   providers={runtimeProviders}
                   refreshing={catalogRefreshing}
+                  speed={runtimeSpeed}
+                  onSpeedChange={onRuntimeSpeedChange}
                   triggerId="session-create-runtime"
                   triggerTestId="session-create-runtime-select"
                   value={runtimeValue}

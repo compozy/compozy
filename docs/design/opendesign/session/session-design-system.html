@@ -145,6 +145,13 @@ table.map{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
         <div class="msg-meta"><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button type="button">Use as goal</button><span>14:33</span></div>
       </div>
     </div>
+    <p class="demo-cap">Long user message — clamped with a mask, never truncated</p>
+    <div class="transcript" style="padding:0">
+      <div class="t-row t-msg msg-user">
+        <div class="msg-user__bubble" data-clamped="true">Here's the full context before you start: the transcript today renders sixteen distinct component kinds and five of them are visually identical bordered cards. The goal chip alone stacks an icon tile, two status pills, a three-column meter grid, a moved-session strip and a five-button control bar. On top of that the permission prompt is sticky and chases the scroll, every runtime event gets its own tinted Alert, and the changed-files summary is another bordered card. I want all of it flattened into the calm vocabulary — text lines, glyphs for status, one neutral ramp — without losing a single capability along the way.</div>
+        <button class="msg-more" type="button">Show more</button>
+      </div>
+    </div>
   </div>
   <ul class="rules">
     <li><b>Hover to exist</b> — <code>.msg-meta</code> is <code>opacity:0</code> until row hover/focus. Mid-turn commentary never shows meta.</li>
@@ -193,7 +200,11 @@ table.map{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
       <div class="disclose"><div><div class="trow__detail"><pre><span class="err">2 tests failed</span>
 <span class="ctx">✗ folds settled turns › keeps permission rows outside the fold</span>
 <span class="ctx">✗ folds settled turns › never folds a running turn</span>
-exit code 1</pre></div></div></div></div>
+exit code 1</pre>
+      <div class="trow__artifact"><div class="trow__artifact-line">
+        <button class="trow__open" type="button">Open full result</button>
+        <span class="trow__bytes">4,096 of 181,240 bytes</span>
+      </div></div></div></div></div></div>
       <div class="trow" data-status="success"><div class="trow__line">
         <span class="trow__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <span class="trow__text"><span class="trow__verb">Searched</span><span class="trow__prev">"defaultExpanded" · 7 matches</span></span>
@@ -213,6 +224,10 @@ exit code 1</pre></div></div></div></div>
     <li><b>Expanded = indented pre.</b> <code>max-height:240px</code>, mono 11px, <code>--muted</code>,
         diff lines colored by text only. Input/Output captions only when both exist. MCP / generic
         tools show pretty-printed JSON here — and only here.</li>
+    <li><b>Truncated results keep their retained artifact</b> — <code>.trow__artifact</code> renders
+        a quiet "Open full result" (<code>--info</code>) + faint byte meta under the preview; pages
+        load in place ("Load more"), and a load failure is a danger text line with Retry.
+        Fetch/pagination semantics from <code>tool-result-artifact.tsx</code> stay verbatim.</li>
     <li><b>No chevron when there is nothing to expand</b> — the row is inert, cursor stays default.</li>
   </ul>
 </section>
@@ -385,7 +400,11 @@ exit code 1</pre></div></div></div></div>
           <button class="btn btn--primary" type="button">Allow once<kbd>1</kbd></button>
           <button class="btn" type="button">Always allow<kbd>2</kbd></button>
           <span class="spacer"></span>
-          <button class="btn btn--danger-ghost" type="button">Reject<kbd>3</kbd></button>
+          <div class="dock__reject" data-open="false">
+            <button class="btn btn--danger-ghost" type="button">Reject<kbd>3</kbd></button>
+            <button class="btn btn--danger-ghost dock__reject-chev" type="button" data-toggle aria-expanded="false" aria-label="More reject options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg></button>
+            <div class="dock__menu"><button type="button">Reject always<kbd>4</kbd></button></div>
+          </div>
         </div>
       </div>
       <div class="composer composer--docked">
@@ -394,13 +413,21 @@ exit code 1</pre></div></div></div></div>
           <button class="composer__send" type="button" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button></div>
       </div>
     </div>
-    <p class="demo-cap">Clarification — choice rows with shortcuts</p>
+    <p class="demo-cap">Clarification — choice rows with shortcuts (+ static deadline hint)</p>
     <div class="dock" style="border-bottom:1px solid var(--line-strong);border-radius:var(--radius-lg)">
-      <div class="dock__head"><span class="dock__eyebrow">Question</span><span class="dock__title">Which store should own the new table?</span></div>
+      <div class="dock__head"><span class="dock__eyebrow">Question</span><span class="dock__title">Which store should own the new table?</span><span class="dock__deadline">times out 14:32</span></div>
       <div class="choice">
         <button class="choice__row" type="button"><span class="choice__key">1</span>events store <span class="choice__hint">recommended</span></button>
         <button class="choice__row" type="button"><span class="choice__key">2</span>memory store</button>
         <button class="choice__row" type="button"><span class="choice__key">3</span>new dedicated stream</button>
+      </div>
+    </div>
+    <p class="demo-cap">Clarification — free-text (production renders this when the question has no bounded choices)</p>
+    <div class="dock" style="border-bottom:1px solid var(--line-strong);border-radius:var(--radius-lg)">
+      <div class="dock__head"><span class="dock__eyebrow">Question</span><span class="dock__title">What should the new migration be named?</span><span class="dock__deadline">times out 14:40</span></div>
+      <div class="choice__free">
+        <textarea rows="2" placeholder="Type your answer…" aria-label="Your answer"></textarea>
+        <div class="choice__free-bar"><span class="dock__meta"><kbd style="font-family:var(--font-mono);font-size:10px;color:var(--faint)">⏎</kbd> sends · Shift+⏎ breaks</span><span class="spacer"></span><button class="btn btn--primary" type="button">Send answer</button></div>
       </div>
     </div>
     <p class="demo-cap">In-transcript receipts — one line each</p>
@@ -413,9 +440,16 @@ exit code 1</pre></div></div></div></div>
   <ul class="rules">
     <li><b>Decisions happen where you type.</b> The dock shares the composer's border; the composer
         stays usable — replying is always an alternative to deciding.</li>
-    <li><b>Action order is fixed:</b> primary allow · always allow · spacer · reject (danger ghost).
-        Four buttons max; reject-always lives behind the reject hold/menu.</li>
-    <li><b>Numeric shortcuts</b> — keys 1–9 map to choice rows and allow/reject; shown in the hint line.</li>
+    <li><b>Action order is fixed:</b> primary allow · always allow · spacer · reject (danger ghost)
+        with a split menu. <b>All four ACP decisions stay reachable</b> — reject-always sits behind
+        the reject chevron, and key <kbd>4</kbd> fires it even with the menu closed. Buttons render
+        only for the <code>decisionOptions</code> the runtime offers.</li>
+    <li><b>Numeric shortcuts</b> — permission keys 1–4 map to the four decisions; clarification
+        keys 1–9 map to choice rows; shown as kbd chips on the buttons.</li>
+    <li><b>Free-text answers survive</b> — a question with no bounded choices renders the
+        <code>.choice__free</code> textarea (Enter submits, Shift+Enter breaks). The deadline hint
+        is static text and never ticks; submitting / retryable-error states are quiet
+        <code>.dock__status</code> lines, not alerts.</li>
     <li><b>Receipts are the transcript's memory</b> — glyph tone + one sentence; allowed decisions
         also get a receipt (today they render nothing).</li>
   </ul>
@@ -441,19 +475,55 @@ exit code 1</pre></div></div></div></div>
       <div class="disclose"><div><div class="goalstrip__body">
         <div class="goalstrip__row"><span class="goalstrip__k">Contract</span><span class="goalstrip__v">All 16 transcript components on session.css tokens; make verify green.</span></div>
         <div class="goalstrip__row"><span class="goalstrip__k">Run</span><span class="goalstrip__v"><a href="#">plan-4 · generation 2</a> — active in this session</span></div>
+        <div class="goalstrip__row"><span class="goalstrip__k">Context</span><span class="goalstrip__v"><span class="goalstrip__mono">84,120 / 200,000 tokens · nudge at 70%</span></span></div>
         <div class="goalstrip__row"><span class="goalstrip__k">Last verdict</span><span class="goalstrip__v">continue — 2 blocking issues resolved</span></div>
+        <div class="goalstrip__row"><span class="goalstrip__k">Node</span><span class="goalstrip__v"><span class="goalstrip__mono">execute-migration · cause: verdict_continue</span></span></div>
+        <div class="goalstrip__row"><span class="goalstrip__k">Actions</span><span class="goalstrip__v"><span class="goalstrip__acts">
+          <button class="goalstrip__act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Draft goal command</button>
+          <button class="goalstrip__act" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Draft replacement</button>
+        </span></span></div>
       </div></div></div>
+    </div>
+    <p class="demo-cap">Strip states — blocked · done · moved (dot + fact carry the state; no pills)</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="goalstrip" data-state="blocked" data-open="false" style="margin-bottom:0">
+        <button class="goalstrip__line" type="button"><span class="goalstrip__dot"></span><span class="goalstrip__kicker">Goal</span><span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span><span class="goalstrip__fact">blocked · turn 7/20</span><span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      </div>
+      <div class="goalstrip" data-state="done" data-open="false" style="margin-bottom:0">
+        <button class="goalstrip__line" type="button"><span class="goalstrip__dot"></span><span class="goalstrip__kicker">Goal</span><span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span><span class="goalstrip__fact">complete · turn 12/20</span><span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+      </div>
+      <div class="goalstrip" data-state="moved" data-open="true" style="margin-bottom:0">
+        <button class="goalstrip__line" type="button"><span class="goalstrip__dot"></span><span class="goalstrip__kicker">Goal</span><span class="goalstrip__obj">Migrate session transcript to the calm-surface vocabulary</span><span class="goalstrip__fact">moved</span><span class="goalstrip__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+        <div class="disclose"><div><div class="goalstrip__body">
+          <div class="goalstrip__row"><span class="goalstrip__k">Session</span><span class="goalstrip__v">Goal work moved to a new active session — <a href="#">Open active session</a></span></div>
+        </div></div></div>
+      </div>
+    </div>
+    <p class="demo-cap">Window-head goal actions — state-gated, one at a time (production gates from <code>goal-status-controls.tsx</code>)</p>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;font-size:11px;color:var(--subtle)">
+      <span>active →</span><button class="btn btn--sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</button>
+      <span>paused →</span><button class="btn btn--sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><polygon points="5 3 19 12 5 21 5 3"/></svg>Resume</button>
+      <span>needs-approval →</span><button class="btn btn--sm btn--primary" type="button">Approve</button>
+      <span>settled →</span><button class="btn btn--sm btn--danger-ghost" type="button">Clear</button>
     </div>
     <p class="demo-cap">In-transcript goal marker (was a bordered card)</p>
     <div class="marker marker--goal" data-tone="info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       <span><b>Goal continuation</b> <span class="marker__meta">generation 2 · turn 3</span></span></div>
   </div>
   <ul class="rules">
-    <li><b>State dot carries status</b> — accent pulse = active, warning = blocked, success = done.
-        No pills, no second run-status pill, no progress-bar grid.</li>
-    <li><b>Meters become mono facts</b> — <code>turn 3/20 · ctx 41%</code>. A number the user can read
-        beats a 1.5px bar they have to decode.</li>
-    <li><b>Approve/Clear move to the window head</b> — they are session controls, not transcript content.</li>
+    <li><b>State dot carries status</b> — accent pulse = active, warning = blocked/paused,
+        success = done, faint = moved. No pills, no second run-status pill, no progress-bar grid.</li>
+    <li><b>Meters become mono facts</b> — <code>turn 3/20 · ctx 41%</code> on the line; tokens +
+        nudge threshold as a body Context row. Pending/unknown usage renders <code>ctx —</code>
+        with a body sentence. The 1.5px progress bars are dropped on purpose — the number is
+        the information.</li>
+    <li><b>Controls are state-gated window-head actions</b> — active → Pause · paused → Resume ·
+        needs-approval → Approve (primary) · terminal → Clear (danger ghost). Never more than one
+        goal action in the head at a time; they are session controls, not transcript content.</li>
+    <li><b>Prefill lives in the strip body</b> — "Draft goal command" / "Draft replacement" stage
+        the <code>/goal</code> command into the composer and never auto-send.</li>
+    <li><b>Moved goals keep their pointer</b> — the <code>moved</code> strip variant carries the
+        bound-session link in its body; the strip stays present for terminal snapshots.</li>
   </ul>
 </section>
 
@@ -543,10 +613,12 @@ exit code 1</pre></div></div></div></div>
       <tr><td>SessionDataEventCard</td><td><code>session-message-parts.tsx:17</code></td><td class="to">Marker line with mono meta · §07</td></tr>
       <tr><td>SessionMessageErrorNotice</td><td><code>session-thread.tsx:61</code></td><td class="to">Danger marker line (tokenized) · §07</td></tr>
       <tr><td>SessionResumeFailure</td><td><code>session-resume-failure.tsx:41</code></td><td class="to">The one banner + actions · §07</td></tr>
-      <tr><td>PermissionPrompt (sticky)</td><td><code>permission-prompt.tsx:69</code></td><td class="to">Composer dock · §08</td></tr>
-      <tr><td>ClarificationCard / Receipt</td><td><code>clarification-card.tsx:23</code></td><td class="to">Composer dock + receipt lines · §08</td></tr>
-      <tr><td>PermissionRejectedNotice</td><td><code>permission-prompt.tsx:242</code></td><td class="to">Receipt line · §08</td></tr>
-      <tr><td>GoalStatusChip + meters + controls</td><td><code>goal-status-chip.tsx:93</code></td><td class="to">Goal strip; controls → window head · §09</td></tr>
+      <tr><td>PermissionPrompt (sticky)</td><td><code>permission-prompt.tsx:69</code></td><td class="to">Composer dock — all 4 ACP decisions, reject split menu · §08</td></tr>
+      <tr><td>ClarificationCard / Receipt</td><td><code>clarification-card.tsx:23</code></td><td class="to">Composer dock: choices or free-text + deadline; receipt lines · §08</td></tr>
+      <tr><td>PermissionRejectedNotice</td><td><code>permission-prompt.tsx:242</code></td><td class="to">Receipt line (+ allowed receipt added) · §08</td></tr>
+      <tr><td>GoalStatusChip + meters + controls</td><td><code>goal-status-chip.tsx:93</code></td><td class="to">Goal strip; state-gated controls → window head; prefill → strip Actions · §09</td></tr>
+      <tr><td>ToolResultArtifact (preview / full result)</td><td><code>tool-result-artifact.tsx:21</code></td><td class="to">"Open full result" + byte meta in the detail rail · §04</td></tr>
+      <tr><td>SessionComposerQueuedPrompts strip</td><td><code>session-composer-queued-prompts.tsx:35</code></td><td class="to">.qstrip rows — steer / edit / remove kept · spec §2</td></tr>
       <tr><td>GoalPromptNotice</td><td><code>session-timeline-render.tsx:286</code></td><td class="to">Goal marker line · §09</td></tr>
       <tr><td>SessionChangedFilesRowView card</td><td><code>session-changed-files-row.tsx:54</code></td><td class="to">Outcome line + file lines · §10</td></tr>
       <tr><td>TodoWrite → GenericContent JSON</td><td><code>generic-content.tsx:24</code></td><td class="to">Task-list renderer · §10</td></tr>
@@ -569,6 +641,14 @@ document.addEventListener("click",(e)=>{
 /* demo ticker */
 (()=>{const el=document.querySelector("[data-tick]");if(!el)return;let s=12;
 setInterval(()=>{s++;el.textContent=s<60?s+"s":Math.floor(s/60)+"m "+(s%60)+"s";},1000);})();
+/* user-message clamp demo */
+document.addEventListener("click",(e)=>{
+  const b=e.target.closest(".msg-more");if(!b)return;
+  const bubble=b.closest(".msg-user").querySelector(".msg-user__bubble");
+  const clamped=bubble.getAttribute("data-clamped")==="true";
+  bubble.setAttribute("data-clamped",String(!clamped));
+  b.textContent=clamped?"Show less":"Show more";
+});
 </script>
 </body>
 </html>

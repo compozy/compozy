@@ -23,7 +23,7 @@ export const sessionWindowTestIds = {
   deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",
-  permissionPrompt: "permission-prompt",
+  permissionPrompt: "permission-dock",
   processingIndicator: "processing-indicator",
   resumeButton: "resume-button",
   stopButton: "stop-button",
@@ -1015,14 +1015,14 @@ export function toolApprovalGrantsSelectors(
 }
 
 export const sessionClarifyTestIds = {
-  card: "clarification-card",
-  question: "clarification-question",
-  choice: "clarification-choice",
-  textInput: "clarification-text-input",
-  submit: "clarification-submit",
+  card: "clarification-dock",
+  question: "clarification-dock-question",
+  choice: "clarification-dock-choice",
+  textInput: "clarification-dock-text-input",
+  submit: "clarification-dock-submit",
   receipt: "clarification-receipt",
   receiptAnswer: "clarification-receipt-answer",
-  error: "clarification-error",
+  error: "clarification-dock-error",
 } as const;
 
 export interface SessionClarifySelectors {
@@ -1048,7 +1048,7 @@ export function sessionClarifySelectors(
     receiptAnswer: page.getByTestId(sessionClarifyTestIds.receiptAnswer),
     error: page.getByTestId(sessionClarifyTestIds.error),
     choice: (index: number) =>
-      page.locator(`[data-testid="clarification-choice"][data-choice-index="${index}"]`),
+      page.locator(`[data-testid="${sessionClarifyTestIds.choice}"][data-choice-index="${index}"]`),
   };
 }
 

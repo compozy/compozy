@@ -17,9 +17,11 @@ const LABEL: Record<ToolCallStatus, string> = {
 
 type GlyphStatus = Exclude<ToolCallStatus, "pending" | "running">;
 
+// Calm-transcript status budget: only the failure × carries a signal hue.
+// Success is a GREY check — completion is the resting state, not an event.
 const TONE_CLASS: Record<GlyphStatus, string> = {
   failed: "text-danger",
-  success: "text-success",
+  success: "text-subtle",
   empty: "text-subtle",
 };
 
@@ -53,7 +55,7 @@ export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProp
         data-slot="tool-call-row-status"
         data-status={status}
         aria-label={label}
-        className={cn("size-3 shrink-0 text-muted", className)}
+        className={cn("size-3 shrink-0 text-subtle", className)}
       />
     );
   }

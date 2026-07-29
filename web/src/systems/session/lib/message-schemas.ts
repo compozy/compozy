@@ -1,6 +1,8 @@
 import { validateUIMessages } from "ai";
 import { z } from "zod";
 
+import { toolPartErrorText } from "./tool-part-error";
+
 import type { SessionMessage } from "../types";
 
 const compozyEventDataSchema = z.looseObject({
@@ -113,24 +115,6 @@ function toolCallIdForValidation(part: Record<string, unknown>, toolName: string
   );
 }
 
-function outputErrorText(part: Record<string, unknown>): string {
-  const direct = stringField(part, "errorText") ?? stringField(part, "error");
-  if (direct) {
-    return direct;
-  }
-
-  const output = part.output;
-  if (isRecord(output)) {
-    const fromOutput =
-      stringField(output, "error") ?? stringField(output, "text") ?? stringField(output, "title");
-    if (fromOutput) {
-      return fromOutput;
-    }
-  }
-
-  return "Tool execution failed";
-}
-
 function normalizeToolPartForValidation(part: unknown): unknown {
   if (!isToolPart(part)) {
     return part;
@@ -165,7 +149,7 @@ function normalizeToolPartForValidation(part: unknown): unknown {
       delete validationPart.errorText;
       return validationPart;
     case "output-error":
-      validationPart.errorText = outputErrorText(part);
+      validationPart.errorText = toolPartErrorText(part);
       delete validationPart.output;
       return validationPart;
     default:

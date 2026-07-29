@@ -18,6 +18,9 @@ export interface SessionTranscriptThreadState {
 export const SessionTranscriptMessagesContext = createContext<readonly ThreadMessage[] | undefined>(
   undefined
 );
+export const SessionDecisionMessagesContext = createContext<readonly ThreadMessage[] | undefined>(
+  undefined
+);
 export const SessionTranscriptStatusContext = createContext<
   SessionTranscriptThreadStatus | undefined
 >(undefined);

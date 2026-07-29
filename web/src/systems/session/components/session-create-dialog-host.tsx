@@ -41,6 +41,7 @@ export function SessionCreateDialogHost({
       onOpenProviderSettings={sessionCreate.openProviderSettings}
       onPromptChange={sessionCreate.onPromptChange}
       onRuntimeChange={sessionCreate.onRuntimeChange}
+      onRuntimeSpeedChange={sessionCreate.onRuntimeSpeedChange}
       onSessionNameChange={sessionCreate.onSessionNameChange}
       onSubmit={sessionCreate.submit}
       onWorkspaceChange={sessionCreate.onWorkspaceChange}
@@ -51,6 +52,7 @@ export function SessionCreateDialogHost({
       providersLoading={sessionCreate.providersLoading}
       runtimeModels={sessionCreate.runtimeModels}
       runtimeProviders={sessionCreate.runtimeProviders}
+      runtimeSpeed={sessionCreate.runtimeSpeed}
       runtimeValue={sessionCreate.runtimeValue}
       selectedAgentName={sessionCreate.selectedAgentName}
       sessionName={sessionCreate.sessionName}
