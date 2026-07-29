@@ -80,6 +80,45 @@ describe("extensions MSW handlers", () => {
     expect(detail.status).toBe(404);
   });
 
+  it("Should mirror the daemon's instance scope, log ring, and union install contract", async () => {
+    const global = (await (await fetch(`${API}/api/extensions`)).json()) as {
+      extensions: Array<{ name: string }>;
+    };
+    expect(global.extensions.some(extension => extension.name === "ops-dev-extension")).toBe(false);
+
+    const scoped = (await (await fetch(`${API}/api/extensions?workspace=ws_northstar`)).json()) as {
+      extensions: Array<{ dev?: boolean; name: string }>;
+    };
+    expect(scoped.extensions[0]).toMatchObject({ dev: true, name: "ops-dev-extension" });
+
+    const logs = (await (
+      await fetch(`${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar&after=2`)
+    ).json()) as { logs: Array<{ sequence: number }> };
+    expect(logs.logs.map(entry => entry.sequence)).toEqual([3]);
+
+    const blocked = await fetch(`${API}/api/extensions`, {
+      body: JSON.stringify({ ref: "acme/hello", source: "github" }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(blocked.status).toBe(422);
+
+    const consented = await fetch(`${API}/api/extensions`, {
+      body: JSON.stringify({ allow_unverified: true, ref: "acme/hello", source: "github" }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    expect(consented.status).toBe(201);
+    const installed = (await consented.json()) as {
+      extension: { digest_matched: boolean; name: string; source: string };
+    };
+    expect(installed.extension).toMatchObject({
+      digest_matched: true,
+      name: "hello",
+      source: "github",
+    });
+  });
+
   it("Should preserve not-found responses without mutating mock inventory", async () => {
     const missingExtensionRoutes = [
       ["/api/extensions/missing/provenance", "GET"],

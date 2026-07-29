@@ -299,4 +299,21 @@ describe("marketplace acquisition transport", () => {
       status: 409,
     });
   });
+
+  it("Should preserve the daemon diagnostic code for extension consent decisions", async () => {
+    mockJsonResponse(
+      {
+        diagnostic: { code: "extension_checksum_unverified" },
+        error: "extension checksum is not registry-verified",
+      },
+      { status: 422 }
+    );
+
+    await expect(
+      installMarketplaceExtension({ ref: "/srv/hello", source: "local_path" })
+    ).rejects.toMatchObject({
+      diagnosticCode: "extension_checksum_unverified",
+      status: 422,
+    });
+  });
 });

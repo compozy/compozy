@@ -16,6 +16,7 @@ import {
 } from "@compozy/ui";
 import { createElement } from "react";
 
+import { ExtensionTrustBadges } from "@/systems/extensions";
 import { deriveMCPManagementFilter } from "@/systems/settings";
 import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
 
@@ -55,6 +56,9 @@ function MarketplaceInstalledCard({
   );
   const isBundle = kind === "bundle";
   const isMcp = kind === "mcp";
+  // A dev overlay shadows the published row without owning it: enable/disable and marketplace
+  // updates act on the published extension, so this card must not offer them.
+  const isDevOverlay = item.extensionFacts?.dev === true;
   const detailKind = kind === "bundle" ? "bundle" : kind;
   const mcpStatus = item.mcpServer ? marketplaceMCPInstalledStatus(item.mcpServer) : null;
   const authorizeCta = mcpStatus?.authorize === true;
@@ -117,9 +121,13 @@ function MarketplaceInstalledCard({
           <div className="ml-auto flex items-center gap-1.5">
             {kind === "extension" ? (
               <Switch
-                aria-label={`Enable ${entry.name}`}
+                aria-label={
+                  isDevOverlay
+                    ? `Enable ${entry.name} · managed on the published extension`
+                    : `Enable ${entry.name}`
+                }
                 checked={item.extensionEnabled === true}
-                disabled={pending}
+                disabled={pending || isDevOverlay}
                 onCheckedChange={checked => onToggleEnabled(item, checked)}
               />
             ) : null}
@@ -134,8 +142,9 @@ function MarketplaceInstalledCard({
                 Authorize
               </Button>
             ) : null}
-            {entry.update_available ? (
+            {entry.update_available && !isDevOverlay ? (
               <Button
+                data-testid={`marketplace-installed-update-${entry.entry_id}`}
                 disabled={pending}
                 onClick={() => (isBundle ? onUpdateBundle(item) : onAction(entry))}
                 size="sm"
@@ -292,9 +301,6 @@ function InstalledCardHead({
             {item.profileName ? <span>{`profile ${item.profileName}`}</span> : null}
             {entry.kind !== "mcp" && item.scopeLabel ? <span>{item.scopeLabel}</span> : null}
             {item.skill?.source ? <span>{item.skill.source}</span> : null}
-            {entry.kind === "extension" && entry.trust?.decision ? (
-              <span>{entry.trust.decision === "verified" ? "verified" : "extension"}</span>
-            ) : null}
           </CatalogCard.Meta>
         </div>
       </div>
@@ -337,11 +343,7 @@ function InstalledPills({
           {mcpStatus.label}
         </Pill>
       ) : null}
-      {entry.kind === "extension" && entry.trust ? (
-        <Pill mono tone={entry.trust.decision === "verified" ? "success" : "warning"}>
-          {entry.trust.decision === "verified" ? "verified" : "unverified"}
-        </Pill>
-      ) : null}
+      {item.extensionFacts ? <ExtensionTrustBadges facts={item.extensionFacts} showSource /> : null}
       {entry.kind === "bundle" ? (
         <Pill mono tone="success">
           active

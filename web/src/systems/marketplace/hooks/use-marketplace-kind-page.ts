@@ -25,6 +25,7 @@ import {
   mergeMCPServers,
   type MarketplaceInstalledItem,
 } from "../lib/marketplace-installed-items";
+import { countMarketplaceUpdates } from "../lib/marketplace-updates";
 
 const SEARCH_DEBOUNCE_MS = 180;
 
@@ -45,6 +46,7 @@ export interface MarketplaceKindPageModel {
   marketplaceTotalExact: boolean;
   installedCount: number;
   updatesAvailable: number;
+  updatesAvailableExact: boolean;
   marketEntries: readonly MarketplaceListing[];
   installedItems: readonly MarketplaceInstalledItem[];
   mcpEditorServers: readonly SettingsMCPServerEntry[];
@@ -185,9 +187,9 @@ function useMarketplaceKindPage(
     mcpWorkspaceQuery.data?.mcp_servers ?? []
   );
 
-  const installedItems = buildInstalledItems({
+  const installedInventory = buildInstalledItems({
     kind,
-    query: routeQuery,
+    query: "",
     marketItems,
     skills: skillsQuery.data ?? [],
     extensions: extensionsQuery.data ?? [],
@@ -196,9 +198,27 @@ function useMarketplaceKindPage(
     listingBySlug,
     listingByEntryId,
   });
+  const installedItems = routeQuery
+    ? buildInstalledItems({
+        kind,
+        query: routeQuery,
+        marketItems,
+        skills: skillsQuery.data ?? [],
+        extensions: extensionsQuery.data ?? [],
+        activations: bundlesQuery.data ?? [],
+        mcpServers,
+        listingBySlug,
+        listingByEntryId,
+      })
+    : installedInventory;
 
   const installedCount = installedItems.length;
-  const updatesAvailable = installedItems.filter(item => item.entry.update_available).length;
+  // Counted from the complete installed projection before scope hiding, unioned with catalog
+  // entries that already report an update, so the landing count is never structurally zero.
+  const updatesAvailable = countMarketplaceUpdates({
+    installedItems: installedInventory,
+    marketItems,
+  });
 
   const marketEntries = scope === "market" ? marketItems : [];
 
@@ -253,6 +273,8 @@ function useMarketplaceKindPage(
     marketplaceTotalExact: exactMarketplaceTotal !== undefined,
     installedCount,
     updatesAvailable,
+    // A partial catalog can still hide an update, so the count never claims to be complete.
+    updatesAvailableExact: !marketQuery.hasNextPage && marketplaceContinuationError === null,
     marketEntries,
     installedItems: scope === "installed" ? installedItems : [],
     mcpEditorServers: [

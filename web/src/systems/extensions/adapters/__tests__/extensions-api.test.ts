@@ -12,6 +12,7 @@ import {
   getBundleActivation,
   getExtensionProvenance,
   listBundleActivations,
+  listExtensionLogs,
   listExtensions,
   removeExtension,
   updateBundleActivation,
@@ -37,7 +38,7 @@ describe("extensions management reads", () => {
   it("Should read extension inventory and provenance with abortable generated requests", async () => {
     const controller = new AbortController();
     mockJsonResponse({ extensions: extensionFixtures });
-    await expect(listExtensions(controller.signal)).resolves.toEqual(extensionFixtures);
+    await expect(listExtensions({}, controller.signal)).resolves.toEqual(extensionFixtures);
     await expectFetchRequest({ path: "/api/extensions", signal: controller.signal });
 
     mockJsonResponse({ provenance: extensionProvenanceFixtures["otel-bridge"] });
@@ -100,13 +101,42 @@ describe("extensions management mutations", () => {
     });
 
     mockEmptyResponse({ status: 204 });
-    await expect(removeExtension("otel-bridge", controller.signal)).resolves.toBeUndefined();
+    await expect(removeExtension("otel-bridge", {}, controller.signal)).resolves.toBeUndefined();
     await expectFetchRequest({
       callIndex: 1,
       method: "DELETE",
       path: "/api/extensions/otel-bridge",
       signal: controller.signal,
     });
+  });
+
+  it("Should bind the workspace instance on scoped reads, removal, and log history", async () => {
+    mockJsonResponse({ extensions: extensionFixtures });
+    await listExtensions({ workspaceId: "ws_northstar" });
+    await expectFetchRequest({ path: "/api/extensions?workspace=ws_northstar" });
+
+    mockEmptyResponse({ status: 204 });
+    await removeExtension("otel-bridge", { workspaceId: "ws_northstar" });
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "DELETE",
+      path: "/api/extensions/otel-bridge?workspace=ws_northstar",
+    });
+
+    mockJsonResponse({ logs: [] });
+    await expect(
+      listExtensionLogs("otel-bridge", { after: 12, workspaceId: "ws_northstar" })
+    ).resolves.toEqual([]);
+    await expectFetchRequest({
+      callIndex: 2,
+      path: "/api/extensions/otel-bridge/logs?workspace=ws_northstar&after=12",
+    });
+  });
+
+  it("Should address the global instance when no workspace is active", async () => {
+    mockJsonResponse({ logs: [] });
+    await listExtensionLogs("otel-bridge", { workspaceId: "   " });
+    await expectFetchRequest({ path: "/api/extensions/otel-bridge/logs" });
   });
 
   it("Should confirm a network requirement when updating and deactivating a bundle", async () => {

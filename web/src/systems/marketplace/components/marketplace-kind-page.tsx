@@ -16,6 +16,7 @@ import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { MCPServerEditor } from "@/systems/settings";
 import { MarketplaceDegradedNotice } from "./marketplace-degraded-notice";
 import { MarketplaceKindResults } from "./marketplace-kind-results";
+import { useExtensionInstallDialog } from "./use-extension-install-dialog";
 import { useMarketplaceActionController } from "./use-marketplace-action-controller";
 import { MARKETPLACE_SCOPE_ICONS, marketplaceKindConfig } from "../lib/marketplace-kind-config";
 import { useMarketplaceKindPage } from "../hooks/use-marketplace-kind-page";
@@ -68,15 +69,16 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
     installedItems: page.installedItems,
     onViewInstalled: () => page.setScope("installed"),
   });
+  const extensionInstall = useExtensionInstallDialog({
+    onInstalled: () => page.setScope("installed"),
+  });
   const config = marketplaceKindConfig(kind);
   const ScopeInstalledIcon = MARKETPLACE_SCOPE_ICONS.installed;
   const ScopeMarketIcon = MARKETPLACE_SCOPE_ICONS.market;
   const headCount = page.scope === "market" ? page.marketplaceTotal : page.installedCount;
   const Icon = config.icon;
-  const updatesLabel =
-    page.updatesAvailable === 1
-      ? "1 update available"
-      : `${page.updatesAvailable} updates available`;
+  const updatesNoun = page.updatesAvailable === 1 ? "update available" : "updates available";
+  const updatesLabel = page.updatesAvailableExact ? updatesNoun : `${updatesNoun} so far`;
 
   useTopbarSlot({
     glyph: <Icon />,
@@ -176,6 +178,17 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
               onChange={page.setScope}
               value={page.scope}
             />
+            {kind === "extension" ? (
+              <Button
+                data-testid="marketplace-extension-install"
+                onClick={extensionInstall.open}
+                size="sm"
+                type="button"
+              >
+                <Plus aria-hidden="true" className="size-3" />
+                Install extension
+              </Button>
+            ) : null}
             {kind === "mcp" && page.scope === "installed" ? (
               <Button
                 data-testid="marketplace-mcp-add"
@@ -213,10 +226,13 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
             <span aria-hidden="true" className="mx-1.5 text-faint">
               ·
             </span>
-            <span className="font-mono text-mono-id tabular-nums text-muted">
+            <span
+              className="font-mono text-mono-id tabular-nums text-muted"
+              data-testid={`marketplace-kind-updates-${kind}`}
+            >
               {page.updatesAvailable}
             </span>{" "}
-            {updatesLabel.replace(/^\d+\s/, "")}
+            {updatesLabel}
           </>
         ) : null}
       </p>
@@ -242,6 +258,7 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
       />
 
       {actions.dialogs}
+      {extensionInstall.dialogs}
       {mcpEditor.editorProps ? <MCPServerEditor {...mcpEditor.editorProps} /> : null}
       <span aria-live="polite" className="sr-only">
         {page.query

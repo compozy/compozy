@@ -785,16 +785,18 @@ func TestClientFetchRequestedReleaseByTag(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	release, err := client.fetchRequestedRelease(
-		context.Background(),
-		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
-		"v1.2.3",
-	)
-	if err != nil {
-		t.Fatalf("fetchRequestedRelease() error = %v", err)
-	}
-	if release.TagName != "v1.2.3" {
-		t.Fatalf("fetchRequestedRelease() tag = %q, want v1.2.3", release.TagName)
+	for _, version := range []string{"v1.2.3", "1.2.3"} {
+		release, err := client.fetchRequestedRelease(
+			context.Background(),
+			repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
+			version,
+		)
+		if err != nil {
+			t.Fatalf("fetchRequestedRelease(%q) error = %v", version, err)
+		}
+		if release.TagName != "v1.2.3" {
+			t.Fatalf("fetchRequestedRelease(%q) tag = %q, want v1.2.3", version, release.TagName)
+		}
 	}
 }
 

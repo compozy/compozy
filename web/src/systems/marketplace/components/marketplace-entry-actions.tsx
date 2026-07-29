@@ -27,10 +27,17 @@ function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
   }
   if (entry.kind === "extension" && entry.trust) {
     const warningCount = entry.trust.warnings?.length ?? 0;
-    if (entry.trust.decision === "verified") {
+    if (entry.trust.checksum_verified) {
       return (
         <Pill mono tone="success">
-          verified
+          checksum verified
+        </Pill>
+      );
+    }
+    if (entry.trust.decision === "verified") {
+      return (
+        <Pill mono tone="info">
+          {`${entry.trust.registry_tier.replaceAll("_", " ")} catalog`}
         </Pill>
       );
     }

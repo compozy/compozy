@@ -20,8 +20,19 @@ const mocks = vi.hoisted(() => ({
   beginAuthorize: vi.fn(),
   disableSkill: vi.fn(),
   disableSkillError: null as Error | null,
+  extensionConsecutiveFailures: 0,
+  extensionDev: false,
+  extensionLogs: [] as Array<{ message: string; sequence: number; timestamp: string }>,
   extensionNavigate: vi.fn(),
+  extensionOriginPath: undefined as string | undefined,
+  extensionInstalledFrom: "marketplace_registry",
+  extensionRemoteVersion: undefined as string | undefined,
+  extensionDetailOptions: undefined as { updateVersion?: string } | undefined,
+  extensionRequestUpdate: vi.fn(),
+  extensionRestartBackoffMs: 0,
   extensionToggle: vi.fn(),
+  extensionUpdateAvailable: false,
+  extensionWorkspaceId: null as string | null,
   skillContent: "# Bundled skill\n\nFollow the incident checklist.",
   skillError: null as Error | null,
   extensionError: null as Error | null,
@@ -172,11 +183,34 @@ vi.mock("@/systems/skill", async importOriginal => {
   };
 });
 
-vi.mock("@/systems/extensions", () => ({
-  ExtensionProvenanceDialog: () => null,
-  RemoveExtensionDialog: () => null,
-  VerifiedMark: () => <span>checksum verified</span>,
-  useExtensionDetailState: () => ({
+vi.mock("@/systems/extensions", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/extensions")>();
+  return {
+    ...actual,
+    ExtensionProvenanceDialog: () => null,
+    RemoveExtensionDialog: () => null,
+    useExtensionDetailState: (_name: string, options?: { updateVersion?: string }) => {
+      mocks.extensionDetailOptions = options;
+      return extensionDetailStateStub();
+    },
+  };
+});
+
+function extensionDetailStateStub() {
+  return {
+    logs: {
+      entries: mocks.extensionLogs,
+      error: null,
+      follow: true,
+      isLoading: false,
+      refetch: vi.fn(),
+      setFollow: vi.fn(),
+      status: "live" as const,
+    },
+    update: { error: null, isPending: false },
+    requestUpdate: mocks.extensionRequestUpdate,
+    submitUpdate: vi.fn(),
+    workspaceId: mocks.extensionWorkspaceId,
     bundles: {
       data: [
         {
@@ -205,24 +239,35 @@ vi.mock("@/systems/extensions", () => ({
               ],
               enabled: true,
               capabilities: ["tool.provider"],
-              permissions: ["network/send"],
+              consecutive_failures: mocks.extensionConsecutiveFailures,
               daemon_running: true,
+              dev: mocks.extensionDev,
+              digest_matched: false,
               missing_env: ["PAGER_TOKEN"],
               name: "ops-extension",
               health: "healthy",
               health_message: "Runtime handshake is healthy.",
+              origin_path: mocks.extensionOriginPath,
+              overrides_published: mocks.extensionDev,
+              permissions: ["network/send"],
               pid: 4242,
               provenance: {
                 checksum_sha256: "a".repeat(64),
                 checksum_verified: true,
-                installed_from: "marketplace",
-                registry_tier: "verified",
+                digest_matched: false,
+                installed_from: mocks.extensionInstalledFrom,
+                registry_tier: "official",
                 slug: "compozy/ops-extension",
               },
+              remote_version: mocks.extensionRemoteVersion,
               requires_env: ["PAGER_TOKEN", "REGION"],
+              restart_backoff_ms: mocks.extensionRestartBackoffMs,
               source: "marketplace",
               state: "running",
+              type: "backend",
+              update_available: mocks.extensionUpdateAvailable,
               uptime_seconds: 3661,
+              version: "0.5.2",
             },
           },
       error: mocks.extensionError,
@@ -235,8 +280,8 @@ vi.mock("@/systems/extensions", () => ({
     requestProvenance: vi.fn(),
     requestRemoval: vi.fn(),
     toggle: { isPending: false, mutate: mocks.extensionToggle },
-  }),
-}));
+  };
+}
 
 describe("Marketplace installed-detail management", () => {
   beforeEach(() => {
@@ -245,6 +290,16 @@ describe("Marketplace installed-detail management", () => {
     mocks.disableSkillError = null;
     mocks.extensionError = null;
     mocks.extensionLoading = false;
+    mocks.extensionConsecutiveFailures = 0;
+    mocks.extensionDev = false;
+    mocks.extensionLogs = [];
+    mocks.extensionOriginPath = undefined;
+    mocks.extensionInstalledFrom = "marketplace_registry";
+    mocks.extensionRemoteVersion = undefined;
+    mocks.extensionDetailOptions = undefined;
+    mocks.extensionRestartBackoffMs = 0;
+    mocks.extensionUpdateAvailable = false;
+    mocks.extensionWorkspaceId = null;
     mocks.authorizePhase = "idle";
     mocks.mcpQueryCalls.length = 0;
     mocks.globalMCP = { data: undefined, error: null, isLoading: false, refetch: vi.fn() };
@@ -296,13 +351,92 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("Runtime handshake is healthy.")).toBeInTheDocument();
     expect(screen.getByText("4242")).toBeInTheDocument();
     expect(screen.getByText("1h 1m")).toBeInTheDocument();
-    expect(screen.getAllByText("verified")).toHaveLength(2);
+    expect(screen.getByText("official")).toBeInTheDocument();
+    expect(screen.getByText("verified")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open active bundle →" })).toHaveAttribute(
       "href",
       "/marketplace/bundles/activations/activation-ops-starter"
     );
     await user.click(screen.getByTestId("extension-enabled-switch"));
     expect(mocks.extensionToggle).toHaveBeenCalledWith({ enabled: false, name: "ops-extension" });
+  });
+
+  it("Should report crash-loop counters, integrity evidence, and the log stream state", () => {
+    mocks.extensionConsecutiveFailures = 3;
+    mocks.extensionRestartBackoffMs = 4000;
+    mocks.extensionLogs = [
+      { message: "listening on :7788", sequence: 12, timestamp: "2026-07-20T10:00:00Z" },
+    ];
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.getByTestId("extension-consecutive-failures")).toHaveTextContent("3");
+    expect(screen.getByTestId("extension-restart-backoff")).toHaveTextContent("4000 ms");
+    expect(screen.getByTestId("extension-provenance-digest")).toHaveTextContent(
+      "no digest recorded"
+    );
+    expect(screen.getByTestId("extension-checksum-verified-badge")).toBeInTheDocument();
+    expect(screen.queryByTestId("extension-digest-matched-badge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("extension-logs-lines")).toHaveTextContent("listening on :7788");
+    expect(screen.getByTestId("extension-logs-status")).toHaveTextContent("Following live");
+  });
+
+  it("Should reserve verified treatment for a curated pinned checksum", () => {
+    mocks.extensionInstalledFrom = "local_path";
+
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.queryByTestId("extension-checksum-verified-badge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("extension-provenance-checksum")).toHaveTextContent("not pinned");
+    expect(screen.getByTestId("extension-source-badge")).toHaveTextContent("Local path");
+  });
+
+  it("Should offer the update action only for a marketplace-managed published row", async () => {
+    const user = userEvent.setup();
+    mocks.extensionUpdateAvailable = true;
+    mocks.extensionRemoteVersion = "v0.5.2";
+    render(
+      <MarketplaceDetailExtensionManage
+        catalogUpdateAvailable
+        catalogVersion="0.6.0"
+        name="ops-extension"
+      />
+    );
+
+    const updateAction = screen.getByTestId("extension-update-action");
+    expect(updateAction).toHaveTextContent("Update to v0.6.0");
+    expect(mocks.extensionDetailOptions).toEqual({
+      logEventSourceFactory: undefined,
+      updateVersion: "0.6.0",
+    });
+    await user.click(updateAction);
+
+    expect(mocks.extensionRequestUpdate).toHaveBeenCalled();
+  });
+
+  it("Should isolate published-row actions from a workspace dev overlay", async () => {
+    const user = userEvent.setup();
+    mocks.extensionDev = true;
+    mocks.extensionUpdateAvailable = true;
+    mocks.extensionOriginPath = "/Users/dev/src/ops-extension";
+    mocks.extensionWorkspaceId = "ws_northstar";
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.getByTestId("extension-dev-badge")).toHaveTextContent("dev");
+    expect(screen.getByTestId("extension-overrides-published-badge")).toHaveTextContent(
+      "overrides published"
+    );
+    expect(screen.getByTestId("extension-origin-path")).toHaveTextContent(
+      "/Users/dev/src/ops-extension"
+    );
+    expect(screen.queryByTestId("extension-update-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("extension-enabled-switch")).toHaveAttribute("aria-disabled", "true");
+
+    await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "Unlink dev overlay…" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Provenance" })).not.toBeInTheDocument();
   });
 
   it("Should show a recoverable state when installed extension management fails", () => {

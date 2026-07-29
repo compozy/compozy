@@ -70,7 +70,8 @@ function MarketplaceActionDialogs({
       ) : null}
       {trustEntry ? (
         <ExtensionTrustDialog
-          entry={trustEntry}
+          name={trustEntry.name}
+          warnings={trustEntry.trust?.warnings}
           error={trustError}
           onConfirm={onConfirmTrust}
           onOpenChange={open => {

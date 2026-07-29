@@ -18,7 +18,10 @@ import {
 
 import { useExtensionProvenance } from "../hooks/use-extensions";
 import { useRemoveExtension } from "../hooks/use-extension-actions";
+import { extensionSourceKindLabel } from "../lib/extension-source-kind";
+import { extensionTrustFacts } from "../lib/extension-trust-facts";
 import type { BundleActivation, ExtensionEntry, ExtensionProvenance } from "../types";
+import { ExtensionTrustBadges } from "./extension-trust-badges";
 
 export function ExtensionProvenanceDialog({
   extension,
@@ -66,9 +69,12 @@ export function ExtensionProvenanceDialog({
 
 function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
   return (
-    <dl className="divide-y divide-line-soft">
-      <ProvenanceRow term="Installed from">
-        <code className="break-all font-mono text-xs text-fg">
+    <dl className="divide-y divide-line-soft" data-testid="extension-provenance-fields">
+      <ProvenanceRow term="Source kind">
+        <span className="text-xs text-fg" data-testid="extension-provenance-source-kind">
+          {extensionSourceKindLabel(provenance.installed_from)}
+        </span>
+        <code className="break-all font-mono text-mono-id text-muted">
           {provenance.installed_from || "—"}
         </code>
       </ProvenanceRow>
@@ -83,6 +89,19 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
         ) : (
           <code className="font-mono text-xs text-fg">—</code>
         )}
+      </ProvenanceRow>
+      <ProvenanceRow term="Archive digest">
+        {provenance.archive_digest_sha256 ? (
+          <MonoId value={provenance.archive_digest_sha256} />
+        ) : (
+          <code className="font-mono text-xs text-fg">—</code>
+        )}
+      </ProvenanceRow>
+      <ProvenanceRow term="Integrity and trust">
+        <ExtensionTrustBadges facts={extensionTrustFacts(provenance)} showRegistryTier={false} />
+        {!provenance.digest_matched && !provenance.checksum_verified ? (
+          <span className="text-xs text-muted">No integrity evidence was recorded.</span>
+        ) : null}
       </ProvenanceRow>
       <ProvenanceRow term="Registry tier">
         <code className="font-mono text-xs text-fg">{provenance.registry_tier || "—"}</code>
@@ -131,6 +150,9 @@ export function RemoveExtensionDialog({
   const blocked = !extension || !dependenciesReady || blockers.length > 0;
   const capabilityCount = extension?.capabilities?.length ?? 0;
   const permissions = extension?.permissions ?? [];
+  // A dev overlay is a workspace link over the published row: unlinking it never deletes the
+  // published installation, so the copy must not promise removal.
+  const isDevOverlay = extension?.dev === true;
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
@@ -139,17 +161,28 @@ export function RemoveExtensionDialog({
           ? { disabled: true, "data-testid": "remove-extension-confirm" }
           : { "data-testid": "remove-extension-confirm" }
       }
-      confirmLabel="Remove extension"
+      confirmLabel={isDevOverlay ? "Unlink dev overlay" : "Remove extension"}
       confirmTyping={extension?.name}
-      description={`Removes the installed package and registered runtime resources for ${extension?.name ?? "this extension"}.`}
+      description={
+        isDevOverlay
+          ? `Unlinks the workspace dev overlay for ${extension?.name ?? "this extension"}. The published installation stays in place.`
+          : `Removes the installed package and registered runtime resources for ${extension?.name ?? "this extension"}.`
+      }
       error={remove.error?.message}
       isPending={remove.isPending}
       note={
         <div className="space-y-1">
-          <p>
-            This deletes local extension files known to provenance and unregisters {capabilityCount}
-            capabilities.
-          </p>
+          {isDevOverlay ? (
+            <p>
+              This workspace stops running the linked generation and falls back to the published
+              extension. Files under the origin path are left untouched.
+            </p>
+          ) : (
+            <p>
+              This deletes local extension files known to provenance and unregisters{" "}
+              {capabilityCount} capabilities.
+            </p>
+          )}
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.
           </p>
@@ -179,13 +212,13 @@ export function RemoveExtensionDialog({
       noteTone={!dependenciesReady || blockers.length > 0 ? "warning" : "neutral"}
       onConfirm={async () => {
         if (!extension || blocked) return;
-        await remove.mutateAsync(extension.name);
+        await remove.mutateAsync({ dev: isDevOverlay, name: extension.name });
         onOpenChange(false);
         onRemoved?.();
       }}
       onOpenChange={onOpenChange}
       open={open}
-      title={`Remove ${extension?.name ?? "extension"}`}
+      title={`${isDevOverlay ? "Unlink" : "Remove"} ${extension?.name ?? "extension"}`}
       tone="danger"
       confirmIcon={PackageX}
       contentProps={{ "data-testid": "remove-extension-dialog" }}

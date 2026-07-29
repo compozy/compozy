@@ -30219,7 +30219,10 @@ export interface operations {
   };
   listExtensions: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -31145,7 +31148,10 @@ export interface operations {
   };
   getExtension: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */
@@ -31626,7 +31632,10 @@ export interface operations {
   };
   removeExtension: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Extension name */

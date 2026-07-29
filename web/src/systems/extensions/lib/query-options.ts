@@ -4,17 +4,27 @@ import {
   getBundleActivation,
   getExtensionProvenance,
   listBundleActivations,
+  listExtensionLogs,
   listExtensions,
 } from "../adapters/extensions-api";
+import type { ExtensionInstanceScope } from "../types";
 import { extensionKeys } from "./query-keys";
 
 const INVENTORY_STALE_TIME = 30_000;
 
-export const extensionsListOptions = () =>
+export const extensionsListOptions = (scope: ExtensionInstanceScope = {}) =>
   queryOptions({
-    queryKey: extensionKeys.list(),
-    queryFn: ({ signal }) => listExtensions(signal),
+    queryKey: extensionKeys.list(scope.workspaceId),
+    queryFn: ({ signal }) => listExtensions(scope, signal),
     staleTime: INVENTORY_STALE_TIME,
+  });
+
+export const extensionLogsOptions = (name: string, scope: ExtensionInstanceScope = {}) =>
+  queryOptions({
+    queryKey: extensionKeys.logs(name, scope.workspaceId),
+    queryFn: ({ signal }) => listExtensionLogs(name, scope, signal),
+    enabled: name.length > 0,
+    staleTime: 0,
   });
 
 export const extensionProvenanceOptions = (name: string, enabled = true) =>

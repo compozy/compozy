@@ -4,7 +4,10 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   bundleActivationFixtures,
+  DEV_EXTENSION_WORKSPACE_ID,
+  devExtensionFixture,
   extensionFixtures,
+  extensionLogFixtures,
   extensionProvenanceFixtures,
 } from "./fixtures";
 import type { BundleActivation, ExtensionEntry } from "../types";
@@ -33,8 +36,60 @@ function activationById(id: string) {
   return bundleActivationsState.find(activation => activation.id === id);
 }
 
+/** Mirrors the daemon: `?workspace=` resolves that workspace's instances, absent the global rows. */
+function extensionsForWorkspace(workspace: string): ExtensionEntry[] {
+  if (workspace === "") return extensionsState;
+  const overlays =
+    workspace === DEV_EXTENSION_WORKSPACE_ID ? [structuredClone(devExtensionFixture)] : [];
+  return [...overlays, ...extensionsState];
+}
+
 export const handlers: HttpHandler[] = [
-  compozyApiMock.get("/api/extensions", () => HttpResponse.json({ extensions: extensionsState })),
+  compozyApiMock.get("/api/extensions", ({ request }) => {
+    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
+    return HttpResponse.json({ extensions: extensionsForWorkspace(workspace) });
+  }),
+  compozyApiMock.post("/api/extensions", async ({ request }) => {
+    const body = (await request.json()) as {
+      allow_unverified?: boolean;
+      ref?: string;
+      source?: string;
+    };
+    const source = body.source?.trim() ?? "";
+    const ref = body.ref?.trim() ?? "";
+    if (source === "" || ref === "") {
+      return HttpResponse.json({ error: "extension source and ref are required" }, { status: 400 });
+    }
+    if (!["curated", "github", "git", "local_path"].includes(source)) {
+      return HttpResponse.json(
+        { error: `unsupported extension source "${source}"` },
+        { status: 400 }
+      );
+    }
+    if (source !== "curated" && body.allow_unverified !== true) {
+      return HttpResponse.json(
+        { error: "extension trust decision required: rerun with allow_unverified" },
+        { status: 422 }
+      );
+    }
+    const installed: ExtensionEntry = {
+      ...structuredClone(extensionFixtures[0]!),
+      digest_matched: source === "github",
+      name: ref.split("/").pop() ?? ref,
+      provenance: undefined,
+      source,
+      trust: undefined,
+      update_available: false,
+    };
+    extensionsState = [...extensionsState, installed];
+    return HttpResponse.json({ extension: installed }, { status: 201 });
+  }),
+  compozyApiMock.get("/api/extensions/{name}/logs", ({ params, request }) => {
+    const name = String(params.name);
+    const after = Number(new URL(request.url).searchParams.get("after") ?? "0");
+    const logs = (extensionLogFixtures[name] ?? []).filter(entry => entry.sequence > after);
+    return HttpResponse.json({ logs });
+  }),
   compozyApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
     const name = String(params.name);
     const provenance = extensionProvenanceFixtures[name];

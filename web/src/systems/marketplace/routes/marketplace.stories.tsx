@@ -9,9 +9,23 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { marketplaceDetails, marketplaceSearchFixture } from "@/systems/marketplace/mocks";
+import { devExtensionFixture, extensionFixtures } from "@/systems/extensions/mocks";
+import {
+  marketplaceDetails,
+  marketplaceListings,
+  marketplaceSearchFixture,
+} from "@/systems/marketplace/mocks";
 import { mcpManagementCollectionFixture } from "@/systems/settings/mocks";
 import { skillFixtures } from "@/systems/skill/mocks";
+
+const updatableExtensionListing = {
+  ...marketplaceListings.extension[0]!,
+  installed: true,
+  installed_name: "otel-bridge",
+  installed_version: "0.5.2",
+  update_available: true,
+  version: "0.7.0",
+};
 
 const gitFlowSkill = {
   ...skillFixtures[0]!,
@@ -231,6 +245,85 @@ export const DetailExtensionInstalled: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Landing count and card affordance for a catalog entry the daemon reports as updatable. */
+export const ExtensionsUpdateAvailable: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extensions"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.get("/api/marketplace/{kind}", () =>
+          HttpResponse.json({
+            items: [updatableExtensionListing],
+            kind: "extension",
+            stale: false,
+            total: 1,
+          })
+        ),
+      ],
+      extensions: [
+        compozyApiMock.get("/api/extensions", () =>
+          HttpResponse.json({
+            extensions: [
+              {
+                ...extensionFixtures[0]!,
+                marketplace: updatableExtensionListing,
+                remote_version: "0.7.0",
+                update_available: true,
+              },
+            ],
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Workspace dev overlay: four distinct labels, crash-loop counters, origin path, and the log ring. */
+export const DetailExtensionDevOverlay: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/ops-dev-extension"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+          HttpResponse.json({
+            entry: {
+              description: "Workspace dev build linked from a local generation.",
+              entry_id: "ops-dev-extension",
+              installed: true,
+              installed_name: "ops-dev-extension",
+              installed_version: "0.2.0-dev",
+              kind: "extension",
+              name: "ops-dev-extension",
+              source: "dev",
+              update_available: false,
+            },
+          })
+        ),
+      ],
+      extensions: [
+        compozyApiMock.get("/api/extensions", () =>
+          HttpResponse.json({ extensions: [devExtensionFixture] })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const devBadge = await canvas.findByTestId("extension-dev-badge");
+    await userEvent.click(await canvas.findByTestId("extension-logs-follow"));
+    await expect(canvas.findByTestId("extension-logs-lines")).resolves.toHaveTextContent(
+      "tool.provider registered: archive"
+    );
+    // Anchor the capture on the overlay badges rather than wherever the toggle left the scroll.
+    devBadge.scrollIntoView({ block: "center" });
+  },
 };
 
 export const DetailMcpInstalled: Story = {

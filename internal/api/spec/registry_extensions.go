@@ -2,6 +2,11 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+// specExtensionWorkspaceParamDescription documents the already-supported instance-scope selector
+// shared by the extension read and remove operations.
+const specExtensionWorkspaceParamDescription = "Operator workspace reference; " +
+	"omit for the global instance"
+
 func registryExtensionOperations() []OperationSpec {
 	return []OperationSpec{
 		listExtensionsOperationSpec(),
@@ -113,6 +118,9 @@ func listExtensionsOperationSpec() OperationSpec {
 		Summary:     "List installed extensions",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionsResponse{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
@@ -149,6 +157,7 @@ func getExtensionOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
@@ -191,6 +200,7 @@ func removeExtensionOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionRemoveResponse{}},

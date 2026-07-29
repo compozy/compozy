@@ -231,6 +231,22 @@ export const knowledgeOperatorTestIds = {
 
 export const marketplaceOperatorTestIds = {
   bundleActivateConfirm: "bundle-activate-confirm",
+  extensionInstallAllowUnverified: "extension-install-allow-unverified",
+  extensionInstallDialog: "extension-install-dialog",
+  extensionInstallEntry: "marketplace-extension-install",
+  extensionInstallError: "extension-install-error",
+  extensionInstallRef: "extension-install-ref",
+  extensionInstallRefError: "extension-install-ref-error",
+  extensionInstallSubmit: "extension-install-submit",
+  extensionDevBadge: "extension-dev-badge",
+  extensionLogsFollow: "extension-logs-follow",
+  extensionLogsLines: "extension-logs-lines",
+  extensionLogsPanel: "extension-logs-panel",
+  extensionLogsStatus: "extension-logs-status",
+  extensionOriginPath: "extension-origin-path",
+  extensionOverridesPublishedBadge: "extension-overrides-published-badge",
+  extensionUpdateAction: "extension-update-action",
+  extensionUpdateConsentConfirm: "extension-update-consent-confirm",
   bundleActivationDialog: "bundle-activation-dialog",
   bundlePreviewError: "bundle-preview-error",
   detail: "marketplace-detail",
@@ -480,6 +496,24 @@ export interface KnowledgeOperatorSelectors {
 
 export interface MarketplaceOperatorSelectors {
   action(entryId: string): Locator;
+  extensionDevBadge: Locator;
+  extensionInstallAllowUnverified: Locator;
+  extensionInstallDialog: Locator;
+  extensionInstallEntry: Locator;
+  extensionInstallError: Locator;
+  extensionInstallRef: Locator;
+  extensionInstallRefError: Locator;
+  extensionInstallSubmit: Locator;
+  extensionInstallSource(source: string): Locator;
+  extensionLogsFollow: Locator;
+  extensionLogsLines: Locator;
+  extensionLogsPanel: Locator;
+  extensionLogsStatus: Locator;
+  extensionOriginPath: Locator;
+  extensionOverridesPublishedBadge: Locator;
+  extensionUpdateAction: Locator;
+  extensionUpdateConsentConfirm: Locator;
+  kindUpdates(kind: string): Locator;
   bundleActivateConfirm: Locator;
   bundleActivationDialog: Locator;
   bundlePreviewError: Locator;
@@ -1176,6 +1210,31 @@ export function marketplaceOperatorSelectors(
     bundlePreviewError: page.getByTestId(marketplaceOperatorTestIds.bundlePreviewError),
     card: (entryId: string) => page.getByTestId(`marketplace-card-${entryId}`),
     detail: page.getByTestId(marketplaceOperatorTestIds.detail),
+    extensionDevBadge: page.getByTestId(marketplaceOperatorTestIds.extensionDevBadge),
+    extensionInstallAllowUnverified: page.getByTestId(
+      marketplaceOperatorTestIds.extensionInstallAllowUnverified
+    ),
+    extensionInstallDialog: page.getByTestId(marketplaceOperatorTestIds.extensionInstallDialog),
+    extensionInstallEntry: page.getByTestId(marketplaceOperatorTestIds.extensionInstallEntry),
+    extensionInstallError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallError),
+    extensionInstallRef: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRef),
+    extensionInstallRefError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRefError),
+    extensionInstallSource: (source: string) =>
+      page.getByTestId(`extension-install-source-${source}`),
+    extensionInstallSubmit: page.getByTestId(marketplaceOperatorTestIds.extensionInstallSubmit),
+    extensionLogsFollow: page.getByTestId(marketplaceOperatorTestIds.extensionLogsFollow),
+    extensionLogsLines: page.getByTestId(marketplaceOperatorTestIds.extensionLogsLines),
+    extensionLogsPanel: page.getByTestId(marketplaceOperatorTestIds.extensionLogsPanel),
+    extensionLogsStatus: page.getByTestId(marketplaceOperatorTestIds.extensionLogsStatus),
+    extensionOriginPath: page.getByTestId(marketplaceOperatorTestIds.extensionOriginPath),
+    extensionOverridesPublishedBadge: page.getByTestId(
+      marketplaceOperatorTestIds.extensionOverridesPublishedBadge
+    ),
+    extensionUpdateAction: page.getByTestId(marketplaceOperatorTestIds.extensionUpdateAction),
+    extensionUpdateConsentConfirm: page.getByTestId(
+      marketplaceOperatorTestIds.extensionUpdateConsentConfirm
+    ),
+    kindUpdates: (kind: string) => page.getByTestId(`marketplace-kind-updates-${kind}`),
     detailAction: page.getByTestId(marketplaceOperatorTestIds.detailAction),
     extensionTrustConfirm: page.getByTestId(marketplaceOperatorTestIds.extensionTrustConfirm),
     extensionTrustDialog: page.getByTestId(marketplaceOperatorTestIds.extensionTrustDialog),

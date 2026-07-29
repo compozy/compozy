@@ -32,6 +32,7 @@ test.use({
     },
     extensionsAllowUnverified: true,
     seed: {
+      bundledBridgeExtension: true,
       mockAgents: [
         {
           fixturePath: bridgeIngressFixture,

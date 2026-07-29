@@ -1030,7 +1030,7 @@ describe("browser runtime seed helpers", () => {
     expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/inbox?lane=approvals&limit=10");
   });
 
-  it("installs a bridge-capable extension and creates deterministic disabled bridge prerequisites", async () => {
+  it("uses a bundled bridge extension and creates deterministic disabled bridge prerequisites", async () => {
     const prepareExtension = vi.fn(async () => ({
       checksum: "bridge-checksum",
       extensionDir: "/tmp/telegram-reference",
@@ -1047,23 +1047,14 @@ describe("browser runtime seed helpers", () => {
       },
     }));
     const requestJSON = vi.fn(async (pathname: string, init?: RequestInit) => {
-      if (pathname === "/api/extensions") {
-        return {
-          extension: {
-            enabled: true,
-            health: "healthy",
-            name: "telegram-reference",
-            state: "active",
-          },
-        };
-      }
-
       if (pathname === "/api/extensions/telegram-reference") {
         return {
           extension: {
+            checksum: "bridge-checksum",
             enabled: true,
             health: "healthy",
             name: "telegram-reference",
+            source: "bundled",
             state: "active",
           },
         };
@@ -1193,16 +1184,10 @@ describe("browser runtime seed helpers", () => {
     );
 
     expect(prepareExtension).toHaveBeenCalledTimes(1);
-    expect(requestJSON).toHaveBeenCalledWith(
+    expect(requestJSON).toHaveBeenCalledWith("/api/extensions/telegram-reference", undefined);
+    expect(requestJSON).not.toHaveBeenCalledWith(
       "/api/extensions",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          allow_unverified: true,
-          checksum: "bridge-checksum",
-          path: "/tmp/telegram-reference",
-        }),
-      })
+      expect.objectContaining({ method: "POST" })
     );
     expect(requestJSON).toHaveBeenCalledWith(
       "/api/bridges/brg_browser_01/secret-bindings/bot_token",

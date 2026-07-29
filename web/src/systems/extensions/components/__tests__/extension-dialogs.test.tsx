@@ -129,9 +129,35 @@ describe("RemoveExtensionDialog", () => {
     await user.type(screen.getByLabelText("Type to confirm"), "-bridge");
     expect(confirm).toBeEnabled();
     await user.click(confirm);
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("otel-bridge"));
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({ dev: false, name: "otel-bridge" })
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onRemoved).toHaveBeenCalledOnce();
+  });
+
+  it("Should unlink a workspace dev overlay without promising global removal", async () => {
+    const user = userEvent.setup();
+    const extension = { ...extensionFixtures[0]!, dev: true };
+    render(
+      <RemoveExtensionDialog
+        activeBundles={[]}
+        dependencyError={null}
+        dependencyLoading={false}
+        extension={extension}
+        onOpenChange={vi.fn()}
+        onRetryDependencies={vi.fn()}
+        open
+      />
+    );
+
+    expect(screen.getByText(/published installation stays in place/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Type to confirm"), extension.name);
+    await user.click(screen.getByRole("button", { name: "Unlink dev overlay" }));
+
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({ dev: true, name: extension.name })
+    );
   });
 });
 

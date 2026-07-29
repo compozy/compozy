@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import {
   bundleActivationOptions,
   bundleActivationsOptions,
@@ -8,14 +10,28 @@ import {
 } from "../lib/query-options";
 import type { InstalledExtensionView } from "../types";
 
+/**
+ * The active workspace selects which daemon instance a name resolves to: the workspace dev overlay
+ * when one is linked, the global published row otherwise.
+ */
+export function useExtensionInstanceScope(): { workspaceId: string | null } {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  return { workspaceId: activeWorkspaceId ?? null };
+}
+
 export function useExtensionInventory() {
-  const local = useQuery(extensionsListOptions());
+  const scope = useExtensionInstanceScope();
+  const local = useQuery(extensionsListOptions(scope));
   const items: InstalledExtensionView[] = (local.data ?? []).map(extension => {
     const listing = extension.marketplace ?? null;
-    return { extension, listing, updateAvailable: listing?.update_available === true };
+    return {
+      extension,
+      listing,
+      updateAvailable: extension.update_available === true || listing?.update_available === true,
+    };
   });
 
-  return { ...local, data: items };
+  return { ...local, data: items, workspaceId: scope.workspaceId };
 }
 
 export function useExtensionDetail(name: string) {

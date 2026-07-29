@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SkillPayload } from "@/systems/skill";
 import { renderWithTopbar } from "@/test/render-with-topbar";
+import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import type { MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
@@ -44,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   mcpServers: [] as unknown[],
   vaultSecrets: [] as unknown[],
   createSecret: vi.fn(),
+  installExtension: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -212,6 +214,19 @@ vi.mock("@/systems/settings/hooks/use-settings-mutations", async () => {
   };
 });
 
+vi.mock("../../hooks/use-marketplace-actions", async () => {
+  const actual = await vi.importActual<typeof import("../../hooks/use-marketplace-actions")>(
+    "../../hooks/use-marketplace-actions"
+  );
+  return {
+    ...actual,
+    useInstallMarketplaceExtension: () => ({
+      isPending: false,
+      mutateAsync: mocks.installExtension,
+    }),
+  };
+});
+
 vi.mock("../use-marketplace-action-controller", () => ({
   useMarketplaceActionController: () => ({
     dialogs: null,
@@ -266,6 +281,8 @@ describe("MarketplaceKindPage", () => {
     mocks.mcpServers = [];
     mocks.vaultSecrets = [];
     mocks.createSecret.mockReset();
+    mocks.installExtension.mockReset();
+    mocks.installExtension.mockResolvedValue({});
     mocks.putMCP.mockImplementation(() => new Promise(() => undefined));
     mocks.isEntryPending.mockReturnValue(false);
     mocks.isInstalledItemPending.mockReturnValue(false);
@@ -1076,6 +1093,175 @@ describe("MarketplaceKindPage", () => {
     expect(screen.getByTestId("marketplace-kind-search-skill")).toHaveValue("browser-back-query");
     vi.useRealTimers();
   });
+
+  it("Should count an update once when both the catalog and the inventory report it", () => {
+    const listing: MarketplaceListing = {
+      ...marketplaceListings.extension[0]!,
+      installed: true,
+      installed_name: "otel-bridge",
+      update_available: true,
+    };
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [listing], total: 1 };
+    mocks.extensions = [
+      {
+        extension: {
+          consecutive_failures: 0,
+          daemon_running: true,
+          digest_matched: false,
+          enabled: true,
+          marketplace: listing,
+          name: "otel-bridge",
+          restart_backoff_ms: 0,
+          source: "marketplace",
+          state: "running",
+          type: "backend",
+          update_available: true,
+          version: "0.5.2",
+        },
+        listing,
+        updateAvailable: true,
+      },
+    ];
+
+    renderKindPage("extension");
+
+    expect(screen.getByTestId("marketplace-kind-updates-extension")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketplace-kind-meta-extension")).toHaveTextContent(
+      "update available"
+    );
+  });
+
+  it("Should retain the complete inventory update count while search filters visible cards", () => {
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    mocks.extensions = [
+      {
+        extension: {
+          consecutive_failures: 0,
+          daemon_running: true,
+          digest_matched: false,
+          enabled: true,
+          name: "otel-bridge",
+          restart_backoff_ms: 0,
+          source: "marketplace",
+          state: "running",
+          type: "backend",
+          update_available: true,
+          version: "0.5.2",
+        },
+        listing: null,
+        updateAvailable: true,
+      },
+    ];
+
+    renderKindPage("extension", { q: "no-visible-match" });
+
+    expect(screen.getByTestId("marketplace-kind-updates-extension")).toHaveTextContent("1");
+  });
+
+  it("Should install a local path through the source union and gate consent explicitly", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    renderKindPage("extension");
+
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.type(screen.getByTestId("extension-install-ref"), "relative/dist");
+    await user.click(screen.getByTestId("extension-install-submit"));
+
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "absolute path"
+    );
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByTestId("extension-install-ref"));
+    await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-allow-unverified"));
+    await user.click(screen.getByTestId("extension-install-submit"));
+
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+
+    await waitFor(() =>
+      expect(mocks.installExtension).toHaveBeenCalledWith({
+        allow_unverified: true,
+        ref: "/srv/hello/dist/gen-a1b2c3",
+        source: "local_path",
+      })
+    );
+  });
+
+  it("Should reject a GitHub reference with an empty tag before the request", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    renderKindPage("extension");
+
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.click(screen.getByTestId("extension-install-source-github"));
+    await user.type(screen.getByTestId("extension-install-ref"), "acme/hello@");
+    await user.click(screen.getByTestId("extension-install-submit"));
+
+    expect(await screen.findByTestId("extension-install-ref-error")).toHaveTextContent(
+      "owner/repo"
+    );
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+  });
+
+  it("Should open consent only for the daemon checksum diagnostic", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    mocks.installExtension
+      .mockRejectedValueOnce(
+        new MarketplaceApiError(
+          "Extension checksum is not registry-verified",
+          422,
+          "extension_checksum_unverified"
+        )
+      )
+      .mockResolvedValueOnce({});
+    renderKindPage("extension");
+
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+
+    expect(await screen.findByTestId("extension-trust-dialog")).toBeInTheDocument();
+    expect(mocks.installExtension).toHaveBeenCalledWith({
+      ref: "/srv/hello/dist/gen-a1b2c3",
+      source: "local_path",
+    });
+
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    await waitFor(() =>
+      expect(mocks.installExtension).toHaveBeenLastCalledWith({
+        allow_unverified: true,
+        ref: "/srv/hello/dist/gen-a1b2c3",
+        source: "local_path",
+      })
+    );
+  });
+
+  it("Should keep a policy-blocked install on the form instead of offering consent", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = { ...marketplaceKindFixture("extension"), items: [], total: 0 };
+    mocks.installExtension.mockRejectedValueOnce(
+      new MarketplaceApiError(
+        "Unverified extension install is blocked by policy",
+        422,
+        "extension_unverified_policy_blocked"
+      )
+    );
+    renderKindPage("extension");
+
+    await user.click(screen.getByTestId("marketplace-extension-install"));
+    await user.type(screen.getByTestId("extension-install-ref"), "/srv/hello/dist/gen-a1b2c3");
+    await user.click(screen.getByTestId("extension-install-submit"));
+
+    expect(await screen.findByTestId("extension-install-error")).toHaveTextContent(
+      "blocked by policy"
+    );
+    expect(screen.queryByTestId("extension-trust-dialog")).not.toBeInTheDocument();
+  });
 });
 
 describe("MCP guided install", () => {
@@ -1278,13 +1464,27 @@ describe("Marketplace cards and actions", () => {
   });
 
   it.each([
-    [marketplaceListings.extension[0]!, "verified"],
+    [marketplaceListings.extension[0]!, "official catalog"],
     [marketplaceListings.extension[1]!, "unverified · 2"],
     [marketplaceListings.extension[2]!, "blocked · 1"],
     [marketplaceListings.mcp[0]!, "curated"],
   ])("Should render marketplace trust status for %s", (entry, label) => {
     render(<MarketplaceEntryStatus entry={entry} />);
     expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("Should reserve checksum verification status for explicit verification evidence", () => {
+    const entry = {
+      ...marketplaceListings.extension[0]!,
+      trust: {
+        ...marketplaceListings.extension[0]!.trust!,
+        checksum_verified: true,
+      },
+    };
+
+    render(<MarketplaceEntryStatus entry={entry} />);
+
+    expect(screen.getByText("checksum verified")).toBeInTheDocument();
   });
 
   it("Should render Manage link to Installed scope for installed entries", () => {

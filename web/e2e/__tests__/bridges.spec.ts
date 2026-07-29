@@ -81,6 +81,7 @@ test.use({
     env: bridgeRuntimeEnv,
     extensionsAllowUnverified: true,
     seed: {
+      bundledBridgeExtension: true,
       mockAgents: [
         {
           fixturePath: bridgeIngressFixture,

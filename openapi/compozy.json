@@ -72530,6 +72530,16 @@
     "/api/extensions": {
       "get": {
         "operationId": "listExtensions",
+        "parameters": [
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -75372,6 +75382,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -75795,6 +75813,14 @@
             "in": "path",
             "name": "name",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
             "schema": {
               "type": "string"
             }

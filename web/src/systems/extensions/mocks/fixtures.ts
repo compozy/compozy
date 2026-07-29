@@ -1,4 +1,9 @@
-import type { BundleActivation, ExtensionEntry, ExtensionProvenance } from "@/systems/extensions";
+import type {
+  BundleActivation,
+  ExtensionEntry,
+  ExtensionLogEntry,
+  ExtensionProvenance,
+} from "@/systems/extensions";
 
 const trustWarning = {
   category: "supply_chain",
@@ -21,7 +26,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     installed_by: "operator:web",
     installed_from: "marketplace_registry",
     permissions: ["sessions.read", "telemetry.write"],
-    registry_tier: "verified",
+    registry_tier: "official",
     slug: "compozy/otel-bridge",
     source_url: "https://compozy.com/registry/compozy/otel-bridge",
   },
@@ -66,11 +71,12 @@ export const extensionFixtures: ExtensionEntry[] = [
       allow_unverified: false,
       checksum_verified: true,
       decision: "verified",
-      registry_tier: "verified",
+      registry_tier: "official",
       warnings: [],
     },
     type: "backend",
-    update_available: false,
+    update_available: true,
+    remote_version: "0.6.0",
     uptime_seconds: 18420,
     version: "0.5.2",
   },
@@ -122,6 +128,69 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "1.1.4",
   },
 ];
+
+/** Workspace dev overlay: shadows the published row without owning its lifecycle. */
+export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
+
+export const devExtensionFixture: ExtensionEntry = {
+  bundles: [],
+  capabilities: ["tool.provider"],
+  consecutive_failures: 2,
+  daemon_running: true,
+  dev: true,
+  diagnostics: [],
+  digest_matched: false,
+  enabled: true,
+  generation_hash: "gen-9f2c41ab77e0",
+  health: "degraded",
+  health_message: "Restarted after a failed activation",
+  last_error: "handler exited with status 1",
+  missing_env: [],
+  name: "ops-dev-extension",
+  origin_path: "/Users/dev/src/ops-dev-extension",
+  overrides_published: true,
+  permissions: ["sessions/list"],
+  pid: 5120,
+  requires_env: [],
+  restart_backoff_ms: 4000,
+  source: "dev",
+  state: "running",
+  type: "backend",
+  update_available: false,
+  uptime_seconds: 240,
+  version: "0.2.0-dev",
+  workspace_id: DEV_EXTENSION_WORKSPACE_ID,
+};
+
+export const extensionLogFixtures: Record<string, ExtensionLogEntry[]> = {
+  "ops-dev-extension": [
+    {
+      generation_hash: "gen-9f2c41ab77e0",
+      message: "dev generation gen-9f2c41ab77e0 activated",
+      sequence: 1,
+      timestamp: "2026-07-20T10:00:00Z",
+    },
+    {
+      generation_hash: "gen-9f2c41ab77e0",
+      message: "tool.provider registered: archive",
+      sequence: 2,
+      timestamp: "2026-07-20T10:00:01Z",
+    },
+    {
+      generation_hash: "gen-9f2c41ab77e0",
+      message: "handler exited with status 1",
+      sequence: 3,
+      timestamp: "2026-07-20T10:00:12Z",
+    },
+  ],
+  "otel-bridge": [
+    {
+      message: "collector connection established",
+      sequence: 1,
+      timestamp: "2026-07-20T09:58:00Z",
+    },
+  ],
+};
 
 export const bundleActivationFixtures: BundleActivation[] = [
   {

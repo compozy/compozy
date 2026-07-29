@@ -297,7 +297,10 @@ function useMarketplaceActionController(
         return;
       }
       if (entry.kind === "extension") {
-        await removeExtension.mutateAsync(installedName(entry));
+        await removeExtension.mutateAsync({
+          dev: item.extensionFacts?.dev === true,
+          name: installedName(entry),
+        });
         return;
       }
       if (entry.kind === "mcp") {

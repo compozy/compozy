@@ -1,27 +1,21 @@
-import { MoreHorizontal } from "lucide-react";
+import { MonoId, Pill, Section } from "@compozy/ui";
 
 import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Eyebrow,
-  MonoId,
-  Pill,
-  Section,
-  Switch,
-} from "@compozy/ui";
-
-import {
+  ExtensionLogPanel,
   ExtensionProvenanceDialog,
+  extensionTrustFacts,
   RemoveExtensionDialog,
   useExtensionDetailState,
   VerifiedMark,
+  type ExtensionEntry,
+  type ExtensionLogEventSource,
 } from "@/systems/extensions";
 import { formatUptimeSeconds } from "@/lib/format-time";
 
+import {
+  ExtensionUpdateConsentDialog,
+  MarketplaceDetailExtensionActions,
+} from "./marketplace-detail-extension-actions";
 import {
   ExtensionBundlesProvided,
   ExtensionDetailBlock,
@@ -31,22 +25,42 @@ import {
   ExtensionTokenBlock,
 } from "./marketplace-detail-extension-sections";
 import { MarketplaceDetailManageState } from "./marketplace-detail-manage-state";
+import { marketplaceErrorMessage } from "./marketplace-ui";
 
 interface MarketplaceDetailExtensionManageProps {
   name: string;
+  /**
+   * The catalog projection also reports a newer published release for an installed extension the
+   * curated join cannot key (GitHub and git installs). Both signals come from the daemon.
+   */
+  catalogUpdateAvailable?: boolean;
+  catalogVersion?: string;
+  logEventSourceFactory?: (url: string) => ExtensionLogEventSource;
 }
 
-function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionManageProps) {
-  const state = useExtensionDetailState(name);
+function MarketplaceDetailExtensionManage({
+  name,
+  catalogUpdateAvailable = false,
+  catalogVersion,
+  logEventSourceFactory,
+}: MarketplaceDetailExtensionManageProps) {
+  const state = useExtensionDetailState(name, {
+    logEventSourceFactory,
+    updateVersion: catalogVersion,
+  });
   const {
     bundles,
     detail,
     navigate,
     activeDialog,
     dismissDialog,
+    logs,
     requestProvenance,
     requestRemoval,
+    requestUpdate,
+    submitUpdate,
     toggle,
+    update,
   } = state;
   const data = detail.data;
   if (!data) {
@@ -67,38 +81,23 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
 
   const { extension } = data;
   const provenance = extension.provenance;
+  const facts = extensionTrustFacts(extension);
 
   return (
     <>
       <Section label="Manage">
-        <div className="flex items-center justify-between rounded-lg bg-canvas-soft px-4 py-3">
-          <span className="flex items-center gap-2" data-testid="extension-enabled-toggle">
-            <Eyebrow className="text-muted" id="marketplace-extension-enabled-label">
-              {extension.enabled ? "Enabled" : "Disabled"}
-            </Eyebrow>
-            <Switch
-              aria-labelledby="marketplace-extension-enabled-label"
-              checked={extension.enabled}
-              data-testid="extension-enabled-switch"
-              disabled={toggle.isPending}
-              onCheckedChange={enabled => toggle.mutate({ enabled, name })}
-            />
-          </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button aria-label={`Actions for ${name}`} size="icon-sm" variant="ghost" />}
-            >
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={requestProvenance}>Provenance</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-danger" onClick={requestRemoval}>
-                Remove…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <MarketplaceDetailExtensionActions
+          catalogUpdateAvailable={catalogUpdateAvailable}
+          catalogVersion={catalogVersion}
+          extension={extension}
+          facts={facts}
+          isUpdatePending={update.isPending}
+          onRequestProvenance={requestProvenance}
+          onRequestRemoval={requestRemoval}
+          onToggleEnabled={enabled => toggle.mutate({ enabled, name })}
+          onUpdate={requestUpdate}
+          togglePending={toggle.isPending}
+        />
       </Section>
       <ExtensionTokenBlock label="Capabilities" values={extension.capabilities ?? []} />
       <ExtensionTokenBlock label="Permissions" values={extension.permissions ?? []} />
@@ -114,56 +113,8 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
           lastError={extension.last_error}
         />
       </ExtensionDetailBlock>
-      <ExtensionRailBlock
-        label="Runtime"
-        rows={[
-          {
-            term: "State",
-            value: (
-              <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
-                {extension.state}
-              </Pill>
-            ),
-          },
-          {
-            term: "Health",
-            value: extension.health ? (
-              <>
-                <Pill mono size="xs" tone={extension.health === "healthy" ? "success" : "warning"}>
-                  {extension.health}
-                </Pill>
-                {extension.health_message ? <span>{extension.health_message}</span> : null}
-              </>
-            ) : (
-              <code className="font-mono text-xs text-fg">—</code>
-            ),
-          },
-          {
-            term: "Daemon",
-            value: (
-              <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
-                {extension.daemon_running ? "running" : "stopped"}
-              </Pill>
-            ),
-          },
-          {
-            term: "PID",
-            value: (
-              <code className="font-mono text-xs text-fg">
-                {extension.pid ? String(extension.pid) : "—"}
-              </code>
-            ),
-          },
-          {
-            term: "Uptime",
-            value: (
-              <code className="font-mono text-xs text-fg">
-                {formatUptimeSeconds(extension.uptime_seconds)}
-              </code>
-            ),
-          },
-        ]}
-      />
+      <ExtensionLogPanel logs={logs} name={name} />
+      <ExtensionRailBlock label="Runtime" rows={runtimeRows(extension)} />
       <ExtensionRailBlock
         label="Provenance"
         rows={[
@@ -192,21 +143,37 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
             ),
           },
           {
-            term: "Verified",
+            term: "Archive integrity",
+            value: (
+              <Pill
+                data-testid="extension-provenance-digest"
+                mono
+                size="xs"
+                tone={facts.digestMatched ? "info" : "neutral"}
+              >
+                {facts.digestMatched ? "digest matched" : "no digest recorded"}
+              </Pill>
+            ),
+          },
+          {
+            term: "Curated checksum",
             value: (
               <>
-                <Pill mono size="xs" tone={provenance?.checksum_verified ? "success" : "warning"}>
-                  {provenance?.checksum_verified ? "verified" : "unverified"}
+                <Pill
+                  data-testid="extension-provenance-checksum"
+                  mono
+                  size="xs"
+                  tone={facts.checksumVerified ? "success" : "neutral"}
+                >
+                  {facts.checksumVerified ? "verified" : "not pinned"}
                 </Pill>
-                <VerifiedMark verified={Boolean(provenance?.checksum_verified)} />
+                <VerifiedMark verified={facts.checksumVerified} />
               </>
             ),
           },
           {
             term: "Registry tier",
-            value: (
-              <code className="font-mono text-xs text-fg">{provenance?.registry_tier ?? "—"}</code>
-            ),
+            value: <code className="font-mono text-xs text-fg">{facts.registryTier ?? "—"}</code>,
           },
         ]}
       />
@@ -223,6 +190,15 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
         onOpenChange={open => (open ? requestProvenance() : dismissDialog())}
         open={activeDialog === "provenance"}
       />
+      <ExtensionUpdateConsentDialog
+        error={update.error ? marketplaceErrorMessage(update.error, "Update failed") : undefined}
+        extensionName={extension.name}
+        onConfirm={submitUpdate}
+        onOpenChange={open => (open ? requestUpdate() : dismissDialog())}
+        open={activeDialog === "update"}
+        pending={update.isPending}
+        targetVersion={catalogVersion ?? extension.remote_version ?? ""}
+      />
       <RemoveExtensionDialog
         activeBundles={bundles.data}
         dependencyError={bundles.error}
@@ -237,6 +213,103 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
       />
     </>
   );
+}
+
+function runtimeRows(extension: ExtensionEntry) {
+  const facts = extensionTrustFacts(extension);
+  const rows = [
+    {
+      term: "State",
+      value: (
+        <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
+          {extension.state}
+        </Pill>
+      ),
+    },
+    {
+      term: "Health",
+      value: extension.health ? (
+        <>
+          <Pill mono size="xs" tone={extension.health === "healthy" ? "success" : "warning"}>
+            {extension.health}
+          </Pill>
+          {extension.health_message ? <span>{extension.health_message}</span> : null}
+        </>
+      ) : (
+        <code className="font-mono text-xs text-fg">—</code>
+      ),
+    },
+    {
+      term: "Daemon",
+      value: (
+        <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
+          {extension.daemon_running ? "running" : "stopped"}
+        </Pill>
+      ),
+    },
+    {
+      term: "Consecutive failures",
+      value: (
+        <code
+          className={`font-mono text-xs ${extension.consecutive_failures > 0 ? "text-danger" : "text-fg"}`}
+          data-testid="extension-consecutive-failures"
+        >
+          {String(extension.consecutive_failures)}
+        </code>
+      ),
+    },
+    {
+      term: "Restart backoff",
+      value: (
+        <code className="font-mono text-xs text-fg" data-testid="extension-restart-backoff">
+          {extension.restart_backoff_ms > 0 ? `${extension.restart_backoff_ms} ms` : "none"}
+        </code>
+      ),
+    },
+    {
+      term: "PID",
+      value: (
+        <code className="font-mono text-xs text-fg">
+          {extension.pid ? String(extension.pid) : "—"}
+        </code>
+      ),
+    },
+    {
+      term: "Uptime",
+      value: (
+        <code className="font-mono text-xs text-fg">
+          {formatUptimeSeconds(extension.uptime_seconds)}
+        </code>
+      ),
+    },
+  ];
+  if (extension.failure_code) {
+    rows.push({
+      term: "Failure code",
+      value: (
+        <Pill data-testid="extension-failure-code" mono size="xs" tone="danger">
+          {extension.failure_code}
+        </Pill>
+      ),
+    });
+  }
+  if (facts.originPath) {
+    rows.push({
+      term: "Origin path",
+      value: (
+        <code className="break-all font-mono text-xs text-fg" data-testid="extension-origin-path">
+          {facts.originPath}
+        </code>
+      ),
+    });
+  }
+  if (extension.generation_hash) {
+    rows.push({
+      term: "Generation",
+      value: <MonoId value={extension.generation_hash} />,
+    });
+  }
+  return rows;
 }
 
 export { MarketplaceDetailExtensionManage };
