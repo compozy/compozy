@@ -29,7 +29,7 @@ func (c *unixSocketClient) NetworkPeers(ctx context.Context, query NetworkPeersQ
 	if err != nil {
 		return nil, err
 	}
-	if err := c.doJSON(
+	if err := c.doNetworkJSON(
 		ctx,
 		http.MethodGet,
 		path+"/peers",
@@ -50,7 +50,7 @@ func (c *unixSocketClient) NetworkChannels(ctx context.Context, workspaceRef str
 	if err != nil {
 		return nil, err
 	}
-	if err := c.doJSON(ctx, http.MethodGet, path+"/channels", nil, nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path+"/channels", nil, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Channels, nil
@@ -79,7 +79,7 @@ func (c *unixSocketClient) CreateNetworkChannel(
 		CoordinatorPeerID: request.CoordinatorPeerID,
 		AgentNames:        request.AgentNames,
 	}
-	if err := c.doJSON(ctx, http.MethodPost, path+"/channels", nil, body, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPost, path+"/channels", nil, body, &response); err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}
 	return response.Channel, nil
@@ -100,7 +100,7 @@ func (c *unixSocketClient) UpdateNetworkChannel(
 	if err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}
-	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}
 	return response.Channel, nil
@@ -120,7 +120,7 @@ func (c *unixSocketClient) ListNetworkSubscriptions(
 		return nil, err
 	}
 	path += "/subscriptions"
-	if err := c.doJSON(ctx, http.MethodGet, path, networkSubscriptionsValues(query), nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, networkSubscriptionsValues(query), nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Subscriptions, nil
@@ -142,7 +142,7 @@ func (c *unixSocketClient) SetNetworkSubscription(
 		return NetworkSubscriptionRecord{}, err
 	}
 	path += "/subscriptions"
-	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
 		return NetworkSubscriptionRecord{}, err
 	}
 	return response.Subscription, nil
@@ -172,7 +172,7 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 		values.Set("thread_id", trimmed)
 	}
 	path += "/subscriptions/" + url.PathEscape(sessionID)
-	return c.doJSON(ctx, http.MethodDelete, path, values, nil, nil)
+	return c.doNetworkJSON(ctx, http.MethodDelete, path, values, nil, nil)
 }
 
 func (c *unixSocketClient) NetworkThreads(
@@ -189,7 +189,7 @@ func (c *unixSocketClient) NetworkThreads(
 		return contract.NetworkThreadsResponse{}, err
 	}
 	path += "/threads"
-	if err := c.doJSON(ctx, http.MethodGet, path, networkThreadsValues(query), nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, networkThreadsValues(query), nil, &response); err != nil {
 		return contract.NetworkThreadsResponse{}, err
 	}
 	return response, nil
@@ -208,7 +208,7 @@ func (c *unixSocketClient) NetworkThread(
 	var response struct {
 		Thread NetworkThreadRecord `json:"thread"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return NetworkThreadRecord{}, err
 	}
 	return response.Thread, nil
@@ -223,7 +223,7 @@ func (c *unixSocketClient) NetworkThreadMessages(
 		return contract.NetworkThreadMessagesResponse{}, err
 	}
 	var response contract.NetworkThreadMessagesResponse
-	if err := c.doJSON(
+	if err := c.doNetworkJSON(
 		ctx,
 		http.MethodGet,
 		path,
@@ -250,7 +250,7 @@ func (c *unixSocketClient) NetworkDirects(
 		return contract.NetworkDirectRoomsResponse{}, err
 	}
 	path += "/directs"
-	if err := c.doJSON(ctx, http.MethodGet, path, networkDirectsValues(query), nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, networkDirectsValues(query), nil, &response); err != nil {
 		return contract.NetworkDirectRoomsResponse{}, err
 	}
 	return response, nil
@@ -274,7 +274,7 @@ func (c *unixSocketClient) NetworkDirectResolve(
 		return NetworkDirectRoomRecord{}, err
 	}
 	path += "/directs/resolve"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return NetworkDirectRoomRecord{}, err
 	}
 	return response.Direct, nil
@@ -293,7 +293,7 @@ func (c *unixSocketClient) NetworkDirect(
 	var response struct {
 		Direct NetworkDirectRoomRecord `json:"direct"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return NetworkDirectRoomRecord{}, err
 	}
 	return response.Direct, nil
@@ -308,7 +308,7 @@ func (c *unixSocketClient) NetworkDirectMessages(
 		return contract.NetworkDirectRoomMessagesResponse{}, err
 	}
 	var response contract.NetworkDirectRoomMessagesResponse
-	if err := c.doJSON(
+	if err := c.doNetworkJSON(
 		ctx,
 		http.MethodGet,
 		path,
@@ -338,7 +338,7 @@ func (c *unixSocketClient) NetworkWork(
 		return NetworkWorkRecord{}, err
 	}
 	path += "/work/" + url.PathEscape(workID)
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return NetworkWorkRecord{}, err
 	}
 	return response.Work, nil
@@ -354,7 +354,7 @@ func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendR
 	}
 	body := request
 	body.WorkspaceID = ""
-	if err := c.doJSON(ctx, http.MethodPost, path+"/send", nil, body, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPost, path+"/send", nil, body, &response); err != nil {
 		return NetworkSendRecord{}, err
 	}
 	return response.Message, nil
@@ -372,7 +372,7 @@ func (c *unixSocketClient) NetworkInbox(
 	if err != nil {
 		return nil, err
 	}
-	if err := c.doJSON(
+	if err := c.doNetworkJSON(
 		ctx,
 		http.MethodGet,
 		path+"/inbox",
@@ -397,7 +397,7 @@ func (c *unixSocketClient) PromoteNetworkThreadTask(
 		return PromoteNetworkThreadTaskRecord{}, err
 	}
 	var response contract.PromoteNetworkThreadTaskResponse
-	if err := c.doJSON(ctx, http.MethodPost, path+"/promote-task", nil, request, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodPost, path+"/promote-task", nil, request, &response); err != nil {
 		return PromoteNetworkThreadTaskRecord{}, err
 	}
 	return response, nil

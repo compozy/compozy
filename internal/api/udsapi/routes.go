@@ -354,6 +354,7 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 		network.GET("/status", handlers.NetworkStatus)
 	}
 	workspaceNetwork := api.Group("/workspaces/:workspace_id/network")
+	workspaceNetwork.Use(handlers.AuthorizeNetworkWorkspaceAccess)
 	{
 		workspaceNetwork.GET("/peers", handlers.NetworkPeers)
 		workspaceNetwork.GET("/peers/:peer_id", handlers.NetworkPeer)

@@ -95,9 +95,14 @@ func (h *BaseHandlers) resolveAgentDefinition(
 
 func canonicalWorkspaceDisplay(resolved *workspacepkg.ResolvedWorkspace, fallback string) string {
 	if resolved != nil {
-		if root := strings.TrimSpace(resolved.RootDir); root != "" {
-			return root
-		}
+		return workspaceDisplay(resolved.RootDir, fallback)
+	}
+	return workspaceDisplay("", fallback)
+}
+
+func workspaceDisplay(root string, fallback string) string {
+	if root = strings.TrimSpace(root); root != "" {
+		return root
 	}
 	return strings.TrimSpace(fallback)
 }

@@ -4,15 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/gin-gonic/gin"
 )
 
 func coordinationWorkspaceService() testutil.StubWorkspaceService {
@@ -346,6 +352,103 @@ func TestNetworkCoordinationHandlers(t *testing.T) {
 		)
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("GET missing workspace status = %d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+}
+
+func TestNetworkWorkspaceAccessMiddleware(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should authorize every agent-authenticated Network route before the handler", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			sourceWorkspaceID = "ws_0000000000000000"
+			targetWorkspaceID = "ws_0000000000000001"
+		)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: sourceWorkspaceID,
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != targetWorkspaceID {
+					t.Fatalf("Get() ref = %q, want %q", ref, targetWorkspaceID)
+				}
+				return workspacepkg.Workspace{ID: targetWorkspaceID}, nil
+			},
+		}
+		policyCalls := 0
+		handlers := &core.BaseHandlers{
+			TransportName: "test",
+			Sessions:      manager,
+			Workspaces:    workspaces,
+			WorkspaceAccess: testutil.StubWorkspaceAccessPolicy{
+				AuthorizeFn: func(
+					_ context.Context,
+					req workspaceaccess.Request,
+				) (workspaceaccess.Decision, error) {
+					policyCalls++
+					if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
+						req.Actor.WorkspaceID != sourceWorkspaceID ||
+						req.TargetWorkspaceID != targetWorkspaceID ||
+						req.Seam != workspaceaccess.SeamCoordination {
+						t.Fatalf("Authorize() request = %#v, want canonical Network workspace decision", req)
+					}
+					return workspaceaccess.Decision{
+						Allowed: req.Actor.SessionID == "sess-approve-all",
+						Source:  workspaceaccess.SourcePermissionMode,
+					}, nil
+				},
+			},
+		}
+		engine := gin.New()
+		networkRoutes := engine.Group("/workspaces/:workspace_id/network")
+		networkRoutes.Use(handlers.AuthorizeNetworkWorkspaceAccess)
+		handlerCalls := 0
+		networkRoutes.GET("/probe", func(c *gin.Context) {
+			handlerCalls++
+			c.Status(http.StatusNoContent)
+		})
+
+		request := func(sessionID string, withCredentials bool) *httptest.ResponseRecorder {
+			t.Helper()
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/workspaces/"+targetWorkspaceID+"/network/probe",
+				http.NoBody,
+			)
+			if withCredentials {
+				req.Header.Set(agentidentity.HeaderSessionID, sessionID)
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+			}
+			resp := httptest.NewRecorder()
+			engine.ServeHTTP(resp, req)
+			return resp
+		}
+
+		denied := request("sess-deny-all", true)
+		if denied.Code != http.StatusForbidden || handlerCalls != 0 {
+			t.Fatalf("denied status/handler calls = %d/%d, want 403/0; body=%s", denied.Code, handlerCalls, denied.Body)
+		}
+		allowed := request("sess-approve-all", true)
+		if allowed.Code != http.StatusNoContent || handlerCalls != 1 {
+			t.Fatalf("allowed status/handler calls = %d/%d, want 204/1", allowed.Code, handlerCalls)
+		}
+		operator := request("", false)
+		if operator.Code != http.StatusNoContent || handlerCalls != 2 || policyCalls != 2 {
+			t.Fatalf(
+				"operator status/handler/policy calls = %d/%d/%d, want 204/2/2",
+				operator.Code,
+				handlerCalls,
+				policyCalls,
+			)
 		}
 	})
 }

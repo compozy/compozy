@@ -4,12 +4,12 @@ area: ET
 title: Bind native tool calls to the caller workspace before policy
 persona: Ada
 journey: J-operate-workspace-context
-expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write.
+expected: A workspace-bound session omits workspace input for same-workspace native operations, while a foreign workspace reference is canonicalized and sent through the shared cross-workspace policy before memory, automation, workspace, hook, or task-claim handlers execute; policy denial prevents every handler-visible read or write, and global/all scope remains operator-only for workspace-bound sessions.
 entry_points: compozy__workspace_info; compozy__memory_*; compozy__automation_*; compozy__hooks_*; compozy__task_run_claim_next
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260729-nearest-workspace-case-alias
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 4e81f17
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
 last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
@@ -45,3 +45,8 @@ QA 2026-07-29: an approve-reads session invoked workspace info with omitted work
 workspace by ID, name, and path. All four calls reached the same canonical ID with zero permission
 request and zero cross-workspace policy event. The adjacent case-alias discovery regression was
 fixed and retested in the same canary.
+
+QA impact 2026-07-29 (deep-review remediation): reset to `untested` after the generic tool envelope
+began resolving aliases and paths before policy evaluation and workspace-bound sessions regained the
+pre-handler denial for `scope=global` and `scope=all`. Recheck representative config, hook,
+automation, bridge, and memory tools; operator global scope must remain available.

@@ -189,94 +189,99 @@ func TestAgentMeReportsUnavailableWhenSessionServiceMissing(t *testing.T) {
 func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceWorkspaceID = "ws-source"
-		targetWorkspaceID = "ws-target"
-	)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			if id != "sess-approve-reads" {
-				return nil, session.ErrSessionNotFound
-			}
-			return &session.Info{
-				ID:          id,
-				AgentName:   "coder",
-				WorkspaceID: sourceWorkspaceID,
-				Workspace:   "/workspace/source",
-				State:       session.StateActive,
-			}, nil
-		},
-	}
-	tasks := &stubTaskManager{
-		CreateTaskFn: func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
-			t.Fatal("CreateTask() called after a denied UDS identity decision")
-			return nil, nil
-		},
-	}
-	workspaces := stubWorkspaceService{
-		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-			if ref != "target" {
-				t.Fatalf("Get() ref = %q, want target", ref)
-			}
-			return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
-		},
-		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-			if ref != targetWorkspaceID {
-				t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
-			}
-			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
-				WorkspaceID: targetWorkspaceID,
-			}, nil
-		},
-	}
-	policyCalls := 0
-	handlers := newTestHandlersWithRuntime(
-		t,
-		manager,
-		stubObserver{},
-		nil,
-		tasks,
-		nil,
-		workspaces,
-		nil,
-		newTestHomePaths(t),
-	)
-	handlers.MaskInternalErrors = false
-	handlers.WorkspaceAccess = apitestutil.StubWorkspaceAccessPolicy{
-		AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-			policyCalls++
-			if req.Actor.SessionID != "sess-approve-reads" ||
-				req.Actor.WorkspaceID != sourceWorkspaceID ||
-				req.TargetWorkspaceID != targetWorkspaceID ||
-				req.Seam != workspaceaccess.SeamIdentity {
-				t.Fatalf("Authorize() request = %#v, want UDS identity mapping", req)
-			}
-			return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
-		},
-	}
-	engine := newTestRouter(t, handlers)
-	req := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/tasks",
-		strings.NewReader(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`),
-	)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(agentidentity.HeaderSessionID, "sess-approve-reads")
-	req.Header.Set(agentidentity.HeaderAgent, "coder")
-	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, req)
+	t.Run("Should map cross-workspace UDS identity permissions", func(t *testing.T) {
+		t.Parallel()
 
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
-	}
-	if !strings.Contains(recorder.Body.String(), workspaceaccess.DenialHint) {
-		t.Fatalf("body = %s, want denial hint", recorder.Body.String())
-	}
-	if policyCalls != 1 {
-		t.Fatalf("policy calls = %d, want 1", policyCalls)
-	}
+		const (
+			sourceWorkspaceID = "ws-source"
+			targetWorkspaceID = "ws-target"
+		)
+		manager := stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-approve-reads" {
+					return nil, session.ErrSessionNotFound
+				}
+				return &session.Info{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: sourceWorkspaceID,
+					Workspace:   "/workspace/source",
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		tasks := &stubTaskManager{
+			CreateTaskFn: func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
+				t.Fatal("CreateTask() called after a denied UDS identity decision")
+				return nil, nil
+			},
+		}
+		workspaces := stubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "target" {
+					t.Fatalf("Get() ref = %q, want target", ref)
+				}
+				return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != targetWorkspaceID {
+					t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
+					WorkspaceID: targetWorkspaceID,
+				}, nil
+			},
+		}
+		policyCalls := 0
+		handlers := newTestHandlersWithRuntime(
+			t,
+			manager,
+			stubObserver{},
+			nil,
+			tasks,
+			nil,
+			workspaces,
+			nil,
+			newTestHomePaths(t),
+		)
+		handlers.MaskInternalErrors = false
+		handlers.WorkspaceAccess = apitestutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				policyCalls++
+				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
+					req.Actor.SessionID != "sess-approve-reads" ||
+					req.Actor.WorkspaceID != sourceWorkspaceID ||
+					req.TargetWorkspaceID != targetWorkspaceID ||
+					req.Seam != workspaceaccess.SeamIdentity {
+					t.Fatalf("Authorize() request = %#v, want UDS identity mapping", req)
+				}
+				return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
+			},
+		}
+		engine := newTestRouter(t, handlers)
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/tasks",
+			strings.NewReader(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(agentidentity.HeaderSessionID, "sess-approve-reads")
+		req.Header.Set(agentidentity.HeaderAgent, "coder")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
+
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf("body = %s, want denial hint", recorder.Body.String())
+		}
+		if policyCalls != 1 {
+			t.Fatalf("policy calls = %d, want 1", policyCalls)
+		}
+	})
 }
 
 func performAgentMeRequest(t *testing.T, engine http.Handler, headers map[string]string) *httptest.ResponseRecorder {

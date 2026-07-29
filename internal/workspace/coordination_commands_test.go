@@ -51,6 +51,26 @@ func TestCoordinationCommandsAuthorizeWorkspaceAccess(t *testing.T) {
 			t.Fatalf("store/policy calls = %d/%d, want zero", store.setCalls, policy.calls)
 		}
 	})
+
+	t.Run("Should deny an unscoped automation read through the actor-kind policy gate", func(t *testing.T) {
+		t.Parallel()
+
+		automation, err := taskpkg.DeriveAutomationActorContext("rule:nightly", "coordination.read")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+		store := &recordingCoordinationCommandStore{}
+		policy := &coordinationWorkspaceAccessPolicy{}
+		commands := NewCoordinationService(store, policy)
+		_, err = commands.Get(t.Context(), ref, automation)
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("Get(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		if store.getCalls != 0 || policy.calls != 1 || policy.last.Actor.Kind != workspaceaccess.ActorAutomation ||
+			policy.last.Actor.WorkspaceID != "" || policy.last.TargetWorkspaceID != ref.WorkspaceID {
+			t.Fatalf("store/policy/request = %d/%d/%#v, want one denied automation policy call", store.getCalls, policy.calls, policy.last)
+		}
+	})
 }
 
 type coordinationWorkspaceAccessPolicy struct {

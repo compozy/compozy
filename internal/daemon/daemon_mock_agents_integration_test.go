@@ -1024,180 +1024,202 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		t.Fatalf("ResolveWorkspace(target) error = %v", err)
 	}
 	harness.WorkspaceID = sourceWorkspaceID
-
-	denySession, denyClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-deny",
-		"cross-deny",
+	var (
+		onceSession       compozycontract.SessionPayload
+		sessionConsent    compozycontract.SessionPayload
+		approveAllSession compozycontract.SessionPayload
 	)
-	denied := callWorkspaceAccessTool(t, ctx, denyClient, "cross-deny-1", target.ID)
-	assertWorkspaceAccessDeniedResult(t, denied)
-	assertSessionPermissionEventCount(t, ctx, harness, denySession.ID, 0)
-	waitForRuntimeCondition(t, "deny-all workspace access audit", 5*time.Second, func() bool {
-		return workspaceAccessAuditExists(
+
+	t.Run("Should hard-deny deny-all without prompting", func(t *testing.T) {
+		denySession, denyClient := newWorkspaceAccessHostedSession(
 			t,
 			ctx,
 			harness,
-			denySession.ID,
-			target.ID,
-			workspaceaccess.SeamTool,
-			workspaceaccess.SourceDenied,
-			"workspace.access_denied",
+			"mock-cross-deny",
+			"cross-deny",
 		)
+		denied := callWorkspaceAccessTool(t, ctx, denyClient, "cross-deny-1", target.ID)
+		assertWorkspaceAccessDeniedResult(t, denied)
+		assertSessionPermissionEventCount(t, ctx, harness, denySession.ID, 0)
+		waitForRuntimeCondition(t, "deny-all workspace access audit", 5*time.Second, func() bool {
+			return workspaceAccessAuditExists(
+				t,
+				ctx,
+				harness,
+				denySession.ID,
+				target.ID,
+				workspaceaccess.SeamTool,
+				workspaceaccess.SourceDenied,
+				"workspace.access_denied",
+			)
+		})
 	})
 
-	onceSession, onceClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-once",
-		"cross-once",
-	)
-	firstOnce := callWorkspaceAccessToolWithDecision(
-		t,
-		ctx,
-		harness,
-		onceSession.ID,
-		onceClient,
-		"cross-once-1",
-		target.ID,
-		"allow-once",
-	)
-	assertWorkspaceAccessAllowedResult(t, firstOnce)
-	secondOnce := callWorkspaceAccessToolWithDecision(
-		t,
-		ctx,
-		harness,
-		onceSession.ID,
-		onceClient,
-		"cross-once-2",
-		target.ID,
-		"allow-once",
-	)
-	assertWorkspaceAccessAllowedResult(t, secondOnce)
+	t.Run("Should consume allow-once consent only for one call", func(t *testing.T) {
+		var onceClient *mcpclient.Client
+		onceSession, onceClient = newWorkspaceAccessHostedSession(
+			t,
+			ctx,
+			harness,
+			"mock-cross-once",
+			"cross-once",
+		)
+		firstOnce := callWorkspaceAccessToolWithDecision(
+			t,
+			ctx,
+			harness,
+			onceSession.ID,
+			onceClient,
+			"cross-once-1",
+			target.ID,
+			"allow-once",
+		)
+		assertWorkspaceAccessAllowedResult(t, firstOnce)
+		secondOnce := callWorkspaceAccessToolWithDecision(
+			t,
+			ctx,
+			harness,
+			onceSession.ID,
+			onceClient,
+			"cross-once-2",
+			target.ID,
+			"allow-once",
+		)
+		assertWorkspaceAccessAllowedResult(t, secondOnce)
+	})
 
-	sessionConsent, sessionClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-session",
-		"cross-session",
-	)
-	allowedSession := callWorkspaceAccessToolWithDecision(
-		t,
-		ctx,
-		harness,
-		sessionConsent.ID,
-		sessionClient,
-		"cross-session-1",
-		target.ID,
-		"allow-always",
-	)
-	assertWorkspaceAccessAllowedResult(t, allowedSession)
-	assertWorkspaceAccessAllowedResult(
-		t,
-		callWorkspaceAccessTool(t, ctx, sessionClient, "cross-session-2", target.ID),
-	)
-
-	newSessionConsent, newSessionClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-session",
-		"cross-session-new",
-	)
-	newSessionDenied := callWorkspaceAccessToolWithDecision(
-		t,
-		ctx,
-		harness,
-		newSessionConsent.ID,
-		newSessionClient,
-		"cross-session-new-1",
-		target.ID,
-		"reject-once",
-	)
-	assertWorkspaceAccessDeniedResult(t, newSessionDenied)
-
-	rejectSession, rejectClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-reject",
-		"cross-reject",
-	)
-	rejectedSession := callWorkspaceAccessToolWithDecision(
-		t,
-		ctx,
-		harness,
-		rejectSession.ID,
-		rejectClient,
-		"cross-reject-1",
-		target.ID,
-		"reject-always",
-	)
-	assertWorkspaceAccessDeniedResult(t, rejectedSession)
-	assertWorkspaceAccessDeniedResult(
-		t,
-		callWorkspaceAccessTool(t, ctx, rejectClient, "cross-reject-2", target.ID),
-	)
-
-	approveAllSession, approveAllClient := newWorkspaceAccessHostedSession(
-		t,
-		ctx,
-		harness,
-		"mock-cross-all",
-		"cross-all",
-	)
-	assertWorkspaceAccessAllowedResult(
-		t,
-		callWorkspaceAccessTool(t, ctx, approveAllClient, "cross-all-1", target.ID),
-	)
-	assertSessionPermissionEventCount(t, ctx, harness, approveAllSession.ID, 0)
-
-	assertWorkspaceAccessAgentCLIParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
-	assertWorkspaceAccessSpawnParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
-
-	var created compozycontract.TaskResponse
-	if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", compozycontract.CreateTaskRequest{
-		Scope:     taskpkg.ScopeWorkspace,
-		Workspace: target.ID,
-		Title:     "Cross seam consent reuse",
-	}, &created); err != nil {
-		t.Fatalf("create foreign task error = %v", err)
-	}
-	run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, created.Task.ID, "cross-seam-consent")
-	_, claimStderr, err := harness.CLI.RunInDirWithEnv(
-		ctx,
-		harness.WorkspaceRoot,
-		map[string]string{
-			agentidentity.EnvSessionID: sessionConsent.ID,
-			agentidentity.EnvAgent:     sessionConsent.AgentName,
-		},
-		"task",
-		"next",
-		"--run-id",
-		run.ID,
-		"--workspace",
-		target.ID,
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("cross-seam consent task claim error = %v; stderr=%s", err, claimStderr)
-	}
-	waitForRuntimeCondition(t, "task seam session consent audit", 5*time.Second, func() bool {
-		return workspaceAccessAuditExists(
+	t.Run("Should reuse allow-session consent within one live session", func(t *testing.T) {
+		var sessionClient *mcpclient.Client
+		sessionConsent, sessionClient = newWorkspaceAccessHostedSession(
+			t,
+			ctx,
+			harness,
+			"mock-cross-session",
+			"cross-session",
+		)
+		allowedSession := callWorkspaceAccessToolWithDecision(
 			t,
 			ctx,
 			harness,
 			sessionConsent.ID,
+			sessionClient,
+			"cross-session-1",
 			target.ID,
-			workspaceaccess.SeamTask,
-			workspaceaccess.SourceSessionConsent,
-			"workspace.access_granted",
+			"allow-always",
 		)
+		assertWorkspaceAccessAllowedResult(t, allowedSession)
+		assertWorkspaceAccessAllowedResult(
+			t,
+			callWorkspaceAccessTool(t, ctx, sessionClient, "cross-session-2", target.ID),
+		)
+	})
+
+	t.Run("Should keep rejection session-scoped and require consent in a new session", func(t *testing.T) {
+		newSessionConsent, newSessionClient := newWorkspaceAccessHostedSession(
+			t,
+			ctx,
+			harness,
+			"mock-cross-session",
+			"cross-session-new",
+		)
+		newSessionDenied := callWorkspaceAccessToolWithDecision(
+			t,
+			ctx,
+			harness,
+			newSessionConsent.ID,
+			newSessionClient,
+			"cross-session-new-1",
+			target.ID,
+			"reject-once",
+		)
+		assertWorkspaceAccessDeniedResult(t, newSessionDenied)
+
+		rejectSession, rejectClient := newWorkspaceAccessHostedSession(
+			t,
+			ctx,
+			harness,
+			"mock-cross-reject",
+			"cross-reject",
+		)
+		rejectedSession := callWorkspaceAccessToolWithDecision(
+			t,
+			ctx,
+			harness,
+			rejectSession.ID,
+			rejectClient,
+			"cross-reject-1",
+			target.ID,
+			"reject-always",
+		)
+		assertWorkspaceAccessDeniedResult(t, rejectedSession)
+		assertWorkspaceAccessDeniedResult(
+			t,
+			callWorkspaceAccessTool(t, ctx, rejectClient, "cross-reject-2", target.ID),
+		)
+	})
+
+	t.Run("Should allow approve-all without prompting", func(t *testing.T) {
+		var approveAllClient *mcpclient.Client
+		approveAllSession, approveAllClient = newWorkspaceAccessHostedSession(
+			t,
+			ctx,
+			harness,
+			"mock-cross-all",
+			"cross-all",
+		)
+		assertWorkspaceAccessAllowedResult(
+			t,
+			callWorkspaceAccessTool(t, ctx, approveAllClient, "cross-all-1", target.ID),
+		)
+		assertSessionPermissionEventCount(t, ctx, harness, approveAllSession.ID, 0)
+	})
+
+	t.Run("Should preserve CLI and spawn workspace policy parity", func(t *testing.T) {
+		assertWorkspaceAccessAgentCLIParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
+		assertWorkspaceAccessSpawnParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
+	})
+
+	t.Run("Should reuse session consent at the task seam", func(t *testing.T) {
+		var created compozycontract.TaskResponse
+		if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", compozycontract.CreateTaskRequest{
+			Scope:     taskpkg.ScopeWorkspace,
+			Workspace: target.ID,
+			Title:     "Cross seam consent reuse",
+		}, &created); err != nil {
+			t.Fatalf("create foreign task error = %v", err)
+		}
+		run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, created.Task.ID, "cross-seam-consent")
+		_, claimStderr, err := harness.CLI.RunInDirWithEnv(
+			ctx,
+			harness.WorkspaceRoot,
+			map[string]string{
+				agentidentity.EnvSessionID: sessionConsent.ID,
+				agentidentity.EnvAgent:     sessionConsent.AgentName,
+			},
+			"task",
+			"next",
+			"--run-id",
+			run.ID,
+			"--workspace",
+			target.ID,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("cross-seam consent task claim error = %v; stderr=%s", err, claimStderr)
+		}
+		waitForRuntimeCondition(t, "task seam session consent audit", 5*time.Second, func() bool {
+			return workspaceAccessAuditExists(
+				t,
+				ctx,
+				harness,
+				sessionConsent.ID,
+				target.ID,
+				workspaceaccess.SeamTask,
+				workspaceaccess.SourceSessionConsent,
+				"workspace.access_granted",
+			)
+		})
 	})
 }
 
@@ -1614,7 +1636,7 @@ func workspaceAccessAuditExists(
 		"&type=" + url.QueryEscape(eventType) + "&limit=100"
 	var logs compozycontract.LogsListResponse
 	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &logs); err != nil {
-		return false
+		t.Fatalf("UDSJSON(workspace access logs) error = %v", err)
 	}
 	for _, event := range logs.Events {
 		if event.SessionID != sessionID || event.Type != eventType {
@@ -1736,6 +1758,15 @@ func assertWorkspaceAccessSpawnParity(
 	)
 	if err == nil {
 		t.Fatalf("approve-reads cross-workspace spawn error = nil, want denial")
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
+		t.Fatalf(
+			"approve-reads cross-workspace spawn error = %v, want exit %d; stderr=%s",
+			err,
+			agentidentity.ExitUnauthorized,
+			deniedStderr,
+		)
 	}
 	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
 		t.Fatalf("approve-reads cross-workspace spawn stderr = %q, want denial hint", deniedStderr)

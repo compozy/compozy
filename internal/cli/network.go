@@ -129,7 +129,12 @@ func resolveNetworkWorkspaceRef(
 	if workspaceRef != nil {
 		raw = strings.TrimSpace(*workspaceRef)
 	}
-	return resolveCLIWorkspaceRouteRef(cmd, deps, client, raw)
+	resolved, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, raw)
+	if err != nil {
+		return "", err
+	}
+	cmd.SetContext(withNetworkAgentCredentials(cmd.Context(), agentCredentialsFromEnv(deps)))
+	return resolved, nil
 }
 
 func newNetworkStatusCommand(deps commandDeps) *cobra.Command {

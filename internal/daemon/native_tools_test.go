@@ -1196,7 +1196,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail closed for unresolved native workspace inputs and preserve global scope", func(t *testing.T) {
+	t.Run("Should fail closed for unresolved and global native workspace inputs", func(t *testing.T) {
 		t.Parallel()
 
 		descriptor := toolspkg.Descriptor{
@@ -1217,17 +1217,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 
 		binder := newNativeWorkspaceInputBinder(nil, nil, nil, nil)
-		bound, err := binder.BindCallInput(
-			t.Context(),
-			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
-			descriptor,
-			json.RawMessage(`{"scope":"global"}`),
-		)
-		if err != nil {
-			t.Fatalf("BindCallInput(global scope) error = %v", err)
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDConfigSet,
+			toolspkg.ToolIDHooksCreate,
+			toolspkg.ToolIDAutomationJobsCreate,
+			toolspkg.ToolIDBridgesList,
+			toolspkg.ToolIDMemoryNote,
+		} {
+			descriptor.ID = id
+			_, err := binder.BindCallInput(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"},
+				descriptor,
+				json.RawMessage(`{"scope":"global"}`),
+			)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		}
-		requireNativeStructuredContains(t, toolspkg.ToolResult{Structured: bound}, []byte(`"scope":"global"`))
-		requireNativeStructuredExcludes(t, toolspkg.ToolResult{Structured: bound}, []byte(`"workspace"`))
 	})
 
 	t.Run("Should bind and authorize native workspace inputs through the workspace policy", func(t *testing.T) {

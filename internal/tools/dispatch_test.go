@@ -684,32 +684,49 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 
 		descriptor := validDispatchDescriptor()
 		called := false
+		calledWorkspaceID := ""
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
 			availability: availableDispatchHandle(),
-			call: func(context.Context, CallRequest) (ToolResult, error) {
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
 				called = true
+				calledWorkspaceID = req.WorkspaceID
 				return ToolResult{}, nil
 			},
 		})
 		policy := &recordingDispatchWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
-		registry := mustDispatchRegistry(t, provider, WithWorkspaceAccessPolicy(policy))
+		resolverCalls := 0
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithWorkspaceAccessPolicy(policy),
+			WithWorkspaceIDResolver(func(_ context.Context, ref string) (string, error) {
+				resolverCalls++
+				if ref != "target-alias" && ref != "ws_0000000000000001" {
+					t.Fatalf("workspace resolver ref = %q, want alias or canonical target", ref)
+				}
+				return "ws_0000000000000001", nil
+			}),
+		)
 		_, err := registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
 			CallRequest{
 				ToolID:      descriptor.ID,
-				WorkspaceID: "ws-b",
+				WorkspaceID: "target-alias",
 				Input:       json.RawMessage(`{"query":"x"}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("RuntimeRegistry.Call() error = %v", err)
 		}
-		if !called || policy.calls != 1 || policy.last.Seam != workspaceaccess.SeamTool {
+		if !called || calledWorkspaceID != "ws_0000000000000001" || resolverCalls != 1 || policy.calls != 1 ||
+			policy.last.TargetWorkspaceID != "ws_0000000000000001" || policy.last.Seam != workspaceaccess.SeamTool {
 			t.Fatalf(
-				"called/policy/request = %v/%d/%#v, want one tool-seam authorization",
+				"called/workspace/resolver/policy/request = %v/%q/%d/%d/%#v, want canonical tool authorization",
 				called,
+				calledWorkspaceID,
+				resolverCalls,
 				policy.calls,
 				policy.last,
 			)
@@ -719,10 +736,10 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		policy.decision = workspaceaccess.Decision{PromptEligible: true}
 		_, err = registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
 			CallRequest{
 				ToolID:      descriptor.ID,
-				WorkspaceID: "ws-b",
+				WorkspaceID: "ws_0000000000000001",
 				Input:       json.RawMessage(`{"query":"x"}`),
 			},
 		)

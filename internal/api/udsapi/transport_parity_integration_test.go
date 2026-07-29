@@ -48,67 +48,71 @@ func TestUDSTransportSessionOwnerProjectionMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
-			FixtureAgent: "automation-runner",
-			AgentName:    transportUDSAutomationAgent,
-		}},
+	t.Run("Should return the same minimal session owner over HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
+				FixtureAgent: "automation-runner",
+				AgentName:    transportUDSAutomationAgent,
+			}},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName:     transportUDSAutomationAgent,
+			WorkspacePath: runtimeHarness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession() error = %v", err)
+		}
+		sessionPayload = waitForTransportSessionActive(t, ctx, runtimeHarness, sessionPayload)
+
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
+		path := "/api/sessions/" + url.PathEscape(sessionPayload.ID) + "/owner"
+		httpResponse := mustUnixRequest(t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(path), nil, nil)
+		udsResponse := mustUnixRequest(t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(path), nil, nil)
+		httpBody := readAndCloseHTTPBody(t, httpResponse)
+		udsBody := readAndCloseHTTPBody(t, udsResponse)
+
+		if httpResponse.StatusCode != http.StatusOK || udsResponse.StatusCode != http.StatusOK {
+			t.Fatalf(
+				"owner status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+				httpResponse.StatusCode,
+				udsResponse.StatusCode,
+				http.StatusOK,
+				httpBody,
+				udsBody,
+			)
+		}
+		if !bytes.Equal(httpBody, udsBody) {
+			t.Fatalf("owner payloads differ: HTTP=%s UDS=%s", httpBody, udsBody)
+		}
+
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(httpBody, &fields); err != nil {
+			t.Fatalf("json.Unmarshal(owner fields) error = %v; body=%s", err, httpBody)
+		}
+		if len(fields) != 3 || fields["session_id"] == nil || fields["workspace_id"] == nil ||
+			fields["workspace_name"] == nil {
+			t.Fatalf("owner fields = %v, want exactly session_id workspace_id workspace_name", fields)
+		}
+
+		var owner compozycontract.SessionOwner
+		if err := json.Unmarshal(httpBody, &owner); err != nil {
+			t.Fatalf("json.Unmarshal(owner) error = %v", err)
+		}
+		if owner.SessionID != sessionPayload.ID || owner.WorkspaceID != sessionPayload.WorkspaceID ||
+			strings.TrimSpace(owner.WorkspaceName) == "" {
+			t.Fatalf("owner = %#v, want session %q workspace %q and non-empty name", owner, sessionPayload.ID, sessionPayload.WorkspaceID)
+		}
 	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	sessionPayload, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-		AgentName:     transportUDSAutomationAgent,
-		WorkspacePath: runtimeHarness.WorkspaceRoot,
-	})
-	if err != nil {
-		t.Fatalf("CreateSession() error = %v", err)
-	}
-	sessionPayload = waitForTransportSessionActive(t, ctx, runtimeHarness, sessionPayload)
-
-	clients, err := runtimeHarness.TransportClients()
-	if err != nil {
-		t.Fatalf("TransportClients() error = %v", err)
-	}
-	path := "/api/sessions/" + url.PathEscape(sessionPayload.ID) + "/owner"
-	httpResponse := mustUnixRequest(t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(path), nil, nil)
-	udsResponse := mustUnixRequest(t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(path), nil, nil)
-	httpBody := readAndCloseHTTPBody(t, httpResponse)
-	udsBody := readAndCloseHTTPBody(t, udsResponse)
-
-	if httpResponse.StatusCode != http.StatusOK || udsResponse.StatusCode != http.StatusOK {
-		t.Fatalf(
-			"owner status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
-			httpResponse.StatusCode,
-			udsResponse.StatusCode,
-			http.StatusOK,
-			httpBody,
-			udsBody,
-		)
-	}
-	if !bytes.Equal(httpBody, udsBody) {
-		t.Fatalf("owner payloads differ: HTTP=%s UDS=%s", httpBody, udsBody)
-	}
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(httpBody, &fields); err != nil {
-		t.Fatalf("json.Unmarshal(owner fields) error = %v; body=%s", err, httpBody)
-	}
-	if len(fields) != 3 || fields["session_id"] == nil || fields["workspace_id"] == nil ||
-		fields["workspace_name"] == nil {
-		t.Fatalf("owner fields = %v, want exactly session_id workspace_id workspace_name", fields)
-	}
-
-	var owner compozycontract.SessionOwner
-	if err := json.Unmarshal(httpBody, &owner); err != nil {
-		t.Fatalf("json.Unmarshal(owner) error = %v", err)
-	}
-	if owner.SessionID != sessionPayload.ID || owner.WorkspaceID != sessionPayload.WorkspaceID ||
-		strings.TrimSpace(owner.WorkspaceName) == "" {
-		t.Fatalf("owner = %#v, want session %q workspace %q and non-empty name", owner, sessionPayload.ID, sessionPayload.WorkspaceID)
-	}
 }
 
 func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {

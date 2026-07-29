@@ -43,16 +43,14 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	}
 	if scope.Normalize() == ScopeWorkspace {
 		actorWorkspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
-		if actor.Actor.Kind.Normalize() == ActorKindAgentSession || actorWorkspaceID != "" {
-			targetWorkspaceID := strings.TrimSpace(workspaceID)
-			if actorWorkspaceID != targetWorkspaceID && !taskWorkspaceAccessAllowed(
-				ctx,
-				a.workspaceAccess,
-				actor,
-				targetWorkspaceID,
-			) {
-				return ErrPermissionDenied
-			}
+		targetWorkspaceID := strings.TrimSpace(workspaceID)
+		if actorWorkspaceID != targetWorkspaceID && !taskWorkspaceAccessAllowed(
+			ctx,
+			a.workspaceAccess,
+			actor,
+			targetWorkspaceID,
+		) {
+			return ErrPermissionDenied
 		}
 	}
 	return nil

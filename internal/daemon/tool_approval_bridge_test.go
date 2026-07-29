@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -233,9 +234,10 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 			name      string
 			requester *recordingPermissionRequester
 			timeout   time.Duration
+			wantError string
 		}{
 			{
-				name: "timeout",
+				name: "Should report a timeout",
 				requester: &recordingPermissionRequester{fn: func(
 					ctx context.Context,
 					_ string,
@@ -244,12 +246,14 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 					<-ctx.Done()
 					return acp.RequestPermissionResponse{}, ctx.Err()
 				}},
-				timeout: time.Nanosecond,
+				timeout:   time.Nanosecond,
+				wantError: "workspace access prompt timed out",
 			},
 			{
-				name:      "unknown",
+				name:      "Should reject an unknown answer",
 				requester: selectedPermissionRequester("unknown"),
 				timeout:   time.Second,
+				wantError: "selected an unknown option",
 			},
 		}
 		for _, test := range cases {
@@ -269,6 +273,9 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 				)
 				if err == nil || allowed {
 					t.Fatalf("RequestWorkspaceAccess() = %v, %v, want denial error", allowed, err)
+				}
+				if !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("RequestWorkspaceAccess() error = %v, want %q", err, test.wantError)
 				}
 				if _, ok := cache.ConsentFor(t.Context(), "sess-1"); ok {
 					t.Fatal("failed prompt wrote session consent")

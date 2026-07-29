@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +37,8 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should IT-003 persist one queryable audit summary per decision", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := testutil.Context(t)
 		db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 		if err != nil {
@@ -78,8 +81,8 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			invalid := request
 			invalid.TargetWorkspaceID = "workspace-name"
 			decision, authErr := denyPolicy.Authorize(ctx, invalid)
-			if authErr == nil {
-				t.Fatal("Authorize(error) error = nil, want non-nil")
+			if authErr == nil || !strings.Contains(authErr.Error(), "is not canonical") {
+				t.Fatalf("Authorize(error) error = %v, want canonical-id validation", authErr)
 			}
 			if decision.Allowed {
 				t.Fatalf("Authorize(error) decision = %#v, want denied", decision)
@@ -139,6 +142,8 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 	})
 
 	t.Run("Should IT-024 resolve only live managed session permission modes", func(t *testing.T) {
+		t.Parallel()
+
 		manager, managed := newWorkspaceAccessIntegrationSession(
 			t,
 			nil,
@@ -156,18 +161,24 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 		if mode != workspaceaccess.ModeApproveAll {
 			t.Fatalf("SessionPermissionMode(live) = %q, want %q", mode, workspaceaccess.ModeApproveAll)
 		}
-		if _, err := source.SessionPermissionMode(testutil.Context(t), "missing"); err == nil {
-			t.Fatal("SessionPermissionMode(missing) error = nil, want non-nil")
+		if _, err := source.SessionPermissionMode(testutil.Context(t), "missing"); !errors.Is(
+			err,
+			session.ErrSessionNotFound,
+		) {
+			t.Fatalf("SessionPermissionMode(missing) error = %v, want ErrSessionNotFound", err)
 		}
 		if err := manager.Stop(testutil.Context(t), managed.ID); err != nil {
 			t.Fatalf("Manager.Stop() error = %v", err)
 		}
-		if _, err := source.SessionPermissionMode(testutil.Context(t), managed.ID); err == nil {
-			t.Fatal("SessionPermissionMode(stopped) error = nil, want non-nil")
+		if _, err := source.SessionPermissionMode(testutil.Context(t), managed.ID); err == nil ||
+			!strings.Contains(err.Error(), "is stopped") {
+			t.Fatalf("SessionPermissionMode(stopped) error = %v, want stopped-session contract", err)
 		}
 	})
 
 	t.Run("Should IT-025 apply session consent until the real session lifecycle stops", func(t *testing.T) {
+		t.Parallel()
+
 		cache := newWorkspaceAccessConsentCache()
 		notifier := workspaceAccessIntegrationNotifier{fanout: newSessionLifecycleFanout(cache)}
 		manager, managed := newWorkspaceAccessIntegrationSession(

@@ -7017,6 +7017,40 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny workspace resource reads and mutations from unscoped automation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithWorkspaceAccessPolicy(policy))
+		foreignTask, err := manager.CreateTask(t.Context(), CreateTask{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-b",
+			Title:       "Automation must not cross workspace boundaries",
+		}, validActorContext())
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		automation, err := DeriveAutomationActorContext("rule:nightly", "task.resource.test")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+		if _, err := manager.GetTask(t.Context(), foreignTask.ID, automation); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("GetTask(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		newTitle := "Unauthorized mutation"
+		if _, err := manager.UpdateTask(t.Context(), foreignTask.ID, Patch{Title: &newTitle}, automation); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("UpdateTask(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		if policy.calls != 2 || policy.last.Actor.Kind != workspaceaccess.ActorAutomation ||
+			policy.last.Actor.WorkspaceID != "" || policy.last.TargetWorkspaceID != "ws-b" {
+			t.Fatalf("policy calls/request = %d/%#v, want two unscoped automation denials", policy.calls, policy.last)
+		}
+	})
+
 	t.Run("Should preserve the run not found mask for policy denials", func(t *testing.T) {
 		t.Parallel()
 

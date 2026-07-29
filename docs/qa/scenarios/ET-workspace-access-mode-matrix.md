@@ -5,11 +5,11 @@ title: Decide cross-workspace requests from the session permission mode
 persona: Ada
 journey: J-cross-workspace-access
 expected: An approve-all session reaches another workspace at every seam, a deny-all session is denied at every seam with the permission-mode hint and no prompt, and an approve-reads session is denied with the same hint at the agent-identity, task, spawn, and coordination seams; each policy evaluation produces the expected workspace.access_granted or workspace.access_denied audit event in a healthy store, naming target, seam, source, and mode.
-entry_points: compozy__workspace_info; compozy__memory_list; compozy__task_run_claim_next; compozy task next --workspace; compozy spawn --workspace; compozy network coordination status --workspace; POST /api/agent/spawn (HTTP+UDS); POST /api/agent/tasks/claim-next (HTTP+UDS); GET /api/agent/me (HTTP+UDS); GET /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); PUT /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); compozy logs --type workspace.access_denied; /runtime/cli-reference/spawn; /runtime/core/agents/spawning; /runtime/core/autonomy/safe-spawn; /runtime/core/configuration/config-toml; /runtime/core/hooks/event-catalog; /runtime/core/sessions/permissions#cross-workspace-access; /runtime/core/workspaces; /runtime/core/workspaces/resolver#isolation-and-cross-workspace-access; skills/compozy/references/native-tools.md; skills/compozy/references/agent-definitions.md
-qa_status: pass
+entry_points: compozy__workspace_info; compozy__memory_list; compozy__task_run_claim_next; compozy task next --workspace; compozy spawn --workspace; compozy network peers --workspace; compozy network channels update --workspace; compozy network coordination status --workspace; POST /api/agent/spawn (HTTP+UDS); POST /api/agent/tasks/claim-next (HTTP+UDS); GET /api/agent/me (HTTP+UDS); GET /api/workspaces/:workspace_id/network/peers (HTTP+UDS); PATCH /api/workspaces/:workspace_id/network/channels/:channel (HTTP+UDS); GET /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); PUT /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); compozy logs --type workspace.access_denied; /runtime/cli-reference/spawn; /runtime/core/agents/spawning; /runtime/core/autonomy/safe-spawn; /runtime/core/configuration/config-toml; /runtime/core/hooks/event-catalog; /runtime/core/sessions/permissions#cross-workspace-access; /runtime/core/workspaces; /runtime/core/workspaces/resolver#isolation-and-cross-workspace-access; skills/compozy/references/native-tools.md; skills/compozy/references/agent-definitions.md
+qa_status: untested
 bug_ids: BUG-20260729-coordination-cli-drops-agent-identity
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 4ef8e8c
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
 last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
@@ -66,3 +66,9 @@ QA 2026-07-29: the deny/read/all matrix passed across native tools, agent CLI, H
 fixing the coordination CLI identity transport. Denials carried the exact daemon hint, deny-all
 raised zero workspace prompts, approve-reads prompted only at the tool seam, and approve-all crossed
 promptless. All four audit readers agreed on attributable events.
+
+QA impact 2026-07-29 (deep-review remediation): reset to `untested` after workspace policy coverage
+expanded from coordination to every workspace-scoped Network read and mutation, canonical workspace
+ULIDs became valid policy targets, and foreign child counts began enforcing the target workspace's
+`max_active_per_workspace` cap. Recheck deny/read/all over CLI, HTTP, and UDS Network routes and the
+foreign-target spawn cap; do not reuse the earlier pass as evidence for these changed paths.

@@ -173,114 +173,118 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceWorkspaceID = "ws-source"
-		targetWorkspaceID = "ws-target"
-	)
-	manager := stubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			if id != "sess-approve-reads" && id != "sess-approve-all" {
-				return nil, session.ErrSessionNotFound
-			}
-			return &session.Info{
-				ID:          id,
-				AgentName:   "coder",
-				WorkspaceID: sourceWorkspaceID,
-				Workspace:   "/workspace/source",
-				State:       session.StateActive,
-			}, nil
-		},
-	}
-	created := 0
-	tasks := &stubTaskManager{
-		CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
-			created++
-			if spec.WorkspaceID != targetWorkspaceID || actor.Actor.Ref == "" {
-				t.Fatalf("CreateTask() spec=%#v actor=%#v, want foreign workspace agent actor", spec, actor)
-			}
-			return &taskpkg.Task{
-				ID:          "task-cross-workspace",
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: targetWorkspaceID,
-				Title:       spec.Title,
-				Status:      taskpkg.TaskStatusPending,
-				CreatedBy:   actor.Actor,
-				Origin:      actor.Origin,
-			}, nil
-		},
-	}
-	workspaces := stubWorkspaceService{
-		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-			if ref != "target" {
-				t.Fatalf("Get() ref = %q, want target", ref)
-			}
-			return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
-		},
-		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-			if ref != targetWorkspaceID {
-				t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
-			}
-			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
-				WorkspaceID: targetWorkspaceID,
-			}, nil
-		},
-	}
-	policyCalls := 0
-	policy := apitestutil.StubWorkspaceAccessPolicy{
-		AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-			policyCalls++
-			if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
-				req.Actor.WorkspaceID != sourceWorkspaceID ||
-				req.TargetWorkspaceID != targetWorkspaceID ||
-				req.Seam != workspaceaccess.SeamIdentity {
-				t.Fatalf("Authorize() request = %#v, want HTTP identity mapping", req)
-			}
-			return workspaceaccess.Decision{
-				Allowed: req.Actor.SessionID == "sess-approve-all",
-				Source:  workspaceaccess.SourcePermissionMode,
-			}, nil
-		},
-	}
-	handlers := newTestHandlersWithAutomationBridgesTasksAndWorkspace(
-		t,
-		manager,
-		stubObserver{},
-		nil,
-		tasks,
-		nil,
-		workspaces,
-		newTestHomePaths(t),
-	)
-	handlers.MaskInternalErrors = false
-	handlers.WorkspaceAccess = policy
-	engine := newTestRouter(t, handlers)
-	body := []byte(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`)
+	t.Run("Should map cross-workspace HTTP identity permissions", func(t *testing.T) {
+		t.Parallel()
 
-	denied := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
-		agentidentity.HeaderSessionID: "sess-approve-reads",
-		agentidentity.HeaderAgent:     "coder",
-	})
-	if denied.Code != http.StatusForbidden {
-		t.Fatalf("approve-reads status = %d, want %d; body=%s", denied.Code, http.StatusForbidden, denied.Body.String())
-	}
-	if !strings.Contains(denied.Body.String(), workspaceaccess.DenialHint) {
-		t.Fatalf("approve-reads body = %s, want denial hint", denied.Body.String())
-	}
-	if created != 0 {
-		t.Fatalf("CreateTask() calls after deny = %d, want 0", created)
-	}
+		const (
+			sourceWorkspaceID = "ws-source"
+			targetWorkspaceID = "ws-target"
+		)
+		manager := stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-approve-reads" && id != "sess-approve-all" {
+					return nil, session.ErrSessionNotFound
+				}
+				return &session.Info{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: sourceWorkspaceID,
+					Workspace:   "/workspace/source",
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		created := 0
+		tasks := &stubTaskManager{
+			CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+				created++
+				if spec.WorkspaceID != targetWorkspaceID || actor.Actor.Ref == "" {
+					t.Fatalf("CreateTask() spec=%#v actor=%#v, want foreign workspace agent actor", spec, actor)
+				}
+				return &taskpkg.Task{
+					ID:          "task-cross-workspace",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: targetWorkspaceID,
+					Title:       spec.Title,
+					Status:      taskpkg.TaskStatusPending,
+					CreatedBy:   actor.Actor,
+					Origin:      actor.Origin,
+				}, nil
+			},
+		}
+		workspaces := stubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "target" {
+					t.Fatalf("Get() ref = %q, want target", ref)
+				}
+				return workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"}, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != targetWorkspaceID {
+					t.Fatalf("Resolve() ref = %q, want %q", ref, targetWorkspaceID)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: targetWorkspaceID, Name: "target"},
+					WorkspaceID: targetWorkspaceID,
+				}, nil
+			},
+		}
+		policyCalls := 0
+		policy := apitestutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				policyCalls++
+				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
+					req.Actor.WorkspaceID != sourceWorkspaceID ||
+					req.TargetWorkspaceID != targetWorkspaceID ||
+					req.Seam != workspaceaccess.SeamIdentity {
+					t.Fatalf("Authorize() request = %#v, want HTTP identity mapping", req)
+				}
+				return workspaceaccess.Decision{
+					Allowed: req.Actor.SessionID == "sess-approve-all",
+					Source:  workspaceaccess.SourcePermissionMode,
+				}, nil
+			},
+		}
+		handlers := newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+			t,
+			manager,
+			stubObserver{},
+			nil,
+			tasks,
+			nil,
+			workspaces,
+			newTestHomePaths(t),
+		)
+		handlers.MaskInternalErrors = false
+		handlers.WorkspaceAccess = policy
+		engine := newTestRouter(t, handlers)
+		body := []byte(`{"scope":"workspace","workspace":"target","title":"Cross workspace"}`)
 
-	allowed := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
-		agentidentity.HeaderSessionID: "sess-approve-all",
-		agentidentity.HeaderAgent:     "coder",
+		denied := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
+			agentidentity.HeaderSessionID: "sess-approve-reads",
+			agentidentity.HeaderAgent:     "coder",
+		})
+		if denied.Code != http.StatusForbidden {
+			t.Fatalf("approve-reads status = %d, want %d; body=%s", denied.Code, http.StatusForbidden, denied.Body.String())
+		}
+		if !strings.Contains(denied.Body.String(), workspaceaccess.DenialHint) {
+			t.Fatalf("approve-reads body = %s, want denial hint", denied.Body.String())
+		}
+		if created != 0 {
+			t.Fatalf("CreateTask() calls after deny = %d, want 0", created)
+		}
+
+		allowed := performRequestWithHeaders(t, engine, http.MethodPost, "/api/tasks", body, map[string]string{
+			agentidentity.HeaderSessionID: "sess-approve-all",
+			agentidentity.HeaderAgent:     "coder",
+		})
+		if allowed.Code != http.StatusCreated {
+			t.Fatalf("approve-all status = %d, want %d; body=%s", allowed.Code, http.StatusCreated, allowed.Body.String())
+		}
+		if created != 1 || policyCalls != 2 {
+			t.Fatalf("created=%d policy_calls=%d, want 1 and 2", created, policyCalls)
+		}
 	})
-	if allowed.Code != http.StatusCreated {
-		t.Fatalf("approve-all status = %d, want %d; body=%s", allowed.Code, http.StatusCreated, allowed.Body.String())
-	}
-	if created != 1 || policyCalls != 2 {
-		t.Fatalf("created=%d policy_calls=%d, want 1 and 2", created, policyCalls)
-	}
 }
 
 type httpAgentContextServiceFunc func(context.Context, *session.Info) (contract.AgentContextPayload, error)

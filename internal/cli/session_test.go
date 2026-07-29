@@ -406,8 +406,14 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(session new --cwd foreign) error = %v", err)
 		}
-		if !strings.Contains(stdout, `"resolution_source": "cross_workspace_attempt"`) {
-			t.Fatalf("session new output = %s, want cross workspace provenance", stdout)
+		var output struct {
+			ResolutionSource string `json:"resolution_source"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(session new output) error = %v; output=%s", err, stdout)
+		}
+		if output.ResolutionSource != "cross_workspace_attempt" {
+			t.Fatalf("session new resolution source = %q, want cross_workspace_attempt", output.ResolutionSource)
 		}
 	})
 }

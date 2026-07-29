@@ -163,7 +163,7 @@ func (c *unixSocketClient) GetNetworkUsage(
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	var response NetworkUsageRecord
-	if err := c.doJSON(ctx, http.MethodGet, base+"/usage", values, nil, &response); err != nil {
+	if err := c.doNetworkJSON(ctx, http.MethodGet, base+"/usage", values, nil, &response); err != nil {
 		return NetworkUsageRecord{}, err
 	}
 	return response, nil

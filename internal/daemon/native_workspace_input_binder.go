@@ -141,8 +141,14 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	if requested == "" {
-		if trusted == "" || nativeInputHasGlobalScope(payload) {
+		if trusted == "" {
 			return nil
+		}
+		if nativeInputHasGlobalScope(payload) {
+			if scope.Operator {
+				return nil
+			}
+			return nativeWorkspaceAccessDeniedError(id)
 		}
 		return setNativeWorkspaceInput(payload, trusted)
 	}

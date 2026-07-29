@@ -8,6 +8,16 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// WorkspaceIDResolver canonicalizes workspace references before policy evaluation.
+type WorkspaceIDResolver func(context.Context, string) (string, error)
+
+// WithWorkspaceIDResolver wires workspace-reference canonicalization into dispatch.
+func WithWorkspaceIDResolver(resolver WorkspaceIDResolver) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.workspaceIDResolver = resolver
+	}
+}
+
 func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 	ctx context.Context,
 	scope Scope,
@@ -32,7 +42,19 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 		req.WorkspaceID = trustedWorkspaceID
 		return req, nil
 	}
-	if trustedWorkspaceID == "" || trustedWorkspaceID == requestedWorkspaceID {
+	if trustedWorkspaceID != "" && trustedWorkspaceID == requestedWorkspaceID {
+		req.WorkspaceID = requestedWorkspaceID
+		return req, nil
+	}
+	if r == nil || r.workspaceIDResolver == nil {
+		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)
+	}
+	canonicalWorkspaceID, err := r.workspaceIDResolver(ctx, requestedWorkspaceID)
+	if err != nil || strings.TrimSpace(canonicalWorkspaceID) == "" {
+		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)
+	}
+	requestedWorkspaceID = strings.TrimSpace(canonicalWorkspaceID)
+	if trustedWorkspaceID != "" && trustedWorkspaceID == requestedWorkspaceID {
 		req.WorkspaceID = requestedWorkspaceID
 		return req, nil
 	}

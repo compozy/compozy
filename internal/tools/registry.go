@@ -25,6 +25,7 @@ type RuntimeRegistry struct {
 	callInputBinder       CallInputBinder
 	callInputAuthorizer   CallInputAuthorizer
 	workspaceAccess       workspaceaccess.Policy
+	workspaceIDResolver   WorkspaceIDResolver
 	processor             ResultProcessor
 	events                ToolEventSink
 	defaultMaxResultBytes int64

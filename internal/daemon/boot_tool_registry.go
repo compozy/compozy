@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -69,6 +70,17 @@ func (d *Daemon) bootToolRegistry(
 		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
 		toolspkg.WithApprovalBridge(approvalBridge),
 		toolspkg.WithWorkspaceAccessPolicy(state.accessPolicy),
+		toolspkg.WithWorkspaceIDResolver(func(ctx context.Context, ref string) (string, error) {
+			resolved, resolveErr := state.workspaceResolver.Resolve(ctx, ref)
+			if resolveErr != nil {
+				return "", resolveErr
+			}
+			workspaceID := strings.TrimSpace(resolved.ID)
+			if workspaceID == "" {
+				return "", errors.New("daemon: resolved tool workspace id is required")
+			}
+			return workspaceID, nil
+		}),
 		toolspkg.WithCallInputBinder(workspaceBinder),
 		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),

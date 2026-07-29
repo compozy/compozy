@@ -110,14 +110,11 @@ func (h *BaseHandlers) workspaceAgentDef(
 			return entry, resolved.Config, nil
 		}
 	}
-	workspaceDisplay := resolved.WorkspaceRoot
-	if workspaceDisplay == "" {
-		workspaceDisplay = strings.TrimSpace(workspaceRef)
-	}
+	workspaceLabel := workspaceDisplay(resolved.WorkspaceRoot, workspaceRef)
 	return AgentCatalogEntry{}, compozyconfig.Config{}, fmt.Errorf(
 		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
-		workspaceDisplay,
+		workspaceLabel,
 		workspacepkg.ErrAgentNotAvailable,
 	)
 }

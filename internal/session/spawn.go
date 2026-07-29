@@ -325,7 +325,11 @@ func (m *Manager) spawnLineage(
 			budget.MaxDepth,
 		)
 	}
-	if err := m.validateSpawnCaps(ctx, parent, parentLineage, budget); err != nil {
+	targetWorkspaceID := strings.TrimSpace(opts.Workspace)
+	if targetWorkspaceID == "" {
+		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
+	}
+	if err := m.validateSpawnCaps(ctx, parent, parentLineage, budget, targetWorkspaceID); err != nil {
 		return nil, err
 	}
 
@@ -352,6 +356,7 @@ func (m *Manager) validateSpawnCaps(
 	parent *Info,
 	parentLineage *store.SessionLineage,
 	budget store.SessionSpawnBudget,
+	targetWorkspaceID string,
 ) error {
 	infos, err := m.ListAll(ctx)
 	if err != nil {
@@ -373,7 +378,7 @@ func (m *Manager) validateSpawnCaps(
 		}
 		if budget.MaxActivePerWorkspace > 0 &&
 			lineage.RootSessionID == rootID &&
-			info.WorkspaceID == parent.WorkspaceID {
+			strings.TrimSpace(info.WorkspaceID) == targetWorkspaceID {
 			activeInWorkspace++
 		}
 	}
@@ -390,7 +395,7 @@ func (m *Manager) validateSpawnCaps(
 		return fmt.Errorf(
 			"%w: workspace %q has %d active spawned sessions, max_active_per_workspace %d",
 			ErrSpawnLimitExceeded,
-			parent.WorkspaceID,
+			targetWorkspaceID,
 			activeInWorkspace,
 			budget.MaxActivePerWorkspace,
 		)

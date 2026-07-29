@@ -365,89 +365,93 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceWorkspaceID = "01J00000000000000000000000"
-		targetWorkspaceID = "01J00000000000000000000001"
-	)
-	ctx := testutil.Context(t)
-	db := openTaskManagerGlobalDB(t)
-	now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
-	if err := db.InsertWorkspace(ctx, compozyworkspace.Workspace{
-		ID:        targetWorkspaceID,
-		RootDir:   t.TempDir(),
-		Name:      "target",
-		CreatedAt: now,
-		UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("InsertWorkspace() error = %v", err)
-	}
-	policy := &workspaceAccessIntegrationPolicy{}
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithWorkspaceAccessPolicy(policy))
-	operator, err := taskpkg.DeriveHumanActorContext(
-		"claim-integration-operator",
-		taskpkg.OriginKindCLI,
-		"task.claim.integration",
-	)
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: targetWorkspaceID,
-		Title:       "Cross workspace claim",
-	}, operator)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	queued, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
-	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
-	}
+	t.Run("Should propagate cross-workspace claim authorization", func(t *testing.T) {
+		t.Parallel()
 
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-source", sourceWorkspaceID)
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-	}
-	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      targetWorkspaceID,
-		ClaimerSessionID: "sess-source",
-		LeaseDuration:    time.Minute,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(agent) error = %v", err)
-	}
-	if claim.Run.ID != queued.ID || claim.Run.WorkspaceID != targetWorkspaceID {
-		t.Fatalf("ClaimNextRun(agent) run = %#v, want queued run in foreign workspace", claim.Run)
-	}
-	if len(policy.requests) != 1 {
-		t.Fatalf("policy requests after agent claim = %d, want 1", len(policy.requests))
-	}
-	request := policy.requests[0]
-	if request.Actor.Kind != workspaceaccess.ActorAgentSession ||
-		request.Actor.SessionID != "sess-source" ||
-		request.Actor.WorkspaceID != sourceWorkspaceID ||
-		request.TargetWorkspaceID != targetWorkspaceID ||
-		request.Seam != workspaceaccess.SeamTask {
-		t.Fatalf("agent policy request = %#v, want propagated cross-workspace claim", request)
-	}
+		const (
+			sourceWorkspaceID = "01J00000000000000000000000"
+			targetWorkspaceID = "01J00000000000000000000001"
+		)
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(ctx, compozyworkspace.Workspace{
+			ID:        targetWorkspaceID,
+			RootDir:   t.TempDir(),
+			Name:      "target",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		policy := &workspaceAccessIntegrationPolicy{}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithWorkspaceAccessPolicy(policy))
+		operator, err := taskpkg.DeriveHumanActorContext(
+			"claim-integration-operator",
+			taskpkg.OriginKindCLI,
+			"task.claim.integration",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: targetWorkspaceID,
+			Title:       "Cross workspace claim",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		queued, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
 
-	automation, err := taskpkg.DeriveAutomationActorContext("rule:nightly", "task.claim.integration")
-	if err != nil {
-		t.Fatalf("DeriveAutomationActorContext() error = %v", err)
-	}
-	_, err = manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      targetWorkspaceID,
-		ClaimerSessionID: "automation:nightly",
-		LeaseDuration:    time.Minute,
-	}, automation)
-	if !errors.Is(err, taskpkg.ErrPermissionDenied) {
-		t.Fatalf("ClaimNextRun(automation) error = %v, want ErrPermissionDenied", err)
-	}
-	if len(policy.requests) != 2 || policy.requests[1].Actor.Kind != workspaceaccess.ActorAutomation {
-		t.Fatalf("automation policy requests = %#v, want denied automation kind at task seam", policy.requests)
-	}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-source", sourceWorkspaceID)
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      targetWorkspaceID,
+			ClaimerSessionID: "sess-source",
+			LeaseDuration:    time.Minute,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(agent) error = %v", err)
+		}
+		if claim.Run.ID != queued.ID || claim.Run.WorkspaceID != targetWorkspaceID {
+			t.Fatalf("ClaimNextRun(agent) run = %#v, want queued run in foreign workspace", claim.Run)
+		}
+		if len(policy.requests) != 1 {
+			t.Fatalf("policy requests after agent claim = %d, want 1", len(policy.requests))
+		}
+		request := policy.requests[0]
+		if request.Actor.Kind != workspaceaccess.ActorAgentSession ||
+			request.Actor.SessionID != "sess-source" ||
+			request.Actor.WorkspaceID != sourceWorkspaceID ||
+			request.TargetWorkspaceID != targetWorkspaceID ||
+			request.Seam != workspaceaccess.SeamTask {
+			t.Fatalf("agent policy request = %#v, want propagated cross-workspace claim", request)
+		}
+
+		automation, err := taskpkg.DeriveAutomationActorContext("rule:nightly", "task.claim.integration")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+		_, err = manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      targetWorkspaceID,
+			ClaimerSessionID: "automation:nightly",
+			LeaseDuration:    time.Minute,
+		}, automation)
+		if !errors.Is(err, taskpkg.ErrPermissionDenied) {
+			t.Fatalf("ClaimNextRun(automation) error = %v, want ErrPermissionDenied", err)
+		}
+		if len(policy.requests) != 2 || policy.requests[1].Actor.Kind != workspaceaccess.ActorAutomation {
+			t.Fatalf("automation policy requests = %#v, want denied automation kind at task seam", policy.requests)
+		}
+	})
 }
 
 func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {

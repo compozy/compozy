@@ -42,16 +42,41 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetNetworkCoordination() error = %v", err)
 		}
+		enabled := true
+		revision := int64(0)
+		if _, err := client.PutNetworkCoordination(
+			context.Background(),
+			"ws-target",
+			PutNetworkCoordinationRequest{Scope: "workspace", Enabled: &enabled, ExpectedRevision: &revision},
+			credentials,
+		); err != nil {
+			t.Fatalf("PutNetworkCoordination() error = %v", err)
+		}
+		dismissed := true
+		if _, err := client.PutNetworkCoordinationInvitation(
+			context.Background(),
+			"ws-target",
+			PutNetworkCoordinationInvitationRequest{
+				Scope: "workspace", Dismissed: &dismissed, ExpectedRevision: &revision,
+			},
+			credentials,
+		); err != nil {
+			t.Fatalf("PutNetworkCoordinationInvitation() error = %v", err)
+		}
 	})
 
 	t.Run("Should call network routes through the unix socket client", func(t *testing.T) {
 		t.Parallel()
 
 		directID := "direct_99401d24bee62651d189e5a561785466"
+		credentials := agentidentity.Credentials{SessionID: "sess-a", AgentName: "coder"}
 		client := &unixSocketClient{
 			socketPath: "/tmp/compozy.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if strings.HasPrefix(req.URL.Path, "/api/workspaces/") {
+						assertAgentRequestHeaders(t, req, credentials)
+					}
 					switch {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/network/status":
 						return newHTTPResponse(
@@ -246,7 +271,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			},
 		}
 
-		ctx := context.Background()
+		ctx := withNetworkAgentCredentials(context.Background(), credentials)
 
 		status, err := client.NetworkStatus(ctx)
 		if err != nil || status.MessagesDelivered != 3 || len(status.KindMetrics) != 1 {

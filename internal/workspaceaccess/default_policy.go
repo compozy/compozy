@@ -59,7 +59,7 @@ type DefaultPolicy struct {
 }
 
 var (
-	workspaceIDPattern        = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
+	workspaceIDPattern        = regexp.MustCompile(`^(?:ws_[0-9a-f]{16}|[0-9A-HJ-KMNP-TV-Z]{26})$`)
 	_                  Policy = (*DefaultPolicy)(nil)
 )
 
@@ -87,14 +87,15 @@ func New(deps Deps) (*DefaultPolicy, error) {
 
 // Authorize evaluates and audits one access request.
 func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, error) {
-	decision, mode, decisionErr := p.authorize(ctx, normalizeRequest(req))
+	normalizedReq := normalizeRequest(req)
+	decision, mode, decisionErr := p.authorize(ctx, normalizedReq)
 	record := AccessRecord{
-		Actor:    req.Actor,
-		TargetID: strings.TrimSpace(req.TargetWorkspaceID),
+		Actor:    normalizedReq.Actor,
+		TargetID: normalizedReq.TargetWorkspaceID,
 		Allowed:  decision.Allowed,
 		Source:   decision.Source,
 		Mode:     mode,
-		Seam:     req.Seam,
+		Seam:     normalizedReq.Seam,
 	}
 	if decisionErr != nil {
 		record.Err = decisionErr.Error()

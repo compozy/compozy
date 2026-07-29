@@ -8,6 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+type workspaceAccessPolicyBinder interface {
+	SetWorkspaceAccessPolicy(workspaceaccess.Policy)
+}
+
 func (d *Daemon) bootWorkspaceAccess(state *bootState, sessions SessionManager) error {
 	if state == nil {
 		return errors.New("daemon: boot state is required for workspace access")
@@ -30,13 +34,13 @@ func (d *Daemon) bootWorkspaceAccess(state *bootState, sessions SessionManager) 
 	if err != nil {
 		return fmt.Errorf("daemon: create workspace access policy: %w", err)
 	}
+	binder, ok := sessions.(workspaceAccessPolicyBinder)
+	if !ok {
+		return errors.New("daemon: session manager cannot bind the workspace access policy")
+	}
+	binder.SetWorkspaceAccessPolicy(policy)
 	state.accessPolicy = policy
 	state.accessConsent = consent
-	if binder, ok := sessions.(interface {
-		SetWorkspaceAccessPolicy(workspaceaccess.Policy)
-	}); ok {
-		binder.SetWorkspaceAccessPolicy(policy)
-	}
 	return nil
 }
 

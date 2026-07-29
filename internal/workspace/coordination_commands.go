@@ -212,8 +212,11 @@ func (s *coordinationService) authorizeCoordinationActor(
 	if write && !actor.Scope.Operator {
 		return taskpkg.ErrPermissionDenied
 	}
+	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == taskpkg.ActorKindDaemon {
+		return nil
+	}
 	actorWorkspace := strings.TrimSpace(actor.Scope.WorkspaceID)
-	if actorWorkspace != "" && actorWorkspace != workspaceID {
+	if actorWorkspace != strings.TrimSpace(workspaceID) {
 		if s == nil || s.workspaceAccess == nil {
 			return taskpkg.ErrPermissionDenied
 		}

@@ -279,9 +279,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	t.Run("Should return not found for a missing session owner", func(t *testing.T) {
 		ownerResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions/missing/owner", nil)
-		if ownerResp.Code != http.StatusNotFound {
-			t.Fatalf("owner missing status = %d, want %d", ownerResp.Code, http.StatusNotFound)
-		}
+		assertAPIErrorResponse(t, ownerResp, http.StatusNotFound, "session not found")
 	})
 
 	t.Run("Should return not found for missing sessions", func(t *testing.T) {

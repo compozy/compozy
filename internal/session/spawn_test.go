@@ -107,8 +107,9 @@ func TestValidatePermissionSubset(t *testing.T) {
 		policy := &recordingSpawnWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
 		h.manager.SetWorkspaceAccessPolicy(policy)
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
-			MaxChildren: 1,
-			MaxDepth:    1,
+			MaxChildren:           2,
+			MaxDepth:              1,
+			MaxActivePerWorkspace: 1,
 		})
 		cleanupSessionStop(t, h, parent.ID)
 
@@ -132,6 +133,16 @@ func TestValidatePermissionSubset(t *testing.T) {
 			if req.Actor.SessionID != parent.ID || req.Seam != workspaceaccess.SeamSpawn {
 				t.Fatalf("policy request = %#v, want parent actor at spawn seam", req)
 			}
+		}
+
+		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Workspace:       foreign.ID,
+			TTL:             time.Minute,
+		})
+		if !errors.Is(err, ErrSpawnLimitExceeded) || !strings.Contains(err.Error(), foreign.ID) {
+			t.Fatalf("Spawn(second foreign child) error = %v, want target workspace cap", err)
 		}
 	})
 }
