@@ -422,14 +422,21 @@ jobs:
           # PR-only rule; its bot author and non-release subject stay inert.
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Checkout release workflow tools
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          path: .release-workflow-tools
-          sparse-checkout: scripts/release-publication-state.sh
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
+      # A release may target an older ref whose recovery logic predates the
+      # current workflow. Load the workflow-version script directly into the
+      # runner temp directory so GoReleaser still sees a clean release checkout.
+      - name: Load release recovery tool
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          WORKFLOW_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          workflow_tool="${RUNNER_TEMP}/release-publication-state.sh"
+          gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "repos/${GITHUB_REPOSITORY}/contents/scripts/release-publication-state.sh?ref=${WORKFLOW_COMMIT}" \
+            >"${workflow_tool}"
+          bash -n "${workflow_tool}"
 
       - name: Prepare Go temporary directory
         env:
@@ -458,7 +465,7 @@ jobs:
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: .release-workflow-tools/scripts/release-publication-state.sh
+        run: bash "${RUNNER_TEMP}/release-publication-state.sh"
 
       - name: Setup Release Tools
         if: steps.publication.outputs.already_published != 'true'
@@ -517,6 +524,18 @@ jobs:
           fi
           if ! grep -q 'name: "@compozy/cli"' .goreleaser.yml; then
             echo "::error::.goreleaser.yml must publish the @compozy/cli npm package"
+            exit 1
+          fi
+
+      - name: Verify release worktree is clean
+        env:
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          worktree_state="$(git status --porcelain --untracked-files=normal)"
+          if [[ -n "${worktree_state}" ]]; then
+            echo "::error::Release worktree must be clean before creating ${RELEASE_TAG}"
+            printf '%s\n' "${worktree_state}" >&2
             exit 1
           fi
 

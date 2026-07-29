@@ -406,6 +406,44 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+
+	t.Run("Should load recovery tooling outside the release checkout", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"WORKFLOW_COMMIT: ${{ github.sha }}",
+			`workflow_tool="${RUNNER_TEMP}/release-publication-state.sh"`,
+			"Accept: application/vnd.github.raw+json",
+			"repos/${GITHUB_REPOSITORY}/contents/scripts/release-publication-state.sh?ref=${WORKFLOW_COMMIT}",
+			`run: bash "${RUNNER_TEMP}/release-publication-state.sh"`,
+		} {
+			assertContainsText(t, "release workflow", workflow, snippet)
+		}
+		assertNotContainsText(t, "release workflow", workflow, ".release-workflow-tools")
+	})
+
+	t.Run("Should reject a dirty checkout before pushing the release tag", func(t *testing.T) {
+		t.Parallel()
+
+		cleanGuard := strings.Index(workflow, "git status --porcelain --untracked-files=normal")
+		if cleanGuard == -1 {
+			t.Fatal("release workflow missing clean-worktree guard")
+		}
+		tagPush := strings.Index(workflow, `git push origin "refs/tags/${RELEASE_TAG}"`)
+		if tagPush == -1 {
+			t.Fatal("release workflow missing release tag push")
+		}
+		if cleanGuard > tagPush {
+			t.Fatal("release workflow must verify the checkout before pushing the release tag")
+		}
+	})
+}
+
 func TestChangelogConfigPreservesCompozyOSHardCut(t *testing.T) {
 	t.Parallel()
 

@@ -129,8 +129,9 @@ web-test:
 
 # Parallel worktrees
 #
-# `worktree-new` creates a sibling worktree at ../<repo>-worktrees/<slug> and
-# bootstraps it (mise pins, bun install + skill symlinks; BUILD=1 adds `make
+# `worktree-new` creates a sibling worktree at ../_worktrees/<slug>, copies
+# shared dirs from main (.claude .codex .compozy .resources docs), then
+# bootstraps (mise pins, bun install + skill symlinks; BUILD=1 adds `make
 # build`, E2E=1 installs Playwright chromium). `worktree-bootstrap` preps the
 # current checkout. Removal: scripts/worktree.sh rm <slug>.
 .PHONY: worktree-new worktree-bootstrap

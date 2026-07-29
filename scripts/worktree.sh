@@ -6,16 +6,21 @@
 #   scripts/worktree.sh rm <slug-or-path> [--force]
 #   scripts/worktree.sh list
 #
-# `new` creates a sibling worktree (default <repo-parent>/<repo-name>-worktrees/<slug>)
-# and bootstraps it. `bootstrap` makes the CURRENT checkout dev-ready: mise tool
-# pins, bun install (postinstall links .claude/skills + AGENTS.md), optional
-# `make build` (--build) and Playwright chromium (--e2e). Go lanes need no
-# per-worktree setup (GOCACHE/GOMODCACHE are shared); `make verify` and the E2E
-# lanes queue machine-wide (L-030), scoped lanes are capacity-bounded.
+# `new` creates a sibling worktree (default <repo-parent>/_worktrees/<slug>),
+# replaces shared dirs (.claude .codex .compozy .resources docs) with copies
+# from the main checkout, then bootstraps. `bootstrap` makes the CURRENT
+# checkout dev-ready: mise tool pins, bun install (postinstall links
+# .claude/skills + AGENTS.md), optional `make build` (--build) and Playwright
+# chromium (--e2e). Go lanes need no per-worktree setup (GOCACHE/GOMODCACHE
+# are shared); `make verify` and the E2E lanes queue machine-wide (L-030),
+# scoped lanes are capacity-bounded.
 set -euo pipefail
 
+# Dirs wiped in the new worktree and replaced with copies from the main checkout.
+SHARED_DIRS=(.claude .codex .compozy .resources docs)
+
 usage() {
-  sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -27,18 +32,40 @@ repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || die "not inside a git checkout"
 }
 
-default_container() {
-  local root parent name
-  root="$(repo_root)"
-  parent="$(dirname "$root")"
-  name="$(basename "$root")"
-  # main checkout owns the container; linked worktrees resolve their main root
+# Absolute path to the primary checkout (owner of .git), even when invoked
+# from a linked worktree.
+main_root() {
   local common
   common="$(git rev-parse --git-common-dir)"
-  common="$(cd "$(dirname "$common")" && pwd)"
-  parent="$(dirname "$common")"
-  name="$(basename "$common")"
-  echo "$parent/$name-worktrees"
+  if [[ "$common" != /* ]]; then
+    common="$(repo_root)/${common#./}"
+  fi
+  (cd "$(dirname "$common")" && pwd)
+}
+
+default_container() {
+  echo "$(dirname "$(main_root)")/_worktrees"
+}
+
+# Drop worktree copies of shared/local dirs and replace with main's tree.
+sync_shared_dirs_from_main() {
+  local dest="$1"
+  local src name
+  src="$(main_root)"
+  dest="$(cd "$dest" && pwd)"
+  [ "$src" = "$dest" ] && die "refusing to sync main onto itself"
+
+  for name in "${SHARED_DIRS[@]}"; do
+    if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
+      rm -rf "$dest/$name"
+    fi
+    if [ -e "$src/$name" ] || [ -L "$src/$name" ]; then
+      echo "worktree: copying $name/ from main ($src)"
+      cp -a "$src/$name" "$dest/$name"
+    else
+      echo "worktree: skip $name/ (not present in main)"
+    fi
+  done
 }
 
 bootstrap() {
@@ -131,6 +158,7 @@ cmd_new() {
     git worktree add -b "$branch" "$dir" "$base"
   fi
 
+  sync_shared_dirs_from_main "$dir"
   (cd "$dir" && bootstrap ${pass_through[0]:+"${pass_through[@]}"})
 }
 
