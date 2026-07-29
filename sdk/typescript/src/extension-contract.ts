@@ -1,7 +1,10 @@
 import type { TransportLike } from "./transport.js";
 import type {
   AcceptedCapabilities,
+  ClarifyAnswer,
+  ClarifyAskParams,
   ExtensionToolRuntimeDescriptor,
+  ExtensionToolWorkspaceScope,
   InitializeRequest,
   InitializeResponse,
   InitializeRuntime,
@@ -63,6 +66,9 @@ export interface ExtensionToolContext<TInput = unknown> {
   readonly session: ExtensionSession;
   readonly toolID: ToolID;
   readonly handler: string;
+  readonly trustedWorkspace?: ExtensionToolWorkspaceScope;
+  readonly invocationId?: string;
+  askClarification: (question: Omit<ClarifyAskParams, "invocation_id">) => Promise<ClarifyAnswer>;
 }
 
 export type ExtensionToolHandler<TInput = unknown> = (

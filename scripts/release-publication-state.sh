@@ -74,16 +74,36 @@ matching_releases="$(
 matching_count="$(jq -r 'length' <<<"$matching_releases")"
 
 work_dir="$(mktemp -d "${RUNNER_TEMP}/release-publication-state.XXXXXX")"
-npm_view_output="${work_dir}/npm-view.out"
-npm_view_error="${work_dir}/npm-view.err"
+package_state() {
+  local package_name="$1"
+  local file_slug="$2"
+  local npm_view_output="${work_dir}/${file_slug}.out"
+  local npm_view_error="${work_dir}/${file_slug}.err"
 
-if npm view "@compozy/cli@${RELEASE_VERSION}" version \
-  --registry=https://registry.npmjs.org >"$npm_view_output" 2>"$npm_view_error"; then
-  published_version="$(tr -d '[:space:]' <"$npm_view_output")"
-  [[ "$published_version" == "$RELEASE_VERSION" ]] ||
-    fail "npm resolved ${published_version}, want ${RELEASE_VERSION}"
+  if npm view "${package_name}@${RELEASE_VERSION}" version \
+    --registry=https://registry.npmjs.org >"$npm_view_output" 2>"$npm_view_error"; then
+    local published_version
+    published_version="$(tr -d '[:space:]' <"$npm_view_output")"
+    [[ "$published_version" == "$RELEASE_VERSION" ]] ||
+      fail "npm resolved ${package_name}@${published_version}, want ${RELEASE_VERSION}"
+    printf 'published\n'
+    return
+  fi
+  if grep -Eq 'E404|404 Not Found' "$npm_view_error" "$npm_view_output"; then
+    printf 'missing\n'
+    return
+  fi
+  cat "$npm_view_output" >&2
+  cat "$npm_view_error" >&2
+  fail "Could not determine whether ${package_name}@${RELEASE_VERSION} is published"
+}
+
+cli_state="$(package_state "@compozy/cli" "cli")"
+extension_sdk_state="$(package_state "@compozy/extension-sdk" "extension-sdk")"
+
+if [[ "$cli_state" == "published" ]]; then
   [[ "$matching_count" == "1" ]] ||
-    fail "npm is published but expected exactly one matching GitHub Release, found ${matching_count}"
+    fail "@compozy/cli is published but expected exactly one matching GitHub Release, found ${matching_count}"
 
   release_json="$(jq -c '.[0]' <<<"$matching_releases")"
   release_id="$(jq -r '.id' <<<"$release_json")"
@@ -120,25 +140,22 @@ if npm view "@compozy/cli@${RELEASE_VERSION}" version \
   ((checksum_count > 0)) ||
     fail "Published recovery checksums.txt contains no artifacts"
 
-  write_decision "orphaned_complete" "true" "$release_id"
-  printf 'Publication state: orphaned_complete (release %s, %d checksum-backed assets)\n' \
-    "$release_id" "$checksum_count"
+  if [[ "$extension_sdk_state" == "published" ]]; then
+    write_decision "orphaned_complete" "true" "$release_id"
+    printf 'Publication state: orphaned_complete (release %s, %d checksum-backed assets)\n' \
+      "$release_id" "$checksum_count"
+  else
+    write_decision "orphaned_cli_only" "true" "$release_id"
+    printf 'Publication state: orphaned_cli_only (release %s; extension SDK publish will resume)\n' \
+      "$release_id"
+  fi
   exit 0
 fi
 
-if grep -Eq 'E404|404 Not Found' "$npm_view_error" "$npm_view_output"; then
-  [[ "$matching_count" == "0" ]] ||
-    fail "GitHub Release exists but npm ${RELEASE_VERSION} is missing"
+[[ "$extension_sdk_state" == "missing" ]] ||
+  fail "@compozy/extension-sdk is published while @compozy/cli is missing"
+[[ "$matching_count" == "0" ]] ||
+  fail "GitHub Release exists but npm ${RELEASE_VERSION} is missing"
 
-  write_decision "fresh" "false" ""
-  printf 'Publication state: fresh (@compozy/cli@%s is unpublished)\n' "$RELEASE_VERSION"
-  exit 0
-fi
-
-if [[ -s "$npm_view_output" ]]; then
-  cat "$npm_view_output" >&2
-fi
-if [[ -s "$npm_view_error" ]]; then
-  cat "$npm_view_error" >&2
-fi
-fail "Could not determine whether @compozy/cli@${RELEASE_VERSION} is published"
+write_decision "fresh" "false" ""
+printf 'Publication state: fresh (npm packages at %s are unpublished)\n' "$RELEASE_VERSION"

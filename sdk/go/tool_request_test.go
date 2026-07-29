@@ -15,7 +15,7 @@ func TestToolRequestAskClarificationCarriesOnlyBoundInvocationAndQuestion(t *tes
 	}
 	request := ToolRequest[struct{}]{
 		Host:         NewHostAPI(transport, func() bool { return true }),
-		invocationID: "inv-1",
+		invocationID: " inv-1 ",
 	}
 	answer, err := request.AskClarification(t.Context(), ClarifyQuestion{
 		Question: "Which workspace should I use?",
@@ -31,7 +31,7 @@ func TestToolRequestAskClarificationCarriesOnlyBoundInvocationAndQuestion(t *tes
 		t.Fatalf("host method = %q, want %q", transport.method, HostAPIMethodClarifyAsk)
 	}
 	want := map[string]any{
-		"invocation_id": "inv-1",
+		"invocation_id": " inv-1 ",
 		"question":      "Which workspace should I use?",
 		"choices":       []any{"staging", "production"},
 	}

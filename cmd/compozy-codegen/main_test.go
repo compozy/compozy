@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/compozy/compozy/internal/codegen/sdkgo"
 )
 
 func TestRunWithPaths(t *testing.T) {
@@ -118,7 +120,12 @@ func TestRunWithPaths(t *testing.T) {
 		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
 		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
 
-		if err := runWithPaths(context.Background(), []string{"all"}, openapiPath, sdkContractsPath); err != nil {
+		if err := runWithPaths(
+			context.Background(),
+			[]string{subcommandAll},
+			openapiPath,
+			sdkContractsPath,
+		); err != nil {
 			t.Fatalf("runWithPaths(all) error = %v", err)
 		}
 		if err := runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath); err != nil {
@@ -154,6 +161,115 @@ func TestRunWithPaths(t *testing.T) {
 		err = runWithPaths(context.Background(), []string{"check"}, openapiPath, sdkContractsPath)
 		if !errors.Is(err, ErrStaleGeneratedFile) {
 			t.Fatalf("runWithPaths(check) error = %v, want ErrStaleGeneratedFile for stale loop enums", err)
+		}
+	})
+
+	t.Run("Should reject a stale generated Go contract through the global check", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		openapiPath := filepath.Join(dir, "openapi", "compozy.json")
+		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "contracts.ts")
+		sdkGoContractsPath := filepath.Join(dir, "sdk", "go", "contracts")
+		if err := runWithAllPaths(
+			context.Background(),
+			[]string{subcommandAll},
+			openapiPath,
+			sdkContractsPath,
+			sdkGoContractsPath,
+		); err != nil {
+			t.Fatalf("runWithAllPaths(all) error = %v", err)
+		}
+
+		generated, err := sdkgo.Generate()
+		if err != nil {
+			t.Fatalf("sdkgo.Generate() error = %v", err)
+		}
+		name := generated.FileNames()[0]
+		path := filepath.Join(sdkGoContractsPath, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+		}
+		if len(content) == 0 {
+			t.Fatalf("generated contract %q is empty", path)
+		}
+		content[len(content)-1] ^= 1
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+		}
+
+		err = runWithAllPaths(
+			context.Background(),
+			[]string{"check"},
+			openapiPath,
+			sdkContractsPath,
+			sdkGoContractsPath,
+		)
+		if !errors.Is(err, ErrStaleGeneratedFile) || !strings.Contains(err.Error(), name) {
+			t.Fatalf("runWithAllPaths(check) error = %v, want stale %s", err, name)
+		}
+	})
+}
+
+func TestDescribeContractDrift(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject changed describe contracts in both SDK representations", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		typeScriptPath := filepath.Join(dir, "contracts.ts")
+		goPath := filepath.Join(dir, "contracts")
+		ctx := context.Background()
+		if err := writeSDKContracts(ctx, typeScriptPath); err != nil {
+			t.Fatalf("writeSDKContracts() error = %v", err)
+		}
+		if err := writeSDKGoContracts(goPath); err != nil {
+			t.Fatalf("writeSDKGoContracts() error = %v", err)
+		}
+
+		typeScriptGenerator := func(ctx context.Context, path string) ([]byte, error) {
+			content, err := generateFormattedSDKContracts(ctx, path)
+			if err != nil {
+				return nil, err
+			}
+			return bytes.Replace(
+				content,
+				[]byte("export interface DescribePayload {"),
+				[]byte("export interface DescribePayload {\n  drift_probe?: string;"),
+				1,
+			), nil
+		}
+		if err := checkSDKContractsWith(
+			ctx,
+			typeScriptPath,
+			typeScriptGenerator,
+		); !errors.Is(err, ErrStaleGeneratedFile) {
+			t.Fatalf("checkSDKContractsWith() error = %v, want describe drift", err)
+		}
+
+		goGenerator := func() (sdkgo.Result, error) {
+			result, err := sdkgo.Generate()
+			if err != nil {
+				return sdkgo.Result{}, err
+			}
+			for name, content := range result.Files {
+				if !bytes.Contains(content, []byte("type DescribePayload struct")) {
+					continue
+				}
+				result.Files[name] = bytes.Replace(
+					content,
+					[]byte("type DescribePayload struct {"),
+					[]byte("type DescribePayload struct {\n\tDriftProbe string `json:\"drift_probe,omitempty\"`"),
+					1,
+				)
+				break
+			}
+			return result, nil
+		}
+		if err := checkSDKGoContractsWith(goPath, goGenerator); !errors.Is(err, ErrStaleGeneratedFile) {
+			t.Fatalf("checkSDKGoContractsWith() error = %v, want describe drift", err)
 		}
 	})
 }

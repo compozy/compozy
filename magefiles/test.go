@@ -23,7 +23,10 @@ func Test() error {
 		"-timeout", goUnitTestTimeout,
 	}
 	args = append(args, packages...)
-	return runGotestsum(ctx, nil, args...)
+	if err := runGotestsum(ctx, nil, args...); err != nil {
+		return err
+	}
+	return runCommandInDir(ctx, "sdk/go", "go", "test", "-race", "-parallel=4", "./...")
 }
 
 // TestIntegration runs all tests including integration tests.

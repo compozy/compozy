@@ -49,6 +49,7 @@ import {
 } from "./extension-runtime.js";
 import { SDK_NAME, SDK_VERSION } from "./extension-contract.js";
 import { makeExtensionContext, writeExtensionError } from "./extension-context.js";
+import { makeExtensionToolContext } from "./extension-tool-context.js";
 import { parseInitializeRequest, validateProtocolVersion } from "./extension-initialize.js";
 import type {
   ExtensionContext,
@@ -434,14 +435,7 @@ export class Extension {
 
     const context = this.makeContext(request);
     try {
-      const result = await registered.handler({
-        input: call.input,
-        context,
-        host: context.host,
-        session: context.session,
-        toolID: call.tool_id,
-        handler: call.handler,
-      });
+      const result = await registered.handler(makeExtensionToolContext(call, context));
       return { result: normalizeToolResult(result) };
     } catch (error) {
       if (isRPCError(error)) {

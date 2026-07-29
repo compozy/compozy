@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Extension } from "../extension.js";
 import {
   CapabilityDeniedError,
+  InternalError,
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
@@ -162,7 +163,7 @@ describe("Extension", () => {
     await expect(harness.call("health_check", {})).resolves.toMatchObject({ healthy: true });
   });
 
-  it("negotiates bridges/deliver for bridge adapters and exposes scoped runtime data", async () => {
+  it("negotiates bridge adapter services and exposes scoped runtime data", async () => {
     const ready = vi.fn();
     const harness = new TestHarness();
     const extension = new Extension({
@@ -176,6 +177,7 @@ describe("Extension", () => {
     extension.handle("bridges/deliver", async () => ({
       acknowledged: true,
     }));
+    extension.handle("bridges/targets/snapshot", async () => ({ targets: [] }));
     extension.onReady((_host, session) => {
       ready(session.initializeRequest.runtime.bridge?.managed_instances?.[0]?.instance.id);
     });
@@ -221,7 +223,9 @@ describe("Extension", () => {
         granted_resource_kinds: [],
         granted_resource_scopes: [],
       },
-      methods: { extension_services: ["bridges/deliver"] },
+      methods: {
+        extension_services: ["bridges/deliver", "bridges/targets/snapshot"],
+      },
     });
     expect(ready).toHaveBeenCalledWith("chan-1");
   });
@@ -288,11 +292,14 @@ describe("Extension", () => {
     await expect(harness.call("health_check", {})).rejects.toBeInstanceOf(ShutdownInProgressError);
   });
 
-  it("registers executable tools and serves runtime descriptors", async () => {
+  it("registers executable tools and preserves trusted invocation context", async () => {
     const harness = new TestHarness();
+    const clarify = vi.fn(async () => ({ text: "ship it", fallback: false }));
+    harness.mockHostAPI("clarify/ask", clarify);
     const extension = new Extension({
       name: "linear",
       version: "0.1.0",
+      actions: { requires: ["clarify/ask"] },
     });
 
     extension.tool<{ query: string }>(
@@ -307,12 +314,17 @@ describe("Extension", () => {
           },
         },
       },
-      async ({ input }) => ({
-        content: [{ type: "text", text: `found ${input.query}` }],
-        truncated: false,
-        bytes: 0,
-        duration_ms: 0,
-      })
+      async ({ input, trustedWorkspace, invocationId, askClarification }) => {
+        expect(trustedWorkspace).toEqual({ id: "workspace-1", root: "/workspace/one" });
+        expect(invocationId).toBe("invocation-1");
+        const answer = await askClarification({ question: "Deploy?", choices: ["yes", "no"] });
+        return {
+          content: [{ type: "text", text: `found ${input.query}: ${answer.text}` }],
+          truncated: false,
+          bytes: 0,
+          duration_ms: 0,
+        };
+      }
     );
 
     await harness.loadExtension(extension);
@@ -340,15 +352,40 @@ describe("Extension", () => {
         tool_id: "ext__linear__search",
         handler: "search",
         session_id: "session-1",
+        invocation_id: "invocation-1",
+        trusted_workspace: { id: "workspace-1", root: "/workspace/one" },
         input: { query: "alpha" },
       })
     ).resolves.toEqual({
       result: {
-        content: [{ type: "text", text: "found alpha" }],
+        content: [{ type: "text", text: "found alpha: ship it" }],
         truncated: false,
         bytes: 0,
         duration_ms: 0,
       },
+    });
+    expect(clarify).toHaveBeenCalledWith({
+      invocation_id: "invocation-1",
+      question: "Deploy?",
+      choices: ["yes", "no"],
+    });
+  });
+
+  it("rejects model source initialize when generated required methods are missing", async () => {
+    const pair = createMockTransportPair();
+    const extension = new Extension(
+      {
+        name: "incomplete-model-source",
+        version: "0.1.0",
+        capabilities: { provides: ["model.source"] },
+      },
+      { transport: pair.extension }
+    );
+
+    void extension.start();
+    await expect(pair.host.call("initialize", initializeFor(extension))).rejects.toMatchObject({
+      constructor: InternalError,
+      data: { error: expect.stringContaining("models/list") },
     });
   });
 

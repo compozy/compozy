@@ -177,14 +177,15 @@ func Tool[TInput any](
 			})
 		}
 		return fn(ctx, ToolRequest[TInput]{
-			Input:        input,
-			RawInput:     cloneRawMessage(rawInput),
-			Context:      req.context,
-			Host:         req.context.Host,
-			Session:      req.context.Session,
-			ToolID:       req.toolID,
-			Handler:      req.handler,
-			invocationID: req.invocationID,
+			Input:            input,
+			RawInput:         cloneRawMessage(rawInput),
+			Context:          req.context,
+			Host:             req.context.Host,
+			Session:          req.context.Session,
+			ToolID:           req.toolID,
+			Handler:          req.handler,
+			TrustedWorkspace: req.trustedWorkspace,
+			invocationID:     req.invocationID,
 		})
 	})
 }

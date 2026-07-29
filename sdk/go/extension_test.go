@@ -238,11 +238,13 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		type searchInput struct {
 			Query string `json:"query"`
 		}
+		workspaceSeen := make(chan *compozysdk.ExtensionToolWorkspaceScope, 1)
 		if err := compozysdk.Tool[searchInput](
 			extension,
 			"search",
 			validToolOptions(),
 			func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+				workspaceSeen <- req.TrustedWorkspace
 				return compozysdk.TextResult("result:" + req.Input.Query), nil
 			},
 		); err != nil {
@@ -292,9 +294,14 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		}
 
 		call := runtime.call(t, 3, "tools/call", map[string]any{
-			"tool_id": "ext__go_tool__search",
-			"handler": "search",
-			"input":   map[string]any{"query": "alpha"},
+			"tool_id":       "ext__go_tool__search",
+			"handler":       "search",
+			"invocation_id": "invocation-1",
+			"trusted_workspace": map[string]any{
+				"id":   "workspace-1",
+				"root": "/workspace/one",
+			},
+			"input": map[string]any{"query": "alpha"},
 		})
 		if call.Error != nil {
 			t.Fatalf("tools/call error = %#v", call.Error)
@@ -303,6 +310,10 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		decodeResult(t, call.Result, &callResult)
 		if len(callResult.Result.Content) != 1 || callResult.Result.Content[0].Text != "result:alpha" {
 			t.Fatalf("tool result = %#v, want result:alpha", callResult.Result)
+		}
+		workspace := <-workspaceSeen
+		if workspace == nil || workspace.ID != "workspace-1" || workspace.Root != "/workspace/one" {
+			t.Fatalf("trusted workspace = %#v, want daemon-authenticated scope", workspace)
 		}
 	})
 
@@ -489,7 +500,7 @@ func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	writeText(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
+		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
 	)
 	writeText(t, filepath.Join(dir, "main.go"), `package main
 
@@ -525,7 +536,7 @@ func main() {
 		"mod",
 		"edit",
 		"-replace",
-		"github.com/compozy/compozy="+repoRoot,
+		"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
 	)
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {

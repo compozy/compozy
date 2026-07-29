@@ -1558,6 +1558,55 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeSubprocess {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export type ToolID = string;
+
+export type RiskClass = string;
+
+export interface ExtensionToolRuntimeDescriptor {
+  id: ToolID;
+  handler: string;
+  friendly_verb?: string;
+  preview?: string;
+  input_schema_digest: string;
+  output_schema_digest?: string;
+  read_only: boolean;
+  risk: RiskClass;
+  capabilities?: string[];
+}
+
+export interface ExtensionCommandGroupSpec {
+  path: string;
+  summary: string;
+}
+
+export interface DescribeSDKInfo {
+  name: string;
+  version: string;
+  protocol_version: string;
+  min_compozy_version: string;
+}
+
+export interface DescribePayload {
+  name: string;
+  version: string;
+  description?: string;
+  provides: string[];
+  permissions: string[];
+  requires_env?: string[];
+  subprocess: DescribeSubprocess;
+  tools?: ExtensionToolRuntimeDescriptor[];
+  hook_events?: string[];
+  watch_source_kinds?: string[];
+  command_groups?: ExtensionCommandGroupSpec[];
+  sdk: DescribeSDKInfo;
+}
+
 export type EmptyResult = Record<string, never>;
 
 export interface EventPostRecordPatch {
@@ -1633,22 +1682,6 @@ export interface EventRecordPayload {
   record_type?: string;
   sequence?: number;
   content?: JSONValue;
-}
-
-export type ToolID = string;
-
-export type RiskClass = string;
-
-export interface ExtensionToolRuntimeDescriptor {
-  id: ToolID;
-  handler: string;
-  friendly_verb?: string;
-  preview?: string;
-  input_schema_digest: string;
-  output_schema_digest?: string;
-  read_only: boolean;
-  risk: RiskClass;
-  capabilities?: string[];
 }
 
 export interface ExtensionProvideToolsResponse {
@@ -6795,3 +6828,26 @@ export interface HostAPIMethodMap {
     result: ClarifyAnswer;
   };
 }
+
+export const REQUIRED_METHODS_BY_PROVIDE = {
+  "bridge.adapter": ["bridges/deliver", "bridges/targets/snapshot"],
+  "loop.watch_source": ["watch/poll"],
+  "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
+  "model.source": ["models/list"],
+  "tool.provider": ["provide_tools", "tools/call"],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+export interface ProvideConformanceFixture {
+  provide: string;
+  required_methods: readonly string[];
+}
+
+export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFixture[] = [
+  {
+    provide: "loop.watch_source",
+    required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],
+  },
+  { provide: "memory.backend", required_methods: REQUIRED_METHODS_BY_PROVIDE["memory.backend"] },
+  { provide: "model.source", required_methods: REQUIRED_METHODS_BY_PROVIDE["model.source"] },
+  { provide: "tool.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["tool.provider"] },
+];

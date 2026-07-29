@@ -371,6 +371,15 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 		if response.Error == nil || response.Error.Code != -32001 {
 			t.Fatalf("initialize error = %#v, want capability denied", response.Error)
 		}
+		var denied struct {
+			Field    string   `json:"field"`
+			Required []string `json:"required"`
+			Granted  []string `json:"granted"`
+		}
+		decodeResult(t, response.Error.Data, &denied)
+		if denied.Field != "actions" || !contains(denied.Required, "sessions/list") {
+			t.Fatalf("capability denied data = %#v, want missing sessions/list grant", denied)
+		}
 	})
 }
 

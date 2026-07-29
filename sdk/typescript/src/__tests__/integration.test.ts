@@ -6,6 +6,8 @@ import readline from "node:readline";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { publicProvideFixtures, validateProvideConformance } from "../testing/conformance.js";
+
 let tempDirs: string[] = [];
 const sourceDir = resolve(__dirname, "..");
 const packageDir = resolve(sourceDir, "..");
@@ -279,6 +281,25 @@ describe("SDK integration", () => {
 
   afterAll(async () => {
     await Promise.all(tempDirs.map(async dir => await rm(dir, { force: true, recursive: true })));
+  });
+
+  it("runs generated conformance fixtures for every public provide", () => {
+    const fixtures = publicProvideFixtures();
+    expect(fixtures).toHaveLength(4);
+    expect(fixtures.map(fixture => fixture.provide)).not.toContain("bridge.adapter");
+
+    for (const fixture of fixtures) {
+      expect(() =>
+        validateProvideConformance(fixture.provide, fixture.requiredMethods)
+      ).not.toThrow();
+      expect(fixture.requiredMethods.length).toBeGreaterThan(0);
+      expect(() =>
+        validateProvideConformance(fixture.provide, fixture.requiredMethods.slice(1))
+      ).toThrow(fixture.requiredMethods[0]);
+    }
+    expect(() =>
+      validateProvideConformance("bridge.adapter", ["bridges/deliver", "bridges/targets/snapshot"])
+    ).toThrow("no public conformance fixture");
   });
 
   it(

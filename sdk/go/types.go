@@ -3,11 +3,12 @@ package compozysdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
 const (
@@ -253,12 +254,16 @@ type ExtensionProvideToolsResponse struct {
 
 // ExtensionToolCallRequest is sent by Compozy for tools/call.
 type ExtensionToolCallRequest struct {
-	ToolID       ToolID          `json:"tool_id"`
-	Handler      string          `json:"handler"`
-	SessionID    string          `json:"session_id,omitempty"`
-	InvocationID string          `json:"invocation_id,omitempty"`
-	Input        json.RawMessage `json:"input"`
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
 }
+
+// ExtensionToolWorkspaceScope is daemon-authenticated invocation context.
+type ExtensionToolWorkspaceScope = contracts.ExtensionToolWorkspaceScope
 
 // ClarifyQuestion is one bounded question authored by an extension-host tool.
 type ClarifyQuestion struct {
@@ -403,16 +408,10 @@ func validateProvidedMethodCoverage(provides []string, implemented []string) err
 	for _, method := range implemented {
 		implementedSet[method] = struct{}{}
 	}
-	requiredByCapability := map[string][]string{
-		"bridge.adapter":             {"bridges/deliver"},
-		"memory.backend":             {"memory/store", "memory/recall", "memory/forget"},
-		CapabilityToolProvider:       {ExtensionServiceMethodProvideTools, ExtensionServiceMethodToolsCall},
-		CapabilityProvideWatchSource: {ExtensionServiceMethodWatchPoll},
-	}
 	for _, capability := range provides {
-		for _, method := range requiredByCapability[capability] {
+		for _, method := range contracts.RequiredMethods(capability) {
 			if _, ok := implementedSet[method]; !ok {
-				return NewInternalError(fmt.Sprintf("capability %s requires method %s", capability, method))
+				return NewInternalError("capability " + capability + " requires method " + method)
 			}
 		}
 	}

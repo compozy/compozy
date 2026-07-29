@@ -60,6 +60,10 @@ export function parseToolCallRequest(params: unknown): ExtensionToolCallRequest 
     tool_id: request.tool_id.trim(),
     handler: request.handler.trim(),
     ...(request.session_id ? { session_id: request.session_id } : {}),
+    ...(request.invocation_id !== undefined ? { invocation_id: request.invocation_id } : {}),
+    ...(request.trusted_workspace !== undefined
+      ? { trusted_workspace: request.trusted_workspace }
+      : {}),
     input: (request.input ?? {}) as JSONValue,
   };
 }

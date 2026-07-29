@@ -262,6 +262,13 @@ func Boundaries() error {
 		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{
+			importer: "internal/codegen/sdkgo",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/extension/contract": {},
+				"github.com/dave/jennifer/jen":                           {},
+			},
+		},
+		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/redact": {},
@@ -284,6 +291,18 @@ func Boundaries() error {
 		}
 		fmt.Printf("VIOLATION: %s imports a non-leaf dependency\n", rule.importer)
 		for _, file := range files {
+			fmt.Printf("  %s\n", file)
+		}
+		violations++
+	}
+
+	sdkInternalImports, err := filesImportingPrefix("sdk/go", compozyModulePath+"internal")
+	if err != nil {
+		return fmt.Errorf("inspect public Go SDK imports: %w", err)
+	}
+	if len(sdkInternalImports) > 0 {
+		fmt.Println("VIOLATION: sdk/go imports daemon internal packages")
+		for _, file := range sdkInternalImports {
 			fmt.Printf("  %s\n", file)
 		}
 		violations++
