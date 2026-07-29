@@ -193,6 +193,39 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 		}
 	})
 
+	t.Run("Should choose the nearest registered root across filesystem case aliases", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		outerRoot := t.TempDir()
+		innerRoot := filepath.Join(outerRoot, "packages", "inner")
+		cwd := filepath.Join(innerRoot, "src", "feature")
+		if err := os.MkdirAll(cwd, 0o755); err != nil {
+			t.Fatalf("MkdirAll(cwd) error = %v", err)
+		}
+		innerAlias, ok := existingCaseAlias(innerRoot)
+		if !ok {
+			t.Skip("filesystem does not expose case-insensitive path aliases")
+		}
+		outer := Workspace{ID: "ws_outer", RootDir: outerRoot, Name: "outer"}
+		inner := Workspace{ID: "ws_inner", RootDir: innerAlias, Name: "inner"}
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(outer, inner),
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		resolved, err := resolver.Resolve(ctx, cwd)
+		if err != nil {
+			t.Fatalf("Resolve(case-aliased nested cwd) error = %v", err)
+		}
+		if resolved.ID != inner.ID {
+			t.Fatalf("Resolve(case-aliased nested cwd) ID = %q, want nearest %q", resolved.ID, inner.ID)
+		}
+	})
+
 	t.Run("Should reject path-prefix collisions and not treat AdditionalDirs as CWD roots", func(t *testing.T) {
 		t.Parallel()
 
@@ -320,6 +353,26 @@ func TestResolveDiscoversNearestEnclosingWorkspace(t *testing.T) {
 			)
 		}
 	})
+}
+
+func existingCaseAlias(path string) (string, bool) {
+	for index := len(path) - 1; index >= 0; index-- {
+		character := path[index]
+		var replacement byte
+		switch {
+		case character >= 'a' && character <= 'z':
+			replacement = character - ('a' - 'A')
+		case character >= 'A' && character <= 'Z':
+			replacement = character + ('a' - 'A')
+		default:
+			continue
+		}
+		alias := path[:index] + string([]byte{replacement}) + path[index+1:]
+		if _, err := os.Stat(alias); err == nil {
+			return alias, true
+		}
+	}
+	return "", false
 }
 
 func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
