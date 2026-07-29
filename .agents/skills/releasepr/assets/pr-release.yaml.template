@@ -2,7 +2,7 @@
 # Copy to the repository root as `.pr-release.yaml`. Legacy name:
 # `.compozy-release.yaml`. Most projects need none of this in CI because
 # owner/repo and token are detected from the GitHub Actions environment.
-# See skills/releasepr/references/configuration.md for full rules.
+# See .agents/skills/releasepr/references/configuration.md for full rules.
 
 # GitHub token. Prefer an environment variable / Actions secret over a
 # committed file. Accepted formats: classic PAT (40 hex), fine-grained

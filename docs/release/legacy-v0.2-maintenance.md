@@ -29,8 +29,9 @@ gh workflow run release.yml --repo compozy/compozy --ref main \
   -f release_channel=legacy
 ```
 
-The pinned `releasepr@v0.0.24` planner must resolve `legacy/v0.2` to the checked-out legacy commit and
-emit `github_prerelease=false`, `github_make_latest=true`, `npm_tag=latest`, and
+The pinned `releasepr@v0.0.25` planner must resolve `legacy/v0.2` to the checked-out legacy commit,
+emit the nearest stable predecessor and exact predecessor-to-commit range, and emit
+`github_prerelease=false`, `github_make_latest=true`, `npm_tag=latest`, and
 `homebrew_skip_upload=false`. The checked-out branch's GoReleaser configuration owns its v0.2
 artifacts; the planner must not rename them or infer identity from the branch name.
 
@@ -52,4 +53,3 @@ for incident review. Never move the annotated tag or reuse the immutable npm ver
 
 After the emergency release, restore the Homebrew beta-window disable notice if the publication
 tool replaced it. Record all evidence and the incident that justified the legacy release.
-

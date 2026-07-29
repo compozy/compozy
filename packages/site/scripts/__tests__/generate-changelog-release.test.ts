@@ -1,13 +1,42 @@
 import { describe, expect, it } from "vitest";
 import {
   buildChangelogRelease,
+  gitCliffSelection,
   parseGitCliffContext,
   parseReleaseNoteMarkdown,
+  releaseNotePathsForRange,
   renderReleaseMdx,
   type GitCliffRelease,
 } from "../generate-changelog-release";
 
 describe("generate changelog release", () => {
+  it("Should require an explicit planned range or initial-release intent", () => {
+    expect(gitCliffSelection("v0.3.0-beta.1..abcdef", false)).toEqual(["v0.3.0-beta.1..abcdef"]);
+    expect(gitCliffSelection(undefined, true)).toEqual(["--unreleased"]);
+    expect(() => gitCliffSelection(undefined, false)).toThrow("PR_RELEASE_GIT_RANGE is required");
+    expect(() => gitCliffSelection("v0.2.15..abcdef", true)).toThrow(
+      "cannot include PR_RELEASE_GIT_RANGE"
+    );
+  });
+
+  it("Should select only notes introduced for the target core release", () => {
+    expect(
+      releaseNotePathsForRange(
+        [
+          ".release-notes/future-highlight.md",
+          ".release-notes/archive/v0.3.0/the-os-release.md",
+          ".release-notes/archive/v0.2.15/legacy-fix.md",
+          ".release-notes/archive/v0.3.0/nested/ignored.md",
+          ".release-notes/archive/v0.3.0/ignored.txt",
+        ],
+        "v0.3.0-beta.1"
+      )
+    ).toEqual([
+      ".release-notes/future-highlight.md",
+      ".release-notes/archive/v0.3.0/the-os-release.md",
+    ]);
+  });
+
   it("Should map git-cliff context and release notes into Velite frontmatter fields", () => {
     const noteContent = [
       "---",

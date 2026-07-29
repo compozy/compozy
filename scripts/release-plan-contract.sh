@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.24}"
+readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.25}"
 readonly CONTRACT_VERSION="0.3.0-beta.1"
 readonly CONTRACT_TAG="v${CONTRACT_VERSION}"
 export PR_RELEASE_LOG_LEVEL=error
@@ -39,6 +39,8 @@ assert_plan() {
   local github_make_latest="$5"
   local npm_tag="$6"
   local homebrew_skip_upload="$7"
+  local previous_tag="$8"
+  local initial_release="$9"
   local output
   output="$(run_plan --ref "$ref" --version "$version" --channel "$channel")"
 
@@ -48,6 +50,13 @@ assert_plan() {
   assert_line "$output" "release_commit=${commit}"
   assert_line "$output" "release_version=${version}"
   assert_line "$output" "release_tag=v${version}"
+  assert_line "$output" "release_previous_tag=${previous_tag}"
+  if [[ -n "${previous_tag}" ]]; then
+    assert_line "$output" "release_git_range=${previous_tag}..${commit}"
+  else
+    assert_line "$output" "release_git_range="
+  fi
+  assert_line "$output" "release_initial=${initial_release}"
   assert_line "$output" "release_channel=${channel}"
   assert_line "$output" "github_prerelease=${github_prerelease}"
   assert_line "$output" "github_make_latest=${github_make_latest}"
@@ -56,7 +65,7 @@ assert_plan() {
 
   local output_lines
   output_lines="$(wc -l <<<"$output" | tr -d ' ')"
-  [[ "$output_lines" == "9" ]] || fail "planner emitted ${output_lines} lines, want 9"
+  [[ "$output_lines" == "12" ]] || fail "planner emitted ${output_lines} lines, want 12"
 }
 
 for command in git go; do
@@ -83,9 +92,14 @@ git add contract.txt
 git commit -m "test: advance release candidate" >/dev/null
 git push --set-upstream origin main >/dev/null
 
+assert_plan HEAD "$CONTRACT_VERSION" beta true false beta true "" true
+
+git tag v0.2.15 HEAD~1
+git push origin refs/tags/v0.2.15 >/dev/null
+
 before_head="$(git rev-parse HEAD)"
 before_status="$(git status --porcelain)"
-assert_plan HEAD "$CONTRACT_VERSION" beta true false beta true
+assert_plan HEAD "$CONTRACT_VERSION" beta true false beta true v0.2.15 false
 [[ "$(git rev-parse HEAD)" == "$before_head" ]] || fail "planner changed HEAD"
 [[ "$(git status --porcelain)" == "$before_status" ]] || fail "planner changed the worktree"
 [[ -z "$(git tag --list "$CONTRACT_TAG")" ]] || fail "planner created the release tag"
@@ -106,7 +120,15 @@ git tag --delete "$CONTRACT_TAG" >/dev/null
 expect_failure "release tag \"${CONTRACT_TAG}\" already exists" \
   run_plan --ref HEAD --version "$CONTRACT_VERSION" --channel beta
 
-assert_plan HEAD 9.9.9 stable false true latest false
-assert_plan HEAD 0.2.999 legacy false true latest false
+git fetch origin "refs/tags/${CONTRACT_TAG}:refs/tags/${CONTRACT_TAG}" >/dev/null
+printf 'third\n' >> contract.txt
+git add contract.txt
+git commit -m "test: advance the next release candidate" >/dev/null
+git push origin main >/dev/null
+assert_plan HEAD 0.3.0-beta.2 beta true false beta true "$CONTRACT_TAG" false
+git tag --delete "$CONTRACT_TAG" >/dev/null
+
+assert_plan HEAD 9.9.9 stable false true latest false v0.2.15 false
+assert_plan HEAD 0.2.999 legacy false true latest false v0.2.15 false
 
 printf 'release plan contract: PASS (%s)\n' "$PR_RELEASE_MODULE"

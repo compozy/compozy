@@ -3,7 +3,7 @@
 #
 # Inspects only. Performs no writes, no git mutations, no network or GitHub
 # API calls. Run from the consuming repository root:
-#   bash skills/releasepr/scripts/check-setup.sh
+#   bash .agents/skills/releasepr/scripts/check-setup.sh
 #
 # Exit code: 0 if no FAIL rows, 1 if any FAIL. WARN does not fail the run.
 
@@ -93,7 +93,7 @@ fi
 echo "----------------------------------"
 printf 'Summary: %d PASS, %d WARN, %d FAIL\n' "$pass" "$warn" "$fail"
 if [ "$fail" -gt 0 ]; then
-  echo "See skills/releasepr/references/setup.md and troubleshooting.md to resolve FAILs."
+  echo "See .agents/skills/releasepr/references/setup.md and troubleshooting.md to resolve FAILs."
   exit 1
 fi
 exit 0

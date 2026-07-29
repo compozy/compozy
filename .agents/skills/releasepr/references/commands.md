@@ -1,7 +1,7 @@
 # CLI command reference
 
 The CLI is Cobra-based. Run `pr-release <command> --help` for built-in help.
-Five commands exist: `pr-release`, `plan`, `dry-run`, `add-note`, `version`.
+Six commands exist: `pr-release`, `plan`, `release-body`, `dry-run`, `add-note`, `version`.
 
 ## `pr-release` — create or update the release PR
 
@@ -39,6 +39,13 @@ plan if that tag already exists locally or on `origin`.
 | `--channel` | string | required | One of `beta`, `stable`, or `legacy`. |
 | `--format`  | string | `json`  | `json` emits the plan object; `github` emits ordered `key=value` lines for `$GITHUB_OUTPUT`. |
 
+The plan also emits `previous_tag`, `git_range`, and `initial_release`.
+`git_range` is `<previous_tag>..<release_commit>` and is empty only when no
+strict semantic-version predecessor is reachable on the first-parent release
+line. In that case `initial_release` is true. Beta plans include prerelease
+tags while choosing the predecessor; stable and legacy plans exclude
+prerelease tags.
+
 The channel policy is closed:
 
 | Channel  | Version shape | GitHub | npm tag | Homebrew |
@@ -56,6 +63,29 @@ channel.
 pr-release plan --ref main --version 0.3.0-beta.1 --channel beta
 pr-release plan --ref legacy/v0.2 --version 0.2.16 --channel legacy --format github
 ```
+
+## `release-body` — render one explicit release range
+
+Renders the Markdown body for an explicit release without writing files. Pass
+the outputs from `plan` unchanged:
+
+| Flag        | Type   | Default  | Behavior |
+| ----------- | ------ | -------- | -------- |
+| `--tag`     | string | required | Target semantic-version Git tag. |
+| `--range`   | string | empty    | Exact `<previous>..<commit>` range emitted by a non-initial plan. |
+| `--initial` | bool   | false    | Explicitly render the first release when `release_initial` is true. Mutually exclusive with `--range`. |
+
+```bash
+pr-release release-body \
+  --tag "$RELEASE_TAG" \
+  --range "$RELEASE_GIT_RANGE" > release-body.md
+```
+
+Stdout contains Markdown only. The command passes the range directly to
+`git-cliff` and includes only custom `.release-notes` files introduced within
+that range for the target core version. A command with neither selector fails
+closed; do not treat an absent workflow output as a first release. Diagnostics
+go to stderr.
 
 ## `dry-run` — validate the release PR
 

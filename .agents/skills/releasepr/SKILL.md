@@ -43,7 +43,7 @@ output or running commands. They are load-bearing, not appendices.
 - `references/configuration.md` — every `.pr-release.yaml` field, defaults,
   validation rules, the full environment-variable alias matrix, and
   `release_artifacts` constraints.
-- `references/commands.md` — `pr-release`, `plan`, `dry-run`, `add-note`, `version`:
+- `references/commands.md` — `pr-release`, `plan`, `release-body`, `dry-run`, `add-note`, `version`:
   every flag and its exact behavior.
 - `references/release-workflow.md` — the end-to-end lifecycle: which commits
   trigger what, release branch/PR naming, dry-run checks, and how a merge
@@ -61,15 +61,16 @@ output or running commands. They are load-bearing, not appendices.
 
 2. **Verify wiring before changing anything.** Run the read-only helper from
    the consuming repo root:
-   `bash skills/releasepr/scripts/check-setup.sh`
+   `bash .agents/skills/releasepr/scripts/check-setup.sh`
    It reports PASS/WARN/FAIL for the binary, token, config file, owner/repo
    resolution, conventional commits, and the workflow file. It only inspects —
    it never writes, pushes, or calls mutating APIs.
 
 3. **Set up (if check-setup reports missing pieces).** Copy
-   `skills/releasepr/assets/release.yml.template` into
-   `.github/workflows/` and `skills/releasepr/assets/pr-release.yaml.template`
-   to `.pr-release.yaml`, then adjust.
+   `.agents/skills/releasepr/assets/release.yml.template` into
+   `.github/workflows/` and
+   `.agents/skills/releasepr/assets/pr-release.yaml.template` to
+   `.pr-release.yaml`, then adjust.
    **STOP. Read `references/setup.md` and `references/configuration.md` in full
    before installing pr-release or editing any config.** The asset templates and
    the bullets here are starting points, not the contract — defaults, validation
@@ -81,7 +82,7 @@ output or running commands. They are load-bearing, not appendices.
    `go run "<module>@<pinned tag>"`. `--force` makes it idempotent, not "release
    with no changes".
    **STOP. Read `references/commands.md` in full before running `pr-release`,
-   `plan`, `dry-run`, or `add-note`, or adding any flag to a script.** The flag list
+   `plan`, `release-body`, `dry-run`, or `add-note`, or adding any flag to a script.** The flag list
    here is a tripwire; semantics (e.g. `--rollback`, `--session-id`,
    `--skip-pr`) are only correct in that file.
 
@@ -90,6 +91,8 @@ output or running commands. They are load-bearing, not appendices.
    **STOP. Read `references/release-workflow.md` in full before diagnosing CI
    behavior or modifying the release workflow.** Trigger rules and the
    merge → production-release path are only accurate there.
+
+## Error handling
 
 6. **Diagnose a failure.**
    **STOP. Read `references/troubleshooting.md` in full before proposing a fix

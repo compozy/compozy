@@ -38,7 +38,7 @@ install/build step:
 
 ```yaml
 env:
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.24  # pin a real tag
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.25  # pin a real tag
 # ...
   - run: go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 ```
@@ -100,7 +100,7 @@ first release so the first version is what you intend.
 
 ## Add the release workflow
 
-Copy `skills/releasepr/assets/release.yml.template` to
+Copy `.agents/skills/releasepr/assets/release.yml.template` to
 `.github/workflows/release.yml` and adjust the pinned `PR_RELEASE_MODULE`
 version, Go version, default branch, and secret names. The template wires the
 release-PR job on pushes to the default branch and a dry-run on release PRs; the
@@ -111,7 +111,7 @@ in `release-workflow.md`.
 
 A config file is optional — several consumers run purely on workflow env vars
 and CLI flags with no file. To pin behavior or declare `release_artifacts`, copy
-`skills/releasepr/assets/pr-release.yaml.template` to `.pr-release.yaml` (legacy
+`.agents/skills/releasepr/assets/pr-release.yaml.template` to `.pr-release.yaml` (legacy
 name `.compozy-release.yaml`). Every field, default, and the injected
 `release_artifacts` env vars are in `configuration.md` — read it before editing.
 
@@ -121,7 +121,7 @@ From the consuming repo root, run the read-only verifier (no writes, pushes, or
 mutating API calls):
 
 ```bash
-bash skills/releasepr/scripts/check-setup.sh
+bash .agents/skills/releasepr/scripts/check-setup.sh
 ```
 
 It reports PASS/WARN/FAIL for the binary, token presence, config file,

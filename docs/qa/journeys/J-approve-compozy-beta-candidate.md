@@ -7,13 +7,13 @@ change, or live installer request.
 
 ```mermaid
 flowchart TD
-    A[Entry: checked-out candidate ref] --> B[Confirm workflow and vendored-skill pins are releasepr v0.0.24]
+    A[Entry: checked-out candidate ref] --> B[Confirm workflow and vendored-skill pins are releasepr v0.0.25]
     B --> C[Run read-only pr-release plan for 0.3.0-beta.1 beta]
     C --> D{Fail-closed guards}
     D -->|candidate ref != HEAD| X1[Reject]
     D -->|leading-v version| X2[Reject]
     D -->|tag exists locally or on origin| X3[Reject]
-    D -->|clean| E[Record all nine authoritative outputs]
+    D -->|clean| E[Record all twelve authoritative outputs]
     E --> F[Trace outputs through workflow without re-derivation]
     F --> G[Confirm annotated tag remains workflow-owned]
     G --> H[Run normalized migration-guide parity and disposition audit]
@@ -41,13 +41,13 @@ journey:
   actions:
     - step: 1
       verb: "Resolve both planner pins and validate the explicit candidate ref"
-      expected_observable: "Both pins are github.com/compozy/releasepr@v0.0.24 and release_commit equals checked-out HEAD"
+      expected_observable: "Both pins are github.com/compozy/releasepr@v0.0.25 and release_commit equals checked-out HEAD"
     - step: 2
       verb: "Exercise the planner's version and tag collision guards"
       expected_observable: "Leading-v input plus local and origin tag collisions fail before any tag or publication side effect"
     - step: 3
       verb: "Capture and trace the planner outputs"
-      expected_observable: "release_ref, release_commit, release_version, release_tag, release_channel, github_prerelease, github_make_latest, npm_tag, and homebrew_skip_upload flow downstream without inference or recomputation"
+      expected_observable: "release_ref, release_commit, release_version, release_tag, release_previous_tag, release_git_range, release_initial, release_channel, github_prerelease, github_make_latest, npm_tag, and homebrew_skip_upload flow downstream without inference or recomputation"
     - step: 4
       verb: "Compare both migration guides and inspect the local beta install contract"
       expected_observable: "All eight normalized sections match, every audited legacy surface has a disposition, and local copy consistently offers the hosted beta, npm beta, and pinned Go paths without Homebrew"
@@ -73,4 +73,3 @@ journey:
 - ADRs: ADR-005 and ADR-006.
 - External boundary: Task 10 alone owns the later publish and post-publish registry, installer,
   Sigstore, and DNS checks.
-

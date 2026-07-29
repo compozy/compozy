@@ -83,10 +83,15 @@ release-PR version calculation:
 1. Checkout the supplied ref with full history and tags.
 2. Run `plan --ref ... --version ... --channel ... --format github` and append
    its stdout to `$GITHUB_OUTPUT`.
-3. Run the project's dry-run checks using the emitted unprefixed version and
+3. Run `release-body` with the emitted `release_tag` and `release_git_range`,
+   writing stdout to a temporary Markdown file. Pass `--initial` instead of
+   `--range` only when the emitted `release_initial` is true.
+4. Run the project's dry-run checks using the emitted unprefixed version and
    publication policy.
-4. Only the consuming workflow creates the emitted tag and invokes GoReleaser,
-   npm, and Homebrew.
+5. Only the consuming workflow creates the emitted tag and invokes GoReleaser,
+   npm, and Homebrew. The release publisher consumes the temporary Markdown;
+   every downstream changelog receipt consumes the same planned predecessor
+   and range.
 
 The plan proves that the supplied ref is the checked-out `HEAD` and that the
 derived tag is absent locally and on `origin`. Read the `plan` channel-policy
@@ -98,7 +103,11 @@ name.
 Treat every plan output as authoritative. Shell code must not strip `v`, parse
 commit subjects, rerun `git cliff --bumped-version`, or infer a channel from a
 branch. The planner emits both the unprefixed version and its single `v`-tag so
-the publishing steps can consume the correct form directly.
+the publishing steps can consume the correct form directly. It also emits the
+nearest predecessor on the first-parent release line, the exact predecessor-
+to-commit range, and explicit first-release intent. Beta plans include
+prerelease predecessors; stable and legacy plans exclude them. Do not recompute
+these values with `git describe` in the consuming workflow.
 
 ## Branch and PR naming
 

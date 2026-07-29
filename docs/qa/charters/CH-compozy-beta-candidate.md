@@ -16,8 +16,8 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Resolve both github.com/compozy/releasepr@v0.0.24 pins; run one read-only beta plan against the explicit candidate and prove release_commit equals checked-out HEAD."
-      - "Exercise leading-v, local tag, and origin tag collision rejection; record all nine authoritative outputs and trace them through downstream workflow inputs without re-derivation."
+      - "Resolve both github.com/compozy/releasepr@v0.0.25 pins; run one read-only beta plan against the explicit candidate and prove release_commit equals checked-out HEAD."
+      - "Exercise leading-v, local tag, and origin tag collision rejection; record all twelve authoritative outputs and trace them through downstream workflow inputs without re-derivation."
       - "Confirm the workflow, not the planner, retains annotated tag creation, then stop before tag creation, push, or publication."
       - "Run make migration-guide-check, compare all eight sections, audit every legacy CLI/Web/extension/SDK disposition, and inspect README/site/skill/installer/update/package beta truth locally."
     must_avoid:
@@ -30,9 +30,8 @@ charter:
     invariants: [10, 15]
     deferred_invariants: [11]
     adrs: [ADR-005, ADR-006]
-    expected_evidence: "Pin resolution, ref/tag guard transcripts, nine-output trace, no-rederivation map, guide parity output, ledger audit, and local beta-copy captures."
+    expected_evidence: "Pin resolution, ref/tag guard transcripts, twelve-output trace including predecessor/range/initial intent, no-rederivation map, guide parity output, ledger audit, and local beta-copy captures."
     exit_criteria: "The exact candidate is locally approved with zero external side effects; Task 10 receives the later publish/post-publish handoff."
 ```
 
 <!-- The charter is durable and immutable: each run's debrief belongs in that run's dated report. -->
-

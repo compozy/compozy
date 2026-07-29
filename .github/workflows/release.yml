@@ -44,7 +44,7 @@ env:
   GO_VERSION: "1.26.4"
   NODE_VERSION: "22"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.24
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.25
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -331,6 +331,9 @@ jobs:
       release_commit: ${{ steps.plan.outputs.release_commit }}
       release_version: ${{ steps.plan.outputs.release_version }}
       release_tag: ${{ steps.plan.outputs.release_tag }}
+      release_previous_tag: ${{ steps.plan.outputs.release_previous_tag }}
+      release_git_range: ${{ steps.plan.outputs.release_git_range }}
+      release_initial: ${{ steps.plan.outputs.release_initial }}
       release_channel: ${{ steps.plan.outputs.release_channel }}
       github_prerelease: ${{ steps.plan.outputs.github_prerelease }}
       github_make_latest: ${{ steps.plan.outputs.github_make_latest }}
@@ -413,7 +416,8 @@ jobs:
             --format github >"${plan_output}"
 
           expected_keys=(
-            release_ref release_commit release_version release_tag release_channel
+            release_ref release_commit release_version release_tag release_previous_tag
+            release_git_range release_initial release_channel
             github_prerelease github_make_latest npm_tag homebrew_skip_upload
           )
           for key in "${expected_keys[@]}"; do
@@ -422,8 +426,8 @@ jobs:
               exit 1
             fi
           done
-          if [[ "$(wc -l <"${plan_output}" | tr -d ' ')" != "9" ]]; then
-            echo "::error::Planner output must contain exactly nine authoritative entries"
+          if [[ "$(wc -l <"${plan_output}" | tr -d ' ')" != "12" ]]; then
+            echo "::error::Planner output must contain exactly twelve authoritative entries"
             exit 1
           fi
           cat "${plan_output}" >>"${GITHUB_OUTPUT}"
@@ -491,6 +495,40 @@ jobs:
 
       - *run-release-preflight
 
+      - name: Render canonical release body
+        if: steps.publication.outputs.already_published != 'true'
+        env:
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_GIT_RANGE: ${{ needs.release-plan.outputs.release_git_range }}
+          RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}
+          PR_RELEASE_LOG_LEVEL: error
+        run: |
+          set -euo pipefail
+          release_body_args=(release-body --tag "${RELEASE_TAG}")
+          case "${RELEASE_INITIAL}" in
+            true)
+              if [[ -n "${RELEASE_GIT_RANGE}" ]]; then
+                echo "::error::Initial release plan cannot include a Git range"
+                exit 1
+              fi
+              release_body_args+=(--initial)
+              ;;
+            false)
+              if [[ -z "${RELEASE_GIT_RANGE}" ]]; then
+                echo "::error::Non-initial release plan must include a Git range"
+                exit 1
+              fi
+              release_body_args+=(--range "${RELEASE_GIT_RANGE}")
+              ;;
+            *)
+              echo "::error::Release plan emitted invalid initial-release intent"
+              exit 1
+              ;;
+          esac
+          go run "${PR_RELEASE_MODULE}" "${release_body_args[@]}" >"${RUNNER_TEMP}/RELEASE_BODY.md"
+          test -s "${RUNNER_TEMP}/RELEASE_BODY.md"
+          head -1 "${RUNNER_TEMP}/RELEASE_BODY.md"
+
       - name: Create and push annotated release tag
         env:
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
@@ -518,23 +556,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
           git push origin "refs/tags/${RELEASE_TAG}"
-
-      # RELEASE_BODY.md carries the release PR's base-version heading (e.g.
-      # "## 0.3.0"). Derive the published body outside the checkout so
-      # GoReleaser's clean-tree validation remains meaningful.
-      - name: Prepare published release body
-        if: steps.publication.outputs.already_published != 'true'
-        env:
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: |
-          set -euo pipefail
-          release_body="${RUNNER_TEMP}/RELEASE_BODY.md"
-          cp RELEASE_BODY.md "${release_body}"
-          sed -i -E "1s/^## [^ ]+/## ${RELEASE_VERSION}/" "${release_body}"
-          if ! head -1 "${release_body}" | grep -F "## ${RELEASE_VERSION}" >/dev/null; then
-            echo "::warning::RELEASE_BODY.md heading did not align with ${RELEASE_VERSION}"
-          fi
-          head -1 "${release_body}"
 
       - uses: goreleaser/goreleaser-action@v6
         if: steps.publication.outputs.already_published != 'true'
@@ -701,14 +722,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          PR_RELEASE_PREVIOUS_TAG: ${{ needs.release-plan.outputs.release_previous_tag }}
+          PR_RELEASE_GIT_RANGE: ${{ needs.release-plan.outputs.release_git_range }}
+          PR_RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}
         run: |
           set -euo pipefail
-          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
           export PR_RELEASE_VERSION="${RELEASE_VERSION}"
-          if [[ -n "${previous_tag}" ]]; then
-            export PR_RELEASE_PREVIOUS_TAG="${previous_tag}"
-            export PR_RELEASE_GIT_RANGE="${previous_tag}..${RELEASE_TAG}"
-          fi
           bun run release:site-changelog
           git add packages/site/content/blog/changelog
           if git diff --cached --quiet; then

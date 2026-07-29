@@ -28,6 +28,8 @@ Match the exact error or symptom to a row before proposing a fix.
 | `release ref ... does not match HEAD` | The supplied ref resolves to a different commit than the checkout. | Checkout the exact dispatch ref before running `plan`; do not replace the ref with the current branch name. |
 | `release tag ... already exists` | The derived tag exists locally or on `origin`. | Choose the intended next version or stop the duplicate release; never overwrite the existing tag. |
 | `beta channel requires...` / `stable channel requires...` | The SemVer prerelease shape conflicts with the explicit channel. | Use a `-beta...` prerelease only with `beta`; use a version without prerelease data for `stable` or `legacy`. |
+| A later beta repeats the complete earlier beta changelog | The workflow reused cumulative `RELEASE_BODY.md` or recalculated its own predecessor instead of consuming the plan range. | Run `release-body --tag "$RELEASE_TAG" --range "$RELEASE_GIT_RANGE"` and use the planned range for every downstream changelog receipt. |
+| `git range is required unless initial release mode is explicit` | `release_git_range` was lost/empty or the workflow omitted its selector. | Pass the non-empty planned range. Use `--initial` only when the plan emitted `release_initial=true`. |
 
 If the error is not listed, re-read `configuration.md` (validation) and
 `release-workflow.md` (trigger rules) before guessing — most failures are a

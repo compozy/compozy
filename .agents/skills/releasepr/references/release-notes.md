@@ -49,6 +49,11 @@ pr-release add-note --title "Drop Node 16" --type breaking --body "Node 18+ requ
 3. The current release section lands in `RELEASE_BODY.md` (GitHub Release body)
    and is prepended to the historical `RELEASE_NOTES.md`.
 
+Explicit releases use `release-body` instead of reusing `RELEASE_BODY.md`.
+The command scopes both `git-cliff` commits and custom notes to the
+`release_git_range` emitted by `plan`, so successive prereleases stay
+incremental while the conventional stable release artifacts remain cumulative.
+
 Archiving is transactional: a move failure rolls back prior moves. Do not
 manually move files out of `.release-notes/` mid-release — let the tool archive
 them.

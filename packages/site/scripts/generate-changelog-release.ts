@@ -1,7 +1,7 @@
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -15,6 +15,10 @@ import {
   renderReleaseMdx,
   uppercaseFirst,
 } from "./render-changelog-release";
+import { readReleaseNotes, type ReleaseNoteInput } from "./release-note-input";
+
+export { parseReleaseNoteMarkdown, releaseNotePathsForRange } from "./release-note-input";
+export type { ReleaseNoteInput } from "./release-note-input";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,13 +26,9 @@ const maxGitCliffOutputBytes = 32 * 1024 * 1024;
 
 const changelogDirectory = "packages/site/content/blog/changelog";
 
-const releaseNotesDirectory = ".release-notes";
-
 export const summaryMaxLength = 280;
 
 export type ReleaseStatus = "stable" | "beta" | "alpha" | "breaking";
-
-type ReleaseNoteType = "breaking" | "feature" | "fix" | "highlight";
 
 export interface GitCliffCommit {
   message: string;
@@ -44,14 +44,6 @@ export interface GitCliffRelease {
   timestamp?: number;
   commits: GitCliffCommit[];
   previousVersion?: string;
-}
-
-export interface ReleaseNoteInput {
-  title: string;
-  type: ReleaseNoteType;
-  body: string;
-  summary?: string;
-  sourcePath: string;
 }
 
 export interface ChangelogReleaseEntry {
@@ -83,36 +75,6 @@ export function parseGitCliffContext(raw: string): GitCliffRelease[] {
     throw new Error("git-cliff context must be a JSON array");
   }
   return parsed.map(parseGitCliffRelease);
-}
-
-export function parseReleaseNoteMarkdown(
-  sourcePath: string,
-  content: string
-): ReleaseNoteInput | null {
-  const normalized = content.replaceAll("\r\n", "\n");
-  if (!normalized.startsWith("---\n")) {
-    return null;
-  }
-  const rest = normalized.slice("---\n".length);
-  const footerIndex = rest.indexOf("\n---\n");
-  if (footerIndex === -1) {
-    return null;
-  }
-  const metadata = parseSimpleFrontmatter(rest.slice(0, footerIndex));
-  const title = metadata.get("title")?.trim();
-  const type = parseReleaseNoteType(metadata.get("type"));
-  const body = rest.slice(footerIndex + "\n---\n".length).trim();
-  if (!title || !type || !body) {
-    return null;
-  }
-  const summary = metadata.get("summary")?.trim();
-  return {
-    title,
-    type,
-    body,
-    summary: summary === "" ? undefined : summary,
-    sourcePath,
-  };
 }
 
 export function buildChangelogRelease(input: BuildChangelogReleaseInput): ChangelogReleaseEntry {
@@ -164,13 +126,11 @@ export async function generateChangelogRelease(
   env: NodeJS.ProcessEnv
 ): Promise<string> {
   const version = normalizeVersionTag(requiredEnv(env, "PR_RELEASE_VERSION"));
-  const rawContext = await runGitCliffContext(
-    cwd,
-    version,
-    emptyToUndefined(env.PR_RELEASE_GIT_RANGE)
-  );
+  const gitRange = emptyToUndefined(env.PR_RELEASE_GIT_RANGE);
+  const initialRelease = requiredBooleanEnv(env, "PR_RELEASE_INITIAL");
+  const rawContext = await runGitCliffContext(cwd, version, gitRange, initialRelease);
   const context = parseGitCliffContext(rawContext);
-  const releaseNotes = await readReleaseNotes(cwd, version);
+  const releaseNotes = await readReleaseNotes(cwd, version, gitRange);
   const repository = repositoryFromEnv(env);
   const entry = buildChangelogRelease({
     version,
@@ -191,9 +151,10 @@ export async function generateChangelogRelease(
 async function runGitCliffContext(
   cwd: string,
   version: string,
-  gitRange: string | undefined
+  gitRange: string | undefined,
+  initialRelease: boolean
 ): Promise<string> {
-  const selection = gitRange === undefined ? ["--unreleased"] : [gitRange];
+  const selection = gitCliffSelection(gitRange, initialRelease);
   const { stdout } = await execFileAsync(
     "git-cliff",
     ["--context", "--tag", version, "--strip", "all", ...selection],
@@ -205,38 +166,17 @@ async function runGitCliffContext(
   return stdout;
 }
 
-async function readReleaseNotes(cwd: string, version: string): Promise<ReleaseNoteInput[]> {
-  const directories = [
-    path.join(cwd, releaseNotesDirectory),
-    path.join(cwd, releaseNotesDirectory, "archive", version),
-  ];
-  const notes: ReleaseNoteInput[] = [];
-  for (const directory of directories) {
-    const entries = await readDirectoryEntries(directory);
-    for (const entry of entries) {
-      if (!entry.isFile() || path.extname(entry.name) !== ".md") {
-        continue;
-      }
-      const sourcePath = path.relative(cwd, path.join(directory, entry.name));
-      const content = await readFile(path.join(directory, entry.name), "utf8");
-      const note = parseReleaseNoteMarkdown(sourcePath, content);
-      if (note !== null) {
-        notes.push(note);
-      }
+export function gitCliffSelection(gitRange: string | undefined, initialRelease: boolean): string[] {
+  if (initialRelease) {
+    if (gitRange !== undefined) {
+      throw new Error("Initial release cannot include PR_RELEASE_GIT_RANGE");
     }
+    return ["--unreleased"];
   }
-  return notes.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
-}
-
-async function readDirectoryEntries(directory: string) {
-  try {
-    return await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
+  if (gitRange === undefined) {
+    throw new Error("PR_RELEASE_GIT_RANGE is required unless PR_RELEASE_INITIAL=true");
   }
+  return [gitRange];
 }
 
 function parseGitCliffRelease(value: unknown): GitCliffRelease {
@@ -358,46 +298,6 @@ function includesAny(value: string, needles: string[]): boolean {
   return needles.some(needle => value.includes(needle));
 }
 
-function parseSimpleFrontmatter(frontmatter: string): Map<string, string> {
-  const metadata = new Map<string, string>();
-  for (const line of frontmatter.split("\n")) {
-    const match = /^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/.exec(line.trim());
-    if (match === null) {
-      continue;
-    }
-    const key = match[1];
-    const value = match[2];
-    if (key !== undefined && value !== undefined) {
-      metadata.set(key, unquoteFrontmatterValue(value));
-    }
-  }
-  return metadata;
-}
-
-function parseReleaseNoteType(value: string | undefined): ReleaseNoteType | undefined {
-  const normalized = value?.trim().toLowerCase();
-  switch (normalized) {
-    case "breaking":
-    case "feature":
-    case "fix":
-    case "highlight":
-      return normalized;
-    default:
-      return undefined;
-  }
-}
-
-function unquoteFrontmatterValue(value: string): string {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
 function repositoryFromEnv(env: NodeJS.ProcessEnv): { owner?: string; repo?: string } {
   const owner = emptyToUndefined(env.PR_RELEASE_GITHUB_OWNER ?? env.GITHUB_REPOSITORY_OWNER);
   const repo = emptyToUndefined(env.PR_RELEASE_GITHUB_REPO);
@@ -430,6 +330,17 @@ function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
   return value;
 }
 
+function requiredBooleanEnv(env: NodeJS.ProcessEnv, key: string): boolean {
+  const value = requiredEnv(env, key);
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new Error(`${key} must be true or false`);
+}
+
 function emptyToUndefined(value: string | undefined | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed === "" ? undefined : trimmed;
@@ -452,10 +363,6 @@ function readNumber(record: Record<string, unknown>, key: string): number | unde
 function readBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
   const value = record[key];
   return typeof value === "boolean" ? value : undefined;
-}
-
-function isNodeError(error: unknown): error is Error & { code?: string } {
-  return error instanceof Error && "code" in error;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
