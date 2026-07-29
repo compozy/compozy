@@ -1,11 +1,8 @@
-import { ChevronDown, FileText } from "lucide-react";
-import { useRef } from "react";
+import { FileText } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
-
-// Expanded file lines cap — beyond it a bare "+N more" line closes the list.
-const CHANGED_FILES_VISIBLE_CAP = 8;
+import { TranscriptDisclosure } from "./transcript-disclosure";
 
 // Signal palette as information, never decoration: additions read `--success`,
 // deletions `--danger`. The +/− sign carries the meaning too, so the stat never
@@ -14,7 +11,7 @@ function DiffStat({ additions, deletions }: { additions: number; deletions: numb
   return (
     <span
       data-slot="changed-files-diffstat"
-      className="flex shrink-0 items-center gap-[5px] font-mono text-[11px] tabular-nums"
+      className="flex shrink-0 items-center gap-1.5 font-mono text-transcript-caption tabular-nums"
     >
       <span className="font-medium text-success">+{additions}</span>
       <span className="font-medium text-danger">−{deletions}</span>
@@ -33,10 +30,13 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
   return (
     <div
       data-testid="changed-file-row"
-      className="flex min-h-[22px] min-w-0 items-center gap-2 text-[12px]"
+      className="flex min-h-transcript-row min-w-0 items-center gap-2 text-transcript-body"
     >
       <FileText aria-hidden="true" className="size-3 shrink-0 text-faint" strokeWidth={1.75} />
-      <span className="flex min-w-0 flex-1 items-baseline font-mono text-[11px]" title={file.path}>
+      <span
+        className="flex min-w-0 flex-1 items-baseline font-mono text-transcript-caption"
+        title={file.path}
+      >
         {dir ? <span className="truncate text-subtle">{dir}</span> : null}
         <span className="shrink-0 text-fg">{name}</span>
       </span>
@@ -58,50 +58,34 @@ export function SessionChangedFilesRowView({
   row: SessionChangedFilesRow;
   onToggle: (button: HTMLElement | null) => void;
 }) {
-  const ref = useRef<HTMLButtonElement | null>(null);
   const fileCount = row.files.length;
   const visibleFiles = row.files.slice(0, CHANGED_FILES_VISIBLE_CAP);
   const hiddenCount = fileCount - visibleFiles.length;
   return (
     <div data-testid="changed-files-row" data-expanded={String(row.expanded)} className="min-w-0">
-      <button
-        ref={ref}
-        type="button"
-        aria-expanded={row.expanded}
-        onClick={() => onToggle(ref.current)}
-        className={cn(
-          "group inline-flex min-h-6 items-center gap-[7px] rounded-md px-1 text-left",
-          "text-small-body font-medium text-muted",
-          "transition-colors duration-base ease-out hover:bg-hover hover:text-fg",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <span className="flex size-[18px] shrink-0 items-center justify-center">
+      <TranscriptDisclosure
+        expanded={row.expanded}
+        onToggle={onToggle}
+        icon={
           <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-        </span>
-        <span className="min-w-0 shrink truncate">
-          Edited {fileCount} {fileCount === 1 ? "file" : "files"}
-        </span>
-        <DiffStat additions={row.additions} deletions={row.deletions} />
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
-            row.expanded ? "rotate-180" : null
-          )}
-          strokeWidth={1.75}
-        />
-      </button>
+        }
+        label={
+          <>
+            Edited {fileCount} {fileCount === 1 ? "file" : "files"}
+          </>
+        }
+        trailing={<DiffStat additions={row.additions} deletions={row.deletions} />}
+      />
       {row.expanded ? (
         <div
           data-testid="changed-files-list"
-          className="mt-0.5 mb-0.5 ml-[25px] flex flex-col gap-px border-l border-line pl-[11px]"
+          className="mt-0.5 mb-0.5 ml-transcript-detail-indent flex flex-col gap-px border-l border-line pl-transcript-detail-gutter"
         >
           {visibleFiles.map(file => (
             <ChangedFileRow key={file.path} file={file} />
           ))}
           {hiddenCount > 0 ? (
-            <span className="min-h-[22px] content-center text-[11.5px] text-subtle">
+            <span className="min-h-transcript-row content-center text-transcript-meta text-subtle">
               +{hiddenCount} more
             </span>
           ) : null}

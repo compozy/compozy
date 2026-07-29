@@ -6,11 +6,16 @@ import { DetailPre } from "./detail-pre";
 
 const VISIBLE_OUTPUT_LINES = 20;
 
-function clampLines(text: string, expanded: boolean): string {
+function clampLines(text: string, expanded: boolean, visibleLines = VISIBLE_OUTPUT_LINES): string {
   if (expanded) return text;
+  if (visibleLines <= 0) return "";
   const lines = text.split("\n");
-  if (lines.length <= VISIBLE_OUTPUT_LINES) return text;
-  return lines.slice(0, VISIBLE_OUTPUT_LINES).join("\n");
+  if (lines.length <= visibleLines) return text;
+  return lines.slice(0, visibleLines).join("\n");
+}
+
+function lineCount(text: string): number {
+  return text.length > 0 ? text.split("\n").length : 0;
 }
 
 /** Format non-stderr output (stderr renders separately as danger text lines). */
@@ -34,9 +39,17 @@ export function BashContent({ message }: { message: UIMessage }) {
   const output = result ? formatBashOutput(result) : "";
   const stderr = result?.stderr ?? "";
   const errorText = result?.error ?? "";
-  const totalLines =
-    (output ? output.split("\n").length : 0) + (stderr ? stderr.split("\n").length : 0);
+  const outputLines = lineCount(output);
+  const stderrLines = lineCount(stderr);
+  const errorLines = lineCount(errorText);
+  const totalLines = outputLines + stderrLines + errorLines;
   const overflow = totalLines > VISIBLE_OUTPUT_LINES;
+  let remainingLines = VISIBLE_OUTPUT_LINES;
+  const visibleOutput = clampLines(output, expanded, remainingLines);
+  remainingLines = Math.max(0, remainingLines - outputLines);
+  const visibleStderr = clampLines(stderr, expanded, remainingLines);
+  remainingLines = Math.max(0, remainingLines - stderrLines);
+  const visibleError = clampLines(errorText, expanded, remainingLines);
 
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="bash-content">
@@ -45,17 +58,17 @@ export function BashContent({ message }: { message: UIMessage }) {
           $ {String(command)}
         </DetailPre>
       ) : null}
-      {output || stderr || errorText ? (
+      {visibleOutput || visibleStderr || visibleError ? (
         <DetailPre>
-          {output ? clampLines(output, expanded) : null}
-          {output && (stderr || errorText) ? "\n" : null}
-          {stderr ? (
+          {visibleOutput || null}
+          {visibleOutput && (visibleStderr || visibleError) ? "\n" : null}
+          {visibleStderr ? (
             <span className="text-danger" data-testid="bash-stderr">
-              {clampLines(stderr, expanded)}
+              {visibleStderr}
             </span>
           ) : null}
-          {stderr && errorText ? "\n" : null}
-          {errorText ? <span className="text-danger">{errorText}</span> : null}
+          {visibleStderr && visibleError ? "\n" : null}
+          {visibleError ? <span className="text-danger">{visibleError}</span> : null}
         </DetailPre>
       ) : null}
       {overflow ? (

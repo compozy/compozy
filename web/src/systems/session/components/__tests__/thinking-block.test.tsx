@@ -86,13 +86,12 @@ describe("ThinkingBlock", () => {
     await user.click(trigger);
     const content = screen.getByTestId("thinking-content");
 
-    // Body sits on the shared 25px detail rail (`.trow__detail` alignment) —
-    // a hairline rule, no bordered box, no background fill.
-    expect(content.className).toContain("ml-[25px]");
-    expect(content.className).toContain("border-l");
-    expect(content.className).toContain("pl-[11px]");
-    expect(content.className).not.toContain("bg-canvas-soft");
-    expect(content.className).not.toContain("rounded-lg");
+    expect(content).toHaveAttribute("data-slot", "thinking-detail");
+    expect(content).toHaveAttribute("role", "region");
+    expect(content).toHaveAttribute("aria-label", "Reasoning");
+    expect(content).toHaveAttribute("tabindex", "0");
+    expect(content).toHaveClass("border-l", "border-line");
+    expect(content).not.toHaveClass("bg-canvas-soft", "rounded-lg");
   });
 
   it("Should preview the first reasoning line on the settled row without an updates count", () => {

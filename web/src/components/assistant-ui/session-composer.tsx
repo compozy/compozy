@@ -1,5 +1,5 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
-import { ArrowUp, FilePenLine, ListPlus, Scissors, Square, X } from "lucide-react";
+import { ArrowUp, CornerDownRight, FilePenLine, ListPlus, Scissors, Square, X } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -53,8 +53,8 @@ function isAbortError(error: unknown): boolean {
  * The session prompt composer. Idle: an accent Send disc submits to the runtime.
  * While a turn runs the phase changes coherently — Enter queues the draft (with a
  * visible hint), the primary disc becomes a danger Stop, and Queue/Interrupt stay
- * available. Queued follow-ups render fused onto the composer top with
- * steer/edit/remove actions (steer lives on the queue strip, not as a composer CTA).
+ * available. A direct Steer action injects the current draft into the live turn;
+ * queued follow-ups keep their separate steer/edit/remove actions.
  */
 export function SessionComposer({
   composerState,
@@ -63,6 +63,7 @@ export function SessionComposer({
   onCancelPrompt,
   onQueuePrompt,
   onInterruptPrompt,
+  onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
@@ -235,6 +236,19 @@ export function SessionComposer({
                     >
                       <ListPlus className="size-3" />
                       Queue
+                    </Button>
+                  ) : null}
+                  {allowBusyInput && onSteerPrompt ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleBusyInputAction(onSteerPrompt, "Couldn't steer prompt.")}
+                      disabled={!canSubmitBusyInput}
+                      data-testid="composer-steer-button"
+                    >
+                      <CornerDownRight className="size-3" />
+                      Steer
                     </Button>
                   ) : null}
                   {allowBusyInput && onInterruptPrompt ? (

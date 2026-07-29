@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ThreadMessage } from "@assistant-ui/react";
@@ -70,11 +70,22 @@ function clarification(overrides: Partial<ClarificationPending> = {}): Clarifica
   };
 }
 
+interface RenderDockOptions {
+  messages?: readonly ThreadMessage[];
+  clarifications?: ClarificationPending[];
+  clarificationError?: Error;
+}
+
 function renderDock({
   messages = [] as readonly ThreadMessage[],
   clarifications = [] as ClarificationPending[],
-} = {}) {
-  vi.mocked(fetchSessionClarifications).mockResolvedValue(clarifications);
+  clarificationError,
+}: RenderDockOptions = {}) {
+  if (clarificationError) {
+    vi.mocked(fetchSessionClarifications).mockRejectedValue(clarificationError);
+  } else {
+    vi.mocked(fetchSessionClarifications).mockResolvedValue(clarifications);
+  }
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -151,7 +162,7 @@ describe("SessionDecisionDock", () => {
 
     fireEvent.keyDown(textarea, { key: "1" });
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await Promise.resolve();
     expect(approveSession).not.toHaveBeenCalled();
     textarea.remove();
   });
@@ -178,7 +189,29 @@ describe("SessionDecisionDock", () => {
 
     fireEvent.keyDown(document.body, { key: "2" });
     fireEvent.keyDown(document.body, { key: "4" });
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await Promise.resolve();
+    expect(approveSession).not.toHaveBeenCalled();
+  });
+
+  it("Should render no canonical decision for a non-empty unsupported runtime set", async () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-1", {
+          raw: {
+            options: [{ decision: "runtime-custom-decision" }],
+            tool_input: { command: "touch blocked.txt" },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("permission-dock")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-once")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-once")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "1" });
+    await Promise.resolve();
     expect(approveSession).not.toHaveBeenCalled();
   });
 
@@ -197,6 +230,54 @@ describe("SessionDecisionDock", () => {
         expect.objectContaining({ decision: "reject-always" })
       );
     });
+  });
+
+  it("Should focus the reject menuitem, dismiss on Escape, and restore trigger focus", async () => {
+    const user = userEvent.setup();
+    renderDock({ messages: [permissionMessage("req-1")] });
+
+    const trigger = screen.getByTestId("permission-reject-menu-trigger");
+    await user.click(trigger);
+    const menuitem = screen.getByTestId("permission-reject-always");
+    await waitFor(() => expect(menuitem).toHaveFocus());
+
+    fireEvent.keyDown(menuitem, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("Should dismiss the reject menu on an outside touch", async () => {
+    const user = userEvent.setup();
+    renderDock({ messages: [permissionMessage("req-1")] });
+
+    const trigger = screen.getByTestId("permission-reject-menu-trigger");
+    await user.click(trigger);
+    expect(screen.getByTestId("permission-reject-menu")).toBeInTheDocument();
+
+    fireEvent.touchStart(document.body);
+    await waitFor(() => {
+      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("Should disable every decision including reject-always while submission is pending", async () => {
+    const user = userEvent.setup();
+    vi.mocked(approveSession).mockImplementation(() => new Promise(() => {}));
+    renderDock({ messages: [permissionMessage("req-1")] });
+
+    await user.click(screen.getByTestId("permission-reject-menu-trigger"));
+    const rejectAlways = screen.getByTestId("permission-reject-always");
+    await user.click(rejectAlways);
+
+    await waitFor(() => {
+      expect(rejectAlways).toBeDisabled();
+      expect(screen.getByTestId("permission-dock-status")).toHaveAttribute("role", "status");
+    });
+    await user.click(rejectAlways);
+    expect(approveSession).toHaveBeenCalledTimes(1);
   });
 
   it("Should count queued decisions and surface the next one after resolving", async () => {
@@ -235,6 +316,21 @@ describe("SessionDecisionDock", () => {
         }
       );
     });
+  });
+
+  it("Should render duplicate clarification labels as distinct indexed choices", async () => {
+    renderDock({ clarifications: [clarification({ choices: ["Same answer", "Same answer"] })] });
+
+    expect(await screen.findAllByTestId("clarification-dock-choice")).toHaveLength(2);
+    expect(screen.getAllByText("Same answer")).toHaveLength(2);
+  });
+
+  it("Should render a quiet alert when pending clarifications cannot be loaded", async () => {
+    renderDock({ clarificationError: new Error("clarification service unavailable") });
+
+    const status = await screen.findByTestId("session-decision-dock-error");
+    expect(status).toHaveTextContent("Couldn’t load pending questions.");
+    expect(within(status).getByRole("alert")).toBeInTheDocument();
   });
 
   it("Should render the free-text form when the question ships no choices and submit on Enter", async () => {

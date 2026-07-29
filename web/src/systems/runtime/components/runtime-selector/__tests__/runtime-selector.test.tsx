@@ -1602,11 +1602,13 @@ describe("RuntimeSelector provider rail filtering", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-rail="claude"]')).toHaveAttribute("data-active", "true")
     );
+    expect(document.activeElement).toBe(document.querySelector('[data-rail="claude"]'));
 
     fireEvent.keyDown(radiogroup, { key: "Home" });
     await waitFor(() =>
       expect(document.querySelector('[data-rail="all"]')).toHaveAttribute("data-active", "true")
     );
+    expect(document.activeElement).toBe(document.querySelector('[data-rail="all"]'));
   });
 
   it("Should suppress rail radios while searching (not keyboard-activatable)", async () => {

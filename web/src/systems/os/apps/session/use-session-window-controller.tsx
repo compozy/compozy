@@ -52,7 +52,7 @@ export function useSessionWindowController(input: {
   const inspector = useSessionInspectorState(sessionId);
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.
-  const goal = useSessionGoalHeader(session.workspace_id ?? "", sessionId, undefined, {
+  const goal = useSessionGoalHeader(session.workspace_id ?? "", sessionId, {
     stream: false,
   });
 

@@ -4,6 +4,7 @@ import { Receipt } from "@compozy/ui";
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { normalizePermissionDecision, toPermissionRequest } from "../lib/message-parts";
+import { primaryPermissionSubject } from "../lib/permission-subject";
 import type { CompozyPermissionData, PermissionRequest } from "../types";
 
 interface DecisionReceiptMeta {
@@ -19,15 +20,6 @@ const DECISION_RECEIPTS: Record<PermissionDecision, DecisionReceiptMeta> = {
   "reject-always": { tone: "rejected", verb: "Rejected", scope: " for this session" },
 };
 
-function permissionReceiptSubject(permission: PermissionRequest): string | null {
-  const command = permission.toolInput.command;
-  if (typeof command === "string" && command.trim().length > 0) {
-    return command.trim();
-  }
-  const resource = permission.resource.trim();
-  return resource.length > 0 ? resource : null;
-}
-
 export interface PermissionReceiptProps {
   permission: PermissionRequest;
   decision: PermissionDecision;
@@ -39,7 +31,7 @@ export interface PermissionReceiptProps {
  */
 export function PermissionReceipt({ permission, decision }: PermissionReceiptProps) {
   const meta = DECISION_RECEIPTS[decision];
-  const subject = permissionReceiptSubject(permission);
+  const subject = primaryPermissionSubject(permission);
   return (
     <Receipt
       tone={meta.tone}

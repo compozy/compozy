@@ -213,8 +213,8 @@ export function RuntimeActivityNotice({
     return (
       <Marker
         role="status"
+        tone="neutral"
         data-testid="runtime-activity-notice"
-        data-marker-tone="progress"
         icon={<Activity strokeWidth={1.8} />}
       >
         <b>{title}</b>

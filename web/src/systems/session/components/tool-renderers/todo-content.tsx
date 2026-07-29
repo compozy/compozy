@@ -10,6 +10,7 @@ type TodoState = "done" | "active" | "pending";
 
 interface TodoItem {
   content: string;
+  key: string;
   state: TodoState;
 }
 
@@ -23,6 +24,7 @@ function todoState(status: unknown): TodoState {
 function parseTodos(value: unknown): TodoItem[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   const items: TodoItem[] = [];
+  const fallbackOccurrences = new Map<string, number>();
   for (const candidate of value) {
     if (typeof candidate !== "object" || candidate === null) return null;
     const record = candidate as Record<string, unknown>;
@@ -33,7 +35,16 @@ function parseTodos(value: unknown): TodoItem[] | null {
           ? record.subject.trim()
           : "";
     if (!content) return null;
-    items.push({ content, state: todoState(record.status) });
+    const explicitKey = [record.id, record.todo_id, record.task_id].find(
+      value => typeof value === "string" && value.trim().length > 0
+    );
+    const occurrence = (fallbackOccurrences.get(content) ?? 0) + 1;
+    fallbackOccurrences.set(content, occurrence);
+    items.push({
+      content,
+      key: typeof explicitKey === "string" ? explicitKey.trim() : `${content}\u0000${occurrence}`,
+      state: todoState(record.status),
+    });
   }
   return items;
 }
@@ -70,7 +81,7 @@ export function TodoContent({ message }: { message: UIMessage }) {
       </Eyebrow>
       {todos.map(item => (
         <div
-          key={item.content}
+          key={item.key}
           data-state={item.state}
           className={cn(
             "flex min-h-[22px] items-start gap-2 text-small-body leading-normal",

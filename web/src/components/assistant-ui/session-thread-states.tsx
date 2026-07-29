@@ -10,6 +10,8 @@ import type {
 } from "@/systems/session";
 
 import { formatMessageError } from "./session-thread-error";
+import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
+import { WorkingIndicator } from "./session-working-row";
 
 const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
 const RUNTIME_RECOVERY_FAILURE_KINDS = new Set<SessionFailurePayload["kind"]>([
@@ -87,6 +89,15 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
           over the daemon stream.
         </p>
       </div>
+    </div>
+  );
+}
+
+function ThreadActive() {
+  const reducedMotion = usePrefersReducedMotion();
+  return (
+    <div className="flex min-h-full w-full min-w-0 flex-1 items-start py-6">
+      <WorkingIndicator reducedMotion={reducedMotion} />
     </div>
   );
 }
@@ -194,6 +205,7 @@ export function ThreadStatePane({
   sessionState,
   failure,
   startupFailed,
+  isSessionRunning = false,
 }: {
   status: SessionTranscriptThreadStatus;
   agentName: string;
@@ -202,6 +214,7 @@ export function ThreadStatePane({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed?: boolean;
+  isSessionRunning?: boolean;
 }) {
   if (sessionState === "starting") {
     return <ThreadStarting agentName={agentName} />;
@@ -214,6 +227,9 @@ export function ThreadStatePane({
   }
   if (status === "error") {
     return <ThreadError error={error} onRetry={onRetry} />;
+  }
+  if (isSessionRunning) {
+    return <ThreadActive />;
   }
   return <ThreadEmpty agentName={agentName} />;
 }

@@ -140,6 +140,27 @@ describe("SessionGoalStrip", () => {
     expect(onPrefillComposer).toHaveBeenCalledWith("/goal Ship the calm transcript");
   });
 
+  it("Should stage an exact run-bound replacement command into the composer", () => {
+    const onPrefillComposer = vi.fn();
+    render(
+      <SessionGoalStrip
+        snapshot={snapshot()}
+        composerAffordance={{
+          kind: "replace",
+          expectedRunId: "run_expected",
+          objective: "Ship the calm transcript",
+        }}
+        onPrefillComposer={onPrefillComposer}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("goal-strip-line"));
+    fireEvent.click(screen.getByRole("button", { name: "Draft replacement" }));
+    expect(onPrefillComposer).toHaveBeenCalledWith(
+      "/goal replace run_expected Ship the calm transcript"
+    );
+  });
+
   it("Should render the last verdict as quiet body text with mono evidence", () => {
     render(
       <SessionGoalStrip

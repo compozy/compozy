@@ -118,7 +118,6 @@ export function SessionGoalStrip({
   return (
     <section
       aria-label="Goal status"
-      aria-live="polite"
       data-testid="session-goal-strip"
       data-state={state}
       data-goal-status={snapshot.status}
@@ -147,6 +146,8 @@ export function SessionGoalStrip({
           {snapshot.objective}
         </span>
         <span
+          aria-atomic="true"
+          aria-live="polite"
           data-testid="goal-strip-facts"
           className="shrink-0 font-mono text-badge text-subtle tabular-nums"
         >

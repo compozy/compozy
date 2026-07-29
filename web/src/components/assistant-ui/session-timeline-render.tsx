@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, CircleStop, Target } from "lucide-react";
-import { useRef } from "react";
+import { CircleStop, Target } from "lucide-react";
+import { createElement, useRef } from "react";
 import type { ReactNode } from "react";
 import { useSelector } from "@xstate/store-react";
 
@@ -26,9 +26,10 @@ import {
   toggleTimelineExpansion,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
-import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
+import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionWorkingRowView } from "./session-working-row";
+import { TranscriptDisclosure } from "./transcript-disclosure";
 import {
   type SessionChangedFilesRow,
   type SessionDataRow,
@@ -66,7 +67,7 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
     return <PermissionDataPart data={row.part.data} />;
   }
 
-  return <SessionDataEventCard name={row.part.name} data={row.part.data} />;
+  return <SessionDataEventMarker name={row.part.name} />;
 }
 
 function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
@@ -107,8 +108,8 @@ function WorkToggleButton({
       aria-expanded={row.expanded}
       onClick={() => onToggle(ref.current)}
       className={cn(
-        "ml-[25px] inline-flex min-h-[22px] w-fit items-center gap-1.5 rounded-xs px-1",
-        "text-[11.5px] text-subtle transition-colors duration-base ease-out hover:text-fg",
+        "ml-transcript-detail-indent inline-flex min-h-transcript-row w-fit items-center gap-1.5 rounded-xs px-1",
+        "text-transcript-meta text-subtle transition-colors duration-base ease-out hover:text-fg",
         "focus-visible:shadow-focus-ring focus-visible:outline-none"
       )}
     >
@@ -128,38 +129,19 @@ function SessionWorkSummaryRow({
   summary: SessionToolGroupSummary;
   onToggle: (button: HTMLElement | null) => void;
 }) {
-  const ref = useRef<HTMLButtonElement | null>(null);
   const first = row.entries[0];
-  const LeadIcon = getToolIcon(resolveRegisteredToolName(first?.toolName ?? "tool"), first?.args);
+  const leadIcon = createElement(
+    getToolIcon(resolveRegisteredToolName(first?.toolName ?? "tool"), first?.args),
+    { "aria-hidden": true, className: "size-3 shrink-0 text-subtle", strokeWidth: 1.8 }
+  );
   return (
     <div data-testid="work-summary-row" data-open={row.expanded} className="flex min-w-0 flex-col">
-      <button
-        ref={ref}
-        type="button"
-        aria-expanded={row.expanded}
-        onClick={() => onToggle(ref.current)}
-        className={cn(
-          "inline-flex min-h-6 w-fit items-center gap-[7px] rounded-md px-1 text-left",
-          "text-small-body font-medium text-muted",
-          "transition-colors duration-base ease-out hover:bg-hover hover:text-fg",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <span className="flex size-[18px] shrink-0 items-center justify-center">
-          <LeadIcon aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
-        </span>
-        <span data-testid="work-summary-label" className="min-w-0">
-          {summary.label}
-        </span>
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
-            row.expanded ? "rotate-180" : null
-          )}
-          strokeWidth={1.75}
-        />
-      </button>
+      <TranscriptDisclosure
+        expanded={row.expanded}
+        onToggle={onToggle}
+        icon={leadIcon}
+        label={<span data-testid="work-summary-label">{summary.label}</span>}
+      />
       {row.expanded ? (
         <div data-testid="work-summary-entries" className="flex min-w-0 flex-col gap-0.5 pt-0.5">
           {row.entries.map(tool => (
@@ -221,7 +203,6 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
 // always-visible work.
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   const store = useTimelineRowContext();
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const turnId = row.turnId ?? row.id;
   const expanded = useSelector(store, state => state.context.expandedTurns.has(turnId));
   if (row.interrupted) {
@@ -232,7 +213,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
       >
         <div
           data-testid="turn-fold-interrupt-label"
-          className="flex w-fit items-center gap-1.5 px-1 text-[12px] text-danger"
+          className="flex w-fit items-center gap-1.5 px-1 text-transcript-body text-danger"
         >
           <CircleStop className="size-3" aria-hidden="true" />
           <span>{row.label}</span>
@@ -243,28 +224,14 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   }
   return (
     <div data-open={expanded} className="mb-2.5 min-w-0 border-b border-line pb-1.5">
-      <button
-        ref={buttonRef}
-        type="button"
+      <TranscriptDisclosure
         data-testid="turn-fold-row"
-        aria-expanded={expanded}
-        onClick={() => toggleTimelineExpansion(store, "turn", turnId, buttonRef.current)}
-        className={cn(
-          "-ml-0.5 inline-flex items-center gap-[5px] rounded-xs px-1 py-px",
-          "text-[12px] text-subtle tabular-nums",
-          "transition-colors duration-base ease-out hover:text-fg",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
-      >
-        <ChevronRight
-          aria-hidden="true"
-          className={cn(
-            "size-[11px] shrink-0 text-faint transition-transform duration-slow ease-out motion-reduce:transition-none",
-            expanded ? "rotate-90" : null
-          )}
-        />
-        {row.label}
-      </button>
+        expanded={expanded}
+        onToggle={button => toggleTimelineExpansion(store, "turn", turnId, button)}
+        icon={null}
+        label={row.label}
+        variant="turn"
+      />
       {expanded ? (
         <div className="flex min-w-0 flex-col gap-0.5 pt-1">{renderTimelineRows(row.rows)}</div>
       ) : null}

@@ -60,6 +60,26 @@ function firstLine(text: string): string | undefined {
   return undefined;
 }
 
+function failureText(message: UIMessage): string {
+  const error = message.toolResult?.error;
+  if (typeof error === "string" && error.trim().length > 0) return error;
+  const stderr = message.toolResult?.stderr;
+  if (typeof stderr === "string" && stderr.trim().length > 0) return stderr;
+  return "Tool call failed";
+}
+
+function failurePreview(message: UIMessage, registryTool: string): string {
+  const error = message.toolResult?.error;
+  if (typeof error === "string" && error.trim().length > 0) {
+    return firstLine(error) ?? error;
+  }
+  const stderr = message.toolResult?.stderr;
+  if (typeof stderr === "string" && stderr.trim().length > 0) {
+    return registryTool === "Bash" ? (firstLine(stderr) ?? stderr) : stderr;
+  }
+  return "Tool call failed";
+}
+
 // Collapsed-row preview: failed rows lead with the error's first line; settled
 // Reads append their line count; everything else keeps the compact input summary.
 function previewFor(
@@ -68,10 +88,7 @@ function previewFor(
   status: ToolCallStatus
 ): string | undefined {
   if (status === "failed") {
-    const errorText =
-      typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
-    const errorLine = errorText ? firstLine(errorText) : undefined;
-    if (errorLine) return errorLine;
+    return failurePreview(message, registryTool);
   }
   const summary = getToolCompactSummary(registryTool, message.toolInput);
   if (registryTool === "Read" && status === "success" && summary) {
@@ -108,9 +125,7 @@ export function SessionToolCallRow({
   const copyPayload = formatToolPayload(message);
   const hasOutput = !toolResultIsEmpty(message.toolResult);
   const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
-  const errorText =
-    typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
-  const errorMessage = status === "failed" ? errorText : undefined;
+  const errorMessage = status === "failed" ? failureText(message) : undefined;
   const diffStat =
     status === "success" && message.toolInput
       ? fileDiffStatForTool(registryTool, message.toolInput)

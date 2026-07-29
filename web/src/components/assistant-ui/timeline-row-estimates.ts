@@ -8,6 +8,7 @@
 // guess reduces scroll drift on long, heterogeneous threads without pixel accuracy.
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
+import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import { toTimelineParts } from "./timeline-message-parts";
 
 // Single source of truth for the virtualizer's fallback row estimate.
@@ -47,7 +48,10 @@ function rowEstimate(row: SessionRow): number {
   }
   // The collapsed roll-up is one line; each revealed file adds a bare mono line.
   if (row.kind === "changed-files") {
-    return ROW_KIND_ESTIMATE["changed-files"] + (row.expanded ? row.files.length * 22 : 0);
+    const visibleLineCount =
+      Math.min(row.files.length, CHANGED_FILES_VISIBLE_CAP) +
+      (row.files.length > CHANGED_FILES_VISIBLE_CAP ? 1 : 0);
+    return ROW_KIND_ESTIMATE["changed-files"] + (row.expanded ? visibleLineCount * 22 : 0);
   }
   return ROW_KIND_ESTIMATE[row.kind];
 }

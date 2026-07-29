@@ -13,6 +13,18 @@ function getChipOrder(providers: RuntimeProviderOption[]): RailFilter[] {
   return ["all", "fav", ...providers.map(provider => provider.id)];
 }
 
+function focusChip(
+  group: HTMLDivElement | null,
+  target: RailFilter,
+  onRail: (target: RailFilter) => void
+) {
+  onRail(target);
+  const chip = group?.querySelector<HTMLButtonElement>(
+    `[data-rail="${CSS.escape(String(target))}"]`
+  );
+  chip?.focus();
+}
+
 export interface ProviderChipsProps {
   providers: RuntimeProviderOption[];
   railFilter: RailFilter;
@@ -44,11 +56,7 @@ export function ProviderChips({
     const position = order.indexOf(current);
     const start = position < 0 ? 0 : position;
     const next = order[(start + direction + order.length) % order.length];
-    onRail(next);
-    const target = groupRef.current?.querySelector<HTMLButtonElement>(
-      `[data-rail="${CSS.escape(String(next))}"]`
-    );
-    target?.focus();
+    focusChip(groupRef.current, next, onRail);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -62,11 +70,11 @@ export function ProviderChips({
     } else if (event.key === "Home") {
       event.preventDefault();
       const order = getChipOrder(providers);
-      moveFocus(order[order.length - 1] ?? railFilter, 1);
+      focusChip(groupRef.current, order[0] ?? railFilter, onRail);
     } else if (event.key === "End") {
       event.preventDefault();
       const order = getChipOrder(providers);
-      moveFocus(order[0] ?? railFilter, -1);
+      focusChip(groupRef.current, order[order.length - 1] ?? railFilter, onRail);
     }
   };
 

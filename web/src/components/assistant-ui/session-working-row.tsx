@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { TypingDots } from "@compozy/ui";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { formatWorkingElapsed } from "./session-working-row.logic";
 import type { SessionWorkingRow } from "./session-timeline.logic";
@@ -31,20 +31,14 @@ function WorkingTimer({ startedAt }: { startedAt: number }) {
   );
 }
 
-const WORKING_DOT_DELAYS = [
-  "[animation-delay:0ms]",
-  "[animation-delay:200ms]",
-  "[animation-delay:400ms]",
-];
-
 /**
  * Presentational streaming indicator, split from the row wrapper so Storybook can
  * render both the motion and reduced-motion variants without touching `matchMedia`.
  *
  * Motion: three 4px dots on a stepped 2s duty cycle beside a live
  * "Working for Xs" `tabular-nums` timer — the smallest, dimmest text on the
- * surface. Reduced motion degrades to a resting label — no dots, no ticking
- * timer — so no animation class reaches the DOM.
+ * surface. Reduced motion removes the dots while retaining the same elapsed
+ * runtime fact.
  */
 export function WorkingIndicator({
   startedAt,
@@ -53,34 +47,16 @@ export function WorkingIndicator({
   startedAt?: number;
   reducedMotion: boolean;
 }) {
-  if (reducedMotion) {
-    return (
-      <div
-        role="status"
-        aria-label="Working"
-        data-testid="session-working-row"
-        className="flex min-h-[22px] items-center gap-2 px-1 py-0.5 text-[11.5px] text-subtle"
-      >
-        <span>Working…</span>
-      </div>
-    );
-  }
-
   return (
     <div
       role="status"
       aria-label="Working"
       data-testid="session-working-row"
-      className="flex min-h-[22px] items-center gap-2 px-1 py-0.5 text-[11.5px] text-subtle"
+      className="flex min-h-transcript-row items-center gap-2 px-1 py-0.5 text-transcript-meta text-subtle"
     >
-      <span aria-hidden="true" className="flex items-center gap-[3px]">
-        {WORKING_DOT_DELAYS.map(delay => (
-          <span
-            key={delay}
-            className={cn("session-working-dot size-1 rounded-full bg-faint", delay)}
-          />
-        ))}
-      </span>
+      {reducedMotion ? null : (
+        <TypingDots className="session-working-dots gap-transcript-meta-gap [&>span]:bg-faint" />
+      )}
       <span aria-hidden="true" className="tabular-nums">
         {startedAt !== undefined ? (
           <>

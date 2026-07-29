@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, type Dispatch, type SetStateAction } from "react";
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { isEditableTarget } from "../lib/editable-target";
@@ -15,11 +15,16 @@ const DECISION_KEYS: Record<string, PermissionDecision> = {
   "4": "reject-always",
 };
 
+const PASSIVE_TOUCH_LISTENER = { capture: false, passive: true } as const;
+
 export interface UsePermissionDockOptions {
   permission: PermissionRequest;
   sessionId: string;
   workspaceId: string;
   onResolved?: () => void;
+  rejectSplitElement: HTMLElement | null;
+  menuOpen: boolean;
+  setMenuOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 /**
@@ -32,6 +37,9 @@ export function usePermissionDock({
   sessionId,
   workspaceId,
   onResolved,
+  rejectSplitElement,
+  menuOpen,
+  setMenuOpen,
 }: UsePermissionDockOptions) {
   const { decide, isResolved, isSubmitting } = useSessionPermissionDecision({
     workspaceId,
@@ -39,8 +47,6 @@ export function usePermissionDock({
     permission,
     onResolved,
   });
-  const [menuOpen, setMenuOpen] = useState(false);
-  const rejectSplitRef = useRef<HTMLDivElement | null>(null);
   const decisionOptions = permissionDecisionOptions(permission);
 
   const handleDecisionKey = useEffectEvent((event: KeyboardEvent) => {
@@ -58,24 +64,33 @@ export function usePermissionDock({
     return () => document.removeEventListener("keydown", handleDecisionKey);
   }, []);
 
-  const handleOutsidePress = useEffectEvent((event: MouseEvent) => {
-    if (rejectSplitRef.current?.contains(event.target as Node)) return;
+  const handleOutsidePress = useEffectEvent((event: Event) => {
+    if (rejectSplitElement?.contains(event.target as Node)) return;
+    setMenuOpen(false);
+  });
+
+  const handleMenuKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
     setMenuOpen(false);
   });
 
   useEffect(() => {
     if (!menuOpen) return;
     document.addEventListener("mousedown", handleOutsidePress);
-    return () => document.removeEventListener("mousedown", handleOutsidePress);
+    document.addEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
+    document.addEventListener("keydown", handleMenuKeyDown, true);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsidePress);
+      document.removeEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
+      document.removeEventListener("keydown", handleMenuKeyDown, true);
+    };
   }, [menuOpen]);
 
   return {
     decide,
     isResolved,
     isSubmitting,
-    menuOpen,
-    setMenuOpen,
-    rejectSplitRef,
     decisionOptions,
     subject: permissionSubject(permission),
   };

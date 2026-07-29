@@ -249,6 +249,18 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ goal: null });
   }),
   compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
+    ({ params }) => {
+      const id = String(params.session_id);
+
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({ clarifications: [] });
+    }
+  ),
+  compozyApiMock.get(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
     ({ params }) => {
       const id = String(params.session_id);

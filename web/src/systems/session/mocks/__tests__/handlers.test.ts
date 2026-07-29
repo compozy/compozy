@@ -142,4 +142,14 @@ describe("session MSW handlers", () => {
       error: "Session not found: session_missing",
     });
   });
+
+  it("Should expose an empty clarification projection for a known session", async () => {
+    const sample = sessionFixtures[0]!;
+    const response = await fetch(
+      `${API}/api/workspaces/${sample.workspace_id}/sessions/${sample.id}/clarifications`
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ clarifications: [] });
+  });
 });

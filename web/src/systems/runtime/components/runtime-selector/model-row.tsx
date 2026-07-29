@@ -133,7 +133,7 @@ export function ModelRow({
             "grid size-6 shrink-0 place-items-center rounded transition-opacity",
             favorite
               ? "text-warning opacity-100"
-              : "text-faint opacity-0 hover:text-fg-strong group-hover:opacity-100 group-data-[highlighted=true]:opacity-100"
+              : "text-faint opacity-0 hover:text-fg-strong group-hover:opacity-100 group-data-[highlighted=true]:opacity-100 [@media(pointer:coarse)]:opacity-100"
           )}
           onClick={event => {
             if (disabled) return;

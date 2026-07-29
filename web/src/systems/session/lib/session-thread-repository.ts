@@ -5,6 +5,7 @@ import {
 } from "@assistant-ui/react";
 
 import type { SessionMessage } from "../types";
+import { toolPartResult } from "./tool-part-error";
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 type ThreadContentPart = Exclude<ThreadMessageLike["content"], string>[number];
@@ -102,6 +103,7 @@ function toToolPart(record: Record<string, unknown>, type: string): ThreadConten
     stringField(record, "toolCallId") || stringField(record, "tool_call_id") || `${toolName}-call`;
   const input = record.input;
   const state = stringField(record, "state");
+  const isError = state === "output-error" || Boolean(record.isError);
 
   return {
     type: "tool-call" as const,
@@ -109,8 +111,8 @@ function toToolPart(record: Record<string, unknown>, type: string): ThreadConten
     toolName,
     args: toJSONObject(input),
     argsText: jsonText(input),
-    result: record.output,
-    isError: state === "output-error" || Boolean(record.isError),
+    result: toolPartResult(record, isError),
+    isError,
     ...threadPartMetadata(record),
   } as ThreadContentPart;
 }

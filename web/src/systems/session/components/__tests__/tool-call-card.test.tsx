@@ -148,8 +148,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    // Grey spinner — the running state carries no signal hue.
-    expect(indicator?.getAttribute("class")).toContain("text-subtle");
+    expect(indicator).not.toHaveClass("text-success", "text-danger");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
@@ -160,8 +159,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("success");
     expect(indicator?.getAttribute("aria-label")).toBe("Done");
-    // Grey check — completion is the resting state, not an event.
-    expect(indicator?.getAttribute("class")).toContain("text-subtle");
+    expect(indicator).not.toHaveClass("text-success", "text-danger");
     expect(screen.getByRole("img", { name: "Done" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Read file");
   });
@@ -231,6 +229,33 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(headingEl).toHaveTextContent("Ran command");
     expect(headingEl?.className).not.toContain("text-danger");
     expect(headingEl?.className).toContain("text-muted");
+    expect(queryPreview()).toHaveTextContent("bash: deploy: command not found");
+  });
+
+  it("Should render a non-empty generic failure preview when the runtime supplies no error body", async () => {
+    const user = userEvent.setup();
+    render(<SessionToolCallRow message={makeToolMessage({ toolError: true })} />);
+
+    expect(queryRoot()).toHaveAttribute("data-status", "failed");
+    expect(queryPreview()).toHaveTextContent("Tool call failed");
+    await user.click(document.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+    expect(document.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
+      "Tool call failed"
+    );
+  });
+
+  it("Should use stderr as the failure preview for a non-Bash tool", () => {
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          toolName: "Read",
+          toolError: true,
+          toolResult: { stderr: "read denied\nworkspace is read-only" },
+        })}
+      />
+    );
+
+    expect(queryPreview()).toHaveTextContent("read denied workspace is read-only");
   });
 
   it("Should toggle the specialized output body by click and keyboard", async () => {

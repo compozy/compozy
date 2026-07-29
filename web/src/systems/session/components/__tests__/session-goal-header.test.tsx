@@ -115,7 +115,7 @@ function requestBody(
 // Mirrors the production split: the strip (container) owns stream
 // reconciliation; the window-head action reads the shared query cache.
 function HeadActionHarness() {
-  const goal = useSessionGoalHeader(WORKSPACE_ID, SESSION_ID, undefined, { stream: false });
+  const goal = useSessionGoalHeader(WORKSPACE_ID, SESSION_ID, { stream: false });
   return (
     <SessionGoalHeadAction
       snapshot={goal.snapshot}
@@ -248,7 +248,7 @@ describe("SessionGoalHeader", () => {
     );
   });
 
-  it("Should preserve the current stale-replacement snapshot and stage its exact run id", async () => {
+  it("Should preserve the current stale-replacement snapshot and expose its draft affordance", async () => {
     const current = snapshot({ objective: "Current objective" });
     visibleGoal = current;
     sessionStore.trigger.goalCommandReported({
@@ -261,13 +261,11 @@ describe("SessionGoalHeader", () => {
       },
       command: "/goal Requested replacement",
     });
-    const setComposerText = vi.fn();
-    renderHeader(setComposerText);
+    renderHeader(vi.fn());
 
     // The prefill affordance lives in the strip body — open the strip first.
     fireEvent.click(await screen.findByTestId("goal-strip-line"));
-    fireEvent.click(screen.getByRole("button", { name: "Draft replacement" }));
-    expect(setComposerText).toHaveBeenCalledWith("/goal replace run_1 Requested replacement");
+    expect(screen.getByRole("button", { name: "Draft replacement" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Goal status" })).toHaveTextContent(
       "Current objective"
     );

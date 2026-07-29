@@ -24,6 +24,15 @@ export interface ClarificationDockProps {
   onResolved: () => void;
 }
 
+function indexedChoices(choices: readonly string[]) {
+  const occurrences = new Map<string, number>();
+  return choices.map((choice, index) => {
+    const occurrence = (occurrences.get(choice) ?? 0) + 1;
+    occurrences.set(choice, occurrence);
+    return { choice, index, key: `${choice}\u0000${occurrence}` };
+  });
+}
+
 /**
  * The pending clarification as a composer-docked decision panel. Bounded
  * questions answer as 30px choice rows on digit keys 1–9; a question with no
@@ -61,9 +70,9 @@ export function ClarificationDock({
       </Dock.Head>
       {dock.hasChoices ? (
         <ChoiceList aria-label="Answer choices" data-testid="clarification-dock-choices">
-          {dock.choices.map((choice, index) => (
+          {indexedChoices(dock.choices).map(({ choice, index, key }) => (
             <ChoiceRow
-              key={choice}
+              key={key}
               data-testid="clarification-dock-choice"
               data-choice-index={index}
               aria-pressed={dock.submittedChoice === index}

@@ -1,7 +1,9 @@
-import { AlertTriangle, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useEffect, useEffectEvent } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
+
+import { SessionDangerBanner } from "./session-danger-banner";
 
 export interface SessionResumeFailureProps {
   sessionId: string;
@@ -34,7 +36,7 @@ export function SessionResumeFailure({
   const title = hasProviderDetail ? "Attach failed: provider no longer available" : "Attach failed";
 
   const handleEscape = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || event.defaultPrevented) return;
     onDismiss();
   });
 
@@ -44,54 +46,47 @@ export function SessionResumeFailure({
   }, []);
 
   return (
-    <div
-      aria-live="assertive"
-      role="alert"
+    <SessionDangerBanner
       data-testid="session-resume-failure"
-      className="mt-3 mb-1 flex w-full min-w-0 items-start gap-[9px] rounded-lg border border-danger/28 bg-danger/4 px-3 py-2.5 text-small-body leading-normal text-fg"
+      className="mt-3 mb-1 w-full"
+      title={<span data-testid="session-resume-failure-title">{title}</span>}
     >
-      <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-danger" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <b data-testid="session-resume-failure-title" className="font-semibold text-fg-strong">
-          {title}
-        </b>
-        <p data-testid="session-resume-failure-message" className="text-[12px] text-muted">
-          {hasProviderDetail
-            ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
-            : message}
-        </p>
-        <p className="font-mono text-badge text-subtle" data-testid="session-resume-failure-meta">
-          session {sessionId}
-          {normalizedAgentName ? ` · agent ${normalizedAgentName}` : ""}
-        </p>
-        <div className="mt-1 flex items-center gap-[7px]">
-          <Button
-            data-testid="session-resume-failure-retry"
-            disabled={isRetrying}
-            onClick={onRetry}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            {isRetrying ? (
-              <Spinner className="size-3" />
-            ) : (
-              <RefreshCw aria-hidden="true" className="size-3" />
-            )}
-            Retry attach
-          </Button>
-          <Button
-            data-testid="session-resume-failure-dismiss"
-            onClick={onDismiss}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <X aria-hidden="true" className="size-3" />
-            Dismiss
-          </Button>
-        </div>
+      <p data-testid="session-resume-failure-message" className="text-transcript-body text-muted">
+        {hasProviderDetail
+          ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
+          : message}
+      </p>
+      <p className="font-mono text-badge text-subtle" data-testid="session-resume-failure-meta">
+        session {sessionId}
+        {normalizedAgentName ? ` · agent ${normalizedAgentName}` : ""}
+      </p>
+      <div className="mt-1 flex items-center gap-transcript-inline-gap">
+        <Button
+          data-testid="session-resume-failure-retry"
+          disabled={isRetrying}
+          onClick={onRetry}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          {isRetrying ? (
+            <Spinner className="size-3" />
+          ) : (
+            <RefreshCw aria-hidden="true" className="size-3" />
+          )}
+          Retry attach
+        </Button>
+        <Button
+          data-testid="session-resume-failure-dismiss"
+          onClick={onDismiss}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <X aria-hidden="true" className="size-3" />
+          Dismiss
+        </Button>
       </div>
-    </div>
+    </SessionDangerBanner>
   );
 }

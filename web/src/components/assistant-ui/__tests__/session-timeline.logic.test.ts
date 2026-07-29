@@ -618,13 +618,18 @@ describe("changed-files roll-up derivation", () => {
 });
 
 describe("marker clustering", () => {
-  function markerEvent(id: string, kind: string, timestamp = "2026-07-07T12:00:00Z") {
+  function markerEvent(
+    id: string,
+    kind: string,
+    timestamp = "2026-07-07T12:00:00Z",
+    turnId = "turn-1"
+  ) {
     return {
       kind: "data",
       id,
       name: "data-compozy-event",
       data: { type: "runtime", marker: { kind, occurred_at: timestamp, summary: kind } },
-      turnId: "turn-1",
+      turnId,
       timestamp,
       state: "done",
     } satisfies SessionTimelinePart;
@@ -655,6 +660,19 @@ describe("marker clustering", () => {
 
     expect(rows).toHaveLength(2);
     expect(rows.map(row => (row.kind === "data" ? row.count : row.kind))).toEqual([1, 1]);
+  });
+
+  it("Should split same-kind marker clusters when the turn changes", () => {
+    const rows = deriveSessionRows([
+      markerEvent("m1", "provider-retry", "2026-07-07T12:00:00Z", "turn-1"),
+      markerEvent("m2", "provider-retry", "2026-07-07T12:00:01Z", "turn-2"),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map(row => (row.kind === "data" ? row.parts.map(part => part.id) : []))).toEqual([
+      ["m1"],
+      ["m2"],
+    ]);
   });
 
   it("Should never cluster permission or clarification parts", () => {

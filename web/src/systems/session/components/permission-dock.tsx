@@ -3,6 +3,7 @@ import { ChevronUp } from "lucide-react";
 import { Button, cn, Dock } from "@compozy/ui";
 
 import { usePermissionDock } from "../hooks/use-permission-dock";
+import { useRejectMenuElements } from "../hooks/use-reject-menu-elements";
 import type { PermissionRequest } from "../types";
 
 const DANGER_GHOST_CLASS = "text-muted hover:bg-danger-tint hover:text-danger";
@@ -28,10 +29,19 @@ export function PermissionDock({
   countLabel,
   onResolved,
 }: PermissionDockProps) {
-  const dock = usePermissionDock({ permission, sessionId, workspaceId, onResolved });
-  const { decide, decisionOptions, isSubmitting, menuOpen, setMenuOpen, subject } = dock;
+  const { menuItemRef, menuOpen, setMenuOpen, splitElement, splitRef, triggerRef } =
+    useRejectMenuElements();
+  const { decide, decisionOptions, isResolved, isSubmitting, subject } = usePermissionDock({
+    permission,
+    sessionId,
+    workspaceId,
+    onResolved,
+    rejectSplitElement: splitElement,
+    menuOpen,
+    setMenuOpen,
+  });
 
-  if (dock.isResolved) {
+  if (isResolved) {
     return null;
   }
 
@@ -84,11 +94,7 @@ export function PermissionDock({
         ) : null}
         <span className="flex-1" />
         {offersRejectOnce ? (
-          <div
-            ref={dock.rejectSplitRef}
-            className="relative inline-flex gap-px"
-            data-open={menuOpen}
-          >
+          <div ref={splitRef} className="relative inline-flex gap-px" data-open={menuOpen}>
             <Button
               size="sm"
               variant="ghost"
@@ -103,6 +109,7 @@ export function PermissionDock({
             {offersRejectAlways ? (
               <>
                 <Button
+                  ref={triggerRef}
                   size="sm"
                   variant="ghost"
                   className={cn(DANGER_GHOST_CLASS, "px-1")}
@@ -127,9 +134,11 @@ export function PermissionDock({
                     className="absolute right-0 bottom-[calc(100%+5px)] z-10 min-w-[158px] rounded-md border border-line-strong bg-elevated p-[3px] shadow-[var(--shadow-overlay)]"
                   >
                     <button
+                      ref={menuItemRef}
                       type="button"
                       role="menuitem"
                       data-testid="permission-reject-always"
+                      disabled={isSubmitting}
                       className="flex min-h-7 w-full items-center gap-2 rounded-xs px-2 py-[3px] text-left text-[12px] text-danger transition-colors hover:bg-hover"
                       onClick={() => decide("reject-always")}
                     >
@@ -156,7 +165,9 @@ export function PermissionDock({
         ) : null}
       </Dock.Actions>
       {isSubmitting ? (
-        <Dock.Status data-testid="permission-dock-status">Submitting decision…</Dock.Status>
+        <Dock.Status role="status" data-testid="permission-dock-status">
+          Submitting decision…
+        </Dock.Status>
       ) : null}
     </Dock>
   );

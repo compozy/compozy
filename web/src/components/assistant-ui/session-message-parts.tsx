@@ -18,7 +18,7 @@ export function SessionMessageText({
  * meta — never a pill, never a payload-preview card. The full payload stays
  * inspectable through the session inspector, not the transcript.
  */
-export function SessionDataEventCard({ name }: { name: string; data: unknown }) {
+export function SessionDataEventMarker({ name }: { name: string }) {
   return (
     <Marker data-testid="session-data-part" icon={<Activity strokeWidth={1.8} />}>
       <b>Data event</b> <MarkerMeta>{name}</MarkerMeta>

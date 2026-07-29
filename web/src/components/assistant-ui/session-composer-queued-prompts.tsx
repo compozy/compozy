@@ -2,6 +2,7 @@ import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { QueuedPrompt } from "@/systems/session";
+import { Button } from "@compozy/ui";
 import { queuedPromptPreview } from "./session-composer-queued-prompts.logic";
 
 interface SessionComposerQueuedPromptsProps {
@@ -11,13 +12,6 @@ interface SessionComposerQueuedPromptsProps {
   onRemove: (id: string) => void;
   disabled?: boolean;
 }
-
-const ICON_BUTTON_CLASS = cn(
-  "grid size-[22px] place-items-center rounded-sm text-faint",
-  "transition-colors duration-fast ease-out hover:bg-hover hover:text-fg",
-  "focus-visible:shadow-focus-ring focus-visible:outline-none",
-  "disabled:pointer-events-none disabled:opacity-50"
-);
 
 /**
  * Queued follow-up rows fused onto the top of the composer (`.qstrip`/`.qrow`):
@@ -60,42 +54,42 @@ export function SessionComposerQueuedPrompts({
             {queuedPromptPreview(prompt.text)}
           </span>
           <div className="flex shrink-0 items-center gap-px">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => onSteer(prompt)}
               disabled={disabled}
               data-testid="composer-queued-steer"
-              className={cn(
-                "inline-flex h-[22px] items-center gap-[5px] rounded-sm px-2",
-                "text-[11px] font-medium text-muted",
-                "transition-colors duration-fast ease-out hover:bg-hover hover:text-fg-strong",
-                "focus-visible:shadow-focus-ring focus-visible:outline-none",
-                "disabled:pointer-events-none disabled:opacity-50"
-              )}
+              className="text-muted hover:text-fg-strong"
             >
               <CornerDownRight aria-hidden="true" className="size-[11px]" />
               Steer
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onEdit(prompt)}
               disabled={disabled}
               data-testid="composer-queued-edit"
               aria-label="Edit queued prompt"
-              className={ICON_BUTTON_CLASS}
+              className="text-faint hover:text-fg"
             >
               <Pencil aria-hidden="true" className="size-[11px]" />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onRemove(prompt.id)}
               disabled={disabled}
               data-testid="composer-queued-remove"
               aria-label="Remove queued prompt"
-              className={ICON_BUTTON_CLASS}
+              className="text-faint hover:text-fg"
             >
               <Trash2 aria-hidden="true" className="size-[11px]" />
-            </button>
+            </Button>
           </div>
         </div>
       ))}

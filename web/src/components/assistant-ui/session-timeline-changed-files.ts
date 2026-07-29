@@ -8,6 +8,8 @@
 import { fileDiffStatForTool } from "@/systems/session/lib/tool-diff-stat";
 import type { ChangedFileEntry, SessionTimelineToolPart } from "./session-timeline.logic";
 
+export const CHANGED_FILES_VISIBLE_CAP = 8;
+
 export interface ChangedFilesSummary {
   files: ChangedFileEntry[];
   additions: number;

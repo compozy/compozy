@@ -310,10 +310,11 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
   });
 
-  it("Should record a debug event when ThreadEmpty renders while the session is active", async () => {
+  it("Should render truthful working state when the successful transcript is empty and active", async () => {
     renderThreadState({ status: "success", isSessionRunning: true });
 
-    expect(await screen.findByText(/Start a conversation/i)).toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Working" })).toBeInTheDocument();
+    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     await waitFor(() => {
       expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.threadEmptyWhileActive]).toBe(1);
     });
@@ -546,7 +547,8 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByText(/preparing input/i)).not.toBeInTheDocument();
   });
 
-  it("Should render an error part as the failed row state (not a custom danger box)", async () => {
+  it("Should preserve output-error text through the repository and render it on the failed row", async () => {
+    const user = userEvent.setup();
     const transcript = [
       {
         id: "assistant-error",
@@ -559,6 +561,7 @@ describe("SessionThread transcript states", () => {
             turn_id: "turn-error",
             timestamp: "2026-07-07T12:00:00Z",
             input: { command: "deploy" },
+            errorText: "terminal/create denied before writing workspace marker",
           },
         ] as unknown as SessionMessage["parts"],
       } as SessionMessage,
@@ -573,6 +576,13 @@ describe("SessionThread transcript states", () => {
     expect(
       row.querySelector('[data-slot="tool-call-row-status"]')?.getAttribute("aria-label")
     ).toBe("Error");
+    expect(row.querySelector('[data-slot="tool-call-row-preview"]')).toHaveTextContent(
+      "terminal/create denied before writing workspace marker"
+    );
+    await user.click(row.querySelector('[data-slot="tool-call-row-trigger"]') as HTMLElement);
+    expect(row.querySelector('[data-slot="tool-call-row-error"]')).toHaveTextContent(
+      "terminal/create denied before writing workspace marker"
+    );
   });
 
   // Suite: oversized tool-result normalization.
@@ -1088,7 +1098,7 @@ describe("SessionThread transcript states", () => {
     // Only the streaming turn carries the indicator; the settled turn drops it.
     expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
     // Three stepped 4px dots on the duty cycle; the old spinner row is gone.
-    expect(workingRow.querySelectorAll(".session-working-dot")).toHaveLength(3);
+    expect(workingRow.querySelector('[data-slot="typing-dots"]')?.children).toHaveLength(3);
     expect(workingRow.querySelector(".animate-spin")).toBeNull();
     // Live "Working for Xs" tabular-nums timer, counting from the turn start.
     expect(workingRow).toHaveTextContent(/Working for/);
@@ -1130,10 +1140,10 @@ describe("SessionThread transcript states", () => {
       renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
       const workingRow = await screen.findByTestId("session-working-row");
-      expect(workingRow).toHaveTextContent("Working…");
-      // Static label only: no typing dots, no live timer, no animation classes.
+      expect(workingRow).toHaveTextContent(/Working for/);
+      // Reduced motion removes only the dots; the elapsed runtime fact remains.
       expect(workingRow.querySelector('[data-slot="typing-dots"]')).toBeNull();
-      expect(screen.queryByTestId("session-working-timer")).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-working-timer")).toBeInTheDocument();
       expect(workingRow.innerHTML).not.toMatch(/animate-|typing-bounce/);
     } finally {
       window.matchMedia = originalMatchMedia;
@@ -1191,6 +1201,7 @@ describe("SessionThread transcript states", () => {
     const pill = screen.getByTestId("scroll-to-bottom-pill");
     // Following the live edge: the pill is hidden and non-interactive.
     expect(pill).toHaveAttribute("data-visible", "false");
+    expect(pill).toBeDisabled();
 
     // A manual wheel gesture opts out of live-follow; the machine reads the gap and
     // reveals the pill.
@@ -1198,6 +1209,7 @@ describe("SessionThread transcript states", () => {
     fireEvent.wheel(viewport);
     await waitFor(() => {
       expect(pill).toHaveAttribute("data-visible", "true");
+      expect(pill).toBeEnabled();
     });
 
     // Clicking the pill returns to the live edge and hides the affordance again.
@@ -1415,6 +1427,21 @@ describe("SessionThread composer running semantics", () => {
       expect(toast.error).toHaveBeenCalledWith("queue failed");
     });
     expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
+  });
+
+  it("Should steer the current draft while running and clear it after success", async () => {
+    const user = userEvent.setup();
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onSteerPrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "steer with this constraint");
+    await user.click(screen.getByTestId("composer-steer-button"));
+
+    await waitFor(() => {
+      expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
+      expect(textarea).toHaveValue("");
+    });
   });
 
   it("Should silently preserve the draft when the queue owner is replaced", async () => {

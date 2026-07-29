@@ -5,6 +5,7 @@
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { normalizePermissionDecision, toPermissionRequest } from "./message-parts";
+import { primaryPermissionSubject } from "./permission-subject";
 import type { CompozyPermissionData, PermissionRequest } from "../types";
 
 const FALLBACK_PERMISSION_DECISIONS = [
@@ -49,9 +50,9 @@ export function derivePendingPermissions(messages: readonly MessageLike[]): Perm
 }
 
 /**
- * The decisions the dock may offer, in canonical order. Runtimes that advertise
- * `decisionOptions` gate the buttons; an empty/unknown advertisement falls back
- * to all four ACP decisions.
+ * The decisions the dock may offer, in canonical order. An absent or empty
+ * advertisement falls back to all four ACP decisions; a non-empty advertisement
+ * containing no canonical decisions intentionally renders no decision buttons.
  */
 export function permissionDecisionOptions(permission: PermissionRequest): PermissionDecision[] {
   if (permission.supportedDecisions == null || permission.supportedDecisions.length === 0) {
@@ -59,18 +60,13 @@ export function permissionDecisionOptions(permission: PermissionRequest): Permis
   }
   const supported = new Set(permission.supportedDecisions);
   const filtered = FALLBACK_PERMISSION_DECISIONS.filter(decision => supported.has(decision));
-  return filtered.length > 0 ? filtered : FALLBACK_PERMISSION_DECISIONS;
+  return filtered;
 }
 
 /** The mono subject the dock's pre shows — command, resource, or the raw input. */
 export function permissionSubject(permission: PermissionRequest): string | null {
-  const command = permission.toolInput.command;
-  if (typeof command === "string" && command.trim().length > 0) {
-    return command.trim();
-  }
-  if (permission.resource.trim().length > 0) {
-    return permission.resource.trim();
-  }
+  const primary = primaryPermissionSubject(permission);
+  if (primary) return primary;
   if (Object.keys(permission.toolInput).length > 0) {
     try {
       return JSON.stringify(permission.toolInput, null, 2);

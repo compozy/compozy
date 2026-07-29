@@ -92,6 +92,7 @@ describe("ToolCallRow", () => {
     const { container } = render(
       <ToolCallRow
         toolName="Edited"
+        preview="src/session.tsx"
         status="success"
         stat={
           <>
@@ -101,9 +102,15 @@ describe("ToolCallRow", () => {
         }
       />
     );
+    const preview = container.querySelector('[data-slot="tool-call-row-preview"]');
     const stat = container.querySelector('[data-slot="tool-call-row-stat"]');
+    const status = statusGlyph(container);
+    expect(preview).not.toBeNull();
     expect(stat).not.toBeNull();
+    expect(status).not.toBeNull();
     expect(stat?.textContent).toBe("+28−104");
+    expect(preview?.compareDocumentPosition(stat as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(stat?.compareDocumentPosition(status as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("Should set role/tabIndex and the expand chevron only when an expandable body exists", () => {

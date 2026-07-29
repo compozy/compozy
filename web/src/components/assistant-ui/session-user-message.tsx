@@ -7,20 +7,25 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageActions } from "./message-actions";
-import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
+import { SessionDataEventMarker, SessionMessageText } from "./session-message-parts";
 
 // The bubble clamps with a bottom mask at 176px — text is never truncated, the
 // mask lifts on "Show more". Slack beyond the cap avoids flapping on rounding.
-const USER_CLAMP_MAX_PX = 176;
+const USER_CLAMP_MAX_PX = 44 * 4;
 const USER_CLAMP_SLACK_PX = 8;
 
-function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
-  return <SessionMessageText text={text} streaming={state?.type === "running"} />;
+function SessionTextPart({ text, status }: TextMessagePartProps) {
+  return <SessionMessageText text={text} streaming={status?.type === "running"} />;
 }
 
 function SessionDataPart(part: DataMessagePartProps<unknown>) {
-  return <SessionDataEventCard name={part.name} data={part.data} />;
+  return <SessionDataEventMarker name={part.name} />;
 }
+
+const USER_MESSAGE_PARTS = {
+  Text: SessionTextPart,
+  data: { Fallback: SessionDataPart },
+};
 
 /**
  * The one message surface in the transcript: a right-aligned, borderless block
@@ -53,8 +58,8 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
         data-testid="user-message-bubble"
         data-clamped={clamped || undefined}
         className={cn(
-          "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-[7px]",
-          "text-[13.5px] leading-relaxed text-fg [overflow-wrap:anywhere]",
+          "w-fit max-w-full min-w-0 rounded-lg bg-chat-fill-user px-3 py-transcript-message-y",
+          "text-transcript-message leading-relaxed text-fg [overflow-wrap:anywhere]",
           clamped
             ? "max-h-44 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]"
             : null
@@ -68,7 +73,7 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
           data-testid="user-message-clamp-toggle"
           aria-expanded={expanded}
           onClick={() => setExpanded(value => !value)}
-          className="rounded-xs px-1 text-[11px] text-subtle transition-colors duration-base ease-out hover:text-fg"
+          className="rounded-xs px-1 text-transcript-caption text-subtle transition-colors duration-base ease-out hover:text-fg"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -79,19 +84,10 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
 
 export function UserMessage() {
   return (
-    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-[18px]">
-      <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-[3px]">
+    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap">
+      <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-transcript-meta-gap">
         <UserMessageBubble>
-          <MessagePrimitive.Parts
-            components={{
-              Text: ({ text, status }: TextMessagePartProps) => (
-                <SessionTextPart text={text} state={status} />
-              ),
-              data: {
-                Fallback: SessionDataPart,
-              },
-            }}
-          />
+          <MessagePrimitive.Parts components={USER_MESSAGE_PARTS} />
         </UserMessageBubble>
         <MessageActions align="end" copyLabel="Copy message" testId="user-message-actions" />
       </div>

@@ -6,7 +6,7 @@ import { Eyebrow } from "@compozy/ui";
 
 import { ReasoningSlider } from "./reasoning-slider";
 import { RuntimeSpeedSwitch } from "./speed-switch";
-import { type RuntimeReasoningState } from "./types";
+import { type RuntimeReasoningMode, type RuntimeReasoningState } from "./types";
 
 export interface SelectorFooterProps {
   reasoning: RuntimeReasoningState;
@@ -28,7 +28,7 @@ function FooterNote({
   speedSwitch,
   children,
 }: {
-  mode: string;
+  mode: RuntimeReasoningMode;
   speedSwitch: ReactNode;
   children: ReactNode;
 }) {

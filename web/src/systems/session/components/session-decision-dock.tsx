@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Dock } from "@compozy/ui";
+
 import { useSessionClarifications } from "../hooks/use-session-clarifications";
 import { useSessionTranscriptThreadState } from "../hooks/use-session-transcript-thread-messages";
 import { derivePendingPermissions } from "../lib/pending-permissions";
@@ -33,28 +35,41 @@ export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionD
   const pendingPermissions = derivePendingPermissions(messages).filter(
     permission => !resolvedIds.has(permission.requestId)
   );
-  const pendingClarifications = (clarifications.data ?? []).filter(
-    clarification => !resolvedIds.has(clarification.request_id)
-  );
-  const total = pendingPermissions.length + pendingClarifications.length;
-  if (total === 0) {
-    return null;
-  }
-  const countLabel = total > 1 ? `1/${total}` : null;
-
+  const pendingClarifications = clarifications.error
+    ? []
+    : (clarifications.data ?? []).filter(
+        clarification => !resolvedIds.has(clarification.request_id)
+      );
   const permission = pendingPermissions[0];
   if (permission) {
+    const total = pendingPermissions.length + pendingClarifications.length;
     return (
       <PermissionDock
         key={permission.requestId}
         permission={permission}
         sessionId={sessionId}
         workspaceId={workspaceId}
-        countLabel={countLabel}
+        countLabel={total > 1 ? `1/${total}` : null}
         onResolved={() => markResolved(permission.requestId)}
       />
     );
   }
+
+  if (clarifications.error) {
+    return (
+      <Dock role="region" aria-label="Decision status" data-testid="session-decision-dock-error">
+        <Dock.Status className="mt-0" role="alert" tone="danger">
+          Couldn’t load pending questions.
+        </Dock.Status>
+      </Dock>
+    );
+  }
+
+  const total = pendingClarifications.length;
+  if (total === 0) {
+    return null;
+  }
+  const countLabel = total > 1 ? `1/${total}` : null;
 
   const clarification = pendingClarifications[0];
   if (!clarification) {

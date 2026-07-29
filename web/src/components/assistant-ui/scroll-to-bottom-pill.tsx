@@ -28,6 +28,7 @@ export function ScrollToBottomPill({
         data-testid="scroll-to-bottom-pill"
         data-visible={visible}
         aria-label="Scroll to latest"
+        disabled={!visible}
         onClick={onClick}
         tabIndex={visible ? 0 : -1}
         className={cn(

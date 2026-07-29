@@ -61,7 +61,6 @@ describe("RuntimeActivityNotice", () => {
     render(<RuntimeActivityNotice event={event} />);
 
     const notice = screen.getByTestId("runtime-activity-notice");
-    expect(notice).toHaveAttribute("data-marker-tone", "progress");
     // Progress is a neutral marker — no signal tone, no tinted card.
     expect(notice).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByText("Still working")).toBeInTheDocument();

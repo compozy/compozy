@@ -99,6 +99,7 @@ export function ThreadMessages({
         sessionState={sessionState}
         failure={failure}
         startupFailed={startupFailed}
+        isSessionRunning={isSessionRunning}
       />
     );
   }
