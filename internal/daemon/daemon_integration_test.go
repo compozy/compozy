@@ -2929,7 +2929,18 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 		})
 
 		skillRoot := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName)
-		writeDaemonSkill(t, skillRoot, "watched-workspace-skill", "Workspace watched skill")
+		skillFile := filepath.Join(skillRoot, "marketing", "watched-workspace-skill", "SKILL.md")
+		writeDaemonFile(
+			t,
+			skillFile,
+			`---
+name: watched-workspace-skill
+description: Workspace watched skill
+---
+
+# Watched Workspace Skill
+`,
+		)
 
 		waitForCondition(t, "workspace skill refresh after watcher sync", func() bool {
 			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
@@ -2943,6 +2954,49 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 			}
 
 			return findIntegrationSkill(projectedSkills, "watched-workspace-skill") != nil
+		})
+
+		writeDaemonFile(
+			t,
+			skillFile,
+			`---
+name: watched-workspace-skill
+description: Updated workspace watched skill
+---
+
+# Updated Watched Workspace Skill
+`,
+		)
+		waitForCondition(t, "workspace skill refresh after nested edit", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			if err != nil {
+				return false
+			}
+
+			skill := findIntegrationSkill(projectedSkills, "watched-workspace-skill")
+			return skill != nil && skill.Meta.Description == "Updated workspace watched skill"
+		})
+
+		if err := os.Remove(skillFile); err != nil {
+			t.Fatalf("Remove(%q) error = %v", skillFile, err)
+		}
+		waitForCondition(t, "workspace skill refresh after nested removal", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			if err != nil {
+				return false
+			}
+
+			return findIntegrationSkill(projectedSkills, "watched-workspace-skill") == nil
 		})
 	})
 }

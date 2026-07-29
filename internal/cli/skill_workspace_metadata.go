@@ -25,11 +25,40 @@ func normalizeSkillName(name string) (string, error) {
 		return "", errors.New("skill name must be relative")
 	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
 		return "", errors.New("skill name must not include path separators")
+	case strings.HasPrefix(trimmed, "."):
+		return "", errors.New("skill name must not be hidden")
+	case trimmed == reservedSkillDirectoryName:
+		return "", fmt.Errorf("skill name must not use reserved directory %s", reservedSkillDirectoryName)
 	case !validSkillNamePattern.MatchString(trimmed):
 		return "", errors.New("skill name must contain only letters, numbers, dots, underscores, and hyphens")
 	default:
 		return trimmed, nil
 	}
+}
+
+func normalizeSkillGroup(group string) (string, error) {
+	trimmed := strings.TrimSpace(group)
+	switch {
+	case trimmed == "":
+		return "", errors.New("skill group is required")
+	case filepath.IsAbs(trimmed):
+		return "", errors.New("skill group must be relative")
+	case strings.Contains(trimmed, `\`):
+		return "", errors.New("skill group must use forward slash separators")
+	}
+
+	segments := strings.Split(trimmed, "/")
+	for index, segment := range segments {
+		if segment == "" {
+			return "", errors.New("skill group must not contain empty segments")
+		}
+		normalized, err := normalizeSkillName(segment)
+		if err != nil {
+			return "", fmt.Errorf("skill group segment %q: %w", segment, err)
+		}
+		segments[index] = normalized
+	}
+	return strings.Join(segments, "/"), nil
 }
 
 func defaultSkillTemplate(name string) string {

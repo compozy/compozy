@@ -3,14 +3,13 @@ package skills
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/skillscan"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -18,15 +17,10 @@ const (
 	loaderVersionKey = "version"
 )
 
-const (
-	skillFileName     = "SKILL.md"
-	maxScanDepth      = 4
-	maxScanCandidates = 300
-)
+const skillFileName = skillscan.SkillFileName
 
 var (
 	errSkillNameRequired = errors.New("skills: skill name is required")
-	errScanLimitReached  = errors.New("skills: scan candidate limit reached")
 )
 
 var allowedFrontmatterFields = map[string]struct{}{
@@ -138,98 +132,19 @@ func parseSkillDocument(filePath string, dir string, content []byte, source Skil
 
 // scanDirectory returns every SKILL.md file discovered under dir.
 func scanDirectory(dir string) ([]string, error) {
-	paths, _, err := scanDirectoryWithSnapshots(dir)
-	return paths, err
+	result, err := skillscan.ScanDirectory(dir)
+	if err != nil {
+		return nil, fmt.Errorf("skills: scan directory %q: %w", dir, err)
+	}
+	return result.Paths, nil
 }
 
 func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snapshot, error) {
-	root := strings.TrimSpace(dir)
-	if root == "" {
-		return nil, nil, errors.New("skills: scan directory root is required")
-	}
-
-	absRoot, err := filepath.Abs(root)
+	result, err := skillscan.ScanDirectory(dir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("skills: resolve scan root %q: %w", dir, err)
+		return nil, nil, fmt.Errorf("skills: scan directory %q: %w", dir, err)
 	}
-
-	info, err := os.Stat(absRoot)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return []string{}, map[string]filesnap.Snapshot{}, nil
-		}
-		return nil, nil, fmt.Errorf("skills: stat scan root %q: %w", absRoot, err)
-	}
-	if !info.IsDir() {
-		return nil, nil, fmt.Errorf("skills: scan root %q is not a directory", absRoot)
-	}
-
-	paths := make([]string, 0, maxScanCandidates)
-	snapshots := make(map[string]filesnap.Snapshot, maxScanCandidates)
-	walkErr := filepath.WalkDir(absRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			slog.Warn("skills: skipping unreadable path during scan", "path", path, "error", walkErr)
-			if entry != nil && entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		depth, err := scanDepth(absRoot, path, entry.IsDir())
-		if err != nil {
-			return fmt.Errorf("skills: determine scan depth for %q: %w", path, err)
-		}
-
-		if entry.IsDir() {
-			if path != absRoot && shouldSkipDir(entry.Name()) {
-				return filepath.SkipDir
-			}
-			if depth > maxScanDepth {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		return appendSkillScanCandidate(absRoot, path, entry, depth, &paths, snapshots)
-	})
-	if walkErr != nil && !errors.Is(walkErr, errScanLimitReached) {
-		return nil, nil, walkErr
-	}
-
-	slices.Sort(paths)
-	return paths, snapshots, nil
-}
-
-func appendSkillScanCandidate(
-	absRoot string,
-	path string,
-	entry fs.DirEntry,
-	depth int,
-	paths *[]string,
-	snapshots map[string]filesnap.Snapshot,
-) error {
-	if depth > maxScanDepth || entry.Name() != skillFileName {
-		return nil
-	}
-	if err := ensurePathWithinRoot(absRoot, path); err != nil {
-		slog.Warn("skills: skipping skill file that escapes scan root", "path", path, "error", err)
-		return nil
-	}
-
-	snapshot, err := filesnap.FromPath(path)
-	if err != nil {
-		slog.Warn("skills: skipping unreadable skill file during scan", "path", path, "error", err)
-		return nil
-	}
-
-	*paths = append(*paths, path)
-	snapshots[path] = snapshot
-	if len(*paths) >= maxScanCandidates {
-		slog.Warn("skills: scan candidate limit reached", "root", absRoot, "limit", maxScanCandidates)
-		return errScanLimitReached
-	}
-
-	return nil
+	return result.Paths, result.Snapshots, nil
 }
 
 func decodeSkillMeta(frontmatter string) (SkillMeta, error) {

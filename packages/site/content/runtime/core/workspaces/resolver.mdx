@@ -81,19 +81,19 @@ my-repo/
       release-rules.md
 ```
 
-| Path                                          | Used by                    | Behavior                                                                                     |
-| --------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
-| `<workspace>/.compozy/config.toml`            | Config loader              | Overlays built-in defaults and global config for this workspace root.                        |
-| `<workspace>/.compozy/mcp.json`               | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                      |
-| `<workspace>/.compozy/agents/<name>/AGENT.md` | Resolver                   | Makes an agent visible to sessions in this workspace.                                        |
-| `<workspace>/.compozy/agents/<name>/mcp.json` | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                     |
-| `<workspace>/.compozy/skills/<name>/SKILL.md` | Resolver + skills registry | Makes a skill directory visible to sessions in this workspace.                               |
-| `<workspace>/.compozy/skills/<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared in that skill's frontmatter.                         |
-| `<workspace>/.compozy/workspace.toml`         | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.               |
-| `<workspace>/.compozy/memory/`                | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                   |
-| `<workspace>/.compozy/agents/<name>/memory/`  | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                      |
-| `<workspace>/.compozy/compozy.db`             | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals.    |
-| `<workspace>/.env`                            | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
+| Path                                                      | Used by                    | Behavior                                                                                     |
+| --------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| `<workspace>/.compozy/config.toml`                        | Config loader              | Overlays built-in defaults and global config for this workspace root.                        |
+| `<workspace>/.compozy/mcp.json`                           | Config loader              | Adds or replaces top-level MCP servers after workspace TOML is applied.                      |
+| `<workspace>/.compozy/agents/<name>/AGENT.md`             | Resolver                   | Makes an agent visible to sessions in this workspace.                                        |
+| `<workspace>/.compozy/agents/<name>/mcp.json`             | Agent loader               | Replaces same-name MCP servers declared inline in that agent definition.                     |
+| `<workspace>/.compozy/skills/<group>/.../<name>/SKILL.md` | Resolver + skills registry | Makes a skill leaf visible; optional groups do not change its frontmatter identity.          |
+| `<workspace>/.compozy/skills/<group>/.../<name>/mcp.json` | Skills registry            | Replaces same-name MCP servers declared at that skill leaf.                                  |
+| `<workspace>/.compozy/workspace.toml`                     | Workspace identity         | Stable workspace ULID. Created on first daemon touch when auto_create is true.               |
+| `<workspace>/.compozy/memory/`                            | Memory runtime             | Stores workspace-scoped memory files after the workspace root is resolved.                   |
+| `<workspace>/.compozy/agents/<name>/memory/`              | Memory runtime             | Stores agent-workspace memory for that workspace agent.                                      |
+| `<workspace>/.compozy/compozy.db`                         | Workspace catalog DB       | Per-workspace catalog plus workspace-scoped `memory_events`, `memory_decisions`, signals.    |
+| `<workspace>/.env`                                        | Config loader              | Optional. Loaded before `COMPOZY_HOME` is resolved when config is loaded for this workspace. |
 
 The resolver directly snapshots config, MCP sidecars, agent definitions, and skill definitions.
 Workspace memory uses the resolved root, but memory files are managed by the memory runtime instead

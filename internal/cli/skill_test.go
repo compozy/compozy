@@ -574,48 +574,290 @@ func TestSkillListCommandRejectsInvalidSource(t *testing.T) {
 func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 	t.Parallel()
 
-	env := newSkillTestEnv(t, nil)
+	t.Run("Should scaffold a grouped skill", func(t *testing.T) {
+		t.Parallel()
 
-	stdout, _, err := executeRootCommand(
-		t,
-		skillWorkspaceDeps(t, &env),
-		"skill",
-		"create",
-		"plan-review",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("skill create error = %v", err)
-	}
+		env := newSkillTestEnv(t, nil)
+		deps := skillWorkspaceDeps(t, &env)
 
-	var payload skillCreateItem
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(skill create) error = %v; stdout=%s", err, stdout)
-	}
-	if payload.Status != "created" || payload.Source != "workspace" {
-		t.Fatalf("payload = %#v, want created workspace record", payload)
-	}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"create",
+			"plan-review",
+			"--group",
+			"marketing/campaigns",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill create error = %v", err)
+		}
 
-	skillPath := filepath.Join(
-		env.workspace,
-		compozyconfig.DirName,
-		compozyconfig.SkillsDirName,
-		"plan-review",
-		skillMarkdownFileName,
-	)
-	if _, err := os.Stat(skillPath); err != nil {
-		t.Fatalf("created skill stat error = %v", err)
-	}
-	if _, err := skills.ParseSkillFile(skillPath); err != nil {
-		t.Fatalf("ParseSkillFile(%q) error = %v", skillPath, err)
-	}
+		var payload skillCreateItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill create) error = %v; stdout=%s", err, stdout)
+		}
+		if payload.Status != "created" || payload.Source != "workspace" || payload.Group != "marketing/campaigns" {
+			t.Fatalf("payload = %#v, want created workspace record", payload)
+		}
+
+		skillPath := filepath.Join(
+			env.workspace,
+			compozyconfig.DirName,
+			compozyconfig.SkillsDirName,
+			"marketing",
+			"campaigns",
+			"plan-review",
+			skillMarkdownFileName,
+		)
+		if _, err := os.Stat(skillPath); err != nil {
+			t.Fatalf("created skill stat error = %v", err)
+		}
+		if _, err := skills.ParseSkillFile(skillPath); err != nil {
+			t.Fatalf("ParseSkillFile(%q) error = %v", skillPath, err)
+		}
+
+		ctx := testutil.Context(t)
+		globalDB, err := globaldb.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(context.Background()); err != nil {
+				t.Fatalf("Close(globalDB) error = %v", err)
+			}
+		})
+
+		resolver, err := workspacepkg.NewResolver(
+			globalDB,
+			workspacepkg.WithHomePaths(env.homePaths),
+			workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
+				return compozyconfig.LoadForHome(env.homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewResolver() error = %v", err)
+		}
+		registered, err := resolver.Register(ctx, workspacepkg.RegisterOptions{RootDir: env.workspace})
+		if err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		resolved, err := resolver.Resolve(ctx, registered.ID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		registry := skills.NewRegistry(skills.RegistryConfig{
+			UserAgentsDir: env.homePaths.AgentsDir,
+			UserSkillsDir: env.homePaths.SkillsDir,
+		})
+		if err := registry.LoadAll(ctx); err != nil {
+			t.Fatalf("Registry.LoadAll() error = %v", err)
+		}
+		resolvedSkills, err := registry.ForWorkspace(ctx, &resolved)
+		if err != nil {
+			t.Fatalf("Registry.ForWorkspace() error = %v", err)
+		}
+		createdSkill, err := findSkillByName(resolvedSkills, "plan-review")
+		if err != nil {
+			t.Fatalf("findSkillByName(plan-review) error = %v", err)
+		}
+		createdDirInfo, err := os.Stat(createdSkill.Dir)
+		if err != nil {
+			t.Fatalf("Stat(created skill dir %q) error = %v", createdSkill.Dir, err)
+		}
+		expectedDirInfo, err := os.Stat(filepath.Dir(skillPath))
+		if err != nil {
+			t.Fatalf("Stat(expected skill dir %q) error = %v", filepath.Dir(skillPath), err)
+		}
+		if !os.SameFile(createdDirInfo, expectedDirInfo) {
+			t.Fatalf("created skill dir = %q, want same file as %q", createdSkill.Dir, filepath.Dir(skillPath))
+		}
+		if got, want := createdDirInfo.Mode().Perm(), os.FileMode(0o755); got != want {
+			t.Fatalf("created skill dir mode = %o, want %o", got, want)
+		}
+
+		record := SkillRecord{
+			Name:        createdSkill.Meta.Name,
+			Description: createdSkill.Meta.Description,
+			Version:     createdSkill.Meta.Version,
+			Source:      skills.SkillSourceName(createdSkill.Source),
+			Enabled:     createdSkill.Enabled,
+			Activation:  skillActivationPayloadFromSkill(createdSkill),
+			Dir:         createdSkill.Dir,
+			Metadata:    createdSkill.Meta.Metadata,
+		}
+		deps.newClient = func(string) (DaemonClient, error) {
+			return &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					if ref != env.workspace {
+						t.Fatalf("GetWorkspace() ref = %q, want %q", ref, env.workspace)
+					}
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+						ID:      registered.ID,
+						RootDir: env.workspace,
+					}}, nil
+				},
+				listSkillsFn: func(_ context.Context, query SkillQuery) ([]SkillRecord, error) {
+					if query.Workspace != registered.ID {
+						t.Fatalf("ListSkills() workspace = %q, want %q", query.Workspace, registered.ID)
+					}
+					return []SkillRecord{record}, nil
+				},
+				getSkillFn: func(_ context.Context, name string, query SkillQuery) (SkillRecord, error) {
+					if name != record.Name || query.Workspace != registered.ID {
+						t.Fatalf("GetSkill(%q, %#v), want %q in %q", name, query, record.Name, registered.ID)
+					}
+					return record, nil
+				},
+				getSkillContentFn: func(
+					ctx context.Context,
+					name string,
+					query SkillQuery,
+				) (string, error) {
+					if name != record.Name || query.Workspace != registered.ID {
+						t.Fatalf("GetSkillContent(%q, %#v), want %q in %q", name, query, record.Name, registered.ID)
+					}
+					return registry.LoadContent(ctx, createdSkill)
+				},
+				getSkillShadowsFn: func(
+					_ context.Context,
+					name string,
+					query SkillQuery,
+				) (SkillShadowsRecord, error) {
+					if name != record.Name || query.Workspace != registered.ID {
+						t.Fatalf("GetSkillShadows(%q, %#v), want %q in %q", name, query, record.Name, registered.ID)
+					}
+					shadows, ok := skills.ShadowsForSkill(createdSkill, fixedTestNow)
+					if !ok {
+						t.Fatalf("ShadowsForSkill(%q) = false, want true", record.Name)
+					}
+					return skillShadowsRecordFromDomain(shadows), nil
+				},
+			}, nil
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"list",
+			"--workspace",
+			env.workspace,
+			"--source",
+			"workspace",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill list created group error = %v", err)
+		}
+		var listed []skillListItem
+		if err := json.Unmarshal([]byte(stdout), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(skill list created group) error = %v; stdout=%s", err, stdout)
+		}
+		if len(listed) != 1 || listed[0].Name != "plan-review" || listed[0].Source != "workspace" {
+			t.Fatalf("created group list = %#v, want plan-review workspace skill", listed)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"view",
+			"plan-review",
+			"--workspace",
+			env.workspace,
+		)
+		if err != nil {
+			t.Fatalf("skill view created group error = %v", err)
+		}
+		if !strings.Contains(stdout, `<skill_content name="plan-review">`) ||
+			!strings.Contains(stdout, "# Plan Review") {
+			t.Fatalf("skill view created group output = %q, want rendered plan-review", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"where",
+			"plan-review",
+			"--workspace",
+			env.workspace,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill where created group error = %v", err)
+		}
+		var where SkillShadowsRecord
+		if err := json.Unmarshal([]byte(stdout), &where); err != nil {
+			t.Fatalf("json.Unmarshal(skill where created group) error = %v; stdout=%s", err, stdout)
+		}
+		winnerInfo, err := os.Stat(where.Winner.Path)
+		if err != nil {
+			t.Fatalf("Stat(skill where winner %q) error = %v", where.Winner.Path, err)
+		}
+		expectedSkillInfo, err := os.Stat(skillPath)
+		if err != nil {
+			t.Fatalf("Stat(expected skill file %q) error = %v", skillPath, err)
+		}
+		if where.Name != "plan-review" || where.Winner.Tier != "workspace" ||
+			!os.SameFile(winnerInfo, expectedSkillInfo) || !where.Winner.ResolvedToWinner {
+			t.Fatalf("skill where created group = %#v, want workspace winner at %q", where, skillPath)
+		}
+	})
+
+	t.Run("Should normalize whitespace around group segments", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		stdout, _, err := executeRootCommand(
+			t,
+			skillWorkspaceDeps(t, &env),
+			"skill",
+			"create",
+			"launch-brief",
+			"--group",
+			" marketing / campaigns ",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill create normalized group error = %v", err)
+		}
+
+		var payload skillCreateItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill create normalized group) error = %v; stdout=%s", err, stdout)
+		}
+		if got, want := payload.Group, "marketing/campaigns"; got != want {
+			t.Fatalf("skill create group = %q, want %q", got, want)
+		}
+		skillPath := filepath.Join(
+			env.workspace,
+			compozyconfig.DirName,
+			compozyconfig.SkillsDirName,
+			"marketing",
+			"campaigns",
+			"launch-brief",
+			skillMarkdownFileName,
+		)
+		if _, err := os.Stat(skillPath); err != nil {
+			t.Fatalf("Stat(normalized skill path %q) error = %v", skillPath, err)
+		}
+	})
 }
 
 func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should default-name", func(t *testing.T) {
+		t.Parallel()
+
 		env := newSkillTestEnv(t, nil)
 
 		stdout, _, err := executeRootCommand(t, skillWorkspaceDeps(t, &env), "skill", "create")
@@ -643,6 +885,8 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 	})
 
 	t.Run("Should unsafe-names", func(t *testing.T) {
+		t.Parallel()
+
 		env := newSkillTestEnv(t, nil)
 
 		testCases := []string{
@@ -653,6 +897,8 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 			"yaml: value",
 			"anchor*name",
 			"line\nbreak",
+			".hidden-skill",
+			"node_modules",
 		}
 
 		for _, name := range testCases {
@@ -665,6 +911,142 @@ func TestSkillCreateCommandSupportsDefaultNameAndRejectsUnsafeNames(t *testing.T
 					t.Fatalf("unsafe skill create error = %v, want skill name validation", err)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject unsafe group paths", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		for _, group := range []string{
+			"",
+			"../escape",
+			filepath.Join(string(filepath.Separator), "tmp", "skills"),
+			`marketing\campaigns`,
+			"marketing//campaigns",
+			"./marketing",
+			".hidden",
+			"node_modules",
+			"marketing/.hidden",
+			"marketing/node_modules",
+			"invalid group",
+		} {
+			t.Run(group, func(t *testing.T) {
+				t.Parallel()
+
+				_, _, err := executeRootCommand(
+					t,
+					skillWorkspaceDeps(t, &env),
+					"skill",
+					"create",
+					"safe-skill",
+					"--group",
+					group,
+				)
+				if err == nil {
+					t.Fatal("unsafe skill group error = nil, want failure")
+				}
+				if !strings.Contains(err.Error(), "skill group") {
+					t.Fatalf("unsafe skill group error = %v, want group validation", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject a symlinked skills root", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		compozyDir := filepath.Join(env.workspace, compozyconfig.DirName)
+		if err := os.MkdirAll(compozyDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", compozyDir, err)
+		}
+		target := t.TempDir()
+		if err := os.Symlink(target, filepath.Join(compozyDir, compozyconfig.SkillsDirName)); err != nil {
+			t.Fatalf("Symlink(%q) error = %v", target, err)
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			skillWorkspaceDeps(t, &env),
+			"skill",
+			"create",
+			"safe-skill",
+		)
+		if err == nil {
+			t.Fatal("skill create through symlinked skills root error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("skill create through symlinked skills root error = %v, want symlink rejection", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(target, "safe-skill")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("symlink target skill stat error = %v, want not exist", statErr)
+		}
+	})
+
+	t.Run("Should reject group symlink escape", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		skillsRoot := filepath.Join(env.workspace, compozyconfig.DirName, compozyconfig.SkillsDirName)
+		if err := os.MkdirAll(skillsRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", skillsRoot, err)
+		}
+		outside := t.TempDir()
+		if err := os.Symlink(outside, filepath.Join(skillsRoot, "marketing")); err != nil {
+			t.Fatalf("Symlink(%q) error = %v", outside, err)
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			skillWorkspaceDeps(t, &env),
+			"skill",
+			"create",
+			"safe-skill",
+			"--group",
+			"marketing",
+		)
+		if err == nil {
+			t.Fatal("skill create through group symlink error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("skill create through group symlink error = %v, want symlink rejection", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(outside, "safe-skill")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("outside skill stat error = %v, want not exist", statErr)
+		}
+	})
+
+	t.Run("Should reject group symlink inside skill root", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		skillsRoot := filepath.Join(env.workspace, compozyconfig.DirName, compozyconfig.SkillsDirName)
+		groupTarget := filepath.Join(skillsRoot, "marketing-target")
+		if err := os.MkdirAll(groupTarget, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", groupTarget, err)
+		}
+		if err := os.Symlink(groupTarget, filepath.Join(skillsRoot, "marketing")); err != nil {
+			t.Fatalf("Symlink(%q) error = %v", groupTarget, err)
+		}
+
+		_, _, err := executeRootCommand(
+			t,
+			skillWorkspaceDeps(t, &env),
+			"skill",
+			"create",
+			"safe-skill",
+			"--group",
+			"marketing",
+		)
+		if err == nil {
+			t.Fatal("skill create through in-root group symlink error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("skill create through in-root group symlink error = %v, want symlink rejection", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(groupTarget, "safe-skill")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("in-root symlink target skill stat error = %v, want not exist", statErr)
 		}
 	})
 }
@@ -712,8 +1094,8 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 			contains: "skill{name,description,version,source,path,enabled,active,inactive_reason}:",
 		},
 		{
-			args:     []string{"skill", "create", "toon-created", "-o", "toon"},
-			contains: "skill{name,source,path,file,status}:",
+			args:     []string{"skill", "create", "toon-created", "--group", "marketing", "-o", "toon"},
+			contains: "skill{name,group,source,path,file,status}:",
 		},
 	}
 
@@ -2319,6 +2701,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 
 	createHuman, err := skillCreateBundle(skillCreateItem{
 		Name:   "bundle-skill",
+		Group:  "marketing",
 		Source: "workspace",
 		Path:   "/tmp/path",
 		File:   "/tmp/path/SKILL.md",
@@ -2327,8 +2710,9 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skillCreateBundle().human() error = %v", err)
 	}
-	if !strings.Contains(createHuman, "created") {
-		t.Fatalf("skillCreateBundle().human() = %q, want created", createHuman)
+	if !strings.Contains(createHuman, "created") || !strings.Contains(createHuman, "Group") ||
+		!strings.Contains(createHuman, "marketing") {
+		t.Fatalf("skillCreateBundle().human() = %q, want created grouped record", createHuman)
 	}
 
 	searchHuman, err := skillSearchBundle([]registrypkg.Listing{{

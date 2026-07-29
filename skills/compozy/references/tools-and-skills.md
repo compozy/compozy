@@ -143,9 +143,8 @@ per-extension native search tool.
 
 ## Skill Loading
 
-Catalogs carry names and descriptions only. Resolve canonical skill search/view through the active
-harness; CLI uses `compozy skill view compozy` or
-`compozy skill view compozy --file references/network.md` for a resource.
+Scan roots allow groups at any depth (300 `SKILL.md` max); frontmatter `name` stays identity. Scaffold
+with `compozy skill create <name> --group <path>`. Resolve skill search/view through the harness.
 
 Repeated `<current-available-skills>` or `<compozy-situation-context>` sections may be `unchanged`.
 Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.

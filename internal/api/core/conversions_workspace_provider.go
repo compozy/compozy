@@ -37,8 +37,12 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 func WorkspaceSkillPayloads(skills []workspacepkg.SkillPath) []contract.WorkspaceSkillPayload {
 	payload := make([]contract.WorkspaceSkillPayload, 0, len(skills))
 	for _, skill := range skills {
+		name := strings.TrimSpace(skill.Name)
+		if name == "" {
+			name = filepath.Base(skill.Dir)
+		}
 		payload = append(payload, contract.WorkspaceSkillPayload{
-			Name:   filepath.Base(skill.Dir),
+			Name:   name,
 			Dir:    skill.Dir,
 			Source: skill.Source,
 		})

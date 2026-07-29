@@ -232,6 +232,15 @@ compozy skill create refactor-checklist
 
 Then replace the generated `SKILL.md` body with the content above.
 
+To organize it below a group, keep the same frontmatter name and add `--group`:
+
+```bash
+compozy skill create refactor-checklist --group engineering/reviews
+```
+
+This creates `.compozy/skills/engineering/reviews/refactor-checklist/SKILL.md`. The group path is
+organizational only: `name: refactor-checklist` remains the skill's identity and invocation name.
+
 ## Complete Example: Skill With MCP Sidecar
 
 ```text

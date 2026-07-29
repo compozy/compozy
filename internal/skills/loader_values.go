@@ -5,11 +5,9 @@ import (
 
 	"log/slog"
 
-	"path/filepath"
 	"slices"
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -179,32 +177,4 @@ func warnUnknownFields(document *yaml.Node) {
 
 		slog.Warn("skills: unknown frontmatter field", "field", key)
 	}
-}
-
-func scanDepth(root, current string, isDir bool) (int, error) {
-	rel, err := filepath.Rel(root, current)
-	if err != nil {
-		return 0, err
-	}
-	if rel == "." {
-		return 0, nil
-	}
-
-	parts := strings.Split(rel, string(filepath.Separator))
-	if !isDir {
-		return max(len(parts)-1, 0), nil
-	}
-
-	return len(parts), nil
-}
-
-func shouldSkipDir(name string) bool {
-	switch name {
-	case ".git", "node_modules":
-		return true
-	case compozyconfig.DirName:
-		return false
-	}
-
-	return strings.HasPrefix(name, ".")
 }

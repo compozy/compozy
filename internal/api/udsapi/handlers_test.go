@@ -1542,7 +1542,7 @@ func TestListWorkspacesHandlerReturnsRows(t *testing.T) {
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
-	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "review")
+	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "marketing", "brief")
 	resolved := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:        "ws_alpha",
@@ -1563,6 +1563,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			Prompt:   "hello",
 		}},
 		Skills: []workspacepkg.SkillPath{{
+			Name:   "campaign-brief",
 			Dir:    sharedSkillDir,
 			Source: "workspace",
 		}},
@@ -1595,8 +1596,8 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 		len(response.Skills) != 1 {
 		t.Fatalf("workspace detail = %#v", response)
 	}
-	if response.Skills[0].Name != "review" {
-		t.Fatalf("skill name = %q, want review", response.Skills[0].Name)
+	if response.Skills[0].Name != "campaign-brief" {
+		t.Fatalf("skill name = %q, want campaign-brief", response.Skills[0].Name)
 	}
 	expectedProviders := core.SessionProviderOptionPayloadsFromConfig(&resolved.Config)
 	if len(response.Providers) != len(expectedProviders) {

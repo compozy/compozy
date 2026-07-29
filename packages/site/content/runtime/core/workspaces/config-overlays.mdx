@@ -149,7 +149,7 @@ the agents and skills discovered by the resolver.
 | Disable a noisy skill in one project          | `[skills].disabled_skills = ["skill-name"]`                                          | Keep the skill where it is.                                                 |
 | Add project MCP servers                       | `[[mcp_servers]]` or `.compozy/mcp.json`                                             | Agent/skill-local `mcp.json` when the server belongs to one agent or skill. |
 | Change provider command/model for one project | `[providers.<name>]`                                                                 | No filesystem resource needed.                                              |
-| Add a project-only skill                      | No config entry required.                                                            | `.compozy/skills/<name>/SKILL.md`                                           |
+| Add a project-only skill                      | No config entry required.                                                            | `.compozy/skills/<group>/.../<name>/SKILL.md`; groups are optional          |
 
 Workspace registration has one extra override: `default_agent`. When it is set on the workspace row,
 the resolver applies it after loading config by setting `defaults.agent` for the resolved snapshot.

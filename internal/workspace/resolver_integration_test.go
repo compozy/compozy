@@ -43,6 +43,14 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 	writeSkill(t, skillDir(homePaths.SkillsDir, "shared"))
 	writeSkill(t, skillDir(homePaths.SkillsDir, "global-only"))
 	writeSkill(t, skillDir(skillRoot(root), "shared"))
+	emptyGroup := skillDir(skillRoot(root), "empty-group")
+	mkdirAll(t, emptyGroup)
+	marketingSkill := skillDir(skillRoot(root), "marketing/seo-a")
+	salesSkill := skillDir(skillRoot(root), "sales/seo-b")
+	shadowedSkill := skillDir(skillRoot(root), "engineering/seo-a")
+	writeSkill(t, marketingSkill)
+	writeSkill(t, salesSkill)
+	writeSkill(t, shadowedSkill)
 	writeSkill(t, skillDir(skillRoot(additional), "ops-skill"))
 
 	resolver := newIntegrationResolver(t, db, homePaths)
@@ -83,6 +91,49 @@ func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
 	if got := skillSourceByName(resolved.Skills, "global-only"); got != "global" {
 		t.Fatalf("global-only source = %q, want %q", got, "global")
 	}
+	t.Run("Should project nested skill leaves without treating groups as skills", func(t *testing.T) {
+		canonicalMarketingSkill, err := filepath.EvalSymlinks(marketingSkill)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(marketing skill) error = %v", err)
+		}
+		canonicalSalesSkill, err := filepath.EvalSymlinks(salesSkill)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(sales skill) error = %v", err)
+		}
+		canonicalMarketingGroup, err := filepath.EvalSymlinks(skillDir(skillRoot(root), "marketing"))
+		if err != nil {
+			t.Fatalf("EvalSymlinks(marketing group) error = %v", err)
+		}
+		canonicalEmptyGroup, err := filepath.EvalSymlinks(emptyGroup)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(empty group) error = %v", err)
+		}
+		if got, want := len(resolved.Skills), 5; got != want {
+			t.Fatalf("resolved skill count = %d, want %d", got, want)
+		}
+		if got := skillSourceByDir(resolved.Skills, canonicalMarketingSkill); got != "workspace" {
+			t.Fatalf("marketing skill source = %q, want %q", got, "workspace")
+		}
+		if got := skillSourceByDir(resolved.Skills, canonicalSalesSkill); got != "workspace" {
+			t.Fatalf("sales skill source = %q, want %q", got, "workspace")
+		}
+		canonicalShadowedSkill, err := filepath.EvalSymlinks(shadowedSkill)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(shadowed skill) error = %v", err)
+		}
+		if got := skillSourceByDir(resolved.Skills, canonicalShadowedSkill); got != "" {
+			t.Fatalf("shadowed skill source = %q, want empty", got)
+		}
+		if got := skillSourceByName(resolved.Skills, "seo-a"); got != "workspace" {
+			t.Fatalf("seo-a skill source = %q, want %q", got, "workspace")
+		}
+		if got := skillSourceByDir(resolved.Skills, canonicalMarketingGroup); got != "" {
+			t.Fatalf("marketing group source = %q, want empty", got)
+		}
+		if got := skillSourceByDir(resolved.Skills, canonicalEmptyGroup); got != "" {
+			t.Fatalf("empty group source = %q, want empty", got)
+		}
+	})
 }
 
 func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T) {
@@ -449,7 +500,20 @@ func agentModel(agents []compozyconfig.AgentDef, name string) string {
 
 func skillSourceByName(skills []compozyworkspace.SkillPath, name string) string {
 	for _, skill := range skills {
-		if filepath.Base(skill.Dir) == name {
+		skillName := skill.Name
+		if skillName == "" {
+			skillName = filepath.Base(skill.Dir)
+		}
+		if skillName == name {
+			return skill.Source
+		}
+	}
+	return ""
+}
+
+func skillSourceByDir(skills []compozyworkspace.SkillPath, dir string) string {
+	for _, skill := range skills {
+		if filepath.Clean(skill.Dir) == filepath.Clean(dir) {
 			return skill.Source
 		}
 	}

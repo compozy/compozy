@@ -225,6 +225,7 @@ func TestWorkspaceStructSurface(t *testing.T) {
 			name:   "SkillPath",
 			target: reflect.TypeFor[workspace.SkillPath](),
 			fields: []fieldSpec{
+				{name: "Name", fieldType: reflect.TypeFor[string]()},
 				{name: "Dir", fieldType: reflect.TypeFor[string]()},
 				{name: "Source", fieldType: reflect.TypeFor[string]()},
 			},

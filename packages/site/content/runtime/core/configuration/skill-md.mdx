@@ -7,10 +7,11 @@ description: Complete implemented SKILL.md schema, Compozy metadata, sidecar fil
 the file, optional supporting resources, and optional sidecars:
 
 ```text
-<skill-name>/
-  SKILL.md
-  mcp.json
-  resources/
+<group>/
+  <skill-name>/
+    SKILL.md
+    mcp.json
+    resources/
 ```
 
 Compozy reads standard YAML frontmatter, then keeps the Markdown body available as procedural
@@ -265,12 +266,16 @@ and blocks marketplace skills whose stored hash does not match.
 | Behavior                         | Value                                                            |
 | -------------------------------- | ---------------------------------------------------------------- |
 | File name                        | `SKILL.md`                                                       |
-| Maximum scan depth               | 4 directories below each scan root                               |
+| Scan depth                       | No fixed depth; eligible files can be nested arbitrarily         |
+| Maximum entries per scan root    | 20,000                                                           |
 | Maximum candidates per scan root | 300                                                              |
 | Skipped directories              | `.git`, `node_modules`, and hidden directories except `.compozy` |
 | Filesystem base precedence       | Bundled, marketplace, user, additional root, workspace           |
 
-Higher-precedence skills with the same `name` override lower-precedence skills.
+Directories between a scan root and a skill directory are organizational groups. They may be empty
+and do not need a `SKILL.md`. The frontmatter `name`, not those groups or the leaf directory name,
+is the catalog identity. Higher-precedence skills with the same `name` override lower-precedence
+skills.
 Agent-local is a final overlay after Compozy resolves the winning `AGENT.md`; it is not another scan
 root in the base precedence table above.
 

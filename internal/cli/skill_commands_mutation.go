@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -63,11 +61,15 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 
 func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
+	var group string
 	cmd := &cobra.Command{
 		Use:   "create [name]",
 		Short: "Scaffold a new workspace skill",
 		Example: `  # Create .compozy/skills/api-review/SKILL.md in the current workspace
-  compozy skill create api-review`,
+  compozy skill create api-review
+
+  # Organize a skill beneath an optional group directory
+  compozy skill create campaign-brief --group marketing`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := defaultSkillName
@@ -79,35 +81,28 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			groupPath := ""
+			if cmd.Flags().Changed("group") {
+				groupPath, err = normalizeSkillGroup(group)
+				if err != nil {
+					return err
+				}
+			}
 
 			workspace, err := resolveCommandWorkspaceRoot(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
 
-			skillDir := filepath.Join(workspace, compozyconfig.DirName, compozyconfig.SkillsDirName, skillName)
-			if _, err := os.Stat(skillDir); err == nil {
-				return fmt.Errorf("skill %q already exists at %s", skillName, skillDir)
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("cli: inspect skill directory %q: %w", skillDir, err)
-			}
-
-			if err := os.MkdirAll(skillDir, 0o755); err != nil {
-				return fmt.Errorf("cli: create skill directory %q: %w", skillDir, err)
-			}
-
-			skillFilePath := filepath.Join(skillDir, skillMarkdownFileName)
-			content := defaultSkillTemplate(skillName)
-			if err := os.WriteFile(skillFilePath, []byte(content), 0o600); err != nil {
-				return fmt.Errorf("cli: write skill template %q: %w", skillFilePath, err)
-			}
-
-			if _, err := skills.ParseSkillFile(skillFilePath); err != nil {
-				return fmt.Errorf("cli: validate generated skill %q: %w", skillFilePath, err)
+			skillsRoot := filepath.Join(workspace, compozyconfig.DirName, compozyconfig.SkillsDirName)
+			skillDir, skillFilePath, err := createWorkspaceSkill(skillsRoot, groupPath, skillName)
+			if err != nil {
+				return err
 			}
 
 			return writeCommandOutput(cmd, skillCreateBundle(skillCreateItem{
 				Name:   skillName,
+				Group:  groupPath,
 				Path:   skillDir,
 				File:   skillFilePath,
 				Source: workspaceSkillSource,
@@ -121,6 +116,7 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Override the target workspace (ID, name, or path)",
 	)
+	cmd.Flags().StringVar(&group, "group", "", "Place the skill under a relative group path")
 	return cmd
 }
 

@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/skillscan"
 )
 
 func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {
@@ -296,60 +297,9 @@ func parseBundledSkillDocument(fsys fs.FS, skillPath string) (*Skill, string, er
 }
 
 func scanBundledFS(fsys fs.FS) ([]string, error) {
-	paths := make([]string, 0, maxScanCandidates)
-
-	walkErr := fs.WalkDir(fsys, ".", func(current string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if current == "." {
-			return nil
-		}
-
-		depth := fsPathDepth(current, entry.IsDir())
-		if entry.IsDir() {
-			if shouldSkipDir(path.Base(current)) {
-				return fs.SkipDir
-			}
-			if depth > maxScanDepth {
-				return fs.SkipDir
-			}
-			return nil
-		}
-
-		if path.Base(current) != skillFileName || depth > maxScanDepth {
-			return nil
-		}
-
-		if _, err := fs.Stat(fsys, current); err != nil {
-			return err
-		}
-
-		paths = append(paths, current)
-		if len(paths) >= maxScanCandidates {
-			return errScanLimitReached
-		}
-
-		return nil
-	})
-	if walkErr != nil && !errors.Is(walkErr, errScanLimitReached) {
-		return nil, fmt.Errorf("skills: scan bundled skills: %w", walkErr)
+	paths, err := skillscan.ScanFS(fsys, ".")
+	if err != nil {
+		return nil, fmt.Errorf("skills: scan bundled skills: %w", err)
 	}
-
-	slices.Sort(paths)
 	return paths, nil
-}
-
-func fsPathDepth(current string, isDir bool) int {
-	trimmed := strings.Trim(current, "/")
-	if trimmed == "" {
-		return 0
-	}
-
-	parts := strings.Split(trimmed, "/")
-	if isDir {
-		return len(parts)
-	}
-
-	return max(len(parts)-1, 0)
 }
