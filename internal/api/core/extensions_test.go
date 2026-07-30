@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -20,6 +21,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
@@ -606,6 +608,95 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 			}
 			if recorded.Scope.WorkspaceID != "workspace-a" || recorded.Scope.Operator {
 				t.Fatalf("recorded actor scope = %#v, want trusted agent workspace A", recorded.Scope)
+			}
+		})
+	}
+
+	for _, testCase := range []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		wantStatus int
+		configure  func(*extensionServiceStub, *bool)
+	}{
+		{
+			name:       "Should reject agent dev links when the trusted session has no workspace",
+			method:     http.MethodPost,
+			path:       "/extensions/dev",
+			body:       []byte(`{"origin_path":"/workspace/a/ext","generation_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
+			wantStatus: http.StatusBadRequest,
+			configure: func(service *extensionServiceStub, called *bool) {
+				service.devFn = func(
+					_ context.Context,
+					_ contract.DevLinkExtensionRequest,
+					_ taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					*called = true
+					return contract.ExtensionPayload{Name: "bound"}, nil
+				}
+			},
+		},
+		{
+			name:       "Should reject agent reloads when the trusted session has no workspace",
+			method:     http.MethodPost,
+			path:       "/extensions/bound/reload",
+			body:       []byte(`{"generation_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}`),
+			wantStatus: http.StatusBadRequest,
+			configure: func(service *extensionServiceStub, called *bool) {
+				service.reloadDevFn = func(
+					_ context.Context,
+					_ string,
+					_ contract.ReloadExtensionRequest,
+					_ taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					*called = true
+					return contract.ExtensionPayload{Name: "bound"}, nil
+				}
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			service := extensionServiceStub{}
+			testCase.configure(&service, &called)
+			sessions := testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*sessionpkg.Info, error) {
+					return &sessionpkg.Info{
+						ID: id, AgentName: "coder", State: sessionpkg.StateActive,
+					}, nil
+				},
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName: "http",
+				Extensions:    service,
+				Sessions:      sessions,
+			})
+			engine := gin.New()
+			engine.POST("/extensions/dev", handlers.DevExtension)
+			engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
+
+			response := testutil.PerformRequestWithHeaders(
+				t,
+				engine,
+				testCase.method,
+				testCase.path,
+				testCase.body,
+				map[string]string{
+					agentidentity.HeaderSessionID: "session-without-workspace",
+					agentidentity.HeaderAgent:     "coder",
+				},
+			)
+			if response.Code != testCase.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.wantStatus, response.Body.String())
+			}
+			if called {
+				t.Fatal("extension dev service called without a trusted workspace")
+			}
+			if !strings.Contains(response.Body.String(), "workspace_id is required") {
+				t.Fatalf("body = %s, want trusted workspace validation", response.Body.String())
 			}
 		})
 	}

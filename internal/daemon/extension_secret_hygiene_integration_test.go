@@ -29,6 +29,10 @@ import (
 )
 
 func TestExtensionSecretTransportAbsence(t *testing.T) {
+	t.Run("Should keep extension secrets out of every transport", testExtensionSecretTransportAbsence)
+}
+
+func testExtensionSecretTransportAbsence(t *testing.T) {
 	t.Parallel()
 
 	const (

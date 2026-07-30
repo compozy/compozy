@@ -142,17 +142,17 @@ export function RemoveExtensionDialog({
   onRetryDependencies: () => void;
 }) {
   const remove = useRemoveExtension();
+  // A dev overlay is a workspace link over the published row: unlinking it never deletes the
+  // published installation, so bundle dependencies do not block the scoped unlink.
+  const isDevOverlay = extension?.dev === true;
   const blockers = extension
     ? (activeBundles ?? []).filter(activation => activation.extension_name === extension.name)
     : [];
   const dependenciesReady =
     !dependencyLoading && dependencyError === null && activeBundles !== undefined;
-  const blocked = !extension || !dependenciesReady || blockers.length > 0;
+  const blocked = !extension || (!isDevOverlay && (!dependenciesReady || blockers.length > 0));
   const capabilityCount = extension?.capabilities?.length ?? 0;
   const permissions = extension?.permissions ?? [];
-  // A dev overlay is a workspace link over the published row: unlinking it never deletes the
-  // published installation, so the copy must not promise removal.
-  const isDevOverlay = extension?.dev === true;
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
@@ -186,12 +186,12 @@ export function RemoveExtensionDialog({
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.
           </p>
-          {dependencyLoading ? (
+          {!isDevOverlay && dependencyLoading ? (
             <p className="flex items-center gap-2" role="status">
               <Spinner className="size-3.5" />
               Checking active bundles before removal.
             </p>
-          ) : dependencyError ? (
+          ) : !isDevOverlay && dependencyError ? (
             <div className="space-y-2">
               <p>
                 Bundle activity could not be loaded. {dependencyError.message} Removal stays blocked
@@ -201,7 +201,7 @@ export function RemoveExtensionDialog({
                 Retry bundle activity
               </Button>
             </div>
-          ) : blockers.length > 0 ? (
+          ) : !isDevOverlay && blockers.length > 0 ? (
             <p>
               The daemon returns 409 while an active bundle depends on this extension. Deactivate
               {` ${blockers.map(item => item.bundle_name).join(", ")}`} first.
@@ -209,7 +209,9 @@ export function RemoveExtensionDialog({
           ) : null}
         </div>
       }
-      noteTone={!dependenciesReady || blockers.length > 0 ? "warning" : "neutral"}
+      noteTone={
+        !isDevOverlay && (!dependenciesReady || blockers.length > 0) ? "warning" : "neutral"
+      }
       onConfirm={async () => {
         if (!extension || blocked) return;
         await remove.mutateAsync({ dev: isDevOverlay, name: extension.name });

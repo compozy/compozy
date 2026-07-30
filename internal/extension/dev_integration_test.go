@@ -107,10 +107,12 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		if !linked.OverridesPublished || linked.Status.WorkspaceID != workspace.WorkspaceID {
 			t.Fatalf("linked extension = %#v, want workspace override", linked)
 		}
+		key := InstanceKey{Name: "dev-clock", WorkspaceID: workspace.WorkspaceID}
+		manager.logRingFor(key).append("log from the first link", firstHash)
 
 		reloaded, err := manager.ReloadExtension(
 			testutil.Context(t),
-			InstanceKey{Name: "dev-clock", WorkspaceID: workspace.WorkspaceID},
+			key,
 			secondHash,
 		)
 		if err != nil {
@@ -120,7 +122,6 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 			t.Fatalf("reloaded status = %#v, want generation %q", reloaded.Status, secondHash)
 		}
 
-		key := InstanceKey{Name: "dev-clock", WorkspaceID: workspace.WorkspaceID}
 		if err := manager.UnlinkDevelopment(testutil.Context(t), key); err != nil {
 			t.Fatalf("UnlinkDevelopment() error = %v", err)
 		}
@@ -130,6 +131,21 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		}
 		if active.DevLink != nil || active.Published == nil || active.Published.Version != "0.1.0" {
 			t.Fatalf("ResolveActive() = %#v, want published fallback", active)
+		}
+
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			testutil.Context(t), workspace.WorkspaceID, origin, secondHash,
+		); err != nil {
+			t.Fatalf("LinkDevelopmentFromOrigin(relink) error = %v", err)
+		}
+		logs, err := manager.Logs(key, 0)
+		if err != nil {
+			t.Fatalf("Logs(relink) error = %v", err)
+		}
+		for _, entry := range logs {
+			if entry.Message == "log from the first link" {
+				t.Fatalf("Logs(relink) retained unlinked entry: %#v", logs)
+			}
 		}
 	})
 

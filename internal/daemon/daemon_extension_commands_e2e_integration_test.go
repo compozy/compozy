@@ -23,6 +23,10 @@ import (
 const commandFixtureExtensionName = "cmd-fixture"
 
 func TestDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
+	t.Run("Should preserve tool policy for contributed commands", testDaemonE2EExtensionContributedCommandsPreserveToolPolicy)
+}
+
+func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)

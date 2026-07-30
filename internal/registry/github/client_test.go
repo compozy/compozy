@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,44 +24,95 @@ import (
 func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 	t.Parallel()
 
-	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/search/repositories" {
-			t.Fatalf("Search() path = %q, want /search/repositories", request.URL.Path)
-		}
-		if got := request.URL.Query().Get("q"); got != "bridge topic:compozy-extension" {
-			t.Fatalf("Search() q = %q, want topic-qualified query", got)
-		}
-		if got := request.URL.Query().Get("per_page"); got != "5" {
-			t.Fatalf("Search() per_page = %q, want 5", got)
-		}
-		if got := request.URL.Query().Get("page"); got != "3" {
-			t.Fatalf("Search() page = %q, want 3", got)
-		}
-		writeJSON(
-			writer,
-			`{"items":[{"full_name":"acme/bridge","name":"bridge","description":"Bridge extension","owner":{"login":"acme"},"stargazers_count":42,"html_url":"https://github.com/acme/bridge","topics":["compozy-extension"],"default_branch":"main"}]}`,
-		)
-	})
-	defer server.Close()
+	t.Run("Should query the exact page for an aligned offset", func(t *testing.T) {
+		t.Parallel()
 
-	items, err := NewClient(server.URL).Search(t.Context(), " bridge ", registry.SearchOpts{
-		Limit:  5,
-		Offset: 10,
-		Type:   registry.PackageTypeExtension,
+		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/search/repositories" {
+				t.Fatalf("Search() path = %q, want /search/repositories", request.URL.Path)
+			}
+			if got := request.URL.Query().Get("q"); got != "bridge topic:compozy-extension" {
+				t.Fatalf("Search() q = %q, want topic-qualified query", got)
+			}
+			if got := request.URL.Query().Get("per_page"); got != "5" {
+				t.Fatalf("Search() per_page = %q, want 5", got)
+			}
+			if got := request.URL.Query().Get("page"); got != "3" {
+				t.Fatalf("Search() page = %q, want 3", got)
+			}
+			writeJSON(
+				writer,
+				`{"items":[{"full_name":"acme/bridge","name":"bridge","description":"Bridge extension","owner":{"login":"acme"},"stargazers_count":42,"html_url":"https://github.com/acme/bridge","topics":["compozy-extension"],"default_branch":"main"}]}`,
+			)
+		})
+		defer server.Close()
+
+		items, err := NewClient(server.URL).Search(t.Context(), " bridge ", registry.SearchOpts{
+			Limit:  5,
+			Offset: 10,
+			Type:   registry.PackageTypeExtension,
+		})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("Search() items = %#v, want one", items)
+		}
+		want := registry.Listing{
+			Slug: "acme/bridge", Name: "bridge", Description: "Bridge extension", Author: "acme",
+			Version: "main", Downloads: 42, Source: "github", Type: registry.PackageTypeExtension,
+		}
+		if items[0] != want {
+			t.Fatalf("Search() item = %#v, want %#v", items[0], want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("Search() items = %#v, want one", items)
-	}
-	want := registry.Listing{
-		Slug: "acme/bridge", Name: "bridge", Description: "Bridge extension", Author: "acme",
-		Version: "main", Downloads: 42, Source: "github", Type: registry.PackageTypeExtension,
-	}
-	if items[0] != want {
-		t.Fatalf("Search() item = %#v, want %#v", items[0], want)
-	}
+
+	t.Run("Should start at a partial offset and still return the requested limit", func(t *testing.T) {
+		t.Parallel()
+
+		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+			if got := request.URL.Query().Get("per_page"); got != "5" {
+				t.Fatalf("Search() per_page = %q, want 5", got)
+			}
+			switch request.URL.Query().Get("page") {
+			case "1":
+				writeJSON(writer, `{"items":[
+					{"full_name":"acme/repo-0","name":"repo-0","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-1","name":"repo-1","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-2","name":"repo-2","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-3","name":"repo-3","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-4","name":"repo-4","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"}
+				]}`)
+			case "2":
+				writeJSON(writer, `{"items":[
+					{"full_name":"acme/repo-5","name":"repo-5","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-6","name":"repo-6","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-7","name":"repo-7","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-8","name":"repo-8","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-9","name":"repo-9","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"}
+				]}`)
+			default:
+				t.Fatalf("Search() page = %q, want 1 or 2", request.URL.Query().Get("page"))
+			}
+		})
+		defer server.Close()
+
+		items, err := NewClient(server.URL).Search(t.Context(), "repo", registry.SearchOpts{
+			Limit: 5, Offset: 2, Type: registry.PackageTypeExtension,
+		})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(items) != 5 {
+			t.Fatalf("Search() count = %d, want 5: %#v", len(items), items)
+		}
+		for index, item := range items {
+			want := "acme/repo-" + strconv.Itoa(index+2)
+			if item.Slug != want {
+				t.Fatalf("Search() item[%d].Slug = %q, want %q", index, item.Slug, want)
+			}
+		}
+	})
 }
 
 func TestClientCapabilities(t *testing.T) {

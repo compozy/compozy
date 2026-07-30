@@ -14,7 +14,8 @@ fi
 
 version="${1:-}"
 npm_tag="${2:-}"
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]] ||
+strict_semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9]*[A-Za-z-][0-9A-Za-z-]*)))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+[[ "$version" =~ $strict_semver ]] ||
   fail "release version must be strict unprefixed SemVer"
 [[ "$npm_tag" =~ ^[a-z][a-z0-9._-]*$ ]] || fail "npm tag is invalid"
 

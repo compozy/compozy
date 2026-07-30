@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-extension-dev-lifecycle
 expected: `compozy extension dev` links the built generation to the current workspace with no trust prompt, an edit plus `reload` (or `--watch`) makes the next invocation return the new behavior while other workspaces keep serving the published build, `logs --follow` streams the redacted per-instance ring, and removing the dev instance restores the published one.
 entry_points: `compozy extension dev [dir] --watch`; `compozy extension reload <name>`; `compozy extension logs <name> --follow|--global`; `compozy extension remove <name>`; `POST /api/extensions/dev`; `POST /api/extensions/{name}/reload`; `GET /api/extensions/{name}/logs?follow=1`; `DELETE /api/extensions/{name}`; `compozy__extensions_dev|reload|logs|remove`
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: pending review-remediation replay
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
 last_report: docs/qa/reports/2026-07-29-ext-improvs.md
@@ -44,3 +44,8 @@ Surfaces: `internal/cli/extension_dev.go`, `internal/api/core/extensions_dev.go`
 Dedup: ET-015..ET-023 keep the install/update/remove/status lifecycle and were already `untested`, so no
 verdict needed resetting; this file owns the dev overlay loop only. No journey owns the dev inner loop yet
 — the next planning cycle should map it and link it here.
+
+QA impact 2026-07-29: unlink now discards the workspace instance's retained log ring before a same-name
+relink, and the Web confirmation no longer treats a published bundle dependency as a blocker for the
+workspace-scoped unlink. Historical evidence is retained; replay unlink/relink with the published row
+active and prove the new overlay starts with an empty ring.

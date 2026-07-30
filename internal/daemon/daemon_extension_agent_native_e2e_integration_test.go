@@ -26,6 +26,10 @@ import (
 const agentNativeExtensionE2EName = "agent-native-e2e"
 
 func TestDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.T) {
+	t.Run("Should complete extension authoring through native tools", testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools)
+}
+
+func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 

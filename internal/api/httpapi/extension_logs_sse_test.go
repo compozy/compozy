@@ -16,6 +16,10 @@ import (
 )
 
 func TestExtensionLogsRouteAndSSEFollow(t *testing.T) {
+	t.Run("Should serve redacted history and follow frames", testExtensionLogsRouteAndSSEFollow)
+}
+
+func testExtensionLogsRouteAndSSEFollow(t *testing.T) {
 	// Not parallel: newTestRouter changes Gin's process-global mode.
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",

@@ -96,6 +96,11 @@ describe("extensions MSW handlers", () => {
     ).json()) as { logs: Array<{ sequence: number }> };
     expect(logs.logs.map(entry => entry.sequence)).toEqual([3]);
 
+    const globalLogs = (await (
+      await fetch(`${API}/api/extensions/ops-dev-extension/logs?after=2`)
+    ).json()) as { logs: Array<{ sequence: number }> };
+    expect(globalLogs.logs).toEqual([]);
+
     const blocked = await fetch(`${API}/api/extensions`, {
       body: JSON.stringify({ ref: "acme/hello", source: "github" }),
       headers: { "Content-Type": "application/json" },

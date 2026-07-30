@@ -15,6 +15,10 @@ import (
 )
 
 func TestBuildBundleDescribeRoundTrip(t *testing.T) {
+	t.Run("Should build and describe a Go SDK bundle", testBuildBundleDescribeRoundTrip)
+}
+
+func testBuildBundleDescribeRoundTrip(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 
 	sourceDir := t.TempDir()

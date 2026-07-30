@@ -561,6 +561,30 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	})
 }
 
+func TestExtensionSDKPublisherAcceptsStrictSemVer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept prerelease and build metadata together", func(t *testing.T) {
+		t.Parallel()
+
+		root := findRepoRootForReleaseConfigTest(t)
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "publish-extension-sdk.sh"),
+			"1.2.3-rc.1+build.7",
+			"INVALID",
+		)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatal("publish-extension-sdk.sh error = nil, want invalid npm tag rejection")
+		}
+		if !strings.Contains(string(output), "npm tag is invalid") {
+			t.Fatalf("publish-extension-sdk.sh output = %s, want npm tag validation", output)
+		}
+	})
+}
+
 func TestChangelogConfigPreservesCompozyOSHardCut(t *testing.T) {
 	t.Parallel()
 

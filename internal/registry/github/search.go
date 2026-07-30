@@ -41,7 +41,7 @@ func (c *Client) searchRepositories(
 	ctx context.Context,
 	query string,
 	opts registry.SearchOpts,
-) (_ []registry.Listing, err error) {
+) ([]registry.Listing, error) {
 	if opts.Type != registry.PackageTypeAll && opts.Type != registry.PackageTypeExtension {
 		return []registry.Listing{}, nil
 	}
@@ -55,6 +55,48 @@ func (c *Client) searchRepositories(
 	offset := max(opts.Offset, 0)
 	page := offset/limit + 1
 	qualifiedQuery := strings.TrimSpace(strings.TrimSpace(query) + " topic:" + githubExtensionTopic)
+	items, err := c.fetchRepositorySearchPage(ctx, qualifiedQuery, limit, page)
+	if err != nil {
+		return nil, err
+	}
+	pageOffset := offset % limit
+	if pageOffset > 0 && len(items) == limit {
+		nextItems, err := c.fetchRepositorySearchPage(ctx, qualifiedQuery, limit, page+1)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, nextItems...)
+	}
+	if pageOffset >= len(items) {
+		return []registry.Listing{}, nil
+	}
+	items = items[pageOffset:min(pageOffset+limit, len(items))]
+
+	listings := make([]registry.Listing, 0, len(items))
+	for _, item := range items {
+		if !containsTopic(item.Topics, githubExtensionTopic) {
+			continue
+		}
+		listings = append(listings, registry.Listing{
+			Slug:        strings.TrimSpace(item.FullName),
+			Name:        strings.TrimSpace(item.Name),
+			Description: strings.TrimSpace(item.Description),
+			Author:      strings.TrimSpace(item.Owner.Login),
+			Version:     strings.TrimSpace(item.DefaultBranch),
+			Downloads:   item.Stargazers,
+			Source:      c.Name(),
+			Type:        registry.PackageTypeExtension,
+		})
+	}
+	return listings, nil
+}
+
+func (c *Client) fetchRepositorySearchPage(
+	ctx context.Context,
+	qualifiedQuery string,
+	limit int,
+	page int,
+) (_ []repositorySearchItem, err error) {
 	parameters := url.Values{
 		"q":        {qualifiedQuery},
 		"per_page": {strconv.Itoa(limit)},
@@ -83,23 +125,7 @@ func (c *Client) searchRepositories(
 	if err := json.Unmarshal(payload, &result); err != nil {
 		return nil, fmt.Errorf("github: decode repository search response: %w", err)
 	}
-	listings := make([]registry.Listing, 0, len(result.Items))
-	for _, item := range result.Items {
-		if !containsTopic(item.Topics, githubExtensionTopic) {
-			continue
-		}
-		listings = append(listings, registry.Listing{
-			Slug:        strings.TrimSpace(item.FullName),
-			Name:        strings.TrimSpace(item.Name),
-			Description: strings.TrimSpace(item.Description),
-			Author:      strings.TrimSpace(item.Owner.Login),
-			Version:     strings.TrimSpace(item.DefaultBranch),
-			Downloads:   item.Stargazers,
-			Source:      c.Name(),
-			Type:        registry.PackageTypeExtension,
-		})
-	}
-	return listings, nil
+	return result.Items, nil
 }
 
 func containsTopic(topics []string, wanted string) bool {

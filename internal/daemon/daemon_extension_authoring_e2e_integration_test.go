@@ -26,6 +26,10 @@ import (
 const extensionAuthoringE2EName = "authoring-dev-e2e"
 
 func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
+	t.Run("Should complete the development loop without trust prompts", testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts)
+}
+
+func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
@@ -135,6 +139,10 @@ const (
 )
 
 func TestDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
+	t.Run("Should replay the quickstart and invoke the installed extension", testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension)
+}
+
+func testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)

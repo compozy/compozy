@@ -167,6 +167,7 @@ func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error 
 	current, _ := m.lookupInstance(key)
 	m.mu.Lock()
 	m.deleteInstanceLocked(key)
+	delete(m.devLogs, key)
 	m.mu.Unlock()
 	if current != nil {
 		return m.stopManagedExtension(ctx, current)

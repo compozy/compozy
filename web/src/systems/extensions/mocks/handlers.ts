@@ -86,8 +86,12 @@ export const handlers: HttpHandler[] = [
   }),
   compozyApiMock.get("/api/extensions/{name}/logs", ({ params, request }) => {
     const name = String(params.name);
-    const after = Number(new URL(request.url).searchParams.get("after") ?? "0");
-    const logs = (extensionLogFixtures[name] ?? []).filter(entry => entry.sequence > after);
+    const search = new URL(request.url).searchParams;
+    const after = Number(search.get("after") ?? "0");
+    const workspace = search.get("workspace")?.trim() ?? "";
+    const logs = (extensionLogFixtures[workspace]?.[name] ?? []).filter(
+      entry => entry.sequence > after
+    );
     return HttpResponse.json({ logs });
   }),
   compozyApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {

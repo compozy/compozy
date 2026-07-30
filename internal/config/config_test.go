@@ -1806,22 +1806,24 @@ unknown = true
 }
 
 func TestLoadRejectsRemovedExtensionMarketplaceConfig(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reject the removed extension marketplace configuration", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := loadConfigOverlayBytes([]byte(`[extensions.marketplace]
+		_, err := loadConfigOverlayBytes([]byte(`[extensions.marketplace]
 allow_unverified = true
 `), "legacy-extension-config.toml")
-	if err == nil {
-		t.Fatal("loadConfigOverlayBytes() error = nil, want removed-key rejection")
-	}
-	for _, fragment := range []string{
-		"extensions.marketplace.allow_unverified",
-		"extensions.trust.allow_unverified",
-	} {
-		if !strings.Contains(err.Error(), fragment) {
-			t.Fatalf("loadConfigOverlayBytes() error = %v, want fragment %q", err, fragment)
+		if err == nil {
+			t.Fatal("loadConfigOverlayBytes() error = nil, want removed-key rejection")
 		}
-	}
+		for _, fragment := range []string{
+			"extensions.marketplace.allow_unverified",
+			"extensions.trust.allow_unverified",
+		} {
+			if !strings.Contains(err.Error(), fragment) {
+				t.Fatalf("loadConfigOverlayBytes() error = %v, want fragment %q", err, fragment)
+			}
+		}
+	})
 }
 
 func TestLoadRejectsTimeoutOnSessionBackedRoles(t *testing.T) {

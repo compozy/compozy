@@ -141,7 +141,7 @@ describe("RemoveExtensionDialog", () => {
     const extension = { ...extensionFixtures[0]!, dev: true };
     render(
       <RemoveExtensionDialog
-        activeBundles={[]}
+        activeBundles={bundleActivationFixtures}
         dependencyError={null}
         dependencyLoading={false}
         extension={extension}
@@ -153,7 +153,9 @@ describe("RemoveExtensionDialog", () => {
 
     expect(screen.getByText(/published installation stays in place/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Type to confirm"), extension.name);
-    await user.click(screen.getByRole("button", { name: "Unlink dev overlay" }));
+    const confirm = screen.getByRole("button", { name: "Unlink dev overlay" });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
 
     await waitFor(() =>
       expect(mocks.remove).toHaveBeenCalledWith({ dev: true, name: extension.name })
