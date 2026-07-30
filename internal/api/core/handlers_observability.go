@@ -124,8 +124,10 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
 	if !h.Config.Network.Enabled {
 		return &contract.NetworkStatusPayload{
-			Enabled: false,
-			Status:  memoryHealthStatusDisabled,
+			Enabled:          false,
+			Status:           memoryHealthStatusDisabled,
+			DeclaredChannels: []contract.DeclaredNetworkChannelPayload{},
+			KindMetrics:      []contract.NetworkKindMetricPayload{},
 		}, nil
 	}
 	if h.Network == nil {

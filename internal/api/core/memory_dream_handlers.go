@@ -181,7 +181,7 @@ func (h *BaseHandlers) ResetMemory(c *gin.Context) {
 		return
 	}
 	if !req.DerivedOnly {
-		err := NewMemoryValidationError(errors.New("only derived memory reset is supported in Slice 1"))
+		err := fmt.Errorf("%w: only derived memory reset is supported", ErrMemoryRejected)
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}

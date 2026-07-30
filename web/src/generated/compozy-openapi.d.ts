@@ -37191,6 +37191,21 @@ export interface operations {
           };
         };
       };
+      /** @description Memory reset rejected because curated storage reset is unsupported */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            details?: {
+              [key: string]: unknown;
+            };
+            message: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -39244,10 +39259,10 @@ export interface operations {
         content: {
           "application/json": {
             network: {
-              channels?: number;
+              channels: number;
               /** Format: int64 */
-              conversation_messages?: number;
-              declared_channels?: {
+              conversation_messages: number;
+              declared_channels: {
                 activation_id?: string;
                 bundle_name?: string;
                 description?: string;
@@ -39258,41 +39273,41 @@ export interface operations {
                 workspace_id?: string;
               }[];
               /** Format: int64 */
-              direct_resolves?: number;
+              direct_resolves: number;
               enabled: boolean;
               /** Format: int64 */
-              handoff_tagged_events?: number;
-              kind_metrics?: {
+              handoff_tagged_events: number;
+              kind_metrics: {
                 /** Format: int64 */
-                delivered?: number;
+                delivered: number;
                 kind: string;
                 /** Format: int64 */
-                received?: number;
+                received: number;
                 /** Format: int64 */
-                rejected?: number;
+                rejected: number;
                 /** Format: int64 */
-                sent?: number;
+                sent: number;
               }[];
-              local_peers?: number;
+              local_peers: number;
               /** Format: int64 */
-              messages_delivered?: number;
+              messages_delivered: number;
               /** Format: int64 */
-              messages_received?: number;
+              messages_received: number;
               /** Format: int64 */
-              messages_rejected?: number;
+              messages_rejected: number;
               /** Format: int64 */
-              messages_sent?: number;
+              messages_sent: number;
               /** Format: int64 */
-              open_direct_rooms?: number;
+              open_direct_rooms: number;
               /** Format: int64 */
-              open_threads?: number;
+              open_threads: number;
               /** Format: int64 */
-              open_work_items?: number;
+              open_work_items: number;
               status: string;
               /** Format: int64 */
-              work_transitions?: number;
+              work_transitions: number;
               /** Format: int64 */
-              workflow_tagged_events?: number;
+              workflow_tagged_events: number;
             };
           };
         };
@@ -57792,10 +57807,10 @@ export interface operations {
               http_host: string;
               http_port: number;
               network?: {
-                channels?: number;
+                channels: number;
                 /** Format: int64 */
-                conversation_messages?: number;
-                declared_channels?: {
+                conversation_messages: number;
+                declared_channels: {
                   activation_id?: string;
                   bundle_name?: string;
                   description?: string;
@@ -57806,41 +57821,41 @@ export interface operations {
                   workspace_id?: string;
                 }[];
                 /** Format: int64 */
-                direct_resolves?: number;
+                direct_resolves: number;
                 enabled: boolean;
                 /** Format: int64 */
-                handoff_tagged_events?: number;
-                kind_metrics?: {
+                handoff_tagged_events: number;
+                kind_metrics: {
                   /** Format: int64 */
-                  delivered?: number;
+                  delivered: number;
                   kind: string;
                   /** Format: int64 */
-                  received?: number;
+                  received: number;
                   /** Format: int64 */
-                  rejected?: number;
+                  rejected: number;
                   /** Format: int64 */
-                  sent?: number;
+                  sent: number;
                 }[];
-                local_peers?: number;
+                local_peers: number;
                 /** Format: int64 */
-                messages_delivered?: number;
+                messages_delivered: number;
                 /** Format: int64 */
-                messages_received?: number;
+                messages_received: number;
                 /** Format: int64 */
-                messages_rejected?: number;
+                messages_rejected: number;
                 /** Format: int64 */
-                messages_sent?: number;
+                messages_sent: number;
                 /** Format: int64 */
-                open_direct_rooms?: number;
+                open_direct_rooms: number;
                 /** Format: int64 */
-                open_threads?: number;
+                open_threads: number;
                 /** Format: int64 */
-                open_work_items?: number;
+                open_work_items: number;
                 status: string;
                 /** Format: int64 */
-                work_transitions?: number;
+                work_transitions: number;
                 /** Format: int64 */
-                workflow_tagged_events?: number;
+                workflow_tagged_events: number;
               } | null;
               pid: number;
               schema_streams: {

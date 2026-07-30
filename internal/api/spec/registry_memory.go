@@ -250,6 +250,7 @@ func resetMemoryOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.MemoryResetResponse{}},
 			memoryError(400, "Invalid memory reset request"),
 			memoryError(409, "Memory reset confirmation required"),
+			memoryError(422, "Memory reset rejected because curated storage reset is unsupported"),
 			memoryError(500, specInternalServerErrorDescription),
 		},
 	}

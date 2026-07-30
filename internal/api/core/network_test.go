@@ -4259,6 +4259,28 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 		if disabledPayload.Network.Enabled || disabledPayload.Network.Status != "disabled" {
 			t.Fatalf("disabled payload = %#v, want disabled status", disabledPayload.Network)
 		}
+		var rawPayload struct {
+			Network map[string]json.RawMessage `json:"network"`
+		}
+		if err := json.Unmarshal(disabledResp.Body.Bytes(), &rawPayload); err != nil {
+			t.Fatalf("json.Unmarshal(disabled status) error = %v", err)
+		}
+		for _, field := range []string{
+			"local_peers", "channels", "messages_sent", "messages_received", "messages_rejected",
+			"messages_delivered", "workflow_tagged_events", "handoff_tagged_events", "open_threads",
+			"open_direct_rooms", "open_work_items", "conversation_messages", "work_transitions",
+			"direct_resolves", "declared_channels", "kind_metrics",
+		} {
+			if _, ok := rawPayload.Network[field]; !ok {
+				t.Fatalf("disabled status missing %q: %s", field, disabledResp.Body.String())
+			}
+		}
+		if got := string(rawPayload.Network["declared_channels"]); got != "[]" {
+			t.Fatalf("declared_channels = %s, want []", got)
+		}
+		if got := string(rawPayload.Network["kind_metrics"]); got != "[]" {
+			t.Fatalf("kind_metrics = %s, want []", got)
+		}
 	})
 
 	t.Run("Should return service unavailable when network service is missing", func(t *testing.T) {

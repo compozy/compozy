@@ -334,6 +334,42 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unknown configuration fields before daemon mutation", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := filepath.Join(t.TempDir(), "loop-config.yaml")
+		if err := os.WriteFile(configPath, []byte("iteration_cap: 9\nunknown_field: true\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(loop config) error = %v", err)
+		}
+		putCalls := 0
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			putLoopConfigFn: func(
+				context.Context,
+				string,
+				string,
+				contract.PutLoopConfigRequest,
+				agentidentity.Credentials,
+			) (contract.LoopConfigResponse, error) {
+				putCalls++
+				return contract.LoopConfigResponse{}, nil
+			},
+		})
+
+		for _, args := range [][]string{
+			{"loop", "configure", "--workspace", "alpha", "--name", "release", "--set", "unknown_field=true"},
+			{"loop", "configure", "--workspace", "alpha", "--name", "release", "--file", configPath},
+		} {
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || !strings.Contains(err.Error(), "unknown_field") {
+				t.Fatalf("executeRootCommand(%v) error = %v, want unknown field rejection", args, err)
+			}
+		}
+		if putCalls != 0 {
+			t.Fatalf("PutLoopConfig calls = %d, want 0", putCalls)
+		}
+	})
+
 	t.Run("Should approve gate decision", func(t *testing.T) {
 		t.Parallel()
 

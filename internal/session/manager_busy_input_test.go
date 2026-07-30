@@ -854,6 +854,40 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 }
 
 func TestManagerBusyInputInterrupt(t *testing.T) {
+	t.Run("Should reject interrupt when no prompt is active without advancing generation", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		before, err := h.manager.currentInputGeneration(testutil.Context(t), sess.ID)
+		if err != nil {
+			t.Fatalf("currentInputGeneration(before) error = %v", err)
+		}
+		_, err = h.manager.InterruptPrompt(testutil.Context(t), sess.ID)
+		if !errors.Is(err, ErrPromptNotInProgress) {
+			t.Fatalf("InterruptPrompt(idle) error = %v, want ErrPromptNotInProgress", err)
+		}
+		after, generationErr := h.manager.currentInputGeneration(testutil.Context(t), sess.ID)
+		if generationErr != nil {
+			t.Fatalf("currentInputGeneration(after) error = %v", generationErr)
+		}
+		if after != before {
+			t.Fatalf("input generation = %d, want unchanged %d", after, before)
+		}
+		if h.driver.cancelCalls != 0 {
+			t.Fatalf("driver cancel calls = %d, want 0", h.driver.cancelCalls)
+		}
+	})
+
 	t.Run("Should advance generation cancel stale queue and send replacement prompt", func(t *testing.T) {
 		t.Parallel()
 

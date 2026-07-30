@@ -1,6 +1,8 @@
 package core
 
 import (
+	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -51,13 +53,50 @@ func (e *PromptStreamEncoder) emitToolResult(writer FlushWriter, event acp.Agent
 	if err := e.ensureToolInputAvailable(writer, toolCallID, event, true); err != nil {
 		return err
 	}
-	return WriteSSE(writer, SSEMessage{
+	if err := WriteSSE(writer, SSEMessage{
 		Data: promptToolOutputAvailablePayload{
 			Type:       "tool-output-available",
 			ToolCallID: toolCallID,
 			Output:     promptAgentEventPayloadFromEvent(event),
 		},
-	})
+	}); err != nil {
+		return err
+	}
+	e.toolCompleted[toolCallID] = struct{}{}
+	return nil
+}
+
+func (e *PromptStreamEncoder) emitUnresolvedToolResults(writer FlushWriter, event acp.AgentEvent) error {
+	toolCallIDs := make([]string, 0, len(e.toolStarted))
+	for toolCallID := range e.toolStarted {
+		if _, completed := e.toolCompleted[toolCallID]; !completed {
+			toolCallIDs = append(toolCallIDs, toolCallID)
+		}
+	}
+	sort.Strings(toolCallIDs)
+	for _, toolCallID := range toolCallIDs {
+		errorText := "Tool call ended before returning a result."
+		raw, err := json.Marshal(map[string]string{"error": errorText})
+		if err != nil {
+			return err
+		}
+		synthetic := acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			TurnID:     event.TurnID,
+			Timestamp:  event.Timestamp,
+			ToolCallID: toolCallID,
+			Title:      e.toolNameByID(toolCallID),
+			Error:      errorText,
+			Raw:        raw,
+		}
+		if err := e.ensureToolInputAvailable(writer, toolCallID, synthetic, true); err != nil {
+			return err
+		}
+		if err := e.emitToolResult(writer, synthetic); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (e *PromptStreamEncoder) emitPermission(writer FlushWriter, event acp.AgentEvent) error {

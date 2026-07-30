@@ -151,6 +151,8 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 			"text-delta:turn-mixed-text-2:text 4",
 			"text-delta:turn-mixed-text-2:text 5",
 			"text-end:turn-mixed-text-2",
+			"tool-output-available:tool-2",
+			"tool-output-available:tool-3",
 			"finish",
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -204,6 +206,43 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("frame signatures = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should terminalize unresolved tool calls before finishing", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 7, 30, 9, 0, 0, 0, time.UTC)
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     "turn-unresolved",
+			ToolCallID: "tool-open",
+			Title:      "exec",
+			Raw:        json.RawMessage(`{"tool_input":{"command":"make test"}}`),
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-unresolved",
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		})
+
+		got := promptFrameSignatures(t, writer.String())
+		want := []string{
+			"start",
+			"tool-input-start:tool-open",
+			"tool-input-available:tool-open",
+			"data-compozy-event",
+			"tool-output-available:tool-open",
+			"finish",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("frame signatures = %#v, want %#v", got, want)
+		}
+		if !strings.Contains(writer.String(), "Tool call ended before returning a result.") {
+			t.Fatalf("stream = %q, want truthful unresolved tool error", writer.String())
 		}
 	})
 }

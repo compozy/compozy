@@ -91131,6 +91131,32 @@
             },
             "description": "Memory reset confirmation required"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Memory reset rejected because curated storage reset is unsupported"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -96348,7 +96374,11 @@
                               }
                             },
                             "required": [
-                              "kind"
+                              "delivered",
+                              "kind",
+                              "received",
+                              "rejected",
+                              "sent"
                             ],
                             "type": "object"
                           },
@@ -96398,8 +96428,24 @@
                         }
                       },
                       "required": [
+                        "channels",
+                        "conversation_messages",
+                        "declared_channels",
+                        "direct_resolves",
                         "enabled",
-                        "status"
+                        "handoff_tagged_events",
+                        "kind_metrics",
+                        "local_peers",
+                        "messages_delivered",
+                        "messages_received",
+                        "messages_rejected",
+                        "messages_sent",
+                        "open_direct_rooms",
+                        "open_threads",
+                        "open_work_items",
+                        "status",
+                        "work_transitions",
+                        "workflow_tagged_events"
                       ],
                       "type": "object"
                     }
@@ -145088,7 +145134,11 @@
                                   }
                                 },
                                 "required": [
-                                  "kind"
+                                  "delivered",
+                                  "kind",
+                                  "received",
+                                  "rejected",
+                                  "sent"
                                 ],
                                 "type": "object"
                               },
@@ -145138,8 +145188,24 @@
                             }
                           },
                           "required": [
+                            "channels",
+                            "conversation_messages",
+                            "declared_channels",
+                            "direct_resolves",
                             "enabled",
-                            "status"
+                            "handoff_tagged_events",
+                            "kind_metrics",
+                            "local_peers",
+                            "messages_delivered",
+                            "messages_received",
+                            "messages_rejected",
+                            "messages_sent",
+                            "open_direct_rooms",
+                            "open_threads",
+                            "open_work_items",
+                            "status",
+                            "work_transitions",
+                            "workflow_tagged_events"
                           ],
                           "type": "object"
                         },

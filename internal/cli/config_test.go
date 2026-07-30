@@ -305,6 +305,22 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantRestart:      true,
 			wantRestartScope: "daemon",
 		},
+		{
+			name:             "Should report daemon restart for Goal outbox batch size",
+			path:             "goals.outbox_batch_size",
+			value:            "64",
+			wantLifecycle:    "restart-required",
+			wantRestart:      true,
+			wantRestartScope: "daemon",
+		},
+		{
+			name:             "Should report daemon restart for Goal outbox poll interval",
+			path:             "goals.outbox_poll_interval",
+			value:            "750ms",
+			wantLifecycle:    "restart-required",
+			wantRestart:      true,
+			wantRestartScope: "daemon",
+		},
 	}
 
 	for _, tt := range tests {
