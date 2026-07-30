@@ -10,12 +10,12 @@ import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { entriesForKind } from "@/lib/marketplace-catalog";
+import { MARKETPLACE_DESCRIPTION } from "@/lib/marketplace-copy";
 import { createPageMetadata } from "@/lib/site-config";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Marketplace",
-  description:
-    "Skills, extensions, MCP servers, and bridge providers for CompozyOS — rendered from this build's checked-in catalog snapshot.",
+  description: MARKETPLACE_DESCRIPTION,
   path: "/marketplace",
 });
 

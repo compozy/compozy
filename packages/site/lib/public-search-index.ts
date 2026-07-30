@@ -4,6 +4,11 @@ import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { devCycleExtension } from "@/lib/marketplace-bundled";
+import {
+  bundledDevCycleDescription,
+  MARKETPLACE_DESCRIPTION,
+  marketplaceBridgesDescription,
+} from "@/lib/marketplace-copy";
 import { entriesForKind, installCommand } from "@/lib/marketplace-catalog";
 import { docsSource } from "@/lib/source";
 
@@ -187,8 +192,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     id: "/marketplace",
     url: "/marketplace",
     title: "Marketplace",
-    description:
-      "Skills, extensions, and MCP servers rendered from the same catalog feeds the daemon reads.",
+    description: MARKETPLACE_DESCRIPTION,
     breadcrumbs: ["Marketplace"],
     tag: "Marketplace",
     structuredData: { headings: [], contents: [] },
@@ -232,8 +236,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
       id: "/marketplace/bridges",
       url: "/marketplace/bridges",
       title: "Bridges — Marketplace",
-      description:
-        "Chat and tracker platforms your agents can live in: the in-tree Compozy bridge providers, their secret slots, and their setup guides.",
+      description: marketplaceBridgesDescription(bridgeProviders.length),
       breadcrumbs: ["Marketplace"],
       tag: "Marketplace",
       structuredData: { headings: [], contents: [] },
@@ -247,7 +250,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
       tag: "Marketplace",
       structuredData: {
         headings: [],
-        contents: [{ heading: undefined, content: joinContent(provider.description, "Alpha") }],
+        contents: [{ heading: undefined, content: provider.description }],
       },
     })),
   ];
@@ -257,7 +260,7 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
       id: "/marketplace/bundled/dev-cycle",
       url: "/marketplace/bundled/dev-cycle",
       title: `${devCycleExtension.displayName} — Marketplace`,
-      description: devCycleExtension.description,
+      description: bundledDevCycleDescription(devCycleExtension.description),
       breadcrumbs: ["Marketplace"],
       tag: "Marketplace",
       structuredData: {

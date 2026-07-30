@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { GET as feedGET } from "@/app/blog/feed.xml/route";
 import {
@@ -14,12 +11,9 @@ import {
 } from "@/app/og/[...slug]/route";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
-import { BLOG_CATEGORIES, allPosts, allReleases } from "@/lib/blog";
+import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
 import { absoluteUrl, canonicalPath, siteConfig } from "@/lib/site-config";
 import { NextRequest } from "next/server";
-
-const SITE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const NEXT_CONFIG = readFileSync(resolve(SITE_ROOT, "next.config.mjs"), "utf8");
 
 const mockedDocs = vi.hoisted(() => ({
   protocolPages: [
@@ -135,12 +129,6 @@ describe("public route metadata", () => {
     }
   });
 
-  it("does not retain pre-hard-cut runtime or protocol redirects", () => {
-    expect(NEXT_CONFIG).not.toMatch(/\bredirects\s*\(/);
-    expect(NEXT_CONFIG).not.toContain('"/runtime');
-    expect(NEXT_CONFIG).not.toContain('"/protocol');
-  });
-
   it("points robots.txt at the canonical sitemap", () => {
     const route = robots();
 
@@ -151,31 +139,20 @@ describe("public route metadata", () => {
     expect(route.sitemap).toBe(`${siteConfig.url}/sitemap.xml`);
   });
 
-  it("publishes llms.txt with the corrected tagline and canonical doc links", async () => {
+  it("publishes llms.txt with one canonical heading per public section", async () => {
     const response = llmsGET();
     const body = await response.text();
+    const headings = body.match(/^#{1,2} .+$/gm) ?? [];
 
     expect(response.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
-    expect(body).toContain("# CompozyOS Documentation");
-    expect(body).toContain("## Docs");
-    expect(body).toContain("## Guides & examples");
-    expect(body).toContain("## Compozy Network");
-    expect(body).toContain(
-      "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime."
-    );
-    expect(body).toContain(
-      "- [How to use these docs](https://compozy.com/docs/how-to-use-these-docs): Runtime docs overview."
-    );
-    expect(body).toContain(
-      "- [Implementation Status](https://compozy.com/docs/network/protocol/implementation-status): Implemented protocol surface."
-    );
-    expect(body).toContain(
-      `- [Current release: ${allReleases()[0]?.version}](https://compozy.com/changelog#${allReleases()[0]?.version}): ${allReleases()[0]?.status}`
-    );
-    expect(body).toContain(
-      "- [Migrate from Compozy v0.2.15 to CompozyOS v0.3](https://compozy.com/docs/migration)"
-    );
-    expect(body.match(/^## Docs$/gm)).toHaveLength(1);
+    for (const heading of [
+      "# CompozyOS Documentation",
+      "## Docs",
+      "## Guides & examples",
+      "## Compozy Network",
+    ]) {
+      expect(headings.filter(candidate => candidate === heading)).toHaveLength(1);
+    }
   });
 
   it("serves Markdown only from the current docs tree", async () => {

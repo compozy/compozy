@@ -4,6 +4,7 @@ import { MarketplaceBridgeGrid } from "@/components/marketplace/marketplace-brid
 import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
 import { MarketplaceKindTabs } from "@/components/marketplace/marketplace-kind-tabs";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
+import { marketplaceBridgesDescription } from "@/lib/marketplace-copy";
 import { createPageMetadata } from "@/lib/site-config";
 
 /**
@@ -13,7 +14,7 @@ import { createPageMetadata } from "@/lib/site-config";
  */
 export const metadata: Metadata = createPageMetadata({
   title: "Bridges — Marketplace",
-  description: `Chat and tracker platforms your agents can live in: the ${bridgeProviders.length} in-tree Compozy bridge providers, their secret slots, and their setup guides.`,
+  description: marketplaceBridgesDescription(bridgeProviders.length),
   path: "/marketplace/bridges",
 });
 

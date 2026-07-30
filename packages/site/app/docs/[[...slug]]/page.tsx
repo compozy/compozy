@@ -50,6 +50,10 @@ function buildBreadcrumbs(slug: string[], pageTitle: string): BreadcrumbItem[] {
   return items;
 }
 
+function resolvedDocSlug(pageUrl: string): string[] {
+  return pageUrl.split("/").filter(Boolean).slice(1);
+}
+
 export default async function Page(props: PageProps) {
   const params = await props.params;
   const slug = params.slug ?? [];
@@ -57,10 +61,11 @@ export default async function Page(props: PageProps) {
   if (!page) notFound();
 
   const MDX = page.data.body;
+  const resolvedSlug = resolvedDocSlug(page.url);
   const actions = buildActionUrls(page.url, slug, page.path);
-  const breadcrumbs = buildBreadcrumbs(slug, page.data.title);
+  const breadcrumbs = buildBreadcrumbs(resolvedSlug, page.data.title);
   const masthead = resolveDocMastheadMeta(slug, docsSource.pageTree, page.url, page.data.title);
-  const ogImagePath = `/og/docs/${slug.length ? `${slug.join("/")}/` : ""}image.png`;
+  const ogImagePath = `/og/docs/${resolvedSlug.length ? `${resolvedSlug.join("/")}/` : ""}image.png`;
   const openapiPreload = slug[0] === "api" ? await openapi.preloadOpenAPIPage(page) : undefined;
 
   return (
