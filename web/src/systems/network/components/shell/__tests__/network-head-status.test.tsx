@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { networkStatusFixture } from "@/systems/network/mocks/fixtures";
 import type { OpenWorkEntry } from "../../../hooks/use-work";
-import { networkStatusFixture } from "../../../mocks/fixtures";
 import type { NetworkStatus } from "../../../types";
 import { NetworkHeadStatus } from "../network-head-status";
 

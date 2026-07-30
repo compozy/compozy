@@ -203,6 +203,19 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			want: "--loop is required when Loop target flags are set",
 		},
 		{
+			name: "Should require a Loop name for Network participation flags",
+			args: []string{"--network", "live"},
+			want: "--loop is required when Loop target flags are set",
+		},
+		{
+			name: "Should reject Network participation flags on an Agent target",
+			args: []string{
+				"--agent", "coder", "--prompt", "review", "--network", "live",
+				"--network-channel-strategy", "named", "--network-channel", "automation",
+			},
+			want: "Loop target flags cannot be used with --agent",
+		},
+		{
 			name: "Should require a Loop workspace for global automation",
 			args: []string{"--loop", "release"},
 			want: "--loop-workspace is required for a global Loop target",
@@ -233,9 +246,7 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			}
 			args = append(args, tt.args...)
 			_, _, err := executeRootCommand(t, deps, args...)
-			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("automation jobs create error = %v, want %q", err, tt.want)
-			}
+			assertErrorContains(t, err, tt.want)
 			if createCalls != 0 {
 				t.Fatalf("CreateAutomationJob calls = %d, want 0", createCalls)
 			}

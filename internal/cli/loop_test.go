@@ -361,9 +361,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			{"loop", "configure", "--workspace", "alpha", "--name", "release", "--file", configPath},
 		} {
 			_, _, err := executeRootCommand(t, deps, args...)
-			if err == nil || !strings.Contains(err.Error(), "unknown_field") {
-				t.Fatalf("executeRootCommand(%v) error = %v, want unknown field rejection", args, err)
-			}
+			assertErrorContains(t, err, "unknown_field")
 		}
 		if putCalls != 0 {
 			t.Fatalf("PutLoopConfig calls = %d, want 0", putCalls)

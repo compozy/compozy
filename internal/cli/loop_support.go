@@ -129,6 +129,7 @@ func readLoopConfigFile(path string) (looppkg.LoopConfig, error) {
 		return looppkg.LoopConfig{}, fmt.Errorf("cli: read loop config file: %w", err)
 	}
 	var cfg looppkg.LoopConfig
+	// Web/Docs Impact: YAML is CLI-local; Web uses typed HTTP JSON and site docs cover the unchanged public fields.
 	decoder := yaml.NewDecoder(bytes.NewReader(body))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {

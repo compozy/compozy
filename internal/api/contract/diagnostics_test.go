@@ -2,6 +2,7 @@ package contract_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -41,9 +42,12 @@ func TestDiagnosticItemContract(t *testing.T) {
 			decoded.Code != item.Code ||
 			decoded.Severity != item.Severity ||
 			decoded.Category != item.Category ||
+			decoded.Title != item.Title ||
+			decoded.Message != item.Message ||
 			decoded.SuggestedCommand != item.SuggestedCommand ||
 			decoded.DocURL != item.DocURL ||
-			decoded.DataFreshness != item.DataFreshness {
+			decoded.DataFreshness != item.DataFreshness ||
+			!reflect.DeepEqual(decoded.Evidence, item.Evidence) {
 			t.Fatalf("DiagnosticItem round trip = %#v, want %#v", decoded, item)
 		}
 	})
